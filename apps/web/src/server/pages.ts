@@ -45,14 +45,29 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   // nothing and the re-read below returns the winner's rows. Do not replace
   // this with per-row createPage() calls; that reintroduces the race.
   // Each seed gets its own millisecond, so `ORDER BY created_at` reproduces
-  // `instantiateDefaults`' order — Trip Overview, then Day Sheet, which is the
-  // order SPEC §7 lists the prebuilt pages in. One shared `now` for all of them
-  // left every seeded row tied on the sort key, and a tie falls back to
-  // whatever order Postgres happens to return: the ordering would have looked
-  // fixed in a two-row trip and shuffled in a busier one.
+  // `instantiateDefaults`' order — Trip Overview, then Day Sheet, the order
+  // SPEC §7 lists the prebuilt pages in. One shared `now` for all of them left
+  // every seeded row tied on the sort key, and a tie falls back to whatever
+  // order Postgres happens to return.
+  //
+  // **Backwards from `startedAt`, not forwards, and that direction is the whole
+  // point.** Stamping them `startedAt + i` put the seeds in the FUTURE relative
+  // to the moment of seeding, so a notebook the same visitor created moments
+  // later could land on a seed's millisecond, tie, and be ordered by the `id`
+  // tiebreaker — which is a random UUID, so it landed in the middle of the list
+  // on a coin flip. CI caught exactly that: `expected [ 'Trip Overview',
+  // 'Packing', … ] to deeply equal [ 'Trip Overview', 'Day Sheet', … ]`, on a
+  // runner fast enough to seed and create inside one millisecond.
+  //
+  // Backdating puts every seed strictly BEFORE the instant it was written, so
+  // anything created afterwards sorts after all of them even when the clock has
+  // not ticked. The wall clock is not a reliable ordering key at this
+  // granularity; the only thing that saves it here is that these rows are the
+  // ones whose timestamps we choose.
+  const defaults = instantiateDefaults(tripId);
   const startedAt = Date.now();
-  const seeds = instantiateDefaults(tripId).map((seed, i) =>
-    newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt + i).toISOString()),
+  const seeds = defaults.map((seed, i) =>
+    newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),
   );
   await db.insert(pages).values(seeds).onConflictDoNothing();
   const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));

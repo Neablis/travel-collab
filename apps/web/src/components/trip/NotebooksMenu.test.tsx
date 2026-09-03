@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { pageFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
@@ -81,6 +82,44 @@ describe("NotebooksMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
 
     expect(await screen.findByText("Packing")).toBeTruthy();
+  });
+
+  it("ignores a superseded response, so a slow first open cannot overwrite a newer list", async () => {
+    const stale = pageFixture({ id: "11111111-1111-4111-8111-111111111111", tripId: TRIP_ID, title: "Stale" });
+    const fresh = pageFixture({ id: "22222222-2222-4222-8222-222222222222", tripId: TRIP_ID, title: "Fresh" });
+
+    // Two opens: the first response is held until after the second has landed,
+    // so it resolves LAST. Responses are not guaranteed to arrive in the order
+    // they were sent, and without a guard the older one wins by arriving late.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let call = 0;
+    server.use(
+      http.get("/api/trips/:tripId/pages", async () => {
+        call += 1;
+        if (call === 1) {
+          await held;
+          return HttpResponse.json({ pages: [stale] });
+        }
+        return HttpResponse.json({ pages: [fresh] });
+      }),
+    );
+
+    render(<NotebooksMenu tripId={TRIP_ID} />);
+    const trigger = screen.getByRole("button", { name: "Notebooks" });
+    fireEvent.click(trigger); // open — request 1, held
+    fireEvent.click(trigger); // close
+    fireEvent.click(trigger); // reopen — request 2, answers immediately
+
+    expect(await screen.findByText("Fresh")).toBeTruthy();
+
+    release();
+    // Give the superseded response a chance to land and do damage.
+    await waitFor(() => expect(call).toBe(2));
+    expect(screen.queryByText("Stale")).toBeNull();
+    expect(screen.getByText("Fresh")).toBeTruthy();
   });
 
   it("creates a notebook and goes straight to it", async () => {

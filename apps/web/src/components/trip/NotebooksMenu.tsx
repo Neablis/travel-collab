@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, NotebookText } from "lucide-react";
@@ -33,6 +33,17 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
   const [status, setStatus] = useState<Status>("idle");
   const [creating, setCreating] = useState(false);
 
+  // Which open this is. Close-and-reopen starts a second `fetchPages` while the
+  // first may still be in flight, and responses are not guaranteed to arrive in
+  // the order they were sent — so without this the older response can land last
+  // and overwrite the newer list with stale notebooks, silently. Only the
+  // latest request is allowed to write state; superseded ones are dropped.
+  // (CodeRabbit, PR #126. A generation counter rather than an AbortController
+  // because the point is to ignore the answer, not to save the request — and
+  // because an AbortController that nothing ever aborts is its own bug, which
+  // this repo has already shipped once in `ComposePanel`.)
+  const openSeq = useRef(0);
+
   // Fetched on open rather than on mount, and re-fetched on every open rather
   // than cached: this menu sits on the board, where a person can spend an hour
   // without ever opening it, and where a notebook created in another tab (or on
@@ -41,8 +52,10 @@ export function NotebooksMenu({ tripId }: { tripId: string }) {
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next) return;
+    const seq = ++openSeq.current;
     setStatus("loading");
     void fetchPages(tripId).then((result) => {
+      if (seq !== openSeq.current) return;
       if (result.ok) {
         setNotebooks(result.value);
         setStatus("ready");

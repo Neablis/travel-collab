@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
@@ -56,27 +56,42 @@ describe("pages repository", () => {
   // so Postgres returned rows in physical order — which an UPDATE changes,
   // because it writes a new row version.
   //
-  // The update below is the half that catches the reshuffle. Creation order
-  // alone can pass unordered, since fresh inserts often land in insertion
-  // order anyway; editing the FIRST row is what moves it.
+  // **The clock is frozen, and that is what makes this test worth having.**
+  // The first version ran on the real clock and passed locally while failing in
+  // CI, because the bug only appears when seeding and creating land in the SAME
+  // millisecond — which a fast runner does and a slow container does not. With
+  // Date frozen, the collision happens every run. Only `Date` is faked, not
+  // timers: this suite does real I/O against Postgres, and faking `setTimeout`
+  // would hang the driver.
   it("returns notebooks in a stable order that an edit does not disturb", async () => {
     const { tripId } = await seedTrip();
-    const seeded = await listPages(tripId);
-    // The prebuilt pair comes back in `instantiateDefaults` order, which is
-    // the order SPEC §7 names them in — not whichever the database felt like.
-    expect(seeded.map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet"]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-03T02:00:00.000Z"));
+      const seeded = await listPages(tripId);
+      // The prebuilt pair comes back in `instantiateDefaults` order, which is
+      // the order SPEC §7 names them in — not whichever the database felt like.
+      expect(seeded.map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet"]);
 
-    const mine = await createPage(
-      tripId,
-      { title: "Packing", context: { tripId }, content: { type: "doc", content: [] } },
-      "user-1",
-    );
-    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+      // Created on the very millisecond the seeding ran. This is the case that
+      // broke CI: seeds stamped forward from `startedAt` tied with it, and the
+      // random-UUID tiebreaker put "Packing" in the middle of the list.
+      const mine = await createPage(
+        tripId,
+        { title: "Packing", context: { tripId }, content: { type: "doc", content: [] } },
+        "user-1",
+      );
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
 
-    // Edit the first row, then the last. Neither may move.
-    await updatePage(seeded[0]!.id, { title: "Trip Overview" });
-    await updatePage(mine.id, { title: "Packing" });
-    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+      // Edit the first row, then the last. Neither may move — this is the half
+      // that catches the physical-order reshuffle, since an UPDATE writes a new
+      // row version.
+      await updatePage(seeded[0]!.id, { title: "Trip Overview" });
+      await updatePage(mine.id, { title: "Packing" });
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("creates, reads, updates, deletes a page", async () => {
