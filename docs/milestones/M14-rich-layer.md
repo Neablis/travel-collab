@@ -45,7 +45,65 @@ That last point is why this milestone is late in the order and opens with an
 ADR. Everything else here is building a designed document on a substrate that
 already works; repeaters change the substrate.
 
-## Scope
+## Scope — RESCOPED 2026-09-03 by SPEC §18
+
+**§18 ("Notebook widgets — a page has no scope", 2026-09-02) replaced §7's model**, and it
+reached `main` in `f365f0b` *after* the navigation half had already merged. The six links
+below were written against §7. What follows supersedes them; the originals are kept beneath
+so the change is legible rather than silent.
+
+Mitchell's framing, 2026-09-03:
+
+> we no longer care about the type of notebook, they arent a Trip notebook, or day, they
+> are just a notebook, and text or widgets. Each widget has input params, and those input
+> params can be configured in edit mode. […] **widgets are functions and inputs**.
+
+### The links now
+
+1. **ADR-035 accepted** — *A notebook page is text and widgets; a widget is a function of
+   declared inputs*. Rewritten 2026-09-03 against §18; the earlier repeaters-only draft is
+   superseded. Still a prerequisite, not a deliverable.
+2. **A page loses its scope.** `PageContext.dayRef` removed, and with it the "This page is
+   about" dropdown, the follows-a-day Banner, `handleBindDay`/`focusDayBinding`, **and the
+   Trip-wide / Day 6 badge PR #126 shipped on the index**. A contract change, so invariant
+   5's protocol. *This un-ships part of #126 and that is expected — it was built against §7
+   a day after §18 replaced it.*
+3. **The registry declares inputs.** Each entry gains `inputs: WidgetInput[]` over §18's
+   five types (`day`, `days`, `person`, `tags`, `trip`). The type picks the control, so a
+   new widget taking a day needs no new UI. `params` stays the validator.
+4. **Binding lives on the widget instance** — in `MacroNode.attrs.params`, which the
+   contract already has — and is **configured in Editing mode** via the chrome row (name
+   pill + bind selects). Insert and rebind share one control set.
+5. **The insert Sheet, two steps**: search + *how it reads* over a flat list, then
+   **Point it at** for widgets with inputs. Widgets with no inputs insert immediately.
+   *(Scope × shape is gone — §18 struck the account/trip/day scope rows.)*
+6. **Repeaters**, built to ADR-035: a `repeat` node whose content is the author's row
+   template; iteration items are render-time and never stored.
+7. **Prebuilt templates instantiate widgets** with default bindings. §18 dissolves §7's
+   `templates.ts` blocker — the question is no longer "does macro authoring come back" but
+   "what does a seeded template instantiate".
+8. **The assistant's page tools become insert-shaped** — `insert_text` and
+   `insert_widget(name, params)`, derived from the registry rather than hand-maintained
+   beside it, replacing `compose_page`'s whole-document round trip. `AskScope` already
+   carries `{ kind: "page"; pageId }` and `/ask` already verifies the page (ADR-033), so
+   this is a tool-list change, not new plumbing.
+9. **Notebook history — ADR-036 accepted, then built.** Notebook content joins the event
+   log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
+   A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
+   800ms cadence for durability while history commits **one event per settled edit
+   session**. The `pages` table becomes a projection rather than the authority — that is
+   the real work in this link.
+
+### What this does to the gate
+
+The old gate's **"choosing a day value on a trip-wide page binds the page and reveals the
+dropdown"** box is **void** — there is no page binding to reveal. Replaced by: *a widget's
+inputs are bound at insert and rebindable from the chrome row, and two widgets on one page
+can read two different days.*
+
+---
+
+## Scope (as written against §7, superseded above — kept for the record)
 
 Six links. Link 1 is an ADR and gates links 4 and 5.
 
