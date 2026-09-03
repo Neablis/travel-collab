@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronDown, NotebookText } from "lucide-react";
+import type { PageSummary } from "@tc/contracts";
+import { createPage, fetchPages } from "@/lib/pagesClient";
+import { scopeLabel } from "@/lib/pageScope";
+import { Button } from "@/components/ui/button";
+import { Popover } from "@/components/ui/popover";
+import { Text } from "@/components/ui/text";
+
+type Status = "idle" | "loading" | "ready" | "error";
+
+/**
+ * The Notebooks menu — SPEC §11's "Notebooks is a menu, not a tab".
+ *
+ * A bordered pill (icon + "Notebooks" + ▾) at the far right of the view row,
+ * *deliberately* a different class of thing from the lens tabs beside it: the
+ * tabs project the same trip through a different view, and this navigates to
+ * another route. It replaces the plain text `<Link>` that sat in `TripHeader`'s
+ * nav row, where it read as a peer of "← Your trips".
+ *
+ * **One noun, "notebook", in all three sections** (§11) — the route below still
+ * calls its rows pages internally, and the contract type is `PageSummary`, but
+ * nothing a person reads says "page".
+ */
+export function NotebooksMenu({ tripId }: { tripId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [notebooks, setNotebooks] = useState<PageSummary[]>([]);
+  const [status, setStatus] = useState<Status>("idle");
+  const [creating, setCreating] = useState(false);
+
+  // Fetched on open rather than on mount, and re-fetched on every open rather
+  // than cached: this menu sits on the board, where a person can spend an hour
+  // without ever opening it, and where a notebook created in another tab (or on
+  // the index route in this one) would otherwise show a list that is quietly
+  // wrong. The list is small and the request is cheap; a stale menu is not.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) return;
+    setStatus("loading");
+    void fetchPages(tripId).then((result) => {
+      if (result.ok) {
+        setNotebooks(result.value);
+        setStatus("ready");
+      } else {
+        setStatus("error");
+      }
+    });
+  };
+
+  // "New notebook" creates and navigates in one go, matching what the index
+  // route's own create does — a create that leaves you looking at a list is a
+  // second click to reach the thing you just made.
+  const handleCreate = () => {
+    setCreating(true);
+    void createPage(tripId, {
+      title: "Untitled notebook",
+      context: { tripId },
+      content: { type: "doc", content: [] },
+    }).then((result) => {
+      setCreating(false);
+      if (!result.ok) {
+        setStatus("error");
+        return;
+      }
+      setOpen(false);
+      router.push(`/trips/${tripId}/pages/${result.value.id}`);
+    });
+  };
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      align="end"
+      trigger={
+        <Button variant="secondary" size="sm" aria-label="Notebooks" aria-haspopup="menu">
+          <NotebookText aria-hidden="true" className="size-4" />
+          Notebooks
+          <ChevronDown aria-hidden="true" className="size-4" />
+        </Button>
+      }
+    >
+      {/*
+        §11 pins this popover's height rules, and they are load-bearing rather
+        than cosmetic: the create row and the footer stay put while only the
+        list scrolls, so the two actions never scroll out of reach behind a
+        long list of notebooks.
+
+        The `max-height` is an inline style because the value is
+        `--radix-popover-content-available-height`, which Radix measures per
+        open against the actual viewport — a static token cannot hold it. The
+        Tailwind arbitrary-value form (`max-h-[…]`) is explicitly warned off in
+        §11 for a reason that applies to this page: it loads the precompiled
+        `_ds_bundle.css` with no JIT, so an uncompiled utility lands in the DOM
+        and silently does nothing.
+      */}
+      <div
+        className="flex flex-col gap-2"
+        // eslint-disable-next-line no-restricted-syntax -- a Radix-measured viewport value has no static token, and §11 warns off the Tailwind arbitrary-value form on this page
+        style={{ maxHeight: "calc(var(--radix-popover-content-available-height, 420px) - 24px)" }}
+      >
+        <Button variant="secondary" onClick={handleCreate} disabled={creating} className="w-full justify-start">
+          New notebook
+        </Button>
+
+        {/* `min-h-0` is what makes the max-height above actually bite: a flex
+            child's default `min-height: auto` refuses to shrink below its
+            content, so without this the list grows the popover instead of
+            scrolling inside it. */}
+        <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+          {status === "loading" && (
+            <li>
+              <Text variant="secondary">Loading…</Text>
+            </li>
+          )}
+          {status === "error" && (
+            <li>
+              <Text variant="secondary" role="alert">
+                Could not load your notebooks.
+              </Text>
+            </li>
+          )}
+          {status === "ready" && notebooks.length === 0 && (
+            <li>
+              <Text variant="secondary">No notebooks yet.</Text>
+            </li>
+          )}
+          {status === "ready" &&
+            notebooks.map((notebook) => (
+              <li key={notebook.id}>
+                <Link
+                  href={`/trips/${tripId}/pages/${notebook.id}`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-baseline justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-moss"
+                >
+                  <Text as="span" className="truncate text-ink">
+                    {notebook.title}
+                  </Text>
+                  {/* The binding, per §11 ("the trip's notebooks with their
+                      day/trip-wide binding") — the one thing that distinguishes
+                      two notebooks with similar names. */}
+                  <Text as="span" variant="secondary" className="shrink-0">
+                    {scopeLabel(notebook.context)}
+                  </Text>
+                </Link>
+              </li>
+            ))}
+        </ul>
+
+        <Link
+          href={`/trips/${tripId}/pages`}
+          onClick={() => setOpen(false)}
+          className="border-t border-hairline pt-2 text-sm text-slate hover:text-ink"
+        >
+          Browse all notebooks →
+        </Link>
+      </div>
+    </Popover>
+  );
+}

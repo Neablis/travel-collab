@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
 import { instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
@@ -8,11 +9,6 @@ import { pages } from "./db/schema";
 function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
 }
-
-// Actor recorded on lazily seeded default pages. The `pages_system_seed_unique`
-// partial index (migration 0005) is scoped to exactly this value, so changing
-// it means changing that index too.
-const SYSTEM_ACTOR_ID = "system";
 
 function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };

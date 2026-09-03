@@ -293,13 +293,22 @@ Where the work actually stands right now: `docs/STATUS.md`.
       change and no macro decision**: the **Notebooks menu** (§11's pill at the
       far right of the view row — the build has a plain text link at
       `TripHeader.tsx:137`, and **no link in this milestone owns the menu**),
-      and the **Notebook index page** — standfirst, per-page scope badge
-      (`scopeLabel` already computes it and nothing renders it), provenance and
+      and the **Notebook index page** — standfirst, per-page scope badge,
+      provenance and
       edited time, and the **"Start from a template"** trio over the existing
       `templates.ts` seeds. The build has `+ New page` over a flat list, and
       says *page* where §11 says *notebook* in all three places. **Separable
       from the blocked half, so pulling it forward is a decision available to
       be taken** — it is presentation over data that already exists.)*
+      *(**BUILT 2026-09-03**, pulled forward on Mitchell's instruction, out of
+      order and with M17's gate still open. Both surfaces landed; the repeaters
+      ADR is **written and PROPOSED** (ADR-035), so links 4 and 5 stay gated
+      until it is accepted. **Two claims in the paragraph above were wrong about
+      the code and are corrected in `M14-rich-layer.md`**: the scope string was
+      called `describeBinding`, not `scopeLabel`, and it **was** rendered — as
+      secondary text rather than a badge; and this half **did** need a contract
+      change, `PageSummary.actorId`, without which the provenance line cannot
+      tell a seeded notebook from an authored one.)*
 - [x] **M15 Front door** → `docs/milestones/M15-front-door.md`
       *(Gate closed 2026-08-26, PR #56. **Ran ahead of M10's Phase 9 gate and
       M16**, superseding ADR-021/ADR-022's stated ordering — decision 1 in the

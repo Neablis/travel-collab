@@ -13,6 +13,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
+import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
@@ -836,6 +837,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 <TripViewTabs />
               </div>
               <TagFocusLine />
+              {/* SPEC §11: the Notebooks pill sits at the FAR RIGHT of this
+                  row, deliberately a different class of thing from the tabs —
+                  they project this trip through another view, it leaves for
+                  another route. `ml-auto` rather than `justify-between` on the
+                  row, because the focus line appears and disappears between
+                  the tabs and this pill and would otherwise drag it leftwards
+                  whenever a tag is in focus.
+
+                  Gated on `isDemoTripId` for the same reason `TripHeader`'s nav
+                  row is (ADR-031): the demo board's visitor has no session, so
+                  every notebook route behind it is a trip to /signin. A control
+                  that only leads to a sign-in wall still says "there is
+                  something here for you", and there is not. */}
+              {!isDemo && (
+                <div className="ml-auto shrink-0">
+                  <NotebooksMenu tripId={tripId} />
+                </div>
+              )}
             </div>
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own

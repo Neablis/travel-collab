@@ -4,6 +4,15 @@
 (`M17 → M9 → M12 → M13 → M14 → M19`). It had no file and no exit gate until now
 — a table row and nothing else.
 
+**The navigation-and-index half was pulled forward and built 2026-09-03**, on
+Mitchell's instruction, out of the order above and with M17's gate still open.
+That is the decision this file said was "available to be taken"; it has now been
+taken. What landed, and what it cost, is in *The navigation and index half*
+below. **The blocked half has not moved** — but its prerequisite now exists as a
+written proposal: `ADR-035-repeaters-are-document-content-not-macro-params.md`,
+**PROPOSED, awaiting Mitchell's acceptance**. Links 4 and 5 stay gated until it
+is accepted.
+
 **It opens with an ADR — repeaters** — and that ADR is a prerequisite, not a
 deliverable to write mid-build. Routed here by the 2026-08-23 design sync, which
 also gave this milestone the **whole Notebook redesign** (`SPEC.md` §7).
@@ -99,15 +108,79 @@ It needs no ADR, no contract change, no macro decision and no new field:
   cards with inline rename and delete. The design has, and the build has none
   of: the standfirst (*"Pages that read like a document and stay true to the
   plan. Move a day or a stop and every page here follows it"*), a per-page
-  **scope badge** (`Trip-wide` / `Day 6` — `scopeLabel` already computes the
-  string at `NotebookScreen.tsx:19` and nothing renders it), a one-line
+  **scope badge** (`Trip-wide` / `Day 6`), a one-line
   description, a **provenance and freshness line** (*"Comes with your trip ·
   edited 2 days ago"* versus *"Yours · edited 4 hours ago"*), and a
   **"Start from a template"** gallery of three — *Trip overview*, *One day*,
-  *Blank page*. The first two are link 6's existing `templates.ts` seeds; the
+  *Blank page*.
+
+  > **Two claims in the paragraph above were wrong about the code, corrected
+  > 2026-09-03 while building it.** They are left visible rather than quietly
+  > edited, because both were repeated verbatim into `TODO.md` and read as fact
+  > by the session that acted on them.
+  >
+  > 1. *"`scopeLabel` already computes the string and nothing renders it"* — the
+  >    function was called `describeBinding` (`NotebookScreen.tsx:18`) and it
+  >    **was** rendered, at `:167`, as the first half of a
+  >    `"Trip-wide · Updated <locale string>"` line. The design ask survives
+  >    intact: it wants a scannable badge and the build had secondary text. But
+  >    "nothing renders it" described a hole that was not there.
+  > 2. *"needs no ADR, no contract change and no macro decision"* — **it needed
+  >    a contract change.** The provenance line distinguishes a seeded notebook
+  >    from an authored one, and the only fact that separates them is the row's
+  >    `actorId`, which `PageSummary` did not carry. That is `packages/contracts`,
+  >    so it took invariant 5's protocol: a changelog entry and every consumer
+  >    updated. Additive and small — but the claim was that there was none. The first two are link 6's existing `templates.ts` seeds; the
   third is `handleCreate` as it already behaves. The button's noun also
   disagrees with §11's rule: the design says *notebook* in all three places and
   the build says *page*.
+
+### What the navigation and index half actually shipped (2026-09-03)
+
+Both surfaces, plus one contract change and one recorded limit.
+
+- **The Notebooks menu** — `apps/web/src/components/trip/NotebooksMenu.tsx`, a
+  bordered pill in the view row (`TripBoardScreen`), at the far right via
+  `ml-auto` rather than `justify-between`, because the tag focus line appears
+  and disappears between the tabs and the pill and would otherwise drag it
+  leftwards. It opens *New notebook*, the trip's notebooks with their binding,
+  and *Browse all notebooks →*, with §11's inline `max-height` and pinned
+  create/footer rows. The plain `<Link>` at `TripHeader.tsx:137` is **deleted**;
+  it is gated on `isDemoTripId` exactly as that nav row was (ADR-031).
+- **The index** — standfirst verbatim from §7, the scope as a `Badge`,
+  provenance and relative freshness, and the "Start from a template" trio over
+  `templates.ts`'s existing seeds plus a blank. The list gained a titled
+  region (`Your notebooks`), which was not cosmetic: a template card and a
+  notebook seeded *from* that template share a name by design, so the page had
+  two peer lists and no way — for a screen reader or a test — to say which was
+  which.
+- **`formatRelativeInstant`** (`lib/formatDate.ts`), for the freshness line.
+  It **clamps the future to "just now"** rather than taking an absolute
+  elapsed time: a symmetric `Math.abs` renders a clock-skewed row as
+  "2 hours ago", inventing a past as false as the future it avoided. The first
+  version of this had a dead guard and would have rendered "edited in 2 hours";
+  the mutation run is what found it.
+- **Two nouns were decided rather than inherited.** §11's "one noun in all three
+  places" wins over §7's literal strings wherever they disagree, so the gallery's
+  third card is *Blank notebook* and it creates an *Untitled notebook*, where §7
+  writes "Blank page" and this file's link 6 quotes the build's "Untitled page".
+  The two template cards take their names from the **seeds** (`Trip Overview`,
+  `Day Sheet`) rather than §7's *Trip overview* / *One day*, so that what you
+  click and what you get agree, and so a trip seeded before today does not list
+  a notebook under a gallery card with a different name. **Renaming the seeds is
+  link 6's file to touch**, and is still open.
+- **One known issue filed with the code, not after it:**
+  `KI-20260903-notebook-provenance-says-yours-for-a-collaborator.md`. The
+  seeded half of the provenance line is exact; the authored half says "Yours"
+  for anyone, because naming an author needs a `users` join `pages` has never
+  had — the same gap `displayName.ts` records for saved days.
+
+**Still owed by this half:** no browser walk yet (CLAUDE.md rule 1 — the verdict
+lane is `pnpm --filter web test:e2e:ci-like`, not `test:e2e`), and §7's
+"one-line description" per notebook is **not built** — the index shows title,
+scope, provenance and freshness, and there is no description field on a page to
+show. That is a field, so it is a contract change of its own and was left rather
+than invented.
 
 **What this means for placement.** The blocked half is genuinely late-order
 work — it opens with an ADR and changes the substrate. The unblocked half is
@@ -135,6 +208,17 @@ milestone opens:**
 - [ ] **The repeaters ADR is written and accepted before any repeater code
       lands**, and it names what a row template is, how it is stored, and what
       an empty collection renders.
+      *(**Written 2026-09-03, not yet accepted** —
+      `docs/architecture/ADR-035-repeaters-are-document-content-not-macro-params.md`,
+      status PROPOSED. It answers all three: a row template is the `repeat`
+      node's own inline content in the page document (not a string and not a
+      `params` value, both of which reintroduce the macro syntax §7 forbids);
+      the item scope is a render-time argument and never enters `PageContext`,
+      so nothing stores an item identity that a moved day could stale; and an
+      empty collection renders `emptyText` in Reading but keeps the rail and
+      the row template in Editing, because the empty case is exactly when an
+      author is writing. **This box ticks on Mitchell's acceptance, not on the
+      file existing.**)*
 - [ ] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
 - [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if

@@ -22,6 +22,36 @@ general setup.
 
 ## Where the work is right now
 
+**M14's navigation-and-index half is on `claude/notebook-milestone-nlq5kv`,
+2026-09-03 — pulled forward out of order, on Mitchell's instruction, with M17's
+gate still open.** M17 is still the current milestone and none of its three
+boxes moved; this is a deliberate excursion, not a handover.
+
+What landed: the **Notebooks menu** (SPEC §11's pill in the view row, replacing
+the plain link at `TripHeader.tsx:137`) and the **rebuilt Notebook index**
+(standfirst, scope badge, provenance + relative freshness, "Start from a
+template" over the existing seeds). Plus **ADR-035 on repeaters — PROPOSED, and
+the thing to read next**: M14 link 1 requires it *accepted* before any repeater
+code lands, so the builder half (the insert picker, repeaters, Reading/Editing)
+is still gated and is gated on Mitchell, not on engineering.
+
+**Three things a session picking this up must not miss:**
+
+1. **It needed a contract change, which the plan said it would not.**
+   `PageSummary` now carries `actorId` and `SYSTEM_ACTOR_ID` moved into
+   `packages/contracts` — the provenance line cannot tell a seeded notebook from
+   an authored one otherwise. Entry in `docs/contracts/CHANGELOG.md`.
+2. **No browser walk yet.** CLAUDE.md rule 1: the verdict lane is
+   `pnpm --filter web test:e2e:ci-like`, never `test:e2e`. The e2e specs that
+   clicked a link named "Notebook" were rewritten to open the pill instead
+   (`m7-solo-delight`, `m11-demo`), and rewritten specs are exactly the ones a
+   green unit suite does not vouch for.
+3. **Two planning-doc claims about the code were wrong and are corrected in
+   place** — the scope string was `describeBinding` and was already rendered,
+   and this half was not contract-free. Both had been copied verbatim into
+   `TODO.md`. See `M14-rich-layer.md`.
+
+
 **M17 and the AI-door consolidation are landing, 2026-09-02.** Three PRs merged
 overnight; two are open, green and reviewed.
 

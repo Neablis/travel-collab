@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTripDate, formatTripDateLong, ordinalDayOfMonth } from "./formatDate";
+import { formatRelativeInstant, formatTripDate, formatTripDateLong, ordinalDayOfMonth } from "./formatDate";
 
 describe("formatTripDate", () => {
   it("renders a short human date without a year", () => {
@@ -36,5 +36,47 @@ describe("ordinalDayOfMonth", () => {
   it("covers the rest of a month's range", () => {
     expect(ordinalDayOfMonth(30)).toBe("30th");
     expect(ordinalDayOfMonth(31)).toBe("31st");
+  });
+});
+
+describe("formatRelativeInstant", () => {
+  // Fixed, so these assert a string rather than racing the clock.
+  const NOW = new Date("2026-09-03T12:00:00.000Z");
+  const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+
+  it("picks the largest unit the elapsed time reaches", () => {
+    expect(formatRelativeInstant(ago(4 * HOUR), NOW)).toBe("4 hours ago");
+    expect(formatRelativeInstant(ago(2 * DAY), NOW)).toBe("2 days ago");
+    expect(formatRelativeInstant(ago(90 * DAY), NOW)).toBe("3 months ago");
+    // 45 minutes is not "0 hours ago" — the unit has to be the largest one
+    // the elapsed time actually REACHES, not the largest one it rounds to.
+    expect(formatRelativeInstant(ago(45 * MINUTE), NOW)).toBe("45 minutes ago");
+  });
+
+  it("says yesterday rather than 1 day ago", () => {
+    // `numeric: "auto"`. The freshness line is prose, and this is the word a
+    // person uses.
+    expect(formatRelativeInstant(ago(DAY), NOW)).toBe("yesterday");
+  });
+
+  it("collapses anything under a minute to just now", () => {
+    expect(formatRelativeInstant(ago(30 * 1000), NOW)).toBe("just now");
+  });
+
+  it("never renders a future instant, however far ahead the row's clock is", () => {
+    // Ordinary skew: a server timestamp a couple of seconds ahead of the
+    // browser's. "edited in 2 seconds" is a bug report, not a freshness line.
+    expect(formatRelativeInstant(new Date(NOW.getTime() + 2000).toISOString(), NOW)).toBe("just now");
+    // A genuinely wrong clock. This is the half a symmetric `Math.abs` gets
+    // wrong in the other direction — it would render this as "2 hours ago",
+    // inventing a past as false as the future it avoided.
+    expect(formatRelativeInstant(new Date(NOW.getTime() + 2 * HOUR).toISOString(), NOW)).toBe("just now");
+  });
+
+  it("returns null for something that is not an instant, rather than Invalid Date", () => {
+    expect(formatRelativeInstant("not-a-date", NOW)).toBeNull();
   });
 });

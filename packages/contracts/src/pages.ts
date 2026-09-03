@@ -51,7 +51,21 @@ export const Page = z.object({
 });
 export type Page = z.infer<typeof Page>;
 
-export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, updatedAt: true });
+// The actor recorded on lazily seeded default pages. It lives here rather than
+// in the server module that writes it because the UI now READS it — the
+// provenance line below is "is this row's actorId this sentinel?" — and a
+// sentinel compared on both sides of the server/UI wall is a contract, not a
+// server detail (AGENTS.md invariant 5). Migration 0005's
+// `pages_system_seed_unique` partial index is scoped to exactly this value, so
+// changing the string means changing that index too.
+export const SYSTEM_ACTOR_ID = "system";
+
+// `actorId` rides along because the Notebook index draws a provenance line
+// ("Comes with your trip" vs "Yours", SPEC §7) and the only thing that
+// distinguishes the two is whether the row was written by the lazy template
+// seeder or by a person. `content` stays off: it is the one field that makes a
+// list response unbounded, and nothing in a list renders it.
+export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, updatedAt: true, actorId: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
 export const CreatePageInput = z.object({
