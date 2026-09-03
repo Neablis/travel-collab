@@ -54,5 +54,27 @@
   reporting **green while doing nothing**; this one is a check reporting **red
   while doing nothing**. Neither status is evidence about the code, and both
   are cases of `AGENTS.md`'s "do not watch what cannot run".
+- **Confirmed a second time on a different PR, 2026-09-03** — pull request 125
+  (run `33704320548`, 31s). Identical in every respect that matters: same step
+  (`session.create`), same message (*Model "claude-opus-4.6" is not
+  available."*), same exit code 1, and the diff again never analysed. The only
+  difference is prompt size — 26,078 tokens against 115's 27,515 — which tracks
+  the diff and confirms the scanner reads the branch **before** it dies, then
+  discards the work.
+
+  **This is what upgrades "deterministic" from an inference to an
+  observation.** The first sighting could only argue determinism from the
+  failure's position within one run; two PRs, a day apart, on different
+  branches and different content, failing at the same step with the same string
+  settles it. `CLAUDE.md` rule 3's test — *a failure whose location moves
+  between runs is a timeout; a real defect fails in the same place every time*
+  — returns the same answer it did the first time, and so does the caveat: the
+  place it fails is a vendor's model catalogue, not this repository.
+
+  **Fix path (c) is now the one worth taking.** A check that has never passed,
+  cannot pass, and is re-confirmed broken on each new PR is training every
+  reviewer in the repo to read a red X as noise — which is the failure mode
+  that makes a *real* red X get waved through later. That cost accrues per PR
+  and it is the only cost this issue has.
 - **First noted:** 2026-09-02, triaging the only failing check on pull
   request 115.

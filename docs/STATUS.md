@@ -64,6 +64,59 @@ reviewer who has not read the entry. **Only the agentic check is broken**:
 CodeQL and both `Analyze` jobs pass on the same head, so CodeQL is a safe
 required check and that one is not.
 
+**A design handoff landed on `main` in `169b7c1` (2026-09-02) and has been
+reconciled into the plan.** `.design-sync/handoff/SPEC.md` §16 (the shared-day
+map, Playbooks as a fifth phone tab) and **§17 (four billing surfaces)**, with
+`DRIFT.md` §2c-§2d. Nothing in it is buildable against `main` and nothing holds
+the current milestone. Two things a session touching M20 or M21 must not miss,
+both now recorded in those milestone files:
+
+- **M20 lost scope, by Mitchell's decision of 2026-09-02.** The design took
+  publishing and migrating plan versions out of the UI; the decision took the
+  `plan_versions` **table** with them. Plan versions are now a **static file
+  committed to the repo** and the admin console is **read-only over plans** —
+  it shows what is currently live. Three consequences a session opening M20
+  must carry: **a price change costs a deploy** (the property versioned data
+  existed to avoid, accepted on the record); **migrating an account onto a
+  newer version is not built at all**, and that exit-gate box is amended out;
+  and **granting is untouched and stays**, because it is account state, not
+  plan definition, and it is what proves M20 without Stripe. Threaded through
+  M20's *The shape*, links 1 and 7, three gate boxes, its ADR prerequisite,
+  and M21's link 2.
+- **The operator console the design draws is half M21's.** Its MRR / ARPU /
+  margin strip and the per-tier revenue columns need a subscription to exist.
+  Built inside M20 from the finished screen, they break the split the two
+  milestones were carved apart to keep.
+
+**One designed surface is deliberately unowned and parked.** The pricing
+section and its `#pricing` anchor on the landing page (`SPEC.md` §17.1) — M20
+forbids a price string in its diff and none of M21's links is unauthenticated,
+so Mitchell ruled it out of both on 2026-09-02 and **parked it in `TODO.md`'s
+Candidate ideas, to be revisited when M21 opens.** The full requirement stays
+in M21 under *An unowned surface*; the Candidate ideas entry points there. It
+is small wherever it lands — a section on M15's existing landing route, not a
+new one — and it may only name a price at or after M21.
+
+**The handoff contains no *new* Notebook design** — the whole commit touches
+one Notebook line, a code comment about the phone router, and `SPEC.md` §7 is
+unchanged since the 2026-08-23 sync. **But the Notebook design in the bundle is
+much further ahead of the build than the plan said**, and reviewing it on
+2026-09-02 turned up a live correction:
+
+**§7 has two halves and only one of them is blocked.** `DRIFT.md` §4's
+*"nobody should design or build to §7 until that is settled"* is about **macro
+authoring in prose**; it has been read as covering the whole feature. The
+**navigation and index half needs no ADR, no contract change and no macro
+decision** — the **Notebooks menu** (§11's pill at the far right of the view
+row; the build has a plain text link at `TripHeader.tsx:137`, and **no M14 link
+owns the menu at all**) and the **Notebook index page** — standfirst, per-page
+scope badge (`scopeLabel` computes the string at `NotebookScreen.tsx:19` and
+nothing renders it), provenance and edited time, and a **"Start from a
+template"** trio over the `templates.ts` seeds that already exist. The build
+has `+ New page` over a flat list. Recorded in `M14-rich-layer.md`;
+**separable from the blocked half, so pulling it forward is a decision
+available to be taken.**
+
 *(Superseded, kept as the record: "Signup and onboarding feedback is on
 `claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
 That merged as `63c7fdb`, and #106 merged after it, but this section was never

@@ -189,6 +189,15 @@ resolve against.
 
 - Anything trip-scoped. If a preference could differ between two trips of the
   same person, it does not belong in this milestone.
+- **Plan and usage in the account sheet** — designed 2026-09-02
+  (`.design-sync/handoff/SPEC.md` §17.4), owned by **M21 link 5**, blocked on
+  all of M20 and M21. Noted here only because of where it lands: the design
+  puts a **Plan section at the top of this same sheet**, above the preferences
+  this milestone is building, carrying two usage meters, past-due copy, a
+  referral row and an inline three-plan chooser. Nothing here should be built
+  to it — but the sheet's layout should not assume preferences are the first
+  thing in it, because the cheapest moment to leave room is now and the
+  dearest is after the meters exist.
 - **Home time on hover (SPEC §12 C7)** — amended out of the exit gate
   2026-09-01, see box 3 above. It carries forward as its own item and still
   needs a slot in `docs/milestones/README.md`'s order; placing it is Mitchell's

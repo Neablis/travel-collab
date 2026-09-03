@@ -73,6 +73,50 @@ Six links. Link 1 is an ADR and gates links 4 and 5.
    own pages. "Blank page" creates an **Untitled page** that does not appear in
    the list until it exists — matching `NotebookScreen`'s `handleCreate`.
 
+**§7's Notebook has two halves, and only one of them is blocked
+(noted 2026-09-02).** The milestone reads as one indivisible thing because the
+repeaters ADR gates links 4 and 5, and `DRIFT.md` §4 says of §7 *"nobody should
+design or build to §7 until that is settled"*. That sentence is about **macro
+authoring in prose** — the M8 subtraction versus what §7 asks for — and it has
+been read as covering the whole feature. It does not cover the half below.
+
+**The navigation and index half is designed, unbuilt, and blocked by nothing.**
+It needs no ADR, no contract change, no macro decision and no new field:
+
+- **The Notebooks menu** (`SPEC.md` §11, the 2026-08-25 rules pass): a bordered
+  pill — notebook icon, "Notebooks", ▾ — at the **far right of the view row**,
+  deliberately a different class of thing from the lens tabs, opening *New
+  notebook*, then the trip's notebooks with their day / trip-wide binding, then
+  *Browse all notebooks →*. One noun in all three places. §11 also pins the
+  popover height rules and warns off arbitrary Tailwind values.
+  **The build has a plain text `<Link>` labelled "Notebook"** in
+  `TripHeader.tsx:137`, going straight to `/trips/[tripId]/pages`. **No link in
+  this milestone owns the menu**, and `DRIFT.md` §5 lists the rules pass as
+  closed without recording that this part of it was never built — unlike the
+  D5/R6 line beside it, which does say what the build still owes.
+- **The Notebook index page.** `NotebookScreen.tsx` renders a bare
+  `Heading level={2}` "Notebook", a **`+ New page`** button and a flat list of
+  cards with inline rename and delete. The design has, and the build has none
+  of: the standfirst (*"Pages that read like a document and stay true to the
+  plan. Move a day or a stop and every page here follows it"*), a per-page
+  **scope badge** (`Trip-wide` / `Day 6` — `scopeLabel` already computes the
+  string at `NotebookScreen.tsx:19` and nothing renders it), a one-line
+  description, a **provenance and freshness line** (*"Comes with your trip ·
+  edited 2 days ago"* versus *"Yours · edited 4 hours ago"*), and a
+  **"Start from a template"** gallery of three — *Trip overview*, *One day*,
+  *Blank page*. The first two are link 6's existing `templates.ts` seeds; the
+  third is `handleCreate` as it already behaves. The button's noun also
+  disagrees with §11's rule: the design says *notebook* in all three places and
+  the build says *page*.
+
+**What this means for placement.** The blocked half is genuinely late-order
+work — it opens with an ADR and changes the substrate. The unblocked half is
+presentation over data that already exists, and it is the half a person
+actually sees. Splitting them is not proposed here, because the order is
+Mitchell's; what is recorded is that **the two are separable**, so that pulling
+the navigation and index forward is a decision that can be taken rather than
+one the milestone's shape hides.
+
 **Two items routed here by earlier decisions, and both need a call before this
 milestone opens:**
 

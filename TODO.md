@@ -286,6 +286,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       macro with an author-supplied row template is the one genuinely new
       engineering decision that sync created, and every macro today is
       `NoParams`.)*
+      *(**§7 has two halves and only one is blocked — noted 2026-09-02.**
+      `DRIFT.md` §4's *"nobody should build to §7 until that is settled"* is
+      about **macro authoring in prose**, and has been read as covering the
+      whole feature. The **navigation and index half needs no ADR, no contract
+      change and no macro decision**: the **Notebooks menu** (§11's pill at the
+      far right of the view row — the build has a plain text link at
+      `TripHeader.tsx:137`, and **no link in this milestone owns the menu**),
+      and the **Notebook index page** — standfirst, per-page scope badge
+      (`scopeLabel` already computes it and nothing renders it), provenance and
+      edited time, and the **"Start from a template"** trio over the existing
+      `templates.ts` seeds. The build has `+ New page` over a flat list, and
+      says *page* where §11 says *notebook* in all three places. **Separable
+      from the blocked half, so pulling it forward is a decision available to
+      be taken** — it is presentation over data that already exists.)*
 - [x] **M15 Front door** → `docs/milestones/M15-front-door.md`
       *(Gate closed 2026-08-26, PR #56. **Ran ahead of M10's Phase 9 gate and
       M16**, superseding ADR-021/ADR-022's stated ordering — decision 1 in the
@@ -336,10 +350,10 @@ Where the work actually stands right now: `docs/STATUS.md`.
       models, never dollars (prices move, and `Money`'s integer minor units
       round a $0.0011 request to zero cents), moved out of M21 because both
       milestones' pricing decisions are guesses without it. **Plan contents are versioned data, not
-      code** (2026-09-01) — `plan_versions` is immutable and append-only, a
+      code** (2026-09-01) — plan versions are immutable and append-only, a
       purchase pins a version, and changing a price publishes a new one rather
-      than rewriting what anyone was sold; prices become tweakable without a
-      deploy. **A plan is a set, not
+      than rewriting what anyone was sold. ~~Prices become tweakable without a
+      deploy~~ — **amended 2026-09-02, see the design note below.** **A plan is a set, not
       a rank** — Mitchell's requirement is that tiers are "not necessarily
       subsets", so copying `accessPolicy.ts:11`'s `RANK` is the obvious move
       and the wrong one. Trials, referral rewards and admin boosts collapse
@@ -360,6 +374,22 @@ Where the work actually stands right now: `docs/STATUS.md`.
       request cost ~$0.001 and a fully-maxed account lands at ~$3-25/month,
       so the ceilings are an abuse bound rather than a margin problem. Needs a migration, and an **ADR is a prerequisite** — it adds an
       Entitlements module to `AGENTS.md`'s structural-law map.)*
+      *(**Design landed 2026-09-02** — `.design-sync/handoff/SPEC.md` §17,
+      `DRIFT.md` §2c. Two of its four surfaces are this milestone's: the
+      operator console (§17.2) and the collaboration gate in Trip settings
+      (§17.3). **It cost the milestone scope, by Mitchell's decision the same
+      day**: plan versions become a **static file committed to the repo**, not
+      a `plan_versions` table, and the admin UI is **read-only over plans** —
+      it shows what is currently live. Publishing leaves the UI and **a price
+      change now costs a deploy**, which is the property the 2026-09-01
+      requirement was written to avoid, accepted on the record. **Migrating
+      accounts onto a newer version is not built at all** and its exit-gate box
+      is amended out; entitlement-typo validation moves from publish time to
+      **compile time**, which is earlier and harder to bypass. **Granting is
+      untouched and stays** — it is account state, not plan definition, and it
+      is what proves this milestone without Stripe. Also recorded in the file:
+      the console the design draws is **half M21's** — its MRR/ARPU/margin
+      strip must not be built inside M20.)*
 
 - [ ] **M21 An account can pay for itself** →
       `docs/milestones/M21-subscriptions-and-billing.md`
@@ -376,6 +406,24 @@ Where the work actually stands right now: `docs/STATUS.md`.
       (`handleAskRequest.ts:306` charges `aiQuotas()` but never
       `aiStepQuotas()` or `settleAiSteps`), without which AI cannot be
       priced.)*
+      *(**Design landed 2026-09-02** — `SPEC.md` §17.1 and §17.4 are this
+      milestone's: pricing on the landing page, and plan + usage as a **Plan
+      section at the top of the account sheet** (not a route). §17.4 widens
+      link 5 with two usage meters, past-due copy that names the loss before
+      it happens, and a referral row reading M20 link 8's data. **One
+      designed surface is owned by no link in either milestone**: the pricing
+      section and its `#pricing` anchor — M20 forbids a price string in its
+      diff, and none of the seven links here is unauthenticated. **Mitchell
+      ruled 2026-09-02 that it is not M21's either — "own it somewhere else" —
+      and where is still open, so it currently has no owner.** Two constraints
+      on its home: it may name a price, so it sits at or after M21 or ships
+      priceless; and the landing page itself shipped in M15, so it is a section
+      on a real route rather than a new surface.)*
+      *(**Also amended 2026-09-02, following M20**: link 2's price fields land
+      on a committed file entry rather than a `plan_versions` row, and **link
+      2's migrate action no longer exists** — nothing in either milestone moves
+      an existing subscriber onto a newer version. What you bought is what you
+      get, now with no mechanism to change it.)*
 
 - [ ] **M19 A cost knows who and what it is for** →
       `docs/milestones/M19-cost-model.md`
@@ -398,6 +446,41 @@ Where the work actually stands right now: `docs/STATUS.md`.
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
+
+- **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
+  section plus a `#pricing` nav anchor on M15's existing landing route — three
+  plan cards, each enumerating its own contents in full. **Parked here by
+  Mitchell, 2026-09-02**, having been ruled out of both commercial milestones:
+  M20 forbids a price string in its own diff, and all seven of M21's links are
+  authenticated. **The full requirement lives in
+  `docs/milestones/M21-subscriptions-and-billing.md` under *An unowned
+  surface*** and is not copied here, per this file's own rule. Two constraints
+  on wherever it eventually lands: it may only **name a price at or after
+  M21**, or it ships priceless; and it is a **section on a route that already
+  exists**, so it is small wherever it goes. Revisit when M21 opens.
+
+- **The shared day gets a map, and Playbooks becomes a fifth phone tab
+  (designed 2026-09-01, `.design-sync/handoff/SPEC.md` §16, `DRIFT.md` §2d).**
+  Both arrived in the 2026-09-02 handoff and **neither has an owner: M11b's
+  gate closed 2026-08-31**, so the shared day is a shipped surface and this is
+  an addition to it. Two pieces, and they are not the same size:
+  - **The map on the shared day** is the smaller one and is buildable — it
+    needs no field the library does not already have. Its three constraints are
+    each a bug the design file hit: the map node **stays mounted** (a
+    conditional container detaches it mid-style-load and the load aborts
+    silently — DRIFT §6 build-check 5, and this is its second recurrence);
+    pins draw immediately while lines wait for the style; and style-load
+    recovery is **per instance**, rebuilding at 3.5s and 7.5s with a list-only
+    fallback at 11s. Accents reaching a map paint property must leave `oklch`
+    first (build-check 2) — MapLibre parses CSS Color 3 only and falls back to
+    black in silence.
+  - **The fifth phone tab is the larger one, and it lands on a gap that
+    predates this handoff: no milestone in this file owns the phone at all.**
+    `SPEC.md` §13's mobile foundations, §16's tab bar (Plan / Map / Notebook /
+    Playbooks / Trips, superseding §13's four) and DRIFT §8's *"the phone has
+    no conflict state"* — which project rule 6 requires — are all designed and
+    all unowned. **Placing the phone is a milestone-sized decision**, not
+    something to bolt onto whichever milestone touches a screen next.
 
 - **Drop Travelers from the trip header bar (2026-08-30, Mitchell, on PR #89's
   preview — "Drop Travelers from this bar, its not needed, it can live just in
