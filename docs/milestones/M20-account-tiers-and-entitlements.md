@@ -22,6 +22,37 @@ on `users`. Merging does not apply it; dispatch with
 `gh workflow run migrate-production.yml -f confirm=migrate` from `main`, and say
 so in the PR body. Highest migration in `main` today is `0014`.
 
+**A design handoff now covers three of the four billing surfaces**
+(2026-09-02): `.design-sync/handoff/SPEC.md` §17 is the design,
+`DRIFT.md` §2c is what it needs. Two of them are this milestone's — the
+operator console (§17.2, and see link 7's split note: the revenue strip on it
+is M21's) and the collaboration gate in Trip settings (§17.3). Read both before
+estimating this milestone. **Every number on those screens is fixture data and
+the two prices are placeholders.**
+
+**The handoff cost this milestone scope, by Mitchell's decision of 2026-09-02.**
+The design removed publishing and migrating plan versions from the UI; the
+decision went further and removed the `plan_versions` **table**, making plan
+versions a static file committed to the repo, with the admin UI showing what is
+currently live rather than editing it. It is threaded through *The shape*
+(amendment box), link 1, link 7 and three exit-gate boxes — one of which is
+amended out. **A price change now costs a deploy**, which is the property the
+2026-09-01 requirement was written to avoid, and that trade is accepted on the
+record rather than overlooked.
+
+Two rules the design states that this milestone's own text does not, both
+cheap to keep and expensive to lose:
+
+- **The ladder is presentation only.** The pricing page and the in-app chooser
+  nest in copy ("Everything in Plus") because that is what a buyer
+  understands. Nothing in the design asserts that the *data* nests, no screen
+  compares plans, and no screen reads a display order as authority. This is
+  *a plan is a set, not a rank* meeting the surface most likely to lose it
+  quietly — which the gate box below already anticipates.
+- **The account's meters show the pinned version's per-user ceilings, and the
+  environment's global ceiling is deliberately never shown**, because it was
+  never sold to anyone. That is the display half of the two-ceiling gate box.
+
 ## Why this exists
 
 **The seam was built for this and has been waiting since M16.**
@@ -88,28 +119,51 @@ honoured, *"so we should know what features what tier unlocked when bought,
 but we should be able to change that pricing and next time someone buys that
 tier it reflects in the config."* Two consequences:
 
-- **`plan_versions` rows are immutable and append-only.** Changing a price, a
-  quota or an entitlement **publishes a new version**; it never updates a row.
+- **Plan versions are immutable and append-only.** Changing a price, a quota or
+  an entitlement **publishes a new version**; it never edits an existing one.
   So "what did `premium` grant on 2026-10-01" stays answerable forever, and a
   price change cannot retroactively rewrite what anyone was sold.
 - **What you bought is exactly what you get, until someone explicitly moves
   you.** No implicit union with the newest version, no "highest wins" rule.
-  Widening a plan for existing subscribers is a deliberate **migrate these
-  subscriptions to version N** action in the admin surface — auditable, and
-  the same single operation whether the change is a giveaway or a price cut.
-  One rule, no magic, and the alternative (a floor-not-cap union) makes
-  "what does this account have" unanswerable without replaying every version.
+  The alternative — a floor-not-cap union — makes "what does this account have"
+  unanswerable without replaying every version.
+
+> **AMENDED 2026-09-02 by Mitchell's explicit decision, on the design handoff's
+> §17.2: plan versions are a static file committed to the repo, not a
+> `plan_versions` table, and the admin UI shows what is currently live rather
+> than editing it.** *"Lets keep entitlements being a static file thats
+> commited to change with versioning, but the admin ui just shows whats
+> currently live."* Everything above survives the move — immutability,
+> append-only, pinning, no union — but three things change and are threaded
+> through the links and the gate below:
+>
+> 1. **The audit trail is git**, not an insert. An append-only file under
+>    review is a stronger immutability guarantee than a table with a
+>    convention, because mutating a published entry shows up in a diff.
+> 2. **A price change now costs a deploy**, and that is accepted rather than
+>    overlooked. It is the one property of the 2026-09-01 requirement this
+>    amendment gives up — versions became *data* specifically so publishing
+>    would not need one. What it keeps in exchange is the whole publish path,
+>    its authorisation and its validation surface, none of which now exist.
+> 3. **Migrating existing accounts to a newer version leaves M20.** It was the
+>    named mechanism for the *"until someone explicitly moves you"* half above,
+>    and with no publish UI there is nothing to move accounts from. The rule it
+>    served is unchanged — nothing implicitly re-reads the newest version — so
+>    what M20 ships is the half that never moves anyone. If widening a plan for
+>    existing subscribers is ever wanted, it returns as its own decision.
 
 The **entitlement vocabulary stays in code** — `packages/contracts` — because
 a capability no code checks is meaningless and a check for a capability that
-does not exist must fail to compile. What moves to data is which entitlements
-and which numbers a plan bundles. The split is: **contracts own the words,
-rows own the offers.**
+does not exist must fail to compile. What the plan file adds is which
+entitlements and which numbers a plan bundles. The split is: **contracts own
+the words, the plan file owns the offers.** Both are now code, so both are
+typed: an entitlement string outside the enum cannot reach a published version,
+because it does not compile.
 
-This strengthens *a plan is a set, not a rank* rather than weakening it: a row
-lists its entitlements explicitly, and there is no way to write
-`premium = plus + …` in a row without a deliberate join that review would
-catch.
+This strengthens *a plan is a set, not a rank* rather than weakening it: an
+entry lists its entitlements explicitly, and there is no way to write
+`premium = plus + …` in it without a spread that review would catch — and in a
+file, review is guaranteed to see it.
 
 **Entitlements resolve per request, from the database.** Not from the JWT and
 not in the proxy. Sessions are JWT-only (ADR-025) and carry an id and nothing
@@ -131,8 +185,8 @@ set from.
    premium`. Both in `packages/contracts`, both with a
    `docs/contracts/CHANGELOG.md` entry. **These are the only two things about
    plans that live in code**: the vocabulary and the stable identity. What a
-   plan *contains* is a `plan_versions` row (rule 4), and the table below is
-   therefore the seeded **v1** of each plan, not a constant.
+   plan *contains* is a plan-version entry (rule 4), and the table below is
+   therefore the **v1** of each plan as first committed, not a constant.
 
    | | `free` | `plus` | `premium` |
    |---|---|---|---|
@@ -163,20 +217,33 @@ set from.
    `can()` or by any authorisation path. Ordering is metadata about how to
    render a plan, not a fact about what it grants.
 
-   **`plan_versions`** — immutable, append-only, one row per published
-   version: `plan_id`, `version`, the granted `entitlements`, the per-user
-   quota ceilings, a display order, `published_at`, and `published_by`.
-   Prices are M21's column on this same table (with the Stripe price id), so
-   M20 publishes versions that are free by construction and M21 gives them a
-   number. **Every entitlement string is validated against the contracts enum
-   on write** — an unrecognised value must be rejected at publish time, or a
-   typo silently grants nothing and the account looks downgraded for reasons
-   nobody can see.
+   ~~**`plan_versions`** — immutable, append-only, one row per published
+   version~~ **AMENDED 2026-09-02 (see *The shape*): plan versions are a
+   **static file committed to the repo**, not a table.** One entry per
+   published version, carrying the same fields it would have carried as a row:
+   `plan_id`, `version`, the granted `entitlements`, the per-user quota
+   ceilings, a display order, and `published_at`. `published_by` is git
+   authorship and is no longer a field. Prices are M21's addition to the same
+   entry (with the Stripe price id), so M20 publishes versions that are free by
+   construction and M21 gives them a number.
 
-   The migration seeds `v1` of all three. **No update path to a published row
-   exists anywhere in the code**, which is the enforcement — the schema has no
-   foreign keys and will get no triggers, so this is a code invariant with a
-   test behind it, not a database one.
+   **Every entitlement string is validated against the contracts enum**, and
+   the move makes that stronger rather than weaker: with the file typed against
+   `Entitlement`, a typo **fails to compile** instead of being rejected at
+   publish time, so it can never reach a deploy. The consequence it prevents is
+   unchanged — a typo silently grants nothing and the account looks downgraded
+   for reasons nobody can see.
+
+   The file ships `v1` of all three; ~~the migration seeds them~~ there is
+   nothing to seed. **No update path to a published entry exists anywhere in
+   the code**, and the enforcement is now two-layer: a code invariant with a
+   test behind it, plus review — editing a published entry is a diff on a
+   committed file, which is the one place an immutability convention is
+   actually visible.
+
+   **The migration carries no plan data at all.** It is `entitlement_grants`
+   plus the two `users` columns, exactly as the header says — there is no table
+   to create and no `v1` to seed, because the plan file ships with the deploy.
 2. **The grant table and the two `users` columns.** `entitlement_grants` —
    grant id, user id, the entitlements granted, `source` of
    `trial | referral | admin | founder`, `granted_by`, `created_at`,
@@ -283,20 +350,94 @@ set from.
    per `schema.ts:115-119`), not the reader's, and it applies only to *granted*
    memberships — so the owner is untouched by construction and solo planning
    stays free without a special case.
+
+   **The design gives this gate its UI form** (`SPEC.md` §17.3, 2026-09-02):
+   it lives in **Trip settings**, and for a `free` or `plus` owner the *Invite
+   someone* button is **not rendered at all** — a named-tier block takes its
+   place, naming Premium and saying what is behind it. On lapse a banner states
+   the read-boundary cap in the same words this link uses: everyone except the
+   owner is capped at reading, nothing is removed, no role is rewritten, and
+   paying again restores all of them with no re-invites.
+
+   **One consequence for the gate box below.** *"A free owner cannot create a
+   trip invite; the refusal names the tier, not a permission"* was written
+   against a surface that refuses. If the button is never rendered there is no
+   in-app refusal to read, and the box is satisfiable by the server alone —
+   which is the reading that makes it pass without anyone seeing the copy the
+   design wrote. The box wants splitting in two (the endpoint refuses with the
+   tier named; the client renders the named-tier block in place of the button),
+   and that is Mitchell's edit to make, not this note's.
 7. **The admin surface.** A route group behind `users.is_admin`: the list of
    accounts with plan, effective entitlements and grant history; grant a plan's
-   entitlements to an account with an expiry; revoke a grant. **It also owns
+   entitlements to an account with an expiry; revoke a grant. ~~**It also owns
    the two plan-version operations** — *publish a new version* of a plan
    (entitlements and ceilings now; M21 adds the price) and *migrate named
    accounts to a version*, which is the only way an existing account's terms
    ever change. Publishing is what makes prices tweakable **without a deploy**,
-   which is the whole of Mitchell's early-days requirement; the version
+   which is the whole of Mitchell's early-days requirement~~; the version
    history is shown beside each plan, because a pricing change you cannot see
    the history of is one you cannot reason about. This is net-new
    including its own authorisation, and it is **how this milestone is proven
-   without Stripe.** It is an operator tool, not a product surface: no design
-   handoff covers it, and it should look like the repo's plainest primitives
+   without Stripe.** It is an operator tool, not a product surface: ~~no design
+   handoff covers it~~ and it should look like the repo's plainest primitives
    rather than acquire a visual language of its own.
+
+   **A design now covers it** (2026-09-02 handoff, `SPEC.md` §17.2, route
+   `admin`) and it agrees on the character of the surface without being asked
+   to: plainest primitives, no accent language, the assistant bubble gated off
+   the route, and **not on the phone at all, entry point included**. It adds
+   two states this link did not name — `webhooks-behind` (revenue numbers
+   stamped stale; grants still apply, because they do not go through Stripe)
+   and `version-conflict` — and no empty state, because the surface cannot be
+   empty.
+
+   **AMENDED 2026-09-02, Mitchell's explicit decision: the two plan-version
+   operations are out of M20's scope entirely, and this link no longer owns
+   them.** *"Out of scope for M20, lets keep entitlements being a static file
+   thats commited to change with versioning, but the admin ui just shows whats
+   currently live."* This supersedes the struck sentences above, agrees with
+   the design (`SPEC.md` §17.2, `DRIFT.md` §2c) and goes one step further than
+   it: the design removed the operations from the UI, and this removes the
+   `plan_versions` table with them. See the amendment box in *The shape*.
+
+   **What the console owns after the amendment:**
+
+   - **Read, over plans:** the tier panel shows what is **currently live** —
+     each plan, its live version, its entitlements and ceilings, its version
+     history and hold counts, and per-tier stats (accounts per tier; the MRR
+     and median-margin columns are M21's, see the split note below). It has no
+     write path to any of it.
+   - **Read, over accounts:** the accounts list with plan, effective
+     entitlements and grant history, plus the reporting in link 9.
+   - **Write — granting, and only granting.** Grant a plan's entitlements to an
+     account at a version with an expiry and a reason; revoke a grant. **This
+     is not touched by the amendment and must not be**: the grant path is the
+     entire reason this milestone is provable without Stripe, and M21 keeps it
+     permanently for comps, trial extensions and billing disputes. "The admin
+     UI just shows what's currently live" is about **plans**, which nobody
+     edits from a browser any more; grants are account state, not plan
+     definition, and there is nowhere else for them to live.
+
+   **Two things fall away with the operations, and neither is a loss to
+   replace.** The console's `version-conflict` state (*"someone published while
+   you were here"*) has no referent once no one publishes from a browser — a
+   git conflict is where that collision now happens, and it is better handled
+   there. And publish-time validation becomes **compile-time**: an entitlement
+   string outside the contracts enum cannot reach a committed plan file,
+   because the file is typed against the enum.
+
+   **`webhooks-behind` stays** — it is M21's, and it is about revenue going
+   stale, not about versions.
+
+   **The console the design draws is not all M20's**, and the screen does not
+   say which half is which. Its four-number strip (MRR and its movement, ARPU
+   twice and labelled, median margin per paying account over a trailing 30 days)
+   is **M21 link 7** — *Deliberately not here* already says revenue, ARPU and
+   margin all need a subscription to exist. Same for the MRR and median-margin
+   columns of the per-tier panel, and for `webhooks-behind`. M20 builds the
+   console **without** the strip; M21 adds it. An implementer working from the
+   finished screen will build the strip inside M20 and break the split in the
+   direction `DRIFT.md` §2c only warns about in reverse.
 8. **Self-serve invite codes, and the referral reward.** The reward keys on
    platform admission — *someone I invited got an account* — which
    `invite_codes.redeemed_by` already records (`schema.ts:367`). The data is
@@ -359,12 +500,20 @@ refusal to name the tier rather than read as a permission error.
      stored dollar figure freezes one price into history, cannot be
      re-derived, and silently corrupts the series the day the model changes.
      Tokens plus a dated price table re-prices history correctly and survives
-     a model swap. **This table is the mirror image of `plan_versions`**, and
-     deliberately the same shape: two dated, append-only price records — one
-     for what the operator **pays** (model rates) and one for what the
-     operator **charges** (plan versions) — so margin is a join across both
-     *as at a point in time* rather than a number computed once and frozen.
-     Neither history is ever rewritten when a price moves.
+     a model swap. **The rate table is the mirror image of the plan-version
+     file**, and deliberately the same shape: two dated, append-only price
+     records — one for what the operator **pays** (model rates) and one for
+     what the operator **charges** (plan versions) — so margin is a join across
+     both *as at a point in time* rather than a number computed once and
+     frozen. Neither history is ever rewritten when a price moves.
+     *(**2026-09-02**: the charge half is now a committed file rather than a
+     table, so the two halves no longer live in the same place. The join is
+     unaffected — both are dated, append-only and readable at a point in
+     time — but the model rate table should be a committed file too, for the
+     same reasons and to keep the pair symmetrical. Rates are operator facts
+     that change a handful of times a year, nobody edits them from a browser,
+     and a rate change that silently re-prices history is exactly the diff
+     review should see.)*
    - **`Money` must not be used for this.** ADR-008 defines
      `Money = { amountMinor, currency }` in **integer minor units** — whole
      cents for USD. A live request costs **$0.0011**, which is a ninth of a
@@ -392,8 +541,8 @@ refusal to name the tier rather than read as a permission error.
    unbounded while the command endpoint's are capped. Recording cost without
    bounding it is half a job, so the fix lands here rather than being filed.
 
-   **What the admin surface (link 7) then shows**, all from one table plus
-   `users.plan` and `entitlement_grants`: accounts per plan; accounts per
+   **What the admin surface (link 7) then shows**, all from this one table plus
+   the plan-version file, `users.plan` and `entitlement_grants`: accounts per plan; accounts per
    active grant source; cost per account over a trailing window; the
    distribution of cost per request and per turn; and the top spenders.
    Revenue, ARPU and margin are M21's — they need a subscription to exist.
@@ -417,18 +566,33 @@ refusal to name the tier rather than read as a permission error.
       plan's display order. This is the requirement the design most easily
       loses, and losing it silently is what makes the ladder permanent.
 - [ ] **Changing a plan republishes rather than mutates.** Editing `premium`'s
-      entitlements or ceilings creates `v2`; `v1`'s row is byte-identical
+      entitlements or ceilings creates `v2`; `v1`'s entry is byte-identical
       afterwards, and a test fails if any code path can update a published
-      row.
+      entry. *(**Amended 2026-09-02**: "row" reads "entry" — versions are a
+      committed file, not a table. The box is otherwise unchanged, and the
+      file makes it easier to prove, not harder: a mutated `v1` is a diff.)*
 - [ ] **An account on `v1` is unaffected by `v2` being published** — same
       entitlements, same ceilings, same behaviour on the next request — and
       **a new account gets `v2`**. This is the whole of the requirement: tweak
       freely, honour what was sold.
-- [ ] **Migrating that account to `v2` is one explicit admin action**, is
-      recorded with who did it, and is the *only* way its terms changed.
+- [ ] ~~**Migrating that account to `v2` is one explicit admin action**, is
+      recorded with who did it, and is the *only* way its terms changed.~~
+      **Amended OUT of the gate 2026-09-02 by Mitchell's explicit decision**
+      (`docs/milestones/README.md`: a gate definition changes only that way).
+      The two plan-version operations left M20 with the `plan_versions` table —
+      see link 7 and *The shape*. **The rule the box protected is not dropped**:
+      nothing implicitly re-reads the newest version, and the box above (*"an
+      account on `v1` is unaffected by `v2`"*) is what now proves it. What is
+      gone is the mechanism for deliberately moving someone, which M20 no
+      longer ships. If widening a plan for existing subscribers is ever wanted,
+      it returns as its own decision with its own box.
 - [ ] Publishing a version whose entitlement list contains a string outside the
-      contracts enum is **refused at publish time**, not stored — a typo must
-      not silently grant nothing.
+      contracts enum **cannot compile**, so it never reaches a deploy — a typo
+      must not silently grant nothing. *(**Amended 2026-09-02**: was "refused
+      at publish time, not stored". With versions in a committed file typed
+      against the contracts enum, the check moves from runtime to the type
+      checker, which is strictly earlier and strictly harder to bypass. The
+      failure this box exists to prevent is unchanged.)*
 - [ ] **A per-user ceiling comes from the pinned plan version and a global
       ceiling comes from the environment.** Republishing a plan does not move
       a global ceiling; changing an env ceiling does not alter what any
@@ -436,7 +600,7 @@ refusal to name the tier rather than read as a permission error.
 - [ ] **A grant pins the version it was granted at**, so a founder grant issued
       against `v1` still confers `v1` after `v3` is published.
 - [ ] **A fourth plan that is not a subset of any other can be added by
-      editing one table**, granting `trip.collaborators` without `ai.command`.
+      editing one file**, granting `trip.collaborators` without `ai.command`.
       It ships disabled — the point is that adding it costs one definition and
       no change to any gate. This is the proof the split architecture is real
       rather than asserted.
@@ -503,6 +667,14 @@ refusal to name the tier rather than read as a permission error.
   and pretending otherwise makes the M21 comparison arbitrary.
 - **Team or organisation accounts.** A plan belongs to one account. Shared
   billing is a different subject and nobody has asked for it.
+- **Publishing a plan version from a browser, and migrating existing accounts
+  onto a newer one.** Both left this milestone on **2026-09-02** by Mitchell's
+  decision — versions are a committed file and the console is read-only over
+  plans. Publishing is now a commit and a deploy. Migrating is not built at
+  all: nothing here moves an account off the version it holds, which is the
+  *"until someone explicitly moves you"* rule with nobody able to move you.
+  Granting is unaffected and stays — it is account state, not plan definition,
+  and it is what proves this milestone without Stripe.
 - **Changing the invite gate.** M11a decides who gets an account; this
   milestone decides what an account may do. Two questions, two mechanisms,
   and link 8 adds to `invite_codes` without touching admission.
@@ -513,6 +685,16 @@ refusal to name the tier rather than read as a permission error.
 `AGENTS.md`'s module map is structural law and this adds a module to it:
 **Entitlements** — owns plans, grants and capability resolution; CRUD with
 audit fields; and, like Identity, **explicitly does not know what a trip is.**
+
+**The 2026-09-02 amendment is an input to that ADR, not a substitute for it.**
+Entitlements now reads its plan definitions from a committed file and its
+grants from a table, which is a module that owns two stores of different kinds
+— the thing a module map exists to be explicit about. The ADR should say which
+is authoritative for what (the file for *what a plan is*, the table for *who
+holds what*), that the resolver reads both on every request, and that a version
+string in a grant or a `users` row is a reference into the file that must
+resolve or fail loudly — a pinned version whose entry was deleted is the one
+failure mode the move introduces.
 It answers `can(account, capability)`; the *caller* knows that
 `trip.collaborators` is about invites. That is what keeps link 6 from becoming
 the boundary violation it would otherwise be, and it is the decision the ADR
