@@ -55,12 +55,76 @@ This becomes reachable the moment **link 6** adds `repeat` nodes: a page contain
 opened by any client whose schema predates it — a stale tab, a rolling deploy, a rolled-back
 release — is a page with its repeaters quietly removed on the next keystroke.
 
-**This risk is asserted from reading the code, not from an observed failure, and it must be
-tested before it is designed around.** The test is cheap and is the first thing this work
-owes: put a node the editor's schema does not know into a stored document, open the page, type
-one character, wait out the debounce, and read the row back. Whether ProseMirror throws or
-drops decides which of decisions 3 and 4 below does the real work — but the current code has a
-defence in neither case.
+~~**This risk is asserted from reading the code, not from an observed failure, and it must be
+tested before it is designed around.**~~
+
+### MEASURED, 2026-09-03. It is neither of the two options this ADR offered, and it is worse
+
+The test was written first, as this section demanded:
+`apps/web/src/components/pages/editor/PageEditor.test.tsx`, *"PageEditor given a node type the
+schema does not know (ADR-038)"*.
+
+**TipTap does not throw, and does not drop the unrecognised node. It discards the entire
+document.** `@tiptap/core@2.27.2`'s `createNodeFromContent` catches ProseMirror's
+`RangeError: Unknown node type`, warns, and substitutes an **empty** document:
+
+```js
+console.warn('[tiptap warn]: Invalid content.', 'Passed value:', content, 'Error:', error);
+return createNodeFromContent('', schema, options);
+```
+
+Fed `[ paragraph("written by the user"), repeat{…} ]` and given one keystroke, `onChange`
+emits `{ type: "doc", content: [ { paragraph, text: "x" } ] }`. **The user's own paragraph is
+gone.** `PageScreen` then autosaves that over the original 800 ms later.
+
+So the blast radius is **the whole page, not the unrecognised node** — and the page does not
+have to contain anything new for its author to lose it, only to be opened by a client that
+does not know one node in it.
+
+**Three things this changes in the decisions below:**
+
+1. **Decision 4 is the primary defence, not belt-and-braces.** Decision 3 preserves unknown
+   nodes on *our* parse, but TipTap has already thrown the content away before our serialiser
+   is ever reached. Preservation alone protects nothing.
+2. **The refusal has to be ours, upstream of mounting the editor.** There is no TipTap option
+   that turns this into an error we can act on: `enableContentCheck: true` was tried and did
+   not change the outcome, because `Editor.createView` catches the invalid-JSON error, emits a
+   `contentError` event, and then re-runs the same fallback with `errorOnInvalidContent:
+   false`. **`contentError` is a notification, not a veto.** That is what makes a
+   contracts-side parser load-bearing rather than tidy.
+3. **The trigger is much broader than `repeat`.** This does not wait for link 6 — see the
+   vocabulary gap below.
+
+### The v1 vocabulary is wider than decision 1's node list, and that gap is now the urgent one
+
+`PageEditor` loads full `StarterKit`, so `bulletList`, `orderedList`, `listItem`,
+`blockquote`, `codeBlock`, `horizontalRule` and `hardBreak` are all reachable **today** and
+absent from decision 1's union. Two consequences, and the second is a shipping blocker:
+
+- Under decision 3 they classify as `unknown` — safe, but a page with a bulleted list renders
+  as a wall of "Something newer is here" placeholders.
+- Under decision 4 that page **fails to round-trip and opens read-only.** Any notebook
+  containing a list would become uneditable.
+
+**Decision 1's list is therefore incomplete rather than minimal, and it must be widened to the
+real v1 vocabulary before the editor integration lands.** Nothing consumes `PageDoc` yet, so
+this costs nothing today and would cost real pages the moment it does.
+
+A narrower instance of the same mistake: this ADR specifies `heading` levels **1–3**, while
+`server/ai/pageTools.ts` accepts **1–6** today. An AI-composed level-4 heading is a hard parse
+error, not an unknown node. Pinned by a test rather than left latent, and it needs a decision
+— widen the AST, or narrow the compose tool.
+
+### One deviation the implementation made deliberately, and it is right
+
+The widget node's stored discriminator stays **`"macro"`**, not decision 1's `"widget"`. Every
+page ever written uses `"macro"` — it is what `MacroNodeExtension` emits and what `MacroNode`
+already describes — and since "existing rows have no `v` and are v1 by definition", a v1
+document is *by definition* one containing `"macro"` nodes. Declaring the discriminator
+`"widget"` would reclassify every existing widget on every existing page as unknown, which,
+given the measurement above, would make those pages read-only or lose them. **Renaming the
+stored string is a v2 migration — exactly the job the migration chain exists for** — and this
+is ADR-037 decision 8 ("a widget's `name` is a stored identifier") applying to node types too.
 
 ## Decision
 
@@ -68,15 +132,57 @@ defence in neither case.
 
 Not "ProseMirror JSON we hope is fine". A real union, exhaustively parsed:
 
+**Rewritten 2026-09-03 to match what was measured and built.** The first draft of this block
+listed five members and `level: 1|2|3`, both of which were wrong — see the amendment above.
+Keeping the sketch would have left a reader who scrolls straight to "Decision" with the
+answer that caused the problem.
+
 ```ts
 type PageNode =
-  | { type: "paragraph"; content: InlineNode[] }
-  | { type: "heading"; attrs: { level: 1|2|3 }; content: InlineNode[] }
-  | { type: "widget"; attrs: { name: string; params: Record<string, unknown> } }
-  | { type: "repeat"; attrs: { name: string; params: Record<string, unknown> };
-      content: InlineNode[] }        // its content IS the row template (ADR-035 decision 4)
-  | { type: "unknown"; raw: unknown } // decision 3
+  // text
+  | { type: "paragraph";  content: PageInlineNode[] }
+  | { type: "heading";    attrs: { level: 1|2|3|4|5|6 }; content: PageInlineNode[] }
+  // widgets — the discriminator is "macro", NOT "widget": it is what every stored
+  // page already uses, and v1 is defined as what is already stored. Renaming it is
+  // a v2 migration (see the deviation note above).
+  | { type: "macro";      attrs: { name: string; params: Record<string, unknown> } }
+  | { type: "repeat";     attrs: { name: string; params: Record<string, unknown> };
+                          content: PageInlineNode[] }   // content IS the row template
+  // the rest of StarterKit, which PageEditor loads today
+  | { type: "blockquote"; content: PageNode[] }                    // recursive
+  | { type: "bulletList";  content: PageListItemNode[] }
+  | { type: "orderedList"; attrs: { start: number; type: string | null };
+                           content: PageListItemNode[] }
+  | { type: "codeBlock";  attrs: { language: string | null }; content: PageCodeTextNode[] }
+  | { type: "horizontalRule" }                                     // no attrs key at all
+  | { type: "unknown";    raw: unknown };                          // decision 3
+
+type PageInlineNode =
+  | { type: "text"; text: string; marks?: PageMark[] }
+  | { type: "macro"; … }
+  | { type: "hardBreak" }            // INLINE, not block — measured
+  | { type: "unknown"; raw: unknown };
 ```
+
+Every attr here is **measured from `editor.getJSON()` and `editor.schema.nodes`** using
+`PageEditor`'s own extension set, not read off TipTap's docs. Three of them would have been
+wrong otherwise: `orderedList` carries **`type` as well as `start`** (the `<ol type>` marker,
+`null` when unset); `horizontalRule` and `hardBreak` have **no `attrs` key at all**, so
+requiring one would have failed every real document; and `codeBlock`'s content is text with
+`marks: ""` — ProseMirror for "no marks here" — so a bold run inside a code block is not
+something the editor can even write.
+
+`listItem` deliberately has **no group** in ProseMirror, so it is valid inside a list and
+nowhere else. The AST says the same: a `listItem` at block position is a parse error.
+
+`orderedList.attrs` and `codeBlock.attrs` carry `.default()` rather than being required.
+TipTap always writes them, the defaults are TipTap's own, and defaulting removes a class of
+false read-only pages. `heading.attrs.level` stays required — it carries meaning and has no
+defensible default.
+
+**Not enforced, deliberately:** ProseMirror's full content expressions, e.g. `listItem`'s
+`paragraph block*` first-child rule. Child ordering is something the editor repairs on load;
+rejecting it would produce a read-only page for a defect that costs nothing.
 
 The editor keeps using TipTap; TipTap's schema and this AST are **two representations of one
 format**, with an explicit conversion at the boundary rather than an assumption that they

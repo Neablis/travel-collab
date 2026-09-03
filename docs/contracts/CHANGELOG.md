@@ -13,6 +13,62 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-03 — `PageDoc` widens to the real v1 vocabulary (ADR-038 amendment)
+
+- Added to the node union: **`PageBlockquoteNode`, `PageBulletListNode`,
+  `PageOrderedListNode`, `PageListItemNode`, `PageCodeBlockNode`,
+  `PageHorizontalRuleNode`** at block position and **`PageHardBreakNode`** at inline
+  position, plus `PageCodeTextNode` (a code block's text carries no marks) and
+  `PageListContentNode`. `PageHeadingNode` now accepts **levels 1-6**, not 1-3
+- The union is now **recursive** — `bulletList → listItem → paragraph`, and a blockquote
+  holds blocks — so `PageNode` carries an explicit `z.ZodType` annotation and the four
+  recursive shapes are hand-written interfaces. `serializePageNode` recurses with it
+- Why: `PageEditor` loads full `StarterKit`, so every one of these is reachable **today**.
+  They were classifying as `unknown`, and under ADR-038 decision 4 a document that does
+  not round-trip opens **read-only** — so any existing notebook containing a bulleted list
+  would have become uneditable the moment the editor integration landed. Mitchell chose
+  widening the AST over narrowing `server/ai/pageTools.ts` (2026-09-03)
+- Every shape here is **measured**, not read off the ADR: an editor built with
+  `PageEditor`'s own `[StarterKit, MacroNodeExtension]` was fed one of each node and its
+  `getJSON()`/`schema.nodes` read back. That is where `orderedList`'s second attr (`type`,
+  not just `start`), `codeBlock`'s `language: null`, and the *absence* of an `attrs` key on
+  `horizontalRule`/`hardBreak` come from. The previous entry's "levels 1-3 per the ADR" is
+  what this reverses
+- The v1 golden fixture grew to match. A golden that omits half the version it is the
+  golden *for* is not a guard; it freezes when a v2 fixture sits beside it, not before
+- Consumers updated: none — nothing imports `PageDoc` yet, which is exactly why this was
+  worth doing now and not after the editor integration
+- Breaking? **no.** Strictly widening: every document that parsed before still parses,
+  and documents that previously became walls of unknown nodes now parse as themselves
+
+## 2026-09-03 — `PageDoc`: the notebook document becomes a versioned AST (ADR-038 step 1)
+
+- Added: `PageDoc` (`{ v, type: "doc", content: PageNode[] }`) and its node union —
+  `PageParagraphNode`, `PageHeadingNode`, `PageWidgetNode`, `PageRepeatNode`,
+  `PageUnknownNode`, plus `PageInlineNode`/`PageTextNode`/`PageMark` — in a new
+  `src/pageDoc.ts`. With them: `PAGE_DOC_MIGRATIONS` (an ordered, currently EMPTY
+  chain of pure `(doc) => doc` steps), `CURRENT_PAGE_DOC_VERSION` derived from its
+  length, `migratePageDoc`, `parsePageDoc`, `serializePageNode`, `serializePageDoc`
+- **`PageContent` is untouched and still in use.** `PageDoc` lands *alongside* it;
+  swapping the call sites belongs with the editor work (ADR-038 decision 4) and would
+  break the app if done here
+- Why: `PageContent`'s `z.array(z.unknown())` cannot say whether a stored page is
+  valid or what format it was written in. ADR-038 asked for the empirical answer first,
+  and it is now measured rather than asserted — see
+  `apps/web/src/components/pages/editor/PageEditor.test.tsx`, "PageEditor given a node
+  type the schema does not know". TipTap does not throw and does not drop the one node:
+  it catches ProseMirror's `RangeError: Unknown node type`, warns, and mounts an EMPTY
+  document, which `PageScreen` then autosaves over the original 800 ms later. The blast
+  radius is the whole page
+- Two places this build deviates from ADR-038 as written, both deliberate and both
+  pinned by tests: the widget node's stored discriminator stays **`"macro"`** (the ADR
+  writes `"widget"`; renaming it would reclassify every existing widget as an unknown
+  node, so it is a v2 migration, not a rename), and `heading` is **levels 1-3** per the
+  ADR even though `server/ai/pageTools.ts` accepts 1-6 today
+- Consumers updated: none — the schema is additive and nothing imports it yet.
+  `packages/contracts` gains `fast-check` as a devDependency for the round-trip property
+- Breaking? **no.** No stored data changes, no migration, no call site moves
+
 ## 2026-09-03 — `PageContext` loses `dayRef`: a page has no scope (M14 link 2, ADR-035)
 
 - Changed: `PageContext` is now `{ tripId }`. The optional `dayRef` is **removed**
