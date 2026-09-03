@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DayRef, type TripDetail } from "@tc/contracts";
-import type { MacroDef } from "../registry-types";
+import type { MacroDef, WidgetInput } from "../registry-types";
 import { ok, empty, unbound, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
 
@@ -13,6 +13,12 @@ type NoParams = z.infer<typeof NoParams>;
 // the `unbound` state, and it renders as a chip rather than an error.
 export const DayParams = z.object({ dayRef: DayRef.optional() }).strip();
 export type DayParams = z.infer<typeof DayParams>;
+
+// The declared input for the two widgets that read one day (ADR-035 decision 2).
+// Shared rather than written twice so the input's `name` and `DayParams`' key
+// cannot drift apart across two files — they MUST match, and a registry-wide
+// test in registry.test.ts enforces that for every widget, not just these.
+export const DAY_INPUT: readonly WidgetInput[] = [{ name: "dayRef", type: "day", label: "Day" }];
 
 // Resolve this widget's bound day to an index into TripDetail.days, or null if
 // it is bound to nothing or to a day that no longer exists. A stale binding is
@@ -27,13 +33,13 @@ export function resolveDayIndex(detail: TripDetail, params: DayParams): number |
 }
 
 export const tripName: MacroDef<NoParams, string> = {
-  name: "trip.name", kind: "inline", params: NoParams,
+  name: "trip.name", kind: "inline", params: NoParams, inputs: [],
   description: "The trip's name.", emptyText: "untitled trip",
   resolve: (d): MacroResult<string> => (d.name.trim() === "" ? empty() : ok(d.name)),
 };
 
 export const tripDates: MacroDef<NoParams, string> = {
-  name: "trip.dates", kind: "inline", params: NoParams,
+  name: "trip.dates", kind: "inline", params: NoParams, inputs: [],
   description: "The trip's date range (start date and number of days).", emptyText: "no dates set",
   resolve: (d): MacroResult<string> => {
     if (d.startDate === null) return empty();
@@ -43,13 +49,13 @@ export const tripDates: MacroDef<NoParams, string> = {
 };
 
 export const costTrip: MacroDef<NoParams, string> = {
-  name: "cost.trip", kind: "inline", params: NoParams,
+  name: "cost.trip", kind: "inline", params: NoParams, inputs: [],
   description: "Total cost of the whole trip.", emptyText: "no costs yet",
   resolve: (d): MacroResult<string> => (d.tripCostTotal === 0 ? empty() : ok(formatMoney(d.tripCostTotal, d.currency))),
 };
 
 export const costDay: MacroDef<DayParams, string> = {
-  name: "cost.day", kind: "inline", params: DayParams,
+  name: "cost.day", kind: "inline", params: DayParams, inputs: DAY_INPUT,
   description: "Total cost of one day of the trip.", emptyText: "no costs on this day",
   resolve: (d, _ctx, params): MacroResult<string> => {
     const idx = resolveDayIndex(d, params);

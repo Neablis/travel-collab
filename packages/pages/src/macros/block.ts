@@ -3,7 +3,7 @@ import type { TripDetail } from "@tc/contracts";
 import type { MacroDef, ItineraryDayPayload, ItineraryTripPayload, CostsTablePayload } from "../registry-types";
 import { ok, empty, unbound, type MacroResult } from "../result";
 import { formatMoney } from "../format";
-import { DayParams, resolveDayIndex } from "./inline";
+import { DAY_INPUT, DayParams, resolveDayIndex } from "./inline";
 
 const NoParams = z.object({}).strip();
 type NoParams = z.infer<typeof NoParams>;
@@ -24,7 +24,7 @@ function dayPayload(detail: TripDetail, idx: number): ItineraryDayPayload {
 }
 
 export const itineraryDay: MacroDef<DayParams, ItineraryDayPayload> = {
-  name: "itinerary.day", kind: "block", params: DayParams,
+  name: "itinerary.day", kind: "block", params: DayParams, inputs: DAY_INPUT,
   description: "The activity list for one day of the trip.", emptyText: "No activities on this day yet",
   resolve: (d, _ctx, params): MacroResult<ItineraryDayPayload> => {
     const idx = resolveDayIndex(d, params);
@@ -35,7 +35,7 @@ export const itineraryDay: MacroDef<DayParams, ItineraryDayPayload> = {
 };
 
 export const itineraryTrip: MacroDef<NoParams, ItineraryTripPayload> = {
-  name: "itinerary.trip", kind: "block", params: NoParams,
+  name: "itinerary.trip", kind: "block", params: NoParams, inputs: [],
   description: "The full itinerary — every day and its activities.", emptyText: "No days planned yet",
   resolve: (d): MacroResult<ItineraryTripPayload> => {
     if (d.days.length === 0) return empty();
@@ -44,7 +44,7 @@ export const itineraryTrip: MacroDef<NoParams, ItineraryTripPayload> = {
 };
 
 export const costsTable: MacroDef<NoParams, CostsTablePayload> = {
-  name: "costs.table", kind: "block", params: NoParams,
+  name: "costs.table", kind: "block", params: NoParams, inputs: [],
   description: "A cost breakdown by day plus unscheduled, with a trip total.", emptyText: "no costs yet",
   resolve: (d): MacroResult<CostsTablePayload> => {
     if (d.tripCostTotal === 0) return empty();
