@@ -66,10 +66,26 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   return tripName;
 }
 
+// Opens the page AND enters Editing. A notebook opens in Reading now
+// (Mitchell, 2026-09-04), so a walk about authoring clicks the control a person
+// clicks rather than depending on which side the toggle starts on.
+// Adds a stop carrying one tag, so the trip's globals projection reports that
+// tag and the chrome row can offer it. UNSCHEDULED is enough: `globals.tags`
+// counts every activity on the trip, not only the scheduled ones — which is
+// also the cheapest way to get a selectable tag without touching a day.
+async function addTaggedStop(page: Page, title: string, tagLabel: string): Promise<void> {
+  await page.getByRole("button", { name: "Add stop" }).click();
+  await page.getByLabel("What or where").fill(title);
+  await page.getByRole("group", { name: "Tags" }).getByRole("button", { name: tagLabel }).click();
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
+}
+
 async function openTripOverview(page: Page): Promise<void> {
   await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await expect(page.getByRole("complementary", { name: "Widgets" })).toBeVisible();
 }
 
 test("insert a widget from the sidebar, point it at a day, and reload to find it there", async ({ page }) => {
@@ -109,6 +125,10 @@ test("insert a widget from the sidebar, point it at a day, and reload to find it
   // assert the PATCH body; only this asserts the round trip.
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  // Reading is the default, so the chrome row is not on screen until Editing —
+  // which is the point of Reading. The BINDING is what survived; the control
+  // that shows it is an authoring affordance.
+  await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByRole("combobox", { name: /What a day costs/ })).toHaveValue("1");
 });
 
@@ -135,6 +155,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
   const afterReload = page.getByRole("combobox");
   await expect(afterReload.nth(0)).toHaveValue("0");
   await expect(afterReload.nth(1)).toHaveValue("1");
@@ -142,9 +163,9 @@ test("two widgets on one page read two different days", async ({ page }) => {
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
   // SPEC §18: Reading is the traveller's view. No insert affordance, no chrome
-  // row — but the widget itself is still resolved and still on the page, which
-  // is the difference between "hidden" and "removed".
-  await tripWithTwoDays(page);
+  // row, no compose box — but the widget itself is still resolved and still on
+  // the page, which is the difference between "hidden" and "removed".
+  const tripName = await tripWithTwoDays(page);
   await openTripOverview(page);
 
   const sidebar = page.getByRole("complementary", { name: "Widgets" });
@@ -156,6 +177,12 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await page.getByRole("button", { name: "Done editing" }).click();
   await expect(page.getByRole("complementary", { name: "Widgets" })).toBeHidden();
   await expect(page.getByRole("combobox")).toHaveCount(0);
+  // The compose box is an authoring control too — leaving it mounted made
+  // "Reading" a lie, since it replaces the whole document and autosaves it.
+  await expect(page.getByLabel(/ask ai to draft this page/i)).toBeHidden();
+  // And the widget itself STAYS. That is the difference between hidden and
+  // removed, and the assertion this test claimed to make and did not.
+  await expect(page.getByText(tripName, { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByRole("complementary", { name: "Widgets" })).toBeVisible();
@@ -192,6 +219,8 @@ test("a two-input widget keeps both bindings, and each survives a reload", async
   // widget would then read "no day set" while the day control still showed a
   // choice.
   await tripWithTwoDays(page);
+  // A selectable tag has to exist before the chrome row can offer one.
+  await addTaggedStop(page, "Ramen", "Meal");
   await openTripOverview(page);
 
   const sidebar = page.getByRole("complementary", { name: "Widgets" });
@@ -211,13 +240,23 @@ test("a two-input widget keeps both bindings, and each survives a reload", async
   // rather than an unfilled blank.
   await expect(tags).toHaveValue("");
 
+  // **Both bindings, and the ORDER is the test.** The first version of this
+  // walk set only the day, left the tag unset throughout, and called itself
+  // proof that two bindings survive — so the replace-instead-of-merge bug it
+  // was written to catch would have passed it. Both reviewers said so on PR 139
+  // and both were right: a test that never exercises the second input cannot
+  // witness the second input clobbering the first.
   await waitForPageSaved(page, () => day.selectOption("1"));
+  await expect(day).toHaveValue("1");
+  await waitForPageSaved(page, () => tags.selectOption("meal"));
+  await expect(tags).toHaveValue("meal");
+  // The day is still bound AFTER the tag was set. This is the assertion the
+  // whole widget exists to make possible.
   await expect(day).toHaveValue("1");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
-  // The day binding survived a real round trip, with the second input present
-  // and unset the whole time.
+  await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveValue("1");
-  await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("");
+  await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
 });

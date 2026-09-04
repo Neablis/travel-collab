@@ -94,8 +94,14 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
   // -- ComposePanel renders (no real AI call — see the file-header note) --
+  // It is an EDITING control now: left mounted in Reading it made that mode a
+  // lie, since it replaces the whole document and autosaves it. So this asserts
+  // both halves — absent in Reading, present once editing.
+  await expect(page.getByLabel("Ask AI to draft this page")).toBeHidden();
+  await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByLabel("Ask AI to draft this page")).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
+  await page.getByRole("button", { name: "Done editing" }).click();
 
   // -- Day Sheet: its own starter text --
   // The day-binding control this used to drive went with SPEC §18: a page has
@@ -190,6 +196,17 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+
+  // A notebook opens in READING now (Mitchell, 2026-09-04, walking the M14
+  // preview), so typing into it is a deliberate act here as it is for a person.
+  //
+  // This spec is why the default was Editing for a while: making Reading the
+  // default the first time turned this walk red, and I read that as the product
+  // telling me the default was wrong. It was telling me this line was missing.
+  // A spec that walks authoring should enter Editing itself rather than lean on
+  // whichever side the toggle happens to start on — otherwise the default is
+  // defended by a test instead of by a reason.
+  await page.getByRole("button", { name: "Edit page" }).click();
 
   const proseText = `Hand-typed notes ${Date.now()}`;
   await page.locator(".tc-page-editor h2", { hasText: "Overview" }).click();

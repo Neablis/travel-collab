@@ -53,8 +53,18 @@ export const tripDates: MacroDef<NoParams, string> = {
   resolve: ({ trip }): MacroResult<string> => {
     if (!trip) return needsTrip();
     if (trip.startDate === null) return empty();
-    const last = trip.days.length > 0 ? trip.days[trip.days.length - 1]!.date : trip.startDate;
-    return ok(trip.days.length <= 1 ? formatDate(trip.startDate) : `${formatDate(trip.startDate)} – ${formatDate(last)}`);
+    // The last day that HAS a date, not the last day. A trip can be dated at
+    // the front and open-ended at the back, and reading `days.at(-1).date`
+    // blindly rendered "Aug 1, 2026 – —" — an em dash presented as the end of a
+    // range, which reads as a date rather than as its absence. Falls back to the
+    // start date, so the range degrades to a single day rather than to nonsense.
+    // Found by CodeRabbit on PR 139.
+    const lastDated = [...trip.days].reverse().find((d) => d.date !== null)?.date ?? trip.startDate;
+    return ok(
+      trip.days.length <= 1 || lastDated === trip.startDate
+        ? formatDate(trip.startDate)
+        : `${formatDate(trip.startDate)} – ${formatDate(lastDated)}`,
+    );
   },
   render: (value) => inlineOf(text(value)),
 };

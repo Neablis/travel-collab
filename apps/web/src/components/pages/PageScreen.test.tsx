@@ -201,20 +201,38 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     );
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
+    // A page opens in READING now (Mitchell, 2026-09-04), so a test about
+    // authoring says so rather than relying on the default. That is the honest
+    // shape: the default is a product decision, and a spec that silently
+    // depended on it is how the previous default came to be defended by a test
+    // instead of by a reason.
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     return { onUpdate };
   }
 
-  it("opens ready to edit, and Reading hides the whole authoring surface", async () => {
-    // A notebook has always been something you open and type in, so Editing is
-    // the default — making Reading the default broke `m7-solo-delight`'s
-    // hand-typed-prose walk, which is the behaviour everyone already has.
-    await openPage();
-    expect(screen.getByRole("complementary", { name: "Widgets" })).toBeTruthy();
+  it("opens in Reading, and Reading hides the WHOLE authoring surface", async () => {
+    // Reading is the default (Mitchell, 2026-09-04, walking the preview), and
+    // Reading is the traveller's view (§18): no insert affordance, no chrome
+    // row, and — the part that was missing — no compose box either.
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
 
-    // Reading is the traveller's view (§18): no insert affordance, no chrome.
-    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
     expect(screen.queryByRole("complementary", { name: "Widgets" })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
+    // The compose box is an authoring control too. Leaving it mounted made
+    // "Reading" a lie: it replaces the whole document and autosaves it, so a
+    // page in Reading could still be rewritten by the assistant.
+    expect(screen.queryByLabelText(/ask ai to draft this page/i)).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(screen.getByRole("complementary", { name: "Widgets" })).toBeTruthy();
+    expect(screen.getByLabelText(/ask ai to draft this page/i)).toBeTruthy();
   });
 
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
@@ -402,9 +420,13 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     });
 
     await screen.findByText("ordinary");
+    // The document mounts in Reading, so the editor exists but is not editable.
+    // Autosave is an EDITING behaviour now, which is the point of Reading — so
+    // this walks the same path a person does: switch on, then type.
+    expect(screen.queryByRole("status")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     const box = editorTextbox();
     expect(box).not.toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
     await userEvent.type(box!, "x");
 
     // The autosave debounce is 800 ms, so the default 1 s poll window is too

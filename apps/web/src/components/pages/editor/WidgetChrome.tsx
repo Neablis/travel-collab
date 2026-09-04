@@ -34,13 +34,39 @@ import { NativeSelect } from "@/components/ui/native-select";
 
 // Reading a param back into a select value. Kept next to the writer below so
 // the two cannot drift: whatever shape is written is the shape read.
-function valueOf(input: WidgetInput, params: Record<string, unknown>): string {
+//
+// **A `dayId` ref resolves to its current index, and reading only `index` was a
+// real bug.** `DayRef` has two shapes and `resolveDayIndex` honours both, so a
+// widget bound by `dayId` — which is what a hand-edited document or an AI insert
+// can carry — rendered its day correctly while this control said "Not set up".
+// A control contradicting the document it describes is worse than either state
+// alone, because the reader believes the control. Found by Copilot on PR 139.
+//
+// A `dayId` that no longer matches any day reads as unset, which is the same
+// answer `resolveDayIndex` gives it: a stale binding is silently no binding,
+// never a guessed one.
+function valueOf(input: WidgetInput, params: Record<string, unknown>, detail: TripDetail): string {
   const raw = params[input.name];
   if (input.type === "day") {
-    const ref = raw as { kind?: string; index?: number } | undefined;
-    return ref?.kind === "index" && typeof ref.index === "number" ? String(ref.index) : "";
+    const ref = raw as { kind?: string; index?: number; dayId?: string } | undefined;
+    if (ref?.kind === "index" && typeof ref.index === "number") {
+      return ref.index < detail.days.length ? String(ref.index) : "";
+    }
+    if (ref?.kind === "dayId" && typeof ref.dayId === "string") {
+      const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
+      return idx === -1 ? "" : String(idx);
+    }
+    return "";
   }
   return typeof raw === "string" ? raw : "";
+}
+
+// The tags a person may choose: the trip's tags in use, plus whatever this
+// widget is already bound to. Union rather than replacement, so a stale binding
+// stays visible and clearable instead of silently reading as "every stop".
+function tagOptions(bound: unknown, globals: TripGlobals | null): string[] {
+  const inUse = (globals?.tags ?? []).map((t) => t.tag as string);
+  return typeof bound === "string" && bound !== "" && !inUse.includes(bound) ? [...inUse, bound] : inUse;
 }
 
 export function WidgetChrome({
@@ -100,7 +126,7 @@ export function WidgetChrome({
           key={input.name}
           aria-label={`${def?.title ?? name}: ${input.label.toLowerCase()}`}
           className="h-7 py-0 text-xs"
-          value={valueOf(input, params)}
+          value={valueOf(input, params, detail)}
           onChange={(e) => set(input, e.target.value)}
         >
           {input.type === "day" ? (
@@ -125,9 +151,16 @@ export function WidgetChrome({
                   empty widget. With no globals the list is empty and the
                   control still offers "every stop", which is the honest
                   degradation — the widget works, unfiltered. */}
-              {(globals?.tags ?? []).map((t) => (
-                <option key={t.tag} value={t.tag}>
-                  {t.tag}
+              {/* The bound tag is kept in the list even when globals do not
+                  carry it — still loading, failed, or the last stop with that
+                  tag was removed. Without this the native select falls back to
+                  displaying "Every stop" while `stop.line` is still filtering by
+                  the saved tag: the same control-contradicts-the-document bug as
+                  the `dayId` case above, from the other direction. Found by
+                  Copilot on PR 139. */}
+              {tagOptions(params[input.name], globals).map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
                 </option>
               ))}
             </>

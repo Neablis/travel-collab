@@ -59,18 +59,18 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // whose failures are page failures.
   const [user, setUser] = useState<UserPreferences | null>(null);
   // Reading vs Editing — §18's one control with two states. Reading is the
-  // traveller's view: no sidebar, no chrome row, and the document is read-only.
+  // traveller's view: no sidebar, no chrome row, no compose box, and the
+  // document is read-only.
   //
-  // **Opens in EDITING, and that is a correction rather than a preference.** It
-  // opened in Reading first, on the reasoning that a page is mostly for reading
-  // — and `m7-solo-delight.spec.ts`'s "hand-typed prose survives untouched"
-  // went red, because a notebook has always been something you open and type
-  // in. Making Reading the default silently took that away from everyone to
-  // introduce a mode nobody had asked for. §18 specifies the control, not which
-  // side it starts on, so the established behaviour wins and Reading is the
-  // deliberate act — which is also the honest shape, since a traveller previewing
-  // their notebook is a thing you choose to do.
-  const [editing, setEditing] = useState(true);
+  // **Opens in READING**, on Mitchell's call after walking the preview
+  // (2026-09-04): *"reading should be default state, it opened in editing for
+  // me"*. This reverses an earlier correction of mine, and the reason that
+  // correction existed is worth keeping: making Reading the default the first
+  // time broke `m7-solo-delight.spec.ts`'s hand-typed-prose walk, which clicks
+  // into the page and types. That spec now clicks "Edit page" first — the right
+  // fix, since a test that walks authoring should say so, rather than the
+  // default silently being whatever an old spec assumed.
+  const [editing, setEditing] = useState(false);
   // The live editor, handed up by `PageEditor` so the sidebar — which sits
   // beside the editor, not inside it — can insert at the cursor.
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -239,7 +239,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           are 8px and 12px. Caught on the preview walk, not by any test — no
           layer we have asserts vertical rhythm. */}
       <div className="mb-3 mt-3">
-        <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} />
+        {/* Editing only. Left mounted, "Reading" was a lie: the panel replaces
+            the whole document and autosaves it, so a page put into Reading could
+            still be rewritten by the assistant. Unmounting also aborts any turn
+            in flight, through the cleanup the panel already has. Found by
+            Copilot on PR 139, and by Mitchell on the preview ("you can kinda
+            still select a widget when not editing"). */}
+        {editing ? <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} /> : null}
       </div>
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
@@ -254,8 +260,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
             editable={editing}
           />
         </div>
-        {/* Reading shows no insert affordance (§18). */}
-        {editing ? <WidgetSidebar onInsert={insertAtCursor} /> : null}
+        {/* Reading shows no insert affordance (§18) — and neither does an
+            editor that has not mounted yet. `useEditor` returns null on the
+            first render (`immediatelyRender: false`), so a click landing before
+            it resolves reached `editor?.chain()` and was silently dropped: a
+            button that looks ready and does nothing. Found by CodeRabbit on
+            PR 139. */}
+        {editing && editor !== null ? <WidgetSidebar onInsert={insertAtCursor} /> : null}
       </div>
     </PageContainer>
   );

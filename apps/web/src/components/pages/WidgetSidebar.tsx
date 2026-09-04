@@ -24,14 +24,36 @@ import { Input } from "@/components/ui/input";
 // skips validation"). This component's whole job is to say which name, and to
 // hand the resulting node to the editor.
 
-// The catalogue's own vocabulary table, which is the wording a person reading
-// the sidebar has the best chance of already understanding. `single` is the
-// stored identifier; "one value" is what it means.
+// **Named for WHEN you reach for one, not for what it is internally.**
+//
+// The catalogue's vocabulary table says "one value", "a block", "repeats", and
+// the design shows the same. Mitchell, walking the preview (2026-09-04): *"thats
+// not how people think of these widgets, they should have better names so people
+// understand when they are used"*. He is right — "a block" describes the node,
+// which is the author's problem, not the reader's.
+//
+// So each label answers "where does this land in my page?":
+//   single → it reads as a word inside a sentence you wrote
+//   block  → it stands on its own, as a table or a list
+//   repeat → it becomes one line per day, city or stop
+//
+// The filter row below uses these same words, so the badge on a row and the
+// filter that selects it cannot describe the same thing differently.
 const SHAPE_LABEL: Record<WidgetShape, string> = {
-  single: "one value",
-  block: "a block",
-  repeat: "repeats",
+  single: "in a sentence",
+  block: "a section",
+  repeat: "a line each",
 };
+
+// `null` is "everything", which is a real choice rather than the absence of one
+// — so it gets a name in the row like the others.
+type ShapeFilter = WidgetShape | null;
+const FILTERS: readonly { value: ShapeFilter; label: string }[] = [
+  { value: null, label: "All" },
+  { value: "single", label: "In a sentence" },
+  { value: "block", label: "A section" },
+  { value: "repeat", label: "A line each" },
+];
 
 // The gate's "a mono line naming what it takes". Said BEFORE the click rather
 // than discovered after it: a widget that lands unbound is correct behaviour
@@ -65,8 +87,9 @@ function matches(
 
 export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; attrs: { name: string; params: Record<string, unknown> } }) => void }) {
   const [query, setQuery] = useState("");
+  const [shape, setShape] = useState<ShapeFilter>(null);
   const widgets = useMemo(() => macroCatalog(), []);
-  const shown = widgets.filter((w) => matches(w, query));
+  const shown = widgets.filter((w) => matches(w, query) && (shape === null || w.shape === shape));
 
   return (
     <aside aria-label="Widgets" className="w-64 shrink-0 rounded-md border border-hairline bg-surface p-3">
@@ -86,8 +109,29 @@ export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; 
         onChange={(e) => setQuery(e.target.value)}
         className="mb-3 h-8 text-sm"
       />
+      {/* The filter row (M14's gate: "search + how it reads over a flat list").
+          Chips with `aria-pressed`, the same control `ActivityEditor` uses for
+          tags — a pattern this app already has, rather than a fifth way to say
+          "one of these is on". A segmented control would have been the tidier
+          primitive and does not fit: four labels in a 256px rail. */}
+      <div role="group" aria-label="Filter by kind" className="mb-3 flex flex-wrap gap-1">
+        {FILTERS.map((f) => (
+          <Button
+            key={f.label}
+            variant={shape === f.value ? "primary" : "secondary"}
+            size="sm"
+            aria-pressed={shape === f.value}
+            className="rounded-full px-2.5 py-0.5 text-xs"
+            onClick={() => setShape(f.value)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      </div>
       {shown.length === 0 ? (
-        <p className="text-xs text-slate">No widget matches “{query.trim()}”.</p>
+        <p className="text-xs text-slate">
+          {query.trim() === "" ? "No widget of that kind." : `No widget matches “${query.trim()}”.`}
+        </p>
       ) : (
         <ul className="flex flex-col gap-1">
           {shown.map((w) => (

@@ -88,6 +88,44 @@ describe("WidgetChrome with a two-input widget", () => {
   });
 });
 
+// Both of these are the same failure from two directions: a control that
+// disagrees with the document it describes. The reader believes the control, so
+// this is worse than either state alone. Found by Copilot on PR 139.
+describe("WidgetChrome shows what the document actually holds", () => {
+  it("resolves a dayId binding to its day, rather than reading it as unset", () => {
+    chrome({ dayRef: { kind: "dayId", dayId: "33333333-3333-3333-3333-333333333333" } });
+    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("1");
+  });
+
+  // A stale binding is silently no binding, never a guessed one — the same
+  // answer `resolveDayIndex` gives, so the control and the widget agree.
+  it("reads a dayId for a day that no longer exists as unset", () => {
+    chrome({ dayRef: { kind: "dayId", dayId: "99999999-9999-9999-9999-999999999999" } });
+    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
+  });
+
+  it("reads an index past the end of the trip as unset", () => {
+    chrome({ dayRef: { kind: "index", index: 99 } });
+    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
+  });
+
+  // Globals still loading, failed, or the last stop with that tag removed. The
+  // native select would otherwise fall back to displaying "Every stop" while the
+  // widget is still filtering by the saved tag.
+  it("keeps a bound tag in the list when globals do not carry it", () => {
+    chrome({ tag: "lodging" });
+    const tags = screen.getByRole("combobox", { name: /tags/i });
+    expect((tags as HTMLSelectElement).value).toBe("lodging");
+    expect(within(tags).getAllByRole("option").map((o) => o.textContent)).toContain("lodging");
+  });
+
+  it("keeps a bound tag visible even with no globals at all", () => {
+    chrome({ tag: "meal" }, vi.fn(), null);
+    const tags = screen.getByRole("combobox", { name: /tags/i });
+    expect((tags as HTMLSelectElement).value).toBe("meal");
+  });
+});
+
 describe("WidgetChrome with other widgets", () => {
   it("renders nothing for a widget that binds nothing", () => {
     const { container } = render(

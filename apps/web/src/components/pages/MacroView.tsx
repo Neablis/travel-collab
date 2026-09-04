@@ -90,5 +90,15 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
           ))}
         </span>
       );
+    default: {
+      // The same enforcement `BlockView` carries, for the same measured reason:
+      // `strict` does NOT imply `noImplicitReturns` and this repo sets only
+      // `strict`, so a fourth `Rendered` kind would compile and make this
+      // function return `undefined` — React renders nothing, silently. I wrote
+      // that comment on BlockView on #134 and did not apply it here; both
+      // reviewers caught it on PR 139.
+      const exhaustive: never = rendered;
+      return exhaustive;
+    }
   }
 }

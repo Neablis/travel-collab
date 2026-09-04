@@ -42,7 +42,13 @@ export function insertWidget(name: string, params: unknown = {}): InsertResult {
   const def = getMacro(name);
   if (!def) return { ok: false, error: { reason: "unknown-widget", name } };
 
-  const parsed = def.params.safeParse(params ?? {});
+  // `params ?? {}` here would turn an EXPLICIT `null` into an empty object, so
+  // `insertWidget("cost.day", null)` inserted an unbound widget instead of
+  // reporting bad params — the caller's input silently discarded by the one
+  // function whose whole job is to refuse bad input. The default argument above
+  // still covers an OMITTED argument, which is the case that wanted defaulting.
+  // Found by CodeRabbit on PR 139.
+  const parsed = def.params.safeParse(params);
   if (!parsed.success) {
     return { ok: false, error: { reason: "bad-params", name, message: parsed.error.message } };
   }
