@@ -86,8 +86,15 @@ describe("MacroView", () => {
         ],
       };
       render(<MacroView detail={twoDays} context={ctx} name="day.line" params={{}} />);
-      expect(screen.getByText("Day 1")).toBeTruthy();
-      expect(screen.getByText("Day 2")).toBeTruthy();
+      // **One row per day, and each row carrying its own lead.** Asserting only
+      // that both labels appear somewhere passes for a renderer that duplicates
+      // a row or puts both leads in one (CodeRabbit, PR 139) — which is exactly
+      // the bug "one line per day" is the claim about.
+      const rows = screen.getAllByRole("listitem");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]!.textContent).toContain("Day 1");
+      expect(rows[1]!.textContent).toContain("Day 2");
+      expect(rows[0]!.textContent).not.toContain("Day 2");
     });
   });
 });

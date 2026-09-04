@@ -50,14 +50,37 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // caught it on #129. Link 4's chrome row passes a handler again, and this
   // goes back to being actionable with no further edit.
   if (outcome.status === "unbound") {
-    // Two different missing things, and they read differently to a person: a
-    // day is something they can pick from the chrome row, a trip is not — a
+    // **One branch per `UnboundNeeds` member, and the `never` is what keeps it
+    // that way.** This used to test for `"trip"` and treat everything else as a
+    // day, so widening the union would have rendered "no day set" for a missing
+    // person or date range — a widget confidently naming the wrong missing
+    // thing, which is worse than a generic answer. Copilot found the union's
+    // narrowness; this is the other half of that fix.
+    //
+    // They read differently to a person, which is why they are separate at all:
+    // a day is something they can pick from the chrome row, a trip is not — a
     // notebook created outside a trip has none, and that is the ADR-037 open
     // question 2 case `WidgetContext.trip?` exists for.
-    if (outcome.needs === "trip") return <EmptyChip tone="muted" label="needs a trip" />;
-    return onBindDay
-      ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
-      : <EmptyChip tone="muted" label="no day set" />;
+    switch (outcome.needs) {
+      case "trip":
+        return <EmptyChip tone="muted" label="needs a trip" />;
+      case "day":
+        return onBindDay
+          ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
+          : <EmptyChip tone="muted" label="no day set" />;
+      case "days":
+        return <EmptyChip tone="muted" label="no days set" />;
+      // Unreachable today and rendered anyway: no widget declares a `person`
+      // input, because nothing links an activity to a person yet (§18 declares
+      // the type; M13/M19 bring the field). A branch that throws or falls
+      // through here is how the first person widget ships broken.
+      case "person":
+        return <EmptyChip tone="muted" label="no one set" />;
+      default: {
+        const exhaustive: never = outcome.needs;
+        return exhaustive;
+      }
+    }
   }
   if (outcome.status === "empty") return <EmptyChip tone="muted" label={def?.emptyText ?? "—"} />;
 
@@ -82,11 +105,22 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     // are: `resolve` answers what a line means and `render` answers what it
     // looks like (ADR-037 decision 1). Separator segments baked into the payload
     // would put a spacing decision inside the trip data.
+    // `role="list"` / `role="listitem"` on the spans, because a repeater IS a
+    // list and a reader with a screen reader should hear "list, 3 items" rather
+    // than one run-on line. The roles cannot come from `<ul>`/`<li>` for the
+    // reason above — those are block elements inside a paragraph — and ARIA
+    // roles carry the semantics without the tags.
+    //
+    // It is also the only non-presentational handle a test has on a ROW. The
+    // assertions here checked that "Day 1" and "Day 2" appeared somewhere, which
+    // a renderer that put both leads in one row still satisfies (CodeRabbit,
+    // PR 139); asserting the container's classes instead is what the
+    // test-quality wall forbids. The roles make row cardinality a real query.
     case "rows":
       return (
-        <span className="flex flex-col gap-0.5">
+        <span role="list" className="flex flex-col gap-0.5">
           {rendered.rows.map((segs, i) => (
-            <span key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} /></span>
+            <span role="listitem" key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} /></span>
           ))}
         </span>
       );

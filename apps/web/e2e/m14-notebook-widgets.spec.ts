@@ -196,12 +196,24 @@ test("a repeater renders one line per day", async ({ page }) => {
 
   await insertFromList(page, /A line for every day/, "every day");
 
-  await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
-  await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
+  // **Exactly two rows, one per day.** Asserting only that both labels appear
+  // allows a renderer that duplicates a row or puts both leads in one — and
+  // "one line per day" is precisely the claim those break (CodeRabbit, PR 139).
+  // A repeater renders as an ARIA list, which is what makes a ROW queryable
+  // without asserting on classes.
+  const rows = page.locator(".tc-page-editor [role='listitem']");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Day 1");
+  await expect(rows.nth(1)).toContainText("Day 2");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
-  await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
+  // And the same two after a round trip — not just that Day 2 survived, which
+  // a reload that lost Day 1 would also satisfy.
+  const afterReload = page.locator(".tc-page-editor [role='listitem']");
+  await expect(afterReload).toHaveCount(2);
+  await expect(afterReload.nth(0)).toContainText("Day 1");
+  await expect(afterReload.nth(1)).toContainText("Day 2");
 });
 
 test("a two-input widget keeps both bindings, and each survives a reload", async ({ page }) => {

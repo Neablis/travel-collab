@@ -1,6 +1,6 @@
 import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
 import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput } from "./registry-types";
-import type { MacroResult } from "./result";
+import type { MacroResult, UnboundNeeds } from "./result";
 import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
 import { accountName, accountHomeAirport } from "./macros/account";
@@ -49,7 +49,7 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
 export type RenderOutcome =
   | { status: "ok"; rendered: Rendered }
   | { status: "empty" }
-  | { status: "unbound"; needs: "day" | "trip" }
+  | { status: "unbound"; needs: UnboundNeeds }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 

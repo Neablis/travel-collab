@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
-import type { MacroResult } from "./result";
+import type { MacroResult, UnboundNeeds } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -121,6 +121,20 @@ export type WidgetInput =
   | { name: string; type: "person"; label: string }
   | { name: string; type: "tags"; label: string }
   | { name: string; type: "trip"; label: string };
+
+/** The declared input types, derived so nothing can list them a second time. */
+export type WidgetInputType = WidgetInput["type"];
+
+// **The two lists must stay in step, and this is what makes that a type error.**
+// `UnboundNeeds` has one member per input type that can be waiting for a choice;
+// `tags` is deliberately not one of them (an absent tag means "every stop", a
+// real binding — ADR-037 decision 9). Adding an input type without adding its
+// `needs` member fails here rather than surfacing as a widget that cannot say
+// it is unbound. Type-level only: it emits nothing.
+type Assert<T extends true> = T;
+export type NeedsCoversEveryBindableInput = Assert<
+  Exclude<WidgetInputType, "tags"> extends UnboundNeeds ? true : false
+>;
 
 // What a widget is handed at resolve time (ADR-037 decision 1).
 //

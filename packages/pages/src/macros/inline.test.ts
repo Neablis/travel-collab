@@ -70,18 +70,41 @@ describe("resolveDayIndex", () => {
 // day it lands: every trip-reading widget must answer `unbound: "trip"` rather
 // than throwing on `trip.name` or guessing an answer.
 describe("every widget survives a context with no trip", () => {
-  it("answers unbound:trip rather than throwing", () => {
+  // **Classified by scope, not accepted as a set.** The old assertion allowed
+  // `ok | empty | unbound` for every macro, so a trip-reading widget that
+  // stopped saying `unbound: "trip"` and started answering `empty` kept this
+  // green — and "empty" reads to a person as "this trip has nothing", which is
+  // a confident wrong answer where "needs a trip" is the true one (CodeRabbit,
+  // PR 139).
+  //
+  // The split is the registry's OWN naming (`account.*`), not a list of names
+  // copied into this file — a copied list is the second registry ADR-037
+  // deleted, and it would go stale the first time someone adds a widget.
+  it("answers unbound:trip for every trip-reading widget, and resolves the account ones", () => {
     const ctx = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals: null };
-    let sawTripUnbound = 0;
+    let accountScope = 0;
+    let tripScope = 0;
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
       const outcome = def.resolve(ctx, params as never);
-      expect(["ok", "empty", "unbound"]).toContain(outcome.status);
-      if (outcome.status === "unbound" && outcome.needs === "trip") sawTripUnbound += 1;
+      if (name.startsWith("account.")) {
+        // Account scope: a notebook with no trip is the case these exist for,
+        // so needing one would be the bug.
+        expect(outcome.status, `${name} is account-scope and must resolve without a trip`).not.toBe("unbound");
+        accountScope += 1;
+      } else {
+        expect(outcome, `${name} reads the trip and must say it needs one`).toMatchObject({
+          status: "unbound",
+          needs: "trip",
+        });
+        tripScope += 1;
+      }
     }
-    // The witness: the account widgets resolve fine without a trip, so a floor
-    // of zero would pass if every trip widget silently returned `empty`.
-    expect(sawTripUnbound, "no widget reported needing a trip").toBeGreaterThan(0);
+    // Witnesses on both sides, so the classification cannot be vacuous: a
+    // registry with no account widgets, or none that read the trip, would
+    // otherwise pass by asserting nothing.
+    expect(accountScope, "no account-scope widget in the registry").toBeGreaterThan(0);
+    expect(tripScope, "no trip-reading widget in the registry").toBeGreaterThan(0);
   });
 });
