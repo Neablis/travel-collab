@@ -503,11 +503,16 @@ describe("the slash menu", () => {
     expect(activeOption().id).not.toBe(firstId);
     expect(textbox.getAttribute("aria-activedescendant")).toBe(activeOption().id);
 
-    // Closed means closed: `aria-expanded="true"` left on a plain text box is
-    // worse than never having set it.
+    // Closed means closed, on ALL THREE attributes. `aria-expanded="true"` left
+    // on a plain text box is worse than never having set it — and so is an
+    // `aria-controls` still naming a listbox that has been removed from the
+    // document, which is the one this checked two of three and missed
+    // (CodeRabbit, PR 139). `useSlashMenu` removes all three together, so the
+    // test has to say all three or it is not testing the teardown it describes.
     await userEvent.type(textbox, "{Escape}");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(textbox.hasAttribute("aria-expanded")).toBe(false);
+    expect(textbox.hasAttribute("aria-controls")).toBe(false);
     expect(textbox.hasAttribute("aria-activedescendant")).toBe(false);
   });
 
