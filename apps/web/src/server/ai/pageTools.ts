@@ -10,141 +10,120 @@
 // `z.enum(MACRO_NAMES)` over the live registry, and `validateComposedPage`
 // still re-checks every macro node against that macro's OWN Zod schema.
 //
-// The compose_page tool's `inputSchema` describes a flat, AI-friendly page
-// shape (title + blocks), NOT the full nested ProseMirror doc. The macro
-// `name` param is a closed Zod enum over MACRO_NAMES, so an unknown macro
-// name fails schema validation before it ever reaches a document. execute()
-// converts the simplified shape into PageContent-shaped JSON, mirroring the
-// heading()/para()/macro() helper pattern in packages/pages/src/templates.ts.
+// **ADR-035 decision 5 replaced `compose_page` with two narrower tools**, and
+// the reason is a conversation rather than a preference. `compose_page` was
+// documented "last compose wins — a page is one document, not an append log",
+// which is right for a one-shot prompt box and wrong for a thread:
+// `ComposePanel`'s own header names the failure ("a page that accumulated turns
+// would have to decide what 'draft this page' means the second time"). Inserts
+// have an obvious second time. So the surface became `insert_text` and
+// `insert_widget`, which the ADR calls "strictly smaller than `compose_page`".
 //
-// validateComposedPage is defense-in-depth: given an already-built
-// PageContent, it walks every node and re-validates each macro node against
-// @tc/contracts' MacroNode schema, confirms the macro is still in the
-// registry, and checks its params against that macro's own Zod schema.
-// Any failure returns { error } — the caller decides whether to downgrade or
+// `insert_widget` does NOT re-validate a widget. It calls `insertWidget` from
+// @tc/pages — the one path a widget may enter a document by (ADR-037 decision
+// 4), and the same call the sidebar's click makes. A hallucinated binding is
+// refused by that widget's OWN Zod schema, so the AI path cannot drift from the
+// click path because there is only one path.
+//
+// `validateComposedPage` remains as defense-in-depth over the assembled result:
+// it parses the AST and re-walks every macro node against the registry. Any
+// failure returns { error } — the caller decides whether to downgrade or
 // reject. /ask rejects: a doc that fails here never reaches the client.
 import { tool, type Tool } from "ai";
 import { z } from "zod";
 import { MacroNode, PageDoc, newPageDoc } from "@tc/contracts";
-import type {
-  PageHeadingNode,
-  PageNode,
-  PageParagraphNode,
-  PageWidgetNode,
-} from "@tc/contracts";
-import { MACRO_NAMES, getMacro } from "@tc/pages";
+import type { PageNode } from "@tc/contracts";
+import { MACRO_NAMES, getMacro, insertWidget } from "@tc/pages";
+import { markdownToPageNodes } from "./markdownToPageNodes";
 
 // z.enum requires a non-empty tuple; MACRO_NAMES is a readonly string[] from
 // the registry (guaranteed non-empty — the registry always defines macros).
 const macroNameEnum = z.enum(MACRO_NAMES as [string, ...string[]]);
 
-const HeadingBlock = z.object({
-  type: z.literal("heading"),
-  level: z.number().int().min(1).max(6),
-  text: z.string().min(1),
+/**
+ * What one turn's page tools produced: an ordered list of nodes to insert.
+ *
+ * **This replaces `ComposedPage`, and the inversion is the whole point.**
+ * `compose_page` documented itself as "last compose wins — a page is one
+ * document, not an append log", which was right for a one-shot box. It is
+ * exactly wrong for a conversation: `ComposePanel`'s own header names the
+ * problem ("a page that accumulated turns would have to decide what 'draft this
+ * page' means the second time"), and the answer ADR-035 decision 5 gives is to
+ * stop composing documents and start inserting into one. Every call counts, in
+ * call order, and the second turn adds to the first instead of erasing it.
+ */
+export interface PageInserts {
+  nodes: PageNode[];
+}
+
+const InsertTextParams = z.object({
+  markdown: z.string().min(1),
 });
 
-const ParagraphBlock = z.object({
-  type: z.literal("paragraph"),
-  text: z.string().min(1),
-});
-
-const MacroBlock = z.object({
-  type: z.literal("macro"),
+const InsertWidgetParams = z.object({
   name: macroNameEnum,
   params: z.record(z.unknown()).optional(),
 });
 
-const Block = z.discriminatedUnion("type", [HeadingBlock, ParagraphBlock, MacroBlock]);
-
-const ComposePageParams = z.object({
-  title: z.string().min(1),
-  blocks: z.array(Block),
-});
-
-type ComposePageParams = z.infer<typeof ComposePageParams>;
-
-// Mirrors packages/pages/src/templates.ts's heading()/para()/macro() helpers,
-// and typed against the AST for the same reason they are (ADR-038): this is a
-// producer of stored page content, and the write path is `PageDoc` now, so a
-// block shape that drifts out of the vocabulary should fail to compile here
-// rather than 400 at the route with a document already streamed to a user.
-//
-// `heading`'s level is cast because `ComposePageParams` types it as a plain
-// int 1-6 while the AST types it as the union of those six literals. The two
-// ranges are the same range — deliberately, see `PageHeadingNode`'s comment,
-// which records Mitchell's 2026-09-03 call to widen the AST to the tool rather
-// than narrow the tool to the AST.
-const heading = (level: number, text: string): PageHeadingNode => ({
-  type: "heading",
-  attrs: { level: level as PageHeadingNode["attrs"]["level"] },
-  content: [{ type: "text", text }],
-});
-const para = (text: string): PageParagraphNode => ({
-  type: "paragraph",
-  content: [{ type: "text", text }],
-});
-const macro = (name: string, params: Record<string, unknown> = {}): PageWidgetNode => ({
-  type: "macro",
-  attrs: { name, params },
-});
-
-function toPageDoc(params: ComposePageParams): PageDoc {
-  const content: PageNode[] = params.blocks.map((block) => {
-    switch (block.type) {
-      case "heading":
-        return heading(block.level, block.text);
-      case "paragraph":
-        return para(block.text);
-      case "macro":
-        return macro(block.name, block.params ?? {});
-    }
-  });
-  return newPageDoc(content);
-}
-
-/** What one `compose_page` call produced. */
-export interface ComposedPage {
-  title: string;
-  content: PageDoc;
-}
-
 /**
- * The page tools, and a reader for what the turn composed.
+ * The page tools, and a reader for what the turn wants inserted.
  *
- * The collector exists because the composed doc leaves on the stream's `finish`
- * part as message metadata, and by then the tool result is several SDK frames
- * behind — the same reason `buildWriteTools` collects rather than returning
- * (writeTools.ts). `execute` is otherwise unchanged: it still transforms and
- * returns, so the model sees its own result and can talk about it.
+ * The collector exists because the inserts leave on the stream's `finish` part
+ * as message metadata, and by then the tool result is several SDK frames behind
+ * — the same reason `buildWriteTools` collects rather than returning
+ * (writeTools.ts). `execute` still returns, so the model sees its own result and
+ * can talk about what it added.
  *
- * **Last compose wins.** A model that calls this twice meant the second one;
- * a page is one document, not an append log.
+ * ADR-035 decision 5: this surface is "strictly smaller than `compose_page`",
+ * and it is — two narrow tools over one broad one, with the widget half
+ * delegating validation entirely rather than re-implementing it.
  */
-export function buildPageTools(): { tools: Record<string, Tool>; getComposed: () => ComposedPage | null } {
-  let composed: ComposedPage | null = null;
+export function buildPageTools(): { tools: Record<string, Tool>; getInserts: () => PageInserts } {
+  const nodes: PageNode[] = [];
   const tools: Record<string, Tool> = {
-    compose_page: tool({
+    insert_text: tool({
       description:
-        "Compose a page as a title and an ordered list of blocks (headings, paragraphs, and macros). " +
-        "Macro names are limited to the trip data registry — do not invent macro names.",
-      inputSchema: ComposePageParams,
-      execute: async (params: ComposePageParams) => {
-        composed = { title: params.title, content: toPageDoc(params) };
-        return composed;
+        "Insert prose into the page at the cursor. Takes markdown: headings (#), bullet lists (-), " +
+        "ordered lists (1.) and paragraphs. Inline formatting like **bold** is not interpreted and " +
+        "will appear literally, so write plain sentences.",
+      inputSchema: InsertTextParams,
+      execute: async (params: z.infer<typeof InsertTextParams>) => {
+        const inserted = markdownToPageNodes(params.markdown);
+        nodes.push(...inserted);
+        return { inserted: inserted.length };
+      },
+    }),
+
+    insert_widget: tool({
+      description:
+        "Insert one live trip-data widget into the page at the cursor. Widget names come from the " +
+        "registry and cannot be invented. Params are that widget's own — omit them to insert it " +
+        "unbound, which is valid and lets the reader point it afterwards.",
+      inputSchema: InsertWidgetParams,
+      execute: async (params: z.infer<typeof InsertWidgetParams>) => {
+        // **The validation is delegated, not repeated.** `insertWidget` is the
+        // one path a widget may enter a document by (ADR-037 decision 4 — "there
+        // is no way to put a widget into a document that skips validation"), and
+        // the sidebar's click goes through the same call. So a hallucinated
+        // binding is refused by the widget's OWN params schema here, exactly as
+        // a malformed click would be, rather than by a second check written for
+        // the AI path that could drift from the first.
+        const result = insertWidget(params.name, params.params ?? {});
+        if (!result.ok) {
+          // Returned to the MODEL rather than thrown: a refused binding is
+          // something it can correct on the next step, and a thrown tool error
+          // ends the turn with nothing the user can act on.
+          return { ok: false as const, error: result.error };
+        }
+        nodes.push(result.node);
+        return { ok: true as const, name: params.name };
       },
     }),
   };
 
-  return { tools, getComposed: () => composed };
+  return { tools, getInserts: () => ({ nodes: [...nodes] }) };
 }
 
-/**
- * The page tools, by name — MEASURED from the built set, never listed, for the
- * same reason `WRITE_TOOL_NAMES` is (writeTools.ts): `minimumRoleFor` computes
- * the guard from the tool names it is handed, so a second page tool inherits
- * the editor requirement without anyone remembering to add it here.
- */
 export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().tools);
 
 // ADR-038's consequences: "`validateComposedPage` stops being special. It
@@ -154,6 +133,18 @@ export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().t
 // special, and rightly: `PageDoc` can say a `macro` node is well-formed, but
 // only the registry knows whether `cost.trip` exists and what params it takes,
 // and contracts cannot import the registry.
+/**
+ * The same check, for what a turn wants inserted.
+ *
+ * Wrapping the nodes in a `PageDoc` rather than writing a second walker is the
+ * point: inserted nodes are page content, so they get page content's validation
+ * — the identical parse and the identical registry walk — instead of a parallel
+ * one that could come to disagree with it.
+ */
+export function validatePageInserts(nodes: readonly PageNode[]): PageDoc | { error: string } {
+  return validateComposedPage(newPageDoc([...nodes]));
+}
+
 export function validateComposedPage(content: unknown): PageDoc | { error: string } {
   const parsed = PageDoc.safeParse(content);
   if (!parsed.success) return { error: `Invalid page document: ${parsed.error.message}` };

@@ -58,8 +58,8 @@ import {
 import {
   buildPageTools,
   PAGE_TOOL_NAMES,
-  validateComposedPage,
-  type ComposedPage,
+  validatePageInserts,
+  type PageInserts,
 } from "@/server/ai/pageTools";
 import { getPage } from "@/server/pages";
 import type { Geocoder } from "@/server/geocoding";
@@ -663,7 +663,7 @@ export async function handleAskRequest(
         if (part.type !== "finish") return undefined;
         // At most one of these is non-null — the tool sets are disjoint above —
         // so the final chunk carries a proposal or a page, never both.
-        if (pageTools !== null) return composedPageMetadata(pageTools.getComposed());
+        if (pageTools !== null) return pageInsertsMetadata(pageTools.getInserts());
         if (writeTools === null) return undefined;
         const proposal = buildProposal(writeTools.getCollected(), detail, { tripId, actorId: userId });
         return proposal === null ? undefined : { proposal };
@@ -716,30 +716,34 @@ function briefFor(page: Page | null): PageBrief | null {
 }
 
 /**
- * The composed page, on the run's final chunk — or the reason there isn't one.
+ * What the turn wants inserted, on the run's final chunk — or the reason there
+ * is nothing.
  *
- * **`validateComposedPage` runs HERE, before a byte of the doc leaves the
- * server.** `compose_page`'s schema closes the macro NAME against the registry
- * but not its params, so a macro carrying a params bag its own schema rejects
- * passes the tool and fails this. The endpoint this replaced answered that with
- * a 422; a stream has already sent its 200, so the refusal rides out as data
- * the panel renders — but the doc itself still never reaches the client.
+ * **Validation runs HERE, before a byte leaves the server.** `insert_widget`'s
+ * schema closes the widget NAME against the registry and `insertWidget` checks
+ * its params, so this is the second look rather than the only one — but it is
+ * the one that sees the assembled result, including whatever `insert_text`
+ * produced. The endpoint this replaced answered a bad doc with a 422; a stream
+ * has already sent its 200, so the refusal rides out as data the client renders
+ * — the nodes themselves still never reach it.
  *
- * **There is no approval step, and that is deliberate.** The doc lands in the
- * editor and the Notebook's existing debounced autosave persists it
- * (PageScreen.tsx) — which is what `onApply` has always expected and exactly
- * what the command endpoint already did. A proposal exists because a planning
- * batch commits events; a page draft is text in an editor the user is looking
- * at, and interposing an Approve button between "Generate" and "it appears"
- * would be a new step this move did not ask for.
+ * **There is no approval step, and that is deliberate.** The nodes land in the
+ * editor and the Notebook's existing debounced autosave persists them — which
+ * is what `onApply` has always expected. A proposal exists because a planning
+ * batch commits events; inserted prose is text in an editor the user is looking
+ * at, and interposing an Approve button between asking and seeing it would be a
+ * new step this move did not ask for.
+ *
+ * **Nothing inserted is not an error the way no page composed was.** A turn can
+ * legitimately answer a question about the page without editing it — that is
+ * most of what a conversation does — so an empty insert list is silence, not a
+ * failure. Only a turn that produced nodes which fail validation reports one.
  */
-function composedPageMetadata(composed: ComposedPage | null): Record<string, unknown> {
-  if (composed === null) {
-    return { composeError: "The assistant didn't draft a page this time. Try asking again." };
-  }
-  const validated = validateComposedPage(composed.content);
+function pageInsertsMetadata(inserts: PageInserts): Record<string, unknown> {
+  if (inserts.nodes.length === 0) return {};
+  const validated = validatePageInserts(inserts.nodes);
   if ("error" in validated) return { composeError: validated.error };
-  return { composedPage: { title: composed.title, content: validated } };
+  return { pageInserts: { content: validated } };
 }
 
 // Status codes for a batch the executor refused. The same table the command

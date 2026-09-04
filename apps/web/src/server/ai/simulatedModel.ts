@@ -17,7 +17,7 @@
 // Four shapes, in the order `askTurn` decides them:
 //
 //   * the pre-turn intent classification (`classifyStep`),
-//   * PAGE authoring — one `compose_page`, then a sentence. It moved here from
+//   * PAGE authoring — one `insert_text`, then a sentence. It moved here from
 //     the command endpoint with ADR-033 Decision 4, and it is the branch with
 //     the least slack: without it no deployed environment can author a Notebook
 //     page at all.
@@ -69,24 +69,26 @@ function call(toolName: string, input: Record<string, unknown>): ToolCall {
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) };
 }
 
-// Headings and paragraphs only — no macro blocks, so this stays decoupled from
-// the @tc/pages macro registry and passes validateComposedPage unconditionally.
+// Prose only — no `insert_widget`, so this stays decoupled from the @tc/pages
+// macro registry and validates unconditionally.
 //
-// The page it composes is real: it lands in the editor and the Notebook's
-// debounced autosave persists it like any other draft. Only its authorship is
-// not a model, and it says so in its own body rather than leaving the reader to
-// infer it from the Simulated badge alone.
+// What it inserts is real: it lands in the editor and the Notebook's debounced
+// autosave persists it like any other edit. Only its authorship is not a model,
+// and it says so in its own body rather than leaving the reader to infer it
+// from the Simulated badge alone.
+//
+// One markdown string where there used to be a title and a block list, because
+// `insert_text` takes markdown (ADR-035 decision 5). The `##` line exercises the
+// heading branch of `markdownToPageNodes`, so the simulated path covers the same
+// reader the live path uses rather than a straighter one.
 function pageCalls(): ToolCall[] {
   return [
-    call("compose_page", {
-      title: "Sample page",
-      blocks: [
-        { type: "heading", level: 2, text: "This page is simulated" },
-        {
-          type: "paragraph",
-          text: "AI is switched off on this deployment, so this page was composed by the server rather than by a model. Everything else about it is real — it saves, versions, and edits like any other page.",
-        },
-      ],
+    call("insert_text", {
+      markdown: [
+        "## This section is simulated",
+        "",
+        "AI is switched off on this deployment, so this text was written by the server rather than by a model. Everything else about it is real — it saves, versions, and edits like any other page content.",
+      ].join("\n"),
     }),
   ];
 }
@@ -520,14 +522,14 @@ const SIMULATED_PAGE_NOTICE =
  * retry the way a flag on the instance would not.
  *
  * It does NOT read the trip first, though the instruction asks a real model to.
- * `pageCalls` composes headings and paragraphs only, deliberately — no macro
- * block, so it is decoupled from the registry and passes `validateComposedPage`
- * unconditionally — and there is nothing in a readout for it to put in them. A
+ * `pageCalls` inserts prose only, deliberately — no `insert_widget`, so it is
+ * decoupled from the registry and validates unconditionally — and there is
+ * nothing in a readout for it to put in it. A
  * read it does not use would be a step charged to the actor's quota for nothing
  * (KI-67).
  */
 function pageTurn(results: readonly ToolResultLike[]): SimulatedStep {
-  if (!results.some((result) => result.toolName === "compose_page")) {
+  if (!results.some((result) => result.toolName === "insert_text")) {
     return { content: pageCalls(), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   const sentences = [SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE];

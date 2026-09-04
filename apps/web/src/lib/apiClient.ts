@@ -692,12 +692,16 @@ export type AskEvent =
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
   /**
-   * The page a `page`-scoped turn composed, on that same final chunk. Already
-   * validated against the macro registry server-side, so a doc that failed
-   * validation arrives as `page-error` instead and never as content.
+   * What a `page`-scoped turn wants INSERTED, on that same final chunk. Already
+   * validated against the macro registry server-side, so nodes that failed
+   * validation arrive as `page-error` instead and never as content.
+   *
+   * Inserted, not composed (ADR-035 decision 5). It carries no title because it
+   * is not a whole page any more — a turn adds to the document the reader is
+   * looking at, which is what lets a second turn mean something.
    */
-  | { type: "page"; title: string; content: PageDoc }
-  /** A page turn that produced no usable doc, with the server's own reason. */
+  | { type: "page-inserts"; content: PageDoc }
+  /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
   | { type: "error"; message: string };
 
@@ -776,12 +780,12 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   // payload is dropped here rather than acted on.
   if (part.type === "finish") {
     const metadata = part.messageMetadata as
-      | { proposal?: unknown; composedPage?: unknown; composeError?: unknown }
+      | { proposal?: unknown; pageInserts?: unknown; composeError?: unknown }
       | undefined;
     const proposal = proposalFrom(metadata?.proposal);
     if (proposal !== null) return { type: "proposal", proposal };
-    const page = composedPageFrom(metadata?.composedPage);
-    if (page !== null) return page;
+    const inserts = pageInsertsFrom(metadata?.pageInserts);
+    if (inserts !== null) return inserts;
     if (typeof metadata?.composeError === "string" && metadata.composeError !== "") {
       return { type: "page-error", message: metadata.composeError };
     }
@@ -809,7 +813,7 @@ function proposalFrom(value: unknown): AssistantProposal | null {
 }
 
 /**
- * `unknown` → a page we are willing to put in the editor, or `null`.
+ * `unknown` → nodes we are willing to put in the editor, or `null`.
  *
  * `PageDoc`, not `PageContent`, and the difference is the whole point: `PageDoc`
  * is what `CreatePageInput`/`UpdatePageInput` validate against since ADR-038, so
@@ -822,12 +826,11 @@ function proposalFrom(value: unknown): AssistantProposal | null {
  * The server validated it too (against the macro registry, which this side
  * cannot see) — this is the client half of the same rule, not a substitute.
  */
-function composedPageFrom(value: unknown): { type: "page"; title: string; content: PageDoc } | null {
+function pageInsertsFrom(value: unknown): { type: "page-inserts"; content: PageDoc } | null {
   if (typeof value !== "object" || value === null) return null;
-  const raw = value as { title?: unknown; content?: unknown };
-  if (typeof raw.title !== "string" || raw.title === "") return null;
+  const raw = value as { content?: unknown };
   const content = PageDoc.safeParse(raw.content);
-  return content.success ? { type: "page", title: raw.title, content: content.data } : null;
+  return content.success ? { type: "page-inserts", content: content.data } : null;
 }
 
 /**

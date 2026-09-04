@@ -235,11 +235,11 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // The compose box is an authoring control too. Leaving it mounted made
     // "Reading" a lie: it replaces the whole document and autosaves it, so a
     // page in Reading could still be rewritten by the assistant.
-    expect(screen.queryByLabelText(/ask ai to draft this page/i)).toBeNull();
+    expect(screen.queryByLabelText(/ask ai to add to this page/i)).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
-    expect(screen.getByLabelText(/ask ai to draft this page/i)).toBeTruthy();
+    expect(screen.getByLabelText(/ask ai to add to this page/i)).toBeTruthy();
   });
 
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
@@ -492,7 +492,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   it("takes the compose panel away too, since applying a draft would overwrite the page", async () => {
     await renderWithStoredContent(withRepeat);
     await screen.findByRole("status");
-    expect(screen.queryByLabelText(/ask ai to draft this page/i)).toBeNull();
+    expect(screen.queryByLabelText(/ask ai to add to this page/i)).toBeNull();
   });
 
   it("locks a document it cannot parse at all, and says so without pretending to show it", async () => {

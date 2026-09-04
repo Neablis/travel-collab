@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { PageDoc } from "@tc/contracts";
+import type { PageNode } from "@tc/contracts";
 import { askAssistant, ASK_ABORTED_CODE } from "@/lib/apiClient";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,11 +9,15 @@ import { Label } from "@/components/ui/label";
 
 type Status = "idle" | "loading" | "error";
 
-// A prompt box that asks the assistant to draft THIS page, and hands the result
-// to `onApply` — the same content-setter PageScreen wires to PageEditor's
-// `onChange`, so the draft lands in the editor for the user to review and edit
-// before the existing debounced autosave persists it. This panel never calls
-// updatePage itself.
+// A prompt box that asks the assistant to add to THIS page, and hands the
+// resulting nodes to `onInsert` — which PageScreen puts through the SAME
+// `insertContent` chain the widget sidebar's click uses, so the edit lands at
+// the cursor and the existing debounced autosave persists it. This panel never
+// calls updatePage itself.
+//
+// **It composed a whole page until ADR-035 decision 5.** That is why the
+// paragraph below argues it cannot be a conversation — and why it now can be.
+// Inserting has an obvious second time; replacing does not.
 //
 // **It talks to /ask now, not to the command endpoint** (ADR-033 Decision 4).
 // That is a rewrite rather than a re-point, and the ADR says so: it awaited a
@@ -22,18 +26,26 @@ type Status = "idle" | "loading" | "error";
 // `pageContext` off the request body, and a tool set narrowed to reading plus
 // `compose_page` — a turn from here cannot touch the board at all.
 //
-// It sends ONE message and keeps no thread. The rail's conversation is a
-// conversation; this is a single instruction about one document, and a page
-// that accumulated turns would have to decide what "draft this page" means the
-// second time. `pageId` is all the context it sends — everything else about the
+// It still sends ONE message and keeps no thread, but that is now a property of
+// this SURFACE rather than of page authoring itself: the objection it used to
+// record — "a page that accumulated turns would have to decide what 'draft this
+// page' means the second time" — was an objection to REPLACING, and inserts
+// dissolve it. The thread arrives when this box is replaced by the assistant
+// rail (M14 link 8's second half); the tools stopped being the blocker here. `pageId` is all the context it sends — everything else about the
 // page (its title, its day binding) the server reads from the row.
 type ComposePanelProps = {
   tripId: string;
   pageId: string;
-  onApply: (content: PageDoc) => void;
+  /**
+   * Hands the turn's nodes to whoever owns the document. **Insert, not apply**
+   * (ADR-035 decision 5): the panel used to replace the page wholesale, which
+   * is why its own header argued it could not be a conversation. Adding to the
+   * document gives a second turn an obvious meaning.
+   */
+  onInsert: (nodes: PageNode[]) => void;
 };
 
-export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
+export function ComposePanel({ tripId, pageId, onInsert }: ComposePanelProps) {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -78,9 +90,9 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
     setSimulated(false);
 
     // Accumulated here rather than read off the resolved value, because a turn
-    // that streams a page and THEN fails still drafted a usable page — and
+    // that streams nodes and THEN fails still produced usable content — and
     // throwing it away under the user is the worse lie.
-    let composed: PageDoc | null = null;
+    let inserted: PageNode[] | null = null;
     let refusal: string | null = null;
 
     const controller = new AbortController();
@@ -91,10 +103,10 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
       { kind: "page", pageId },
       (event) => {
         if (event.type === "meta") setSimulated(event.simulated);
-        // The doc is already validated against the macro registry server-side
-        // and re-parsed against `PageDoc` on the way in, so there is
-        // nothing left here to check before showing it.
-        else if (event.type === "page") composed = event.content;
+        // Already validated against the macro registry server-side and
+        // re-parsed against `PageDoc` on the way in, so there is nothing left
+        // here to check before inserting it.
+        else if (event.type === "page-inserts") inserted = event.content.content;
         else if (event.type === "page-error") refusal = event.message;
       },
       controller.signal,
@@ -109,8 +121,8 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
     if (abort.current !== controller) return;
     abort.current = null;
 
-    if (composed !== null) {
-      onApply(composed);
+    if (inserted !== null) {
+      onInsert(inserted);
       setStatus("idle");
       setPrompt("");
       return;
@@ -123,7 +135,7 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
     // `refusal` first: when the server says why it could not draft a page
     // ("Macro "cost.day" params failed validation…"), that is a better answer
     // than the transport-level one, which will just say the turn succeeded.
-    setError(refusal ?? (result.ok ? "The assistant didn't draft a page. Try asking again." : result.error.message));
+    setError(refusal ?? (result.ok ? "The assistant didn't add anything this time. Try asking again." : result.error.message));
     setStatus("error");
   };
 
@@ -131,7 +143,7 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-surface p-3">
-      <Label htmlFor={inputId}>Ask AI to draft this page</Label>
+      <Label htmlFor={inputId}>Ask AI to add to this page</Label>
       <Textarea
         id={inputId}
         value={prompt}
@@ -144,7 +156,7 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
             void submit();
           }
         }}
-        placeholder="e.g. Add a packing checklist and the day-by-day itinerary"
+        placeholder="e.g. Add a packing checklist, then what day 1 costs"
         disabled={status === "loading"}
       />
       {error !== null && <p role="alert" className="text-sm text-danger">{error}</p>}

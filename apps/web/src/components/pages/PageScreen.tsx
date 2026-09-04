@@ -164,11 +164,16 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // 4); `focus()` first so a click in the popover — which moved focus out of
   // the editor — still lands where the caret was.
   //
-  // Drag-and-drop and the slash menu are the SAME command from a different
+// Drag-and-drop and the slash menu are the SAME command from a different
   // origin, and they live in `PageEditor` because both need a position the
   // editor computes (a drop point, a caret range) rather than the selection.
-  const insertAtCursor = (node: MacroNode) => {
-    editor?.chain().focus().insertContent(node).run();
+  //
+  // It takes one node OR MANY, because the assistant inserts through it too
+  // (ADR-035 decision 5): a turn's prose and widgets arrive as a node list and
+  // land the same way a click does. One mechanism, so the AI path cannot
+  // develop placement rules of its own.
+  const insertAtCursor = (node: MacroNode | readonly unknown[]) => {
+    editor?.chain().focus().insertContent(node as never).run();
   };
 
   const backLink = (
@@ -180,8 +185,9 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   );
 
   // Read-only, and every write path off: no autosave (nothing calls
-  // `saveContent`), and no ComposePanel, because applying a composed document
-  // would overwrite exactly the content we just refused to risk.
+  // `saveContent`), and no ComposePanel — it inserts into an editor this
+  // branch deliberately never mounts, and anything it did land would be
+  // autosaved over the content we just refused to risk.
   //
   // **No Edit toggle here either.** ADR-038 decision 4's whole point is that
   // this document must not be mounted in an editor at all, so offering a
@@ -251,13 +257,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           are 8px and 12px. Caught on the preview walk, not by any test — no
           layer we have asserts vertical rhythm. */}
       <div className="mb-3 mt-3">
-        {/* Editing only. Left mounted, "Reading" was a lie: the panel replaces
-            the whole document and autosaves it, so a page put into Reading could
-            still be rewritten by the assistant. Unmounting also aborts any turn
-            in flight, through the cleanup the panel already has. Found by
+{/* Editing only. Left mounted, "Reading" was a lie: the assistant
+            writes into the document and it autosaves, so a page put into
+            Reading could still be changed by it. Unmounting also aborts any
+            turn in flight, through the cleanup the panel already has. Found by
             Copilot on PR 139, and by Mitchell on the preview ("you can kinda
             still select a widget when not editing"). */}
-        {editing ? <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} /> : null}
+        {editing ? <ComposePanel tripId={tripId} pageId={pageId} onInsert={insertAtCursor} /> : null}
       </div>
       {/* The document gets the full column back. The insert surface used to be
           an `<aside>` flex sibling here, so opening it narrowed the prose the

@@ -32,10 +32,10 @@ afterEach(cleanup);
 
 beforeEach(() => {
   askAssistantMock.mockReset();
-  askAssistantMock.mockImplementation(turnEmitting({ type: "page", title: "Trip Overview", content: DOC }));
+  askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC }));
 });
 
-const type = (text: string) => userEvent.type(screen.getByLabelText(/ask ai to draft this page/i), text);
+const type = (text: string) => userEvent.type(screen.getByLabelText(/ask ai to add to this page/i), text);
 
 // The panel talks to /ask now (ADR-033 Decision 4) rather than awaiting a
 // non-streaming `{ content }` from the command endpoint. What has to survive
@@ -44,7 +44,7 @@ const type = (text: string) => userEvent.type(screen.getByLabelText(/ask ai to d
 // badge.
 describe("ComposePanel", () => {
   it("asks /ask with a page scope carrying THIS page's id, and nothing else about the page", async () => {
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
     await type("Add a packing list{Enter}");
 
@@ -58,14 +58,14 @@ describe("ComposePanel", () => {
     ]);
   });
 
-  it("hands the composed doc to onApply and clears the prompt", async () => {
-    const onApply = vi.fn();
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={onApply} />);
+  it("hands the composed doc to onInsert and clears the prompt", async () => {
+    const onInsert = vi.fn();
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={onInsert} />);
 
     await type("Add a packing list{Enter}");
 
-    await waitFor(() => expect(onApply).toHaveBeenCalledWith(DOC));
-    expect((screen.getByLabelText(/ask ai to draft this page/i) as HTMLTextAreaElement).value).toBe("");
+    await waitFor(() => expect(onInsert).toHaveBeenCalledWith(DOC.content));
+    expect((screen.getByLabelText(/ask ai to add to this page/i) as HTMLTextAreaElement).value).toBe("");
   });
 
   // Read from the server's header, never sniffed out of the model's prose — the
@@ -73,9 +73,9 @@ describe("ComposePanel", () => {
   // Vercel environment, so this badge is what a deployed Notebook actually shows.
   it("badges a draft the server composed because AI is switched off", async () => {
     askAssistantMock.mockImplementation(
-      turnEmitting({ type: "meta", simulated: true }, { type: "page", title: "Sample page", content: DOC }),
+      turnEmitting({ type: "meta", simulated: true }, { type: "page-inserts", content: DOC }),
     );
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
     await type("draft it{Enter}");
 
@@ -84,9 +84,9 @@ describe("ComposePanel", () => {
 
   it("does not badge a draft a real model wrote", async () => {
     askAssistantMock.mockImplementation(
-      turnEmitting({ type: "meta", simulated: false }, { type: "page", title: "T", content: DOC }),
+      turnEmitting({ type: "meta", simulated: false }, { type: "page-inserts", content: DOC }),
     );
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
     await type("draft it{Enter}");
 
@@ -97,18 +97,18 @@ describe("ComposePanel", () => {
   // or a turn that never composed. Silently doing nothing after "Generate" is a
   // dead end, and the doc must not reach the editor either way.
   it("shows the server's compose refusal and applies nothing", async () => {
-    const onApply = vi.fn();
+    const onInsert = vi.fn();
     askAssistantMock.mockImplementation(
       turnEmitting({ type: "page-error", message: 'Macro "cost.day" params failed validation.' }),
     );
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={onApply} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={onInsert} />);
 
     await type("draft it{Enter}");
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe('Macro "cost.day" params failed validation.'),
     );
-    expect(onApply).not.toHaveBeenCalled();
+    expect(onInsert).not.toHaveBeenCalled();
   });
 
   // A refusal before the stream opened — 403 on the page scope the server could
@@ -118,7 +118,7 @@ describe("ComposePanel", () => {
       ok: false,
       error: { status: 404, message: "That page is not on this trip.", code: "page-not-on-trip" },
     });
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
     await type("draft it{Enter}");
 
@@ -128,25 +128,25 @@ describe("ComposePanel", () => {
   // A turn that streamed a usable page and THEN broke still drafted a usable
   // page. Deleting it under the user is the worse lie.
   it("keeps a page that arrived before the turn failed", async () => {
-    const onApply = vi.fn();
+    const onInsert = vi.fn();
     askAssistantMock.mockImplementation(
       async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
-        onEvent({ type: "page", title: "T", content: DOC });
+        onEvent({ type: "page-inserts", content: DOC });
         return { ok: false as const, error: { status: 200, message: "boom", code: "ask-stream-error" } };
       },
     );
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={onApply} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={onInsert} />);
 
     await type("draft it{Enter}");
 
-    await waitFor(() => expect(onApply).toHaveBeenCalledWith(DOC));
+    await waitFor(() => expect(onInsert).toHaveBeenCalledWith(DOC.content));
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("does not submit on Shift+Enter, and inserts a newline instead", async () => {
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
-    const textarea = screen.getByLabelText(/ask ai to draft this page/i) as HTMLTextAreaElement;
+    const textarea = screen.getByLabelText(/ask ai to add to this page/i) as HTMLTextAreaElement;
     await userEvent.type(textarea, "Add a packing list{Shift>}{Enter}{/Shift}and the itinerary");
 
     expect(askAssistantMock).not.toHaveBeenCalled();
@@ -154,9 +154,9 @@ describe("ComposePanel", () => {
   });
 
   it("does not submit on Enter when the prompt is empty", async () => {
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
-    screen.getByLabelText(/ask ai to draft this page/i).focus();
+    screen.getByLabelText(/ask ai to add to this page/i).focus();
     await userEvent.keyboard("{Enter}");
 
     expect(askAssistantMock).not.toHaveBeenCalled();
@@ -164,11 +164,11 @@ describe("ComposePanel", () => {
 
   // The two strings `e2e/m7-solo-delight.spec.ts` asserts by exact name.
   it("keeps the label and the button the Notebook walkthrough looks for", () => {
-    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+    render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
 
     // No jest-dom in this suite (vitest.setup.ts), so presence is the assertion
     // — `getBy*` throws when the accessible name does not match exactly.
-    expect(screen.getByLabelText("Ask AI to draft this page")).toBeTruthy();
+    expect(screen.getByLabelText("Ask AI to add to this page")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy();
   });
 
@@ -201,7 +201,7 @@ describe("ComposePanel", () => {
 
     it("aborts the request when the panel unmounts", async () => {
       const turn = heldTurn();
-      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={vi.fn()} />);
+      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={vi.fn()} />);
       await type("Draft it");
       await userEvent.click(screen.getByRole("button", { name: "Generate" }));
       await turn.started;
@@ -217,19 +217,19 @@ describe("ComposePanel", () => {
     // apply the previous page's draft to the page now on screen.
     it("does not apply a draft from the page it used to be pointed at", async () => {
       const turn = heldTurn();
-      const onApply = vi.fn();
-      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onApply={onApply} />);
+      const onInsert = vi.fn();
+      const view = render(<ComposePanel tripId="t1" pageId={PAGE_ID} onInsert={onInsert} />);
       await type("Draft it");
       await userEvent.click(screen.getByRole("button", { name: "Generate" }));
       await turn.started;
 
       const OTHER = "11111111-2222-4333-8444-555555555555";
-      view.rerender(<ComposePanel tripId="t1" pageId={OTHER} onApply={onApply} />);
-      turn.emit({ type: "page", title: "Stale", content: DOC });
+      view.rerender(<ComposePanel tripId="t1" pageId={OTHER} onInsert={onInsert} />);
+      turn.emit({ type: "page-inserts", content: DOC });
 
       // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       await waitFor(() => expect(screen.getByRole("button", { name: "Generate" })).toBeTruthy());
-      expect(onApply).not.toHaveBeenCalled();
+      expect(onInsert).not.toHaveBeenCalled();
     });
   });
 });

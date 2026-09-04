@@ -94,12 +94,12 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
   // -- ComposePanel renders (no real AI call — see the file-header note) --
-  // It is an EDITING control now: left mounted in Reading it made that mode a
-  // lie, since it replaces the whole document and autosaves it. So this asserts
-  // both halves — absent in Reading, present once editing.
-  await expect(page.getByLabel("Ask AI to draft this page")).toBeHidden();
+// It is an EDITING control now: left mounted in Reading it made that mode a
+  // lie, since what it writes is autosaved. So this asserts both halves —
+  // absent in Reading, present once editing.
+  await expect(page.getByLabel("Ask AI to add to this page")).toBeHidden();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByLabel("Ask AI to draft this page")).toBeVisible();
+  await expect(page.getByLabel("Ask AI to add to this page")).toBeVisible();
   await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
   await page.getByRole("button", { name: "Done editing" }).click();
 

@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { buildPageTools, PAGE_TOOL_NAMES, validateComposedPage } from "./pageTools";
+import { buildPageTools, PAGE_TOOL_NAMES, validateComposedPage, validatePageInserts } from "./pageTools";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
@@ -15,94 +15,81 @@ function asZodSchema(schema: unknown): ZodTypeAny {
   return schema as ZodTypeAny;
 }
 
-describe("buildPageTools", () => {
-  it("compose_page accepts a doc using only registry macros", () => {
-    const { tools } = buildPageTools();
-    const result = asZodSchema(tools.compose_page!.inputSchema).safeParse({
-      title: "Overview",
-      blocks: [
-        { type: "heading", level: 2, text: "Overview" },
-        { type: "macro", name: "trip.name" },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
+describe("insert_text", () => {
+  const toolContext = { toolCallId: "call-1", messages: [], context: undefined };
 
-  it("compose_page rejects a macro name not in MACRO_NAMES", () => {
-    const { tools } = buildPageTools();
-    const result = asZodSchema(tools.compose_page!.inputSchema).safeParse({
-      title: "Overview",
-      blocks: [{ type: "macro", name: "nope.nope" }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("compose_page execute converts the simplified shape into a versioned PageDoc", async () => {
-    const { tools } = buildPageTools();
-    const result = await tools.compose_page!.execute!(
-      {
-        title: "Overview",
-        blocks: [
-          { type: "heading", level: 2, text: "Overview" },
-          { type: "paragraph", text: "Some intro." },
-          { type: "macro", name: "trip.name" },
-        ],
-      },
-      { toolCallId: "call-1", messages: [], context: undefined },
+  it("reads the markdown subset it documents: headings, lists and paragraphs", async () => {
+    const { tools, getInserts } = buildPageTools();
+    await tools.insert_text!.execute!(
+      { markdown: "## Packing\n\nTake layers.\n\n- socks\n- charger" },
+      toolContext,
     );
-
-    // `v` is the assertion that matters here, not decoration: ADR-038 decision
-    // 2 says every document carries its version and it is written on every
-    // save, and the compose path is a save path. A doc composed without one
-    // would be indistinguishable from a pre-ADR row on the first migration.
-    expect(result).toEqual({
-      title: "Overview",
-      content: {
-        v: CURRENT_PAGE_DOC_VERSION,
-        type: "doc",
+    expect(getInserts().nodes).toEqual([
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Packing" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Take layers." }] },
+      {
+        type: "bulletList",
         content: [
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
-          { type: "paragraph", content: [{ type: "text", text: "Some intro." }] },
-          { type: "macro", attrs: { name: "trip.name", params: {} } },
+          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "socks" }] }] },
+          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "charger" }] }] },
         ],
       },
-    });
+    ]);
+  });
+
+  // The inversion ADR-035 decision 5 is about. `compose_page` documented "last
+  // compose wins — a page is one document, not an append log", which is exactly
+  // what stopped the panel being a conversation. Two calls must now BOTH count.
+  it("accumulates across calls, in call order", async () => {
+    const { tools, getInserts } = buildPageTools();
+    await tools.insert_text!.execute!({ markdown: "First." }, toolContext);
+    await tools.insert_text!.execute!({ markdown: "Second." }, toolContext);
+    expect(getInserts().nodes.map((n) => JSON.stringify(n))).toEqual([
+      JSON.stringify({ type: "paragraph", content: [{ type: "text", text: "First." }] }),
+      JSON.stringify({ type: "paragraph", content: [{ type: "text", text: "Second." }] }),
+    ]);
+  });
+
+  it("rejects empty markdown at the schema, before execute", () => {
+    const { tools } = buildPageTools();
+    expect(asZodSchema(tools.insert_text!.inputSchema).safeParse({ markdown: "" }).success).toBe(false);
   });
 });
 
-// The collector its new host needs: the composed doc leaves on the stream's
-// `finish` part as message metadata (handleAskRequest.ts), which is several SDK
-// frames after the tool result. `execute` is otherwise unchanged — it still
-// returns, so the model sees its own result and can talk about it.
-describe("buildPageTools — what the turn composed", () => {
-  const params = (title: string) => ({ title, blocks: [{ type: "paragraph" as const, text: "Notes." }] });
+describe("insert_widget", () => {
   const toolContext = { toolCallId: "call-1", messages: [], context: undefined };
 
-  it("is null before the model has composed anything", () => {
-    expect(buildPageTools().getComposed()).toBeNull();
+  it("inserts a registry widget, unbound, which is a valid state", async () => {
+    const { tools, getInserts } = buildPageTools();
+    const result = await tools.insert_widget!.execute!({ name: "trip.name" }, toolContext);
+    expect(result).toEqual({ ok: true, name: "trip.name" });
+    expect(getInserts().nodes).toEqual([{ type: "macro", attrs: { name: "trip.name", params: {} } }]);
   });
 
-  it("reads back exactly what execute returned", async () => {
-    const { tools, getComposed } = buildPageTools();
-    const returned = await tools.compose_page!.execute!(params("Overview"), toolContext);
-    expect(getComposed()).toEqual(returned);
+  it("rejects a widget name not in the registry, at the schema", () => {
+    const { tools } = buildPageTools();
+    expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "nope.nope" }).success).toBe(false);
   });
 
-  // A page is one document, not an append log: a model that composes twice
-  // meant the second one.
-  it("keeps the LAST compose when a model calls it twice", async () => {
-    const { tools, getComposed } = buildPageTools();
-    await tools.compose_page!.execute!(params("First"), toolContext);
-    await tools.compose_page!.execute!(params("Second"), toolContext);
-    expect(getComposed()?.title).toBe("Second");
+  // The delegation is the point: `insertWidget` is the one path a widget may
+  // enter a document by, and the sidebar's click uses it too. A binding the
+  // widget's OWN schema rejects is refused here by that same schema — so the AI
+  // path cannot drift from the click path, because there is only one path.
+  it("refuses a hallucinated binding through the widget's own schema, and tells the model", async () => {
+    const { tools, getInserts } = buildPageTools();
+    const result = await tools.insert_widget!.execute!(
+      { name: "cost.day", params: { dayRef: { kind: "nonsense" } } },
+      toolContext,
+    );
+    expect(result).toMatchObject({ ok: false });
+    // Refused means nothing inserted — not inserted-then-caught downstream.
+    expect(getInserts().nodes).toEqual([]);
   });
 
-  // Each turn gets its own collector, or one turn's page would leak into the
-  // next request's final chunk.
   it("does not share state between two built tool sets", async () => {
     const first = buildPageTools();
-    await first.tools.compose_page!.execute!(params("Overview"), toolContext);
-    expect(buildPageTools().getComposed()).toBeNull();
+    await first.tools.insert_widget!.execute!({ name: "trip.name" }, toolContext);
+    expect(buildPageTools().getInserts().nodes).toEqual([]);
   });
 });
 
@@ -112,7 +99,22 @@ describe("buildPageTools — what the turn composed", () => {
 describe("PAGE_TOOL_NAMES", () => {
   it("is the built tool set's own keys", () => {
     expect([...PAGE_TOOL_NAMES]).toEqual(Object.keys(buildPageTools().tools));
-    expect([...PAGE_TOOL_NAMES]).toContain("compose_page");
+    expect([...PAGE_TOOL_NAMES]).toEqual(["insert_text", "insert_widget"]);
+  });
+});
+
+describe("validatePageInserts", () => {
+  it("wraps nodes in a versioned PageDoc, so inserted content carries `v`", () => {
+    const result = validatePageInserts([{ type: "paragraph", content: [{ type: "text", text: "Hi." }] }]);
+    expect("error" in result).toBe(false);
+    expect((result as { v: number }).v).toBe(CURRENT_PAGE_DOC_VERSION);
+  });
+
+  it("rejects nodes carrying a macro the registry does not have", () => {
+    const result = validatePageInserts([
+      { type: "macro", attrs: { name: "ghost.widget", params: {} } } as never,
+    ]);
+    expect(result).toHaveProperty("error");
   });
 });
 
