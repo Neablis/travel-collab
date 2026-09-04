@@ -22,6 +22,29 @@ general setup.
 
 ## Where the work is right now
 
+**#134 IS MERGED (2026-09-04, squashed as `513d8dc`), and the rest of the stack is #139.**
+Because it landed squashed, `main` carries #134's content as a commit unrelated to the
+history the stack carries, so #139 conflicted with its own ancestor — twenty-one add/add
+and content conflicts on files where the two sides are the same work at different ages.
+Resolved to the branch throughout (`806535d`) after checking every main-only line for
+anything newer; there was none, and the merged tree is byte-identical to the branch tip,
+which is the evidence nothing was dropped. **#135–#138 are now redundant** — their content
+is inside #139 — and should be closed rather than merged when #139 lands.
+
+**ADR-039 is PROPOSED (2026-09-04) and is what happens next.** A widget stops being a name
+and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
+came out of Mitchell's preview comment (*"where we have a tool that you can select a day, it
+can also select All at the top, and it gives you a sum"*) and the finding underneath it —
+four of the seventeen widgets are the same widget written twice, differing only in whether a
+filter is set. Twelve primitives replace them; named widgets become presets, which are data
+and are never stored in a document. `docs/specs/2026-09-04-widget-primitives.md` carries the
+primitives, the filter vocabulary, the preset table (which doubles as the migration map from
+today's seventeen names), and the `/cost 3 meal` slash grammar. Mitchell settled its three
+open questions the same evening: person and date-range filters are declared now (person
+honest about having neither a display name on `TripMember` nor any person on a stop to filter
+by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
+while ghost rendering waits for the next milestone.
+
 **M14's builder half is built and in flight, 2026-09-04.** The work is a stack of six
 branches, **#134 → #135 → #136 → #137 → #138 → #139**, and **#139 is retargeted to `main`
 so its diff is the whole stack** — review it there rather than branch by branch. Tip branch
