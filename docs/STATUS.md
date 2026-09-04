@@ -22,14 +22,23 @@ general setup.
 
 ## Where the work is right now
 
-**#134 IS MERGED (2026-09-04, squashed as `513d8dc`), and the rest of the stack is #139.**
-Because it landed squashed, `main` carries #134's content as a commit unrelated to the
-history the stack carries, so #139 conflicted with its own ancestor — twenty-one add/add
-and content conflicts on files where the two sides are the same work at different ages.
-Resolved to the branch throughout (`806535d`) after checking every main-only line for
-anything newer; there was none, and the merged tree is byte-identical to the branch tip,
-which is the evidence nothing was dropped. **#135–#138 are now redundant** — their content
-is inside #139 — and should be closed rather than merged when #139 lands.
+**M14's BUILDER HALF IS MERGED, 2026-09-04.** `main` is **`947646f`**. The stack was six
+PRs — **#134 → #135 → #136 → #137 → #138 → #139** — and it landed as **four merges and two
+closes**: #134 (squashed, `513d8dc`), #136, #137, and #139 (`947646f`), whose diff was the
+whole stack because it had been retargeted to `main`. **#135 and #138 were CLOSED, not
+merged**, and the reason is worth keeping: resolving #135's conflict left exactly two files
+differing from `main` — `WidgetSidebar.tsx` and its test, the `<aside>` flex sibling the
+Popover replaced — which `main` deletes and nothing imports, so merging it would have
+re-added a component the design rejected and nothing else. #138 was based on #135's branch
+and carried the same shape of conflict.
+
+**The squash is what made the stack fight itself.** #134 landing squashed put its content on
+`main` as a commit unrelated to the history the stack carried, so #139 hit twenty-one add/add
+and content conflicts against its own ancestor. Resolved to the branch throughout (`806535d`)
+after checking every main-only line for anything newer — there was none, `main`'s side was
+#134 as it was — and the merged tree came out byte-identical to the branch tip, which is the
+evidence nothing was dropped. **Expect this whenever a squashed PR is the base of a live
+stack.**
 
 **ADR-039 is PROPOSED (2026-09-04) and is what happens next.** A widget stops being a name
 and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
@@ -45,13 +54,26 @@ honest about having neither a display name on `TripMember` nor any person on a s
 by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
 while ghost rendering waits for the next milestone.
 
-**M14's builder half is built and in flight, 2026-09-04.** The work is a stack of six
-branches, **#134 → #135 → #136 → #137 → #138 → #139**, and **#139 is retargeted to `main`
-so its diff is the whole stack** — review it there rather than branch by branch. Tip branch
-is `claude/m14-tags-control`. Merged before the stack: **#129** (a page loses its scope),
+**What the merge contains.** Merged before the stack: **#129** (a page loses its scope),
 **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
-versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are all
-Accepted.**
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are
+Accepted; ADR-039 is Proposed.**
+
+**M14's gate is NOT closed: 2 of 14 boxes ticked** (`docs/milestones/M14-rich-layer.md`).
+Several unticked boxes are now satisfied by merged code and the nine e2e walks in
+`apps/web/e2e/m14-notebook-widgets.spec.ts` and were deliberately not ticked by the session
+that merged the code — ticking a box is a claim of verification, and the gate's manual walk
+is still owed. **Genuinely unbuilt**: link 7 (prebuilt pages shipping with a new trip), link
+9 (notebook history as one event per edit session), the repeat row template (catalogue row
+12, unowned), and the block-level editor node block widgets actually want. **Still blocked**:
+the manual signed-in preview walk needs this environment's `INVITE_SUPER_CODE`.
+
+**The roadmap flags say M17 and the work says M14.** All four sources agree with each other
+— `docs/milestones/README.md:201`, `TODO.md:174` — so `pnpm state` reports no drift, and the
+recorded order still runs M14 near the end. The builder half was pulled forward on Mitchell's
+instruction (TODO.md records the first half of that decision) and has now merged. **Whether
+M14 becomes the current milestone or this is recorded as a finished excursion back to M17 is
+Mitchell's call and is not yet made.**
 
 **What is clickable now**: a notebook page opens in **Reading**, one button flips it to
 Editing, and in Editing a widget can be inserted three ways — a **Popover** off the page
