@@ -12,6 +12,7 @@ import { DEFAULT_TEMPLATES, macroCatalog } from "@tc/pages";
 import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
+import { MAX_ROWS, slashOptionId } from "./useSlashMenu";
 
 afterEach(cleanup);
 
@@ -397,12 +398,19 @@ describe("the slash menu", () => {
     // the menu uses, rather than a list of titles typed here: a copied list
     // goes stale the first time someone adds a widget whose description happens
     // to say "trip", and would then fail for a reason that is not a bug.
+    //
+    // Capped at the menu's OWN limit, not at however many rows happened to
+    // render. `slice(0, shown.length)` made the expectation follow the result:
+    // a regression rendering only the first match would have compared one
+    // option against a one-item list and passed (CodeRabbit, PR 139). `MAX_ROWS`
+    // is imported rather than copied, for the same reason the list is derived.
     const expected = macroCatalog()
       .filter((w) => widgetMatches(w, "trip"))
-      .slice(0, shown.length)
+      .slice(0, MAX_ROWS)
       .map((w) => w.title);
     expect(expected.length).toBeGreaterThan(0);
     expect(expected.length).toBeLessThan(macroCatalog().length);
+    expect(shown).toHaveLength(expected.length);
     for (const [i, option] of shown.entries()) {
       expect(option.textContent).toContain(expected[i]!);
     }
@@ -453,11 +461,19 @@ describe("the slash menu", () => {
     expect(JSON.stringify(onChange.mock.calls.at(-1)?.[0] ?? {})).not.toContain('"macro"');
 
     // ...and Enter takes the row Tab landed on, not the one it started on.
-    const second = afterTab[1]!.textContent;
+    //
+    // Asserted as the widget's own STORED NAME, not as "a macro landed":
+    // checking for `"macro"` anywhere in the document passes when Enter inserts
+    // the first option, which is precisely the bug Tab-then-Enter exists to
+    // rule out (CodeRabbit, PR 139). The name comes from the option's id, which
+    // `slashOptionId` derives from the registry — so the assertion cannot name
+    // a widget the menu was not actually showing.
+    const chosen = macroCatalog().find((w) => slashOptionId(w.name) === afterTab[1]!.id);
+    expect(chosen).toBeDefined();
+    expect(chosen!.name).not.toBe(macroCatalog().find((w) => slashOptionId(w.name) === afterTab[0]!.id)!.name);
     await userEvent.type(textbox, "{Enter}");
     expect(screen.queryByRole("listbox")).toBeNull();
-    expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain('"macro"');
-    expect(second).toBeTruthy();
+    expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain(`"${chosen!.name}"`);
   });
 
   // **The editor keeps focus, so the editor has to announce the listbox.** A

@@ -177,13 +177,26 @@ describe("the assistant on a notebook page", () => {
   // and autosaved it.
   function neverSettlingTurn() {
     let emit: ((event: AskEvent) => void) | null = null;
+    // The SIGNAL as well as the emitter. Watching only for late events proves
+    // the guard fired, not that the request was actually hung up on — a
+    // `cancel()` that dropped its ownership without calling `abort()` would
+    // leave the turn running against the server and still pass (CodeRabbit,
+    // PR 139).
+    let signal: AbortSignal | null = null;
     askAssistantMock.mockImplementation(
-      async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
+      async (
+        _t: string,
+        _m: AskWireMessage[],
+        _s: AskScope,
+        onEvent: (e: AskEvent) => void,
+        abortSignal: AbortSignal,
+      ) => {
         emit = onEvent;
+        signal = abortSignal;
         return await new Promise<never>(() => {});
       },
     );
-    return () => emit;
+    return { emitter: () => emit, signal: () => signal };
   }
 
   // **Reading never receives writes — and it is this guard that says so, not
@@ -193,7 +206,7 @@ describe("the assistant on a notebook page", () => {
   // mode"* — so the panel is still there and the guard is now the only thing
   // between a streaming turn and a document that is being read.
   it("refuses a turn's insert once the page has left Editing, and says why", async () => {
-    const emitter = neverSettlingTurn();
+    const { emitter } = neverSettlingTurn();
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     await waitFor(() => expect(emitter()).not.toBeNull());
@@ -213,13 +226,16 @@ describe("the assistant on a notebook page", () => {
 
   // Closing the surface IS hanging up — that half of the PR 139 fix stands.
   it("hangs up on a turn in flight when the assistant is closed", async () => {
-    const emitter = neverSettlingTurn();
+    const { emitter, signal } = neverSettlingTurn();
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     await waitFor(() => expect(emitter()).not.toBeNull());
+    expect(signal()!.aborted).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: /hide/i }));
     await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+    // Hung up on the SERVER, not merely ignored on the client.
+    expect(signal()!.aborted).toBe(true);
 
     emitter()!({ type: "page-inserts", content: DOC });
     expect(screen.queryByText("Bring a raincoat")).toBeNull();

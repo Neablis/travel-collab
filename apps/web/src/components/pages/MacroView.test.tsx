@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TripDetail, PageContext } from "@tc/contracts";
-import { macroCatalog } from "@tc/pages";
+import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
+import { getMacro, macroCatalog, renderMacro } from "@tc/pages";
 import { MacroView } from "./MacroView";
 
 afterEach(cleanup);
@@ -214,6 +214,64 @@ describe("MacroView", () => {
 // the right call here anyway: the claim is "the browser will accept this", and
 // React's validator is the thing that answers it.
 describe("every widget is legal where widgets actually go", () => {
+  // **A widget whose renderer never ran cannot emit bad markup, so a fixture
+  // that leaves widgets unbound tests nothing.** With `params={{}}` every
+  // day-input widget resolved `unbound` and `MacroView` returned an `EmptyChip`
+  // before reaching the renderer — so ten of the seventeen entries were walked
+  // without their markup ever being produced (CodeRabbit, PR 139). The two that
+  // did run are the two that carried the bug, which is why it was caught at all
+  // and not why the test was sound.
+  //
+  // Params are built FROM each widget's declared inputs rather than typed per
+  // widget, so the seventeenth widget is bound the day it lands. An unset `tags`
+  // is deliberately left unset: §18 makes "no tag" mean every stop, so that IS
+  // the bound case.
+  function boundParams(name: string): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+    for (const input of getMacro(name)?.inputs ?? []) {
+      if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
+    }
+    return params;
+  }
+
+  // Rich enough that every widget resolves: a budget, a booked stop as well as a
+  // planned one, a city projection and an account.
+  const richDetail: TripDetail = {
+    ...costedDetail,
+    budget: { amountMinor: 50000, currency: "USD" },
+    budgetRemaining: 37655,
+    days: [{ ...costedDetail.days[0]!, activityIds: ["a1", "booked"] }],
+    activities: {
+      ...costedDetail.activities,
+      booked: {
+        activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
+        location: null, notes: null, anchors: [], kind: "booked", tags: [],
+        cost: { amountMinor: 12000, currency: "USD" },
+      },
+    },
+  };
+  const richGlobals: TripGlobals = {
+    days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345 }],
+    cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
+    tags: [], bookedCount: 1,
+  };
+  const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" };
+
+  it("resolves every widget in the registry against this fixture", () => {
+    // The witness for the test below, and a real assertion in its own right: if
+    // one entry stops resolving here, the nesting walk quietly stops covering
+    // it, and this is the line that says so by name.
+    for (const widget of macroCatalog()) {
+      const outcome = renderMacro(
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals },
+        widget.name,
+        boundParams(widget.name),
+      );
+      expect(outcome.status, `${widget.name} did not resolve — its renderer never runs below`).toBe("ok");
+    }
+    expect(macroCatalog().length).toBeGreaterThan(10);
+  });
+
   it("renders no block-level element inside a paragraph, for any widget in the registry", () => {
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
@@ -223,7 +281,14 @@ describe("every widget is legal where widgets actually go", () => {
       for (const widget of macroCatalog()) {
         const { unmount } = render(
           <p>
-            <MacroView detail={costedDetail} context={ctx} name={widget.name} params={{}} />
+            <MacroView
+              detail={richDetail}
+              context={ctx}
+              user={richUser}
+              globals={richGlobals}
+              name={widget.name}
+              params={boundParams(widget.name)}
+            />
           </p>,
         );
         unmount();

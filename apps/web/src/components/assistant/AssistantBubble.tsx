@@ -18,6 +18,14 @@ import { Button } from "@/components/ui/button";
 // floating action button." The notebook's phone entry point stays a control in
 // the page header, and the caller decides which to mount.
 //
+// `max-md:hidden` is the second half of that, and it is not redundant with the
+// caller's check: `useIsPhone` starts `false` (there is no viewport on the
+// server) and corrects in an effect, so on a phone this mounts for one paint
+// before the effect removes it — a floating action button over the document,
+// briefly, which is the thing §13.5 forbids (CodeRabbit, PR 139). The class
+// makes the rule true at first paint rather than one tick later, and `max-md`
+// is the same 768px line `useIsPhone` draws, so the two cannot disagree.
+//
 // Dragging is the half of §9 not built. The bubble can be "dragged anywhere"
 // there; nothing here forecloses that, and where the panel OPENS is what was
 // actually reported.
@@ -27,7 +35,7 @@ export function AssistantBubble({ open, onOpen }: { open: boolean; onOpen: () =>
       variant="primary"
       // `size-14` is 56px. `p-0` clears the size variant's padding so the mark
       // centres in a circle rather than in a pill.
-      className="fixed right-4 bottom-4 z-30 size-14 rounded-full p-0 text-lg shadow-overlay transition-transform hover:scale-105"
+      className="fixed right-4 bottom-4 z-30 size-14 rounded-full p-0 text-lg shadow-overlay transition-transform hover:scale-105 max-md:hidden"
       aria-expanded={open}
       // Same name as the panel it opens, on purpose: they are one control in
       // two states, and `aria-expanded` is what says which. Different roles, so

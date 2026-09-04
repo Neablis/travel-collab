@@ -23,7 +23,7 @@ import { widgetMatches } from "@/components/pages/WidgetPicker";
 // catalogue: past about six rows it covers the paragraph the author is writing,
 // which is the thing they are trying to look at. Refining the query is the way
 // to see the seventh, and the popover in the header is the way to browse.
-const MAX_ROWS = 6;
+export const MAX_ROWS = 6;
 
 // `/` counts as opening the menu only at the start of a word — after a space, a
 // newline, or at the very start of the block. Otherwise `and/or` and a typed URL
