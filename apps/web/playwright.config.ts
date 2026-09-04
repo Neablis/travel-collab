@@ -114,7 +114,13 @@ export default defineConfig({
   webServer: {
     command: process.env.CI ? "pnpm start" : "pnpm dev",
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    // `TC_TEST_DB` means scripts/with-test-db.mjs provisioned a private
+    // database for this run and rewrote DATABASE_URL. Reusing a server that
+    // was started earlier would hand the specs a process still connected to
+    // whatever `.env.local` names — the run would look isolated, create its
+    // rows in the shared database, and quietly reintroduce every symptom the
+    // wrapper exists to remove. A wrapped run always starts its own server.
+    reuseExistingServer: !process.env.CI && !process.env.TC_TEST_DB,
     env: {
       AUTH_DEV_LOGIN: "true",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-secret",

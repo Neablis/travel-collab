@@ -142,7 +142,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web db:migrate
+      # No `db:migrate` step: since KI-2026-08-30-e both lanes below provision
+      # their own database per run (apps/web/scripts/with-test-db.mjs), applying
+      # the migrations themselves into a template. Migrating the service
+      # container's `travel` database would migrate a database nothing opens.
       - run: pnpm --filter web test:int
       # Playwright's OS-level deps (apt packages) aren't cacheable and must
       # install fresh on every runner; the browser binary download is the

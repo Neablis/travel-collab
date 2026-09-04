@@ -21,18 +21,32 @@ anything there. Seeding is still yours to run, because it needs the dev server
 up (see the reset/reseed bullet below). If the hook could not start it, it says
 so on stderr and leaves `/tmp/postgres.log` and `/tmp/db-migrate.log` behind.
 
-**`pnpm test:int` runs against that same database and will wipe your seeded
-data.** `vitest.config.ts` loads `.env.local`, so the integration suite shares
-`DATABASE_URL` with dev — and one of its specs
-(`api/dev/reset-demo-data/route.int.test.ts`) drives the real reset handler,
-which soft-deletes every trip its caller is a member of. Expect to re-run
-`db:reseed` after `test:int`. Not a bug in the tests; a shared database is what
-"integration test" means here. It only started biting once web sessions could
-run the suite at all.
+**The test lanes do not touch that database.** `test:int` and `test:e2e` both
+run under `apps/web/scripts/with-test-db.mjs`, which creates a private
+database for the run, points `DATABASE_URL` at it, and drops it at the end.
+Your seeded data survives a test run, and two worktrees can run the lanes at
+the same time — that is what the wrapper is for (KI-2026-08-30-e).
+
+> This section used to say the opposite, and it was true: `test:int` shared
+> `DATABASE_URL` with dev, and `api/dev/reset-demo-data/route.int.test.ts`
+> drives the real reset handler, which soft-deletes every trip its caller is a
+> member of. `pnpm db:reseed` after `test:int` is no longer something you have
+> to remember.
+
+How it works, in case a run leaves something behind: migrations are applied
+once into a template named for a hash of `drizzle/` (`tc_tmpl_<fingerprint>`),
+each run is a ~90 ms `CREATE DATABASE … TEMPLATE` clone called
+`tc_test_<epoch>_<rand>`, and a run that was SIGKILLed is swept by the next
+one after two hours. `KEEP_TEST_DB=1 pnpm --filter web test:int` keeps the
+database and prints its URL. The wrapper refuses to run against any host that
+is not loopback, so it can never issue `CREATE`/`DROP DATABASE` against a Neon
+branch.
 
 Running more than one worktree's dev server at once: each needs its own
 port. `WEB_PORT=3010 pnpm --filter web dev` (or set `WEB_PORT` in that
-worktree's `.env.local`) — see `.env.example`'s port-override section.
+worktree's `.env.local`) — see `.env.example`'s port-override section. The
+e2e lane does this for itself (`--with-port` picks a free one), so it needs no
+coordination between worktrees.
 
 | Environment | App | Database | DATABASE_URL source |
 |---|---|---|---|
