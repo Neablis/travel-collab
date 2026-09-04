@@ -163,9 +163,44 @@ them: renderers take a payload and do not ask where it came from.
 
 ## 8. Order of work
 
-1. Primitives, filters and the legality matrix, with the registry-wide test that keeps
-   declared filters and params in step.
+1. ~~Primitives, filters and the legality matrix, with the registry-wide test that keeps
+   declared filters and params in step.~~ **Built, 2026-09-04.** Eleven primitives (the
+   twelve above minus `attribute`, which is step 2) are registered; the six dimensions and
+   their value shapes are in `packages/contracts/src/pages.ts`; `LEGAL_FILTERS` in
+   `packages/pages/src/filters.ts` is the matrix, and `packages/pages/src/select.ts` is the
+   one implementation of the selection all eleven read. See below for what phase 1
+   deliberately did **not** do.
 2. `attribute` and its allow-list.
 3. The migration from the seventeen names, and presets built from the §4 table.
 4. The slash grammar and `keywords`.
 5. `sample` as a status; ghost rendering next milestone.
+
+### What phase 1 left for the phases after it, on purpose
+
+- **The primitives are registered but not browsable.** `macroCatalog()` — which the slash
+  menu and the insert popover read — still lists the seventeen named widgets. That is
+  ADR-039 decision 5 rather than staging: *"the combination space is not the browsable
+  list; the preset list is"*, and the presets arrive in step 3 with the migration that
+  retires the seventeen. Until then the primitives are reachable through `insertWidget`,
+  `resolveMacro` and `renderMacro`, and every registry-wide test sweeps them.
+- **`city`, `kind` and `dates` have no control yet.** They are declared `WidgetInput`s, so
+  §5's *"both surfaces read one declaration"* holds the moment a control exists;
+  `bindableInputs` in `apps/web` renders `day` and `tags` and drops the rest, which is the
+  picker work of steps 3 and 4.
+- **The chrome row's day select still says "Not set up" for an unset day.** For a NAMED
+  widget that is still true — `cost.day` with no day is unbound — and relabelling it "All
+  days" before the migration would make the control contradict the resolver behind it.
+- **`person` renders "needs a person field" and never filters** (decision 7). That is the
+  finished behaviour for this phase and for every phase until the field exists.
+
+### Two rules phase 1 had to settle that the table above does not state
+
+- **A stop's city is its own, falling back to its day's.** By the stop's own `location.city`
+  alone, an unlocated lunch on a Tokyo day vanishes from `cost{city: Tokyo}` and the widget
+  under-reports money; by its day's cities alone, the Kyoto hotel booked on the Tokyo→Kyoto
+  travel day counts as Tokyo. A located stop is where it says it is, and an unlocated one is
+  where its day is — which is also how a person reads the board.
+- **An absent day filter is every day; a day filter aimed at a deleted day is `unbound`.**
+  Decision 2 retires `unbound` for a filter *left alone*. A stale ref is not left alone, and
+  widening it would turn `cost{day: 100}` into the trip total the moment day 100 was
+  removed.

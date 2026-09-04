@@ -40,7 +40,7 @@ after checking every main-only line for anything newer — there was none, `main
 evidence nothing was dropped. **Expect this whenever a squashed PR is the base of a live
 stack.**
 
-**ADR-039 is PROPOSED (2026-09-04) and is what happens next.** A widget stops being a name
+**ADR-039 is ACCEPTED (2026-09-04), and its phase 1 is built.** A widget stops being a name
 and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
 came out of Mitchell's preview comment (*"where we have a tool that you can select a day, it
 can also select All at the top, and it gives you a sum"*) and the finding underneath it —
@@ -54,10 +54,37 @@ honest about having neither a display name on `TripMember` nor any person on a s
 by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
 while ghost rendering waits for the next milestone.
 
+**Phase 1 of §8's order of work is built: the primitives, the filters and the legality
+matrix.** Eleven primitives — `cost`, `count`, `dates`, `hours`, `city`, `day.detail`,
+`city.detail`, `day.rows`, `city.rows`, `stop.rows`, `cost.rows` — are registered, each
+declaring `entity + filters` alongside the `shape` it already had. The six dimensions and
+their persisted value shapes are in `packages/contracts/src/pages.ts`; `LEGAL_FILTERS`
+(`packages/pages/src/filters.ts`) is the matrix; `narrow` (`packages/pages/src/select.ts`) is
+the ONE implementation of the selection all eleven read — which is the ADR's thesis made
+concrete, since `itinerary.trip`'s list-of-lists bug happened because each widget answered
+"what does a block do with many members" locally. The registry-wide test ADR-039 asks for by
+name sweeps every primitive both ways: a declared dimension the schema drops fails, and an
+undeclared dimension the schema keeps fails.
+
+**What phase 1 did NOT do, on purpose, is written down in the spec's §8** rather than only
+here. Shortest version: the primitives are registered but not in `macroCatalog()`, so the
+picker still browses the seventeen named widgets (ADR-039 decision 5 — the preset list is the
+browsable one, and presets are step 3); `city`, `kind` and `dates` are declared inputs with no
+control yet; and `person` renders "needs a person field" and never filters, which is its
+finished behaviour until the field exists. **Eleven of the seventeen named widgets are asserted
+IDENTICAL in rendered output to the primitive that replaces them** — `cost{}` to `cost.trip`,
+`cost{day}` to `cost.day`, `dates{day}` to `day.date`, `hours{day}` to `day.window`,
+`city{day}` to `day.city`, `day.detail{day}` to `itinerary.day`, `day.detail{}` to
+`itinerary.trip`, `day.rows{}` to `day.line`, `city.rows{}` to `city.line`,
+`stop.rows{day, kind: booked}` to `booking.line`, `stop.rows{day}` to `stop.line`. That is
+what makes step 3 a rename rather than a behaviour change. The other six are the four
+`attribute` presets (step 2), `trip.dates`, and `costs.table` — which becomes `cost.rows{}`, a
+repeat where it was a block, so identical output was never the goal there.
+
 **What the merge contains.** Merged before the stack: **#129** (a page loses its scope),
 **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
-versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are
-Accepted; ADR-039 is Proposed.**
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037, 038 and 039 are
+all Accepted.**
 
 **M14's gate is NOT closed: 2 of 14 boxes ticked** (`docs/milestones/M14-rich-layer.md`).
 Several unticked boxes are now satisfied by merged code and the nine e2e walks in

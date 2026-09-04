@@ -104,12 +104,19 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
           : <EmptyChip tone="muted" label="no day set" />;
       case "days":
         return <EmptyChip tone="muted" label="no days set" />;
-      // Unreachable today and rendered anyway: no widget declares a `person`
-      // input, because nothing links an activity to a person yet (§18 declares
-      // the type; M13/M19 bring the field). A branch that throws or falls
-      // through here is how the first person widget ships broken.
+      // **Reachable now, and it says the truth about why.** ADR-039 decision 7
+      // declares `person` as a filter dimension and states plainly that it
+      // cannot resolve: `TripMember` is `{ userId, role }` with no display
+      // name, and no stop carries a person at all. So a widget filtered by one
+      // answers ADR-037 decision 7's "needs a field" state.
+      //
+      // "no one set" was the old label and it would now be a lie in the one way
+      // that matters: it invites a reader to set somebody, and there is no
+      // control to do it with and no field for it to write to. Naming the
+      // missing FIELD says whose problem this is — ours, until M13
+      // `add-stop-who` / M19 link 3 lands.
       case "person":
-        return <EmptyChip tone="muted" label="no one set" />;
+        return <EmptyChip tone="muted" label="needs a person field" />;
       default: {
         const exhaustive: never = outcome.needs;
         return exhaustive;

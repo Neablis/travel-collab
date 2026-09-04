@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActivityTag } from "./activity";
+import { ActivityKind, ActivityTag } from "./activity";
 import { PageDoc } from "./pageDoc";
 
 // A day binding: the value shape of a `day` input inside ONE WIDGET's params
@@ -39,6 +39,113 @@ export type DayRef = z.infer<typeof DayRef>;
  */
 export const TagRef = ActivityTag;
 export type TagRef = z.infer<typeof TagRef>;
+
+// ---------------------------------------------------------------------------
+// The filter vocabulary (ADR-039 decisions 1, 2 and 7)
+// ---------------------------------------------------------------------------
+
+/**
+ * The dimensions a widget's selection can be narrowed along.
+ *
+ * ADR-039 decision 1: `widget = entity + filters + shape`. These are the
+ * `filters` half, and the list is closed — a new dimension is a decision, a row
+ * in the legality matrix and a control, not a string somebody writes into
+ * params.
+ *
+ * **An absent dimension means EVERY member, and that is a real binding rather
+ * than an unset one** (decision 2). Mitchell's *"it can also select All at the
+ * top"* is the absent value made visible: a widget with no day chosen is not
+ * waiting for a choice, it is showing every day. `TagRef` already worked this
+ * way (ADR-037 decision 9) and this generalises it to all six.
+ *
+ * They live here rather than in `@tc/pages` for the reason `DayRef` and
+ * `TagRef` do: these values are PERSISTED in every document carrying a widget,
+ * and the editor, the AI compose path and the resolvers all read them.
+ */
+export const FilterDimension = z.enum(["day", "city", "tag", "kind", "person", "dates"]);
+export type FilterDimension = z.infer<typeof FilterDimension>;
+
+/**
+ * A city binding: the city's NAME, as `TripGlobals.cities` reports it.
+ *
+ * A name rather than an id because a city has no id — cities are derived from
+ * `location.city` by `citiesOfDay`, so the name is the identity. A stale
+ * binding (a city the trip no longer touches) therefore matches nothing, which
+ * is the same answer a stale `DayRef` gets: never a guessed one.
+ */
+export const CityRef = z.string().min(1).max(200);
+export type CityRef = z.infer<typeof CityRef>;
+
+/**
+ * A kind binding: one `ActivityKind`. This is what absorbs `booking.line` —
+ * "a line for every booking" is `stop.rows` filtered to `kind: "booked"`
+ * (ADR-039's table of widgets written twice).
+ */
+export const KindRef = ActivityKind;
+export type KindRef = z.infer<typeof KindRef>;
+
+/**
+ * A person binding — **vocabulary, not a capability** (ADR-039 decision 7).
+ *
+ * Declared now so the shape is settled, and it resolves to nothing today. Two
+ * separate gaps: `TripMember` is `{ userId, role }` with no display name, so an
+ * option list built from it would show ids; and no stop carries a person at all
+ * — there is no assignee, payer or participant on `ActivityView` — so the
+ * filter has nothing to narrow by. A widget handed one answers ADR-037 decision
+ * 7's "needs a field" state rather than filtering against data that is not
+ * there.
+ *
+ * A `userId`, or the literal `"me"` — the filter that follows whoever is
+ * reading a shared page. `"me"` is recorded intent (ADR-039 decision 7) and an
+ * open question, not a plan: a page that says something different to each reader
+ * is a genuinely new thing for this product.
+ */
+export const PersonRef = z.string().min(1);
+export type PersonRef = z.infer<typeof PersonRef>;
+
+// A calendar date, `YYYY-MM-DD`. Local to this file rather than exported: the
+// rest of the contracts spell dates `z.string()` and widening that is its own
+// change, not a side effect of adding a filter.
+const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date");
+
+/**
+ * A date-range binding. A single date is `from === through`, so the control has
+ * one shape rather than two — "All · a single date · a range" is absent, equal
+ * endpoints, and different endpoints.
+ *
+ * `dates` is the one declared dimension besides `day`/`city`/`tag`/`kind` that
+ * is **real today** (ADR-039 decision 7): days carry dates, so a range over days
+ * and stops resolves against data that exists.
+ *
+ * Ordered endpoints are refused rather than silently swapped: a reversed range
+ * is a mistake somebody made, and quietly reinterpreting it is how a widget
+ * shows a confident wrong answer. `insertWidget` turns this into the same typed
+ * refusal a bad param gets today (ADR-037 decision 4). ISO dates compare
+ * correctly as strings, which is what every date filter in `@tc/pages` relies
+ * on — no `Date` construction, no timezone.
+ */
+export const DateRangeRef = z
+  .object({ from: IsoDate, through: IsoDate })
+  .refine((r) => r.from <= r.through, { message: "from must not be after through" });
+export type DateRangeRef = z.infer<typeof DateRangeRef>;
+
+/**
+ * Every dimension's value shape, in ONE map.
+ *
+ * `@tc/pages` builds each primitive's `params` schema by picking from this,
+ * which is what makes "the declared filters and the params schema agree" true
+ * by construction rather than by a convention six files have to remember. The
+ * registry-wide test in `registry.test.ts` still checks it, because a primitive
+ * may write its own schema and the check is cheap.
+ */
+export const FILTER_VALUE_SCHEMAS = {
+  day: DayRef,
+  city: CityRef,
+  tag: TagRef,
+  kind: KindRef,
+  person: PersonRef,
+  dates: DateRangeRef,
+} as const satisfies Record<FilterDimension, z.ZodTypeAny>;
 
 // A page is trip-bound and nothing else. It is NOT "about" a day: a page holds
 // widgets and each widget owns its own inputs, so two widgets on one page can

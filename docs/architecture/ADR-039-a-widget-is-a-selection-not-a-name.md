@@ -1,9 +1,11 @@
 # ADR-039: A widget is a selection over one entity, not a name
 
-**Status:** **Proposed — 2026-09-04.** Written from Mitchell's preview comment and the
+**Status:** **Accepted — 2026-09-04.** Written from Mitchell's preview comment and the
 conversation that followed it; the three questions it left open were answered the same
-evening and are recorded inline (decisions 6, 7 and 8). Acceptance is kicking off the
-implementation branch against it.
+evening and are recorded inline (decisions 6, 7 and 8). This said *"acceptance is kicking off
+the implementation branch against it"*, and phase 1 of the spec's §8 order of work — the
+primitives, the filter vocabulary and the legality matrix — is built. Phases 2-5 follow in
+the order §8 gives, and §8 now records what phase 1 deliberately left to them.
 **Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-035** (a widget is a function of declared inputs — still true; this says what
 the inputs *are*), **ADR-037** (a widget is a module, and rendering never produces markup —

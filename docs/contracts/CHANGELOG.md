@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — the filter vocabulary: six dimensions and their value shapes
+- Added: `FilterDimension` (`day` · `city` · `tag` · `kind` · `person` · `dates`),
+  `CityRef`, `KindRef`, `PersonRef`, `DateRangeRef` and `FILTER_VALUE_SCHEMAS` in
+  `packages/contracts/src/pages.ts`. Together with the existing `DayRef` and
+  `TagRef` they are the closed vocabulary a widget's selection can be narrowed
+  along (ADR-039 decision 1)
+- Why: they are here for exactly the reason `DayRef` and `TagRef` are — these
+  values are PERSISTED in `MacroNode.attrs.params`, and the editor, the AI
+  compose path and the resolvers all read them. `FILTER_VALUE_SCHEMAS` is the one
+  map `@tc/pages` builds each primitive's params schema from, so "the declared
+  filters and the params schema agree" is true by construction rather than by six
+  files remembering
+- Note: **an absent dimension means every member, not "unset"** (ADR-039 decision
+  2). `TagRef` already worked this way; this generalises it. `DateRangeRef`
+  refuses a reversed range rather than swapping the endpoints — quietly
+  reinterpreting a mistake is how a widget shows a confident wrong answer — and a
+  single date is `from === through`, so the control has one shape rather than two
+- Note: `PersonRef` is **vocabulary, not a capability** (ADR-039 decision 7).
+  `TripMember` has no display name and no stop carries a person, so a widget
+  handed one renders the "needs a field" state. It is declared now so the shape is
+  settled; the capability lights up with M13 `add-stop-who` / M19 link 3
+- Consumers updated: `@tc/pages` (the legality matrix, `filterParams`, and the
+  eleven primitives), `apps/web` (`MacroView`'s `person` branch now says "needs a
+  person field" rather than "no one set", which invited a choice no control can
+  offer)
+- Breaking? no — every schema is new, and nothing stored today carries one
+
 ## 2026-09-04 — `TagRef`, and `valueKindOf` through a wrapper
 - Added: `TagRef` in `packages/contracts/src/pages.ts` — the value shape of a
   `tags` input inside one widget's params, alongside `DayRef`. It is

@@ -1,5 +1,6 @@
 import type { z } from "zod";
-import type { TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
+import type { FilterDimension, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
+import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -21,6 +22,20 @@ export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ord
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }
 export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total: string; }
+// What `city.detail` details: one entry per city, and everything in it comes
+// from the globals projection because cities are DERIVED (`citiesOfDay` in
+// `@tc/domain`, which this package may not import).
+//
+// `dayOrdinals` counts from 1 — the numbering a person reads — while the
+// projection's `dayIndexes` counts from 0. Converting here rather than in the
+// component keeps the projection's private convention out of `apps/web` too.
+//
+// No colour, and that is ADR-037 decision 1 rather than an omission: this says
+// which city each card is about, and `apps/web` decides what a city looks like
+// (`cityAccents` is the trip's palette, and a notebook using a second one would
+// be a fourth city palette).
+export interface CityDetailEntry { name: string; dayOrdinals: number[]; activityCount: number; }
+export interface CityDetailPayload { kind: "city-detail"; cities: CityDetailEntry[]; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -37,7 +52,7 @@ export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total
 //
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
-export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload;
+export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -149,7 +164,23 @@ export type WidgetInput =
   // capability.
   | { name: string; type: "person"; label: string }
   | { name: string; type: "tags"; label: string }
-  | { name: string; type: "trip"; label: string };
+  | { name: string; type: "trip"; label: string }
+  // The three ADR-039 decision 1 adds, one per filter dimension that had no
+  // control before it: a city select, a kind select, and a from/through date
+  // range. They are `WidgetInput`s rather than a parallel list because SPEC
+  // §5 requires the chrome row, the phone's bind sheet and the insert step to
+  // read ONE declaration — *"both surfaces read one declaration, so they
+  // cannot offer different things"* — and `WidgetInput` is that declaration.
+  //
+  // **None of the three has a control in `apps/web` yet, and that is the
+  // phase order rather than an omission.** `bindableInputs` renders `day` and
+  // `tags` and drops everything else, so a primitive declaring these binds the
+  // two it can and stays inert on the rest. The picker work (spec §8 steps 3
+  // and 4) is what puts them on screen, and it will read these declarations
+  // rather than a list of its own.
+  | { name: string; type: "city"; label: string }
+  | { name: string; type: "kind"; label: string }
+  | { name: string; type: "dates"; label: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -161,8 +192,29 @@ export type WidgetInputType = WidgetInput["type"];
 // `needs` member fails here rather than surfacing as a widget that cannot say
 // it is unbound. Type-level only: it emits nothing.
 type Assert<T extends true> = T;
+
+/**
+ * The input types that are NEVER waiting for a choice, and so have no
+ * `UnboundNeeds` member to report.
+ *
+ * It was `"tags"` alone, on ADR-037 decision 9's reasoning: an absent tag means
+ * "every stop", which is a real binding rather than an unfilled blank. **ADR-039
+ * decision 2 generalises exactly that reasoning to every filter dimension** —
+ * *"a filter left alone means everything, and 'All' is a value, not a mode"* —
+ * so `city`, `kind` and `dates` join it the moment they exist.
+ *
+ * `day` deliberately does not join them, and the distinction is the whole
+ * content of this type: an ABSENT day means every day and is never unbound, but
+ * a day ref pointing at a day that has since been deleted is a binding aimed at
+ * nothing. That is `unbound("day")` — a state the chrome row can fix — and it is
+ * why decision 2 retiring `unbound` for filters does not retire it for `day`.
+ * (The seventeen named widgets also still report it for an unset day, until the
+ * migration in spec §8 step 3 turns them into presets.)
+ */
+type NeverUnbound = "tags" | "city" | "kind" | "dates";
+
 export type NeedsCoversEveryBindableInput = Assert<
-  Exclude<WidgetInputType, "tags"> extends UnboundNeeds ? true : false
+  Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false
 >;
 
 // What a widget is handed at resolve time (ADR-037 decision 1).
@@ -218,6 +270,32 @@ export interface WidgetContext {
 // `resolve`'s signature does not change again when it does.
 export type ItemScope = { kind: "day"; index: number };
 
+/**
+ * What a PRIMITIVE selects over (ADR-039 decision 1: `widget = entity + filters
+ * + shape`).
+ *
+ * `shape` is already on the def below, so this carries the other two. Declaring
+ * them is what makes decision 3 enforceable — *"the picker offers only
+ * combinations that are legal; `insertWidget` refuses the rest"* — and
+ * `registry.test.ts` checks every declaration against `LEGAL_FILTERS`.
+ *
+ * **Optional, and its absence is not "forgot to fill it in".** A def with no
+ * `selection` is one of the seventeen NAMED widgets: `cost.day` is
+ * `cost{day: N}` written out by hand, and it spells its day binding `dayRef`
+ * rather than `day`. Spec §8 step 3 migrates those to `(primitive, params)`
+ * presets and deletes them, and this field becomes required in the same change.
+ * Until then the two vocabularies coexist, and `isPrimitive` below is how a test
+ * or a picker tells them apart.
+ */
+export interface WidgetSelection {
+  entity: WidgetEntity;
+  /**
+   * The dimensions this primitive accepts, each optional and each meaning
+   * "every member" when absent. Must be a subset of `LEGAL_FILTERS[entity]`.
+   */
+  filters: readonly FilterDimension[];
+}
+
 export interface MacroDef<P, T> {
   name: string;                    // "cost.trip", "itinerary.day" — STORED
   // What a person calls it, for the insert sidebar. Distinct from `name`, which
@@ -233,6 +311,8 @@ export interface MacroDef<P, T> {
   // that into "not declared yet", which the insert sheet has to tell apart —
   // and required means the compiler names every entry that forgot.
   inputs: readonly WidgetInput[];
+  // What this widget selects over, when it is a primitive. See `WidgetSelection`.
+  selection?: WidgetSelection;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

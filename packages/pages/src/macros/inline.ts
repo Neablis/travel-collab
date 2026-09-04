@@ -4,6 +4,7 @@ import type { MacroDef, WidgetContext, WidgetInput } from "../registry-types";
 import { chip, inlineOf } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
+import { dayIndexOf } from "../select";
 
 const NoParams = z.object({}).strip();
 type NoParams = z.infer<typeof NoParams>;
@@ -25,12 +26,14 @@ export const DAY_INPUT: readonly WidgetInput[] = [{ name: "dayRef", type: "day",
 // it is bound to nothing or to a day that no longer exists. A stale binding is
 // silently no binding, never a guessed one — writing about day 1 because day 100
 // was deleted is a confident wrong answer.
+//
+// The rule itself now lives in `dayIndexOf` (`select.ts`), because ADR-039's
+// primitives resolve the same binding under a different param name (`day`, not
+// `dayRef` — spec §4's preset table writes `cost{day: N}`). Two copies of "what
+// does this ref point at" is precisely how the seventeen named widgets and the
+// eleven primitives would come to disagree about a deleted day.
 export function resolveDayIndex(detail: TripDetail, params: DayParams): number | null {
-  const ref = params.dayRef;
-  if (!ref) return null;
-  if (ref.kind === "index") return ref.index < detail.days.length ? ref.index : null;
-  const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
-  return idx === -1 ? null : idx;
+  return dayIndexOf(detail, params.dayRef);
 }
 
 // **Every resolved value renders as a chip, not as bare text.**

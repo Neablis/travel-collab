@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { TripDetail } from "@tc/contracts";
-import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, macroCatalog } from "./registry";
+import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
+import { FilterDimension } from "@tc/contracts";
+import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, macroCatalog } from "./registry";
+import { LEGAL_FILTERS } from "./filters";
+import { insertWidget } from "./insert";
 import type { WidgetInput } from "./registry-types";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
@@ -60,6 +63,14 @@ describe("registry", () => {
     // single optional member, not a list, and "Meal" is not a member at all.
     tags: "meal",
     trip: "11111111-1111-1111-1111-111111111111",
+    // The three ADR-039 decision 1 adds. Real members of their contract shapes,
+    // not placeholders: a `CityRef` is a name, a `KindRef` is an `ActivityKind`
+    // member, and a `DateRangeRef` is an ordered pair of `YYYY-MM-DD` dates —
+    // an unordered one is refused, which is what makes this exercise each
+    // primitive's own validator rather than just read its keys.
+    city: "Tokyo",
+    kind: "booked",
+    dates: { from: "2026-08-01", through: "2026-08-03" },
   };
 
   it("every declared input names a key its own macro's params schema accepts", () => {
@@ -215,5 +226,140 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // The mirror image: this one skips every NON-block, so it passes when no
     // widget renders as a block and nothing is examined.
     expect(inspected, "no block payload was inspected").toBeGreaterThan(0);
+  });
+});
+
+// **The registry-wide test ADR-039 asks for by name.** Its consequences say the
+// legality matrix "needs a registry-wide test in the shape of the ones that
+// already guard the input/params correspondence" — the ones directly above —
+// and this is that shape applied to `entity + filters`.
+//
+// It sweeps `PRIMITIVE_NAMES` rather than a list written here, so a primitive
+// added tomorrow is covered the day it lands. The seventeen named widgets are
+// deliberately outside it: they declare no `selection` and spell their day
+// binding `dayRef`, and spec §8 step 3 is what turns them into presets over
+// these.
+describe("every primitive declares a legal selection (ADR-039 decision 3)", () => {
+  // A real value per dimension, so each assertion exercises the primitive's own
+  // validator rather than reading its keys. Same argument as `SAMPLE` above.
+  const VALUE: Record<FilterDimensionType, unknown> = {
+    day: { kind: "index", index: 0 },
+    city: "Tokyo",
+    tag: "meal",
+    kind: "booked",
+    person: "u1",
+    dates: { from: "2026-08-01", through: "2026-08-03" },
+  };
+
+  it("covers the eleven primitives, and only widgets that declare a selection", () => {
+    // Non-vacuous, and containment rather than equality: `attribute` is step 2
+    // of the spec's order of work and must make this sweep cover MORE, never
+    // make it fail (the rule Copilot set on PR 130).
+    expect(PRIMITIVE_NAMES).toEqual(
+      expect.arrayContaining([
+        "cost", "count", "dates", "hours", "city",
+        "day.detail", "city.detail",
+        "day.rows", "city.rows", "stop.rows", "cost.rows",
+      ]),
+    );
+    for (const name of PRIMITIVE_NAMES) expect(getMacro(name)!.selection).toBeDefined();
+    // The named widgets are not primitives yet, and saying so out loud is what
+    // makes this sweep's silence about them deliberate rather than a gap.
+    expect(PRIMITIVE_NAMES).not.toContain("cost.day");
+  });
+
+  it("declares only dimensions its entity permits", () => {
+    // The matrix as a wall: *"the hours of a city, the names of every stop on a
+    // trip as one sentence"* are cells that mean nothing, and a primitive
+    // reaching one fails here rather than shipping a control that resolves
+    // against nothing.
+    for (const name of PRIMITIVE_NAMES) {
+      const { entity, filters } = getMacro(name)!.selection!;
+      for (const dimension of filters) {
+        expect(LEGAL_FILTERS[entity], `${name} declares ${dimension}, illegal for ${entity}`).toContain(dimension);
+      }
+    }
+  });
+
+  it("keeps every declared dimension a param its own schema accepts and keeps", () => {
+    // The correspondence, forwards. A declared dimension the validator drops is
+    // a filter the picker can set and the resolver will never see — silent,
+    // because `.strip()` makes that failure quiet. So assert the key SURVIVES,
+    // not merely that parsing succeeded.
+    let checked = 0;
+    for (const name of PRIMITIVE_NAMES) {
+      const def = getMacro(name)!;
+      const bound = Object.fromEntries(def.selection!.filters.map((d) => [d, VALUE[d]]));
+      const parsed = def.params.safeParse(bound);
+      if (!parsed.success) throw new Error(`${name}: params rejected its own declared filters — ${parsed.error.message}`);
+      for (const dimension of def.selection!.filters) {
+        expect(parsed.data as Record<string, unknown>, `${name} drops ${dimension}`).toHaveProperty(dimension);
+        checked += 1;
+      }
+    }
+    expect(checked, "no dimension was checked").toBeGreaterThan(0);
+  });
+
+  it("refuses a dimension it did not declare", () => {
+    // The correspondence, backwards, and the half that catches the real drift:
+    // a primitive whose schema quietly accepts `person` while its declaration
+    // says it does not is a widget offering a filter nothing honours. Every
+    // dimension NOT declared must be stripped.
+    let checked = 0;
+    for (const name of PRIMITIVE_NAMES) {
+      const def = getMacro(name)!;
+      const declared = new Set<string>(def.selection!.filters);
+      const undeclared = FilterDimension.options.filter((d) => !declared.has(d));
+      const parsed = def.params.parse(Object.fromEntries(undeclared.map((d) => [d, VALUE[d]])));
+      for (const dimension of undeclared) {
+        expect(parsed as Record<string, unknown>, `${name} keeps undeclared ${dimension}`).not.toHaveProperty(dimension);
+        checked += 1;
+      }
+    }
+    expect(checked, "every primitive declared every dimension, so nothing was checked").toBeGreaterThan(0);
+  });
+
+  it("derives one control per declared dimension, and no others", () => {
+    // SPEC §5: *"the chrome row is generated from the primitive's declared
+    // filters — one control per dimension, including the ones you have not
+    // set"*, and *"both surfaces read one declaration, so they cannot offer
+    // different things"*. A primitive whose `inputs` and `filters` disagree is
+    // exactly two declarations.
+    for (const name of PRIMITIVE_NAMES) {
+      const def = getMacro(name)!;
+      expect(def.inputs.map((i) => i.name), `${name}'s controls`).toEqual([...def.selection!.filters]);
+    }
+  });
+
+  it("gives every registered widget a title and a preview, catalogued or not", () => {
+    // `macroCatalog()` lists only the browsable widgets (ADR-039 decision 5),
+    // so the catalogue sweep above stopped covering the primitives the moment
+    // they were registered. The chrome row reads `title` and the phone's bind
+    // sheet reads `preview` straight off the def, for any widget on a page.
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      expect(def.title, `${name} has no title`).toBeTruthy();
+      expect(def.preview, `${name} has no preview`).toBeTruthy();
+      expect(def.title, `${name}'s title is just its name`).not.toBe(name);
+    }
+  });
+
+  it("refuses a bad filter value at insert, with the typed refusal", () => {
+    // ADR-039 decision 3's other half: *"`insertWidget` refuses the rest, with
+    // the same typed refusal it uses for bad params today"*. There is still
+    // exactly one way a widget enters a document (ADR-037 decision 4), so the
+    // vocabulary is enforced at the same door as everything else.
+    expect(insertWidget("cost", { kind: "booked" }).ok).toBe(true);
+    const invented = insertWidget("cost", { kind: "reserved" });
+    expect(invented.ok).toBe(false);
+    expect(invented.ok === false && invented.error.reason).toBe("bad-params");
+    const reversed = insertWidget("cost", { dates: { from: "2027-06-04", through: "2027-06-01" } });
+    expect(reversed.ok, "a reversed date range").toBe(false);
+    // A dimension the primitive does not declare is stripped rather than
+    // refused — `.strip()` is what lets a document written by a later build
+    // still open — so the node lands with the filter simply absent.
+    const stripped = insertWidget("city.rows", { kind: "booked" });
+    expect(stripped.ok).toBe(true);
+    expect(stripped.ok === true && stripped.node.attrs.params).not.toHaveProperty("kind");
   });
 });
