@@ -150,6 +150,10 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // whatever editor existed when the turn started.
   const editorRef = useRef<Editor | null>(null);
   editorRef.current = editor;
+  // Editing, readable from a callback that outlives its render — see the
+  // `page-inserts` guard below.
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
 
   // **The notebook's AI surface is the assistant rail, not a prompt box.**
   // Mitchell, walking the preview (2026-09-04): *"This should be the same style
@@ -177,17 +181,42 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     // copy of it that would go stale.
     errorMessage: (error: ApiError) => error.message,
     onEvent: (event) => {
+      if (event.type !== "page-inserts") return;
+      // **Reading never receives writes, and this is the guard that says so
+      // rather than the abort timing.** `cancel()` below stops the request, but
+      // a guard that depends on a stream shutting down in time is a guard with
+      // a window in it — the last frame can already be in flight. This asks the
+      // question that actually matters: is this page still being edited?
+      //
+      // `editingRef`, not `editing`, because this callback outlives the render
+      // it was created in — the closure's copy is whatever Editing was when the
+      // turn started, which is exactly the wrong answer.
+      if (!editingRef.current) return;
       // Already validated against the macro registry server-side and re-parsed
       // against `PageDoc` on the way in, so there is nothing left to check
       // here. It goes in through the SAME `insertContent` chain a click and a
       // drop use — one mechanism, so the AI cannot develop placement rules of
       // its own.
-      if (event.type === "page-inserts") {
-        editorRef.current?.chain().focus().insertContent(event.content.content as never).run();
-      }
+      editorRef.current?.chain().focus().insertContent(event.content.content as never).run();
     },
   });
   const [assistantOpen, setAssistantOpen] = useState(false);
+
+  // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
+  // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
+  // screen goes, and a turn still streaming would land its `page-inserts` in a
+  // document the user had just put back into Reading — and autosave it. Found
+  // by Copilot and CodeRabbit on PR 139.
+  const closeAssistant = () => {
+    ask.cancel();
+    setAssistantOpen(false);
+  };
+  // Leaving Editing is the same exit by another door, and it has to cancel for
+  // the same reason rather than relying on the rail's unmount to do it.
+  const toggleEditing = () => {
+    if (editing) ask.cancel();
+    setEditing((was) => !was);
+  };
 
   if (status === "loading") return <PageContainer>Loading…</PageContainer>;
   if (status === "error" || page === null || trip === null || stored === null) {
@@ -303,7 +332,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           <Button
             variant={editing ? "primary" : "secondary"}
             aria-pressed={editing}
-            onClick={() => setEditing((was) => !was)}
+            onClick={toggleEditing}
           >
             {editing ? "Done editing" : "Edit page"}
           </Button>
@@ -369,7 +398,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
             asking={ask.asking}
             askError={ask.askError}
             simulated={ask.simulated}
-            onHide={() => setAssistantOpen(false)}
+            onHide={closeAssistant}
           />
         ) : null}
       </div>

@@ -75,7 +75,12 @@ export function WidgetChrome({
             Pointed at {bindSummary(name, params, detail, globals)}
           </Button>
         </span>
-        <Sheet open={binding} onOpenChange={setBinding} title={title}>
+        {/* `bottom`, not the default rail. This is the phone branch, and a
+            right-hand rail at 390px is the full-screen takeover the phone
+            treatment exists to replace — SPEC §19 asks for a sheet. The insert
+            flow got it and this one did not, which made the two halves of the
+            same divergence disagree. Found by Copilot on PR 139. */}
+        <Sheet open={binding} onOpenChange={setBinding} size="bottom" title={title}>
           <div className="flex flex-col gap-4">
             {/* Said out loud because the page-scope model is recent enough that
                 someone may still expect the old behaviour, where one control at

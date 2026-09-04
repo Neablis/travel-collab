@@ -53,6 +53,8 @@ export interface AskThread {
   /** Posts a turn. Deliberately not awaited by callers — see the board's own note. */
   runAsk: (text: string) => Promise<void>;
   startNewConversation: () => void;
+  /** Aborts the turn in flight and keeps the thread. See the implementation. */
+  cancel: () => void;
   /**
    * A refusal the CALLER decided, shown through the same surface as a server
    * error. The board uses it for its two pre-ask refusals; without it those
@@ -181,6 +183,14 @@ export function useAskThread({
       },
       controller.signal,
     );
+    // **Identity, not a bare clear.** `abort.current = null` unconditionally
+    // meant a turn that had already been abandoned — by "New conversation", or
+    // by `cancel` below — could resolve LATER and clear the controller of the
+    // turn that replaced it, leaving the new turn uncancellable and letting the
+    // dead one's status and rollback write over it. `ComposePanel` guarded this
+    // exact way before it retired; the guard did not come across with the
+    // machinery. Found by Copilot on PR 139.
+    if (abort.current !== controller) return;
     abort.current = null;
 
     if (result.ok) {
@@ -223,6 +233,30 @@ export function useAskThread({
     setRestoredDraft(null);
   };
 
+  /**
+   * Hang up on the turn in flight, keeping the thread.
+   *
+   * Distinct from `startNewConversation`, which also empties it. A caller needs
+   * this when the SURFACE goes away but the conversation has not: closing the
+   * rail, or leaving Editing on a notebook page. Without it the request kept
+   * streaming and its `page-inserts` still reached the editor — writing into a
+   * document the user had just put back into Reading, and autosaving it.
+   * Found by Copilot and CodeRabbit on PR 139.
+   *
+   * The pending answer is marked settled as well as aborted: the early return
+   * in `runAsk` means nothing else will, and a thread reopened later would
+   * otherwise show a turn that streams forever.
+   */
+  const cancel = () => {
+    if (abort.current === null) return;
+    abort.current.abort();
+    abort.current = null;
+    setThread((current) =>
+      current.map((t) => (t.role === "assistant" && t.pending ? { ...t, pending: false } : t)),
+    );
+    setStatus("idle");
+  };
+
   const refuse = (message: string) => {
     setStatus("error");
     setAskError(message);
@@ -250,6 +284,7 @@ export function useAskThread({
     restoredDraft,
     runAsk,
     startNewConversation,
+    cancel,
     refuse,
     patchTurn,
   };

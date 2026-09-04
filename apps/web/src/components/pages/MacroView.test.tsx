@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext } from "@tc/contracts";
+import { macroCatalog } from "@tc/pages";
 import { MacroView } from "./MacroView";
 
 afterEach(cleanup);
@@ -26,6 +27,23 @@ const baseDetail: TripDetail = {
 };
 
 const ctx: PageContext = { tripId: baseDetail.tripId };
+
+// A trip with a costed, timed stop on a dated day, so the BLOCK widgets resolve
+// to `ok` and actually render their markup — an `empty` chip would prove
+// nothing about the shape of a rendered table.
+const costedDetail: TripDetail = {
+  ...baseDetail,
+  startDate: "2026-08-01",
+  days: [{ dayId: baseDetail.days[0]!.dayId, activityIds: ["a1"], date: "2026-08-01", costSubtotal: 12345 }],
+  activities: {
+    a1: {
+      activityId: "a1", title: "Museum", timeWindow: { start: "09:00", end: "10:00" },
+      location: null, notes: null, anchors: [], kind: "planned", tags: [],
+      cost: { amountMinor: 12345, currency: "USD" },
+    },
+  },
+  unscheduledCostSubtotal: 500,
+};
 
 describe("MacroView", () => {
   it("shows the formatted total for cost.trip when there is a total", () => {
@@ -96,5 +114,44 @@ describe("MacroView", () => {
       expect(rows[1]!.textContent).toContain("Day 2");
       expect(rows[0]!.textContent).not.toContain("Day 2");
     });
+  });
+});
+
+// **Every widget must be legal inside a paragraph, because that is where every
+// widget goes.** `MacroNodeExtension` is an inline atom, so a widget node sits
+// in the text flow — and a block-level element there is not merely unusual
+// markup: the HTML parser closes the paragraph at a `<div>` and hoists a
+// `<table>` out of it entirely, so the server's DOM and the client's disagree.
+//
+// It was measured once, on the repeater's rows, and fixed only there: all three
+// BLOCK widgets kept rendering `<div>`, `<ul>` and a real `<table>` until
+// Copilot found them on PR 139. This is registry-wide so the next widget is
+// covered the day it lands, rather than the next time someone reads a React
+// warning in a console nobody was watching.
+//
+// It asserts through React's own nesting validation rather than by inspecting
+// tag names, which the test-quality wall forbids reaching for — and which is
+// the right call here anyway: the claim is "the browser will accept this", and
+// React's validator is the thing that answers it.
+describe("every widget is legal where widgets actually go", () => {
+  it("renders no block-level element inside a paragraph, for any widget in the registry", () => {
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      errors.push(args.map(String).join(" "));
+    });
+    try {
+      for (const widget of macroCatalog()) {
+        const { unmount } = render(
+          <p>
+            <MacroView detail={costedDetail} context={ctx} name={widget.name} params={{}} />
+          </p>,
+        );
+        unmount();
+      }
+    } finally {
+      spy.mockRestore();
+    }
+    const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));
+    expect(nesting, `block-level markup inside <p>:\n${nesting.join("\n")}`).toEqual([]);
   });
 });

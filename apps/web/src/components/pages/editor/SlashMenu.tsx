@@ -1,6 +1,11 @@
 "use client";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SlashMenuState } from "./useSlashMenu";
+
+// How close to a viewport edge the menu may sit. Small and fixed: the point is
+// that a menu at the edge is still fully readable, not that it floats.
+const EDGE_MARGIN_PX = 8;
 
 // The caret menu itself. Deliberately thin: `useSlashMenu` owns when it is open,
 // what is in it and which row is active, so this file is only "draw that".
@@ -20,9 +25,37 @@ export function SlashMenu({
   state: SlashMenuState | null;
   onPick: (name: string) => void;
 }) {
+  // Measured, not estimated. The menu's height changes with how many rows
+  // survived the filter, and guessing it is how a menu ends up flipped above
+  // the caret when it would have fitted below.
+  const box = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const rows = state?.names.length ?? 0;
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el) setSize({ width: el.offsetWidth, height: el.offsetHeight });
+  }, [rows]);
+
   if (state === null) return null;
+
+  // **Clamped to the viewport.** The caret's own coordinates put a fixed 18rem
+  // menu off the right edge near the end of a line, and off the bottom near the
+  // foot of the page — worst on the 411px phone, and invisible at the 1280px
+  // default the suite runs at. Flagged by CodeRabbit on PR 139.
+  //
+  // Horizontally it slides back in; vertically it FLIPS above the caret, which
+  // is why `useSlashMenu` carries both edges of the caret. Sliding up instead
+  // would put the menu over the word being typed.
+  const maxLeft = window.innerWidth - size.width - EDGE_MARGIN_PX;
+  const left = Math.max(EDGE_MARGIN_PX, Math.min(state.left, maxLeft));
+  const overflowsBelow = state.top + size.height + EDGE_MARGIN_PX > window.innerHeight;
+  const top = overflowsBelow
+    ? Math.max(EDGE_MARGIN_PX, state.caretTop - size.height - EDGE_MARGIN_PX)
+    : state.top;
+
   return (
     <div
+      ref={box}
       // `listbox`, not `menu`: the caret stays in the document and the rows are
       // a completion over what has been typed, which is what a listbox is for.
       // The editor keeps focus throughout — moving it here would close the
@@ -31,7 +64,7 @@ export function SlashMenu({
       aria-label="Insert a widget"
       className="overlay-layer fixed w-72 overflow-hidden rounded-md border border-hairline bg-surface shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- caret coordinates, recomputed per keystroke from `coordsAtPos`. There is no token for "wherever the cursor happens to be", and every colour, size and spacing below is a token.
-      style={{ left: state.left, top: state.top }}
+      style={{ left, top }}
     >
       <ul>
         {state.names.map((w, index) => (

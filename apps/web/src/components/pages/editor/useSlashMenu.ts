@@ -44,8 +44,12 @@ export interface SlashMenuState {
   // rather than absolute so the menu does not need a positioned ancestor
   // inside ProseMirror's contenteditable — putting a wrapper in there is how
   // you end up with a node the schema did not ask for.
+  //
+  // Both edges of the caret, because the menu may have to open ABOVE it when
+  // there is no room below (`SlashMenu.tsx` does the clamping).
   left: number;
   top: number;
+  caretTop: number;
   active: number;
   names: readonly { name: string; title: string; preview: string }[];
 }
@@ -115,9 +119,15 @@ export function useSlashMenu({
         query,
         left: coords.left,
         top: coords.bottom,
-        // Keep the highlighted row across a keystroke when it still exists, so
-        // typing one more letter does not silently move the target of Enter.
-        active: was && was.active < names.length ? was.active : 0,
+        caretTop: coords.top,
+        // **Keep the highlighted WIDGET, not the highlighted index.** Holding
+        // the number meant one more typed letter could re-filter the list under
+        // a stationary highlight, so Enter inserted a widget the reader never
+        // chose — silently, and looking exactly like a correct selection.
+        // Falls back to the first row when the chosen one is filtered out,
+        // which is the only honest answer once it is gone. Found by Copilot on
+        // PR 139.
+        active: Math.max(0, names.findIndex((n) => n.name === was?.names[was.active]?.name)),
         names,
       }));
     };
@@ -150,7 +160,7 @@ export function useSlashMenu({
       setState((was) => {
         if (was === null) return was;
         const coords = editor.view.coordsAtPos(was.from);
-        return { ...was, left: coords.left, top: coords.bottom };
+        return { ...was, left: coords.left, top: coords.bottom, caretTop: coords.top };
       });
     };
     window.addEventListener("scroll", follow, true);

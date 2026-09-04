@@ -176,9 +176,16 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await page.getByRole("button", { name: "Done editing" }).click();
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   await expect(page.getByRole("combobox")).toHaveCount(0);
-  // The compose box is an authoring control too — leaving it mounted made
-  // "Reading" a lie, since it replaces the whole document and autosaves it.
-  await expect(page.getByLabel(/ask ai to draft this page/i)).toBeHidden();
+  // The assistant is an authoring control too — leaving it mounted made
+  // "Reading" a lie, since what it inserts is autosaved.
+  //
+  // Asserted with `toHaveCount(0)` on the CURRENT controls. It used to look for
+  // the compose box, which the assistant rail replaced — a locator matching
+  // nothing, and `toBeHidden()` passes for those, so this line had stopped
+  // testing Reading mode at all while still looking like it did (CodeRabbit,
+  // PR 139).
+  await expect(page.getByRole("button", { name: /Assistant/ })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toHaveCount(0);
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.
   await expect(page.getByText(tripName, { exact: true })).toBeVisible();

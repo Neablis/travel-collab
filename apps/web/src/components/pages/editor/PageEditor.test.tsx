@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import type { PageDoc } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { DEFAULT_TEMPLATES } from "@tc/pages";
+import { DEFAULT_TEMPLATES, macroCatalog } from "@tc/pages";
+import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 
@@ -333,8 +334,23 @@ describe("the slash menu", () => {
     await userEvent.type(textbox, "/trip");
     const menu = await screen.findByRole("listbox");
     const shown = within(menu).getAllByRole("option");
-    expect(shown.length).toBeGreaterThan(0);
-    for (const option of shown) expect(option.textContent).toBeTruthy();
+    // **Exactly the widgets that match, in the registry's order.** "some
+    // options exist" passes for a menu that filtered nothing at all, which is
+    // the regression this test is about (CodeRabbit, PR 139).
+    //
+    // The expectation is DERIVED from the same registry and the same matcher
+    // the menu uses, rather than a list of titles typed here: a copied list
+    // goes stale the first time someone adds a widget whose description happens
+    // to say "trip", and would then fail for a reason that is not a bug.
+    const expected = macroCatalog()
+      .filter((w) => widgetMatches(w, "trip"))
+      .slice(0, shown.length)
+      .map((w) => w.title);
+    expect(expected.length).toBeGreaterThan(0);
+    expect(expected.length).toBeLessThan(macroCatalog().length);
+    for (const [i, option] of shown.entries()) {
+      expect(option.textContent).toContain(expected[i]!);
+    }
 
     // A query nothing answers closes the menu rather than showing an empty box:
     // at that point the person is writing a date, not choosing a widget, and a

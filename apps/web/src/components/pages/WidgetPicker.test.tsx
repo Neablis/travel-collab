@@ -106,7 +106,14 @@ describe("WidgetPicker", () => {
       render(<WidgetPicker onPick={vi.fn()} />);
       await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "day");
       await userEvent.click(within(filters()).getByRole("button", { name: "In a sentence" }));
-      for (const row of rows()) {
+      const shown = rows();
+      // The witness. A `for` over an empty list asserts nothing, so a
+      // regression that made the two filters INTERSECT to nothing — which is
+      // exactly what "replacing rather than combining" would look like from one
+      // side — passed this test (CodeRabbit, PR 139).
+      expect(shown.length).toBeGreaterThan(0);
+      expect(shown.length).toBeLessThan(catalogue.length);
+      for (const row of shown) {
         expect(row.textContent).toMatch(/in a sentence/);
       }
     });

@@ -142,7 +142,17 @@ describe("the assistant on a notebook page", () => {
   });
 
   // The thread is what a rail is for, and what the prompt box could not have.
-  it("posts the whole conversation back on the second turn", async () => {
+  it("posts the whole conversation back on the second turn, assistant turns included", async () => {
+    // The first turn ANSWERS as well as inserting, because a history of two
+    // user messages passes even if the client drops every assistant turn — and
+    // a model that cannot see its own last answer is not in a conversation
+    // (CodeRabbit, PR 139).
+    askAssistantMock.mockImplementation(
+      turnEmitting(
+        { type: "text", delta: "Packed you a list." },
+        { type: "page-inserts", content: DOC },
+      ),
+    );
     await openRail();
     const composer = screen.getByPlaceholderText(/add to this page/i);
     await userEvent.type(composer, "Add a packing list{Enter}");
@@ -151,8 +161,39 @@ describe("the assistant on a notebook page", () => {
 
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     const [, messages] = askAssistantMock.mock.calls[1]!;
-    const texts = (messages as AskWireMessage[]).map((m) => m.parts[0]!.text);
-    expect(texts).toContain("Add a packing list");
-    expect(texts).toContain("One more thing");
+    // Order matters as much as membership: an assistant reply attributed to the
+    // wrong turn is worse than one that is missing.
+    expect((messages as AskWireMessage[]).map((m) => [m.role, m.parts[0]!.text])).toEqual([
+      ["user", "Add a packing list"],
+      ["assistant", "Packed you a list."],
+      ["user", "One more thing"],
+    ]);
+  });
+
+  // Copilot and CodeRabbit, PR 139: `useAskThread` lives on this screen, so
+  // unmounting the rail does not abort a turn. A late `page-inserts` then wrote
+  // into a document the user had put back into Reading — and autosaved it.
+  it("hangs up on a turn in flight when the assistant is closed", async () => {
+    let emit: ((event: AskEvent) => void) | null = null;
+    askAssistantMock.mockImplementation(
+      async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
+        emit = onEvent;
+        // Never settles on its own: this is the turn that is still streaming
+        // when the surface goes away.
+        return await new Promise<never>(() => {});
+      },
+    );
+    const { onUpdate } = await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
+    await waitFor(() => expect(emit).not.toBeNull());
+
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+
+    // The turn's answer arrives after the user left Editing. It must not reach
+    // the document.
+    emit!({ type: "page-inserts", content: DOC });
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+    expect(screen.queryByText("Bring a raincoat")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 });
