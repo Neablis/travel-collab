@@ -459,13 +459,35 @@ milestone opens:**
       parenthetical above describes. Everything else in the box — search, the
       shape tag, the mono line naming what it takes — is built.
 
+      **The container is a Popover on desktop and a bottom Sheet on the phone,
+      and both are deliberate.** §18 said Sheet; Mitchell said sidebar
+      (2026-09-03, *"definitely side bar and drag in or click insert"*) and then,
+      after walking the preview (2026-09-04), *"The widgets should be more of a
+      popover side bar so they dont interrupt the document flow when open"* — a
+      flex sibling of the editor narrows the prose column the author is writing
+      in, and a portalled Popover cannot. The **phone** is a Sheet, and that is
+      the design's own answer rather than a compromise: handoff `SPEC.md` §19
+      (2026-09-03) specifies a bottom sheet with two steps inside it, browse then
+      *Point it at*, never a sheet over a sheet. So the two surfaces disagree
+      about the container and agree about everything the box asks for — one
+      registry, one search, one set of shape tags, one preview string.
+
+      **Drag-and-drop and the slash menu are built** (2026-09-04), which finishes
+      item G's three origins. All three go through `insertWidget`, so ADR-037
+      decision 4 holds for each.
+
       The `needs a field` badge is **not** built, and that is not an omission:
       the only input type with no data behind it is `person`, no widget declares
       it (the two that would have were deferred out of M14 with the attribution
       model), so a badge for it would be a branch nothing can reach and no test
       could honestly cover.*
 - [ ] **Two widgets on one page read two different days**, bound at insert and
-      rebindable from the chrome row — the replacement the rescope section named
+      rebindable from the chrome row — on the phone the chrome row is a 44px
+      *"Pointed at …"* button opening a bind sheet, which is the ONE divergence
+      handoff `SPEC.md` §19 allows and it is density, not model: at 390px a name
+      chip plus a select per input wraps into unreadability. Same controls, same
+      order, same option lists (`widgetBind.tsx` is the single source, so the two
+      surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
 - [ ] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two

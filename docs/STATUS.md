@@ -22,11 +22,27 @@ general setup.
 
 ## Where the work is right now
 
-**M14's editor integration is built and in flight, 2026-09-03.** Branch
-`claude/m14-editor-integration-9idg1r`. `main` is `a99d935`. Merged before it: **#129** (a
-page loses its scope), **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131**
-(`PageDoc`, the versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and
-038 are all Accepted.**
+**M14's builder half is built and in flight, 2026-09-04.** The work is a stack of six
+branches, **#134 → #135 → #136 → #137 → #138 → #139**, and **#139 is retargeted to `main`
+so its diff is the whole stack** — review it there rather than branch by branch. Tip branch
+is `claude/m14-tags-control`. Merged before the stack: **#129** (a page loses its scope),
+**#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are all
+Accepted.**
+
+**What is clickable now**: a notebook page opens in **Reading**, one button flips it to
+Editing, and in Editing a widget can be inserted three ways — a **Popover** off the page
+header, **dragged** from that popover onto the page, or **typed** as `/` at the caret. All
+three go through `insertWidget`, so ADR-037 decision 4 ("no way to put a widget into a
+document that skips validation") holds for each. Each widget carries its own binding and is
+rebindable in place.
+
+**The phone Notebook is built too** (design handoff `6b7e362`, `SPEC.md` §19 / `DRIFT.md`
+§2f, landed 2026-09-04). It adds **no API surface** — same resolvers, same registry, same
+binds — and diverges only on density, in the two places §19 names: rebinding is a 44px
+*"Pointed at …"* button opening a bind sheet, and insert is one bottom sheet with browse and
+*Point it at* as two steps inside it. `widgetBind.tsx` and `WidgetPicker.tsx` are the single
+sources both surfaces read, so a phone cannot offer a day the desktop does not.
 
 **ADR-038 decision 4 is done, with its criterion corrected.** `PageScreen` inspects the
 stored document before mounting: it parses through `PageDoc`, compares the document's node
@@ -35,8 +51,14 @@ explanation and every write path off** when the editor could not mount it. The w
 (`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
 stays permissive on purpose, because you cannot explain a document you refused to deliver.
 
-**The next unit is M14 link 6** (the `repeat` node and the widget authoring vocabulary),
-subject to the M14 split below.
+**The next unit is M14 link 8's second half** — the assistant's page tools. The server half
+(`insert_text` / `insert_widget` replacing `compose_page`, ADR-035 decision 5) is written on
+`claude/m14-link8-insert-tools`; the client half mounts `AssistantRail` page-scoped and
+retires `ComposePanel`. Link 6's `repeat` node shipped as fixed-line-per-item via
+`Rendered.rows`: ADR-035 decision 4 says a repeater's content is the author's row template,
+and **row 12 of the catalogue's gap list — how an author edits a row template without seeing
+macro syntax — is still unowned**, so `PageRepeatNode` was left untouched rather than guessed
+at.
 
 ### Four things measured that a session must not re-derive or re-guess
 

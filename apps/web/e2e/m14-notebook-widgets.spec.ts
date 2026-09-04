@@ -10,7 +10,7 @@ import { e2eTripName } from "./tripNames";
 // This is that coverage, in its own file because the flow is no longer M7's.
 // M8 removed `{{` autocomplete and left NO manual insertion path at all — the
 // assistant was the only remaining author, and it is off-limits to e2e (no
-// e2e test may make a real model call). ADR-037 decision 4's sidebar is the
+// e2e test may make a real model call). ADR-037 decision 4's insert surface is
 // path back, and everything below is reachable by clicking.
 //
 // What this covers that the unit tests cannot: the unit suites each prove one
@@ -85,32 +85,40 @@ async function openTripOverview(page: Page): Promise<void> {
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("complementary", { name: "Widgets" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 }
 
-test("insert a widget from the sidebar, point it at a day, and reload to find it there", async ({ page }) => {
-  await tripWithTwoDays(page);
-  await openTripOverview(page);
-
-  // A notebook opens ready to edit, so the sidebar is already there. Making
-  // Reading the default broke m7's hand-typed-prose walk, which is the
-  // behaviour everyone already has.
-  const sidebar = page.getByRole("complementary", { name: "Widgets" });
-  await expect(sidebar).toBeVisible();
-
-  // Search, because a flat list of sixteen is what the widget model's own
-  // success looks like.
-  await sidebar.getByRole("searchbox", { name: "Search widgets" }).fill("day costs");
-  const dayCost = sidebar.getByRole("button", { name: /What a day costs/ });
-  await expect(dayCost).toBeVisible();
-
-  // Put the caret in the document first: `insertContent` inserts at the
-  // selection, and a click on the sidebar moves focus out of the editor.
+// The widget list is a portalled Popover now, not an `<aside>` beside the
+// document — Mitchell, walking the preview: *"The widgets should be more of a
+// popover side bar so they dont interrupt the document flow when open"*. It
+// closes behind each insert, because the insert puts the caret back in the
+// document, so every insert is the same three beats: put the caret where the
+// widget should land, open the list, click a row.
+//
+// The caret goes first for the reason it always did: `insertContent` inserts at
+// the selection, and opening the list moves focus out of the editor. TipTap
+// keeps the selection across that blur, which is what makes this work at all.
+async function insertFromList(page: Page, name: RegExp, search?: string): Promise<void> {
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Insert a widget" }).click();
+  const list = page.getByRole("dialog");
+  await expect(list).toBeVisible();
+  if (search !== undefined) {
+    await list.getByRole("searchbox", { name: "Search widgets" }).fill(search);
+  }
+  await waitForPageSaved(page, () => list.getByRole("button", { name }).click());
+  await expect(list).toBeHidden();
+}
 
-  await waitForPageSaved(page, () => dayCost.click());
+test("insert a widget from the widget list, point it at a day, and reload to find it there", async ({ page }) => {
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  // Searched, because a flat list of sixteen is what the widget model's own
+  // success looks like.
+  await insertFromList(page, /What a day costs/, "day costs");
 
   // It lands UNBOUND — never quietly on day 1 (ADR-037 decision 6). This is
   // the assertion a "sensible default" would break, and the one that makes the
@@ -140,13 +148,8 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await tripWithTwoDays(page);
   await openTripOverview(page);
 
-  const sidebar = page.getByRole("complementary", { name: "Widgets" });
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-
-  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /What a day costs/ }).click());
-  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /A day's stops/ }).click());
+  await insertFromList(page, /What a day costs/);
+  await insertFromList(page, /A day's stops/);
 
   const selects = page.getByRole("combobox");
   await expect(selects).toHaveCount(2);
@@ -168,14 +171,10 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   const tripName = await tripWithTwoDays(page);
   await openTripOverview(page);
 
-  const sidebar = page.getByRole("complementary", { name: "Widgets" });
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /The trip's name/ }).click());
+  await insertFromList(page, /The trip's name/);
 
   await page.getByRole("button", { name: "Done editing" }).click();
-  await expect(page.getByRole("complementary", { name: "Widgets" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   await expect(page.getByRole("combobox")).toHaveCount(0);
   // The compose box is an authoring control too — leaving it mounted made
   // "Reading" a lie, since it replaces the whole document and autosaves it.
@@ -185,7 +184,7 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await expect(page.getByText(tripName, { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("complementary", { name: "Widgets" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 });
 
 test("a repeater renders one line per day", async ({ page }) => {
@@ -195,12 +194,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await tripWithTwoDays(page);
   await openTripOverview(page);
 
-  const sidebar = page.getByRole("complementary", { name: "Widgets" });
-  await sidebar.getByRole("searchbox", { name: "Search widgets" }).fill("every day");
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /A line for every day/ }).click());
+  await insertFromList(page, /A line for every day/, "every day");
 
   await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
@@ -223,12 +217,7 @@ test("a two-input widget keeps both bindings, and each survives a reload", async
   await addTaggedStop(page, "Ramen", "Meal");
   await openTripOverview(page);
 
-  const sidebar = page.getByRole("complementary", { name: "Widgets" });
-  await sidebar.getByRole("searchbox", { name: "Search widgets" }).fill("every stop");
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /A line for every stop/ }).click());
+  await insertFromList(page, /A line for every stop/, "every stop");
 
   // Two controls, one per declared input.
   const day = page.getByRole("combobox", { name: /A line for every stop: day/i });

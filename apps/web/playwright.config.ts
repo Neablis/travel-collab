@@ -100,7 +100,10 @@ export default defineConfig({
       name: "phone",
       use: { ...devices["Desktop Chrome"], viewport: { width: 411, height: 852 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
-      testMatch: /m16-mobile-assistant\.spec\.ts/,
+      // Both phone specs, not one: M14 gave the Notebook a phone treatment
+      // of its own (SPEC §19), and it is a different breakpoint behaviour
+      // rather than a restyle — the chrome row becomes a sheet.
+      testMatch: /(m16-mobile-assistant|m14-mobile-notebook)\.spec\.ts/,
     },
   ],
   webServer: {
