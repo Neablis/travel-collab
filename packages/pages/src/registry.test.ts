@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, macroCatalog } from "./registry";
+import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES } from "./registry";
+import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { insertWidget } from "./insert";
 import type { WidgetInput } from "./registry-types";
@@ -9,26 +10,39 @@ import type { WidgetInput } from "./registry-types";
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
 describe("registry", () => {
-  it("registers all seven starter macros keyed by name", () => {
-    expect(MACRO_NAMES).toEqual(expect.arrayContaining(["trip.name","trip.dates","cost.trip","cost.day","itinerary.day","itinerary.trip","costs.table"]));
+  it("registers the twelve primitives keyed by name, and nothing else", () => {
+    // The seventeen NAMED widgets are gone (ADR-039 decision 4 — a named widget
+    // is a preset, which is data). Asserting their absence is the half that
+    // matters: a registry that still answered to `cost.day` would let a page
+    // keep an un-migrated node forever and nobody would find out.
+    expect([...MACRO_NAMES].sort()).toEqual([
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
+      "count", "dates", "day.detail", "day.rows", "hours", "stop.rows",
+    ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
   it("resolveMacro dispatches to the right resolver", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "trip.name", {})).toEqual({ status: "ok", value: "T" });
+    expect(resolveMacro(detail, { tripId: detail.tripId }, "attribute", { field: "trip.name" })).toEqual({
+      status: "ok",
+      value: "T",
+    });
   });
   it("resolveMacro reports unknown macros without throwing", () => {
     expect(resolveMacro(detail, { tripId: detail.tripId }, "nope.nope", {}).status).toBe("unknown");
   });
-  it("resolveMacro reports bad params without throwing", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "trip.name", { junk: 1 }).status).toBe("ok"); // strip() ignores extras
+  it("reports a RETIRED name as unknown rather than resolving it", () => {
+    // A node still carrying `cost.day` reached this build without going through
+    // `parsePageDoc`, which is a bug in the caller, not a page to render
+    // silently. `MacroView` has a legible answer for `unknown`.
+    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost.day", {}).status).toBe("unknown");
   });
-  it("macroCatalog exposes what the AI tools and the insert sidebar read", () => {
-    // `shape` replaced `kind` on PR 134 (ADR-037 decision 1 — "inline"|"block"
-    // had nowhere to put a repeater), and `title`/`preview` joined it because
-    // the sidebar lists a widget by the name a person calls it and shows a
-    // fixed sample beside it.
-    const cat = macroCatalog();
-    expect(cat.find((m) => m.name === "cost.trip")).toMatchObject({
+  it("resolveMacro reports bad params without throwing", () => {
+    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost", { junk: 1 }).status).toBe("empty"); // strip() ignores extras
+  });
+  it("presetCatalog exposes what the picker and the slash menu read", () => {
+    const cat = presetCatalog();
+    expect(cat.find((m) => m.name === "cost")).toMatchObject({
+      widget: "cost",
       shape: "single",
       title: expect.any(String),
       description: expect.any(String),
@@ -36,8 +50,8 @@ describe("registry", () => {
     });
   });
 
-  it("gives every widget a title and a preview, since the sidebar lists both", () => {
-    for (const entry of macroCatalog()) {
+  it("gives every preset a title and a preview, since the picker lists both", () => {
+    for (const entry of presetCatalog()) {
       expect(entry.title, `${entry.name} has no title`).toBeTruthy();
       expect(entry.preview, `${entry.name} has no preview`).toBeTruthy();
       // The title is what a person reads; it must not be the stored identifier.
@@ -95,14 +109,15 @@ describe("registry", () => {
     // that declares inputs must make this test cover more, never make it fail
     // (Copilot, PR 130). Exact equality would have contradicted the comment at
     // the top of this test the first time link 4 added a widget.
-    expect(checked).toEqual(expect.arrayContaining(["cost.day", "itinerary.day"]));
+    expect(checked).toEqual(expect.arrayContaining(["cost", "day.detail"]));
   });
 
   it("declares inputs for every macro, with [] meaning 'binds nothing'", () => {
     // `[]` is a real answer, not a placeholder (ADR-035 decision 2) — it is what
-    // makes a widget insert immediately with nothing to bind. So the field must
-    // be present on all seven, and absence must be impossible rather than
-    // indistinguishable from "binds nothing".
+    // makes a widget insert immediately with nothing to bind, and `attribute`
+    // is the one that answers it. So the field must be present on every def,
+    // and absence must be impossible rather than indistinguishable from
+    // "binds nothing".
     for (const name of MACRO_NAMES) {
       expect(Array.isArray(getMacro(name)!.inputs), `${name} declares no inputs array`).toBe(true);
     }
@@ -165,28 +180,50 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // exactly its job rather than a reason to lower it.
   const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const };
 
-  it("declares a render function for every registered widget", () => {
+  // **The sweep runs over PRESETS, not over registered names.** A primitive
+  // asked to render with `{}` is not always meaningful — `attribute` with no
+  // field chosen has nothing to read and correctly answers `empty()` — so a
+  // bare registry sweep could only reach eleven of twelve and the witness floor
+  // below would have to be lowered to accommodate a widget nobody had proved
+  // renders. A preset carries the params that make its widget mean something,
+  // which is exactly what the person clicking it gets.
+  const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
+    renderMacro(
+      { trip: populated, page: { tripId: populated.tripId }, user, globals },
+      entry.widget,
+      // Bind anything still asking for a day to the one day above, so block
+      // widgets reach `ok` instead of `unbound`.
+      {
+        ...entry.params,
+        ...(entry.inputs.some((i) => i.type === "day") ? { day: { kind: "index", index: 0 } } : {}),
+      },
+    );
+
+  it("produces a Rendered of a known kind for every preset that resolves", () => {
+    const seen: string[] = [];
+    for (const entry of presetCatalog()) {
+      const outcome = presetOutcome(entry);
+      if (outcome.status !== "ok") continue;
+      seen.push(entry.name);
+      expect(["inline", "block", "rows"], `${entry.name} rendered an unknown kind`).toContain(outcome.rendered.kind);
+    }
+    // The witness, and it is EVERY preset rather than a floor plucked from the
+    // air: a row a person can click that cannot render against a trip with a
+    // day, a stop, a cost, a budget, a city and an account is a row that should
+    // not be in the picker. Without this the loop above passes when every
+    // preset resolves to `empty` and nothing is rendered at all — the
+    // insensitive-test failure this repo has already had twice (CLAUDE.md
+    // rule 3).
+    expect(seen, "a preset in the picker never reached render").toEqual(
+      presetCatalog().map((entry) => entry.name),
+    );
+    expect(seen.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it("declares a render function for every registered primitive", () => {
     for (const name of MACRO_NAMES) {
       expect(typeof getMacro(name)!.render, `${name} has no render`).toBe("function");
     }
-  });
-
-  it("produces a Rendered of a known kind for every widget that resolves", () => {
-    const seen: string[] = [];
-    for (const name of MACRO_NAMES) {
-      const def = getMacro(name)!;
-      // Bind anything that takes a day to the one day above, so block widgets
-      // reach `ok` instead of `unbound`.
-      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
-      if (outcome.status !== "ok") continue;
-      seen.push(name);
-      expect(["inline", "block", "rows"], `${name} rendered an unknown kind`).toContain(outcome.rendered.kind);
-    }
-    // The witness. Without this the loop above passes when every widget
-    // resolves to `empty` and nothing is rendered at all — the insensitive-test
-    // failure this repo has already had twice (CLAUDE.md rule 3).
-    expect(seen.length, `only ${seen.length} widget(s) reached render`).toBeGreaterThanOrEqual(MACRO_NAMES.length);
   });
 
   it("emits only text and chip segments — a widget has nowhere to put markup", () => {
@@ -194,10 +231,8 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // `Seg` union has no member that can carry an element, an attribute or a
     // URL, and this asserts the widgets stay inside it.
     let inspected = 0;
-    for (const name of MACRO_NAMES) {
-      const def = getMacro(name)!;
-      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
+    for (const entry of presetCatalog()) {
+      const outcome = presetOutcome(entry);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
       const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
       inspected += segs.length;
@@ -215,13 +250,11 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // by payload shape, so a payload with no discriminator is a block nothing
     // can render.
     let inspected = 0;
-    for (const name of MACRO_NAMES) {
-      const def = getMacro(name)!;
-      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
+    for (const entry of presetCatalog()) {
+      const outcome = presetOutcome(entry);
       if (outcome.status !== "ok" || outcome.rendered.kind !== "block") continue;
       inspected += 1;
-      expect(typeof outcome.rendered.block.kind, `${name}'s block payload has no kind`).toBe("string");
+      expect(typeof outcome.rendered.block.kind, `${entry.name}'s block payload has no kind`).toBe("string");
     }
     // The mirror image: this one skips every NON-block, so it passes when no
     // widget renders as a block and nothing is examined.
@@ -251,21 +284,22 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     dates: { from: "2026-08-01", through: "2026-08-03" },
   };
 
-  it("covers the eleven primitives, and only widgets that declare a selection", () => {
-    // Non-vacuous, and containment rather than equality: `attribute` is step 2
-    // of the spec's order of work and must make this sweep cover MORE, never
-    // make it fail (the rule Copilot set on PR 130).
+  it("covers the twelve primitives, and only widgets that declare a selection", () => {
+    // Non-vacuous, and containment rather than equality: a primitive added later
+    // must make this sweep cover MORE, never make it fail (the rule Copilot set
+    // on PR 130).
     expect(PRIMITIVE_NAMES).toEqual(
       expect.arrayContaining([
-        "cost", "count", "dates", "hours", "city",
+        "cost", "count", "dates", "hours", "city", "attribute",
         "day.detail", "city.detail",
         "day.rows", "city.rows", "stop.rows", "cost.rows",
       ]),
     );
     for (const name of PRIMITIVE_NAMES) expect(getMacro(name)!.selection).toBeDefined();
-    // The named widgets are not primitives yet, and saying so out loud is what
-    // makes this sweep's silence about them deliberate rather than a gap.
-    expect(PRIMITIVE_NAMES).not.toContain("cost.day");
+    // Every registered widget is a primitive now, so this sweep covers the whole
+    // registry — which is the state ADR-039 was aiming at, and worth asserting
+    // rather than assuming.
+    expect([...PRIMITIVE_NAMES].sort()).toEqual([...MACRO_NAMES].sort());
   });
 
   it("declares only dimensions its entity permits", () => {

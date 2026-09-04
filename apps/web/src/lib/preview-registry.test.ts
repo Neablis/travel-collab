@@ -139,8 +139,27 @@ const DEMO_CITIES = new Set(JAPAN_STOPS.map((stop) => stop.city));
 
 /** Why a file breaks the "no static city list" rule, or an empty list. */
 function cityListOffences(src: string): string[] {
-  const offences = new Set(/aria-label="City"|All cities/.test(src) ? ["a city-labelled select"] : []);
-  for (const literal of optionLiteralsIn(src)) {
+  const literals = optionLiteralsIn(src);
+  const offences = new Set<string>();
+  // **A city-labelled select is an offence only when its options are LITERAL.**
+  //
+  // The rule this enforces is "no STATIC city list" — the dropdown the
+  // server-side city search replaced — and the label was a proxy for it, which
+  // held for as long as the only city-labelled select in the tree was that one.
+  // ADR-039 added a second: the widget chrome row's `city` filter, whose
+  // options are `globals.cities.map(...)` — the trip's OWN cities, derived by
+  // `citiesOfDay` and delivered by the globals projection. That is the opposite
+  // of a static list, and flagging it made the wall fire on the absence of the
+  // thing it forbids.
+  //
+  // So the label now has to co-occur with a hardcoded `<option>` before it
+  // counts. Both real failure modes survive: a reintroduced static dropdown has
+  // a city label AND literal options, and any literal option naming a demo city
+  // is caught on its own below, label or no label.
+  if (/aria-label="City"|All cities/.test(src) && literals.length > 0) {
+    offences.add("a city-labelled select");
+  }
+  for (const literal of literals) {
     if (DEMO_CITIES.has(literal)) offences.add(`<option> for "${literal}"`);
   }
   return [...offences];
@@ -244,6 +263,16 @@ describe("preview registry ↔ usage", () => {
     expect(
       cityListOffences('<select aria-label="Where"><option value="Kyoto">Kyoto</option></select>'),
     ).toEqual(['<option> for "Kyoto"']);
+    // Both halves of the refined label rule, so neither can rot into a comment.
+    // A city-labelled select with a hardcoded option is the forbidden control;
+    // one whose options are mapped from data is the widget chrome row, and it
+    // is not.
+    expect(
+      cityListOffences('<select aria-label="City"><option value="Sapporo">Sapporo</option></select>'),
+    ).toContain("a city-labelled select");
+    expect(
+      cityListOffences('<select aria-label="City">{cities.map((c) => <option key={c}>{c}</option>)}</select>'),
+    ).toEqual([]);
   });
 
   // Keeps the PARKED escape hatch honest: an entry is only legitimate while its

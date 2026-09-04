@@ -31,7 +31,7 @@
 // reject. /ask rejects: a doc that fails here never reaches the client.
 import { tool, type Tool } from "ai";
 import { z } from "zod";
-import { MacroNode, PageDoc, newPageDoc } from "@tc/contracts";
+import { MacroNode, PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
 import type { PageNode } from "@tc/contracts";
 import { MACRO_NAMES, getMacro, insertWidget } from "@tc/pages";
 import { markdownToPageNodes } from "./markdownToPageNodes";
@@ -97,8 +97,9 @@ export function buildPageTools(): { tools: Record<string, Tool>; getInserts: () 
     insert_widget: tool({
       description:
         "Insert one live trip-data widget into the page at the cursor. Widget names come from the " +
-        "registry and cannot be invented. Params are that widget's own — omit them to insert it " +
-        "unbound, which is valid and lets the reader point it afterwards.",
+        "registry and cannot be invented. Params are that widget's own filters, and every one is " +
+        "optional — omit them all and the widget covers the whole trip, which is a real answer and " +
+        "usually the right one.",
       inputSchema: InsertWidgetParams,
       execute: async (params: z.infer<typeof InsertWidgetParams>) => {
         // **The validation is delegated, not repeated.** `insertWidget` is the
@@ -131,7 +132,7 @@ export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().t
 // is now literally true — the AST parse below is the same one the route and the
 // editor make. The registry walk that follows it is the half that stays
 // special, and rightly: `PageDoc` can say a `macro` node is well-formed, but
-// only the registry knows whether `cost.trip` exists and what params it takes,
+// only the registry knows whether `cost` exists and what params it takes,
 // and contracts cannot import the registry.
 /**
  * The same check, for what a turn wants inserted.
@@ -148,9 +149,28 @@ export function validatePageInserts(nodes: readonly PageNode[]): PageDoc | { err
 export function validateComposedPage(content: unknown): PageDoc | { error: string } {
   const parsed = PageDoc.safeParse(content);
   if (!parsed.success) return { error: `Invalid page document: ${parsed.error.message}` };
-  const error = walkForError(parsed.data.content);
+  // **Migrated before it is walked, not merely parsed.** `PageDoc` defaults a
+  // missing `v` to 1 (ADR-038 decision 2 — every stored row without one IS v1),
+  // and the nodes assembled here were built by THIS build, so they are at the
+  // current version and simply carry no label. Returning them stamped v1 would
+  // write a document whose content is v2 under a v1 heading, and every later
+  // read would re-run a migration over names that had already been migrated.
+  //
+  // Running the chain is also the honest way to reach the current version: it
+  // is a no-op over names that are already primitives, and it corrects the one
+  // case that would otherwise be a silent wrong answer — a retired name that
+  // reached here around the tool's own enum.
+  let doc: PageDoc;
+  try {
+    doc = migratePageDoc(parsed.data);
+  } catch (error) {
+    // A document claiming a version this build does not understand. Refusing is
+    // the same answer `parsePageDoc` gives, and the caller (/ask) rejects.
+    return { error: `Invalid page document: ${(error as Error).message}` };
+  }
+  const error = walkForError(doc.content);
   if (error) return { error };
-  return parsed.data;
+  return doc;
 }
 
 function walkForError(nodes: readonly unknown[]): string | null {

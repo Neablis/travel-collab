@@ -16,16 +16,41 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
 });
 
 describe("day.detail", () => {
-  it("is one day's card when the selection holds one day — `itinerary.day` exactly", () => {
-    const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "day.detail", { day: { kind: "index", index: 0 } })).toEqual(
-      renderMacro(ctx, "itinerary.day", { dayRef: { kind: "index", index: 0 } }),
-    );
+  it("is one day's card when the selection holds one day — what `itinerary.day` drew", () => {
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    expect(renderMacro(ctx, "day.detail", { day: { kind: "index", index: 0 } })).toEqual({
+      status: "ok",
+      rendered: {
+        kind: "block",
+        block: {
+          kind: "itinerary-day",
+          dayId: fixture.trip.days[0]!.dayId,
+          ordinal: 1,
+          date: "2027-06-01",
+          activities: [
+            { title: "Colosseum", timeWindow: "09:00–10:00", cost: expect.any(String) },
+            { title: "Lunch", timeWindow: "12:00–13:00", cost: expect.any(String) },
+          ],
+        },
+      },
+    });
   });
 
-  it("is the day table when it holds many — `itinerary.trip` exactly", () => {
+  it("is the day table when it holds many — what `itinerary.trip` drew", () => {
     const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "day.detail", {})).toEqual(renderMacro(ctx, "itinerary.trip", {}));
+    const outcome = renderMacro(ctx, "day.detail", {});
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`not a block: ${outcome.status}`);
+    const payload = outcome.rendered.block as ItineraryTripPayload;
+    // One row per day of the trip, in trip order, each with its own stops —
+    // NOT a stack of day cards, which is the bug ADR-039 was written about.
+    expect(payload.kind).toBe("itinerary-trip");
+    expect(payload.days.map((d) => d.ordinal)).toEqual([1, 2, 3]);
+    expect(payload.days.map((d) => d.activities.map((a) => a.title))).toEqual([
+      ["Colosseum", "Lunch"],
+      ["Train to Kyoto", "Ryokan"],
+      ["Free morning", "Maybe a hike"],
+    ]);
   });
 
   it("keeps only the days that have a matching stop once a content filter is set", () => {

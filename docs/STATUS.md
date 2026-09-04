@@ -54,32 +54,44 @@ honest about having neither a display name on `TripMember` nor any person on a s
 by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
 while ghost rendering waits for the next milestone.
 
-**Phase 1 of §8's order of work is built: the primitives, the filters and the legality
-matrix.** Eleven primitives — `cost`, `count`, `dates`, `hours`, `city`, `day.detail`,
-`city.detail`, `day.rows`, `city.rows`, `stop.rows`, `cost.rows` — are registered, each
-declaring `entity + filters` alongside the `shape` it already had. The six dimensions and
-their persisted value shapes are in `packages/contracts/src/pages.ts`; `LEGAL_FILTERS`
-(`packages/pages/src/filters.ts`) is the matrix; `narrow` (`packages/pages/src/select.ts`) is
-the ONE implementation of the selection all eleven read — which is the ADR's thesis made
-concrete, since `itinerary.trip`'s list-of-lists bug happened because each widget answered
-"what does a block do with many members" locally. The registry-wide test ADR-039 asks for by
-name sweeps every primitive both ways: a declared dimension the schema drops fails, and an
-undeclared dimension the schema keeps fails.
+**§8 steps 1-3 are built, and the picker is the proof.** Mitchell, on the first cut:
+*"how am i spose to test any of this if they arent in the picker? … this is another
+milestone thats not functionally reviewable."* He was right — a registry nobody can click
+is not a reviewable milestone — so the phase boundary moved to where a person can walk it.
 
-**What phase 1 did NOT do, on purpose, is written down in the spec's §8** rather than only
-here. Shortest version: the primitives are registered but not in `macroCatalog()`, so the
-picker still browses the seventeen named widgets (ADR-039 decision 5 — the preset list is the
-browsable one, and presets are step 3); `city`, `kind` and `dates` are declared inputs with no
-control yet; and `person` renders "needs a person field" and never filters, which is its
-finished behaviour until the field exists. **Eleven of the seventeen named widgets are asserted
-IDENTICAL in rendered output to the primitive that replaces them** — `cost{}` to `cost.trip`,
-`cost{day}` to `cost.day`, `dates{day}` to `day.date`, `hours{day}` to `day.window`,
-`city{day}` to `day.city`, `day.detail{day}` to `itinerary.day`, `day.detail{}` to
-`itinerary.trip`, `day.rows{}` to `day.line`, `city.rows{}` to `city.line`,
-`stop.rows{day, kind: booked}` to `booking.line`, `stop.rows{day}` to `stop.line`. That is
-what makes step 3 a rename rather than a behaviour change. The other six are the four
-`attribute` presets (step 2), `trip.dates`, and `costs.table` — which becomes `cost.rows{}`, a
-repeat where it was a block, so identical output was never the goal there.
+**Twelve primitives, eighteen presets, one migration.** The registry holds `cost`,
+`count`, `dates`, `hours`, `city`, `attribute`, `day.detail`, `city.detail`, `day.rows`,
+`city.rows`, `stop.rows`, `cost.rows` — each declaring `entity + filters` beside the
+`shape` it already had. **The seventeen named widgets are deleted.** What a person browses
+is `packages/pages/src/presets.ts`: `(primitive, params, title, keywords)` rows, data with
+no code, which ADR-039 decision 4 says a named widget is. Stored documents carrying an old
+name are rewritten once, on read, by `PAGE_DOC_MIGRATIONS`' v1 → v2 step —
+`CURRENT_PAGE_DOC_VERSION` is **2**, and `packages/contracts/test/fixtures/pageDocV2.ts`
+is the hand-written golden it is tested against.
+
+**How "a rename, not a behaviour change" was actually established.** Every one of the
+seventeen was asserted IDENTICAL in rendered output to the primitive replacing it while
+both still existed (commit `db013f9` on this branch — `cost{}` to `cost.trip`,
+`day.detail{day}` to `itinerary.day`, `stop.rows{day, kind: booked}` to `booking.line`, and
+so on). Those comparisons could not survive deleting the named defs, so what guards it now
+is a sweep that puts each retired name through the real `parsePageDoc` migration and
+renders the result against a real trip, plus per-primitive golden assertions of the exact
+chips and rows. The equivalence run is in the branch history, not in the suite.
+
+**What is clickable.** Insert a preset from the header popover, by dragging it, by typing
+`/`, or from the phone's bottom sheet — all four go through `insertPreset` → `insertWidget`
+(ADR-037 decision 4 intact). The chrome row then renders **one control per declared
+dimension with All at the top of each**: "All days", "All cities", "Any kind", "Every
+stop", and a from/through pair for dates. That is Mitchell's *"it can also select All at
+the top, and it gives you a sum"* literally. Search matches every word of a query across
+title, description, id, keywords and the RETIRED names, so `/booking` and `cost.day` both
+still find something (§6).
+
+**What is still owed, and it is written into the spec's §8 rather than only here:** §5's
+slash ARGUMENT grammar (`/cost 3 meal` — a space still ends the query), and §7's `sample`
+status with its ghost rendering. `person` is declared, has no control, and renders "needs
+a person field"; that is its finished behaviour until `TripMember` carries a display name
+and a stop carries a person (decision 7).
 
 **What the merge contains.** Merged before the stack: **#129** (a page loses its scope),
 **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the

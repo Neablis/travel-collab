@@ -72,7 +72,11 @@ export function WidgetChrome({
             className="min-h-11 rounded-full text-sm font-normal"
             onClick={() => setBinding(true)}
           >
-            Pointed at {bindSummary(name, params, detail, globals)}
+            {/* "Showing", not "Pointed at". §19 wrote the label when a widget
+                with nothing bound was genuinely unpointed; ADR-039 decision 2
+                makes that state the widest true answer instead, and "Pointed at
+                everything" is not a sentence. */}
+            Showing {bindSummary(name, params, detail, globals)}
           </Button>
         </span>
         {/* `bottom`, not the default rail. This is the phone branch, and a
@@ -132,7 +136,13 @@ export function WidgetChrome({
     <span
       className={
         inline
-          ? "ml-1 inline-flex items-center gap-1 align-middle"
+          // `flex-wrap`, because a primitive declares up to five controls
+          // (ADR-039 decision 1) where a named widget declared one or two, and
+          // an inline row that cannot wrap pushes the paragraph it sits in
+          // sideways. SPEC §5 asks for one control per dimension "including the
+          // ones you have not set", so the row is wide by design and has to
+          // fold rather than overflow.
+          ? "ml-1 inline-flex flex-wrap items-center gap-1 align-middle"
           : "mt-1 flex flex-wrap items-center gap-1"
       }
     >

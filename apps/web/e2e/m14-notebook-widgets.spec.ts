@@ -112,21 +112,23 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   await expect(list).toBeHidden();
 }
 
-test("insert a widget from the widget list, point it at a day, and reload to find it there", async ({ page }) => {
+test("insert a widget from the widget list, narrow it to a day, and reload to find it there", async ({ page }) => {
   await tripWithTwoDays(page);
   await openTripOverview(page);
 
-  // Searched, because a flat list of sixteen is what the widget model's own
-  // success looks like.
-  await insertFromList(page, /What a day costs/, "day costs");
+  // Searched, because a flat list of eighteen presets is what the widget
+  // model's own success looks like.
+  await insertFromList(page, /What it costs/, "costs");
 
-  // It lands UNBOUND — never quietly on day 1 (ADR-037 decision 6). This is
-  // the assertion a "sensible default" would break, and the one that makes the
-  // chrome row necessary rather than decorative.
-  await expect(page.getByText("no day set").or(page.getByRole("button", { name: "select a day" }))).toBeVisible();
-
-  const daySelect = page.getByRole("combobox", { name: /What a day costs/ });
+  // **It lands WIDE, and that is what ADR-039 decision 2 changed.** Mitchell,
+  // on the preview: *"where we have a tool that you can select a day, it can
+  // also select All at the top, and it gives you a sum."* The old walk asserted
+  // "no day set" here; a widget that still said that would be waiting for a
+  // choice it does not need.
+  const daySelect = page.getByRole("combobox", { name: /What it costs: day/ });
   await expect(daySelect).toHaveValue("");
+  await expect(daySelect.locator("option").first()).toHaveText("All days");
+  await expect(page.getByText("no day set")).toHaveCount(0);
   await waitForPageSaved(page, () => daySelect.selectOption("1"));
 
   // The whole point: reload and the binding is still there. The unit tests
@@ -137,7 +139,7 @@ test("insert a widget from the widget list, point it at a day, and reload to fin
   // which is the point of Reading. The BINDING is what survived; the control
   // that shows it is an authoring affordance.
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("combobox", { name: /What a day costs/ })).toHaveValue("1");
+  await expect(page.getByRole("combobox", { name: /What it costs: day/ })).toHaveValue("1");
 });
 
 test("two widgets on one page read two different days", async ({ page }) => {
@@ -148,20 +150,22 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await tripWithTwoDays(page);
   await openTripOverview(page);
 
-  await insertFromList(page, /What a day costs/);
-  await insertFromList(page, /A day's stops/);
+  await insertFromList(page, /What it costs/);
+  await insertFromList(page, /The days, in detail/);
 
-  const selects = page.getByRole("combobox");
-  await expect(selects).toHaveCount(2);
-  await waitForPageSaved(page, () => selects.nth(0).selectOption("0"));
-  await waitForPageSaved(page, () => selects.nth(1).selectOption("1"));
+  // Each widget's OWN day select, found by the widget's name rather than by
+  // position: a primitive declares up to five controls now (ADR-039 decision
+  // 1), so "the first two comboboxes on the page" are both the first widget's.
+  const costDay = page.getByRole("combobox", { name: /What it costs: day/ });
+  const detailDay = page.getByRole("combobox", { name: /The days in detail: day/ });
+  await waitForPageSaved(page, () => costDay.selectOption("0"));
+  await waitForPageSaved(page, () => detailDay.selectOption("1"));
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  const afterReload = page.getByRole("combobox");
-  await expect(afterReload.nth(0)).toHaveValue("0");
-  await expect(afterReload.nth(1)).toHaveValue("1");
+  await expect(page.getByRole("combobox", { name: /What it costs: day/ })).toHaveValue("0");
+  await expect(page.getByRole("combobox", { name: /The days in detail: day/ })).toHaveValue("1");
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -197,7 +201,7 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
 });
 
 test("a repeater renders one line per day", async ({ page }) => {
-  // M14's gate line for repeaters. `day.line` takes no inputs, so it is
+  // M14's gate line for repeaters. `day.rows` needs no filters set, so it is
   // finished the moment it lands — and the two days created above are exactly
   // what tells one line per day apart from one line.
   await tripWithTwoDays(page);
@@ -225,14 +229,13 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(afterReload.nth(1)).toContainText("Day 2");
 });
 
-test("a two-input widget keeps both bindings, and each survives a reload", async ({ page }) => {
-  // `stop.line` is the catalogue's "only two-input widget, so it is the one
-  // that proves the model". The failure it exists to catch is not visible in
-  // any single-input walk: setting the second binding must not disturb the
-  // first. The chrome row replaced its whole params object before this widget
-  // existed, so choosing a tag would have silently unbound the day — and the
-  // widget would then read "no day set" while the day control still showed a
-  // choice.
+test("a multi-filter widget keeps every binding, and each survives a reload", async ({ page }) => {
+  // `stop.rows` is the widest widget in the registry — entity `stop`, which the
+  // legality matrix gives all six dimensions — so it is the one that proves the
+  // model. The failure it exists to catch is not visible in any single-filter
+  // walk: setting the second binding must not disturb the first. The chrome row
+  // replaced its whole params object before this widget existed, so choosing a
+  // tag would have silently unbound the day.
   await tripWithTwoDays(page);
   // A selectable tag has to exist before the chrome row can offer one.
   await addTaggedStop(page, "Ramen", "Meal");
@@ -245,6 +248,13 @@ test("a two-input widget keeps both bindings, and each survives a reload", async
   const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
   await expect(day).toBeVisible();
   await expect(tags).toBeVisible();
+  // And the three ADR-039 added, which is the other half of the model being
+  // real: `stop.rows` is entity `stop`, and the matrix gives that entity every
+  // dimension. `person` is the one with no control, and deliberately so — no
+  // stop carries a person (decision 7).
+  await expect(page.getByRole("combobox", { name: /A line for every stop: city/i })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: /A line for every stop: kind/i })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
 
   // A tag input reads "every stop, or one" (§18), so unset is a real answer
   // rather than an unfilled blank.

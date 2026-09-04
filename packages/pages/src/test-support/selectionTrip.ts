@@ -49,6 +49,11 @@ export function selectionTrip(): SelectionTrip {
         costed: true,
         currency: "USD",
         startDate: "2027-06-01",
+        // A budget, so `attribute{field: trip.budgetRemaining}` has something
+        // to read. Comfortably above the factory's costs, because "over
+        // budget" is its own case and a fixture that is accidentally over it
+        // would make an unrelated test read as a bug.
+        budget: { amountMinor: 5_000_00, currency: "USD" },
       },
     },
   );

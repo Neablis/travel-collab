@@ -13,6 +13,40 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — `PageDoc` v2: the seventeen widget names become twelve primitives
+- Added: `AttributeFieldRef` in `packages/contracts/src/pages.ts` — the closed
+  list of fields `attribute` may read (`trip.name`, `trip.budgetRemaining`,
+  `account.name`, `account.homeAirport`). Named `…Ref` rather than
+  `AttributeField` because `manifest.ts` already exports that for a describable
+  field of a collection, which is a different thing
+- Added: `WIDGET_NAME_MIGRATION` and the v1 → v2 step in
+  `PAGE_DOC_MIGRATIONS` (`packages/contracts/src/pageDoc.ts`).
+  `CURRENT_PAGE_DOC_VERSION` is **2**, derived from the chain as it always was
+- Why: ADR-039 decision 9, *"one migration, once"*. Four of the seventeen names
+  were the same widget written twice, and a preset is data that is never stored
+  — so this is the whole cost of the vocabulary change to stored documents, and
+  it is one function. `PAGE_DOC_MIGRATIONS` was built empty for exactly this
+- Note: the node SHAPE is unchanged, which is what lets the step be
+  `(PageDoc) => PageDoc`. It rewrites `attrs.name` and the KEYS of
+  `attrs.params` (`dayRef` → `day`), both of which the current schema already
+  accepts. The file's warning that a real migration would need a per-version
+  schema is still owed by the first change that alters the vocabulary of nodes
+- Note: a name this build does not recognise is left ALONE, not dropped —
+  decision 3's carry-don't-drop applied to a name rather than a node type
+- Consumers updated: `@tc/pages` (the twelve primitives, the preset table, and
+  `insertPreset`; the seventeen named defs are deleted), `apps/web` (the picker,
+  the slash menu, drag-and-drop, the chrome row, the assistant's tool surface,
+  and `apiClient`, which now migrates an inserts payload before it reaches the
+  editor)
+- Fixtures: `packages/contracts/test/fixtures/pageDocV2.ts` is the v2 golden,
+  hand-written beside the now-FROZEN v1 one. The round-trip tests moved to it;
+  the v1 golden is what the migration is tested against
+- Breaking? **no for readers, yes for writers.** Every stored v1 row migrates on
+  read and is written back at v2. Nothing outside this repo writes these
+  documents. A build older than this one reading a v2 row would refuse it
+  (`migratePageDoc` rejects a future version) and open the page read-only with
+  an explanation, which is ADR-038 decision 4 working as designed
+
 ## 2026-09-04 — the filter vocabulary: six dimensions and their value shapes
 - Added: `FilterDimension` (`day` · `city` · `tag` · `kind` · `person` · `dates`),
   `CityRef`, `KindRef`, `PersonRef`, `DateRangeRef` and `FILTER_VALUE_SCHEMAS` in

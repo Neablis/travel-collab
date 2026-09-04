@@ -4,21 +4,22 @@ import { MACRO_NAMES, getMacro } from "./registry";
 
 describe("insertWidget", () => {
   it("builds a stored `macro` node for a widget that binds nothing", () => {
-    const result = insertWidget("trip.name");
-    expect(result).toEqual({ ok: true, node: { type: "macro", attrs: { name: "trip.name", params: {} } } });
+    const result = insertWidget("count");
+    expect(result).toEqual({ ok: true, node: { type: "macro", attrs: { name: "count", params: {} } } });
   });
 
   it("carries a binding through into the node's params", () => {
-    const result = insertWidget("cost.day", { dayRef: { kind: "index", index: 2 } });
-    expect(result.ok && result.node.attrs.params).toEqual({ dayRef: { kind: "index", index: 2 } });
+    const result = insertWidget("cost", { day: { kind: "index", index: 2 } });
+    expect(result.ok && result.node.attrs.params).toEqual({ day: { kind: "index", index: 2 } });
   });
 
-  it("inserts a day widget UNBOUND when nothing is chosen, rather than guessing a day", () => {
+  it("inserts a filtered widget WIDE when nothing is chosen, rather than guessing a day", () => {
     // ADR-037 decision 4: with no modal step, "Point it at" has nowhere to live
-    // at insert time — you insert, then point it. Decision 6 is what makes that
-    // safe: a widget bound to nothing renders "not set up" rather than
-    // defaulting to day 1, which would be a confident wrong answer.
-    const result = insertWidget("cost.day");
+    // at insert time — you insert, then point it. ADR-039 decision 2 is what
+    // makes that useful rather than merely safe: an absent filter is not a
+    // widget waiting for a choice, it is the widest true answer, so a `cost`
+    // that lands with `{}` shows the trip's total immediately.
+    const result = insertWidget("cost");
     expect(result.ok && result.node.attrs.params).toEqual({});
   });
 
@@ -31,9 +32,9 @@ describe("insertWidget", () => {
 
   it("refuses params the widget's own schema rejects", () => {
     // The invariant this command exists for: there is no way to put a widget
-    // into a document that skips validation. `dayRef` must be a DayRef, and a
+    // into a document that skips validation. `day` must be a DayRef, and a
     // string is not one.
-    const result = insertWidget("cost.day", { dayRef: "day 2" });
+    const result = insertWidget("cost", { day: "day 2" });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.reason).toBe("bad-params");
   });

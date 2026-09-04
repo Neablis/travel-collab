@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { macroCatalog } from "@tc/pages";
+import { presetCatalog } from "@tc/pages";
 import { WidgetPicker } from "./WidgetPicker";
 
-// The picker reads the LIVE registry, so these assertions are written against
-// `macroCatalog()` rather than against a list of names copied into this file.
-// A copied list is the second registry all over again — the thing ADR-037
-// deleted — and it would go stale the first time someone adds a widget.
-const catalogue = macroCatalog();
+// The picker reads the LIVE preset list, so these assertions are written
+// against `presetCatalog()` rather than against a list of names copied into
+// this file. A copied list is the second registry all over again — the thing
+// ADR-037 deleted — and it would go stale the first time someone adds a preset.
+const catalogue = presetCatalog();
 
 // The widget rows, and ONLY those. The filter chips are buttons too, so
 // `getAllByRole("button")` counts them — which silently turned "every widget is
@@ -19,7 +19,7 @@ const withInputs = catalogue.find((w) => w.inputs.length > 0)!;
 const withoutInputs = catalogue.find((w) => w.inputs.length === 0)!;
 
 describe("WidgetPicker", () => {
-  it("lists every registered widget, by the name a person calls it", () => {
+  it("lists every preset, by the name a person calls it", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     expect(rows()).toHaveLength(catalogue.length);
     for (const w of catalogue) {
@@ -47,22 +47,47 @@ describe("WidgetPicker", () => {
 
   // Someone who has read a document's JSON, or the assistant's tool surface,
   // knows a widget as `cost.day`. A search that could not find it would be
-  // hiding the app's own vocabulary from the person using it.
-  it("finds a widget by its stored name, not only by its title", async () => {
+  // hiding the app's own vocabulary from the person using it — and `cost.day`
+  // is now a RETIRED name, which makes the point sharper rather than moot: the
+  // preset list is where it went, and §6 says it has to still be findable.
+  it("finds a preset by a retired widget name, not only by its title", async () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "cost.day");
     const shown = rows();
     expect(shown).toHaveLength(1);
-    expect(shown[0]!.textContent).toContain("What a day costs");
+    expect(shown[0]!.textContent).toContain("What it costs");
   });
 
-  // The gate's "a mono line naming what it takes". A widget that lands unbound
-  // is correct (ADR-037 decision 6 never defaults a day) and still surprising
-  // if the row gave no warning, so the row says which before the click.
-  it("says what a widget takes before it is inserted", () => {
+  // §6's other half: *"every word in the query must match something, so 'day
+  // cost' finds `cost`. Today it finds nothing."* The words are in two
+  // different fields, so a single-substring match over each field in turn
+  // cannot find it however many fields it searches.
+  it("matches every word of the query, across fields", async () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "day cost");
+    const shown = rows();
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.some((row) => row.textContent?.includes("What it costs"))).toBe(true);
+  });
+
+  // Keywords are what somebody types when they do not know the title. "spend"
+  // appears in no title, no description and no id.
+  it("finds a preset by a keyword that appears nowhere on the row", async () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "spend");
+    const shown = rows();
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.some((row) => row.textContent?.includes("What it costs"))).toBe(true);
+  });
+
+  // The gate's "a mono line naming what it takes". Under ADR-039 decision 2 a
+  // widget that lands with nothing bound is showing EVERYTHING rather than
+  // waiting, so the line says what you can narrow it by rather than warning
+  // that it wants pointing.
+  it("says what a widget can be narrowed by before it is inserted", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     const needsPointing = screen.getByRole("button", { name: new RegExp(withInputs.title) });
-    expect(within(needsPointing).getByText(/point it at:/)).toBeTruthy();
+    expect(within(needsPointing).getByText(/narrow it by:/)).toBeTruthy();
 
     const standsAlone = screen.getByRole("button", { name: new RegExp(withoutInputs.title) });
     expect(within(standsAlone).getByText("ready as soon as it lands")).toBeTruthy();
@@ -73,7 +98,7 @@ describe("WidgetPicker", () => {
   // reader's (Mitchell, 2026-09-04).
   it("tags each row by where it lands in the page, not by its node type", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
-    expect(within(screen.getByRole("button", { name: /A day's stops/ })).getByText("a section")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText("a section")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: /The trip's name/ })).getByText("in a sentence")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: /A line for every day/ })).getByText("a line each")).toBeTruthy();
   });

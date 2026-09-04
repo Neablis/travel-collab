@@ -351,17 +351,145 @@ export type PageDoc = z.infer<typeof PageDoc>;
 
 export type PageDocMigration = (doc: PageDoc) => PageDoc;
 
-// Ordered: index `i` takes a v(i+1) document to v(i+2). Empty, and that is not
-// a stub — there is one version, so there is nothing to migrate. What is being
-// built is the mechanism and its tests, so that the first real format change is
-// an append with a fixture beside it.
+// ---------------------------------------------------------------------------
+// v1 → v2: the seventeen widget names become eleven primitives (ADR-039)
+// ---------------------------------------------------------------------------
+
+/**
+ * How one stored widget name becomes a primitive and its filters.
+ *
+ * ADR-039 decision 9, *"one migration, once"*: a document stores the primitive
+ * and its filters, and a preset — the thing a person picks in the picker — is
+ * data that is never stored. So retiring or renaming a preset migrates nothing,
+ * and this table is the only migration the vocabulary change costs.
+ *
+ * - `name` is the primitive the old name becomes.
+ * - `rename` maps the old param keys to the dimension names the primitive
+ *   declares. `cost.day` spelled its binding `dayRef`; `cost` spells it `day`,
+ *   which is what the spec's own table writes (`cost{day: N}`). **The VALUE is
+ *   carried across untouched** — a `DayRef` is a `DayRef` under either key — so
+ *   a page bound to day 3 is still bound to day 3 afterwards.
+ * - `set` adds the filters the old NAME carried implicitly. "A line for every
+ *   booking" was a widget; it is `stop.rows` with `kind: "booked"` now, and
+ *   that constant is the whole of what the name used to mean.
+ *
+ * **Why this lives in `packages/contracts` rather than beside the registry.**
+ * It is a rewrite of stored documents, which is this file's subject, and
+ * `packages/contracts` may not import `@tc/pages`. The preset table in
+ * `@tc/pages` carries the human copy (titles, keywords) and declares which old
+ * name each preset replaces by reading THIS map, so the mapping has one home;
+ * `presets.test.ts` asserts every entry here lands on a primitive that exists
+ * with params that primitive accepts, which is the check an import would have
+ * given for free.
+ */
+export interface WidgetNameMigration {
+  name: string;
+  rename?: Readonly<Record<string, string>>;
+  set?: Readonly<Record<string, unknown>>;
+}
+
+export const WIDGET_NAME_MIGRATION: Readonly<Record<string, WidgetNameMigration>> = {
+  // `attribute` over an allow-listed field (decision 6). Four widgets that each
+  // read one field become one primitive told which field to read.
+  "trip.name": { name: "attribute", set: { field: "trip.name" } },
+  "budget.remaining": { name: "attribute", set: { field: "trip.budgetRemaining" } },
+  "account.name": { name: "attribute", set: { field: "account.name" } },
+  "account.homeAirport": { name: "attribute", set: { field: "account.homeAirport" } },
+
+  // The four pairs ADR-039 opens with: the same widget written twice, differing
+  // only by whether a filter is set. Each pair collapses onto one primitive,
+  // and the member that carried a binding keeps it.
+  "trip.dates": { name: "dates" },
+  "day.date": { name: "dates", rename: { dayRef: "day" } },
+  "cost.trip": { name: "cost" },
+  "cost.day": { name: "cost", rename: { dayRef: "day" } },
+  "itinerary.trip": { name: "day.detail" },
+  "itinerary.day": { name: "day.detail", rename: { dayRef: "day" } },
+  "stop.line": { name: "stop.rows", rename: { dayRef: "day" } },
+  "booking.line": { name: "stop.rows", rename: { dayRef: "day" }, set: { kind: "booked" } },
+
+  // The rest: a rename, and in two cases a dimension that used to be the name.
+  "day.city": { name: "city", rename: { dayRef: "day" } },
+  "day.window": { name: "hours", rename: { dayRef: "day" } },
+  "day.line": { name: "day.rows" },
+  "city.line": { name: "city.rows" },
+  "costs.table": { name: "cost.rows" },
+};
+
+// Rewrite one widget node's attrs. Unknown names are left ALONE rather than
+// dropped: a name this build does not recognise is either a widget from a newer
+// build (decision 3's carry-don't-drop, applied to a name instead of a node
+// type) or one already migrated, and `MacroView` has a legible answer for a
+// name the registry cannot resolve. Rewriting it to something would be guessing.
+function migrateWidgetAttrs(attrs: PageWidgetNode["attrs"]): PageWidgetNode["attrs"] {
+  const step = WIDGET_NAME_MIGRATION[attrs.name];
+  if (!step) return attrs;
+  const params: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(attrs.params)) {
+    params[step.rename?.[key] ?? key] = value;
+  }
+  // `set` last, so the filter the NAME carried wins over a stray param of the
+  // same key in a hand-edited document. `booking.line` means booked; a
+  // `kind: "idea"` sitting in its params meant nothing to the old resolver and
+  // must not start meaning something now.
+  return { name: step.name, params: { ...params, ...step.set } };
+}
+
+// The v1 → v2 step. It rewrites widget nodes at every depth and touches nothing
+// else.
 //
-// When v2 arrives, so does the part this cannot express: migrating a v1 row
-// needs the *v1* schema to parse it, and `PageDoc` here is always the current
-// one. That is the moment the node schemas split per version and this type
-// becomes a per-step pair rather than `(PageDoc) => PageDoc`. Writing that
-// generality now would be inventing a shape for a migration nobody has yet.
-export const PAGE_DOC_MIGRATIONS: readonly PageDocMigration[] = [];
+// **The node SHAPE is unchanged, which is what makes this expressible as
+// `(PageDoc) => PageDoc`.** The comment this replaces warned that a real
+// migration would need the v1 schema to parse a v1 row while `PageDoc` is
+// always the current one. That is true of a migration that changes the
+// vocabulary of nodes or attrs; this one changes only the STRING in
+// `attrs.name` and the KEYS in `attrs.params`, both of which the current schema
+// already accepts (`name` is any non-empty string, `params` any record). The
+// day the format changes shape, the split that comment describes is still owed.
+const migrateWidgetNames: PageDocMigration = (doc) => ({
+  ...doc,
+  content: doc.content.map(migrateNodeWidgetNames),
+});
+
+function migrateNodeWidgetNames(node: PageNode): PageNode {
+  switch (node.type) {
+    case "macro":
+      return { ...node, attrs: migrateWidgetAttrs(node.attrs) };
+    case "repeat":
+      return {
+        ...node,
+        attrs: migrateWidgetAttrs(node.attrs),
+        content: node.content.map(migrateInlineWidgetNames),
+      };
+    case "paragraph":
+    case "heading":
+      return { ...node, content: node.content.map(migrateInlineWidgetNames) };
+    case "blockquote":
+      return { ...node, content: node.content.map(migrateNodeWidgetNames) };
+    case "bulletList":
+    case "orderedList":
+      return {
+        ...node,
+        content: node.content.map((item) =>
+          item.type === "unknown" ? item : { ...item, content: item.content.map(migrateNodeWidgetNames) },
+        ),
+      } as PageNode;
+    // A code block holds text, a horizontal rule holds nothing, and an unknown
+    // node is carried BYTE-IDENTICALLY (decision 3) — rewriting inside one
+    // would be editing a document we admitted we cannot read.
+    case "codeBlock":
+    case "horizontalRule":
+    case "unknown":
+      return node;
+  }
+}
+
+function migrateInlineWidgetNames(node: PageInlineNode): PageInlineNode {
+  return node.type === "macro" ? { ...node, attrs: migrateWidgetAttrs(node.attrs) } : node;
+}
+
+// Ordered: index `i` takes a v(i+1) document to v(i+2).
+export const PAGE_DOC_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames];
 
 // Derived, never written twice: appending a migration IS the version bump.
 export const CURRENT_PAGE_DOC_VERSION = PAGE_DOC_MIGRATIONS.length + 1;

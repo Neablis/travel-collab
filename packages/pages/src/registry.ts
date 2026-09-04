@@ -1,46 +1,30 @@
 import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
-import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput } from "./registry-types";
+import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import type { MacroResult, UnboundNeeds } from "./result";
-import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
-import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
-import { accountName, accountHomeAirport } from "./macros/account";
-import { dayDate, dayCity, dayWindow, budgetRemaining } from "./macros/day";
-import { dayLine, cityLine, bookingLine, stopLine } from "./macros/repeat";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
+import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
 
-// **The seventeen named widgets.** ADR-039's opening table shows four pairs of
-// them that are the same widget written twice — `cost.day`/`cost.trip` differ
-// only by whether a day filter is set — and spec §8 step 3 replaces the lot with
-// `(primitive, params, title, keywords)` preset rows over the primitives below.
-// Until that migration lands they are what documents store and what the picker
-// browses, so they stay registered and stay catalogued.
-const NAMED_DEFS: AnyMacroDef[] = [
-  tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
-  accountName, accountHomeAirport,
-  dayDate, dayCity, dayWindow, budgetRemaining,
-  dayLine, cityLine, bookingLine, stopLine,
-] as unknown as AnyMacroDef[];
-
-// **The eleven primitives** (ADR-039 decision 1; spec §1's table minus
-// `attribute`, which is step 2 of the order of work). Each is `entity + filters
-// + shape` and declares all three, so what used to be a cross product typed out
-// by hand is now a selection anyone can narrow.
+// **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
-// They are registered — `insertWidget`, `resolveMacro` and `renderMacro` all
-// reach them, and every registry-wide test sweeps them — and they are
-// deliberately NOT in `macroCatalog()` yet. That is ADR-039 decision 5 rather
-// than a staging trick: *"the combination space is therefore not the browsable
-// list; the preset list is"*. The presets arrive in step 3 with the migration
-// that retires the seventeen above, and the catalogue becomes their table.
-const PRIMITIVE_DEFS: AnyMacroDef[] = [
-  cost, count, dates, hours, city,
+// It held seventeen NAMED widgets until 2026-09-04, and four of those pairs
+// were the same widget written twice — `cost.day` and `cost.trip` differ only
+// by whether the day filter is set. Every one of the seventeen is now a preset:
+// a `(primitive, params, title, keywords)` row in `presets.ts`, which is DATA,
+// is never stored in a document, and can be renamed or retired without
+// migrating anything (decision 4).
+//
+// The documents that carry the old names are rewritten once, on read, by the
+// v1 → v2 step in `@tc/contracts`' `PAGE_DOC_MIGRATIONS` (decision 9). Nothing
+// here needs a compatibility branch, and deliberately does not have one: a
+// registry that still answered to `cost.day` would let a page keep an
+// un-migrated node forever and nobody would find out.
+const DEFS: AnyMacroDef[] = [
+  cost, count, dates, hours, city, attribute,
   dayDetail, cityDetail,
   dayRows, cityRows, stopRows, costRows,
 ] as unknown as AnyMacroDef[];
-
-const DEFS: AnyMacroDef[] = [...NAMED_DEFS, ...PRIMITIVE_DEFS];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
 export const MACRO_NAMES: readonly string[] = DEFS.map((d) => d.name);
@@ -48,9 +32,11 @@ export const MACRO_NAMES: readonly string[] = DEFS.map((d) => d.name);
 /**
  * The names of the registered primitives — the defs that declare a `selection`.
  *
- * Derived from the declaration rather than listed a second time, so a primitive
- * added without one is simply not a primitive and the legality tests say so,
- * instead of a hand-kept list drifting from the registry it describes.
+ * Every registered widget is one now, so this equals `MACRO_NAMES`. It stays a
+ * separate derivation rather than an alias because the tests that sweep it are
+ * asserting something about the DECLARATION (`entity + filters`), and a widget
+ * added tomorrow without one should drop out of those sweeps and fail the count
+ * beside them, not silently pass as a primitive because it was registered.
  */
 export const PRIMITIVE_NAMES: readonly string[] = DEFS.filter((d) => d.selection).map((d) => d.name);
 
@@ -101,26 +87,31 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
     : outcome;
 }
 
-// The catalogue the AI tools and the insert sidebar read. `shape` replaces the
-// old `kind` (ADR-037 decision 1), and `title`/`preview` are here because the
-// sidebar lists a widget by the name a person calls it and shows a sample.
-export function macroCatalog(): {
+/**
+ * The PRIMITIVE vocabulary, for callers that compose the general form.
+ *
+ * Two of them, and both want the same thing: the assistant's `insert_widget`
+ * tool, which names a widget and its params directly, and any test sweeping the
+ * registry. Neither wants the preset list — a preset is a curated name for a
+ * combination, and a model that can write `{ kind: "booked" }` does not need
+ * one — so this is what `handleAskRequest` puts in front of the model.
+ *
+ * People browse `presetCatalog()`; code composes with this. That split is
+ * ADR-039 decision 5: *"the combination space is not the browsable list; the
+ * preset list is"* — and the model works in the combination space.
+ */
+export function primitiveCatalog(): {
   name: string; title: string; shape: WidgetShape; description: string; emptyText: string;
-  preview: string; inputs: readonly WidgetInput[];
+  preview: string; inputs: readonly WidgetInput[]; selection: WidgetSelection | undefined;
 }[] {
-  // `NAMED_DEFS`, not `DEFS`. The catalogue is the BROWSABLE list — the slash
-  // menu and the insert sidebar both read it — and ADR-039 decision 5 says the
-  // browsable list is the presets, not the combination space behind them. The
-  // primitives are registered and reachable; what they do not yet have is a
-  // curated set of names worth showing, and inventing one here would be writing
-  // step 3's preset table in the wrong file.
-  return NAMED_DEFS.map((d) => ({
+  return DEFS.map((d) => ({
     name: d.name, title: d.title, shape: d.shape,
     description: d.description, emptyText: d.emptyText, preview: d.preview,
-    // What the widget takes, so the sidebar can say so BEFORE a click rather
-    // than leaving a person to insert one and discover it wants a day (M14's
-    // gate: "a mono line naming what it takes"). The registry already knew;
-    // `macroCatalog` was the only thing dropping it on the floor.
+    // What the widget takes, so a caller can say so BEFORE a choice rather than
+    // leaving it to discover the widget wants a day.
     inputs: d.inputs,
+    // `entity + filters`, so a model composing the general form can see which
+    // dimensions are legal for this widget rather than guessing from `inputs`.
+    selection: d.selection,
   }));
 }

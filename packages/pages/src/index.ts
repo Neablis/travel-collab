@@ -7,4 +7,5 @@ export * from "./registry";
 export * from "./filters";
 export * from "./select";
 export * from "./insert";
+export * from "./presets";
 export * from "./templates";

@@ -29,15 +29,61 @@ const globals: TripGlobals = {
 };
 
 const chrome = (params: Record<string, unknown>, onChange = vi.fn(), g: TripGlobals | null = globals) => {
-  render(<WidgetChrome name="stop.line" params={params} detail={detail} globals={g} onChange={onChange} />);
+  render(<WidgetChrome name="stop.rows" params={params} detail={detail} globals={g} onChange={onChange} />);
   return onChange;
 };
 
-describe("WidgetChrome with a two-input widget", () => {
-  it("renders one control per declared input", () => {
+describe("WidgetChrome renders a control per declared filter", () => {
+  it("renders one control per dimension the widget declares", () => {
     chrome({});
+    // `stop.rows` declares all six dimensions (ADR-039's legality matrix gives
+    // the STOP entity every one). Five get a control; `person` is the one that
+    // does not, because `TripMember` has no display name and no stop carries a
+    // person — a control there would be a choice that changes nothing except
+    // turning the widget into "needs a person field" (decision 7).
     expect(screen.getByRole("combobox", { name: /a line for every stop: day/i })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: /a line for every stop: tags/i })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /a line for every stop: city/i })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: /a line for every stop: kind/i })).toBeTruthy();
+    expect(screen.queryByRole("combobox", { name: /who/i })).toBeNull();
+  });
+
+  // Mitchell, on the preview, and the whole of ADR-039 decision 2 at the
+  // surface a person touches: *"where we have a tool that you can select a day,
+  // it can also select All at the top, and it gives you a sum."* It said "Not
+  // set up", which was true of `cost.day` — that widget really was unbound with
+  // no day — and is a lie about a primitive, where an unset day is every day.
+  it("puts All at the top of every filter, as a named choice", () => {
+    chrome({});
+    const optionsOf = (name: RegExp) =>
+      within(screen.getByRole("combobox", { name })).getAllByRole("option").map((o) => o.textContent);
+    expect(optionsOf(/day/i)[0]).toBe("All days");
+    expect(optionsOf(/city/i)[0]).toBe("All cities");
+    expect(optionsOf(/kind/i)[0]).toBe("Any kind");
+    expect(optionsOf(/tags/i)[0]).toBe("Every stop");
+    expect(screen.queryByText("Not set up")).toBeNull();
+  });
+
+  // The kind select comes from the enum, not from a list copied into the
+  // component: a sixth `ActivityKind` shows up here the day it exists.
+  it("offers every ActivityKind, since a kind a trip lacks is still a real filter", () => {
+    chrome({});
+    const kinds = within(screen.getByRole("combobox", { name: /kind/i }))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(kinds).toEqual(["Any kind", "booked", "hold", "idea", "transit", "planned"]);
+  });
+
+  it("offers a from/through pair for the date range rather than a select", async () => {
+    const onChange = vi.fn();
+    render(
+      <WidgetChrome name="stop.rows" params={{}} detail={detail} globals={globals} onChange={onChange} />,
+    );
+    const from = screen.getByLabelText(/dates from/i);
+    await userEvent.type(from, "2026-08-02");
+    // One end typed is a single date, not a half-built range the contract would
+    // refuse — `DateRangeRef` needs both ends and refuses a reversed one.
+    expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2026-08-02", through: "2026-08-02" } });
   });
 
   // THE reason this component changed. The old `onChange` replaced the whole
@@ -45,27 +91,28 @@ describe("WidgetChrome with a two-input widget", () => {
   // the widget would then say "no day set" while the day control still showed a
   // choice, a control contradicting the document it describes.
   it("setting one input preserves the other", async () => {
-    const onChange = chrome({ dayRef: { kind: "index", index: 1 } });
+    const onChange = chrome({ day: { kind: "index", index: 1 } });
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /tags/i }), "meal");
-    expect(onChange).toHaveBeenCalledWith({ dayRef: { kind: "index", index: 1 }, tag: "meal" });
+    expect(onChange).toHaveBeenCalledWith({ day: { kind: "index", index: 1 }, tag: "meal" });
   });
 
   it("clearing one input preserves the other, and clears by removing the key", async () => {
-    const onChange = chrome({ dayRef: { kind: "index", index: 1 }, tag: "meal" });
+    const onChange = chrome({ day: { kind: "index", index: 1 }, tag: "meal" });
     await userEvent.selectOptions(screen.getByRole("combobox", { name: /tags/i }), "");
     // `{}` is the one spelling of "not set up" (ADR-037 decision 6), so the key
     // is deleted rather than set to null or "".
-    expect(onChange).toHaveBeenCalledWith({ dayRef: { kind: "index", index: 1 } });
+    expect(onChange).toHaveBeenCalledWith({ day: { kind: "index", index: 1 } });
   });
 
   it("shows each input's current value, so the controls agree with the document", () => {
-    chrome({ dayRef: { kind: "index", index: 1 }, tag: "outdoors" });
+    chrome({ day: { kind: "index", index: 1 }, tag: "outdoors" });
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("1");
     expect((screen.getByRole("combobox", { name: /tags/i }) as HTMLSelectElement).value).toBe("outdoors");
   });
 
   // §18's table: a tag input reads "every stop, or one", so unset is a real
-  // answer with its own meaning rather than an unfilled blank.
+  // answer with its own meaning rather than an unfilled blank. ADR-039
+  // decision 2 generalises that to all five.
   it("words an unset tag as the answer it is, not as 'Not set up'", () => {
     chrome({});
     const tags = screen.getByRole("combobox", { name: /tags/i });
@@ -88,6 +135,15 @@ describe("WidgetChrome with a two-input widget", () => {
     const tags = screen.getByRole("combobox", { name: /tags/i });
     expect(within(tags).getAllByRole("option").map((o) => o.textContent)).toEqual(["Every stop"]);
   });
+
+  it("still offers 'all cities' when the globals projection did not load", () => {
+    // Cities come only from `globals` — they are derived by `citiesOfDay` in
+    // `@tc/domain`, which `@tc/pages` may not import — so without it the select
+    // has one option and it is the honest one.
+    chrome({}, vi.fn(), null);
+    const cities = screen.getByRole("combobox", { name: /city/i });
+    expect(within(cities).getAllByRole("option").map((o) => o.textContent)).toEqual(["All cities"]);
+  });
 });
 
 // Both of these are the same failure from two directions: a control that
@@ -95,19 +151,22 @@ describe("WidgetChrome with a two-input widget", () => {
 // this is worse than either state alone. Found by Copilot on PR 139.
 describe("WidgetChrome shows what the document actually holds", () => {
   it("resolves a dayId binding to its day, rather than reading it as unset", () => {
-    chrome({ dayRef: { kind: "dayId", dayId: "33333333-3333-3333-3333-333333333333" } });
+    chrome({ day: { kind: "dayId", dayId: "33333333-3333-3333-3333-333333333333" } });
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("1");
   });
 
-  // A stale binding is silently no binding, never a guessed one — the same
-  // answer `resolveDayIndex` gives, so the control and the widget agree.
+  // A stale binding reads as All in the control, and the widget beside it says
+  // "that day was removed" — the two together are the honest pair: the widget
+  // says what happened, the control says what clearing it would give. Guessing
+  // a day here would be the control inventing a binding the document does not
+  // have.
   it("reads a dayId for a day that no longer exists as unset", () => {
-    chrome({ dayRef: { kind: "dayId", dayId: "99999999-9999-9999-9999-999999999999" } });
+    chrome({ day: { kind: "dayId", dayId: "99999999-9999-9999-9999-999999999999" } });
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
   });
 
   it("reads an index past the end of the trip as unset", () => {
-    chrome({ dayRef: { kind: "index", index: 99 } });
+    chrome({ day: { kind: "index", index: 99 } });
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
   });
 
@@ -130,14 +189,21 @@ describe("WidgetChrome shows what the document actually holds", () => {
 
 describe("WidgetChrome with other widgets", () => {
   it("renders nothing for a widget that binds nothing", () => {
+    // `attribute` is the one: it reads a named field, and `LEGAL_FILTERS.trip`
+    // is empty because there is no set behind a trip to narrow.
     const { container } = render(
-      <WidgetChrome name="trip.name" params={{}} detail={detail} globals={globals} onChange={vi.fn()} />,
+      <WidgetChrome name="attribute" params={{ field: "trip.name" }} detail={detail} globals={globals} onChange={vi.fn()} />,
     );
     expect(container.textContent).toBe("");
   });
 
-  it("renders a single control for a one-input widget", () => {
-    render(<WidgetChrome name="cost.day" params={{}} detail={detail} globals={globals} onChange={vi.fn()} />);
+  it("renders exactly the dimensions a narrower widget declares", () => {
+    // `city.rows` is entity `city`, whose matrix row is `city` and `dates` —
+    // no day, no tag, no kind. The controls are generated from that
+    // declaration, so a widget cannot offer a filter its resolver ignores.
+    render(<WidgetChrome name="city.rows" params={{}} detail={detail} globals={globals} onChange={vi.fn()} />);
     expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getByRole("combobox", { name: /city/i })).toBeTruthy();
+    expect(screen.getByLabelText(/dates from/i)).toBeTruthy();
   });
 });

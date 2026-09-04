@@ -844,7 +844,16 @@ describe("POST /api/trips/:id/ask", () => {
 
       const instruction = turnInstruction();
       expect(instruction).toContain('The page is called "Day Sheet"');
-      expect(instruction).toContain("itinerary.day");
+      // A real primitive from the live registry — `itinerary.day` was one of
+      // the seventeen named widgets ADR-039 retired, and naming a retired one
+      // here would have gone on passing right up until the model tried to
+      // insert it.
+      expect(instruction).toContain("day.detail");
+      // And the model is told what the widget SELECTS over, not just its name:
+      // `primitiveCatalog()` carries each one's entity and legal dimensions, so
+      // a model composing the general form can see what is legal rather than
+      // guessing from the input list.
+      expect(instruction).toContain("filters");
       // None of the planning rules the command endpoint sent on every page
       // request — ~1.5k characters describing tools this turn is not handed.
       expect(instruction).not.toContain("activityRef");

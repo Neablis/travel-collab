@@ -59,11 +59,22 @@ describe("insert_text", () => {
 describe("insert_widget", () => {
   const toolContext = { toolCallId: "call-1", messages: [], context: undefined };
 
-  it("inserts a registry widget, unbound, which is a valid state", async () => {
+  it("inserts a registry widget with no filters, which covers the whole trip", async () => {
+    // The model composes with PRIMITIVES, not presets — `insert_widget` takes a
+    // widget name and that widget's own params, and a preset is a curated name
+    // for a combination a model can simply write out (ADR-039 decision 5).
     const { tools, getInserts } = buildPageTools();
-    const result = await tools.insert_widget!.execute!({ name: "trip.name" }, toolContext);
-    expect(result).toEqual({ ok: true, name: "trip.name" });
-    expect(getInserts().nodes).toEqual([{ type: "macro", attrs: { name: "trip.name", params: {} } }]);
+    const result = await tools.insert_widget!.execute!({ name: "cost" }, toolContext);
+    expect(result).toEqual({ ok: true, name: "cost" });
+    expect(getInserts().nodes).toEqual([{ type: "macro", attrs: { name: "cost", params: {} } }]);
+  });
+
+  it("rejects a RETIRED widget name at the schema, so the model cannot write a v1 document", async () => {
+    // `MACRO_NAMES` no longer contains the seventeen, and `z.enum` over it is
+    // what stops a model that learned them from writing a page this build would
+    // have to migrate on its very first read.
+    const { tools } = buildPageTools();
+    expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "cost.day" }).success).toBe(false);
   });
 
   it("rejects a widget name not in the registry, at the schema", () => {
@@ -78,7 +89,7 @@ describe("insert_widget", () => {
   it("refuses a hallucinated binding through the widget's own schema, and tells the model", async () => {
     const { tools, getInserts } = buildPageTools();
     const result = await tools.insert_widget!.execute!(
-      { name: "cost.day", params: { dayRef: { kind: "nonsense" } } },
+      { name: "cost", params: { day: { kind: "nonsense" } } },
       toolContext,
     );
     expect(result).toMatchObject({ ok: false });
@@ -88,7 +99,7 @@ describe("insert_widget", () => {
 
   it("does not share state between two built tool sets", async () => {
     const first = buildPageTools();
-    await first.tools.insert_widget!.execute!({ name: "trip.name" }, toolContext);
+    await first.tools.insert_widget!.execute!({ name: "cost" }, toolContext);
     expect(buildPageTools().getInserts().nodes).toEqual([]);
   });
 });
@@ -134,8 +145,8 @@ describe("validateComposedPage", () => {
       type: "doc",
       content: [
         { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
-        { type: "macro", attrs: { name: "trip.name", params: {} } },
-        { type: "macro", attrs: { name: "itinerary.trip", params: {} } },
+        { type: "macro", attrs: { name: "attribute", params: { field: "trip.name" } } },
+        { type: "macro", attrs: { name: "day.detail", params: {} } },
       ],
     };
 
@@ -147,11 +158,11 @@ describe("validateComposedPage", () => {
   });
 
   it("rejects a macro node with params failing the macro's own schema", () => {
-    // trip.name uses NoParams (z.object({}).strip()) — a non-object params
-    // value fails structurally at the MacroNode level already, but a bad
-    // shape that passes MacroNode's z.record(z.unknown()) and fails the
-    // macro's own schema should still be rejected. cost.day requires no
-    // params either, so use a nested doc to exercise the recursive walk.
+    // Every primitive's params are all-optional (ADR-039 decision 2), so a
+    // non-object params value fails structurally at the MacroNode level
+    // already; a bad shape that passes MacroNode's z.record(z.unknown()) and
+    // fails the macro's own schema should still be rejected. Use a nested doc
+    // to exercise the recursive walk.
     const content = {
       type: "doc",
       content: [

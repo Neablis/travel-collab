@@ -138,6 +138,36 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
  * registry-wide test in `registry.test.ts` still checks it, because a primitive
  * may write its own schema and the check is cheap.
  */
+/**
+ * The fields `attribute` may read (ADR-039 decision 6).
+ *
+ * Mitchell, 2026-09-04:
+ *
+ * > more attribute as a generic in the ast, but defined / allow listed / hard
+ * > coded to common sense values for usability today in the ui
+ *
+ * So the generic form is what the document stores and this closed list is what
+ * stops it becoming a field browser over internal state. It lives here rather
+ * than beside the primitive for the same reason every other param value does:
+ * it is PERSISTED, and a renamed contract field must become a failing test here
+ * rather than a broken widget in somebody's saved page.
+ *
+ * The four that ship are the four named widgets `attribute` replaces —
+ * `trip.name`, `budget.remaining`, `account.name`, `account.homeAirport`.
+ *
+ * `…Ref`, like `DayRef` and `CityRef`, and not `AttributeField`: `manifest.ts`
+ * already exports that name for a describable field of a collection, which is a
+ * different thing entirely. The `Ref` suffix is what every other stored param
+ * value in this file carries anyway.
+ */
+export const AttributeFieldRef = z.enum([
+  "trip.name",
+  "trip.budgetRemaining",
+  "account.name",
+  "account.homeAirport",
+]);
+export type AttributeFieldRef = z.infer<typeof AttributeFieldRef>;
+
 export const FILTER_VALUE_SCHEMAS = {
   day: DayRef,
   city: CityRef,

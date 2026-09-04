@@ -5,11 +5,15 @@ import type { WidgetContext } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
 import { formatMoney } from "../../format";
 
-// The `single` primitives, and the claim that matters most about them: ADR-039
-// opens by naming four pairs of widgets that are *"the same widget written
-// twice"*, so three of these tests assert the primitive's output is **identical
-// to the named widget's**, not merely similar. That is what makes the migration
-// in spec §8 step 3 a rename rather than a behaviour change.
+// The `single` primitives.
+//
+// ADR-039 opens by naming four pairs of widgets that are *"the same widget
+// written twice"*, and those named widgets are gone now — every one is a preset
+// row over a primitive here. So the assertions that used to compare a primitive
+// to the widget it replaces compare it to a VALUE instead: the exact chip a
+// reader sees. `presets.test.ts` is what checks that every retired name still
+// lands somewhere, and `@tc/contracts`' page-doc tests are what check the
+// stored documents get there.
 
 const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetContext => ({
   trip,
@@ -19,24 +23,33 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
 });
 
 describe("cost", () => {
-  it("is the trip's total when nothing is filtered — `cost.trip` exactly", () => {
+  it("is the trip's total when nothing is filtered — what `cost.trip` answered", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    expect(renderMacro(ctx, "cost", {})).toEqual(renderMacro(ctx, "cost.trip", {}));
     expect(renderMacro(ctx, "cost", {})).toEqual({
       status: "ok",
       rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: formatMoney(fixture.trip.tripCostTotal, "USD") }] },
     });
   });
 
-  it("is one day's subtotal when a day is filtered — `cost.day` exactly", () => {
+  it("is one day's subtotal when a day is filtered — what `cost.day` answered", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
     for (const index of [0, 1]) {
-      expect(
-        renderMacro(ctx, "cost", { day: { kind: "index", index } }),
-        `day ${index + 1}`,
-      ).toEqual(renderMacro(ctx, "cost.day", { dayRef: { kind: "index", index } }));
+      expect(renderMacro(ctx, "cost", { day: { kind: "index", index } }), `day ${index + 1}`).toEqual({
+        status: "ok",
+        rendered: {
+          kind: "inline",
+          segs: [
+            {
+              kind: "chip",
+              name: "value",
+              // The board's own number for that day, not one this test adds up.
+              text: formatMoney(fixture.trip.days[index]!.costSubtotal, "USD"),
+            },
+          ],
+        },
+      });
     }
   });
 
@@ -105,10 +118,11 @@ describe("dates", () => {
   it("is the trip's range wide, and one day's date when a day is filtered", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    // `day.date` exactly, for a filtered day.
-    expect(renderMacro(ctx, "dates", { day: { kind: "index", index: 1 } })).toEqual(
-      renderMacro(ctx, "day.date", { dayRef: { kind: "index", index: 1 } }),
-    );
+    // What `day.date` answered, for a filtered day.
+    const one = renderMacro(ctx, "dates", { day: { kind: "index", index: 1 } });
+    expect(one.status === "ok" && one.rendered.kind === "inline" && one.rendered.segs).toEqual([
+      { kind: "chip", name: "value", text: "Jun 2, 2027" },
+    ]);
     // Wide, it spans the dated days — day 3 has no date, so the range ends at
     // day 2 rather than at an em dash presented as a date.
     const wide = renderMacro(ctx, "dates", {});
@@ -138,10 +152,11 @@ describe("hours", () => {
     // first and last stop of the list would answer 09:00 – 13:00.
     const wide = renderMacro(ctx, "hours", {});
     expect(wide.status === "ok" && wide.rendered.kind === "inline" && wide.rendered.segs[0]!.text).toBe("06:00 – 14:00");
-    // `day.window` exactly, for a filtered day.
-    expect(renderMacro(ctx, "hours", { day: { kind: "index", index: 0 } })).toEqual(
-      renderMacro(ctx, "day.window", { dayRef: { kind: "index", index: 0 } }),
-    );
+    // What `day.window` answered, for a filtered day: day 1 runs 09:00–13:00.
+    const day1 = renderMacro(ctx, "hours", { day: { kind: "index", index: 0 } });
+    expect(day1.status === "ok" && day1.rendered.kind === "inline" && day1.rendered.segs).toEqual([
+      { kind: "chip", name: "value", text: "09:00 – 13:00" },
+    ]);
   });
 
   it("is empty when nothing selected carries a time", () => {
@@ -151,12 +166,21 @@ describe("hours", () => {
 });
 
 describe("city", () => {
-  it("is one chip per city, in arrival order — `day.city` exactly when filtered", () => {
+  it("is one chip per city, in arrival order — what `day.city` answered when filtered", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    expect(renderMacro(ctx, "city", { day: { kind: "index", index: 1 } })).toEqual(
-      renderMacro(ctx, "day.city", { dayRef: { kind: "index", index: 1 } }),
-    );
+    // Day 2 is the travel day, Rome then Kyoto.
+    expect(renderMacro(ctx, "city", { day: { kind: "index", index: 1 } })).toEqual({
+      status: "ok",
+      rendered: {
+        kind: "inline",
+        segs: [
+          { kind: "chip", name: "city", text: "Rome" },
+          { kind: "text", text: " – " },
+          { kind: "chip", name: "city", text: "Kyoto" },
+        ],
+      },
+    });
     // Wide: every city the trip touches. One chip each rather than one joined
     // string, because each carries the trip's own colour and one string can only
     // wear one.

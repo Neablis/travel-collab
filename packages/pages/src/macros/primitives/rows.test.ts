@@ -25,9 +25,19 @@ function lines(ctx: WidgetContext, name: string, params: Record<string, unknown>
 }
 
 describe("day.rows", () => {
-  it("is a line per day — `day.line` exactly when nothing is filtered", () => {
-    const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "day.rows", {})).toEqual(renderMacro(ctx, "day.line", {}));
+  it("is a line per day, dated, placed and priced — what `day.line` drew", () => {
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    expect(lines(ctx, "day.rows")).toEqual([
+      `Day 1 Jun 1, 2027 Rome ${formatMoney(fixture.trip.days[0]!.costSubtotal, "USD")}`,
+      // Two city chips on the travel day, not one joined "Rome – Kyoto": each
+      // wears the trip's own colour for that city, and one value can only wear
+      // one.
+      `Day 2 Jun 2, 2027 Rome Kyoto ${formatMoney(fixture.trip.days[1]!.costSubtotal, "USD")}`,
+      // Day 3 has no date and no city; the line is shorter and still says which
+      // day it is.
+      `Day 3 ${formatMoney(fixture.trip.days[2]!.costSubtotal, "USD")}`,
+    ]);
   });
 
   it("labels a line by its day of the trip, and drops the days a filter leaves out", () => {
@@ -52,12 +62,7 @@ describe("day.rows", () => {
 });
 
 describe("city.rows", () => {
-  it("is a line per city — `city.line` exactly when nothing is filtered", () => {
-    const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "city.rows", {})).toEqual(renderMacro(ctx, "city.line", {}));
-  });
-
-  it("counts a city's days from 1 and its stops by their own city", () => {
+  it("counts a city's days from 1 and its stops by their own city — what `city.line` drew", () => {
     const ctx = contextOf(selectionTrip());
     expect(lines(ctx, "city.rows")).toEqual([
       "Rome Day 1, Day 2 2 stops",
@@ -69,23 +74,31 @@ describe("city.rows", () => {
 });
 
 describe("stop.rows", () => {
-  it("is a line per booked stop on a day — `booking.line` exactly", () => {
+  it("is a line per booked stop on a day — what `booking.line` drew", () => {
     // ADR-039's fourth pair of widgets written twice: "booking" was already an
     // `ActivityKind` member, so `booking.line` is this primitive with
     // `kind: "booked"` and needed no new domain data at all.
-    const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual(
-      renderMacro(ctx, "booking.line", { dayRef: { kind: "index", index: 0 } }),
-    );
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
+      `Colosseum 09:00 – 10:00 ${cost}`,
+    ]);
   });
 
-  it("is a line per stop on a day — `stop.line` exactly, tag and all", () => {
-    const ctx = contextOf(selectionTrip());
-    for (const params of [{}, { tag: "meal" as const }]) {
-      expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, ...params })).toEqual(
-        renderMacro(ctx, "stop.line", { dayRef: { kind: "index", index: 0 }, ...params }),
-      );
-    }
+  it("is a line per stop on a day — what `stop.line` drew, tag and all", () => {
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 } }).map((r) => r.split(" ")[0])).toEqual([
+      "Colosseum",
+      "Lunch",
+    ]);
+    // A bound tag narrows to the stops carrying it, and a day whose stops all
+    // lack it is `empty()` rather than the filter silently switching off.
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, tag: "meal" }).map((r) => r.split(" ")[0])).toEqual([
+      "Lunch",
+    ]);
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, tag: "lodging" }).status).toBe("empty");
   });
 
   it("groups under day headers, and gives the backlog its own", () => {

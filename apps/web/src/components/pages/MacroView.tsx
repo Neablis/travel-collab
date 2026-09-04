@@ -98,10 +98,21 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     switch (outcome.needs) {
       case "trip":
         return <EmptyChip tone="muted" label="needs a trip" />;
+      // **The only way to reach this now is a day that was DELETED.** Under
+      // ADR-039 decision 2 an absent day filter means every day — the widest
+      // true answer — so a widget with nothing bound is finished, not waiting.
+      // What is left is a `DayRef` pointing at a day the trip no longer has,
+      // and silently widening that to the whole trip would turn a page about
+      // day 100 into a page about everything the moment day 100 was removed.
+      //
+      // So the label names what actually happened rather than saying "no day
+      // set", which would invite the reader to set one when the real news is
+      // that theirs is gone. The chrome row's day select reads "All days"
+      // beside it, which is what clearing this would give.
       case "day":
         return onBindDay
-          ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
-          : <EmptyChip tone="muted" label="no day set" />;
+          ? <EmptyChip tone="action" label="that day was removed" onClick={onBindDay} />
+          : <EmptyChip tone="muted" label="that day was removed" />;
       case "days":
         return <EmptyChip tone="muted" label="no days set" />;
       // **Reachable now, and it says the truth about why.** ADR-039 decision 7

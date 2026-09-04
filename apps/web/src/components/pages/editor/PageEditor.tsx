@@ -2,7 +2,7 @@
 import { useEditor, EditorContent, type Editor, type JSONContent } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 import type { TripDetail, PageContext, PageDoc, TripGlobals, UserPreferences } from "@tc/contracts";
-import { insertWidget } from "@tc/pages";
+import { insertPreset } from "@tc/pages";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 import { MacroEditorContext } from "./MacroEditorContext";
 import { SlashMenu } from "./SlashMenu";
@@ -104,8 +104,11 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   const slash = useSlashMenu({
     editor,
     enabled: editable,
-    onPick: (name, range) => {
-      const built = insertWidget(name);
+    onPick: (presetId, range) => {
+      // The slash menu lists PRESETS, so what comes back is a preset id;
+      // `insertPreset` resolves it to `(primitive, params)` and hands both to
+      // `insertWidget`, which is still the one door into a document.
+      const built = insertPreset(presetId);
       if (!built.ok) return;
       // Replace the typed `/query` rather than inserting after it, or the
       // document keeps the text that summoned the menu.
