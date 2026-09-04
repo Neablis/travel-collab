@@ -170,30 +170,80 @@ describe("the assistant on a notebook page", () => {
     ]);
   });
 
-  // Copilot and CodeRabbit, PR 139: `useAskThread` lives on this screen, so
-  // unmounting the rail does not abort a turn. A late `page-inserts` then wrote
-  // into a document the user had put back into Reading — and autosaved it.
-  it("hangs up on a turn in flight when the assistant is closed", async () => {
+  // A turn that is still streaming when the surface changes underneath it.
+  // Copilot and CodeRabbit, PR 139: `useAskThread` lives on this SCREEN, so
+  // nothing about the panel going away aborts a turn on its own — and a late
+  // `page-inserts` wrote into a document the user had put back into Reading,
+  // and autosaved it.
+  function neverSettlingTurn() {
     let emit: ((event: AskEvent) => void) | null = null;
     askAssistantMock.mockImplementation(
       async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
         emit = onEvent;
-        // Never settles on its own: this is the turn that is still streaming
-        // when the surface goes away.
         return await new Promise<never>(() => {});
       },
     );
+    return () => emit;
+  }
+
+  // **Reading never receives writes — and it is this guard that says so, not
+  // the surface being taken away.** The assistant used to be unmounted on
+  // leaving Editing, which both hung up the turn and hid the panel. Mitchell
+  // reversed the second half — *"always available in both editing and reading
+  // mode"* — so the panel is still there and the guard is now the only thing
+  // between a streaming turn and a document that is being read.
+  it("refuses a turn's insert once the page has left Editing, and says why", async () => {
+    const emitter = neverSettlingTurn();
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
-    await waitFor(() => expect(emit).not.toBeNull());
+    await waitFor(() => expect(emitter()).not.toBeNull());
 
     await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    // The answer arrives after the user left Editing. A stream's last frame can
+    // already be in flight when a turn is cancelled, so cancellation alone
+    // could never close this window.
+    emitter()!({ type: "page-inserts", content: DOC });
 
-    // The turn's answer arrives after the user left Editing. It must not reach
-    // the document.
-    emit!({ type: "page-inserts", content: DOC });
-    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+    expect(await screen.findByText(/turn on Edit page/i)).toBeTruthy();
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
     expect(onUpdate).not.toHaveBeenCalled();
+    // Still open. Hiding it was the old fix and is now the bug.
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // Closing the surface IS hanging up — that half of the PR 139 fix stands.
+  it("hangs up on a turn in flight when the assistant is closed", async () => {
+    const emitter = neverSettlingTurn();
+    const { onUpdate } = await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
+    await waitFor(() => expect(emitter()).not.toBeNull());
+
+    await userEvent.click(screen.getByRole("button", { name: /hide/i }));
+    await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+
+    emitter()!({ type: "page-inserts", content: DOC });
+    expect(screen.queryByText("Bring a raincoat")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  // The assistant is available in Reading, which it was not. A page opens in
+  // Reading, so this is the state most readers meet it in.
+  it("is reachable without entering Editing at all", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    // No "Edit page" click anywhere above this line.
+    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 });

@@ -7,6 +7,7 @@ import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
+import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
 
 /**
@@ -80,6 +81,7 @@ export function AssistantRail({
   asking = false,
   askError = null,
   simulated = false,
+  presentation = "docked",
   onHide,
 }: {
   contextLine: string;
@@ -152,6 +154,26 @@ export function AssistantRail({
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The answer is real; the authorship is not a model. */
   simulated?: boolean;
+  /**
+   * Which of SPEC §9's presentations this is. Two of the three are built:
+   *
+   * - `docked` — the board's rail. Real layout cost, a flex sibling, so the
+   *   plan shrinks instead of hiding. The default, so the board is unchanged.
+   * - `floating` — a 364×476 card pinned to the bottom-right corner, over the
+   *   page rather than beside it, which costs no layout width at all. The
+   *   notebook's, on Mitchell's call: *"Assistant shouldnt be at the top, it
+   *   should be on the bottom right on desktop, floating till open"*.
+   *
+   * The third, dragging the floating card by its header to park it anywhere,
+   * is still not built — §9 describes it and nothing here forecloses it. It is
+   * also the half of §9 that is pure interaction: where the panel opens is what
+   * Mitchell reported, and where it can be MOVED to is a separate feature.
+   *
+   * It selects a geometry class rather than utilities on the element, for the
+   * reason `.assistant-rail`'s own comment gives at length: a utility class
+   * here silently outranks this file's components layer at every width.
+   */
+  presentation?: "docked" | "floating";
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
@@ -188,7 +210,17 @@ export function AssistantRail({
       // panel edge uses: SPEC §9 calls the docked rail's left edge "a
       // structural wall, not a card edge." Left as-is full-screen — a 2px
       // border at the viewport's own left edge costs nothing.
-      className="assistant-rail flex shrink-0 flex-col self-start border-l-2 border-border-strong bg-surface"
+      //
+      // `floating` swaps the geometry AND the edge: §9's "structural wall, not
+      // a card edge" is a statement about the DOCKED rail, which abuts the plan
+      // it shrank. A floating card abuts nothing — it is a card over a page, so
+      // it takes a card's hairline border, radius and overlay shadow.
+      className={cn(
+        "flex flex-col bg-surface",
+        presentation === "floating"
+          ? "assistant-float overflow-hidden rounded-lg border border-hairline shadow-overlay"
+          : "assistant-rail shrink-0 self-start border-l-2 border-border-strong",
+      )}
     >
       <div className="border-b border-hairline px-4 py-3">
         <div className="flex items-center gap-2">

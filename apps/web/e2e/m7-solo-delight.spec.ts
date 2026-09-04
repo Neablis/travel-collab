@@ -94,22 +94,31 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  // -- the assistant rail opens on a page (no real AI call — see the header) --
-  // It is an EDITING control: left mounted in Reading it made that mode a lie,
-  // since what it inserts is autosaved. So this asserts both halves — absent in
-  // Reading, present once editing.
+  // -- the assistant opens on a page, in EITHER mode (no real AI call) --
+  // It used to be an editing-only control, hidden in Reading because what it
+  // inserts is autosaved. Mitchell reversed that on the preview — *"it should
+  // be on the bottom right on desktop, floating till open, and always
+  // available in both editing and reading more"* — so a page that has never
+  // been put into Editing can open it, and leaving Editing does not close it.
+  // Reading still cannot be written into; that is the insert guard's job now,
+  // walked in `PageAssistant.test.tsx`.
   //
-  // The rail replaced the prompt box in M14 link 8 (Mitchell: *"This should be
+  // The panel replaced the prompt box in M14 link 8 (Mitchell: *"This should be
   // the same style AI Assistant as on the trip page, not the top of the UI
   // input box"*), which became possible when the page tools stopped replacing
   // the document and started inserting into it (ADR-035 decision 5).
-  await expect(page.getByRole("button", { name: /Assistant/ })).toBeHidden();
-  await page.getByRole("button", { name: "Edit page" }).click();
   await page.getByRole("button", { name: /Assistant/ }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
-  await page.getByRole("button", { name: "Done editing" }).click();
+  await page.getByRole("button", { name: /hide/i }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: "Done editing" }).click();
+  // Still open across the mode change — the reversal, stated as an assertion.
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: /hide/i }).click();
 
   // -- Day Sheet: its own starter text --
   // The day-binding control this used to drive went with SPEC §18: a page has

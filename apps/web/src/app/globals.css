@@ -308,6 +308,43 @@
     }
   }
 
+  /* SPEC §9's FLOATING presentation, and the notebook's. Mitchell, on the
+     preview: *"Assistant shouldnt be at the top, it should be on the bottom
+     right on desktop, floating till open, and always available in both editing
+     and reading mode."*
+
+     364×476 and pinned to the bottom-right corner with §9's own 16px pad —
+     the same corner the bubble occupies, because §9 is explicit that
+     "expanding and collapsing keep the bottom-right corner planted, so the
+     panel grows out of the bubble rather than jumping across the screen".
+
+     `max-height` rather than a flat height, so a short viewport gets a shorter
+     card instead of one running off the top of the screen; §9's clamp is
+     phrased as a viewport clamp with a 16px pad and this is the static half of
+     it. Floating costs no layout width, so unlike the docked rail there is
+     nothing to evict at a narrow width and no compensation rule anywhere else
+     in this file to keep in step.
+
+     z-index 30 matches the mobile rail's, which is what clears TripHeader's 10
+     and `.unscheduled-rack`'s 20; a notebook page carries neither, but a panel
+     that can paint under a header on one route and over it on another is the
+     bug KI-84 was.
+
+     Below 768px this class is not used at all — SPEC §13.5 forbids anything
+     floating over data on a phone, so the notebook keeps a header control and
+     the full-screen rail there. A named class rather than Tailwind utilities
+     for the reason `.assistant-rail` gives above: both presentations have to
+     live in the same layer or one silently outranks the other. */
+  .assistant-float {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 364px;
+    height: 476px;
+    max-height: calc(100dvh - 5.5rem);
+    z-index: 30;
+  }
+
   /* Radix portals render outside the React tree, appended to the end of
      <body> — so an overlay surface needs an explicit layer above whatever
      else is stacked on the page (KI-17: before this existed, sheets and

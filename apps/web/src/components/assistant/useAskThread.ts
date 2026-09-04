@@ -160,6 +160,19 @@ export function useAskThread({
       posted,
       scope,
       (event) => {
+        // **An abandoned turn stops writing anywhere, including into its
+        // caller.** The identity guard below covers the turn's own completion;
+        // this is the same rule applied per FRAME, and it is what makes
+        // `cancel()` mean something to a surface that acts on events.
+        //
+        // `askAssistant` stops calling this once the signal aborts, but a frame
+        // it has already parsed can still arrive — and a stream abandoned by
+        // "New conversation" would otherwise patch text into a thread the user
+        // has cleared, and hand `page-inserts` to a page that hung up on it.
+        // Cancellation could never close that window from the caller's side,
+        // which is why the notebook ALSO guards its insert on whether the page
+        // is still being edited: two different questions, both worth asking.
+        if (abort.current !== controller) return;
         if (event.type === "text") {
           streamed += event.delta;
           patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));

@@ -176,15 +176,17 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await page.getByRole("button", { name: "Done editing" }).click();
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   await expect(page.getByRole("combobox")).toHaveCount(0);
-  // The assistant is an authoring control too — leaving it mounted made
-  // "Reading" a lie, since what it inserts is autosaved.
+  // **The assistant is NOT one of the controls Reading takes away**, and that
+  // is a reversal: it used to be hidden here on the argument that what it
+  // inserts is autosaved. Mitchell asked for the opposite — *"always available
+  // in both editing and reading mode"* — so the write is refused by the insert
+  // guard instead of by hiding the surface, and the bubble stays.
   //
-  // Asserted with `toHaveCount(0)` on the CURRENT controls. It used to look for
-  // the compose box, which the assistant rail replaced — a locator matching
-  // nothing, and `toBeHidden()` passes for those, so this line had stopped
-  // testing Reading mode at all while still looking like it did (CodeRabbit,
-  // PR 139).
-  await expect(page.getByRole("button", { name: /Assistant/ })).toHaveCount(0);
+  // `toHaveCount(1)` rather than `toBeVisible()`, for the reason the previous
+  // version of this line was written: the assertion has to name the number it
+  // expects, or a locator that has drifted to matching nothing keeps passing
+  // (CodeRabbit, PR 139).
+  await expect(page.getByRole("button", { name: /Assistant/ })).toHaveCount(1);
   await expect(page.getByRole("complementary", { name: "Assistant" })).toHaveCount(0);
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.

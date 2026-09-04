@@ -242,21 +242,48 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
     expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
-    // The assistant is an authoring control too. Leaving it mounted made
-    // "Reading" a lie: what it inserts is autosaved, so a page in Reading could
-    // still be changed by it.
-    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    // **The assistant is NOT one of them, and that is a reversal.** It used to
+    // be hidden here on the argument that what it inserts is autosaved, so a
+    // page in Reading could still be changed by it. Mitchell asked for the
+    // opposite — *"always available in both editing and reading mode"* — so the
+    // write is refused by the insert guard instead of by hiding the surface,
+    // which is where it belonged: cancellation and unmounting both leave a
+    // window for a frame already in flight, and a guard on "is this page still
+    // being edited" does not. `PageAssistant.test.tsx` walks that refusal.
+    expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
-    // The notebook's AI surface is the assistant rail now, not a prompt box —
+    // The notebook's AI surface is the assistant panel, not a prompt box —
     // Mitchell: *"This should be the same style AI Assistant as on the trip
-    // page, not the top of the UI input box"*. Opened from the header, so it
-    // needs no floating pill (SPEC §13.5 forbids one on a phone).
+    // page, not the top of the UI input box"*.
     const launcher = screen.getByRole("button", { name: /Assistant/ });
     expect(launcher).toBeTruthy();
     await userEvent.click(launcher);
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // SPEC §9's bubble and floating panel are ONE control in two states —
+  // *"expanding and collapsing keep the bottom-right corner planted, so the
+  // panel grows out of the bubble rather than jumping across the screen"*. So
+  // the bubble is not a launcher that stays behind: opening replaces it.
+  //
+  // The header button it replaced could not do this, which is why this is the
+  // desktop assertion worth having: a launcher still sitting in the header
+  // beside an open panel is the shape Mitchell asked to be rid of.
+  it("grows the panel out of the bubble rather than leaving a launcher beside it", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
   });
 
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
@@ -363,6 +390,23 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
     afterEach(() => {
       Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    // SPEC §13.5, unchanged by §19: *"Nothing floats over data. No floating
+    // action button."* So the bubble the desktop gained is desktop-only, and
+    // the phone opens the same panel from a control in the page header — which
+    // stays put while the panel is open, because a header control is not a
+    // thing the panel grows out of.
+    it("opens the assistant from the page header, since nothing floats over data here", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+
+      const control = screen.getByRole("button", { name: /Assistant/ });
+      await userEvent.click(control);
+      expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      // Still there. On the desktop the bubble is replaced by the panel it
+      // becomes; here there is no bubble to replace.
+      expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
     });
 
     // §19: "Insert is the desktop sheet, full height… two steps inside it."
