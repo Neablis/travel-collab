@@ -117,7 +117,12 @@ export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; 
                     the accepted decision, so this follows the ADR. Recorded in
                     the milestone file rather than settled silently here. */}
                 <span className="text-xs font-normal text-slate">{w.preview}</span>
-                <span className="font-mono text-[11px] font-normal text-slate">{takesLine(w.inputs)}</span>
+                {/* `text-xs`, not an arbitrary `text-[11px]`: the design-system wall is
+                    tokens-only and `check-color-wall.mjs` rejects arbitrary
+                    Tailwind values outright. Caught by CI on this PR, not by
+                    `pnpm --filter web lint` — the wall is its own script under
+                    `pnpm check`, so a scoped lint run cannot see it. */}
+                <span className="font-mono text-xs font-normal text-slate">{takesLine(w.inputs)}</span>
               </Button>
             </li>
           ))}
