@@ -1,22 +1,24 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
-import userEvent from "@testing-library/user-event";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
 // jsdom has no layout engine, so ProseMirror's coordinate-based cursor
-// placement throws on `elementFromPoint`/`getClientRects`. Stubbed for the same
-// reason and in the same shape as `editor/PageEditor.test.tsx` — without them
-// `userEvent.type` cannot place a cursor, and the autosave test below would
-// pass vacuously by never typing at all.
+// placement throws on `elementFromPoint`/`getClientRects`. Stubbed in the same
+// shape as `editor/PageEditor.test.tsx`. Without them the editor cannot place a
+// caret, which both suites below depend on: `insertContent` at the cursor is
+// what item G is about, and the autosave test would otherwise pass vacuously by
+// never typing at all.
 beforeEach(() => {
   document.elementFromPoint = () => null;
   Range.prototype.getClientRects = () => ({ length: 0, item: () => null }) as unknown as DOMRectList;
@@ -118,7 +120,16 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
           : HttpResponse.json({ preferences }),
       ),
     );
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Wrapped in the REAL provider, because the screen reads preferences from it
+    // now rather than fetching its own copy — that fetch went stale against a
+    // value the same session had just saved (Copilot, PR 139). The provider does
+    // the `/api/account/preferences` read the handler above answers, so this
+    // still walks the whole path rather than injecting a value.
+    render(
+      <PreferencesProvider>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+      </PreferencesProvider>,
+    );
   }
 
   it("renders the account's chosen name in a widget on the page", async () => {
@@ -155,6 +166,314 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
     expect(await screen.findByText("no name set")).toBeTruthy();
     expect(screen.queryByText("SFO")).toBeNull();
+  });
+});
+
+// M14 item G, end to end and from the reader's side: this is the first thing in
+// the builder half a person can actually click. Insert a widget from the
+// sidebar, point it at a day from its chrome row, and watch it save.
+describe("PageScreen: inserting and pointing a widget (item G)", () => {
+  async function openPage(options: { reachInsert?: boolean } = {}) {
+    const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
+    const trip = tripDetailFixture({
+      days: [
+        { dayId, activityIds: [], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: "2b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", activityIds: [], date: "2027-06-02", costSubtotal: 0 },
+      ],
+    });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    const onUpdate = vi.fn();
+    server.use(
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      // The suite default answers with no days at all, which is fine for every
+      // widget that reads `TripDetail` and useless for the one that does not.
+      // `day.city` is served entirely by this projection.
+      http.get("/api/trips/:tripId/globals", () =>
+        HttpResponse.json({
+          globals: {
+            days: [
+              { index: 0, date: "2027-06-01", cities: ["Lisbon"], activityCount: 0, costSubtotal: 0 },
+              { index: 1, date: "2027-06-02", cities: ["Porto"], activityCount: 0, costSubtotal: 0 },
+            ],
+            cities: [
+              { name: "Lisbon", dayIndexes: [0], activityCount: 0 },
+              { name: "Porto", dayIndexes: [1], activityCount: 0 },
+            ],
+            tags: [],
+            bookedCount: 0,
+          },
+        }),
+      ),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+    // A page opens in READING now (Mitchell, 2026-09-04), so a test about
+    // authoring says so rather than relying on the default. That is the honest
+    // shape: the default is a product decision, and a spec that silently
+    // depended on it is how the previous default came to be defended by a test
+    // instead of by a reason.
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    if (options.reachInsert === false) return { onUpdate };
+    // The widget list lives in a popover now rather than in an `<aside>` beside
+    // the document (Mitchell: *"they should be more of a popover side bar so
+    // they dont interrupt the document flow"*), so reaching a widget is two
+    // clicks and the popover closes behind each insert — the caret goes back
+    // to the document, which is where the author was.
+    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+    return { onUpdate };
+  }
+
+  it("opens in Reading, and Reading hides the WHOLE authoring surface", async () => {
+    // Reading is the default (Mitchell, 2026-09-04, walking the preview), and
+    // Reading is the traveller's view (§18): no insert affordance, no chrome
+    // row, and — the part that was missing — no compose box either.
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    // **The assistant is NOT one of them, and that is a reversal.** It used to
+    // be hidden here on the argument that what it inserts is autosaved, so a
+    // page in Reading could still be changed by it. Mitchell asked for the
+    // opposite — *"always available in both editing and reading mode"* — so the
+    // write is refused by the insert guard instead of by hiding the surface,
+    // which is where it belonged: cancellation and unmounting both leave a
+    // window for a frame already in flight, and a guard on "is this page still
+    // being edited" does not. `PageAssistant.test.tsx` walks that refusal.
+    expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
+    // The notebook's AI surface is the assistant panel, not a prompt box —
+    // Mitchell: *"This should be the same style AI Assistant as on the trip
+    // page, not the top of the UI input box"*.
+    const launcher = screen.getByRole("button", { name: /Assistant/ });
+    expect(launcher).toBeTruthy();
+    await userEvent.click(launcher);
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // SPEC §9's bubble and floating panel are ONE control in two states —
+  // *"expanding and collapsing keep the bottom-right corner planted, so the
+  // panel grows out of the bubble rather than jumping across the screen"*. So
+  // the bubble is not a launcher that stays behind: opening replaces it.
+  //
+  // The header button it replaced could not do this, which is why this is the
+  // desktop assertion worth having: a launcher still sitting in the header
+  // beside an open panel is the shape Mitchell asked to be rid of.
+  it("grows the panel out of the bubble rather than leaving a launcher beside it", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
+  });
+
+  it("lists widgets by the name a person calls them, not by their stored id", async () => {
+    await openPage();
+    // `title`, not `name`: "cost.trip" is a stored identifier a document keeps
+    // forever, and it is not what a sidebar shows a reader.
+    expect(screen.getByRole("button", { name: /What the trip costs/ })).toBeTruthy();
+    expect(screen.queryByText("cost.trip")).toBeNull();
+  });
+
+  it("inserts a widget at the cursor and renders it live", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What the trip costs/ }));
+    // It resolved against the loaded trip rather than rendering a placeholder:
+    // the fixture has no costs, so the widget's own emptyText is what shows.
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+  });
+
+  it("points a day widget at a day from its own chrome row, and saves it", async () => {
+    // The whole reason the chrome row exists: with no modal step at insert
+    // time, a day widget lands UNBOUND and this is where it gets pointed.
+    const { onUpdate } = await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+
+    // Unbound on arrival — not silently defaulted to day 1 (ADR-037 decision 6).
+    expect(await screen.findByText("no day set")).toBeTruthy();
+
+    const select = screen.getByRole("combobox", { name: /What a day costs/ });
+    // And the CONTROL agrees with the widget. Asserting only the widget's text
+    // let a break through where the select displayed "Day 1" while the widget
+    // still said "no day set" — a control lying about what the document holds,
+    // which is worse than either state alone because the reader believes it.
+    expect((select as HTMLSelectElement).value).toBe("");
+    await userEvent.selectOptions(select, "1");
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    const saved = onUpdate.mock.calls.at(-1)![1].content as { content: unknown[] };
+    // The binding is stored on the widget instance's own params — ADR-035
+    // decision 3, and what lets two widgets on one page read two different days.
+    expect(JSON.stringify(saved.content)).toContain('"index":1');
+  });
+
+  it("lets two widgets on one page point at different days", async () => {
+    // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
+    // notebook that shows day 1, day 3 and day 9". Each widget carries its own
+    // binding, so this is the assertion that an aggregated control would break.
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+    // Re-opened, because the popover closes behind each insert.
+    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+    await userEvent.click(screen.getByRole("button", { name: /A day's stops/ }));
+
+    const selects = screen.getAllByRole("combobox");
+    expect(selects.length).toBeGreaterThanOrEqual(2);
+    await userEvent.selectOptions(selects[0]!, "0");
+    await userEvent.selectOptions(selects[1]!, "1");
+
+    expect((selects[0] as HTMLSelectElement).value).toBe("0");
+    expect((selects[1] as HTMLSelectElement).value).toBe("1");
+  });
+
+  // The globals seam, end to end, and the only test that walks it. `day.city`
+  // is the one widget served by NOTHING on `TripDetail` — its cities come from
+  // the projection item D built, which travels a separate route
+  // (`GET /api/trips/:id/globals`), a separate piece of screen state, and the
+  // editor context before it reaches a resolver. Every other widget would keep
+  // rendering if that whole chain were cut; this one would quietly say "no city
+  // on this day", which reads like a trip with no cities rather than a bug.
+  it("renders a widget that is served only by the globals projection", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /A day's city/ }));
+
+    const select = screen.getByRole("combobox", { name: /A day's city/ });
+    await userEvent.selectOptions(select, "1");
+
+    // Day 2 is Porto. Asserting the SECOND day rather than the first is what
+    // makes this about the binding as well as the fetch: a widget that ignored
+    // its day and always read `days[0]` would pass on "Lisbon".
+    expect(await screen.findByText("Porto")).toBeTruthy();
+  });
+
+  // The phone Notebook — design handoff 2026-09-03, `SPEC.md` §19. The model is
+  // identical (DRIFT §2f: *"This adds no API surface"*); what differs is
+  // density, and these tests are about the two places it differs. Everything
+  // above this block takes the desktop branch through `useIsPhone`'s feature
+  // detection, which is what keeps them meaningful as desktop tests.
+  describe("on a phone", () => {
+    function setPhone(matches: boolean) {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }),
+      });
+    }
+
+    afterEach(() => {
+      Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    // SPEC §13.5, unchanged by §19: *"Nothing floats over data. No floating
+    // action button."* So the bubble the desktop gained is desktop-only, and
+    // the phone opens the same panel from a control in the page header — which
+    // stays put while the panel is open, because a header control is not a
+    // thing the panel grows out of.
+    it("opens the assistant from the page header, since nothing floats over data here", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+
+      const control = screen.getByRole("button", { name: /Assistant/ });
+      await userEvent.click(control);
+      expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      // Still there. On the desktop the bubble is replaced by the panel it
+      // becomes; here there is no bubble to replace.
+      expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
+    });
+
+    // §19: "Insert is the desktop sheet, full height… two steps inside it."
+    // Browse, then point it at — not a sheet over a sheet (project rule 3).
+    it("inserts through a sheet with a bind step, and lands the widget already pointed", async () => {
+      setPhone(true);
+      const { onUpdate } = await openPage({ reachInsert: false });
+      await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+
+      // Step 1: browse. The same registry, the same order, the same copy.
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: /What a day costs/ }));
+
+      // Step 2: point it at. This is what the desktop does NOT have — there the
+      // widget lands at the caret with its chrome row under it, so a bind step
+      // would be the same choice offered twice (project rule 4).
+      const select = within(dialog).getByRole("combobox", { name: /day/i });
+      await userEvent.selectOptions(select, "1");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Insert it" }));
+
+      // It arrives BOUND. A phone insert that landed unbound would mean the
+      // bind step decided nothing, which is the failure worth catching here.
+      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+      const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
+      expect(saved).toContain('"cost.day"');
+      expect(saved).toContain('"index":1');
+    });
+
+    // §19's one real divergence, and it is density: at 390px the desktop chrome
+    // row — a name chip plus a select per input, inline — wraps into
+    // unreadability. So the phone shows the resolved binding on a button and
+    // opens the same controls in a sheet.
+    it("shows one 'Pointed at' button per widget instead of an inline select row", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+      await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+      await userEvent.click(
+        within(await screen.findByRole("dialog")).getByRole("button", { name: /What a day costs/ }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Insert it" }));
+
+      // The inline row is GONE — both halves matter. A phone that showed the
+      // button *and* kept the select row would be the same binding twice
+      // (project rule 4), and would not have fixed the wrapping this replaces.
+      expect(screen.queryByRole("combobox")).toBeNull();
+      const bind = await screen.findByRole("button", { name: /Pointed at/ });
+      // The label IS the binding, not the widget's name: §19 rule — "binds
+      // render on binds, not on name pills".
+      expect(bind.textContent).toContain("Not set up");
+
+      await userEvent.click(bind);
+      const sheet = await screen.findByRole("dialog");
+      await userEvent.selectOptions(within(sheet).getByRole("combobox"), "0");
+      // The sheet is a Radix Dialog, so it `aria-hidden`s the page behind it —
+      // the button below is genuinely unreachable until it closes, and that is
+      // the correct accessibility behaviour rather than something to work
+      // around with a raw DOM query.
+      await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+
+      // And the button follows the document, rather than being a label written
+      // once at insert time. A widget rebound through the sheet whose button
+      // still reads its old binding is the control-contradicts-the-document
+      // bug, from the third surface.
+      await vi.waitFor(() =>
+        expect(screen.getByRole("button", { name: /Pointed at Day 1/ })).toBeTruthy(),
+      );
+    });
   });
 });
 
@@ -231,10 +550,14 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it("takes the compose panel away too, since applying a draft would overwrite the page", async () => {
+  it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withRepeat);
     await screen.findByRole("status");
-    expect(screen.queryByLabelText(/ask ai to draft this page/i)).toBeNull();
+    // Not only the rail — its launcher. This branch never mounts an editor at
+    // all (that is the whole of decision 4), so an assistant offered here would
+    // be a control with nowhere to put its answer.
+    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 
   it("locks a document it cannot parse at all, and says so without pretending to show it", async () => {
@@ -265,9 +588,13 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     });
 
     await screen.findByText("ordinary");
+    // The document mounts in Reading, so the editor exists but is not editable.
+    // Autosave is an EDITING behaviour now, which is the point of Reading — so
+    // this walks the same path a person does: switch on, then type.
+    expect(screen.queryByRole("status")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     const box = editorTextbox();
     expect(box).not.toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
     await userEvent.type(box!, "x");
 
     // The autosave debounce is 800 ms, so the default 1 s poll window is too

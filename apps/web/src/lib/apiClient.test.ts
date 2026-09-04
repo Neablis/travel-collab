@@ -574,29 +574,28 @@ describe("the proposal on the wire", () => {
 // The composed page rides the SAME final chunk as a proposal, and never beside
 // one: the server's tool sets are disjoint (`offeredToolNamesFor`), so the scope
 // that asked decides which arrives.
-describe("the composed page on the wire", () => {
-  const PAGE = { title: "Trip Overview", content: { type: "doc", content: [{ type: "paragraph", content: [] }] } };
+describe("a page turn's inserts on the wire", () => {
+  const INSERTS = { content: { type: "doc", content: [{ type: "paragraph", content: [] }] } };
   const finishWith = (metadata: unknown) =>
     `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify(metadata)}}`;
 
   it("arrives as one event, on the stream's final chunk", async () => {
     server.use(
       http.post("*/api/trips/:tripId/ask", () =>
-        sseResponse([...ANSWER_FRAMES, finishWith({ composedPage: PAGE })]),
+        sseResponse([...ANSWER_FRAMES, finishWith({ pageInserts: INSERTS })]),
       ),
     );
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
-    const pages = events.filter((e) => e.type === "page");
+    const pages = events.filter((e) => e.type === "page-inserts");
     expect(pages).toHaveLength(1);
     // `PAGE.content` goes over the wire with no `v` — the shape every document
     // written before ADR-038 has — and arrives carrying one, because the client
     // parses it as a `PageDoc` now. That default is decision 2's single
     // permitted inference: v1 is the only version that has ever existed.
     expect(pages[0]).toEqual({
-      type: "page",
-      title: "Trip Overview",
-      content: { ...PAGE.content, v: CURRENT_PAGE_DOC_VERSION },
+      type: "page-inserts",
+      content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION },
     });
     expect(events.at(-1)).toBe(pages[0]);
   });
@@ -622,8 +621,8 @@ describe("the composed page on the wire", () => {
   const MALFORMED: [unknown, string][] = [
     [{ composedPage: { title: "T" } }, "no content"],
     [{ composedPage: { title: "T", content: { type: "not-a-doc" } } }, "content that is not a doc"],
-    [{ composedPage: { content: { type: "doc", content: [] } } }, "no title"],
-    [{ composedPage: { title: "", content: { type: "doc", content: [] } } }, "an empty title"],
+    [{ pageInserts: { content: { type: "notADoc" } } }, "content that is not a doc"],
+    [{ pageInserts: {} }, "no content at all"],
     [{ composeError: "" }, "an empty refusal"],
     [{}, "metadata with neither"],
   ];
@@ -632,7 +631,7 @@ describe("the composed page on the wire", () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', finishWith(metadata)])));
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
-    expect(events.filter((e) => e.type === "page" || e.type === "page-error")).toEqual([]);
+    expect(events.filter((e) => e.type === "page-inserts" || e.type === "page-error")).toEqual([]);
   });
 });
 

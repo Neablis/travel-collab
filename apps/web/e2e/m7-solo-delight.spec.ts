@@ -61,9 +61,10 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // (env-gated test routing, an in-server MSW setup, etc.) — out of scope for
 // this task. Mitchell's hard constraint: no e2e test may ever make a real
 // call to the Vercel AI Gateway or any model provider (token cost). So this
-// spec only asserts `ComposePanel` renders (prompt box + submit button);
-// the actual compose behavior against a mocked model is covered by
-// apps/web/src/app/api/trips/[tripId]/ai/route.int.test.ts.
+// spec only asserts the assistant rail OPENS on a page (composer + Ask
+// button); what a turn actually does is covered by
+// apps/web/src/app/api/trips/[tripId]/ask/route.int.test.ts and, on the client
+// side, by PageAssistant.test.tsx.
 test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
@@ -93,9 +94,31 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  // -- ComposePanel renders (no real AI call — see the file-header note) --
-  await expect(page.getByLabel("Ask AI to draft this page")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
+  // -- the assistant opens on a page, in EITHER mode (no real AI call) --
+  // It used to be an editing-only control, hidden in Reading because what it
+  // inserts is autosaved. Mitchell reversed that on the preview — *"it should
+  // be on the bottom right on desktop, floating till open, and always
+  // available in both editing and reading more"* — so a page that has never
+  // been put into Editing can open it, and leaving Editing does not close it.
+  // Reading still cannot be written into; that is the insert guard's job now,
+  // walked in `PageAssistant.test.tsx`.
+  //
+  // The panel replaced the prompt box in M14 link 8 (Mitchell: *"This should be
+  // the same style AI Assistant as on the trip page, not the top of the UI
+  // input box"*), which became possible when the page tools stopped replacing
+  // the document and started inserting into it (ADR-035 decision 5).
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
+  await page.getByRole("button", { name: /hide/i }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: "Done editing" }).click();
+  // Still open across the mode change — the reversal, stated as an assertion.
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: /hide/i }).click();
 
   // -- Day Sheet: its own starter text --
   // The day-binding control this used to drive went with SPEC §18: a page has
@@ -190,6 +213,17 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+
+  // A notebook opens in READING now (Mitchell, 2026-09-04, walking the M14
+  // preview), so typing into it is a deliberate act here as it is for a person.
+  //
+  // This spec is why the default was Editing for a while: making Reading the
+  // default the first time turned this walk red, and I read that as the product
+  // telling me the default was wrong. It was telling me this line was missing.
+  // A spec that walks authoring should enter Editing itself rather than lean on
+  // whichever side the toggle happens to start on — otherwise the default is
+  // defended by a test instead of by a reason.
+  await page.getByRole("button", { name: "Edit page" }).click();
 
   const proseText = `Hand-typed notes ${Date.now()}`;
   await page.locator(".tc-page-editor h2", { hasText: "Overview" }).click();

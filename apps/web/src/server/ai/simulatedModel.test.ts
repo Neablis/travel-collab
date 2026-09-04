@@ -1,3 +1,4 @@
+import { markdownToPageNodes } from "./markdownToPageNodes";
 import { describe, expect, it } from "vitest";
 import { simulatedModel, SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
@@ -124,7 +125,7 @@ describe("simulatedModel — the page turn", () => {
   // `handleAskRequest` offers a page turn read tools + compose_page and no
   // planning write tool, so this mirrors the set it would really be handed.
   const pagePrompt = (results: { toolName: string; value: unknown }[] = []) => ({
-    tools: [{ name: "read_trip" }, { name: "read_day" }, { name: "find_free_time" }, { name: "compose_page" }],
+    tools: [{ name: "read_trip" }, { name: "read_day" }, { name: "find_free_time" }, { name: "insert_text" }, { name: "insert_widget" }],
     prompt: [
       { role: "system", content: ["You are a test.", askScopeLine(PAGE_SCOPE)].join("\n") },
       { role: "user", content: [{ type: "text", text: "draft this page" }] },
@@ -144,34 +145,41 @@ describe("simulatedModel — the page turn", () => {
     ],
   });
 
-  const COMPOSED = { toolName: "compose_page", value: { title: "Sample page", content: { type: "doc", content: [] } } };
+  const INSERTED = { toolName: "insert_text", value: { inserted: 2 } };
 
-  it("opens with exactly one compose_page call", async () => {
+  it("opens with exactly one insert_text call", async () => {
     const result = await probe().doGenerate(pagePrompt());
     const calls = callsOf(result);
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.toolName).toBe("compose_page");
-    const input = JSON.parse(calls[0]!.input) as { title: string; blocks: unknown[] };
-    expect(input.title).toBeTruthy();
-    expect(input.blocks.length).toBeGreaterThan(0);
+    expect(calls[0]!.toolName).toBe("insert_text");
+    const input = JSON.parse(calls[0]!.input) as { markdown: string };
+    expect(input.markdown).toBeTruthy();
     expect(result.finishReason).toEqual({ unified: "tool-calls", raw: undefined });
   });
 
-  // The composed page has to pass `validateComposedPage` unconditionally, which
-  // is why `pageCalls` uses headings and paragraphs and no macro block: a macro
-  // whose params drift from its registry schema would make every switched-off
-  // deployment's compose fail validation and reach the client as a refusal.
-  it("composes only headings and paragraphs, never a macro", async () => {
+  // The inserted nodes have to validate unconditionally, which is why
+  // `pageCalls` inserts prose and never calls `insert_widget`: a widget whose
+  // params drift from its registry schema would make every switched-off
+  // deployment's insert fail validation and reach the client as a refusal.
+  it("inserts prose only, never a widget", async () => {
     const calls = callsOf(await probe().doGenerate(pagePrompt()));
-    const input = JSON.parse(calls[0]!.input) as { blocks: { type: string }[] };
-    expect(input.blocks.map((b) => b.type).sort()).toEqual(["heading", "paragraph"]);
+    expect(calls.map((c) => c.toolName)).not.toContain("insert_widget");
+  });
+
+  // The markdown it sends must survive the reader the live path uses, or the
+  // simulated deployment exercises a straighter path than the real one.
+  it("sends markdown the reader turns into real nodes", async () => {
+    const calls = callsOf(await probe().doGenerate(pagePrompt()));
+    const { markdown } = JSON.parse(calls[0]!.input) as { markdown: string };
+    const nodes = markdownToPageNodes(markdown);
+    expect(nodes.map((n) => n.type)).toEqual(["heading", "paragraph"]);
   });
 
   // The second step, and the one that ends the loop. Without it the SDK keeps
   // calling until `stopWhen` fires and every one of those round-trips is settled
   // against the actor's step quota (KI-67).
-  it("says what it drafted once the compose has come back, and stops", async () => {
-    const result = await probe().doGenerate(pagePrompt([COMPOSED]));
+  it("says what it added once the insert has come back, and stops", async () => {
+    const result = await probe().doGenerate(pagePrompt([INSERTED]));
     expect(callsOf(result)).toHaveLength(0);
     expect(result.finishReason).toEqual({ unified: "stop", raw: undefined });
     expect(textOf(result)).toContain("drafted this page");
@@ -182,16 +190,16 @@ describe("simulatedModel — the page turn", () => {
 
   // A question is not a page turn even when the words look like one. The scope
   // decides, because the scope is the thing the server verified.
-  it("does not compose for a trip-scoped turn", async () => {
+  it("does not insert for a trip-scoped turn", async () => {
     const calls = callsOf(await probe().doGenerate(askPrompt({ kind: "trip" }, [], { question: "draft this page" })));
-    expect(calls.map((c) => c.toolName)).not.toContain("compose_page");
+    expect(calls.map((c) => c.toolName)).not.toContain("insert_text");
   });
 
   // The whole point of the move: `doStream` used to THROW for a page, because
   // the command path never streamed. If this regresses, no deployed environment
   // can author a page — and it would regress silently, since every other test
   // here goes through `doGenerate`.
-  it("streams the compose rather than throwing", async () => {
+  it("streams the insert rather than throwing", async () => {
     const result = (await probe().doStream(pagePrompt())) as { stream: ReadableStream<Record<string, unknown>> };
     const parts: Record<string, unknown>[] = [];
     const reader = result.stream.getReader();
@@ -200,13 +208,13 @@ describe("simulatedModel — the page turn", () => {
       if (done) break;
       parts.push(value);
     }
-    expect(parts.filter((p) => p.type === "tool-call").map((p) => p.toolName)).toEqual(["compose_page"]);
+    expect(parts.filter((p) => p.type === "tool-call").map((p) => p.toolName)).toEqual(["insert_text"]);
     expect(parts[0]).toMatchObject({ type: "stream-start" });
     expect(parts.at(-1)).toMatchObject({ type: "finish", finishReason: { unified: "tool-calls" } });
   });
 
   it("streams the closing sentence as text deltas", async () => {
-    const result = (await probe().doStream(pagePrompt([COMPOSED]))) as {
+    const result = (await probe().doStream(pagePrompt([INSERTED]))) as {
       stream: ReadableStream<Record<string, unknown>>;
     };
     const parts: Record<string, unknown>[] = [];

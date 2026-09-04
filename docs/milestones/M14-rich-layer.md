@@ -100,6 +100,17 @@ Mitchell's framing, 2026-09-03:
    beside it, replacing `compose_page`'s whole-document round trip. `AskScope` already
    carries `{ kind: "page"; pageId }` and `/ask` already verifies the page (ADR-033), so
    this is a tool-list change, not new plumbing.
+   *(**Built, both halves, 2026-09-04.** It turned out to be a tool-list change AND a
+   surface change, because the two are the same change. `ComposePanel` sent one message and
+   kept no thread, and its own header said why: `compose_page` replaced the document, so
+   "a page that accumulated turns would have to decide what 'draft this page' means the
+   second time". That was an objection to REPLACING; inserts have an obvious second time.
+   So the notebook's AI surface is the **assistant rail** now — Mitchell, on the preview:
+   *"This should be the same style AI Assistant as on the trip page, not the top of the UI
+   input box"* — and `ComposePanel` is deleted rather than kept beside it, two AI surfaces
+   on one page being the second insert path all over again. The conversation machinery came
+   out of `TripBoardScreen` into `useAskThread`; a page turn carries **no proposal**, since
+   the page tools insert and there are no write commands to collect.)*
 9. **Notebook history — ADR-036 accepted, then built.** *(Accepted 2026-09-03, and
    **unblocked the same day**. The open question was where an unsettled draft lives once
    `pages` is a projection: 800ms autosave against once-per-session events means a rebuild
@@ -445,8 +456,56 @@ milestone opens:**
       above said the box was void and then left it standing in the gate, which is
       how a struck requirement gets built by the next session that reads only the
       checklist.)*
+
+      **CONTRADICTION, unresolved and deliberately not settled in code
+      (2026-09-04).** This box asks each row to carry *"a **real resolved
+      preview**"*. `ADR-037` decision 5 says the opposite in its own title — *"A
+      preview is a fixed sample, never a computed value"* — and gives the reason:
+      a preview asserting numbers the live widget computes makes the sidebar and
+      the page contradict each other in one session. **The two were written the
+      same day**, and the ADR is the accepted decision, so the sidebar built for
+      this box follows the ADR and shows `MacroDef.preview`. Flagged here rather
+      than fixed because striking a gate requirement is Mitchell's call, and
+      because doing it silently in a component comment is exactly the failure the
+      parenthetical above describes. Everything else in the box — search, the
+      shape tag, the mono line naming what it takes — is built.
+
+      **The container is a Popover on desktop and a bottom Sheet on the phone,
+      and both are deliberate.** §18 said Sheet; Mitchell said sidebar
+      (2026-09-03, *"definitely side bar and drag in or click insert"*) and then,
+      after walking the preview (2026-09-04), *"The widgets should be more of a
+      popover side bar so they dont interrupt the document flow when open"* — a
+      flex sibling of the editor narrows the prose column the author is writing
+      in, and a portalled Popover cannot. The **phone** is a Sheet, and that is
+      the design's own answer rather than a compromise: handoff `SPEC.md` §19
+      (2026-09-03) specifies a bottom sheet with two steps inside it, browse then
+      *Point it at*, never a sheet over a sheet. So the two surfaces disagree
+      about the container and agree about everything the box asks for — one
+      registry, one search, one set of shape tags, one preview string.
+
+      **Drag-and-drop and the slash menu are built** (2026-09-04), which finishes
+      item G's three origins. All three go through `insertWidget`, so ADR-037
+      decision 4 holds for each.
+
+      **The insert control moved into the document** (2026-09-04, second preview
+      round). It sat in the header row beside "Edit page", which put a control
+      that acts on the document outside the document; dc.html:2443 has it at the
+      foot of the page beside the sentence naming the `/` route in. The document
+      itself now sits on a raised `Card` (dc.html:2333) — Mitchell: *"There
+      should be a contrainer over the page"*.
+
+      The `needs a field` badge is **not** built, and that is not an omission:
+      the only input type with no data behind it is `person`, no widget declares
+      it (the two that would have were deferred out of M14 with the attribution
+      model), so a badge for it would be a branch nothing can reach and no test
+      could honestly cover.*
 - [ ] **Two widgets on one page read two different days**, bound at insert and
-      rebindable from the chrome row — the replacement the rescope section named
+      rebindable from the chrome row — on the phone the chrome row is a 44px
+      *"Pointed at …"* button opening a bind sheet, which is the ONE divergence
+      handoff `SPEC.md` §19 allows and it is density, not model: at 390px a name
+      chip plus a select per input wraps into unreadability. Same controls, same
+      order, same option lists (`widgetBind.tsx` is the single source, so the two
+      surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
 - [ ] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
@@ -459,6 +518,36 @@ milestone opens:**
       rebinds a whole block.
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
+
+      **The city colour scale reaches the notebook** (2026-09-04, second preview
+      round): *"The every day at a glance and every city at a glance are not
+      rendering correctly and dont use the color coding we put together when
+      showing a city."* A resolved value that is a city carries the trip's own
+      accent for it, derived by `cityAccents` from the same `dayAccents` input
+      the board uses — `dayAccentConsistency.property.test.ts` now drives three
+      surfaces off one trip. `itinerary.trip` renders dc.html:2400's day table
+      rather than a stack of `itinerary.day` cards.
+
+      **Every resolved value renders as a chip**, not as bare text (dc.html:5117
+      and :2368). In Reading there is no chrome row to say which words came from
+      the trip, so the value itself has to.
+
+      **The assistant on a notebook is SPEC §9's floating presentation, not the
+      board's docked one, and it is available in Reading** (2026-09-04, second
+      preview round). Mitchell: *"Assistant shouldnt be at the top, it should be
+      on the bottom right on desktop, floating till open, and always available
+      in both editing and reading more."* Two of §9's three presentations are
+      built (docked for the board, floating for the notebook); **dragging the
+      floating card to park it anywhere is not**, and that is the remaining §9
+      work rather than a decision against it. The phone keeps a header control:
+      SPEC §13.5 is unchanged by §19 and still forbids anything floating over
+      data there.
+
+      Reading still cannot be written into. That is enforced by the
+      `page-inserts` guard on "is this page still being edited" rather than by
+      hiding the surface — cancellation and unmounting both leave a window for a
+      stream frame already in flight, and the guard does not.
+
 - [ ] **Notebook history: an edit session commits one event, and the `pages` row
       rebuilds from the log** — the projection-rebuild golden test gains a page
       case, and `PageScreen` no longer autosaves. **A rebuild mid-session must not

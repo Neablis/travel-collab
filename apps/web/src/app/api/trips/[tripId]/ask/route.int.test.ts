@@ -526,6 +526,29 @@ describe("POST /api/trips/:id/ask", () => {
       expect(instructionsFor({ kind: "trip" }, 3)).toContain("You can READ this trip and nothing else");
     });
 
+    // **The page branch's actual text, because it went stale unnoticed.** It
+    // told a live model to "replace what is there" and to call `compose_page`
+    // — a tool ADR-035 decision 5 deleted, absent from the set the same turn
+    // hands over. The simulated model hid it: it emits `insert_text` whatever
+    // it is told, so every test that exercised a page turn passed while a real
+    // model was being instructed to call a name it did not have. Found by
+    // CodeRabbit and Copilot on PR 139.
+    it("tells a page turn to insert with the tools it actually holds", () => {
+      const pageId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
+      const page = instructionsFor({ kind: "page", pageId }, 3, "read-only", { title: "Trip Overview" });
+      // Names every tool it is handed...
+      expect(page).toContain("insert_text");
+      expect(page).toContain("insert_widget");
+      // ...and none it is not. Asserted as an absence because that is the
+      // failure: a name in the prose that is not in the tool set.
+      expect(page).not.toContain("compose_page");
+      // Inserting, not replacing — the semantics changed with the tools, and a
+      // model told to draft "the whole body" would undo the page it was asked
+      // to add to.
+      expect(page).toContain("inserting into what is already there");
+      expect(page).not.toMatch(/replacing what is there/);
+    });
+
     // Rule 3 of askIntent.ts: a cost optimisation must never be able to break
     // a turn. `failingModel` throws on every call INCLUDING the classification,
     // so this is the fail-open path end to end — the turn is still offered the
@@ -781,7 +804,7 @@ describe("POST /api/trips/:id/ask", () => {
     // this streamed path is the only way a deployed app can author a page at
     // all — and it goes through `simulatedModel`, whose `doStream` used to
     // throw for exactly this work.
-    it("streams a composed page on the final chunk, validated server-side", async () => {
+    it("streams the turn's inserts on the final chunk, validated server-side", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId);
       const res = await ask(tripId, { messages: [userMessage("draft this page")], scope: { kind: "page", pageId } });
@@ -790,20 +813,23 @@ describe("POST /api/trips/:id/ask", () => {
 
       const chunks = await chunksOf(res);
       const finish = chunks.find((chunk) => chunk.type === "finish");
-      const metadata = finish?.messageMetadata as { composedPage?: { title: string; content: unknown } } | undefined;
+      const metadata = finish?.messageMetadata as { pageInserts?: { content: unknown } } | undefined;
 
-      expect(metadata?.composedPage?.title).toBeTruthy();
-      expect(validateComposedPage(metadata!.composedPage!.content as never)).not.toHaveProperty("error");
+      // No title any more: a turn adds to the document the reader is looking at
+      // rather than replacing it, which is what lets a second turn mean
+      // something (ADR-035 decision 5).
+      expect(metadata?.pageInserts?.content).toBeTruthy();
+      expect(validateComposedPage(metadata!.pageInserts!.content as never)).not.toHaveProperty("error");
       // A page turn proposes nothing: the tool sets are disjoint, so the same
       // chunk cannot carry both.
       expect(metadata).not.toHaveProperty("proposal");
-      expect(chunks.filter((chunk) => chunk.toolName === "compose_page").length).toBeGreaterThan(0);
+      expect(chunks.filter((chunk) => chunk.toolName === "insert_text").length).toBeGreaterThan(0);
     });
 
     // The instruction is not observable from the response, so the only way to
     // assert it is to read what the model was handed. It has to carry the macro
     // catalog: no tool returns it, and a model that never saw the descriptions
-    // emits macros whose params `validateComposedPage` then rejects.
+    // emits widgets whose params `insertWidget` then refuses.
     it("tells the model which page it is writing and the macros it may use", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId, "Day Sheet");

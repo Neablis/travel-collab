@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
-import type { MacroResult } from "./result";
+import type { MacroResult, UnboundNeeds } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -11,7 +11,13 @@ import type { MacroResult } from "./result";
 // `w-person` renders as chip, text, chip, text, chip from a single binding, and
 // a display-ready string cannot carry that.
 export type InlinePayload = string;
-export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
+// `ordinal` is which day of the trip this is, counting from 1 — a fact about
+// the trip, which is why it is in the payload rather than recovered from a
+// position in an array. `ItineraryTripBlock` labels its rows "Day 3", and
+// deriving that from the index of a payload it was handed would be right only
+// for as long as no widget ever renders a SUBSET of the days (the design's own
+// itinerary block already takes a from/to range).
+export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ordinal: number; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }
 export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total: string; }
@@ -32,6 +38,51 @@ export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
 export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload;
+
+// What a REPEAT widget resolves to: one entry per item, each a lead phrase and
+// the resolved values that follow it. Kept apart from `BlockPayload` on purpose
+// — `BlockView` dispatches over that union with a `never` on the unhandled
+// branch, and a repeat is not a block component, it is N lines rendered by
+// `MacroView` itself.
+//
+// It is DATA, not segments: `resolve` answers "what does this mean against the
+// current trip" and `render` answers "what does that look like" (ADR-037
+// decision 1). Putting `Seg[]` here would collapse the two and hand the
+// resolver a rendering decision — which chips, which order — that belongs on
+// the other side of the seam.
+// One entry on a repeat row: the display text, plus what KIND of thing it is.
+//
+// `name` used to be implicit — every value became `chip("value", …)` — and that
+// was enough for as long as no value had a treatment of its own. A city does:
+// the trip colours its cities and a notebook page must use the same colours or
+// it is a fourth city palette (see `cityAccents`). `name` is what carries that
+// across the resolver seam WITHOUT carrying a colour across it: this package
+// says "this word is a city", `apps/web` decides what a city looks like
+// (ADR-037 decision 1).
+//
+// `"label"` renders as plain text and everything else as a chip, which is why
+// a row's lead and its values are the same type: whether the opening phrase is
+// a label ("Day 1") or a resolved value (a city's own name, on `city.line`) is
+// a fact about the widget, not a structural difference between the two slots.
+export interface RepeatValue {
+  name: "label" | "value" | "city";
+  text: string;
+}
+
+export interface RepeatRow {
+  // The line's opening phrase: "Day 1", a city name, a time.
+  lead: RepeatValue;
+  // The values that follow. Empty is legitimate: a day with no date, no city
+  // and no cost is still a day, and its line still says which day it is.
+  values: readonly RepeatValue[];
+}
+
+// Constructors, so a resolver reads as data rather than as object literals with
+// a discriminator repeated on every push.
+export const rowLabel = (t: string): RepeatValue => ({ name: "label", text: t });
+export const rowValue = (t: string): RepeatValue => ({ name: "value", text: t });
+export const rowCity = (t: string): RepeatValue => ({ name: "city", text: t });
+export interface RepeatPayload { kind: "repeat-rows"; rows: RepeatRow[]; }
 
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
@@ -99,6 +150,20 @@ export type WidgetInput =
   | { name: string; type: "person"; label: string }
   | { name: string; type: "tags"; label: string }
   | { name: string; type: "trip"; label: string };
+
+/** The declared input types, derived so nothing can list them a second time. */
+export type WidgetInputType = WidgetInput["type"];
+
+// **The two lists must stay in step, and this is what makes that a type error.**
+// `UnboundNeeds` has one member per input type that can be waiting for a choice;
+// `tags` is deliberately not one of them (an absent tag means "every stop", a
+// real binding — ADR-037 decision 9). Adding an input type without adding its
+// `needs` member fails here rather than surfacing as a widget that cannot say
+// it is unbound. Type-level only: it emits nothing.
+type Assert<T extends true> = T;
+export type NeedsCoversEveryBindableInput = Assert<
+  Exclude<WidgetInputType, "tags"> extends UnboundNeeds ? true : false
+>;
 
 // What a widget is handed at resolve time (ADR-037 decision 1).
 //
@@ -185,4 +250,4 @@ export interface MacroDef<P, T> {
 }
 
 // Existentially-typed entry for the registry map.
-export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload>;
+export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload>;

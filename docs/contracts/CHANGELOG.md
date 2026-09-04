@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — `TagRef`, and `valueKindOf` through a wrapper
+- Added: `TagRef` in `packages/contracts/src/pages.ts` — the value shape of a
+  `tags` input inside one widget's params, alongside `DayRef`. It is
+  `ActivityTag`; absent means "every stop", which is a real binding and not an
+  unset one
+- Why: it was declared locally inside `stop.line`, in `@tc/pages`. ADR-037
+  decision 9 puts these shapes in `packages/contracts` precisely because "the
+  editor, the AI path and the resolvers all read them", and this one is
+  PERSISTED in every document carrying that widget — three readers of a stored
+  value with no single definition between them. Found by Copilot on PR 139
+- Note: this is narrower than decision 9's own row, which reads
+  `"all" | ActivityTag[]`. SPEC §18 (later) asks for one tag or none, and no
+  control in the design expresses a set. Recorded in the ADR as Mitchell's call;
+  widening is one line here plus a control
+- Changed: `valueKindOf` now walks a schema's wrappers, so a kind attached by
+  `described()` survives a later `.nullable()` / `.optional()`. It read only the
+  outer object, so an ordinary nullable field was published with a label and no
+  kind — "listed but not printable". `unwrapSchema` is shared with the
+  manifest's label lookup, which already unwrapped
+- Consumers updated: `@tc/pages` (`stop.line`), `apps/web` (the bind controls
+  read the shared schema)
+- Breaking? no — `TagRef` is the shape `stop.line` already wrote, given a name
+  and a home; the `valueKindOf` change only widens what it can find
+
 ## 2026-09-04 — the widget contract completed: `WidgetShape`, value kinds, an optional trip
 - Added: `WidgetShape` (`single` | `block` | `repeat`), superseding `MacroKind`
   for widget definitions — `MacroKind` could say inline or block and had nowhere

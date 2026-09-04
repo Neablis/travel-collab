@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -8,9 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import type { PageDoc } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { DEFAULT_TEMPLATES } from "@tc/pages";
+import { DEFAULT_TEMPLATES, macroCatalog } from "@tc/pages";
+import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
+import { MAX_ROWS, slashOptionId } from "./useSlashMenu";
 
 afterEach(cleanup);
 
@@ -198,6 +200,61 @@ describe("PageEditor typography (KI-44)", () => {
     expect(headingCss).toContain("font-weight:");
   });
 
+  // **The caret, and the second time Mitchell reported it.**
+  //
+  // A macro node is an inline atom, so a block-shaped widget is a tall inline
+  // box sitting on the text baseline — it grows the line box upward, and the
+  // browser draws the caret at the line box's height. *"The cursor still
+  // stretches past the sidebar up above the top of the previous widget."*
+  //
+  // jsdom has no layout, so this cannot measure a caret. What it CAN check is
+  // the join the fix depends on and the one that will rot: the node view marks
+  // the widget's shape on the DOM, and the stylesheet takes a block-shaped one
+  // out of the line box. Either half alone is silent — a `data-macro-shape`
+  // nothing selects, or a rule matching an attribute nobody writes — which is
+  // exactly the class of bug KI-44 above was.
+  it("takes a block-shaped widget out of the paragraph's line box, and leaves an inline one in it", async () => {
+    const { container } = render(
+      <PageEditor
+        detail={tripDetailFixture()}
+        context={{ tripId: detail.tripId }}
+        value={newPageDoc([
+          {
+            type: "paragraph",
+            content: [
+              { type: "macro", attrs: { name: "cost.trip", params: {} } },
+              { type: "macro", attrs: { name: "itinerary.trip", params: {} } },
+            ],
+          },
+        ])}
+        onChange={() => {}}
+      />,
+    );
+
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing pattern. The claim is about a CSS selector matching a DOM node, and there is no role or label standing in for either.
+    const blockWidget = container.querySelector('[data-macro-shape="block"]');
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- as above.
+    const inlineWidget = container.querySelector('[data-macro-shape="single"]');
+    // The node view has to have written the attribute at all — a shape read
+    // off the registry that silently answered `undefined` would leave both of
+    // these null and every assertion below vacuous.
+    expect(blockWidget).not.toBeNull();
+    expect(inlineWidget).not.toBeNull();
+
+    const rules = pageEditorRules(await compileGlobalsCss());
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((sel) => el.matches(sel.trim())))
+        .map((r) => r.body)
+        .join(" ");
+
+    expect(declarationsFor(blockWidget!)).toContain("display: block");
+    // A `single` widget IS a word in a sentence and must keep sharing the line
+    // — taking every widget out of the flow would fix the caret by breaking
+    // what a chip is for.
+    expect(declarationsFor(inlineWidget!)).not.toContain("display: block");
+  });
+
   it("restores list markers preflight strips", async () => {
     const detail = tripDetailFixture();
     const content = newPageDoc([
@@ -286,5 +343,221 @@ describe("PageEditor given a macro at block position (KI-2026-09-03-d)", () => {
     } finally {
       editor.destroy();
     }
+  });
+});
+
+// The slash menu — Mitchell, on the preview: *"Typing '/' doesnt bring up the
+// inline widget picker"*. It is the third origin of the one insert command
+// (ADR-037 decision 4), after the popover's click and the drag.
+describe("the slash menu", () => {
+  // The block above stubs `getClientRects` to zero rects, which is enough for
+  // ProseMirror to place a cursor and not enough for it to answer
+  // `coordsAtPos` — and the menu is positioned at the caret, so it asks. One
+  // real rect is the smallest fake that makes the feature reachable; every
+  // assertion below is about the menu's CONTENT, never its coordinates, which
+  // is the part jsdom cannot honestly answer.
+  // The caret's rect, mutable so a test can move it and then fire a scroll —
+  // which is the only way to simulate the page moving under a `position: fixed`
+  // menu in a DOM with no layout.
+  let caretRect = new DOMRect(10, 20, 0, 5);
+  beforeEach(() => {
+    caretRect = new DOMRect(10, 20, 0, 5);
+    Range.prototype.getClientRects = () =>
+      ({ length: 1, item: () => caretRect, 0: caretRect }) as unknown as DOMRectList;
+  });
+
+  const editorFor = (onChange = vi.fn()) => {
+    render(
+      <PageEditor
+        detail={detail}
+        context={context}
+        value={newPageDoc([{ type: "paragraph", content: [] }])}
+        onChange={onChange}
+      />,
+    );
+    return screen.getByRole("textbox");
+  };
+
+  it("opens at the caret when you type a slash, listing widgets by their title", async () => {
+    await userEvent.type(editorFor(), "/");
+    const menu = await screen.findByRole("listbox", { name: "Insert a widget" });
+    expect(within(menu).getAllByRole("option").length).toBeGreaterThan(0);
+    expect(within(menu).getByRole("option", { name: /The trip's name/ })).toBeTruthy();
+  });
+
+  it("narrows as you keep typing, and closes when nothing matches", async () => {
+    const textbox = editorFor();
+    // **A query that matches FEWER widgets than the menu can show.** "trip"
+    // does not: seven widgets match it, the menu caps at six, and the first six
+    // registry entries all match — so an unfiltered menu renders the identical
+    // six rows and every assertion below passes while the filter does nothing
+    // (CodeRabbit, PR 139). The cap was doing the narrowing the test claimed to
+    // be watching.
+    const query = "airport";
+    await userEvent.type(textbox, `/${query}`);
+    const menu = await screen.findByRole("listbox");
+    const shown = within(menu).getAllByRole("option");
+    // **Exactly the widgets that match, in the registry's order.** "some
+    // options exist" passes for a menu that filtered nothing at all, which is
+    // the regression this test is about (CodeRabbit, PR 139).
+    //
+    // The expectation is DERIVED from the same registry and the same matcher
+    // the menu uses, rather than a list of titles typed here: a copied list
+    // goes stale the first time someone adds a widget whose description happens
+    // to say "airport", and would then fail for a reason that is not a bug.
+    const expected = macroCatalog()
+      .filter((w) => widgetMatches(w, query))
+      .slice(0, MAX_ROWS)
+      .map((w) => w.title);
+    expect(expected.length).toBeGreaterThan(0);
+    // The evidence that the FILTER is what shortened the list. If this ever
+    // fails, the registry grew enough matches to reach the cap and the query
+    // above needs to be narrower — not a licence to drop the assertion, which
+    // is the one thing standing between this test and passing on an unfiltered
+    // menu.
+    expect(expected.length).toBeLessThan(MAX_ROWS);
+    expect(shown).toHaveLength(expected.length);
+    for (const [i, option] of shown.entries()) {
+      expect(option.textContent).toContain(expected[i]!);
+    }
+    // And a widget the query does not answer is ABSENT, derived the same way.
+    // Length and order both compare against the filtered list; only this
+    // compares against what was left out.
+    const excluded = macroCatalog().find((w) => !widgetMatches(w, query))!;
+    expect(within(menu).queryByRole("option", { name: new RegExp(excluded.title) })).toBeNull();
+
+    // A query nothing answers closes the menu rather than showing an empty box:
+    // at that point the person is writing a date, not choosing a widget, and a
+    // menu hovering over "9/11" is in the way.
+    await userEvent.type(textbox, "zzzz");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  // The one that matters: the typed `/query` is REPLACED, not left behind.
+  it("inserts the highlighted widget on Enter, and takes the typed query with it", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/trip.name");
+    await screen.findByRole("listbox");
+    await userEvent.type(textbox, "{Enter}");
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    const last = JSON.stringify(onChange.mock.calls.at(-1)![0]);
+    expect(last).toContain('"macro"');
+    expect(last).toContain('"trip.name"');
+    // The text that summoned the menu is gone. Leaving it behind is the defect
+    // this asserts against — the widget lands and the page reads "/trip.name"
+    // beside it.
+    expect(last).not.toContain("/trip.name");
+  });
+
+  // Mitchell, on the preview: *"starting to type the widget should filter down,
+  // then tab iterates and enter selects"*. Tab used to commit like Enter — two
+  // keys doing one job, and the job Tab is actually wanted for left undone.
+  it("moves the highlight on Tab rather than inserting, and Enter takes what Tab landed on", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/");
+    const menu = await screen.findByRole("listbox");
+    const options = within(menu).getAllByRole("option");
+    expect(options.length).toBeGreaterThan(1);
+    // The first row starts selected; Tab moves to the second and inserts
+    // NOTHING on the way.
+    expect(options[0]!.getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.type(textbox, "{Tab}");
+    const afterTab = within(await screen.findByRole("listbox")).getAllByRole("option");
+    expect(afterTab[0]!.getAttribute("aria-selected")).toBe("false");
+    expect(afterTab[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(JSON.stringify(onChange.mock.calls.at(-1)?.[0] ?? {})).not.toContain('"macro"');
+
+    // ...and Enter takes the row Tab landed on, not the one it started on.
+    //
+    // Asserted as the widget's own STORED NAME, not as "a macro landed":
+    // checking for `"macro"` anywhere in the document passes when Enter inserts
+    // the first option, which is precisely the bug Tab-then-Enter exists to
+    // rule out (CodeRabbit, PR 139). The name comes from the option's id, which
+    // `slashOptionId` derives from the registry — so the assertion cannot name
+    // a widget the menu was not actually showing.
+    const chosen = macroCatalog().find((w) => slashOptionId(w.name) === afterTab[1]!.id);
+    expect(chosen).toBeDefined();
+    expect(chosen!.name).not.toBe(macroCatalog().find((w) => slashOptionId(w.name) === afterTab[0]!.id)!.name);
+    await userEvent.type(textbox, "{Enter}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain(`"${chosen!.name}"`);
+  });
+
+  // **The editor keeps focus, so the editor has to announce the listbox.** A
+  // sighted user watches the highlight move as Tab iterates; a screen-reader
+  // user was told nothing, because the focused element had no relationship to
+  // the list and the rows had no ids (Copilot, PR 139).
+  //
+  // Asserted as the LINK rather than as the attributes in isolation: an
+  // `aria-activedescendant` naming an id no option carries is exactly as silent
+  // as none at all, and is what a renamed id would leave behind.
+  it("names the highlighted option on the focused editor, and keeps naming it as Tab moves", async () => {
+    const textbox = editorFor(vi.fn());
+    await userEvent.type(textbox, "/");
+    const menu = await screen.findByRole("listbox");
+    expect(textbox.getAttribute("aria-expanded")).toBe("true");
+    expect(textbox.getAttribute("aria-controls")).toBe(menu.id);
+    expect(menu.id).not.toBe("");
+
+    const activeOption = () =>
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .find((o) => o.getAttribute("aria-selected") === "true")!;
+    expect(textbox.getAttribute("aria-activedescendant")).toBe(activeOption().id);
+    const firstId = activeOption().id;
+
+    await userEvent.type(textbox, "{Tab}");
+    expect(activeOption().id).not.toBe(firstId);
+    expect(textbox.getAttribute("aria-activedescendant")).toBe(activeOption().id);
+
+    // Closed means closed, on ALL THREE attributes. `aria-expanded="true"` left
+    // on a plain text box is worse than never having set it — and so is an
+    // `aria-controls` still naming a listbox that has been removed from the
+    // document, which is the one this checked two of three and missed
+    // (CodeRabbit, PR 139). `useSlashMenu` removes all three together, so the
+    // test has to say all three or it is not testing the teardown it describes.
+    await userEvent.type(textbox, "{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(textbox.hasAttribute("aria-expanded")).toBe(false);
+    expect(textbox.hasAttribute("aria-controls")).toBe(false);
+    expect(textbox.hasAttribute("aria-activedescendant")).toBe(false);
+  });
+
+  // Mitchell, on the preview: *"scrolling on the page should keep the widget
+  // alongside the cursor not the page"*. The menu is positioned at viewport
+  // coordinates, computed when it opened and then only recomputed on a
+  // transaction — and scrolling is not a transaction, so the document slid away
+  // underneath a menu parked where the caret used to be.
+  it("follows the caret when the page scrolls", async () => {
+    await userEvent.type(editorFor(), "/");
+    const menu = await screen.findByRole("listbox");
+    expect(menu.style.top).toBe("25px");
+
+    // The page scrolls: same caret, new viewport position.
+    caretRect = new DOMRect(10, 100, 0, 5);
+    fireEvent.scroll(document, {});
+
+    await waitFor(() => expect(screen.getByRole("listbox").style.top).toBe("105px"));
+  });
+
+  it("closes on Escape without inserting anything", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/trip");
+    await screen.findByRole("listbox");
+    await userEvent.type(textbox, "{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(JSON.stringify(onChange.mock.calls.at(-1)?.[0] ?? {})).not.toContain('"macro"');
+  });
+
+  // `and/or`, a date, a URL. A menu that opens mid-word is the reason people
+  // turn this feature off.
+  it("stays shut for a slash inside a word", async () => {
+    await userEvent.type(editorFor(), "and/or");
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

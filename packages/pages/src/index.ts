@@ -4,4 +4,5 @@
 export * from "./result";
 export * from "./registry-types";
 export * from "./registry";
+export * from "./insert";
 export * from "./templates";

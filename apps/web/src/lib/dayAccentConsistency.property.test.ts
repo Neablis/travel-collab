@@ -14,6 +14,7 @@ import { tripDetailFactory } from "@tc/factories";
 import { chipModel, cityFor } from "@/components/trip/DayChips";
 import { shapeOf } from "@/components/trip/Sparkline";
 import { dayAccents, ACCENT_FAMILIES } from "@/lib/dayAccent";
+import { cityAccents } from "@/components/pages/cityAccents";
 import { witness } from "@/test-support/witness";
 
 const CITY_POOL = ["Tokyo", "Kyoto", "Osaka", "Nikkō", "Hakone", "Naoshima", "Rome", "Paris", "Lisbon", "Berlin"];
@@ -35,8 +36,8 @@ function tripWithCities(cities: readonly (string | null)[]) {
   return trip;
 }
 
-describe("city accent consistency across the sparkline and the board", () => {
-  it("[property] a city appearing in both surfaces resolves to the same accent family", () => {
+describe("city accent consistency across the sparkline, the board and a notebook page", () => {
+  it("[property] a city appearing on any surface resolves to the same accent family", () => {
     const w = witness("sparkline/board accent agreement");
     fc.assert(
       fc.property(
@@ -53,9 +54,19 @@ describe("city accent consistency across the sparkline and the board", () => {
             trip.days.map((day) => ({ city: cityFor(day, trip.activities), stopCount: day.activityIds.length })),
           );
 
+          // The notebook's real derivation (MacroView -> cityAccents), which a
+          // widget naming a city reads for its colour.
+          const notebook = cityAccents(trip);
+
           for (let i = 0; i < cities.length; i++) {
             w.tick();
             expect(sparklineGroups[i]!.family).toBe(boardAccents[i]!.tint);
+            // The notebook is the third surface with the same obligation. It
+            // is asked BOTH ways it can be asked — by day and by city name —
+            // because a widget rendering "Every day at a glance" colours rows
+            // by day and `day.line` colours words by city.
+            expect(notebook.ofDayId(trip.days[i]!.dayId)).toBe(boardAccents[i]!.tint);
+            expect(notebook.ofCity(cities[i]!)).toBe(boardAccents[i]!.tint);
           }
         },
       ),
@@ -75,6 +86,13 @@ describe("city accent consistency across the sparkline and the board", () => {
     );
     expect(boardAccents[1]!.tint).toBe("neutral");
     expect(sparklineGroups[1]!.family).toBe("neutral");
+    // A day with no located stop has no colour on a notebook page either, and
+    // a city the trip never names resolves to the same explicit neutral rather
+    // than to a hashed one it would then share with a real city.
+    const notebook = cityAccents(trip);
+    expect(notebook.ofDayId(trip.days[1]!.dayId)).toBe("neutral");
+    expect(notebook.ofCity(null)).toBe("neutral");
+    expect(notebook.ofCity("Lisbon")).toBe("neutral");
     expect(ACCENT_FAMILIES).not.toContain("neutral");
   });
 
@@ -89,8 +107,10 @@ describe("city accent consistency across the sparkline and the board", () => {
     const sparklineGroups = shapeOf(
       trip.days.map((day) => ({ city: cityFor(day, trip.activities), stopCount: day.activityIds.length })),
     );
+    const notebook = cityAccents(trip);
     for (let i = 0; i < cities.length; i++) {
       expect(sparklineGroups[i]!.family).toBe(boardAccents[i]!.tint);
+      expect(notebook.ofCity(cities[i]!)).toBe(boardAccents[i]!.tint);
       expect(sparklineGroups[i]!.family).not.toBe("neutral");
     }
     expect(new Set(sparklineGroups.map((g) => g.family)).size).toBe(5);

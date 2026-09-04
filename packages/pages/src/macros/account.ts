@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { MacroDef, WidgetContext } from "../registry-types";
-import { inlineOf, text } from "../registry-types";
+import { chip, inlineOf } from "../registry-types";
 import { ok, empty, type MacroResult } from "../result";
 
 const NoParams = z.object({}).strip();
@@ -40,7 +40,7 @@ export const accountName: MacroDef<NoParams, string> = {
     const name = user?.displayName;
     return name == null || name.trim() === "" ? empty() : ok(name);
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 // Home airport, which M17 shipped as a real field (`UserPreferences.homeAirport`
@@ -60,5 +60,5 @@ export const accountHomeAirport: MacroDef<NoParams, string> = {
     const code = user?.homeAirport;
     return code == null || code === "" ? empty() : ok(code);
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };

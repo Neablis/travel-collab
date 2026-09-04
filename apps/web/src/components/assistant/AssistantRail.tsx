@@ -7,6 +7,7 @@ import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
+import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
 
 /**
@@ -73,13 +74,14 @@ export function AssistantRail({
   asksRemaining,
   restoreDraft = null,
   onAsk,
-  onApproveProposal,
-  onRejectProposal,
+  onApproveProposal = () => {},
+  onRejectProposal = () => {},
   approvalBlockedReason = null,
   onNewConversation,
   asking = false,
   askError = null,
   simulated = false,
+  presentation = "docked",
   onHide,
 }: {
   contextLine: string;
@@ -130,9 +132,16 @@ export function AssistantRail({
    * reason it holds no thread: approving reconciles authoritative server state
    * onto the board, which only the board can do.
    */
-  onApproveProposal: (turnId: string) => void;
+  /**
+   * OPTIONAL, because not every scope can produce a proposal. A notebook page's
+   * turn (M14 link 8) reaches only the page tools, which insert — there are no
+   * write commands to collect, so no proposal ever arrives and a required
+   * callback there would be a promise with nothing to keep. Omitted, the rail
+   * renders a proposal card it can never be handed.
+   */
+  onApproveProposal?: (turnId: string) => void;
   /** Discards it. Nothing is sent to the server — rejecting IS not calling it. */
-  onRejectProposal: (turnId: string) => void;
+  onRejectProposal?: (turnId: string) => void;
   /** Why approving is unavailable right now, or `null`. */
   approvalBlockedReason?: string | null;
   /** Clears the thread. Offered only once there is one to clear. */
@@ -145,6 +154,26 @@ export function AssistantRail({
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The answer is real; the authorship is not a model. */
   simulated?: boolean;
+  /**
+   * Which of SPEC §9's presentations this is. Two of the three are built:
+   *
+   * - `docked` — the board's rail. Real layout cost, a flex sibling, so the
+   *   plan shrinks instead of hiding. The default, so the board is unchanged.
+   * - `floating` — a 364×476 card pinned to the bottom-right corner, over the
+   *   page rather than beside it, which costs no layout width at all. The
+   *   notebook's, on Mitchell's call: *"Assistant shouldnt be at the top, it
+   *   should be on the bottom right on desktop, floating till open"*.
+   *
+   * The third, dragging the floating card by its header to park it anywhere,
+   * is still not built — §9 describes it and nothing here forecloses it. It is
+   * also the half of §9 that is pure interaction: where the panel opens is what
+   * Mitchell reported, and where it can be MOVED to is a separate feature.
+   *
+   * It selects a geometry class rather than utilities on the element, for the
+   * reason `.assistant-rail`'s own comment gives at length: a utility class
+   * here silently outranks this file's components layer at every width.
+   */
+  presentation?: "docked" | "floating";
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
@@ -181,7 +210,17 @@ export function AssistantRail({
       // panel edge uses: SPEC §9 calls the docked rail's left edge "a
       // structural wall, not a card edge." Left as-is full-screen — a 2px
       // border at the viewport's own left edge costs nothing.
-      className="assistant-rail flex shrink-0 flex-col self-start border-l-2 border-border-strong bg-surface"
+      //
+      // `floating` swaps the geometry AND the edge: §9's "structural wall, not
+      // a card edge" is a statement about the DOCKED rail, which abuts the plan
+      // it shrank. A floating card abuts nothing — it is a card over a page, so
+      // it takes a card's hairline border, radius and overlay shadow.
+      className={cn(
+        "flex flex-col bg-surface",
+        presentation === "floating"
+          ? "assistant-float overflow-hidden rounded-lg border border-hairline shadow-overlay"
+          : "assistant-rail shrink-0 self-start border-l-2 border-border-strong",
+      )}
     >
       <div className="border-b border-hairline px-4 py-3">
         <div className="flex items-center gap-2">
@@ -302,11 +341,19 @@ export function AssistantRail({
             )}
             <div className="flex gap-1.5">
               <Input
-                // Worded from the scope the question is actually asked in, the
-                // same source `contextLine` is worded from — see the `scope`
-                // prop. It used to say "this day" unconditionally, directly
-                // under a context line reading "Looking at <trip>".
-                placeholder={scope.kind === "day" ? "Ask about this day…" : "Ask about this trip…"}
+                // Worded FROM the scope, for the same reason `contextLine` is:
+                // a box that says "Ask about this day…" under "Looking at Rome
+                // 2027" contradicts the line directly above it. A page's box
+                // says "add to", not "ask about" — its tools insert, and the
+                // one thing a reader must not have to discover by trying is
+                // that an answer here lands in the document.
+                placeholder={
+                  scope.kind === "day"
+                    ? "Ask about this day…"
+                    : scope.kind === "page"
+                      ? "Ask AI to add to this page…"
+                      : "Ask about this trip…"
+                }
                 value={ask}
                 onChange={(e) => setAsk(e.target.value)}
                 disabled={asking}

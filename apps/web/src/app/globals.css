@@ -308,6 +308,43 @@
     }
   }
 
+  /* SPEC §9's FLOATING presentation, and the notebook's. Mitchell, on the
+     preview: *"Assistant shouldnt be at the top, it should be on the bottom
+     right on desktop, floating till open, and always available in both editing
+     and reading mode."*
+
+     364×476 and pinned to the bottom-right corner with §9's own 16px pad —
+     the same corner the bubble occupies, because §9 is explicit that
+     "expanding and collapsing keep the bottom-right corner planted, so the
+     panel grows out of the bubble rather than jumping across the screen".
+
+     `max-height` rather than a flat height, so a short viewport gets a shorter
+     card instead of one running off the top of the screen; §9's clamp is
+     phrased as a viewport clamp with a 16px pad and this is the static half of
+     it. Floating costs no layout width, so unlike the docked rail there is
+     nothing to evict at a narrow width and no compensation rule anywhere else
+     in this file to keep in step.
+
+     z-index 30 matches the mobile rail's, which is what clears TripHeader's 10
+     and `.unscheduled-rack`'s 20; a notebook page carries neither, but a panel
+     that can paint under a header on one route and over it on another is the
+     bug KI-84 was.
+
+     Below 768px this class is not used at all — SPEC §13.5 forbids anything
+     floating over data on a phone, so the notebook keeps a header control and
+     the full-screen rail there. A named class rather than Tailwind utilities
+     for the reason `.assistant-rail` gives above: both presentations have to
+     live in the same layer or one silently outranks the other. */
+  .assistant-float {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 364px;
+    height: 476px;
+    max-height: calc(100dvh - 5.5rem);
+    z-index: 30;
+  }
+
   /* Radix portals render outside the React tree, appended to the end of
      <body> — so an overlay surface needs an explicit layer above whatever
      else is stacked on the page (KI-17: before this existed, sheets and
@@ -487,6 +524,55 @@
      type, it is not that pass. */
   .tc-page-editor {
     @apply max-w-measure;
+  }
+  /* **The page is a document, not a form field.**
+     
+     Measured on the preview (2026-09-04): the focused surface computes
+     `outline: auto 1px` with `outline-offset: 0` and `padding: 0`, so the
+     browser drew its default ring flush against the content box. Everything at
+     column zero — the caret, and the rounded left edge of an inline widget's
+     chip — sat ON that ring. Mitchell reported both halves separately ("cant
+     see the cursor mark in doc when left aligned since its overlapping with
+     border", "the inline helper is overlapping with the border") and they are
+     one cause.
+
+     The caret is a text surface's focus indicator, which is why every serious
+     editor drops the ring here; real controls in this app keep their designed
+     `focus-visible` treatment and are unaffected. The padding is the other
+     half: even with no ring, a chip whose rounded edge begins at x=0 reads as
+     clipped against the page. `-mx-2` keeps the prose column optically where it
+     was, so this fixes the collision without shifting the text everyone is
+     already reading. */
+  .tc-page-editor .ProseMirror {
+    @apply -mx-2 px-2 outline-none;
+  }
+  /* **A widget the size of a paragraph must not sit on the text baseline.**
+     
+     Measured on the preview (2026-09-04): Mitchell reported the caret a second
+     time — *"The cursor still stretches past the sidebar up above the top of
+     the previous widget"* — and the first fix (the focus ring, above) was not
+     the cause. A macro node is an INLINE atom, so a block-shaped widget is an
+     inline box whose bottom edge is the line's baseline. A 300px-tall box on
+     the baseline grows the line box 300px UPWARD, over whatever is above it,
+     and the browser draws the caret at the line box's height — so the caret
+     was not misplaced, it was correctly filling a line the widget had made
+     twenty times too tall.
+
+     `display: block` takes the widget out of that line box. `my-2` is the gap
+     the design gives each block in a page (dc.html:2339, `padding-bottom` on
+     the block wrapper); without it the widget butts against the paragraph
+     above, which is what the shared line box was accidentally providing.
+
+     Deliberately scoped to `block` and `repeat`: a `single` widget IS a word
+     in a sentence (SPEC §7) and its box is the size of one, so it stays inline
+     and shares the line as it should.
+
+     The real answer is a block-level editor node, which is a `PageDoc` schema
+     decision with a migration behind it (ADR-038) and is recorded in the M14
+     gate rather than made here. */
+  .tc-page-editor [data-macro-shape="block"],
+  .tc-page-editor [data-macro-shape="repeat"] {
+    @apply block my-2;
   }
   .tc-page-editor h1 {
     @apply font-display text-2xl font-semibold text-ink mt-6 mb-2;

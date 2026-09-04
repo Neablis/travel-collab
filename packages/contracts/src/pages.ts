@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ActivityTag } from "./activity";
 import { PageDoc } from "./pageDoc";
 
 // A day binding: the value shape of a `day` input inside ONE WIDGET's params
@@ -15,6 +16,29 @@ export const DayRef = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("dayId"), dayId: z.string().uuid() }),
 ]);
 export type DayRef = z.infer<typeof DayRef>;
+
+/**
+ * A tag binding: the value shape of a `tags` input inside ONE WIDGET's params.
+ *
+ * Here for the same reason `DayRef` is, and ADR-037 decision 9 says so outright
+ * — *"they belong in `packages/contracts` because the editor, the AI path and
+ * the resolvers all read them"*. It was declared locally inside `stop.line`
+ * instead, so those three could have drifted on a value that is persisted in
+ * every document carrying that widget. Found by Copilot on PR 139.
+ *
+ * **Absent is a real answer meaning "every stop", not "not configured."** SPEC
+ * §18's table reads *"every stop, or one"*, so a widget with no tag bound is
+ * finished rather than waiting — which is why `stop.line` is useful the moment
+ * it is pointed at a day.
+ *
+ * **This is narrower than decision 9's own row**, which reads `"all" |
+ * ActivityTag[]`. §18 (2026-09-03) is the later document and asks for one tag or
+ * none; a set-valued binding needs a control that can express a set, and nothing
+ * in the design shows one. Recorded in the ADR rather than settled here — if the
+ * set form is wanted, this is the one place it widens.
+ */
+export const TagRef = ActivityTag;
+export type TagRef = z.infer<typeof TagRef>;
 
 // A page is trip-bound and nothing else. It is NOT "about" a day: a page holds
 // widgets and each widget owns its own inputs, so two widgets on one page can

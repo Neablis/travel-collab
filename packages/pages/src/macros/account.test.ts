@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail, UserPreferences } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import { accountName, accountHomeAirport } from "./account";
 import type { WidgetContext } from "../registry-types";
 
@@ -9,7 +10,11 @@ import type { WidgetContext } from "../registry-types";
 // `account.homeAirport` at `displayName` (or the reverse) left the whole suite
 // green. These read DIFFERENT fields from the same context, which is the one
 // thing a shared-context resolver can most easily get wrong.
-const trip = { tripId: "11111111-1111-1111-1111-111111111111" } as unknown as TripDetail;
+// From the factory rather than a partial forced through `as unknown`, which
+// hid contract drift from the type checker as well as breaking the repository's
+// test-data rule (Copilot, PR 139). Only `tripId` matters here — an account
+// widget reads nothing else off the trip, which is the point of these two.
+const trip: TripDetail = tripDetailFixture();
 const ctx = (user: UserPreferences | null): WidgetContext => ({
   trip,
   page: { tripId: trip.tripId },
@@ -48,9 +53,12 @@ describe("account widgets read the field they name", () => {
     expect(accountHomeAirport.resolve(ctx(null), {}).status).toBe("empty");
   });
 
-  it("renders each as a single text segment", () => {
-    expect(accountName.render("Priya")).toEqual({ kind: "inline", segs: [{ kind: "text", text: "Priya" }] });
-    expect(accountHomeAirport.render("SFO")).toEqual({ kind: "inline", segs: [{ kind: "text", text: "SFO" }] });
+  // A CHIP, not text. In Reading there is no chrome row left to say which words
+  // came from the account rather than from the author, so the value itself has
+  // to (Mitchell, on the preview).
+  it("renders each as a chip, so the page says where the value came from", () => {
+    expect(accountName.render("Priya")).toEqual({ kind: "inline", segs: [{ kind: "chip", name: "value", text: "Priya" }] });
+    expect(accountHomeAirport.render("SFO")).toEqual({ kind: "inline", segs: [{ kind: "chip", name: "value", text: "SFO" }] });
   });
 });
 

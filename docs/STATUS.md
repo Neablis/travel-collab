@@ -22,11 +22,50 @@ general setup.
 
 ## Where the work is right now
 
-**M14's editor integration is built and in flight, 2026-09-03.** Branch
-`claude/m14-editor-integration-9idg1r`. `main` is `a99d935`. Merged before it: **#129** (a
-page loses its scope), **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131**
-(`PageDoc`, the versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and
-038 are all Accepted.**
+**#134 IS MERGED (2026-09-04, squashed as `513d8dc`), and the rest of the stack is #139.**
+Because it landed squashed, `main` carries #134's content as a commit unrelated to the
+history the stack carries, so #139 conflicted with its own ancestor — twenty-one add/add
+and content conflicts on files where the two sides are the same work at different ages.
+Resolved to the branch throughout (`806535d`) after checking every main-only line for
+anything newer; there was none, and the merged tree is byte-identical to the branch tip,
+which is the evidence nothing was dropped. **#135–#138 are now redundant** — their content
+is inside #139 — and should be closed rather than merged when #139 lands.
+
+**ADR-039 is PROPOSED (2026-09-04) and is what happens next.** A widget stops being a name
+and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
+came out of Mitchell's preview comment (*"where we have a tool that you can select a day, it
+can also select All at the top, and it gives you a sum"*) and the finding underneath it —
+four of the seventeen widgets are the same widget written twice, differing only in whether a
+filter is set. Twelve primitives replace them; named widgets become presets, which are data
+and are never stored in a document. `docs/specs/2026-09-04-widget-primitives.md` carries the
+primitives, the filter vocabulary, the preset table (which doubles as the migration map from
+today's seventeen names), and the `/cost 3 meal` slash grammar. Mitchell settled its three
+open questions the same evening: person and date-range filters are declared now (person
+honest about having neither a display name on `TripMember` nor any person on a stop to filter
+by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
+while ghost rendering waits for the next milestone.
+
+**M14's builder half is built and in flight, 2026-09-04.** The work is a stack of six
+branches, **#134 → #135 → #136 → #137 → #138 → #139**, and **#139 is retargeted to `main`
+so its diff is the whole stack** — review it there rather than branch by branch. Tip branch
+is `claude/m14-tags-control`. Merged before the stack: **#129** (a page loses its scope),
+**#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are all
+Accepted.**
+
+**What is clickable now**: a notebook page opens in **Reading**, one button flips it to
+Editing, and in Editing a widget can be inserted three ways — a **Popover** off the page
+header, **dragged** from that popover onto the page, or **typed** as `/` at the caret. All
+three go through `insertWidget`, so ADR-037 decision 4 ("no way to put a widget into a
+document that skips validation") holds for each. Each widget carries its own binding and is
+rebindable in place.
+
+**The phone Notebook is built too** (design handoff `6b7e362`, `SPEC.md` §19 / `DRIFT.md`
+§2f, landed 2026-09-04). It adds **no API surface** — same resolvers, same registry, same
+binds — and diverges only on density, in the two places §19 names: rebinding is a 44px
+*"Pointed at …"* button opening a bind sheet, and insert is one bottom sheet with browse and
+*Point it at* as two steps inside it. `widgetBind.tsx` and `WidgetPicker.tsx` are the single
+sources both surfaces read, so a phone cannot offer a day the desktop does not.
 
 **ADR-038 decision 4 is done, with its criterion corrected.** `PageScreen` inspects the
 stored document before mounting: it parses through `PageDoc`, compares the document's node
@@ -35,8 +74,27 @@ explanation and every write path off** when the editor could not mount it. The w
 (`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
 stays permissive on purpose, because you cannot explain a document you refused to deliver.
 
-**The next unit is M14 link 6** (the `repeat` node and the widget authoring vocabulary),
-subject to the M14 split below.
+**M14 link 8 is done, both halves** (2026-09-04). The page tools are insert-shaped
+(`insert_text` / `insert_widget` replacing `compose_page`, ADR-035 decision 5), and the
+notebook's AI surface is now the **assistant rail** — the same one the board runs — rather
+than a prompt box: Mitchell, *"This should be the same style AI Assistant as on the trip
+page, not the top of the UI input box"*. The two changes are one change. `ComposePanel`'s own
+header had recorded why it could not be a conversation — `compose_page` REPLACED the
+document, so *"a page that accumulated turns would have to decide what 'draft this page'
+means the second time"* — and that objection was an objection to replacing. Inserts have an
+obvious second time. `ComposePanel` is deleted.
+
+The conversation machinery moved to **`useAskThread`**, out of `TripBoardScreen`. What stayed
+behind is what is genuinely the board's: the scope, the two pre-ask refusals (view-only,
+unsent edits), and proposals. A page turn carries no proposal — the page tools insert, so
+there are no write commands to collect and nothing to approve.
+
+**The next unit is M14's remaining gate work.** Link 6's `repeat` node shipped as
+fixed-line-per-item via
+`Rendered.rows`: ADR-035 decision 4 says a repeater's content is the author's row template,
+and **row 12 of the catalogue's gap list — how an author edits a row template without seeing
+macro syntax — is still unowned**, so `PageRepeatNode` was left untouched rather than guessed
+at.
 
 ### Four things measured that a session must not re-derive or re-guess
 

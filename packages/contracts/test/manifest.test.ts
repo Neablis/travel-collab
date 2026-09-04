@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
-import { AttributeEntry, AttributeRef, buildAttributeManifest, TripGlobals } from "../src";
+import { AttributeEntry, AttributeRef, buildAttributeManifest, described, TripGlobals, valueKindOf } from "../src";
 
 describe("the attribute manifest", () => {
   it("lists the trip's collections with the fields readable off each member", () => {
@@ -166,5 +166,31 @@ describe("value kinds", () => {
     // (Copilot, PR 134): the builder's output is now checkable, so a malformed
     // entry is a test failure instead of a shape nobody validates.
     for (const entry of buildAttributeManifest()) expect(AttributeEntry.parse(entry)).toEqual(entry);
+  });
+});
+
+// The value kind rides in a `WeakMap` keyed by the schema object `described()`
+// returned, and every later combinator returns a NEW object wrapping it. The
+// label lookup already walked those wrappers; the kind lookup did not, so a
+// field written the ordinary way was published with a label and no kind —
+// "listed but not printable", which is worse than either answer alone because
+// the entry looks complete. Found by Copilot on PR 139.
+describe("a value kind through a schema wrapper", () => {
+  it("survives a combinator applied after described()", () => {
+    expect(valueKindOf(described("date", "When", z.string()).nullable())).toBe("date");
+    expect(valueKindOf(described("money", "Cost", z.number()).optional())).toBe("money");
+    // Two deep, because `.nullable().optional()` is a shape real schemas take.
+    expect(valueKindOf(described("count", "How many", z.number()).nullable().optional())).toBe("count");
+  });
+
+  it("still reads a kind attached to an already-wrapped schema", () => {
+    // The other order, which worked before and must keep working: the kind is
+    // on the OUTER object here, and the walk must not skip past it.
+    expect(valueKindOf(described("text", "Notes", z.string().nullable()))).toBe("text");
+  });
+
+  it("answers undefined for a bare describe(), wrapped or not", () => {
+    expect(valueKindOf(z.string().describe("Just a label"))).toBeUndefined();
+    expect(valueKindOf(z.string().describe("Just a label").nullable())).toBeUndefined();
   });
 });

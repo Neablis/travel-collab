@@ -9,7 +9,7 @@
 // requires, both from the guard's answer and from a scope the server has
 // VERIFIED — never from a client-supplied field (ADR-033 Decision 2). The three
 // sets are disjoint where it matters: a page turn holds no planning write tool,
-// and a planning turn holds no `compose_page`.
+// and a planning turn holds no page insert tool.
 //
 // The turn itself changes nothing. Its write tools collect (writeTools.ts) and
 // the loop ends; what goes out on the stream's last chunk is a resolved
@@ -58,8 +58,8 @@ import {
 import {
   buildPageTools,
   PAGE_TOOL_NAMES,
-  validateComposedPage,
-  type ComposedPage,
+  validatePageInserts,
+  type PageInserts,
 } from "@/server/ai/pageTools";
 import { getPage } from "@/server/pages";
 import type { Geocoder } from "@/server/geocoding";
@@ -89,9 +89,9 @@ const MAX_ASK_STEPS = 8;
  * What one turn may be offered, by what the turn is FOR.
  *
  * Three answers, not two, and the third is a real narrowing rather than a move
- * (ADR-033 Decision 4). A page-authoring turn gets `compose_page` and NO
- * planning write tools; a planning turn gets the write tools and NO
- * `compose_page`. One door is not the widest door: a turn drafting a Notebook
+ * (ADR-033 Decision 4). A page-authoring turn gets the page insert tools and NO
+ * planning write tools; a planning turn gets the write tools and NO page insert
+ * tools. One door is not the widest door: a turn writing into a Notebook
  * page has no business holding `RemoveActivity`, and the separate endpoint it
  * came from existed largely to say so.
  *
@@ -123,7 +123,7 @@ export function offeredToolNamesFor(kind: AskToolSet): readonly string[] {
 //
 // Written as a computation rather than a constant so the rule is executable. The
 // moment a tool that is not in `READ_TOOL_NAMES` is offered — `AddActivity`, or
-// `compose_page` — this answers `editor` without anyone having to remember.
+// `insert_widget` — this answers `editor` without anyone having to remember.
 // Page authoring writes a page, so it lands on the same answer as a planning
 // write, by the same rule and not by a second one. It is not consulted only at
 // the door: the handler asks it what the set it is ABOUT to hand the agent
@@ -663,7 +663,7 @@ export async function handleAskRequest(
         if (part.type !== "finish") return undefined;
         // At most one of these is non-null — the tool sets are disjoint above —
         // so the final chunk carries a proposal or a page, never both.
-        if (pageTools !== null) return composedPageMetadata(pageTools.getComposed());
+        if (pageTools !== null) return pageInsertsMetadata(pageTools.getInserts());
         if (writeTools === null) return undefined;
         const proposal = buildProposal(writeTools.getCollected(), detail, { tripId, actorId: userId });
         return proposal === null ? undefined : { proposal };
@@ -716,30 +716,34 @@ function briefFor(page: Page | null): PageBrief | null {
 }
 
 /**
- * The composed page, on the run's final chunk — or the reason there isn't one.
+ * What the turn wants inserted, on the run's final chunk — or the reason there
+ * is nothing.
  *
- * **`validateComposedPage` runs HERE, before a byte of the doc leaves the
- * server.** `compose_page`'s schema closes the macro NAME against the registry
- * but not its params, so a macro carrying a params bag its own schema rejects
- * passes the tool and fails this. The endpoint this replaced answered that with
- * a 422; a stream has already sent its 200, so the refusal rides out as data
- * the panel renders — but the doc itself still never reaches the client.
+ * **Validation runs HERE, before a byte leaves the server.** `insert_widget`'s
+ * schema closes the widget NAME against the registry and `insertWidget` checks
+ * its params, so this is the second look rather than the only one — but it is
+ * the one that sees the assembled result, including whatever `insert_text`
+ * produced. The endpoint this replaced answered a bad doc with a 422; a stream
+ * has already sent its 200, so the refusal rides out as data the client renders
+ * — the nodes themselves still never reach it.
  *
- * **There is no approval step, and that is deliberate.** The doc lands in the
- * editor and the Notebook's existing debounced autosave persists it
- * (PageScreen.tsx) — which is what `onApply` has always expected and exactly
- * what the command endpoint already did. A proposal exists because a planning
- * batch commits events; a page draft is text in an editor the user is looking
- * at, and interposing an Approve button between "Generate" and "it appears"
- * would be a new step this move did not ask for.
+ * **There is no approval step, and that is deliberate.** The nodes land in the
+ * editor and the Notebook's existing debounced autosave persists them — which
+ * is what `onApply` has always expected. A proposal exists because a planning
+ * batch commits events; inserted prose is text in an editor the user is looking
+ * at, and interposing an Approve button between asking and seeing it would be a
+ * new step this move did not ask for.
+ *
+ * **Nothing inserted is not an error the way no page composed was.** A turn can
+ * legitimately answer a question about the page without editing it — that is
+ * most of what a conversation does — so an empty insert list is silence, not a
+ * failure. Only a turn that produced nodes which fail validation reports one.
  */
-function composedPageMetadata(composed: ComposedPage | null): Record<string, unknown> {
-  if (composed === null) {
-    return { composeError: "The assistant didn't draft a page this time. Try asking again." };
-  }
-  const validated = validateComposedPage(composed.content);
+function pageInsertsMetadata(inserts: PageInserts): Record<string, unknown> {
+  if (inserts.nodes.length === 0) return {};
+  const validated = validatePageInserts(inserts.nodes);
   if ("error" in validated) return { composeError: validated.error };
-  return { composedPage: { title: composed.title, content: validated } };
+  return { pageInserts: { content: validated } };
 }
 
 // Status codes for a batch the executor refused. The same table the command
@@ -985,20 +989,28 @@ export function instructionsFor(
  * The system instruction for a page-authoring turn.
  *
  * It carries the macro catalog because that is the one thing no tool returns:
- * `compose_page`'s schema closes the macro NAME set (pageTools.ts derives it
+ * `insert_widget`'s schema closes the widget NAME set (pageTools.ts derives it
  * from the registry), but a model that has never seen the descriptions emits
- * macros with the wrong params and `validateComposedPage` rejects the whole
- * page. The old envelope shipped this same catalog alongside a full trip
- * summary; the summary is gone because the read tools answer for the trip, and
- * a turn that needs day 3 now asks for day 3 instead of paying for all fourteen.
+ * widgets with the wrong params, and `insertWidget` refuses each one. The old
+ * envelope shipped this same catalog alongside a full trip summary; the summary
+ * is gone because the read tools answer for the trip, and a turn that needs day
+ * 3 now asks for day 3 instead of paying for all fourteen.
  */
 function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): string {
   return [
-    "You are the travel-collab trip assistant, and on this turn you are WRITING one page of this trip's Notebook.",
-    `The page is called "${page.title}". Draft its whole body — you are replacing what is there, not appending to it.`,
+    "You are the travel-collab trip assistant, and on this turn you are ADDING to one page of this trip's Notebook.",
+    `The page is called "${page.title}". You are inserting into what is already there — never rewriting or replacing the page.`,
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
     "Call read_trip first for the trip's shape, and read_day for what happens on a day (it is the only place stop times live).",
-    "Then call compose_page ONCE, with the finished page: a title and an ordered list of blocks.",
+    // **This said `compose_page` until 2026-09-04, and that tool no longer
+    // exists** (ADR-035 decision 5 replaced it with the two insert tools). A
+    // live model was being told to call a name absent from its own tool list,
+    // and to replace a document the surface no longer replaces. The simulated
+    // model hid it: it emits `insert_text` regardless of what it is told.
+    // Found by CodeRabbit and Copilot on PR 139.
+    "Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there.",
+    "insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences.",
+    "insert_widget takes a widget name and that widget's own params. Omit the params to insert it unbound, which is valid — the reader points it at a day afterwards.",
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.
@@ -1014,7 +1026,7 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     "A page is not about any one day: a day-scoped macro reads the day from its own settings. Write the page about the trip as a whole and prefer the trip-scoped macros — a day-scoped one drafted with no day set renders as a 'no day set' placeholder instead of a value.",
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
-    "Then say ONE short sentence about what you drafted. The page lands in the editor for the user to review and edit, so never say you have saved or published it.",
+    "Then say ONE short sentence about what you added. What you inserted lands in the editor for the user to review and edit, so never say you have saved or published it.",
     askScopeLine(scope),
   ].join("\n");
 }
