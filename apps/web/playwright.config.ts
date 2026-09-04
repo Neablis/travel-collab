@@ -88,7 +88,12 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
-      testIgnore: [/responsive\.spec\.ts/, /m16-mobile-assistant\.spec\.ts/],
+      // Every breakpoint-specific spec, or the desktop project runs it too — at
+      // 1280px, where the phone branch it is about does not exist. That is what
+      // happened the first time `m14-mobile-notebook` landed: it passed in
+      // "phone" and failed twice in "desktop", looking for a bind sheet a
+      // desktop correctly does not have. The two lists have to be kept in step.
+      testIgnore: [/responsive\.spec\.ts/, /m16-mobile-assistant\.spec\.ts/, /m14-mobile-notebook\.spec\.ts/],
     },
     {
       name: "narrow",
