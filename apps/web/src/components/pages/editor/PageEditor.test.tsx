@@ -199,6 +199,61 @@ describe("PageEditor typography (KI-44)", () => {
     expect(headingCss).toContain("font-weight:");
   });
 
+  // **The caret, and the second time Mitchell reported it.**
+  //
+  // A macro node is an inline atom, so a block-shaped widget is a tall inline
+  // box sitting on the text baseline — it grows the line box upward, and the
+  // browser draws the caret at the line box's height. *"The cursor still
+  // stretches past the sidebar up above the top of the previous widget."*
+  //
+  // jsdom has no layout, so this cannot measure a caret. What it CAN check is
+  // the join the fix depends on and the one that will rot: the node view marks
+  // the widget's shape on the DOM, and the stylesheet takes a block-shaped one
+  // out of the line box. Either half alone is silent — a `data-macro-shape`
+  // nothing selects, or a rule matching an attribute nobody writes — which is
+  // exactly the class of bug KI-44 above was.
+  it("takes a block-shaped widget out of the paragraph's line box, and leaves an inline one in it", async () => {
+    const { container } = render(
+      <PageEditor
+        detail={tripDetailFixture()}
+        context={{ tripId: detail.tripId }}
+        value={newPageDoc([
+          {
+            type: "paragraph",
+            content: [
+              { type: "macro", attrs: { name: "cost.trip", params: {} } },
+              { type: "macro", attrs: { name: "itinerary.trip", params: {} } },
+            ],
+          },
+        ])}
+        onChange={() => {}}
+      />,
+    );
+
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing pattern. The claim is about a CSS selector matching a DOM node, and there is no role or label standing in for either.
+    const blockWidget = container.querySelector('[data-macro-shape="block"]');
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- as above.
+    const inlineWidget = container.querySelector('[data-macro-shape="single"]');
+    // The node view has to have written the attribute at all — a shape read
+    // off the registry that silently answered `undefined` would leave both of
+    // these null and every assertion below vacuous.
+    expect(blockWidget).not.toBeNull();
+    expect(inlineWidget).not.toBeNull();
+
+    const rules = pageEditorRules(await compileGlobalsCss());
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((sel) => el.matches(sel.trim())))
+        .map((r) => r.body)
+        .join(" ");
+
+    expect(declarationsFor(blockWidget!)).toContain("display: block");
+    // A `single` widget IS a word in a sentence and must keep sharing the line
+    // — taking every widget out of the flow would fix the caret by breaking
+    // what a chip is for.
+    expect(declarationsFor(inlineWidget!)).not.toContain("display: block");
+  });
+
   it("restores list markers preflight strips", async () => {
     const detail = tripDetailFixture();
     const content = newPageDoc([
