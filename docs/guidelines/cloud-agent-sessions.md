@@ -166,6 +166,31 @@ works for a cloud session:
 | A **cloud** Claude Code session | the **Claude Code environment's** variables (Claude Code web → that environment's settings) | The container's environment is fixed at boot. Vercel holding the value does not put it in the session |
 | CI | the workflow env | Same mechanism as every other secret there |
 
+### A fresh worktree has no `.env.local`, and the failure does not say so
+
+`scripts/setup-env.mjs` runs at session start and writes `apps/web/.env.local`
+**in the primary worktree only**. The file is gitignored, so a worktree created
+later with `git worktree add` starts without it — and nothing tells you until a
+build gets far enough to need a database:
+
+    Error: Failed to collect page data for /api/health/ai-mode
+      [cause]: Error: DATABASE_URL is not set. Copy .env.example to apps/web/.env.local
+
+That reads like a broken route. It is a missing file, and it costs a full
+`test:e2e:ci-like` cycle (build included) to find out. Measured 2026-09-04 in a
+worktree three deep in a stack, where the first run had already been spent on a
+different error, so the second one landed here.
+
+**Before running anything heavier than a unit test in a new worktree:**
+
+    cp <primary-worktree>/apps/web/.env.local apps/web/.env.local
+    # or, equivalently:
+    pnpm setup
+
+`pnpm --filter web test` does not need it, which is exactly why the gap survives
+until the expensive lane. `test:e2e:ci-like`, `test:int` and every `db:*` script
+do.
+
 **A real environment variable wins over `.env.local`.** Node's `--env-file`
 only fills in names that are not already set (verified on Node 22:
 `PROBE=from_environment node --env-file-if-exists=.env.local` prints
