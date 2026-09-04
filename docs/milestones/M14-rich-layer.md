@@ -100,6 +100,17 @@ Mitchell's framing, 2026-09-03:
    beside it, replacing `compose_page`'s whole-document round trip. `AskScope` already
    carries `{ kind: "page"; pageId }` and `/ask` already verifies the page (ADR-033), so
    this is a tool-list change, not new plumbing.
+   *(**Built, both halves, 2026-09-04.** It turned out to be a tool-list change AND a
+   surface change, because the two are the same change. `ComposePanel` sent one message and
+   kept no thread, and its own header said why: `compose_page` replaced the document, so
+   "a page that accumulated turns would have to decide what 'draft this page' means the
+   second time". That was an objection to REPLACING; inserts have an obvious second time.
+   So the notebook's AI surface is the **assistant rail** now — Mitchell, on the preview:
+   *"This should be the same style AI Assistant as on the trip page, not the top of the UI
+   input box"* — and `ComposePanel` is deleted rather than kept beside it, two AI surfaces
+   on one page being the second insert path all over again. The conversation machinery came
+   out of `TripBoardScreen` into `useAskThread`; a page turn carries **no proposal**, since
+   the page tools insert and there are no write commands to collect.)*
 9. **Notebook history — ADR-036 accepted, then built.** *(Accepted 2026-09-03, and
    **unblocked the same day**. The open question was where an unsettled draft lives once
    `pages` is a projection: 800ms autosave against once-per-session events means a rebuild
