@@ -61,9 +61,10 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // (env-gated test routing, an in-server MSW setup, etc.) — out of scope for
 // this task. Mitchell's hard constraint: no e2e test may ever make a real
 // call to the Vercel AI Gateway or any model provider (token cost). So this
-// spec only asserts `ComposePanel` renders (prompt box + submit button);
-// the actual compose behavior against a mocked model is covered by
-// apps/web/src/app/api/trips/[tripId]/ai/route.int.test.ts.
+// spec only asserts the assistant rail OPENS on a page (composer + Ask
+// button); what a turn actually does is covered by
+// apps/web/src/app/api/trips/[tripId]/ask/route.int.test.ts and, on the client
+// side, by PageAssistant.test.tsx.
 test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
@@ -93,15 +94,22 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  // -- ComposePanel renders (no real AI call — see the file-header note) --
-// It is an EDITING control now: left mounted in Reading it made that mode a
-  // lie, since what it writes is autosaved. So this asserts both halves —
-  // absent in Reading, present once editing.
-  await expect(page.getByLabel("Ask AI to add to this page")).toBeHidden();
+  // -- the assistant rail opens on a page (no real AI call — see the header) --
+  // It is an EDITING control: left mounted in Reading it made that mode a lie,
+  // since what it inserts is autosaved. So this asserts both halves — absent in
+  // Reading, present once editing.
+  //
+  // The rail replaced the prompt box in M14 link 8 (Mitchell: *"This should be
+  // the same style AI Assistant as on the trip page, not the top of the UI
+  // input box"*), which became possible when the page tools stopped replacing
+  // the document and started inserting into it (ADR-035 decision 5).
+  await expect(page.getByRole("button", { name: /Assistant/ })).toBeHidden();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByLabel("Ask AI to add to this page")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
   await page.getByRole("button", { name: "Done editing" }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
 
   // -- Day Sheet: its own starter text --
   // The day-binding control this used to drive went with SPEC §18: a page has

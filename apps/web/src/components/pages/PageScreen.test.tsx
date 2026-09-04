@@ -232,14 +232,21 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
     expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
-    // The compose box is an authoring control too. Leaving it mounted made
-    // "Reading" a lie: it replaces the whole document and autosaves it, so a
-    // page in Reading could still be rewritten by the assistant.
-    expect(screen.queryByLabelText(/ask ai to add to this page/i)).toBeNull();
+    // The assistant is an authoring control too. Leaving it mounted made
+    // "Reading" a lie: what it inserts is autosaved, so a page in Reading could
+    // still be changed by it.
+    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
-    expect(screen.getByLabelText(/ask ai to add to this page/i)).toBeTruthy();
+    // The notebook's AI surface is the assistant rail now, not a prompt box —
+    // Mitchell: *"This should be the same style AI Assistant as on the trip
+    // page, not the top of the UI input box"*. Opened from the header, so it
+    // needs no floating pill (SPEC §13.5 forbids one on a phone).
+    const launcher = screen.getByRole("button", { name: /Assistant/ });
+    expect(launcher).toBeTruthy();
+    await userEvent.click(launcher);
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
@@ -489,10 +496,14 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it("takes the compose panel away too, since applying a draft would overwrite the page", async () => {
+  it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withRepeat);
     await screen.findByRole("status");
-    expect(screen.queryByLabelText(/ask ai to add to this page/i)).toBeNull();
+    // Not only the rail — its launcher. This branch never mounts an editor at
+    // all (that is the whole of decision 4), so an assistant offered here would
+    // be a control with nowhere to put its answer.
+    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 
   it("locks a document it cannot parse at all, and says so without pretending to show it", async () => {

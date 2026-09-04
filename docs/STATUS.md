@@ -51,10 +51,23 @@ explanation and every write path off** when the editor could not mount it. The w
 (`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
 stays permissive on purpose, because you cannot explain a document you refused to deliver.
 
-**The next unit is M14 link 8's second half** — the assistant's page tools. The server half
-(`insert_text` / `insert_widget` replacing `compose_page`, ADR-035 decision 5) is written on
-`claude/m14-link8-insert-tools`; the client half mounts `AssistantRail` page-scoped and
-retires `ComposePanel`. Link 6's `repeat` node shipped as fixed-line-per-item via
+**M14 link 8 is done, both halves** (2026-09-04). The page tools are insert-shaped
+(`insert_text` / `insert_widget` replacing `compose_page`, ADR-035 decision 5), and the
+notebook's AI surface is now the **assistant rail** — the same one the board runs — rather
+than a prompt box: Mitchell, *"This should be the same style AI Assistant as on the trip
+page, not the top of the UI input box"*. The two changes are one change. `ComposePanel`'s own
+header had recorded why it could not be a conversation — `compose_page` REPLACED the
+document, so *"a page that accumulated turns would have to decide what 'draft this page'
+means the second time"* — and that objection was an objection to replacing. Inserts have an
+obvious second time. `ComposePanel` is deleted.
+
+The conversation machinery moved to **`useAskThread`**, out of `TripBoardScreen`. What stayed
+behind is what is genuinely the board's: the scope, the two pre-ask refusals (view-only,
+unsent edits), and proposals. A page turn carries no proposal — the page tools insert, so
+there are no write commands to collect and nothing to approve.
+
+**The next unit is M14's remaining gate work.** Link 6's `repeat` node shipped as
+fixed-line-per-item via
 `Rendered.rows`: ADR-035 decision 4 says a repeater's content is the author's row template,
 and **row 12 of the catalogue's gap list — how an author edits a row template without seeing
 macro syntax — is still unowned**, so `PageRepeatNode` was left untouched rather than guessed

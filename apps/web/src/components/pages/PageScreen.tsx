@@ -18,7 +18,9 @@ import {
   toStoredPageDoc,
   type StoredPageDoc,
 } from "@/components/pages/editor/storedPageDoc";
-import { ComposePanel } from "@/components/pages/ai/ComposePanel";
+import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { useAskThread } from "@/components/assistant/useAskThread";
+import type { ApiError } from "@/lib/apiClient";
 
 type Status = "loading" | "ready" | "error";
 
@@ -135,6 +137,51 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   saveContentRef.current = saveContent;
   useEffect(() => () => saveContentRef.current.cancel(), []);
 
+  // The editor, held in a ref as well as in state, so the ask handler below —
+  // which is created before `editor` exists and outlives several renders — can
+  // reach the live one. Reading `editor` from the closure would insert into
+  // whatever editor existed when the turn started.
+  const editorRef = useRef<Editor | null>(null);
+  editorRef.current = editor;
+
+  // **The notebook's AI surface is the assistant rail, not a prompt box.**
+  // Mitchell, walking the preview (2026-09-04): *"This should be the same style
+  // AI Assistant as on the trip page, not the top of the UI input box"*.
+  //
+  // It became possible in the same change that made it right. `ComposePanel`
+  // sent one message and kept no thread, and its own header explained why it
+  // could not do better: `compose_page` REPLACED the document, so *"a page that
+  // accumulated turns would have to decide what 'draft this page' means the
+  // second time"*. ADR-035 decision 5 made the tools insert-shaped, and
+  // inserting has an obvious second time — every turn counts, in call order. So
+  // the objection dissolved and the rail is simply the right surface.
+  //
+  // A page turn carries **no proposal**: the page tools insert, so there are no
+  // write commands to collect and nothing to approve. That is why the rail's
+  // two proposal callbacks are optional and omitted here rather than passed as
+  // no-ops that would imply a review step exists.
+  const ask = useAskThread({
+    tripId,
+    scope: { kind: "page", pageId },
+    // /ask's own 400s are specific and actionable ("your message must be 4000
+    // characters or fewer"); rewriting them here would throw that away. The
+    // board's `askErrorMessage` branches on two trip-level refusal codes that
+    // cannot reach a page, so this is deliberately the identity rather than a
+    // copy of it that would go stale.
+    errorMessage: (error: ApiError) => error.message,
+    onEvent: (event) => {
+      // Already validated against the macro registry server-side and re-parsed
+      // against `PageDoc` on the way in, so there is nothing left to check
+      // here. It goes in through the SAME `insertContent` chain a click and a
+      // drop use — one mechanism, so the AI cannot develop placement rules of
+      // its own.
+      if (event.type === "page-inserts") {
+        editorRef.current?.chain().focus().insertContent(event.content.content as never).run();
+      }
+    },
+  });
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
   if (status === "loading") return <PageContainer>Loading…</PageContainer>;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
@@ -232,6 +279,20 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           {editing && editor !== null ? (
             <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
           ) : null}
+          {/* The rail is opened from here rather than from a floating pill.
+              SPEC §13.5 forbids one outright on a phone ("Nothing floats over
+              data. No floating action button."), and this header row already
+              holds the other two editing controls — so it needs no second entry
+              point and no breakpoint-dependent one. */}
+          {editing ? (
+            <Button
+              variant="secondary"
+              aria-pressed={assistantOpen}
+              onClick={() => setAssistantOpen((was) => !was)}
+            >
+              <span aria-hidden>◎</span> Assistant
+            </Button>
+          ) : null}
           <Button
             variant={editing ? "primary" : "secondary"}
             aria-pressed={editing}
@@ -256,31 +317,55 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           border ended up 1px under the title while the seams either side of it
           are 8px and 12px. Caught on the preview walk, not by any test — no
           layer we have asserts vertical rhythm. */}
-      <div className="mb-3 mt-3">
-{/* Editing only. Left mounted, "Reading" was a lie: the assistant
-            writes into the document and it autosaves, so a page put into
-            Reading could still be changed by it. Unmounting also aborts any
-            turn in flight, through the cleanup the panel already has. Found by
-            Copilot on PR 139, and by Mitchell on the preview ("you can kinda
-            still select a widget when not editing"). */}
-        {editing ? <ComposePanel tripId={tripId} pageId={pageId} onInsert={insertAtCursor} /> : null}
+      <div className="mt-3 flex items-start gap-4">
+        {/* The document gets the column. The WIDGET surface used to be an
+            `<aside>` flex sibling here, so opening it narrowed the prose the
+            author was writing — Mitchell, on the preview: *"The widgets should
+            be more of a popover side bar so they dont interrupt the document
+            flow when open"*. It is a portalled Popover in the header now (and a
+            bottom sheet on a phone, SPEC §19), which cannot reflow a line of
+            this. The rail below is the opposite case and deliberately so: it is
+            a conversation you keep open beside what you are writing, which is
+            what real layout is for and what the board already does. */}
+        <div className="min-w-0 flex-1">
+          <PageEditor
+            detail={trip}
+            context={page.context}
+            user={user}
+            globals={globals}
+            value={stored.doc}
+            onChange={handleContentChange}
+            onEditorReady={handleEditorReady}
+            editable={editing}
+          />
+        </div>
+        {/* Editing only, and unmounted rather than hidden. Left mounted in
+            Reading it made that mode a lie: what it inserts is autosaved, so a
+            page put into Reading could still be changed by it. Unmounting also
+            hangs up on a turn still streaming, through `useAskThread`'s own
+            cleanup. Found by Copilot on PR 139, and by Mitchell on the preview
+            ("you can kinda still select a widget when not editing"). */}
+        {editing && assistantOpen ? (
+          <AssistantRail
+            contextLine={`Looking at ${page.title}`}
+            scope={{ kind: "page", pageId }}
+            turns={ask.thread}
+            // No suggestion chips. The board derives its four from real trip
+            // state (`suggestedQuestions.ts`); a page has no equivalent to
+            // derive from, and inventing four fixed prompts here would be the
+            // hardcoded array M16 Wave 2 deleted, wearing a notebook badge.
+            suggestions={[]}
+            asksRemaining={ask.asksRemaining}
+            restoreDraft={ask.restoredDraft}
+            onNewConversation={ask.startNewConversation}
+            onAsk={(text) => void ask.runAsk(text)}
+            asking={ask.asking}
+            askError={ask.askError}
+            simulated={ask.simulated}
+            onHide={() => setAssistantOpen(false)}
+          />
+        ) : null}
       </div>
-      {/* The document gets the full column back. The insert surface used to be
-          an `<aside>` flex sibling here, so opening it narrowed the prose the
-          author was writing — Mitchell, on the preview: *"The widgets should be
-          more of a popover side bar so they dont interrupt the document flow
-          when open"*. It is a portalled Popover in the header now (and a bottom
-          sheet on a phone, SPEC §19), which cannot reflow a line of this. */}
-      <PageEditor
-        detail={trip}
-        context={page.context}
-        user={user}
-        globals={globals}
-        value={stored.doc}
-        onChange={handleContentChange}
-        onEditorReady={handleEditorReady}
-        editable={editing}
-      />
     </PageContainer>
   );
 }

@@ -73,8 +73,8 @@ export function AssistantRail({
   asksRemaining,
   restoreDraft = null,
   onAsk,
-  onApproveProposal,
-  onRejectProposal,
+  onApproveProposal = () => {},
+  onRejectProposal = () => {},
   approvalBlockedReason = null,
   onNewConversation,
   asking = false,
@@ -130,9 +130,16 @@ export function AssistantRail({
    * reason it holds no thread: approving reconciles authoritative server state
    * onto the board, which only the board can do.
    */
-  onApproveProposal: (turnId: string) => void;
+  /**
+   * OPTIONAL, because not every scope can produce a proposal. A notebook page's
+   * turn (M14 link 8) reaches only the page tools, which insert — there are no
+   * write commands to collect, so no proposal ever arrives and a required
+   * callback there would be a promise with nothing to keep. Omitted, the rail
+   * renders a proposal card it can never be handed.
+   */
+  onApproveProposal?: (turnId: string) => void;
   /** Discards it. Nothing is sent to the server — rejecting IS not calling it. */
-  onRejectProposal: (turnId: string) => void;
+  onRejectProposal?: (turnId: string) => void;
   /** Why approving is unavailable right now, or `null`. */
   approvalBlockedReason?: string | null;
   /** Clears the thread. Offered only once there is one to clear. */
@@ -302,11 +309,19 @@ export function AssistantRail({
             )}
             <div className="flex gap-1.5">
               <Input
-                // Worded from the scope the question is actually asked in, the
-                // same source `contextLine` is worded from — see the `scope`
-                // prop. It used to say "this day" unconditionally, directly
-                // under a context line reading "Looking at <trip>".
-                placeholder={scope.kind === "day" ? "Ask about this day…" : "Ask about this trip…"}
+                // Worded FROM the scope, for the same reason `contextLine` is:
+                // a box that says "Ask about this day…" under "Looking at Rome
+                // 2027" contradicts the line directly above it. A page's box
+                // says "add to", not "ask about" — its tools insert, and the
+                // one thing a reader must not have to discover by trying is
+                // that an answer here lands in the document.
+                placeholder={
+                  scope.kind === "day"
+                    ? "Ask about this day…"
+                    : scope.kind === "page"
+                      ? "Ask AI to add to this page…"
+                      : "Ask about this trip…"
+                }
                 value={ask}
                 onChange={(e) => setAsk(e.target.value)}
                 disabled={asking}

@@ -27,22 +27,19 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
+import type { AssistantTurn } from "@/components/assistant/Transcript";
+import { useAskThread } from "@/components/assistant/useAskThread";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
 import {
   AI_NOT_ENTITLED_CODE,
-  ASK_ABORTED_CODE,
   DEMO_TRIP_UNSUPPORTED_CODE,
   applyAssistantProposal,
-  askAssistant,
   type ApiError,
   type AskScope,
-  type AskWireMessage,
 } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
-import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 
 // Closed until asked for, at every width (Mitchell, walking the #71 preview:
 // "Can we default the assistant to minimized? Its a better experience").
@@ -105,15 +102,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // visitor has no outcome but an error. This is the one control on the board
   // with no read-only half to fall back to.
   const isDemo = isDemoTripId(tripId);
-  const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [askError, setAskError] = useState<string | null>(null);
-  // The conversation itself, oldest turn first. See runAsk below for why it
-  // lives here rather than in the rail.
-  const [thread, setThread] = useState<AssistantTurn[]>([]);
-  // Turn ids only have to be unique within one thread and stable across
-  // re-renders; a counter says so and stays deterministic under test, where
-  // crypto.randomUUID would not.
-  const turnSeq = useRef(0);
+  // The conversation lives in `useAskThread` now — it is the same machinery a
+  // notebook page needs (M14 link 8), and two copies would have meant two
+  // thread ceilings and two definitions of "this turn was abandoned". What
+  // stays here is what is genuinely the board's: the scope, the two refusals
+  // below, and proposals.
   // `pending`, readable AFTER an await — where the render closure's copy is
   // stale by a whole AI batch round-trip (see `approveProposal`). Assigned
   // during render rather than in an effect, the same way TripProvider keeps
@@ -122,24 +115,45 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // runs conditionally, and a `useRef` there is a hook-order violation.
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
-  // Held so "New conversation" — and unmounting — can hang up on a turn that
-  // is still streaming. Without it the composer stays disabled behind an
-  // answer nobody wants, and navigating away mid-answer leaves the read
-  // running and its setState firing into a tree that is gone.
-  const askAbort = useRef<AbortController | null>(null);
-  // Runs on unmount only, so it must not be keyed on anything that changes.
-  useEffect(() => () => askAbort.current?.abort(), []);
-  // The text of a turn that was rolled back, handed to the rail to put back in
-  // its composer. See the rollback in runAsk for why.
-  const [restoredDraft, setRestoredDraft] = useState<string | null>(null);
+  // Scope, derived HERE rather than beside its first use further down, because
+  // the hook below it is a hook: everything past the `status` early returns
+  // runs conditionally, and calling `useAskThread` there is a hook-order
+  // violation. `activeTrip` is null until the trip loads, and a scope with no
+  // trip behind it is simply trip-scoped — the same "wider reading is the safer
+  // one" call `parseAskScope` makes server-side for a scope line it cannot
+  // parse, and unobservable in any case because the rail is not rendered yet.
+  //
+  // The clamp is real and was a bug: focusing the last day and then deleting it
+  // left a scope pointing past the end, and every answer came back
+  // `this trip has N days, so day N+1 is out of range` with no way back.
+  const scopedDay =
+    focusedDay !== null && activeTrip !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
+  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
+  // NUMBER a human reads is +1, and that conversion happens in one place.
+  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
+  // The conversation itself. What the board still owns is the one event only it
+  // can act on: a `proposal`, attached to the answer and still PENDING. Nothing
+  // has been committed — the only thing that writes is `applyAssistantProposal`,
+  // below, behind the Approve button.
+  const ask = useAskThread({
+    tripId,
+    scope: askScope,
+    errorMessage: askErrorMessage,
+    onEvent: (event, patchAnswer) => {
+      if (event.type !== "proposal") return;
+      patchAnswer((turn) => ({
+        ...turn,
+        proposal: { proposal: event.proposal, status: "pending", note: null },
+      }));
+    },
+  });
+  const thread = ask.thread;
   // Collapsed by default (Phase 3's design). The open flag is paired with who
   // opened it, because a drag auto-opens the drawer and must only re-close the
   // ones it opened itself — that rule lives in `rackDisclosure` (a pure
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
-  // Whether the rail's last answer was simulated (ai-live flag off).
-  const [askSimulated, setAskSimulated] = useState(false);
   // CodeRabbit (PR #46 final review): the assistant's minimized launcher and
   // the unscheduled rack are both independently `position: fixed` to the
   // viewport (see UnscheduledRack's own comment for why the rack can't just
@@ -306,11 +320,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //
   // Clamping to `null` is the same "wider reading is the safer one" call
   // `parseAskScope` makes server-side for a scope line it cannot parse.
-  const scopedDay = focusedDay !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
-  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
-  // NUMBER a human reads is +1, and that conversion happens in one place.
-  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
-
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
     void dispatch({
       type: "UpdateActivity",
@@ -443,117 +452,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the whole of it is posted back on every turn. It survives hiding the rail
   // (this component stays mounted) and dies with the page, which is the
   // honest lifetime for something the server keeps nothing of.
-  const nextTurnId = (prefix: string) => {
-    turnSeq.current += 1;
-    return `${prefix}${turnSeq.current}`;
-  };
-
-  const runAsk = async (text: string) => {
-    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
-    const answerId = nextTurnId("a");
-    // `thread` from this render's closure is the thread the user is looking
-    // at: only one turn can be in flight (the composer and the suggestion
-    // chips are both disabled while `asking`), so there is no newer one.
-    const posted: AskWireMessage[] = [
-      ...thread
-        // A turn that failed before it produced any text is dropped below, but
-        // a partial one is kept — and an empty `parts` array is not a message
-        // the server's validator will accept.
-        .filter((turn) => turn.text.trim() !== "")
-        .map((turn) => ({ id: turn.id, role: turn.role, parts: [{ type: "text" as const, text: turn.text }] })),
-      { id: userTurn.id, role: "user" as const, parts: [{ type: "text" as const, text }] },
-    ];
-    setThread((current) => [
-      ...current,
-      userTurn,
-      { id: answerId, role: "assistant", text: "", tools: [], pending: true },
-    ]);
-    setAskStatus("loading");
-    setAskError(null);
-    setAskSimulated(false);
-    // Cleared so a second rollback of the SAME text still re-fires the rail's
-    // restore effect — the value has to change for the effect to see it.
-    setRestoredDraft(null);
-
-    const controller = new AbortController();
-    askAbort.current = controller;
-
-    // Only ever touches the one answer turn this call owns, by id — a stale
-    // stream that outlived its turn cannot write into a newer one.
-    const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
-      setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
-
-    // Accumulated here as well as in the turn, because the rollback below has
-    // to know whether ANY text arrived, and `askAssistant` only returns the
-    // text when it succeeds.
-    let streamed = "";
-    const result = await askAssistant(
-      tripId,
-      posted,
-      askScope,
-      (event) => {
-        if (event.type === "text") {
-          streamed += event.delta;
-          patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
-        } else if (event.type === "tool") {
-          patchAnswer((turn) => ({
-            ...turn,
-            tools: [...turn.tools, { id: event.toolCallId, label: toolNoteLabel(event.toolName, event.input) }],
-          }));
-        } else if (event.type === "meta") {
-          // Ruling B: read from the response header the server sets, not from
-          // a phrase in the model's own answer. It arrives before the first
-          // delta, so a turn that dies mid-stream is still badged correctly —
-          // which the prose sniff could not do, because the sentence it
-          // matched is the LAST one.
-          setAskSimulated(event.simulated);
-        } else if (event.type === "proposal") {
-          // Attached to the answer, still pending. Nothing has been committed:
-          // the turn's write tools collected, and the only thing that writes is
-          // `applyAssistantProposal`, below, behind the Approve button.
-          patchAnswer((turn) => ({
-            ...turn,
-            proposal: { proposal: event.proposal, status: "pending", note: null },
-          }));
-        }
-      },
-      controller.signal,
-    );
-    askAbort.current = null;
-
-    if (result.ok) {
-      patchAnswer((turn) => ({ ...turn, pending: false }));
-      setAskStatus("idle");
-      return;
-    }
-
-    // Abandoned by "New conversation": its turn is already gone, and the user
-    // asked for it. Not an error.
-    if (result.error.code === ASK_ABORTED_CODE) return;
-
-
-    // A turn that produced no text at all did not happen — drop both halves so
-    // the thread stays a conversation rather than accumulating orphan
-    // questions, and let the inline error carry the reason. A turn that got
-    // PART of an answer out keeps it: the words are on screen already, and
-    // deleting them under the user is the worse lie.
-    if (streamed !== "") {
-      patchAnswer((turn) => ({ ...turn, pending: false }));
-    } else {
-      setThread((current) => current.filter((t) => t.id !== answerId && t.id !== userTurn.id));
-      // ...and the question goes back in the composer with it. The two
-      // refusals above keep the typed prompt on screen for the reason
-      // AssistantRail's own comment gives — a refusal the user has to retype
-      // reads as the box being broken — and a rolled-back turn is the same
-      // thing arriving later. It is the actionable 400s ("your message must be
-      // 4000 characters or fewer") that make this more than a nicety: being
-      // told to shorten a message you can no longer see is not actionable.
-      setRestoredDraft(text);
-    }
-    setAskStatus("error");
-    setAskError(askErrorMessage(result.error));
-  };
-
   const submitAssistantAsk = async (text: string) => {
     // A viewer's ask is refused here even though /ask itself admits a viewer
     // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
@@ -568,9 +466,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
     if (readOnly) {
-      setAskStatus("error");
-      setAskError("You have view-only access to this trip.");
-      setAskSimulated(false);
+      ask.refuse("You have view-only access to this trip.");
       return false;
     }
     // Refused while the optimistic queue still holds unsent work. The original
@@ -583,9 +479,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // confidently answer about a plan the user is not looking at. Same
     // refusal, same copy, a reason that is still real.
     if (pending) {
-      setAskStatus("error");
-      setAskError("Finish saving your changes before asking the assistant.");
-      setAskSimulated(false);
+      ask.refuse("Finish saving your changes before asking the assistant.");
       // false keeps the rail's typed prompt on screen: this ask never reached
       // the model, so making the user retype it would read as a broken box.
       return false;
@@ -593,7 +487,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // Deliberately NOT awaited: the answer streams for seconds, and the rail
     // clears its composer on whatever this resolves to. Accepting the ask is
     // the thing the composer waits for; the answer arrives in `thread`.
-    void runAsk(text);
+    void ask.runAsk(text);
     return true;
   };
 
@@ -627,10 +521,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       | NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>
       | null,
   ) =>
-    setThread((current) =>
-      current.map((t) =>
-        t.id === turnId && t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
-      ),
+    ask.patchTurn(turnId, (t) =>
+      t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
     );
 
   const approveProposal = async (turnId: string) => {
@@ -687,16 +579,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     patchProposal(turnId, (state) =>
       state.status === "applied" ? state : { ...state, status: "rejected", note: null },
     );
-  };
-
-  const startNewConversation = () => {
-    askAbort.current?.abort();
-    askAbort.current = null;
-    setThread([]);
-    setAskStatus("idle");
-    setAskError(null);
-    setAskSimulated(false);
-    setRestoredDraft(null);
   };
 
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
@@ -761,8 +643,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // what the server will see. Each answered question adds two messages, so
   // `(cap − posted + 1) / 2` is what is left: at 39 posted, one more question
   // fits (40) and none after it.
-  const postedThreadLength = thread.filter((turn) => turn.text.trim() !== "").length;
-  const asksRemaining = Math.max(0, Math.floor((MAX_ASK_MESSAGES - postedThreadLength + 1) / 2));
 
   return (
     <>
@@ -1083,16 +963,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             scope={askScope}
             turns={thread}
             suggestions={assistantSuggestions}
-            asksRemaining={asksRemaining}
-            restoreDraft={restoredDraft}
-            onNewConversation={startNewConversation}
+            asksRemaining={ask.asksRemaining}
+            restoreDraft={ask.restoredDraft}
+            onNewConversation={ask.startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
             onRejectProposal={rejectProposal}
             approvalBlockedReason={approvalBlockedReason}
-            asking={askStatus === "loading"}
-            askError={askStatus === "error" ? askError : null}
-            simulated={askSimulated}
+            asking={ask.asking}
+            askError={ask.askError}
+            simulated={ask.simulated}
             onHide={assistant.hide}
           />
         )}
