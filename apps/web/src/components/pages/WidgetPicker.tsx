@@ -1,28 +1,27 @@
 "use client";
 import { useMemo, useState } from "react";
-import { macroCatalog, insertWidget } from "@tc/pages";
+import { macroCatalog } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import type { WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 
-// ADR-037 decision 4's insert surface: **a persistent sidebar, not §18's Sheet**
-// (Mitchell, 2026-09-03: *"definitely side bar and drag in or click insert and
-// it puts the widget inline at cursor"*). `DRIFT.md` records that the build
-// diverges from the design here so the next design pass reconciles rather than
-// re-specifying a Sheet.
+// Choosing WHICH widget — search, the kind filter, and the list of cards.
 //
-// **It lists the registry, not a hand-written menu.** `macroCatalog()` is the
-// live registry, so a widget added inside `packages/pages` appears here with no
-// edit to this file — which is the same requirement that killed `MacroView`'s
-// name switch. A menu enumerated here would be the second list all over again.
+// It is its own component because SPEC §19 gave the same list a second home:
+// the desktop opens it in a popover beside the document, the phone opens it as
+// the browse step of a bottom sheet, and §19 is explicit that this is "the same
+// registry, same order, same copy as desktop". A second hand-written list is
+// precisely the thing that made `MacroView`'s name switch a bug.
+//
+// **It lists the registry, not a menu.** `macroCatalog()` is live, so a widget
+// added inside `packages/pages` appears on every surface with no edit here.
 //
 // Nothing here decides what a valid node is: `insertWidget` does, and it is the
-// one path (decision 4 — "there is no way to put a widget into a document that
-// skips validation"). This component's whole job is to say which name, and to
-// hand the resulting node to the editor.
+// one path (ADR-037 decision 4 — "there is no way to put a widget into a
+// document that skips validation"). This component's whole job is to say which
+// name.
 
 // **Named for WHEN you reach for one, not for what it is internally.**
 //
@@ -72,7 +71,7 @@ function takesLine(inputs: readonly WidgetInput[]): string {
 // and the stored name. The name is included deliberately — someone who has read
 // a document's JSON, or the AI tool surface, knows a widget as `cost.day`, and a
 // search that refused to find it would be hiding what the app itself uses.
-function matches(
+export function widgetMatches(
   w: { name: string; title: string; description: string },
   query: string,
 ): boolean {
@@ -85,35 +84,50 @@ function matches(
   );
 }
 
-export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; attrs: { name: string; params: Record<string, unknown> } }) => void }) {
+// The drag payload's MIME type, exported so the editor's drop handler and this
+// component cannot disagree about it. A bare `text/plain` would let any dragged
+// text land as a widget, and would put a widget's stored name into other apps
+// when dragged out of the page.
+export const WIDGET_DRAG_TYPE = "application/x-tc-widget";
+
+export function WidgetPicker({
+  onPick,
+  draggable = false,
+  autoFocus = false,
+}: {
+  onPick: (name: string) => void;
+  // Desktop only, and not a styling flag: a phone has no drag-and-drop into a
+  // contenteditable, and a `draggable` row there fights the touch scroll of the
+  // sheet it lives in.
+  draggable?: boolean;
+  autoFocus?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [shape, setShape] = useState<ShapeFilter>(null);
   const widgets = useMemo(() => macroCatalog(), []);
-  const shown = widgets.filter((w) => matches(w, query) && (shape === null || w.shape === shape));
+  const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
 
   return (
-    <aside aria-label="Widgets" className="w-64 shrink-0 rounded-md border border-hairline bg-surface p-3">
-      <Heading level={4} className="mb-1">Widgets</Heading>
-      <p className="mb-2 text-xs text-slate">
-        Click one to drop it where your cursor is.
-      </p>
+    <>
       {/* The gate's "search over a flat list". The registry passed nine widgets
-          on the day this sidebar shipped and passes thirteen now; the list is
-          what grows every time someone does the thing the widget model was
-          built to make cheap. */}
+          on the day this shipped and passes thirteen now; the list is what grows
+          every time someone does the thing the widget model was built to make
+          cheap. `min-h-11` is §13 rule 1 — the phone sheet uses this same field,
+          and §16 records getting that sizing wrong once already. */}
       <Input
         type="search"
         aria-label="Search widgets"
         placeholder="Search widgets"
         value={query}
+        autoFocus={autoFocus}
         onChange={(e) => setQuery(e.target.value)}
-        className="mb-3 h-8 text-sm"
+        className="mb-3 min-h-11 text-sm"
       />
       {/* The filter row (M14's gate: "search + how it reads over a flat list").
           Chips with `aria-pressed`, the same control `ActivityEditor` uses for
           tags — a pattern this app already has, rather than a fifth way to say
           "one of these is on". A segmented control would have been the tidier
-          primitive and does not fit: four labels in a 256px rail. */}
+          primitive and does not fit: four labels in a 320px column. */}
       <div role="group" aria-label="Filter by kind" className="mb-3 flex flex-wrap gap-1">
         {FILTERS.map((f) => (
           <Button
@@ -138,16 +152,26 @@ export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; 
             <li key={w.name}>
               <Button
                 variant="secondary"
-                className="h-auto w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left"
-                onClick={() => {
-                  const result = insertWidget(w.name);
-                  // The sidebar only ever offers names the registry gave it, so
-                  // a refusal here can only mean a widget's own schema cannot
-                  // parse `{}` — which the registry-wide insert test asserts
-                  // never happens. Nothing is inserted rather than something
-                  // invalid.
-                  if (result.ok) onInsert(result.node);
-                }}
+                className={
+                  draggable
+                    ? "h-auto w-full cursor-grab flex-col items-start gap-0.5 px-2 py-1.5 text-left active:cursor-grabbing"
+                    : "h-auto w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left"
+                }
+                // Drag is the SAME insert, at a position the pointer chooses
+                // rather than one the caret chose (Mitchell: "i cant drag and
+                // drop a widget onto page"). The row carries only the widget's
+                // name; `insertWidget` still builds and validates the node on
+                // the drop side, so there is no second construction path.
+                draggable={draggable}
+                onDragStart={
+                  draggable
+                    ? (e) => {
+                        e.dataTransfer.setData(WIDGET_DRAG_TYPE, w.name);
+                        e.dataTransfer.effectAllowed = "copy";
+                      }
+                    : undefined
+                }
+                onClick={() => onPick(w.name)}
               >
                 <span className="flex w-full items-center justify-between gap-2">
                   <span className="text-sm font-medium text-ink">{w.title}</span>
@@ -155,23 +179,23 @@ export function WidgetSidebar({ onInsert }: { onInsert: (node: { type: "macro"; 
                 </span>
                 {/* A FIXED sample, never a computed value (ADR-037 decision 5):
                     a preview asserting numbers the live widget computes makes
-                    the sidebar and the page contradict each other in one
+                    the picker and the page contradict each other in one
                     session. M14's gate box asks instead for "a real resolved
                     preview" — the two were written the same day and the ADR is
                     the accepted decision, so this follows the ADR. Recorded in
                     the milestone file rather than settled silently here. */}
                 <span className="text-xs font-normal text-slate">{w.preview}</span>
-                {/* `text-xs`, not an arbitrary `text-[11px]`: the design-system wall is
-                    tokens-only and `check-color-wall.mjs` rejects arbitrary
-                    Tailwind values outright. Caught by CI on this PR, not by
-                    `pnpm --filter web lint` — the wall is its own script under
-                    `pnpm check`, so a scoped lint run cannot see it. */}
+                {/* `text-xs`, not an arbitrary `text-[11px]`: the design-system
+                    wall is tokens-only and `check-color-wall.mjs` rejects
+                    arbitrary Tailwind values outright. Caught by CI on PR 139,
+                    not by `pnpm --filter web lint` — the wall is its own script
+                    under `pnpm check`, so a scoped lint run cannot see it. */}
                 <span className="font-mono text-xs font-normal text-slate">{takesLine(w.inputs)}</span>
               </Button>
             </li>
           ))}
         </ul>
       )}
-    </aside>
+    </>
   );
 }

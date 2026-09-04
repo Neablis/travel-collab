@@ -9,7 +9,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Banner } from "@/components/ui/banner";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
-import { WidgetSidebar } from "@/components/pages/WidgetSidebar";
+import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
 import { ReadOnlyPageDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
@@ -161,12 +161,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
 
   // Click-to-insert. `insertContent` puts the node at the current selection,
   // which is what "it puts the widget inline at cursor" means (ADR-037 decision
-  // 4); `focus()` first so a click on the sidebar — which moved focus out of
+  // 4); `focus()` first so a click in the popover — which moved focus out of
   // the editor — still lands where the caret was.
   //
-  // Drag-and-drop and the slash menu are the same command with a different
-  // origin, and land next.
-  const insertAtCursor = (node: { type: "macro"; attrs: { name: string; params: Record<string, unknown> } }) => {
+  // Drag-and-drop and the slash menu are the SAME command from a different
+  // origin, and they live in `PageEditor` because both need a position the
+  // editor computes (a drop point, a caret range) rather than the selection.
+  const insertAtCursor = (node: MacroNode) => {
     editor?.chain().focus().insertContent(node).run();
   };
 
@@ -213,15 +214,26 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   return (
     <PageContainer>
       {backLink}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Heading level={2}>{page.title}</Heading>
-        <Button
-          variant="secondary"
-          aria-pressed={editing}
-          onClick={() => setEditing((was) => !was)}
-        >
-          {editing ? "Done editing" : "Edit page"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Reading shows no insert affordance (§18) — and neither does an
+              editor that has not mounted yet. `useEditor` returns null on the
+              first render (`immediatelyRender: false`), so a click landing
+              before it resolves reached `editor?.chain()` and was silently
+              dropped: a button that looks ready and does nothing. Found by
+              CodeRabbit on PR 139. */}
+          {editing && editor !== null ? (
+            <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
+          ) : null}
+          <Button
+            variant={editing ? "primary" : "secondary"}
+            aria-pressed={editing}
+            onClick={() => setEditing((was) => !was)}
+          >
+            {editing ? "Done editing" : "Edit page"}
+          </Button>
+        </div>
       </div>
       {unstorable ? (
         <div className="mt-3">
@@ -247,27 +259,22 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
             still select a widget when not editing"). */}
         {editing ? <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} /> : null}
       </div>
-      <div className="flex items-start gap-4">
-        <div className="min-w-0 flex-1">
-          <PageEditor
-            detail={trip}
-            context={page.context}
-            user={user}
-            globals={globals}
-            value={stored.doc}
-            onChange={handleContentChange}
-            onEditorReady={handleEditorReady}
-            editable={editing}
-          />
-        </div>
-        {/* Reading shows no insert affordance (§18) — and neither does an
-            editor that has not mounted yet. `useEditor` returns null on the
-            first render (`immediatelyRender: false`), so a click landing before
-            it resolves reached `editor?.chain()` and was silently dropped: a
-            button that looks ready and does nothing. Found by CodeRabbit on
-            PR 139. */}
-        {editing && editor !== null ? <WidgetSidebar onInsert={insertAtCursor} /> : null}
-      </div>
+      {/* The document gets the full column back. The insert surface used to be
+          an `<aside>` flex sibling here, so opening it narrowed the prose the
+          author was writing — Mitchell, on the preview: *"The widgets should be
+          more of a popover side bar so they dont interrupt the document flow
+          when open"*. It is a portalled Popover in the header now (and a bottom
+          sheet on a phone, SPEC §19), which cannot reflow a line of this. */}
+      <PageEditor
+        detail={trip}
+        context={page.context}
+        user={user}
+        globals={globals}
+        value={stored.doc}
+        onChange={handleContentChange}
+        onEditorReady={handleEditorReady}
+        editable={editing}
+      />
     </PageContainer>
   );
 }

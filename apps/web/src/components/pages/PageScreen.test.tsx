@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -163,7 +163,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
 // the builder half a person can actually click. Insert a widget from the
 // sidebar, point it at a day from its chrome row, and watch it save.
 describe("PageScreen: inserting and pointing a widget (item G)", () => {
-  async function openPage() {
+  async function openPage(options: { reachInsert?: boolean } = {}) {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({
       days: [
@@ -207,6 +207,13 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // depended on it is how the previous default came to be defended by a test
     // instead of by a reason.
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    if (options.reachInsert === false) return { onUpdate };
+    // The widget list lives in a popover now rather than in an `<aside>` beside
+    // the document (Mitchell: *"they should be more of a popover side bar so
+    // they dont interrupt the document flow"*), so reaching a widget is two
+    // clicks and the popover closes behind each insert — the caret goes back
+    // to the document, which is where the author was.
+    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
     return { onUpdate };
   }
 
@@ -223,7 +230,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    expect(screen.queryByRole("complementary", { name: "Widgets" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
     // The compose box is an authoring control too. Leaving it mounted made
     // "Reading" a lie: it replaces the whole document and autosaves it, so a
@@ -231,7 +238,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(screen.queryByLabelText(/ask ai to draft this page/i)).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
-    expect(screen.getByRole("complementary", { name: "Widgets" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
     expect(screen.getByLabelText(/ask ai to draft this page/i)).toBeTruthy();
   });
 
@@ -281,6 +288,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // binding, so this is the assertion that an aggregated control would break.
     await openPage();
     await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+    // Re-opened, because the popover closes behind each insert.
+    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
     await userEvent.click(screen.getByRole("button", { name: /A day's stops/ }));
 
     const selects = screen.getAllByRole("combobox");
@@ -310,6 +319,100 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // makes this about the binding as well as the fetch: a widget that ignored
     // its day and always read `days[0]` would pass on "Lisbon".
     expect(await screen.findByText("Porto")).toBeTruthy();
+  });
+
+  // The phone Notebook — design handoff 2026-09-03, `SPEC.md` §19. The model is
+  // identical (DRIFT §2f: *"This adds no API surface"*); what differs is
+  // density, and these tests are about the two places it differs. Everything
+  // above this block takes the desktop branch through `useIsPhone`'s feature
+  // detection, which is what keeps them meaningful as desktop tests.
+  describe("on a phone", () => {
+    function setPhone(matches: boolean) {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }),
+      });
+    }
+
+    afterEach(() => {
+      Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    // §19: "Insert is the desktop sheet, full height… two steps inside it."
+    // Browse, then point it at — not a sheet over a sheet (project rule 3).
+    it("inserts through a sheet with a bind step, and lands the widget already pointed", async () => {
+      setPhone(true);
+      const { onUpdate } = await openPage({ reachInsert: false });
+      await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+
+      // Step 1: browse. The same registry, the same order, the same copy.
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: /What a day costs/ }));
+
+      // Step 2: point it at. This is what the desktop does NOT have — there the
+      // widget lands at the caret with its chrome row under it, so a bind step
+      // would be the same choice offered twice (project rule 4).
+      const select = within(dialog).getByRole("combobox", { name: /day/i });
+      await userEvent.selectOptions(select, "1");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Insert it" }));
+
+      // It arrives BOUND. A phone insert that landed unbound would mean the
+      // bind step decided nothing, which is the failure worth catching here.
+      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+      const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
+      expect(saved).toContain('"cost.day"');
+      expect(saved).toContain('"index":1');
+    });
+
+    // §19's one real divergence, and it is density: at 390px the desktop chrome
+    // row — a name chip plus a select per input, inline — wraps into
+    // unreadability. So the phone shows the resolved binding on a button and
+    // opens the same controls in a sheet.
+    it("shows one 'Pointed at' button per widget instead of an inline select row", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+      await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+      await userEvent.click(
+        within(await screen.findByRole("dialog")).getByRole("button", { name: /What a day costs/ }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Insert it" }));
+
+      // The inline row is GONE — both halves matter. A phone that showed the
+      // button *and* kept the select row would be the same binding twice
+      // (project rule 4), and would not have fixed the wrapping this replaces.
+      expect(screen.queryByRole("combobox")).toBeNull();
+      const bind = await screen.findByRole("button", { name: /Pointed at/ });
+      // The label IS the binding, not the widget's name: §19 rule — "binds
+      // render on binds, not on name pills".
+      expect(bind.textContent).toContain("Not set up");
+
+      await userEvent.click(bind);
+      const sheet = await screen.findByRole("dialog");
+      await userEvent.selectOptions(within(sheet).getByRole("combobox"), "0");
+      // The sheet is a Radix Dialog, so it `aria-hidden`s the page behind it —
+      // the button below is genuinely unreachable until it closes, and that is
+      // the correct accessibility behaviour rather than something to work
+      // around with a raw DOM query.
+      await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+
+      // And the button follows the document, rather than being a label written
+      // once at insert time. A widget rebound through the sheet whose button
+      // still reads its old binding is the control-contradicts-the-document
+      // bug, from the third surface.
+      await vi.waitFor(() =>
+        expect(screen.getByRole("button", { name: /Pointed at Day 1/ })).toBeTruthy(),
+      );
+    });
   });
 });
 

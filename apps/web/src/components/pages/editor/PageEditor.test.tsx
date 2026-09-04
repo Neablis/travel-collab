@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -286,5 +286,90 @@ describe("PageEditor given a macro at block position (KI-2026-09-03-d)", () => {
     } finally {
       editor.destroy();
     }
+  });
+});
+
+// The slash menu — Mitchell, on the preview: *"Typing '/' doesnt bring up the
+// inline widget picker"*. It is the third origin of the one insert command
+// (ADR-037 decision 4), after the popover's click and the drag.
+describe("the slash menu", () => {
+  // The block above stubs `getClientRects` to zero rects, which is enough for
+  // ProseMirror to place a cursor and not enough for it to answer
+  // `coordsAtPos` — and the menu is positioned at the caret, so it asks. One
+  // real rect is the smallest fake that makes the feature reachable; every
+  // assertion below is about the menu's CONTENT, never its coordinates, which
+  // is the part jsdom cannot honestly answer.
+  beforeEach(() => {
+    Range.prototype.getClientRects = () =>
+      ({ length: 1, item: () => new DOMRect(), 0: new DOMRect() }) as unknown as DOMRectList;
+  });
+
+  const editorFor = (onChange = vi.fn()) => {
+    render(
+      <PageEditor
+        detail={detail}
+        context={context}
+        value={newPageDoc([{ type: "paragraph", content: [] }])}
+        onChange={onChange}
+      />,
+    );
+    return screen.getByRole("textbox");
+  };
+
+  it("opens at the caret when you type a slash, listing widgets by their title", async () => {
+    await userEvent.type(editorFor(), "/");
+    const menu = await screen.findByRole("listbox", { name: "Insert a widget" });
+    expect(within(menu).getAllByRole("option").length).toBeGreaterThan(0);
+    expect(within(menu).getByRole("option", { name: /The trip's name/ })).toBeTruthy();
+  });
+
+  it("narrows as you keep typing, and closes when nothing matches", async () => {
+    const textbox = editorFor();
+    await userEvent.type(textbox, "/trip");
+    const menu = await screen.findByRole("listbox");
+    const shown = within(menu).getAllByRole("option");
+    expect(shown.length).toBeGreaterThan(0);
+    for (const option of shown) expect(option.textContent).toBeTruthy();
+
+    // A query nothing answers closes the menu rather than showing an empty box:
+    // at that point the person is writing a date, not choosing a widget, and a
+    // menu hovering over "9/11" is in the way.
+    await userEvent.type(textbox, "zzzz");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  // The one that matters: the typed `/query` is REPLACED, not left behind.
+  it("inserts the highlighted widget on Enter, and takes the typed query with it", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/trip.name");
+    await screen.findByRole("listbox");
+    await userEvent.type(textbox, "{Enter}");
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    const last = JSON.stringify(onChange.mock.calls.at(-1)![0]);
+    expect(last).toContain('"macro"');
+    expect(last).toContain('"trip.name"');
+    // The text that summoned the menu is gone. Leaving it behind is the defect
+    // this asserts against — the widget lands and the page reads "/trip.name"
+    // beside it.
+    expect(last).not.toContain("/trip.name");
+  });
+
+  it("closes on Escape without inserting anything", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/trip");
+    await screen.findByRole("listbox");
+    await userEvent.type(textbox, "{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(JSON.stringify(onChange.mock.calls.at(-1)?.[0] ?? {})).not.toContain('"macro"');
+  });
+
+  // `and/or`, a date, a URL. A menu that opens mid-word is the reason people
+  // turn this feature off.
+  it("stays shut for a slash inside a word", async () => {
+    await userEvent.type(editorFor(), "and/or");
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

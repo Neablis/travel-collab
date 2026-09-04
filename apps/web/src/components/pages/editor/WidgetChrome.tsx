@@ -1,8 +1,12 @@
 "use client";
+import { useState } from "react";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
-import type { WidgetInput } from "@tc/pages";
-import { NativeSelect } from "@/components/ui/native-select";
+import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
+import { Text } from "@/components/ui/text";
+import { WidgetBindControls, bindSummary, bindableInputs } from "./widgetBind";
 
 // The chrome row (M14 link 4 / ADR-037 decision 4) — where a widget is pointed
 // at its inputs after it has been inserted.
@@ -22,52 +26,10 @@ import { NativeSelect } from "@/components/ui/native-select";
 // chrome at all (§18). `PageScreen` owns that switch, and this component is
 // simply not rendered in Reading.
 //
-// **It now renders ONE CONTROL PER DECLARED INPUT, and that is not a
-// generalisation for its own sake.** The earlier version found the single `day`
-// input and served it, which was correct while every bound widget took exactly
-// one thing. `stop.line` takes a day AND a tag — the catalogue calls it *"the
-// only two-input widget, so it is the one that proves the model"* — and the old
-// shape had a defect that only a second input could expose: `onChange` REPLACED
-// the whole params object, so setting the tag would have silently discarded the
-// day. Merging per key is the fix, and it is why this component had to change
-// before that widget could exist.
-
-// Reading a param back into a select value. Kept next to the writer below so
-// the two cannot drift: whatever shape is written is the shape read.
-//
-// **A `dayId` ref resolves to its current index, and reading only `index` was a
-// real bug.** `DayRef` has two shapes and `resolveDayIndex` honours both, so a
-// widget bound by `dayId` — which is what a hand-edited document or an AI insert
-// can carry — rendered its day correctly while this control said "Not set up".
-// A control contradicting the document it describes is worse than either state
-// alone, because the reader believes the control. Found by Copilot on PR 139.
-//
-// A `dayId` that no longer matches any day reads as unset, which is the same
-// answer `resolveDayIndex` gives it: a stale binding is silently no binding,
-// never a guessed one.
-function valueOf(input: WidgetInput, params: Record<string, unknown>, detail: TripDetail): string {
-  const raw = params[input.name];
-  if (input.type === "day") {
-    const ref = raw as { kind?: string; index?: number; dayId?: string } | undefined;
-    if (ref?.kind === "index" && typeof ref.index === "number") {
-      return ref.index < detail.days.length ? String(ref.index) : "";
-    }
-    if (ref?.kind === "dayId" && typeof ref.dayId === "string") {
-      const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
-      return idx === -1 ? "" : String(idx);
-    }
-    return "";
-  }
-  return typeof raw === "string" ? raw : "";
-}
-
-// The tags a person may choose: the trip's tags in use, plus whatever this
-// widget is already bound to. Union rather than replacement, so a stale binding
-// stays visible and clearable instead of silently reading as "every stop".
-function tagOptions(bound: unknown, globals: TripGlobals | null): string[] {
-  const inUse = (globals?.tags ?? []).map((t) => t.tag as string);
-  return typeof bound === "string" && bound !== "" && !inUse.includes(bound) ? [...inUse, bound] : inUse;
-}
+// The controls themselves, the option lists and the merge-don't-replace rule all
+// live in `widgetBind.tsx` now: SPEC §19 gives the phone a bind *sheet* and the
+// insert flow a bind *step*, and three surfaces building their own option list
+// is how a phone ends up offering a day the desktop does not.
 
 export function WidgetChrome({
   name,
@@ -82,35 +44,71 @@ export function WidgetChrome({
   globals?: TripGlobals | null;
   onChange: (params: Record<string, unknown>) => void;
 }) {
+  const isPhone = useIsPhone();
+  const [binding, setBinding] = useState(false);
   const def = getMacro(name);
   // A widget that binds nothing has nothing to point — it inserted immediately
   // and stays that way (ADR-035 decision 2: `inputs: []` is a real answer).
-  //
-  // `person` is filtered out rather than rendered empty: §18 declares the type
-  // and nothing links an activity to a person yet, so a control for it would
-  // resolve against data that does not exist. No widget declares it today; this
-  // keeps that true if one ever does before the field lands.
-  const inputs = (def?.inputs ?? []).filter((i) => i.type === "day" || i.type === "tags");
+  const inputs = bindableInputs(name);
   if (inputs.length === 0) return null;
 
-  // Merge, never replace. With one input the two are indistinguishable; with
-  // two, replacing means pointing a widget at a tag silently unbinds its day —
-  // and the widget would then render "no day set" with the tag control still
-  // showing a choice, which is a control contradicting the document.
-  const set = (input: WidgetInput, next: string) => {
-    const merged = { ...params };
-    if (next === "") {
-      // Clearing goes back to UNBOUND rather than to a default. ADR-037
-      // decision 6: "not common-sense defaults" — a widget pointed at nothing
-      // must say so, because silently rendering day 1 is a confident wrong
-      // answer nothing on the page would reveal. Deleting the key rather than
-      // writing a null keeps `{}` the one spelling of "not set up".
-      delete merged[input.name];
-    } else {
-      merged[input.name] = input.type === "day" ? { kind: "index", index: Number(next) } : next;
-    }
-    onChange(merged);
-  };
+  const title = def?.title ?? name;
+
+  // **The phone collapses the row to one button, and that is the ONE
+  // divergence SPEC §19 allows** — density, not model. On desktop the chrome
+  // row carries a name chip plus a select per input, inline; at 390px that row
+  // wraps into unreadability, so the phone shows the resolved binding as a 44px
+  // button and opens the same controls in a sheet.
+  //
+  // The button label IS the binding (`bindSummary`), not a second copy of the
+  // widget's name: §19's rule 4 — "binds render on binds, not on name pills",
+  // and the widget's output is already rendered above it.
+  if (isPhone) {
+    return (
+      <>
+        <span className="mt-1 flex">
+          <Button
+            variant="secondary"
+            className="min-h-11 rounded-full text-sm font-normal"
+            onClick={() => setBinding(true)}
+          >
+            Pointed at {bindSummary(name, params, detail, globals)}
+          </Button>
+        </span>
+        <Sheet open={binding} onOpenChange={setBinding} title={title}>
+          <div className="flex flex-col gap-4">
+            {/* Said out loud because the page-scope model is recent enough that
+                someone may still expect the old behaviour, where one control at
+                the top of the page moved every widget on it (§18 removed that,
+                §19 asks for this sentence). */}
+            <Text variant="secondary">
+              This widget only — everything else on the page keeps what it is pointed at.
+            </Text>
+            <WidgetBindControls
+              name={name}
+              params={params}
+              detail={detail}
+              globals={globals}
+              onChange={onChange}
+              layout="stacked"
+              idPrefix="widget-bind"
+            />
+            {def ? (
+              <div>
+                <Text variant="muted">Reads as</Text>
+                {/* A FIXED sample, never a computed value (ADR-037 decision 5).
+                    The live widget is rendered on the page behind this sheet;
+                    a computed preview here would be the same number twice
+                    (project rule 4) and would contradict it the moment the
+                    binding above changed but the sheet had not closed. */}
+                <Text variant="secondary">{def.preview}</Text>
+              </div>
+            ) : null}
+          </div>
+        </Sheet>
+      </>
+    );
+  }
 
   // **A block's chrome gets its own row; a single value's stays inline.**
   //
@@ -138,54 +136,17 @@ export function WidgetChrome({
           heading is the case that would drop it — link 6's problem, not this
           one's. */}
       <span className="rounded-full bg-brand-tint px-2 py-0.5 text-xs font-medium text-brand-pressed">
-        {def?.title ?? name}
+        {title}
       </span>
-      {inputs.map((input) => (
-        <NativeSelect
-          key={input.name}
-          aria-label={`${def?.title ?? name}: ${input.label.toLowerCase()}`}
-          className="h-7 py-0 text-xs"
-          value={valueOf(input, params, detail)}
-          onChange={(e) => set(input, e.target.value)}
-        >
-          {input.type === "day" ? (
-            <>
-              <option value="">Not set up</option>
-              {detail.days.map((day, index) => (
-                <option key={day.dayId} value={index}>
-                  {day.date ? `Day ${index + 1} · ${day.date}` : `Day ${index + 1}`}
-                </option>
-              ))}
-            </>
-          ) : (
-            <>
-              {/* §18's table: a tag input reads "every stop, or one". Unset is
-                  therefore a REAL choice with a meaning of its own — every stop
-                  — not an unfilled blank, so it is worded as the answer it is
-                  rather than as "Not set up". */}
-              <option value="">Every stop</option>
-              {/* The trip's tags IN USE, from the globals projection, rather
-                  than all four `ActivityTag` members. Offering "lodging" on a
-                  trip with no lodging stop is a filter whose only outcome is an
-                  empty widget. With no globals the list is empty and the
-                  control still offers "every stop", which is the honest
-                  degradation — the widget works, unfiltered. */}
-              {/* The bound tag is kept in the list even when globals do not
-                  carry it — still loading, failed, or the last stop with that
-                  tag was removed. Without this the native select falls back to
-                  displaying "Every stop" while `stop.line` is still filtering by
-                  the saved tag: the same control-contradicts-the-document bug as
-                  the `dayId` case above, from the other direction. Found by
-                  Copilot on PR 139. */}
-              {tagOptions(params[input.name], globals).map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </>
-          )}
-        </NativeSelect>
-      ))}
+      <WidgetBindControls
+        name={name}
+        params={params}
+        detail={detail}
+        globals={globals}
+        onChange={onChange}
+        layout="inline"
+        idPrefix={`widget-chrome-${name}`}
+      />
     </span>
   );
 }
