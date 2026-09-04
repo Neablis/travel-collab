@@ -226,6 +226,44 @@ describe("the assistant on a notebook page", () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
+  // **The server's own refusal.** A page turn whose nodes fail registry
+  // validation finishes with `page-error` and no content, and the REQUEST
+  // succeeds — so before this the turn settled idle with an empty answer and
+  // the reader was told nothing at all (Copilot, PR 139).
+  //
+  // `ComposePanel` surfaced it before it retired, on the argument that
+  // *"Macro "cost.day" params failed validation"* is a better answer than the
+  // transport's, which will just say the turn worked. The machinery came across
+  // in the extraction; this did not.
+  it("shows the server's reason when a page turn's nodes fail validation", async () => {
+    askAssistantMock.mockImplementation(
+      turnEmitting({ type: "page-error", message: 'Macro "cost.day" params failed validation.' }),
+    );
+    const { onUpdate } = await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add today's cost{Enter}");
+
+    expect(await screen.findByText(/params failed validation/)).toBeTruthy();
+    // Nothing reached the document, and nothing was saved — the refusal is the
+    // whole outcome of the turn.
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  // A refusal is about the question just asked. Left standing it would sit
+  // under the next answer as if it were that one's.
+  it("clears the last refusal when the next question is asked", async () => {
+    askAssistantMock.mockImplementation(
+      turnEmitting({ type: "page-error", message: 'Macro "cost.day" params failed validation.' }),
+    );
+    await openRail();
+    const composer = screen.getByPlaceholderText(/add to this page/i);
+    await userEvent.type(composer, "Add today's cost{Enter}");
+    expect(await screen.findByText(/params failed validation/)).toBeTruthy();
+
+    askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC }));
+    await userEvent.type(composer, "Something else{Enter}");
+    await waitFor(() => expect(screen.queryByText(/params failed validation/)).toBeNull());
+  });
+
   // The assistant is available in Reading, which it was not. A page opens in
   // Reading, so this is the state most readers meet it in.
   it("is reachable without entering Editing at all", async () => {

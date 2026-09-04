@@ -460,6 +460,41 @@ describe("the slash menu", () => {
     expect(second).toBeTruthy();
   });
 
+  // **The editor keeps focus, so the editor has to announce the listbox.** A
+  // sighted user watches the highlight move as Tab iterates; a screen-reader
+  // user was told nothing, because the focused element had no relationship to
+  // the list and the rows had no ids (Copilot, PR 139).
+  //
+  // Asserted as the LINK rather than as the attributes in isolation: an
+  // `aria-activedescendant` naming an id no option carries is exactly as silent
+  // as none at all, and is what a renamed id would leave behind.
+  it("names the highlighted option on the focused editor, and keeps naming it as Tab moves", async () => {
+    const textbox = editorFor(vi.fn());
+    await userEvent.type(textbox, "/");
+    const menu = await screen.findByRole("listbox");
+    expect(textbox.getAttribute("aria-expanded")).toBe("true");
+    expect(textbox.getAttribute("aria-controls")).toBe(menu.id);
+    expect(menu.id).not.toBe("");
+
+    const activeOption = () =>
+      within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .find((o) => o.getAttribute("aria-selected") === "true")!;
+    expect(textbox.getAttribute("aria-activedescendant")).toBe(activeOption().id);
+    const firstId = activeOption().id;
+
+    await userEvent.type(textbox, "{Tab}");
+    expect(activeOption().id).not.toBe(firstId);
+    expect(textbox.getAttribute("aria-activedescendant")).toBe(activeOption().id);
+
+    // Closed means closed: `aria-expanded="true"` left on a plain text box is
+    // worse than never having set it.
+    await userEvent.type(textbox, "{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(textbox.hasAttribute("aria-expanded")).toBe(false);
+    expect(textbox.hasAttribute("aria-activedescendant")).toBe(false);
+  });
+
   // Mitchell, on the preview: *"scrolling on the page should keep the widget
   // alongside the cursor not the page"*. The menu is positioned at viewport
   // coordinates, computed when it opened and then only recomputed on a

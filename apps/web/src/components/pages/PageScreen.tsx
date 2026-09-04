@@ -194,6 +194,23 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     // copy of it that would go stale.
     errorMessage: (error: ApiError) => error.message,
     onEvent: (event, patchAnswer) => {
+      // **The server's own refusal, which was being dropped on the floor.** A
+      // page turn whose nodes fail registry validation finishes with
+      // `page-error` and no content, and the request itself succeeds — so the
+      // turn settled `idle` with an empty answer and the reader was told
+      // nothing. `ComposePanel` surfaced this before it retired ("`Macro
+      // "cost.day" params failed validation`" is a better answer than the
+      // transport's, which will just say the turn worked); the machinery came
+      // across and this did not. Found by Copilot on PR 139.
+      //
+      // It cannot go through `useAskThread`'s own `refuse`: this arrives on the
+      // stream's FINAL chunk, and `runAsk` sets `idle` immediately afterwards
+      // on a successful request, so the error status would be overwritten in
+      // the same turn. Held here and merged into the rail's error slot instead.
+      if (event.type === "page-error") {
+        setTurnRefusal(event.message);
+        return;
+      }
       if (event.type !== "page-inserts") return;
       // **Reading never receives writes, and this is the guard that says so
       // rather than the abort timing.** A guard that depends on a stream
@@ -224,6 +241,10 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     },
   });
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // The server's refusal for the LAST page turn, or null. Separate from
+  // `ask.askError` (which is the transport's) and merged with it at the rail,
+  // because only one of the two can be true of any given turn.
+  const [turnRefusal, setTurnRefusal] = useState<string | null>(null);
 
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
@@ -451,10 +472,18 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           suggestions={[]}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
-          onNewConversation={ask.startNewConversation}
-          onAsk={(text) => void ask.runAsk(text)}
+          onNewConversation={() => {
+            setTurnRefusal(null);
+            ask.startNewConversation();
+          }}
+          // Cleared before each turn, so a refusal is about the question just
+          // asked and not the one before it.
+          onAsk={(text) => {
+            setTurnRefusal(null);
+            void ask.runAsk(text);
+          }}
           asking={ask.asking}
-          askError={ask.askError}
+          askError={ask.askError ?? turnRefusal}
           simulated={ask.simulated}
           onHide={closeAssistant}
         />

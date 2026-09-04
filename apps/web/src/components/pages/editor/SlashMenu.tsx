@@ -1,7 +1,7 @@
 "use client";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { SlashMenuState } from "./useSlashMenu";
+import { SLASH_LISTBOX_ID, slashOptionId, type SlashMenuState } from "./useSlashMenu";
 
 // How close to a viewport edge the menu may sit. Small and fixed: the point is
 // that a menu at the edge is still fully readable, not that it floats.
@@ -61,6 +61,7 @@ export function SlashMenu({
       // The editor keeps focus throughout — moving it here would close the
       // selection the insert depends on.
       role="listbox"
+      id={SLASH_LISTBOX_ID}
       aria-label="Insert a widget"
       className="overlay-layer fixed w-72 overflow-hidden rounded-md border border-hairline bg-surface shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- caret coordinates, recomputed per keystroke from `coordsAtPos`. There is no token for "wherever the cursor happens to be", and every colour, size and spacing below is a token.
@@ -72,6 +73,10 @@ export function SlashMenu({
             <Button
               variant="ghost"
               role="option"
+              // The id the focused editor points `aria-activedescendant` at —
+              // see `useSlashMenu`. Without it the highlight is visible and
+              // silent.
+              id={slashOptionId(w.name)}
               aria-selected={index === state.active}
               className={
                 index === state.active

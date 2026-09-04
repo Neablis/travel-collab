@@ -35,6 +35,22 @@ const MAX_ROWS = 6;
 // the match rather than ending at the dot.
 const TRIGGER = /(?:^|\s)\/([\w.]*)$/;
 
+// **The editor keeps focus while this listbox is open, so the listbox has to
+// announce itself through the editor.** A sighted user sees the highlight move
+// as Tab iterates; a screen-reader user was told nothing at all, because the
+// focused element had no relationship to the list and the rows had no ids
+// (Copilot, PR 139).
+//
+// `aria-activedescendant` is the pattern for exactly this: focus stays where it
+// is and the focused element names which option is current. It needs both ends
+// — a stable id per option, and the attributes below on the contenteditable —
+// so both live here rather than in the component, which owns only the drawing.
+//
+// Dots are legal in an HTML id but awkward in a CSS selector, and a widget's
+// stored name is `cost.day`. Swapped for hyphens so the id is usable either way.
+export const SLASH_LISTBOX_ID = "tc-slash-menu";
+export const slashOptionId = (name: string) => `tc-slash-option-${name.replace(/\./g, "-")}`;
+
 export interface SlashMenuState {
   // Document position of the `/` itself. The replaced range is [from, caret),
   // so the typed query disappears when the widget lands.
@@ -170,6 +186,29 @@ export function useSlashMenu({
       window.removeEventListener("resize", follow);
     };
   }, [editor, open]);
+
+  // Mirrors the menu's state onto the element that actually has focus. Removed
+  // on close and on unmount, because a `aria-expanded="true"` left behind on a
+  // plain text box is worse than none at all.
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const active = state === null ? undefined : state.names[state.active];
+    if (active === undefined) {
+      dom.removeAttribute("aria-expanded");
+      dom.removeAttribute("aria-controls");
+      dom.removeAttribute("aria-activedescendant");
+      return;
+    }
+    dom.setAttribute("aria-expanded", "true");
+    dom.setAttribute("aria-controls", SLASH_LISTBOX_ID);
+    dom.setAttribute("aria-activedescendant", slashOptionId(active.name));
+    return () => {
+      dom.removeAttribute("aria-expanded");
+      dom.removeAttribute("aria-controls");
+      dom.removeAttribute("aria-activedescendant");
+    };
+  }, [editor, state]);
 
   const rangeToReplace = useCallback(() => {
     const current = stateRef.current;
