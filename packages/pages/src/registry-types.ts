@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { TripDetail, PageContext, MacroKind, TripGlobals, UserPreferences } from "@tc/contracts";
+import type { TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
 import type { MacroResult } from "./result";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -113,13 +113,16 @@ export type WidgetInput =
 // refusing to open — a notebook that will not load because a preferences fetch
 // 500'd is a worse outcome than one widget saying it has nothing to show.
 //
-// **Every resolver must handle an absent trip** when root-account notebooks
-// arrive; they are the stated direction and explicitly out of scope today. `trip`
-// stays required because every notebook currently has one, and the field is named
-// rather than positional so relaxing it later is a one-line change here instead
-// of seven signatures.
+// **`trip` is OPTIONAL, and every resolver handles its absence.** ADR-037 open
+// question 2 requires this outright — root-account notebooks are the stated
+// direction, and *"a resolver that assumes a trip is a resolver that has to be
+// rewritten when they arrive"*. An earlier version of this file made it required
+// and argued the case could not occur yet; Copilot pointed out on PR 134 that
+// the ADR says otherwise and that deferring means rewriting all seven resolvers
+// later. A trip-reading widget answers `needsTrip()` — which is
+// `unbound("trip")`, a first-class rendered state rather than an error.
 export interface WidgetContext {
-  trip: TripDetail;
+  trip?: TripDetail;
   page: PageContext;
   user: UserPreferences | null;
   // The trip's addressable collections (ADR-037 open question 4). `null` for
@@ -133,9 +136,24 @@ export interface WidgetContext {
   globals: TripGlobals | null;
 }
 
+// The per-iteration scope a repeat renderer passes as it maps a row template
+// over resolved items (ADR-035 decision 4). **Never persisted** — storing an
+// item identity is exactly what makes a document go stale when a day moves.
+//
+// One member today because link 6's first repeater iterates days. It widens
+// when a repeater over cities or tags arrives; the union exists now so
+// `resolve`'s signature does not change again when it does.
+export type ItemScope = { kind: "day"; index: number };
+
 export interface MacroDef<P, T> {
-  name: string;                    // "cost.trip", "itinerary.day"
-  kind: MacroKind;                 // "inline" | "block"
+  name: string;                    // "cost.trip", "itinerary.day" — STORED
+  // What a person calls it, for the insert sidebar. Distinct from `name`, which
+  // is a stored identifier a document keeps forever (ADR-037 decision 8), so
+  // retitling a widget never touches a stored page.
+  title: string;
+  // ADR-037 decision 1. Replaces `kind: MacroKind`, which could say "inline" or
+  // "block" and had nowhere to put a repeater.
+  shape: WidgetShape;
   params: z.ZodType<P>;            // per-macro param schema (registry owns it)
   // What the widget takes. REQUIRED, and `[]` is a real answer meaning "binds
   // nothing, inserts immediately" (ADR-035 decision 2). Optional would collapse
@@ -144,7 +162,12 @@ export interface MacroDef<P, T> {
   inputs: readonly WidgetInput[];
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
-  resolve(ctx: WidgetContext, params: P): MacroResult<T>;
+  // The insert sidebar's sample. **A fixed string, never a computed value**
+  // (ADR-037 decision 5): a preview asserting numbers the live widget computes
+  // makes the sidebar and the page contradict each other in one session, which
+  // is why the design phrases person previews generically.
+  preview: string;
+  resolve(ctx: WidgetContext, params: P, item?: ItemScope): MacroResult<T>;
   // `resolve` and `render` are deliberately TWO functions, not one (ADR-037
   // decision 1). `resolve` answers "what does this mean against the current
   // trip"; `render` answers "what does that look like". Keeping them apart is

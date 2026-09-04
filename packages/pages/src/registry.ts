@@ -45,7 +45,7 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
 export type RenderOutcome =
   | { status: "ok"; rendered: Rendered }
   | { status: "empty" }
-  | { status: "unbound"; needs: "day" }
+  | { status: "unbound"; needs: "day" | "trip" }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
@@ -60,6 +60,14 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
     : outcome;
 }
 
-export function macroCatalog(): { name: string; kind: string; description: string; emptyText: string }[] {
-  return DEFS.map((d) => ({ name: d.name, kind: d.kind, description: d.description, emptyText: d.emptyText }));
+// The catalogue the AI tools and the insert sidebar read. `shape` replaces the
+// old `kind` (ADR-037 decision 1), and `title`/`preview` are here because the
+// sidebar lists a widget by the name a person calls it and shows a sample.
+export function macroCatalog(): {
+  name: string; title: string; shape: string; description: string; emptyText: string; preview: string;
+}[] {
+  return DEFS.map((d) => ({
+    name: d.name, title: d.title, shape: d.shape,
+    description: d.description, emptyText: d.emptyText, preview: d.preview,
+  }));
 }

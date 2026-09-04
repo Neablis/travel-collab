@@ -1,6 +1,7 @@
 export * from "./trip";
 export * from "./activity";
 export * from "./detail";
+export * from "./valueKind";
 export * from "./globals";
 export * from "./manifest";
 export * from "./envelope";

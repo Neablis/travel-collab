@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActivityTag } from "./activity";
+import { described, type ValueKind } from "./valueKind";
 
 // The trip's addressable collections — ADR-037 open question 4's "trip globals",
 // and the prerequisite that makes half the widget catalogue cheap.
@@ -25,34 +26,41 @@ import { ActivityTag } from "./activity";
 // the attribute manifest is built by inverting THIS schema, and a projection
 // computed in the browser would have no schema to invert.
 //
-// `.describe()` on every field is load-bearing rather than documentation: it is
-// the human label the manifest reads (Mitchell: *"we can invert a Typescript
-// type to identify the fields that can be accessed"*, refined to Zod because in
-// this repo the type is the derived artifact, not the source).
+// Every readable field goes through `described(kind, label, schema)` rather
+// than a bare `.describe()`. Two things ride on that one line: the human label
+// the picker shows, and the VALUE KIND that tells a generic widget how to
+// render it (ADR-037 open question 4 — *"'how to serialize them' becomes a
+// small closed set of value kinds — money, date, count, text, duration — each
+// with one formatter"*).
+//
+// The kind was missing until Copilot pointed it out on PR 134: with label only,
+// `costSubtotal` was indistinguishable from `activityCount`, so the manifest
+// could name a field and still not say how to print it — which is most of what
+// it exists to do.
 
 export const TripGlobalsDay = z.object({
-  index: z.number().int().nonnegative().describe("Day number, counting from 0"),
-  date: z.string().nullable().describe("The day's date, or nothing if the trip has no start date"),
+  index: described("count", "Day number, counting from 0", z.number().int().nonnegative()),
+  date: described("date", "The day's date, or nothing if the trip has no start date", z.string().nullable()),
   // From `citiesOfDay`, which is the ONE implementation of this rule and says
   // why in its own header: time order not stored order, `location.city` only
   // (never a name/area fallback), duplicates collapsed. A day that touches no
   // located stop reports `[]`.
-  cities: z.array(z.string()).describe("The cities this day touches, in arrival order"),
-  activityCount: z.number().int().nonnegative().describe("How many stops are on this day"),
-  costSubtotal: z.number().int().describe("What this day costs, in minor units"),
+  cities: described("text", "The cities this day touches, in arrival order", z.array(z.string())),
+  activityCount: described("count", "How many stops are on this day", z.number().int().nonnegative()),
+  costSubtotal: described("money", "What this day costs", z.number().int()),
 });
 export type TripGlobalsDay = z.infer<typeof TripGlobalsDay>;
 
 export const TripGlobalsCity = z.object({
-  name: z.string().describe("The city's name"),
-  dayIndexes: z.array(z.number().int().nonnegative()).describe("Which days touch this city"),
-  activityCount: z.number().int().nonnegative().describe("How many stops are in this city"),
+  name: described("text", "The city's name", z.string()),
+  dayIndexes: described("count", "Which days touch this city", z.array(z.number().int().nonnegative())),
+  activityCount: described("count", "How many stops are in this city", z.number().int().nonnegative()),
 });
 export type TripGlobalsCity = z.infer<typeof TripGlobalsCity>;
 
 export const TripGlobalsTag = z.object({
-  tag: ActivityTag.describe("The tag"),
-  activityCount: z.number().int().nonnegative().describe("How many stops carry this tag"),
+  tag: described("text", "The tag", ActivityTag),
+  activityCount: described("count", "How many stops carry this tag", z.number().int().nonnegative()),
 });
 export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 
@@ -62,9 +70,10 @@ export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 // empty `people: []` here would be worse than its absence — it would read as
 // "this trip has nobody on it" rather than "this build cannot answer that".
 export const TripGlobals = z.object({
-  days: z.array(TripGlobalsDay).describe("Every day of the trip"),
-  cities: z.array(TripGlobalsCity).describe("Every city the trip touches"),
-  tags: z.array(TripGlobalsTag).describe("Every tag in use on this trip"),
-  bookedCount: z.number().int().nonnegative().describe("How many stops are booked"),
+  days: described("text", "Every day of the trip", z.array(TripGlobalsDay)),
+  cities: described("text", "Every city the trip touches", z.array(TripGlobalsCity)),
+  tags: described("text", "Every tag in use on this trip", z.array(TripGlobalsTag)),
+  bookedCount: described("count", "How many stops are booked", z.number().int().nonnegative()),
 });
 export type TripGlobals = z.infer<typeof TripGlobals>;
+export type { ValueKind };

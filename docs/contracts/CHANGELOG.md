@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — the widget contract completed: `WidgetShape`, value kinds, an optional trip
+- Added: `WidgetShape` (`single` | `block` | `repeat`), superseding `MacroKind`
+  for widget definitions — `MacroKind` could say inline or block and had nowhere
+  to put a repeater (link 6). `MacroKind` stays for the older callers
+- Added: `ValueKind` (`money` | `date` | `count` | `text` | `duration`) and
+  `described(kind, label, schema)`, which annotates a readable field with both
+  facts in one line. `TripGlobals`' fields all go through it
+- Changed: `AttributeEntry` is a Zod discriminated union with `AttributeField`,
+  so the type is inferred rather than hand-written (invariant 5) and the
+  manifest's own output is parseable — a malformed entry is now a test failure
+- Changed: `AttributeRef` refuses a `key` with no `collection`
+- Why: all four came out of Copilot's review of PR 134. The value kind is what
+  ADR-037 open question 4 means by "how to serialize them"; without it
+  `costSubtotal` was indistinguishable from `activityCount`, so the manifest
+  could name a field and still not say how to print it
+- Consumers updated: `@tc/pages` (`MacroDef` gains `title`, `shape`, `preview`
+  and an `item?: ItemScope` argument; `WidgetContext.trip` becomes optional and
+  every resolver answers `unbound("trip")` without one), `apps/web`
+  (`MacroView` renders that state) — in this same PR
+- Breaking? **no** on the wire. `TripGlobals`' shape is unchanged — `described()`
+  is `.describe()` plus a WeakMap entry, so the schema it returns parses
+  identically. The widget-definition changes are internal to `@tc/pages`
+
 ## 2026-09-03 — the attribute manifest, and `AttributeRef` (ADR-037 open question 4)
 - Added: `buildAttributeManifest()`, `AttributeEntry`, `AttributeRef`
 - Why: the settled answer to *"a developer adding a new global attribute gets it

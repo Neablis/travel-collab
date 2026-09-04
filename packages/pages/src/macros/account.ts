@@ -25,11 +25,15 @@ type NoParams = z.infer<typeof NoParams>;
 // confident wrong answer.
 export const accountName: MacroDef<NoParams, string> = {
   name: "account.name",
-  kind: "inline",
+  title: "Your name",
+  // Account-scope, so it resolves on a notebook with no trip at all — the case
+  // `WidgetContext.trip?` exists for.
+  shape: "single",
   params: NoParams,
   inputs: [],
   description: "The name on your account.",
   emptyText: "no name set",
+  preview: "the name on your account",
   resolve: ({ user }: WidgetContext): MacroResult<string> => {
     // `null` is "preferences did not load", `displayName: null` is "never set".
     // Both render the same thing, and neither guesses.
@@ -45,11 +49,13 @@ export const accountName: MacroDef<NoParams, string> = {
 // context now carries the account.
 export const accountHomeAirport: MacroDef<NoParams, string> = {
   name: "account.homeAirport",
-  kind: "inline",
+  title: "Your home airport",
+  shape: "single",
   params: NoParams,
   inputs: [],
   description: "Your home airport, as a three-letter code.",
   emptyText: "no home airport set",
+  preview: "your home airport code",
   resolve: ({ user }: WidgetContext): MacroResult<string> => {
     const code = user?.homeAirport;
     return code == null || code === "" ? empty() : ok(code);

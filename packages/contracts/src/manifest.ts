@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TripGlobals } from "./globals";
+import { VALUE_KINDS, valueKindOf, type ValueKind } from "./valueKind";
 
 // The attribute manifest — ADR-037 open question 4, and the mechanism behind
 // *"a developer adding a new global attribute gets it for free"*.
@@ -46,17 +47,44 @@ import { TripGlobals } from "./globals";
 // `TripGlobals` publishes it, and adding an undescribed one does not. That is
 // the whole contract, and `manifest.test.ts` asserts both halves.
 
-/** One readable thing, as the picker will list it. */
-export type AttributeEntry =
-  | { kind: "value"; object: "trip"; field: string; label: string }
-  | {
-      kind: "collection";
-      object: "trip";
-      collection: string;
-      label: string;
-      /** What can be read off one member of the collection. */
-      fields: { field: string; label: string }[];
-    };
+// One readable thing, as the picker will list it.
+//
+// A Zod schema rather than a hand-written type, on Copilot's finding (PR 134):
+// invariant 5 says cross-boundary types in this package are "Zod schemas; types
+// inferred, never hand-written twice", and this is exported from `contracts`.
+// It also earns its keep beyond the letter of the rule — `manifest.test.ts` now
+// parses the builder's output through it, so a malformed entry is a test
+// failure rather than a shape nobody checks.
+const ValueKindSchema = z.enum(VALUE_KINDS);
+
+/** What can be read off one member of a collection. */
+export const AttributeField = z.object({
+  field: z.string().min(1),
+  label: z.string().min(1),
+  // Absent when the field carries a label but no kind — see `described()`.
+  // A picker can list it and a generic widget cannot print it, which is the
+  // honest degradation rather than guessing a formatter.
+  valueKind: ValueKindSchema.optional(),
+}).strict();
+export type AttributeField = z.infer<typeof AttributeField>;
+
+export const AttributeEntry = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("value"),
+    object: z.literal("trip"),
+    field: z.string().min(1),
+    label: z.string().min(1),
+    valueKind: ValueKindSchema.optional(),
+  }).strict(),
+  z.object({
+    kind: z.literal("collection"),
+    object: z.literal("trip"),
+    collection: z.string().min(1),
+    label: z.string().min(1),
+    fields: z.array(AttributeField),
+  }).strict(),
+]);
+export type AttributeEntry = z.infer<typeof AttributeEntry>;
 
 /**
  * What a widget STORES when pointed at an attribute — structured, never a
@@ -131,11 +159,16 @@ export function buildAttributeManifest(): AttributeEntry[] {
         // rather than published as a collection with none.
         if (!(element instanceof z.ZodObject)) continue;
         const fields = Object.entries(element.shape as Record<string, z.ZodTypeAny>)
-          .map(([name, member]) => ({ field: name, label: describedLabel(member) }))
-          .filter((f): f is { field: string; label: string } => f.label !== undefined);
+          .flatMap(([name, member]): AttributeField[] => {
+            const memberLabel = describedLabel(member);
+            if (memberLabel === undefined) return [];
+            const memberKind = valueKindOf(member);
+            return [{ field: name, label: memberLabel, ...(memberKind ? { valueKind: memberKind } : {}) }];
+          });
         entries.push({ kind: "collection", object, collection: key, label, fields });
       } else {
-        entries.push({ kind: "value", object, field: key, label });
+        const fieldKind = valueKindOf(field);
+        entries.push({ kind: "value", object, field: key, label, ...(fieldKind ? { valueKind: fieldKind } : {}) });
       }
     }
   }

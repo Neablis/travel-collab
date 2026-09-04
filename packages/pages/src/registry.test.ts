@@ -19,9 +19,27 @@ describe("registry", () => {
   it("resolveMacro reports bad params without throwing", () => {
     expect(resolveMacro(detail, { tripId: detail.tripId }, "trip.name", { junk: 1 }).status).toBe("ok"); // strip() ignores extras
   });
-  it("macroCatalog exposes name/kind/description for the AI + autocomplete", () => {
+  it("macroCatalog exposes what the AI tools and the insert sidebar read", () => {
+    // `shape` replaced `kind` on PR 134 (ADR-037 decision 1 — "inline"|"block"
+    // had nowhere to put a repeater), and `title`/`preview` joined it because
+    // the sidebar lists a widget by the name a person calls it and shows a
+    // fixed sample beside it.
     const cat = macroCatalog();
-    expect(cat.find((m) => m.name === "cost.trip")).toMatchObject({ kind: "inline", description: expect.any(String) });
+    expect(cat.find((m) => m.name === "cost.trip")).toMatchObject({
+      shape: "single",
+      title: expect.any(String),
+      description: expect.any(String),
+      preview: expect.any(String),
+    });
+  });
+
+  it("gives every widget a title and a preview, since the sidebar lists both", () => {
+    for (const entry of macroCatalog()) {
+      expect(entry.title, `${entry.name} has no title`).toBeTruthy();
+      expect(entry.preview, `${entry.name} has no preview`).toBeTruthy();
+      // The title is what a person reads; it must not be the stored identifier.
+      expect(entry.title, `${entry.name}'s title is just its name`).not.toBe(entry.name);
+    }
   });
 
   // ADR-035 decision 2. These two guard the seam itself rather than any one

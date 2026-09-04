@@ -50,6 +50,11 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // caught it on #129. Link 4's chrome row passes a handler again, and this
   // goes back to being actionable with no further edit.
   if (outcome.status === "unbound") {
+    // Two different missing things, and they read differently to a person: a
+    // day is something they can pick from the chrome row, a trip is not — a
+    // notebook created outside a trip has none, and that is the ADR-037 open
+    // question 2 case `WidgetContext.trip?` exists for.
+    if (outcome.needs === "trip") return <EmptyChip tone="muted" label="needs a trip" />;
     return onBindDay
       ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
       : <EmptyChip tone="muted" label="no day set" />;

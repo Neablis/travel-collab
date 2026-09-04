@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
-import { AttributeRef, buildAttributeManifest, TripGlobals } from "../src";
+import { AttributeEntry, AttributeRef, buildAttributeManifest, TripGlobals } from "../src";
 
 describe("the attribute manifest", () => {
   it("lists the trip's collections with the fields readable off each member", () => {
@@ -116,5 +116,55 @@ describe("AttributeRef", () => {
     // `.strict()`, so an extra key is a parse error rather than something we
     // would drop on the next save.
     expect(AttributeRef.safeParse({ object: "trip", field: "bookedCount", expr: "x" }).success).toBe(false);
+  });
+});
+
+// ADR-037 open question 4: "'how to serialize them' becomes a small closed set
+// of value kinds — money, date, count, text, duration — each with one
+// formatter." Missing until Copilot flagged it on PR 134: with a label alone,
+// `costSubtotal` was indistinguishable from `activityCount`, so the manifest
+// could name a field and still not say how to print it.
+describe("value kinds", () => {
+  const days = () => {
+    const entry = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "days");
+    if (!entry || entry.kind !== "collection") throw new Error("days collection missing");
+    return entry;
+  };
+
+  it("distinguishes money from a plain count on the same collection", () => {
+    const fields = days().fields;
+    expect(fields.find((f) => f.field === "costSubtotal")?.valueKind).toBe("money");
+    expect(fields.find((f) => f.field === "activityCount")?.valueKind).toBe("count");
+  });
+
+  it("distinguishes a date from a name", () => {
+    expect(days().fields.find((f) => f.field === "date")?.valueKind).toBe("date");
+    const cities = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "cities");
+    if (!cities || cities.kind !== "collection") throw new Error("cities collection missing");
+    expect(cities.fields.find((f) => f.field === "name")?.valueKind).toBe("text");
+  });
+
+  it("gives every listed field a kind, so a generic widget always has a formatter", () => {
+    let checked = 0;
+    for (const entry of buildAttributeManifest()) {
+      if (entry.kind === "value") {
+        checked += 1;
+        expect(entry.valueKind, `${entry.field} has no value kind`).toBeDefined();
+      } else {
+        for (const f of entry.fields) {
+          checked += 1;
+          expect(f.valueKind, `${entry.collection}.${f.field} has no value kind`).toBeDefined();
+        }
+      }
+    }
+    // The witness: without it this passes over an empty manifest.
+    expect(checked, "no field was inspected").toBeGreaterThan(5);
+  });
+
+  it("parses its own output through AttributeEntry", () => {
+    // The point of making `AttributeEntry` a schema rather than a bare type
+    // (Copilot, PR 134): the builder's output is now checkable, so a malformed
+    // entry is a test failure instead of a shape nobody validates.
+    for (const entry of buildAttributeManifest()) expect(AttributeEntry.parse(entry)).toEqual(entry);
   });
 });

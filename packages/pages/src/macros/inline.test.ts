@@ -1,3 +1,4 @@
+import { MACRO_NAMES, getMacro } from "../registry";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripName, tripDates, costTrip, costDay, resolveDayIndex } from "./inline";
@@ -58,5 +59,29 @@ describe("resolveDayIndex", () => {
   it("is null for a stale ref rather than the nearest day", () => {
     expect(resolveDayIndex(base, { dayRef: { kind: "index", index: 99 } })).toBeNull();
     expect(resolveDayIndex(base, { dayRef: { kind: "dayId", dayId: "d9" } })).toBeNull();
+  });
+});
+
+// ADR-037 open question 2: "every resolver must handle an absent trip". Made
+// required on PR 134 after Copilot pointed out the ADR says so — deferring it
+// meant rewriting every trip resolver when root-account notebooks arrive.
+//
+// Registry-wide rather than per-widget, so a widget added later is covered the
+// day it lands: every trip-reading widget must answer `unbound: "trip"` rather
+// than throwing on `trip.name` or guessing an answer.
+describe("every widget survives a context with no trip", () => {
+  it("answers unbound:trip rather than throwing", () => {
+    const ctx = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals: null };
+    let sawTripUnbound = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
+      const outcome = def.resolve(ctx, params as never);
+      expect(["ok", "empty", "unbound"]).toContain(outcome.status);
+      if (outcome.status === "unbound" && outcome.needs === "trip") sawTripUnbound += 1;
+    }
+    // The witness: the account widgets resolve fine without a trip, so a floor
+    // of zero would pass if every trip widget silently returned `empty`.
+    expect(sawTripUnbound, "no widget reported needing a trip").toBeGreaterThan(0);
   });
 });

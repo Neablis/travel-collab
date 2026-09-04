@@ -53,3 +53,16 @@ describe("account widgets read the field they name", () => {
     expect(accountHomeAirport.render("SFO")).toEqual({ kind: "inline", segs: [{ kind: "text", text: "SFO" }] });
   });
 });
+
+// ADR-037 open question 2, and the case Copilot flagged on PR 134 as the reason
+// `trip` had to become optional: an account widget resolves on a notebook with
+// no trip at all. If these ever start needing one, root-account notebooks are
+// blocked and nobody finds out until they are built.
+describe("account widgets need no trip", () => {
+  const noTrip: WidgetContext = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: prefs(), globals: null };
+
+  it("resolve against a context carrying no trip", () => {
+    expect(accountName.resolve(noTrip, {})).toEqual({ status: "ok", value: "Priya" });
+    expect(accountHomeAirport.resolve(noTrip, {})).toEqual({ status: "ok", value: "SFO" });
+  });
+});

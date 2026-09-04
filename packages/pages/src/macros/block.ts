@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { TripDetail } from "@tc/contracts";
 import type { MacroDef, WidgetContext, ItineraryDayPayload, ItineraryTripPayload, CostsTablePayload } from "../registry-types";
 import { blockOf } from "../registry-types";
-import { ok, empty, unbound, type MacroResult } from "../result";
+import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney } from "../format";
 import { DAY_INPUT, DayParams, resolveDayIndex } from "./inline";
 
@@ -25,9 +25,11 @@ function dayPayload(detail: TripDetail, idx: number): ItineraryDayPayload {
 }
 
 export const itineraryDay: MacroDef<DayParams, ItineraryDayPayload> = {
-  name: "itinerary.day", kind: "block", params: DayParams, inputs: DAY_INPUT,
+  name: "itinerary.day", title: "A day's stops", shape: "block", params: DayParams, inputs: DAY_INPUT,
   description: "The activity list for one day of the trip.", emptyText: "No activities on this day yet",
+  preview: "every stop on the day you point it at",
   resolve: ({ trip }: WidgetContext, params): MacroResult<ItineraryDayPayload> => {
+    if (!trip) return needsTrip();
     const idx = resolveDayIndex(trip, params);
     if (idx === null) return unbound("day");
     if (trip.days[idx]!.activityIds.length === 0) return empty();
@@ -37,9 +39,11 @@ export const itineraryDay: MacroDef<DayParams, ItineraryDayPayload> = {
 };
 
 export const itineraryTrip: MacroDef<NoParams, ItineraryTripPayload> = {
-  name: "itinerary.trip", kind: "block", params: NoParams, inputs: [],
+  name: "itinerary.trip", title: "Every day at a glance", shape: "block", params: NoParams, inputs: [],
   description: "The full itinerary — every day and its activities.", emptyText: "No days planned yet",
+  preview: "the whole trip, day by day",
   resolve: ({ trip }): MacroResult<ItineraryTripPayload> => {
+    if (!trip) return needsTrip();
     if (trip.days.length === 0) return empty();
     return ok({ kind: "itinerary-trip", days: trip.days.map((_, i) => dayPayload(trip, i)) });
   },
@@ -47,9 +51,11 @@ export const itineraryTrip: MacroDef<NoParams, ItineraryTripPayload> = {
 };
 
 export const costsTable: MacroDef<NoParams, CostsTablePayload> = {
-  name: "costs.table", kind: "block", params: NoParams, inputs: [],
+  name: "costs.table", title: "Costs, broken down", shape: "block", params: NoParams, inputs: [],
   description: "A cost breakdown by day plus unscheduled, with a trip total.", emptyText: "no costs yet",
+  preview: "each day's spend, and the total",
   resolve: ({ trip }): MacroResult<CostsTablePayload> => {
+    if (!trip) return needsTrip();
     if (trip.tripCostTotal === 0) return empty();
     const rows = trip.days
       .map((day, i) => ({ label: day.date ? `Day ${i + 1} · ${day.date}` : `Day ${i + 1}`, minor: day.costSubtotal }))
