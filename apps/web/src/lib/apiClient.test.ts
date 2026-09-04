@@ -20,6 +20,7 @@ import {
   fetchSharedTrip,
   fetchTripAccess,
   fetchTripDetail,
+  fetchTripGlobals,
   fetchTrips,
   fetchTripDetailAt,
   fetchTripHistory,
@@ -178,6 +179,7 @@ const UUID = "22222222-2222-4222-8222-222222222222";
 const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createTrip: () => createTrip({ name: "Rome" }),
   fetchTripDetail: () => fetchTripDetail(TRIP_ID),
+  fetchTripGlobals: () => fetchTripGlobals(TRIP_ID),
   fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
   fetchTripDetailAt: () => fetchTripDetailAt(TRIP_ID, 1),

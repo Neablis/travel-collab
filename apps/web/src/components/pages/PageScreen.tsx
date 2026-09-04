@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail } from "@tc/contracts";
+import type { Page, PageDoc, TripDetail, TripGlobals, UserPreferences } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fetchTripDetail } from "@/lib/apiClient";
+import { fetchTripDetail, fetchPreferences, fetchTripGlobals } from "@/lib/apiClient";
 import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
@@ -48,6 +48,15 @@ function LockedNotice({ children }: { children: ReactNode }) {
 export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
+  // The account, for account-scope widgets (ADR-037 open question 2). It is
+  // fetched ALONGSIDE the page rather than gating it: a notebook that will not
+  // open because a preferences request failed is a worse outcome than one
+  // widget rendering "not set up", so a failure here leaves this `null` and the
+  // page loads regardless. That is why it is not in the `Promise.all` below,
+  // whose failures are page failures.
+  const [user, setUser] = useState<UserPreferences | null>(null);
+  // Same fail-soft rule as `user` above, and for the same reason.
+  const [globals, setGlobals] = useState<TripGlobals | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   // The verdict on the document AS LOADED, taken once. It is deliberately not
@@ -64,6 +73,12 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
 
   useEffect(() => {
     let cancelled = false;
+    void fetchPreferences().then((r) => {
+      if (!cancelled && r.ok) setUser(r.value);
+    });
+    void fetchTripGlobals(tripId).then((r) => {
+      if (!cancelled && r.ok) setGlobals(r.value);
+    });
     void Promise.all([fetchPage(tripId, pageId), fetchTripDetail(tripId)]).then(([pageResult, tripResult]) => {
       if (cancelled) return;
       if (!pageResult.ok) {
@@ -182,6 +197,8 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       <PageEditor
         detail={trip}
         context={page.context}
+        user={user}
+        globals={globals}
         value={stored.doc}
         onChange={handleContentChange}
       />

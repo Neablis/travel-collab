@@ -1,3 +1,4 @@
+import { MACRO_NAMES, getMacro } from "../registry";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripName, tripDates, costTrip, costDay, resolveDayIndex } from "./inline";
@@ -22,20 +23,20 @@ const day0 = { dayRef: { kind: "index", index: 0 } as const };
 
 describe("inline resolvers", () => {
   it("trip.name resolves the name", () => {
-    const r = tripName.resolve(base, ctx, {});
+    const r = tripName.resolve({ trip: base, page: ctx, user: null, globals: null }, {});
     expect(r).toEqual({ status: "ok", value: "Japan 2026" });
   });
   it("trip.dates is empty when no startDate", () => {
-    expect(tripDates.resolve({ ...base, startDate: null }, ctx, {}).status).toBe("empty");
+    expect(tripDates.resolve({ trip: { ...base, startDate: null }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
   it("cost.trip formats the total; empty when zero", () => {
-    expect(costTrip.resolve(base, ctx, {})).toEqual({ status: "ok", value: "$50.00" });
-    expect(costTrip.resolve({ ...base, tripCostTotal: 0 }, ctx, {}).status).toBe("empty");
+    expect(costTrip.resolve({ trip: base, page: ctx, user: null, globals: null }, {})).toEqual({ status: "ok", value: "$50.00" });
+    expect(costTrip.resolve({ trip: { ...base, tripCostTotal: 0 }, page: ctx, user: null, globals: null }, {}).status).toBe("empty");
   });
   it("cost.day resolves the day in its OWN params; unbound with no ref; empty when zero", () => {
-    expect(costDay.resolve(base, ctx, day0)).toEqual({ status: "ok", value: "$50.00" });
-    expect(costDay.resolve(base, ctx, {}).status).toBe("unbound");
-    expect(costDay.resolve(base, ctx, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, day0)).toEqual({ status: "ok", value: "$50.00" });
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, {}).status).toBe("unbound");
+    expect(costDay.resolve({ trip: base, page: ctx, user: null, globals: null }, { dayRef: { kind: "index", index: 1 } }).status).toBe("empty");
   });
 });
 
@@ -58,5 +59,29 @@ describe("resolveDayIndex", () => {
   it("is null for a stale ref rather than the nearest day", () => {
     expect(resolveDayIndex(base, { dayRef: { kind: "index", index: 99 } })).toBeNull();
     expect(resolveDayIndex(base, { dayRef: { kind: "dayId", dayId: "d9" } })).toBeNull();
+  });
+});
+
+// ADR-037 open question 2: "every resolver must handle an absent trip". Made
+// required on PR 134 after Copilot pointed out the ADR says so — deferring it
+// meant rewriting every trip resolver when root-account notebooks arrive.
+//
+// Registry-wide rather than per-widget, so a widget added later is covered the
+// day it lands: every trip-reading widget must answer `unbound: "trip"` rather
+// than throwing on `trip.name` or guessing an answer.
+describe("every widget survives a context with no trip", () => {
+  it("answers unbound:trip rather than throwing", () => {
+    const ctx = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals: null };
+    let sawTripUnbound = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
+      const outcome = def.resolve(ctx, params as never);
+      expect(["ok", "empty", "unbound"]).toContain(outcome.status);
+      if (outcome.status === "unbound" && outcome.needs === "trip") sawTripUnbound += 1;
+    }
+    // The witness: the account widgets resolve fine without a trip, so a floor
+    // of zero would pass if every trip widget silently returned `empty`.
+    expect(sawTripUnbound, "no widget reported needing a trip").toBeGreaterThan(0);
   });
 });

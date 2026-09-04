@@ -13,6 +13,86 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — the widget contract completed: `WidgetShape`, value kinds, an optional trip
+- Added: `WidgetShape` (`single` | `block` | `repeat`), superseding `MacroKind`
+  for widget definitions — `MacroKind` could say inline or block and had nowhere
+  to put a repeater (link 6). `MacroKind` stays for the older callers
+- Added: `ValueKind` (`money` | `date` | `count` | `text` | `duration`) and
+  `described(kind, label, schema)`, which annotates a readable field with both
+  facts in one line. `TripGlobals`' fields all go through it
+- Changed: `AttributeEntry` is a Zod discriminated union with `AttributeField`,
+  so the type is inferred rather than hand-written (invariant 5) and the
+  manifest's own output is parseable — a malformed entry is now a test failure
+- Changed: `AttributeRef` refuses a `key` with no `collection`
+- Why: all four came out of Copilot's review of PR 134. The value kind is what
+  ADR-037 open question 4 means by "how to serialize them"; without it
+  `costSubtotal` was indistinguishable from `activityCount`, so the manifest
+  could name a field and still not say how to print it
+- Consumers updated: `@tc/pages` (`MacroDef` gains `title`, `shape`, `preview`
+  and an `item?: ItemScope` argument; `WidgetContext.trip` becomes optional and
+  every resolver answers `unbound("trip")` without one), `apps/web`
+  (`MacroView` renders that state) — in this same PR
+- Breaking? **no** on the wire. `TripGlobals`' shape is unchanged — `described()`
+  is `.describe()` plus a WeakMap entry, so the schema it returns parses
+  identically. The widget-definition changes are internal to `@tc/pages`
+
+## 2026-09-03 — the attribute manifest, and `AttributeRef` (ADR-037 open question 4)
+- Added: `buildAttributeManifest()`, `AttributeEntry`, `AttributeRef`
+- Why: the settled answer to *"a developer adding a new global attribute gets it
+  for free"* — a widget whose control is a searchable select over a GENERATED
+  list of readable paths, with a structured stored param and no user-facing
+  syntax. `{{trip.cities[Tokyo].activities.length}}` was dropped because a
+  freeform string has no declared inputs (so no control, no preview, no
+  `needs a field` badge) and cannot express a lookup that MISSES, which
+  decision 6's "not set up" requires
+- Built by inverting the **Zod** schema, not the TypeScript type, per that
+  decision's own refinement: in this repo the type is the derived artifact
+  (invariant 5), so inverting it would need the compiler API plus a codegen
+  artifact to recover what Zod already holds at runtime. Walking
+  `ZodObject.shape` needs no build step and lives in `packages/contracts`, which
+  depends on nothing
+- **Exposure is opt-in twice over**, which is the half that is a safety property
+  rather than a feature: only schemas named in `MANIFEST_ROOTS` are walked
+  (`TripGlobals` and nothing else — there is no "walk everything" entry point,
+  so `TripDetail`'s `dismissedConflictIds`, `forkedFrom` and internal uuids
+  cannot be published by accident), and within a root only fields carrying
+  `.describe()` are listed. Anything added later is EXCLUDED by default
+- `AttributeRef` is `.strict()`: an extra key is a parse error rather than
+  something dropped on the next save, and a string expression does not parse at
+  all
+- Consumers updated: none yet — the `trip.attribute` widget that reads this
+  needs an `attribute` input type and a control to render it, which arrives with
+  the insert surface (item G). The manifest's contract is fully asserted by
+  `packages/contracts/test/manifest.test.ts` in the meantime
+- Breaking? **no.** Additive: new exports only
+
+## 2026-09-03 — `TripGlobals`: the trip's addressable collections (ADR-037 open question 4)
+- Added: `TripGlobals` (`days`, `cities`, `tags`, `bookedCount`) with
+  `TripGlobalsDay`, `TripGlobalsCity`, `TripGlobalsTag`
+- Why: ADR-037 open question 4's settled answer needs `trip.cities` to BE a
+  collection. It is not stored — cities are derived per-activity by
+  `citiesOfDay` in `@tc/domain`, and AGENTS.md's module map makes
+  `apps/web/src/server/**` the only code that may import domain. So the
+  projection is computed server-side, described here, and delivered to the
+  client, exactly as `TripDetail` already is. Mitchell chose this shape over
+  letting `@tc/pages` import `@tc/domain` (2026-09-03), which would have put
+  domain code in the browser bundle through a side door that three files in
+  `apps/web/src/lib` deliberately avoid
+- Every field carries `.describe()`, which is not documentation: item E's
+  attribute manifest is built by inverting this schema, per ADR-037 open
+  question 4's settled refinement (invert the Zod schema, not the TS type,
+  because in this repo the type is the derived artifact)
+- `people` is deliberately absent, not empty: nothing links an activity to a
+  person, and an empty array would read as "this trip has nobody on it" rather
+  than "this build cannot answer that". It arrives with M13 `add-stop-who` /
+  M19 link 3
+- Consumers updated: `apps/web` (`server/tripGlobals.ts`, a new
+  `GET /api/trips/:tripId/globals` behind the same viewer guard as the detail
+  route, `fetchTripGlobals`, and `WidgetContext.globals` through
+  `PageScreen` → `PageEditor` → `MacroView`) — in this same PR
+- Breaking? **no.** Additive: a new schema and a new route. No existing response
+  shape changed, and `fetchTripDetail` is untouched on purpose so the board, the
+  lenses and the map do not pay for a projection only the Notebook reads
 ## 2026-09-03 — the page write path becomes `PageDoc`; the read path stays permissive (ADR-038 decision 4)
 - Changed: `CreatePageInput.content` and `UpdatePageInput.content` are `PageDoc`,
   not `PageContent` — a document this build cannot parse is refused at the API

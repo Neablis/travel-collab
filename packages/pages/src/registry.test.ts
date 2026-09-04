@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
-import { MACRO_REGISTRY, getMacro, resolveMacro, MACRO_NAMES, macroCatalog } from "./registry";
+import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, macroCatalog } from "./registry";
 import type { WidgetInput } from "./registry-types";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
@@ -19,9 +19,27 @@ describe("registry", () => {
   it("resolveMacro reports bad params without throwing", () => {
     expect(resolveMacro(detail, { tripId: detail.tripId }, "trip.name", { junk: 1 }).status).toBe("ok"); // strip() ignores extras
   });
-  it("macroCatalog exposes name/kind/description for the AI + autocomplete", () => {
+  it("macroCatalog exposes what the AI tools and the insert sidebar read", () => {
+    // `shape` replaced `kind` on PR 134 (ADR-037 decision 1 — "inline"|"block"
+    // had nowhere to put a repeater), and `title`/`preview` joined it because
+    // the sidebar lists a widget by the name a person calls it and shows a
+    // fixed sample beside it.
     const cat = macroCatalog();
-    expect(cat.find((m) => m.name === "cost.trip")).toMatchObject({ kind: "inline", description: expect.any(String) });
+    expect(cat.find((m) => m.name === "cost.trip")).toMatchObject({
+      shape: "single",
+      title: expect.any(String),
+      description: expect.any(String),
+      preview: expect.any(String),
+    });
+  });
+
+  it("gives every widget a title and a preview, since the sidebar lists both", () => {
+    for (const entry of macroCatalog()) {
+      expect(entry.title, `${entry.name} has no title`).toBeTruthy();
+      expect(entry.preview, `${entry.name} has no preview`).toBeTruthy();
+      // The title is what a person reads; it must not be the stored identifier.
+      expect(entry.title, `${entry.name}'s title is just its name`).not.toBe(entry.name);
+    }
   });
 
   // ADR-035 decision 2. These two guard the seam itself rather than any one
@@ -71,5 +89,102 @@ describe("registry", () => {
     for (const name of MACRO_NAMES) {
       expect(Array.isArray(getMacro(name)!.inputs), `${name} declares no inputs array`).toBe(true);
     }
+  });
+});
+
+// ADR-037 decision 2, and the control it names by hand: **"a registry-wide test
+// asserts every widget has a renderer, so 'forgot to wire it up' is a red test
+// rather than a `no renderer:` chip discovered by a user."**
+//
+// That chip was real: `MacroView`'s `switch (name)` had a `default:` branch
+// rendering `no renderer: <name>` to whoever opened the page. These tests are
+// what replaces it, and they are registry-wide on purpose — a widget added
+// tomorrow is covered the day it lands, without anyone remembering to add a case
+// here either.
+describe("every widget renders (ADR-037 decision 2)", () => {
+  // A trip with enough in it that the block widgets resolve to `ok` rather than
+  // `empty` — an `empty` outcome never reaches `render`, so a registry sweep
+  // over a bare trip would pass while proving nothing about the renderers.
+  const populated: TripDetail = {
+    ...detail,
+    startDate: "2026-08-01",
+    days: [{ dayId: "d0", activityIds: ["a1"], date: "2026-08-01", costSubtotal: 5000 }],
+    activities: {
+      a1: {
+        activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
+        timeWindow: null, location: null, cost: { amountMinor: 5000, currency: "USD" },
+        notes: null, kind: null, tags: [],
+      },
+    } as unknown as TripDetail["activities"],
+    tripCostTotal: 5000,
+  };
+
+  // A loaded account. The sweep below needs one: `account.name` and
+  // `account.homeAirport` resolve to `empty()` without it, so they would never
+  // reach `render` and the witness floor would fail — which is the floor doing
+  // exactly its job rather than a reason to lower it.
+  const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const };
+
+  it("declares a render function for every registered widget", () => {
+    for (const name of MACRO_NAMES) {
+      expect(typeof getMacro(name)!.render, `${name} has no render`).toBe("function");
+    }
+  });
+
+  it("produces a Rendered of a known kind for every widget that resolves", () => {
+    const seen: string[] = [];
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      // Bind anything that takes a day to the one day above, so block widgets
+      // reach `ok` instead of `unbound`.
+      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      if (outcome.status !== "ok") continue;
+      seen.push(name);
+      expect(["inline", "block", "rows"], `${name} rendered an unknown kind`).toContain(outcome.rendered.kind);
+    }
+    // The witness. Without this the loop above passes when every widget
+    // resolves to `empty` and nothing is rendered at all — the insensitive-test
+    // failure this repo has already had twice (CLAUDE.md rule 3).
+    expect(seen.length, `only ${seen.length} widget(s) reached render`).toBeGreaterThanOrEqual(MACRO_NAMES.length);
+  });
+
+  it("emits only text and chip segments — a widget has nowhere to put markup", () => {
+    // ADR-037 decision 3a. Not a policy the renderers are asked to follow: the
+    // `Seg` union has no member that can carry an element, an attribute or a
+    // URL, and this asserts the widgets stay inside it.
+    let inspected = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
+      const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
+      inspected += segs.length;
+      for (const seg of segs) expect(["text", "chip"]).toContain(seg.kind);
+    }
+    // This sweep skips every block, so without a floor it passes when every
+    // widget is one and no segment is examined at all — the same insensitivity
+    // the main sweep's floor exists for. CodeRabbit caught that both
+    // conditional sweeps here were missing their own (#134).
+    expect(inspected, "no segment was inspected").toBeGreaterThan(0);
+  });
+
+  it("gives every block payload a `kind`, which is what BlockView dispatches on", () => {
+    // The other half of deleting the name switch: `apps/web` picks a component
+    // by payload shape, so a payload with no discriminator is a block nothing
+    // can render.
+    let inspected = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "block") continue;
+      inspected += 1;
+      expect(typeof outcome.rendered.block.kind, `${name}'s block payload has no kind`).toBe("string");
+    }
+    // The mirror image: this one skips every NON-block, so it passes when no
+    // widget renders as a block and nothing is examined.
+    expect(inspected, "no block payload was inspected").toBeGreaterThan(0);
   });
 });

@@ -1,12 +1,14 @@
 "use client";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
-import type { TripDetail, PageContext, PageDoc } from "@tc/contracts";
+import type { TripDetail, PageContext, PageDoc, TripGlobals, UserPreferences } from "@tc/contracts";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 import { MacroEditorContext } from "./MacroEditorContext";
 
 export interface PageEditorProps {
   detail: TripDetail;
   context: PageContext;
+  user?: UserPreferences | null;
+  globals?: TripGlobals | null;
   value: PageDoc;
   onChange: (content: unknown) => void;
   onBindDay?: () => void;
@@ -28,7 +30,7 @@ export interface PageEditorProps {
 // `onChange` emits raw `getJSON()`, deliberately typed `unknown`: it is what the
 // editor produced, not yet something we have agreed to store. `toStoredPageDoc`
 // is the step in between.
-export function PageEditor({ detail, context, value, onChange, onBindDay }: PageEditorProps) {
+export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay }: PageEditorProps) {
   const editor = useEditor({
     extensions: PAGE_EDITOR_EXTENSIONS,
     // A parsed `PageDoc` and TipTap's `JSONContent` describe the same runtime
@@ -43,7 +45,7 @@ export function PageEditor({ detail, context, value, onChange, onBindDay }: Page
   });
 
   return (
-    <MacroEditorContext.Provider value={{ detail, context, onBindDay }}>
+    <MacroEditorContext.Provider value={{ detail, context, user, globals, onBindDay }}>
       <EditorContent editor={editor} className="tc-page-editor" />
     </MacroEditorContext.Provider>
   );
