@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -299,9 +299,14 @@ describe("the slash menu", () => {
   // real rect is the smallest fake that makes the feature reachable; every
   // assertion below is about the menu's CONTENT, never its coordinates, which
   // is the part jsdom cannot honestly answer.
+  // The caret's rect, mutable so a test can move it and then fire a scroll —
+  // which is the only way to simulate the page moving under a `position: fixed`
+  // menu in a DOM with no layout.
+  let caretRect = new DOMRect(10, 20, 0, 5);
   beforeEach(() => {
+    caretRect = new DOMRect(10, 20, 0, 5);
     Range.prototype.getClientRects = () =>
-      ({ length: 1, item: () => new DOMRect(), 0: new DOMRect() }) as unknown as DOMRectList;
+      ({ length: 1, item: () => caretRect, 0: caretRect }) as unknown as DOMRectList;
   });
 
   const editorFor = (onChange = vi.fn()) => {
@@ -382,6 +387,23 @@ describe("the slash menu", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain('"macro"');
     expect(second).toBeTruthy();
+  });
+
+  // Mitchell, on the preview: *"scrolling on the page should keep the widget
+  // alongside the cursor not the page"*. The menu is positioned at viewport
+  // coordinates, computed when it opened and then only recomputed on a
+  // transaction — and scrolling is not a transaction, so the document slid away
+  // underneath a menu parked where the caret used to be.
+  it("follows the caret when the page scrolls", async () => {
+    await userEvent.type(editorFor(), "/");
+    const menu = await screen.findByRole("listbox");
+    expect(menu.style.top).toBe("25px");
+
+    // The page scrolls: same caret, new viewport position.
+    caretRect = new DOMRect(10, 100, 0, 5);
+    fireEvent.scroll(document, {});
+
+    await waitFor(() => expect(screen.getByRole("listbox").style.top).toBe("105px"));
   });
 
   it("closes on Escape without inserting anything", async () => {

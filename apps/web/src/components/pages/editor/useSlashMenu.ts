@@ -128,6 +128,39 @@ export function useSlashMenu({
     };
   }, [editor, enabled]);
 
+  // **The menu follows the caret when the page scrolls.** Mitchell, on the
+  // preview: *"scrolling on the page should keep the widget alongside the cursor
+  // not the page"*. It is positioned at VIEWPORT coordinates (`position: fixed`
+  // — see `SlashMenu.tsx` for why it cannot live inside ProseMirror's DOM), and
+  // those were computed once when the menu opened and then only recomputed on a
+  // transaction. Scrolling changes no transaction, so the document slid away
+  // underneath a menu parked where the caret used to be.
+  //
+  // `capture: true` because the scroll may be on any ancestor — the page, a
+  // pane, the phone's own scrollport — and scroll events do not bubble.
+  //
+  // `coordsAtPos` is called unguarded, as `sync` calls it: `from` is only
+  // invalidated by a transaction, and a transaction runs `sync` synchronously
+  // during dispatch, which either moves `from` or closes the menu. So there is
+  // no window in which a scroll can read a position the document no longer has.
+  const open = state !== null;
+  useEffect(() => {
+    if (!editor || !open) return;
+    const follow = () => {
+      setState((was) => {
+        if (was === null) return was;
+        const coords = editor.view.coordsAtPos(was.from);
+        return { ...was, left: coords.left, top: coords.bottom };
+      });
+    };
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [editor, open]);
+
   const rangeToReplace = useCallback(() => {
     const current = stateRef.current;
     if (!current || !editor) return null;
