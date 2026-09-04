@@ -1,7 +1,7 @@
 # Spec — what the design file cannot say out loud
 
 Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
-a second file). Current as of 2026-09-02 — §18 is the newest section.
+a second file). Current as of 2026-09-03 — §19 is the newest section.
 
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
@@ -565,9 +565,10 @@ proposed for them. The two layouts are picked explicitly, not by media query: mo
 - The phone's **Map tab has an offline state** (tiles fail → titled panel, stops-still-readable
   message, Try again + Open Plan). The phone still has no **conflict** state, and no
   sync-fail state outside the map (project rule 6).
-- **Notebook on the phone** reads the focused day only. The full macro document (templates,
-  inline + block macros) has no phone treatment yet.
-  Desktop reuses `ConflictBanner`; mobile needs the equivalent decided.
+- **Notebook on the phone** was the focused day only until 2026-09-03; it now carries the
+  full widget model — see **§19**. This bullet is kept because it dated the gap.
+  Conflict is still the one missing phone state; desktop reuses `ConflictBanner`, and the
+  mobile equivalent is undecided.
 
 
 ---
@@ -824,3 +825,82 @@ place to see what the trip costs.
 All of M20 and M21. Nothing on these four surfaces is buildable against `main` today:
 there is no `plan`, no `plan_versions`, no `entitlement_grants`, no `is_admin`, no
 `ai_usage` and no `subscriptions`. See DRIFT §2c.
+
+
+---
+
+## 19. The phone Notebook is the whole model — 2026-09-03
+
+§13's "still open" bullet is closed. Phone Notebook no longer hardwires one repeater to the
+focused day: it is the same two-level structure the desktop has, at phone density. Nothing
+new was invented for it — every screen below is a layout over state the desktop already holds
+(§13, *the phone is a surface, not a file*).
+
+### Index, then page — a push, not a tab
+
+The Notebook tab opens an **index of pages**, not a page. Each row is a `Card` with the city
+accent as a flush 3px spine (§13 rule 2), the page title, its first line, and mono
+`origin · edited` meta. Under it: **Blank page**, then *Start from a template* with the same
+three templates the desktop offers and the same copy.
+
+Opening a page pushes a second view with **‹ Notebook** back at the left. It is a push, not a
+sheet: a page is a document you read, and sheets are for editing with context behind them
+(§13 rule 6). The header carries no day, no scope, no share — the trip name only, in mono,
+per project rule 1.
+
+### One toggle, same as desktop
+
+**Edit** / **Done editing** is one button, secondary → primary with `aria-pressed`, at the
+right of the page header. Read mode shows the document; edit mode reveals binds and the
+insert affordance and nothing else. There is no separate phone editor screen — the editor is
+a mode of the page, exactly as on desktop.
+
+### Rebinding is a sheet, because a phone has no room for an inline select row
+
+The one real divergence, and it is density, not model. On desktop each widget's chrome row
+carries its name chip plus a select per input, inline. At 390px that row wraps into
+unreadability, so the phone collapses it to a single 44px button:
+
+> ◆ STOP REPEATER   [ Pointed at  Day 6 · Hakone ▾ ]
+
+Tapping it opens a bind sheet holding **one control per declared input** — the same controls,
+in the same order, with the same **Reads as** preview the insert flow uses. Binding and
+rebinding are therefore one act on both surfaces; only the container differs. The sheet says
+*"This widget only — everything else on the page keeps what it is pointed at"*, because the
+page-scope model is recent enough that a user may still expect the old behaviour.
+
+The button label is the resolved bind, joined with ` → ` for multi-input widgets
+(`Day 4 · Kyoto → Day 7 · Tokyo`). It is not a duplicate of anything else on the page: the
+widget's *output* is rendered below it, its *binding* is not otherwise visible (rule 4).
+
+### Insert is the desktop sheet, full height
+
+**Insert a widget** in edit mode opens a bottom sheet pinned 92px from the top — tall enough
+that search, shape chips and the first cards are visible at once. Two steps inside it:
+
+1. **Browse** — search, shape chips (All / One value / A block / Repeats), then widget cards
+   carrying the shape tag, the `takes …` input line, and the generic preview. Same registry,
+   same order, same copy as desktop. No scope facet exists here either (§18).
+2. **Point it at** — the bind step, then a full-width **Insert it**. Widgets with no inputs
+   skip step 2 and insert on tap; unmodelled ones flash the same "nothing models this yet".
+
+Back from step 2 is **‹ All**, back from step 1 is **Cancel** — the sheet is never a dead end.
+
+### What is binding here
+
+- **A phone page is a document too.** No day scope, no focused-day coupling. Changing the
+  day rail must not change what a notebook widget reads.
+- **44px on every bind control**, selects and the search field included (§13 rule 1, and the
+  sizing note in §16 that this got wrong once).
+- **Binds render on binds, not on name pills.** The name chip is a label; the tappable
+  element is the bind. Same rule as desktop.
+- **Previews stay generic.** The insert sheet's preview line never shows live values —
+  otherwise it reads as a result rather than a description.
+- **One sheet deep, ever.** The bind sheet opens from the page; the insert sheet's bind step
+  is a *step inside the same sheet*, not a sheet over a sheet (project rule 3).
+
+### Still open
+
+- The phone's **conflict** state, still the last of project rule 6.
+- **What a seeded template instantiates** is now the only thing blocking Notebook on *both*
+  surfaces rather than one.
