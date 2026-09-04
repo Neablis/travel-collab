@@ -488,6 +488,27 @@
   .tc-page-editor {
     @apply max-w-measure;
   }
+  /* **The page is a document, not a form field.**
+     
+     Measured on the preview (2026-09-04): the focused surface computes
+     `outline: auto 1px` with `outline-offset: 0` and `padding: 0`, so the
+     browser drew its default ring flush against the content box. Everything at
+     column zero — the caret, and the rounded left edge of an inline widget's
+     chip — sat ON that ring. Mitchell reported both halves separately ("cant
+     see the cursor mark in doc when left aligned since its overlapping with
+     border", "the inline helper is overlapping with the border") and they are
+     one cause.
+
+     The caret is a text surface's focus indicator, which is why every serious
+     editor drops the ring here; real controls in this app keep their designed
+     `focus-visible` treatment and are unaffected. The padding is the other
+     half: even with no ring, a chip whose rounded edge begins at x=0 reads as
+     clipped against the page. `-mx-2` keeps the prose column optically where it
+     was, so this fixes the collision without shifting the text everyone is
+     already reading. */
+  .tc-page-editor .ProseMirror {
+    @apply -mx-2 px-2 outline-none;
+  }
   .tc-page-editor h1 {
     @apply font-display text-2xl font-semibold text-ink mt-6 mb-2;
   }

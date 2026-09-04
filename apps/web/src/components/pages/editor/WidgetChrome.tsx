@@ -112,8 +112,27 @@ export function WidgetChrome({
     onChange(merged);
   };
 
+  // **A block's chrome gets its own row; a single value's stays inline.**
+  //
+  // The row used to be inline for every shape, so a `block` or `repeat` widget
+  // put its controls in the text flow immediately after content that is not in
+  // the text flow — Mitchell, on the preview: "the dropdown is also overtop the
+  // widget block". Inline is right for a value that reads as a word in a
+  // sentence and wrong for anything that occupies its own space.
+  //
+  // Still one ProseMirror node type (`MacroNodeExtension` stays an inline atom):
+  // this is a `display` decision inside the node view, not a schema change, so
+  // ADR-035's "one node type, not two" is untouched.
+  const inline = def?.shape === "single";
+
   return (
-    <span className="ml-1 inline-flex items-center gap-1 align-middle">
+    <span
+      className={
+        inline
+          ? "ml-1 inline-flex items-center gap-1 align-middle"
+          : "mt-1 flex flex-wrap items-center gap-1"
+      }
+    >
       {/* The name pill. §18 makes it conditional on the widget having a name;
           every widget here has a title, and an itinerary under an authored
           heading is the case that would drop it — link 6's problem, not this
