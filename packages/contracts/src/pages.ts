@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PageDoc } from "./pageDoc";
 
 // A day binding: the value shape of a `day` input inside ONE WIDGET's params
 // (ADR-035 decision 3 / SPEC §18). "index" = the Nth day (0-based) of the trip;
@@ -25,20 +26,20 @@ export const PageContext = z.object({
 });
 export type PageContext = z.infer<typeof PageContext>;
 
-// Macro params are an open bag validated per-macro by the registry (Wave 2).
-// The contract only guarantees the node shape; the registry owns param schemas.
-export const MacroNode = z.object({
-  type: z.literal("macro"),
-  attrs: z.object({
-    name: z.string().min(1),
-    params: z.record(z.unknown()).default({}),
-  }),
-});
-export type MacroNode = z.infer<typeof MacroNode>;
-
-// Page content is ProseMirror/TipTap JSON. We keep it permissive (a doc node)
-// so the editor owns the schema; macro nodes embed within it (validated on the
-// way in by the editor + on compose by the AI path).
+// Page content ON THE WAY OUT, and it stays permissive ON PURPOSE.
+//
+// ADR-038's consequences say "`PageContent`'s `passthrough()` and
+// `z.unknown()` go". They go from the WRITE path — see `CreatePageInput` and
+// `UpdatePageInput` below, which are `PageDoc` now. They cannot go from the
+// read path, and the reason is decision 4 itself: a page whose stored document
+// this build cannot parse is exactly the page the reader must be shown a
+// read-only explanation for. A strict `Page.content` would make `fetchPage`
+// throw on that row instead, and the user would get "Something went wrong"
+// for a notebook that is, as far as anyone can tell, simply gone.
+//
+// So the asymmetry is the design, not a leftover: **read what is there, write
+// only what we understand.** It is also what makes the guard possible at all —
+// you cannot explain a document you refused to deliver.
 export const PageContent = z.object({
   type: z.literal("doc"),
   content: z.array(z.unknown()).default([]),
@@ -85,16 +86,26 @@ export const SYSTEM_ACTOR_ID = "system";
 export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, updatedAt: true, actorId: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
+// The write path is `PageDoc`, not `PageContent` (ADR-038 decisions 2 and 4).
+// A document this build cannot parse is a document it cannot save losslessly,
+// and "a page that cannot be saved losslessly is a page that must not be saved
+// at all" is the one rule decision 4 would not trade away. Enforcing it here
+// rather than only in the browser means it holds for the AI compose path, the
+// template seeder and anything that reaches the route later.
+//
+// `PageDoc.v` defaults to 1, so a client that sends a bare `getJSON()` document
+// still parses — and comes back out of `serializePageDoc` stamped, which is
+// decision 2's "written on every save".
 export const CreatePageInput = z.object({
   title: z.string().min(1),
   context: PageContext,
-  content: PageContent,
+  content: PageDoc,
 });
 export type CreatePageInput = z.infer<typeof CreatePageInput>;
 
 export const UpdatePageInput = z.object({
   title: z.string().min(1).optional(),
   context: PageContext.optional(),
-  content: PageContent.optional(),
+  content: PageDoc.optional(),
 });
 export type UpdatePageInput = z.infer<typeof UpdatePageInput>;

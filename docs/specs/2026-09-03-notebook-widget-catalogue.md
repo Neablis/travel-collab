@@ -91,8 +91,8 @@ Root-account notebooks (no trip) are the stated direction but explicitly out of 
 
 | id | Title | Shape | Inputs | Verdict | Notes |
 |---|---|---|---|---|---|
-| `w-person` | What one person is in for | single | `person` | ❌ | |
-| `w-personline` | A line for everything one person booked | repeat | `person` + `days` | ❌ | |
+| ~~`w-person`~~ | What one person is in for | single | `person` | ❌ | **DEFERRED 2026-09-03** — out of M14, waits on M13 `add-stop-who` / M19 link 3 |
+| ~~`w-personline`~~ | A line for everything one person booked | repeat | `person` + `days` | ❌ | **DEFERRED 2026-09-03** — same |
 
 **Nothing links an activity to a person.** Checked: no `assignee`, `paidBy`, `participant`
 or `share` on `ActivityView` or the payload fields. So "their stops, and their share so
@@ -108,15 +108,30 @@ The person hole has two halves and they cost very differently:
    share so far"* is phrased generically, per §18's rule that a preview must not assert
    numbers the live widget computes.
 
-~~**Recommendation: cut both person widgets.**~~ **OVERRULED — Mitchell, 2026-09-03:**
+~~**Recommendation: cut both person widgets.**~~ ~~**OVERRULED — Mitchell, 2026-09-03:**
 *"that list is a starter, and we can just implement them in this milestone, I would want
-person (and persons)."*
+person (and persons)."*~~
 
-They are in. The reason for the recommendation does not go away by being overruled, so it is
-now a **cost the milestone carries**: an attribution model — what a person is in for, what
-they booked, what they owe — is a domain change with events behind it, not a resolver.
-**Cost it as its own link**, ahead of the two widgets that depend on it, rather than
-discovering it inside "build the widgets".
+**REVERSED LATER THE SAME DAY — Mitchell, 2026-09-03**, once the attribution model was
+costed:
+
+> Lets skip this widget for now, and add in future we need activities to have owners (and i
+> think participants that are going to that activity)
+
+**Both person widgets are out of M14** and become downstream of the field he describes. That
+field is **already scoped twice** — **M13**'s `add-stop-who` and **M19 link 3** (*"An activity
+knows who it is for"*) — and M19's prerequisites already say it must land in exactly one of
+them, so this needs no new milestone and no new ADR. It is a dependency, not an open
+question.
+
+**Two things to carry into whichever milestone lands the field**, both from the sentence
+above and neither currently written down there:
+
+- **"owners" and "participants" are two relations, not one.** Who booked a stop is not who is
+  going to it, and M19 link 4's splits need the *participants*, not the owner. A single
+  `assignee` field would satisfy `add-stop-who`'s wording and still be wrong for splits.
+- **`w-people` is unaffected and stays in M14.** Its blocker is half 1 (a display name on
+  `TripMember`), not attribution — see the two halves above.
 
 ## Tally
 
@@ -124,7 +139,7 @@ discovering it inside "build the widgets".
 |---|---|
 | ✅ buildable now | **13** |
 | ⚠️ needs a contract change (data exists) | **6** |
-| ❌ needs a domain concept | **2** |
+| ❌ needs a domain concept | **2** — **both deferred out of M14 on 2026-09-03**, so M14 ships **19** of the 21 |
 | Already in the registry | **7** — and two of those (`trip.name`, `trip.dates`) differ from the design on inputs |
 | Need `kind: "repeat"` first | **6** |
 
@@ -141,7 +156,10 @@ Two readings, and they imply different document formats:
 - **It is an authored paragraph** containing three separately-inserted single-value widgets,
   and `wname` labels the group. Then the chrome row aggregates the binds of the widgets
   inside a block, and "changing one re-renders that block" means rewriting three instances'
-  params at once.
+  params at once. **This half is now ruled out as a chrome behaviour — Mitchell, 2026-09-03:
+  the row shows one entry per bound widget and never aggregates**, because two widgets in one
+  block must be able to point at different days. It survives only as a reading of what the
+  mock *is*, not as a description of how binding works.
 
 `personBlock` in the same file settles it for at least one case: it renders `w-person` — a
 **listed** widget — as three chips plus prose from a single binding. So a widget does emit a
@@ -187,7 +205,7 @@ lands.
 | 4 | Iteration items never stored | §18 | ADR-035 d4 | Not built — needs `repeat` |
 | 5 | **The 21 widgets themselves** | canvas `WIDGETS` | **this file** | **Not built — the gap that prompted this audit.** 7 of 21 exist |
 | 6 | Reading / Editing as one toggle | §7 (amended 2026-09-02) | — | ⚠️ **No ADR.** *Edit* → *Done editing*, `aria-pressed`. Specified in SPEC only |
-| 7 | The chrome row | §18 | ADR-037 d4 | Name pill conditional on the widget having a name; itinerary under an authored heading shows only its range selects |
+| 7 | The chrome row | §18 | ADR-037 d4 + **open q1, settled 2026-09-03** | Name pill conditional on the widget having a name; itinerary under an authored heading shows only its range selects. **One row entry per bound widget, never an aggregated control** — differing bindings in one block (Day 1 … Day 9 in one sentence) are a requirement |
 | 8 | Insert surface | §18 → **overridden** | ADR-037 d4 | Sidebar + drag + click-at-cursor + slash. **Supersedes §18's Sheet — DRIFT owes an entry** |
 | 9 | `needs a field` badge | §7 (only surviving picker rule) | ADR-037 d7 | Mechanism kept; `Home airport` no longer an instance (M17 shipped the field) |
 | 10 | Preview must not assert computed numbers | §18 | ADR-037 d5 | |
@@ -201,7 +219,7 @@ lands.
 | 18 | Account scope | Mitchell | ADR-037 oq2 | `{ user, trip? }`, trip fixed at creation |
 | 19 | Trip-globals projection | Mitchell | ADR-037 oq4 | Not built. Prerequisite for 20 — cities are derived today |
 | 20 | Attribute manifest from annotated Zod | Mitchell | ADR-037 oq4 | Opt-in, never opt-out |
-| 21 | Attribution model (person ↔ activity) | Mitchell | — | ⚠️ **No ADR and no data.** Blocks 2 widgets. Proposed as its own milestone |
+| 21 | Attribution model (person ↔ activity) | Mitchell | **Settled 2026-09-03** | ✅ **Deferred out of M14** — the 2 widgets go with it. No new milestone: the field is M13 `add-stop-who` / M19 link 3, and M19 already owns which one lands it. Carry the owner-vs-participant distinction there |
 | 22 | Widget name stability / removal | — | ADR-037 d8 | Names are stored; renaming is a migration |
 | 23 | Param shape per input type | — | ADR-037 d9 | `tags` has no unbound state |
 | 24 | "Not set up" in every state | Mitchell | ADR-037 d6 | `resolve` total today; `render` totality and a non-day-shaped `unbound` still owed |

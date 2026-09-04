@@ -1,3 +1,4 @@
+import { newPageDoc } from "@tc/contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -79,7 +80,7 @@ describe("pagesClient totality — no helper ever rejects", () => {
     fetchPages: () => fetchPages(TRIP_ID),
     fetchPage: () => fetchPage(TRIP_ID, PAGE_ID),
     createPage: () =>
-      createPage(TRIP_ID, { title: "T", context: { tripId: TRIP_ID }, content: { type: "doc", content: [] } }),
+      createPage(TRIP_ID, { title: "T", context: { tripId: TRIP_ID }, content: newPageDoc() }),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "T" }),
     deletePage: () => deletePage(TRIP_ID, PAGE_ID),
   };

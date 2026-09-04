@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DEFAULT_TEMPLATES, type TemplateSeed } from "@tc/pages";
-import type { PageContent, PageContext, PageSummary } from "@tc/contracts";
+import { newPageDoc } from "@tc/contracts";
+import type { PageContext, PageDoc, PageSummary } from "@tc/contracts";
 import { createPage, deletePage, fetchPages, updatePage } from "@/lib/pagesClient";
 import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
@@ -29,7 +30,7 @@ interface Starter {
   key: string;
   title: string;
   description: string;
-  build(tripId: string): { title: string; context: PageContext; content: PageContent };
+  build(tripId: string): { title: string; context: PageContext; content: PageDoc };
 }
 
 const BLANK_TITLE = "Untitled notebook";
@@ -65,7 +66,7 @@ const BLANK_STARTER: Starter = {
   key: "blank",
   title: "Blank notebook",
   description: "Start from nothing and write your own.",
-  build: (tripId) => ({ title: BLANK_TITLE, context: { tripId }, content: { type: "doc", content: [] } }),
+  build: (tripId) => ({ title: BLANK_TITLE, context: { tripId }, content: newPageDoc() }),
 };
 
 const STARTERS: Starter[] = [...DEFAULT_TEMPLATES.map(starterFrom), BLANK_STARTER];

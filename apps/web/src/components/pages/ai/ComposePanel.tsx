@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { PageContent } from "@tc/contracts";
+import type { PageDoc } from "@tc/contracts";
 import { askAssistant, ASK_ABORTED_CODE } from "@/lib/apiClient";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +30,7 @@ type Status = "idle" | "loading" | "error";
 type ComposePanelProps = {
   tripId: string;
   pageId: string;
-  onApply: (content: PageContent) => void;
+  onApply: (content: PageDoc) => void;
 };
 
 export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
@@ -80,7 +80,7 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
     // Accumulated here rather than read off the resolved value, because a turn
     // that streams a page and THEN fails still drafted a usable page — and
     // throwing it away under the user is the worse lie.
-    let composed: PageContent | null = null;
+    let composed: PageDoc | null = null;
     let refusal: string | null = null;
 
     const controller = new AbortController();
@@ -92,7 +92,7 @@ export function ComposePanel({ tripId, pageId, onApply }: ComposePanelProps) {
       (event) => {
         if (event.type === "meta") setSimulated(event.simulated);
         // The doc is already validated against the macro registry server-side
-        // and re-parsed against `PageContent` on the way in, so there is
+        // and re-parsed against `PageDoc` on the way in, so there is
         // nothing left here to check before showing it.
         else if (event.type === "page") composed = event.content;
         else if (event.type === "page-error") refusal = event.message;

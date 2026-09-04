@@ -22,17 +22,36 @@ general setup.
 
 ## Where the work is right now
 
-**M14's widget model is decided and its foundation is merged, 2026-09-03 evening.**
-`main` is `72c7085`. Nothing is in flight: no open PR of ours, no worktrees, clean tree.
-Merged today: **#129** (a page loses its scope), **#130** (widget catalogue, ADR-037,
-ADR-038, M14 rescope), **#131** (`PageDoc`, the versioned AST). **ADRs 035, 036, 037 and
+**M14's editor integration is built and in flight, 2026-09-03.** Branch
+`claude/m14-editor-integration-9idg1r`. `main` is `a99d935`. Merged before it: **#129** (a
+page loses its scope), **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131**
+(`PageDoc`, the versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and
 038 are all Accepted.**
 
-**The next unit is ADR-038 decision 4** — parse stored documents through `PageDoc` before
-mounting the editor, and open a page **read-only** when it does not round-trip.
-`PageContent` still holds every call site; swapping them is that work.
+**ADR-038 decision 4 is done, with its criterion corrected.** `PageScreen` inspects the
+stored document before mounting: it parses through `PageDoc`, compares the document's node
+vocabulary against the editor's own schema, and opens the page **read-only with a visible
+explanation and every write path off** when the editor could not mount it. The write path
+(`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
+stays permissive on purpose, because you cannot explain a document you refused to deliver.
 
-### Three things measured today that a session must not re-derive or re-guess
+**The next unit is M14 link 6** (the `repeat` node and the widget authoring vocabulary),
+subject to the M14 split below.
+
+### Four things measured that a session must not re-derive or re-guess
+
+0. **ADR-038 decision 4's ORIGINAL criterion did not work, and was replaced.** It said:
+   re-serialise the document and open read-only if it differs from what was stored. Both
+   documents the guard exists for pass that test — a `repeat` node (known to the AST, no
+   TipTap extension) and a node from a newer build both round-trip **byte-identically**, the
+   second because that is exactly what decision 3 promises. Meanwhile a stored document with
+   no `v` — i.e. every pre-ADR row — *fails* a strict comparison, so a literal implementation
+   also locks ordinary pages. Round-tripping proves a document survives *our parser*; the
+   editor is what eats the page. The criterion is now a **vocabulary comparison against the
+   editor's schema**, derived from the live extension set via TipTap's `getSchema`, never a
+   hand-written list. Tests:
+   `apps/web/src/components/pages/editor/storedPageDoc.test.ts` (both halves asserted side by
+   side), ADR-038's 2026-09-03 amendment.
 
 1. **TipTap discards the ENTIRE document when it meets an unknown node type.** Not a throw,
    not a targeted drop: it catches ProseMirror's `RangeError`, warns `[tiptap warn]: Invalid
@@ -51,21 +70,71 @@ mounting the editor, and open a page **read-only** when it does not round-trip.
    is a *known* type. Only a nested **unknown** node exposes it. Both cases were caught by
    breaking the source and watching the test stay green (CLAUDE.md rule 3).
 
+### Two blockers settled 2026-09-03, and NOTHING in M14 is blocked now
+
+- **Notebook history (link 9) is open.** ADR-036's draft-durability question is answered:
+  **one clock, not two.** The 800ms autosave is dropped and the write happens on the settled
+  edit session, so the `pages` row carries only what the log carries and invariant 2 holds
+  with no draft column and no `PageDraftSaved` event — both were live options and both are
+  now in the ADR's rejected alternatives. Mitchell: *"Can we punt on the 800ms autosaving as
+  a future feature, and we save on edit finished to history."* **The accepted cost, stated
+  as a regression rather than a footnote:** prose typed since the last settle is lost on
+  refresh, crash or a closed tab. Browser-local drafts (`localStorage`, no contract, no
+  migration) are the named future mitigation. **Link 9 also owns deleting `PageScreen`'s
+  autosave**, and decision 4's guard survives that unchanged — changing *when* the write
+  fires does not change *what* it writes.
+- **The attribution model (item F) is deferred, and the two person widgets go with it.**
+  Mitchell: *"Lets skip this widget for now, and add in future we need activities to have
+  owners (and i think participants that are going to that activity)."* **This needs no new
+  milestone** — the field is already scoped twice, as M13's `add-stop-who` and M19 link 3,
+  and M19's prerequisites already say it must land in exactly one. M14 ships 19 of the 21
+  catalogued widgets; `w-people` is unaffected (it needs a display name on `TripMember`, not
+  attribution). **Carried into M19 link 3: owners and participants are two relations** — who
+  booked a stop is not who is going to it, and link 4's splits need the second, so a single
+  `assignee` would satisfy `add-stop-who`'s wording and still be wrong.
+
+- **ADR-037 open question 1 is settled too, so the ADR has none left: one chrome-row entry
+  per bound widget, never an aggregated control.** Mitchell: *"i should be able to have a
+  notebook that shows day 1, day 3 and day 9, if we lock all widgets to one selection, its
+  not possible."* Differing bindings in one document are a **requirement**, and it
+  generalises down to a single block — *"We land on Day 1 in Tokyo and by Day 9 we are in
+  Kyoto"* is one sentence with two day-bound widgets pointed at different days. Aggregation
+  has no honest answer there, so it is out; it may only ever be added later as an additive
+  convenience that never becomes the only way to rebind. The M14 gate carries a box that
+  fails if a block-wide rebind control appears.
+
 ### Open, and not a build's to settle
 
-- **The M14 split** — proposed in `M14-rich-layer.md` with the attribution model as the
-  seam. M14 no longer describes the work.
-- **ADR-037 open question 1** — what the chrome row shows when one block holds several
-  separately-bound widgets.
-- **`KI-2026-09-03-d`, and measure it before touching any schema.** `macro` is group
-  `"inline"` in ProseMirror, yet the AST, the v1 golden **and the live AI compose path** all
-  place one at block position — a divergence pointing the *wrong way* for decision 4. Whether
-  ProseMirror rejects it at mount is untested; `Node.fromJSON` does not content-check, so it
-  may be inert. The fix differs completely depending on the answer.
+- **Whether M14's remainder (A, B, C, D, E, G, H) splits further.** F's departure was the
+  seam the split proposal named, and it has been taken; whether what is left is still too big
+  is open, and nothing waits on the answer. **This is the only open item, and it blocks
+  nothing.**
 
-**One honest gap: #131 received no code review.** It merged before either reviewer was
-triggered. Its CI went green and `pnpm check` passed twice locally, but the recursive
-`z.lazy` seam and `serializePageNode` are exactly what a second reader earns their keep on.
+### The next unit is item B — the widget module contract
+
+`MacroView.tsx:35` still has `switch (name)` with `default: no renderer: <name>`: a
+hand-maintained duplicate of the registry, and the reason a widget cannot be added inside
+`packages/pages` without editing a React component in `apps/web`. That is what ADR-037 exists
+to delete, no open question touches it, and it gates the "easily add more" requirement.
+Then C (`WidgetContext = { user, trip? }`, which does not exist in the tree at all), D (the
+trip-globals projection — `trip.cities` is not data, it is derived per-activity via
+`cityFor()`), E (the attribute manifest from annotated Zod fields). Link 3 already landed in
+#130.
+
+### Still true from earlier today
+
+**`KI-2026-09-03-d` is measured and RESOLVED (2026-09-03), nothing changed.** A top-level
+`macro` mounts with no warning, renders, and round-trips — `Node.fromJSON` does not
+content-check, so it is inert on the path that matters. `doc.check()` *does* throw, and
+nothing calls it; that is pinned by its own test so a TipTap release that starts checking
+content on load shows up as a failure rather than as lost pages. The speculative fix was
+measured to be harmful: making `macro` a block node breaks the inline macro every stored
+page uses.
+
+**One honest gap that is still open: #131 received no code review.** It merged before either
+reviewer was triggered. Its CI went green and `pnpm check` passed twice locally, but the
+recursive `z.lazy` seam and `serializePageNode` are exactly what a second reader earns their
+keep on. The branch above touches both, so a review of it covers most of that ground.
 
 ---
 

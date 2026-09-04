@@ -1,8 +1,7 @@
 "use client";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import type { TripDetail, PageContext, PageContent, TripGlobals, UserPreferences } from "@tc/contracts";
-import { MacroNodeExtension } from "./MacroNodeExtension";
+import type { TripDetail, PageContext, PageDoc, TripGlobals, UserPreferences } from "@tc/contracts";
+import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 import { MacroEditorContext } from "./MacroEditorContext";
 
 export interface PageEditorProps {
@@ -10,8 +9,8 @@ export interface PageEditorProps {
   context: PageContext;
   user?: UserPreferences | null;
   globals?: TripGlobals | null;
-  value: PageContent;
-  onChange: (content: PageContent) => void;
+  value: PageDoc;
+  onChange: (content: unknown) => void;
   onBindDay?: () => void;
 }
 
@@ -19,22 +18,29 @@ export interface PageEditorProps {
 // `macro` atom node. `detail`/`context` reach each macro's NodeView via
 // `MacroEditorContext`, not extension `storage` — see that file for why
 // (storage updates aren't reactive; a Provider re-render is).
+//
+// `value` is a PARSED `PageDoc`, not raw stored JSON, and that is the ADR-038
+// decision 4 contract with this component: whoever mounts it has already run
+// `inspectStoredPageDoc` and been told the document is mountable. Handing it
+// arbitrary stored JSON is the bug — TipTap answers an unknown node type by
+// discarding the entire document and letting the next keystroke autosave the
+// empty one over it. This component cannot defend against that; only its caller
+// can, by not mounting.
+//
+// `onChange` emits raw `getJSON()`, deliberately typed `unknown`: it is what the
+// editor produced, not yet something we have agreed to store. `toStoredPageDoc`
+// is the step in between.
 export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay }: PageEditorProps) {
   const editor = useEditor({
-    // Macro AUTHORING left the primary surface in M8 (seven macros is not a
-    // vocabulary; the block renderers never had a design pass). RENDERING stays
-    // registered on purpose: page content is stored ProseMirror JSON, so
-    // unregistering this extension would silently DROP existing macro nodes on the
-    // next save. The authoring vocabulary returns in M14.
-    extensions: [StarterKit, MacroNodeExtension],
-    // `PageContent` (`@tc/contracts`) is a permissive zod-validated doc shape;
-    // TipTap's `Content` type wants a plain `JSONContent`. They describe the
-    // same runtime shape (a ProseMirror/TipTap doc), so the cast is safe —
-    // the editor's own schema is the real validator of what's inside.
+    extensions: PAGE_EDITOR_EXTENSIONS,
+    // A parsed `PageDoc` and TipTap's `JSONContent` describe the same runtime
+    // shape; the cast crosses the two representations ADR-038 accepted, and it
+    // is safe here for the reason above — the caller proved the vocabulary
+    // matches before this mounted.
     content: value as unknown as JSONContent,
     immediatelyRender: false,
     onUpdate: ({ editor: updated }) => {
-      onChange(updated.getJSON() as PageContent);
+      onChange(updated.getJSON());
     },
   });
 

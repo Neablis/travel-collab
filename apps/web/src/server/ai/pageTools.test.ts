@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
 import { buildPageTools, PAGE_TOOL_NAMES, validateComposedPage } from "./pageTools";
-import type { PageContent } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
 // covering Standard Schema, Zod, and other schema shapes it accepts), which
@@ -37,7 +37,7 @@ describe("buildPageTools", () => {
     expect(result.success).toBe(false);
   });
 
-  it("compose_page execute converts the simplified shape into PageContent JSON", async () => {
+  it("compose_page execute converts the simplified shape into a versioned PageDoc", async () => {
     const { tools } = buildPageTools();
     const result = await tools.compose_page!.execute!(
       {
@@ -51,9 +51,14 @@ describe("buildPageTools", () => {
       { toolCallId: "call-1", messages: [], context: undefined },
     );
 
+    // `v` is the assertion that matters here, not decoration: ADR-038 decision
+    // 2 says every document carries its version and it is written on every
+    // save, and the compose path is a save path. A doc composed without one
+    // would be indistinguishable from a pre-ADR row on the first migration.
     expect(result).toEqual({
       title: "Overview",
       content: {
+        v: CURRENT_PAGE_DOC_VERSION,
         type: "doc",
         content: [
           { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
@@ -113,7 +118,7 @@ describe("PAGE_TOOL_NAMES", () => {
 
 describe("validateComposedPage", () => {
   it("rejects a doc containing an unregistered macro", () => {
-    const content: PageContent = {
+    const content = {
       type: "doc",
       content: [{ type: "macro", attrs: { name: "nope.nope", params: {} } }],
     };
@@ -122,8 +127,8 @@ describe("validateComposedPage", () => {
     expect(result).toHaveProperty("error");
   });
 
-  it("returns the validated PageContent when all macros are registered with valid params", () => {
-    const content: PageContent = {
+  it("returns the validated document, stamped with its version, when all macros are registered with valid params", () => {
+    const content = {
       type: "doc",
       content: [
         { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
@@ -132,8 +137,11 @@ describe("validateComposedPage", () => {
       ],
     };
 
+    // Deliberately fed WITHOUT `v`, which is the shape every pre-ADR-038 row
+    // has: it comes back with one, because `validateComposedPage` is a
+    // `PageDoc` parse now (ADR-038 consequences) rather than a bare walk.
     const result = validateComposedPage(content);
-    expect(result).toEqual(content);
+    expect(result).toEqual({ ...content, v: CURRENT_PAGE_DOC_VERSION });
   });
 
   it("rejects a macro node with params failing the macro's own schema", () => {
@@ -142,7 +150,7 @@ describe("validateComposedPage", () => {
     // shape that passes MacroNode's z.record(z.unknown()) and fails the
     // macro's own schema should still be rejected. cost.day requires no
     // params either, so use a nested doc to exercise the recursive walk.
-    const content: PageContent = {
+    const content = {
       type: "doc",
       content: [
         {
