@@ -487,6 +487,13 @@ milestone opens:**
       item G's three origins. All three go through `insertWidget`, so ADR-037
       decision 4 holds for each.
 
+      **The insert control moved into the document** (2026-09-04, second preview
+      round). It sat in the header row beside "Edit page", which put a control
+      that acts on the document outside the document; dc.html:2443 has it at the
+      foot of the page beside the sentence naming the `/` route in. The document
+      itself now sits on a raised `Card` (dc.html:2333) — Mitchell: *"There
+      should be a contrainer over the page"*.
+
       The `needs a field` badge is **not** built, and that is not an omission:
       the only input type with no data behind it is `person`, no widget declares
       it (the two that would have were deferred out of M14 with the attribution
@@ -511,6 +518,36 @@ milestone opens:**
       rebinds a whole block.
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
+
+      **The city colour scale reaches the notebook** (2026-09-04, second preview
+      round): *"The every day at a glance and every city at a glance are not
+      rendering correctly and dont use the color coding we put together when
+      showing a city."* A resolved value that is a city carries the trip's own
+      accent for it, derived by `cityAccents` from the same `dayAccents` input
+      the board uses — `dayAccentConsistency.property.test.ts` now drives three
+      surfaces off one trip. `itinerary.trip` renders dc.html:2400's day table
+      rather than a stack of `itinerary.day` cards.
+
+      **Every resolved value renders as a chip**, not as bare text (dc.html:5117
+      and :2368). In Reading there is no chrome row to say which words came from
+      the trip, so the value itself has to.
+
+      **The assistant on a notebook is SPEC §9's floating presentation, not the
+      board's docked one, and it is available in Reading** (2026-09-04, second
+      preview round). Mitchell: *"Assistant shouldnt be at the top, it should be
+      on the bottom right on desktop, floating till open, and always available
+      in both editing and reading more."* Two of §9's three presentations are
+      built (docked for the board, floating for the notebook); **dragging the
+      floating card to park it anywhere is not**, and that is the remaining §9
+      work rather than a decision against it. The phone keeps a header control:
+      SPEC §13.5 is unchanged by §19 and still forbids anything floating over
+      data there.
+
+      Reading still cannot be written into. That is enforced by the
+      `page-inserts` guard on "is this page still being edited" rather than by
+      hiding the surface — cancellation and unmounting both leave a window for a
+      stream frame already in flight, and the guard does not.
+
 - [ ] **Notebook history: an edit session commits one event, and the `pages` row
       rebuilds from the log** — the projection-rebuild golden test gains a page
       case, and `PageScreen` no longer autosaves. **A rebuild mid-session must not
