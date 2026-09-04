@@ -1,9 +1,9 @@
 # ADR-036: Notebook history is event-sourced per page, at edit-session granularity
 
 **Status:** **Accepted — 2026-09-03**: kicking off M14's builder half against this model is
-the acceptance. One thing acceptance did **not** settle — where an unsettled draft lives
-once `pages` is a projection — is the last bullet under *Consequences*, and link 9 does not
-start until it has an answer.
+the acceptance. The one thing acceptance left open — where an unsettled draft lives once
+`pages` is a projection — was **settled by Mitchell the same day: there is only one clock.**
+Autosave is dropped rather than reconciled; see decision 3. **Link 9 is unblocked.**
 **Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-003** (what the event log covers — this completes a space it reserved),
 ADR-035 (the widget model this stores), ADR-013/M2 (the history UI vocabulary),
@@ -58,18 +58,45 @@ and cost nothing: `stream_id` is already a bare uuid.
 only *undo* is stream-scoped. A reader of trip history should see "Mei edited *Hakone,
 written out*" without that entry being undoable from the board.
 
-### 3. Two clocks: autosave for durability, history for meaning
+### 3. One clock. The settled edit session is the only write
 
-These are deliberately different cadences and conflating them is the mistake this decision
-exists to prevent.
+**REWRITTEN 2026-09-03. The first draft of this decision had two clocks — autosave every
+800ms for durability, a history event per settled session for meaning — and they did not
+compose with invariant 2.** A projection is rebuildable from the log; between the start of a
+session and the event settling it, an 800ms-autosaved `pages` row holds content no event
+carries, so `rebuildProjections()` destroys unsettled prose and the golden "rebuild equals
+stored" test fails for any page mid-session.
 
-| | Cadence | Purpose |
-|---|---|---|
-| **Autosave** (`updatePage`) | 800ms debounce, unchanged | Nothing is ever lost |
-| **History event** | one per settled edit session | The timeline stays readable |
+Two ways out were on the table — a separate draft column keyed by editor, or a
+`PageDraftSaved` event the projection folds and the history UI hides. Mitchell chose
+neither:
 
-Durability does not wait for the session to end, so a crash mid-sentence loses nothing.
-History does not fire per save, so a paragraph does not become forty entries.
+> Can we punt on the 800ms autosaving as a future feature, and we save on edit finished to
+> history. I understand that means its lost if we refresh or close browser while editing,
+> but we can use local history or some other solution in future
+
+**So autosave goes, and the gap closes by not existing.** There is one write, on the settled
+edit session (decision 5), and the `pages` row is a pure projection with nothing in it that
+the log does not carry. No draft column, no draft event, no second cadence to keep in step,
+and invariant 2 holds without an argument.
+
+**What this costs, stated plainly because it is a real regression and was accepted as one:**
+prose typed since the session last settled is **lost on refresh, on a crash, and on closing
+the tab**. Today's 800ms autosave loses at most 800ms of typing; after link 9 the exposure is
+a whole editing session.
+
+**The mitigation is named and deliberately deferred: browser-local drafts.** `localStorage`
+keyed by page and editor, restored on mount and cleared when a session settles, buys back
+crash and refresh durability without putting a second writer in front of the projection —
+which is exactly why it can wait rather than being folded into this ADR. It is a client
+concern, it needs no contract and no migration, and it does not change anything decided here.
+
+**One tension this creates, and link 9 must pick a number for it.** With one clock, decision
+5's idle threshold now carries durability as well as readability, and those pull opposite
+ways: a short idle commits often (small loss window, noisy history — which is the failure
+*"an event per autosave"* was rejected for), a long one keeps history readable and widens the
+window. **Resolve it in favour of readable history** — that is what this ADR is for — and let
+local drafts cover durability when they land.
 
 ### 4. One event per settled edit session, carrying the settled document
 
@@ -91,9 +118,11 @@ The session closes on whichever comes first:
 - **leaving Editing mode** — §18 gives the page a Reading/Editing control, which is the
   most explicit signal available and should be the primary one;
 - **the editor unmounting or the route changing** — navigating away is stopping;
-- **an idle period materially longer than the autosave debounce.** A concrete floor
-  rather than a feeling: it must be long enough that a pause for thought inside one
-  paragraph does not split the session, which 800ms plainly is not.
+- **an idle period long enough that a pause for thought inside one paragraph does not
+  split the session.** A concrete floor rather than a feeling. It used to be phrased
+  against the autosave debounce ("materially longer than 800ms"); with decision 3 rewritten
+  there is no debounce to be longer than, and the number is now chosen against readability
+  alone — see the tension noted there.
 
 A session that closes with content identical to the last event writes **nothing** — the
 common case of entering Editing mode, reading, and leaving must not manufacture an entry.
@@ -116,21 +145,20 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
 - **This is not concurrent editing.** Two people in one page at once is M13's problem;
   this decision gives a page a durable, readable, revertible timeline for one editor at a
   time and does not pretend to more.
-- **Open on acceptance: decisions 3 and 4 do not yet compose with invariant 2, and link 9
-  does not start until they do.** Decision 3 keeps `updatePage` writing the `pages` row
-  every 800ms; the bullet above makes that row a projection. Invariant 2 says a projection
-  is rebuildable from the log, and `rebuildProjections()` enforces it the blunt way — it
-  deletes and re-inserts (`apps/web/src/server/projections.int.test.ts:47`). Between the
-  start of an edit session and the event that settles it, the row therefore holds content
-  no event carries: a rebuild in that window **destroys unsettled prose**, and the golden
-  "rebuild equals stored" test fails for any page mid-session. This is not an argument
-  against either decision — durability at 800ms and readability at session granularity are
-  both right, and it is precisely their difference in cadence that opens the gap. It means
-  the unsettled draft needs somewhere to live that is **not** the projected content: a
-  separate draft column keyed by editor, or a `PageDraftSaved` event the projection folds
-  and the history UI hides. Whichever it is, it is a decision, it is contract-and-migration
-  shaped, and it belongs in this ADR before link 9 is briefed rather than being discovered
-  by an agent halfway through writing the reducer.
+- **SETTLED 2026-09-03, and link 9 is unblocked.** Decisions 3 and 4 did not compose with
+  invariant 2 while autosave existed: `rebuildProjections()` enforces rebuildability the
+  blunt way — it deletes and re-inserts
+  (`apps/web/src/server/projections.int.test.ts:47`) — so an 800ms-autosaved row held
+  content no event carried, and a rebuild mid-session destroyed unsettled prose. Decision 3
+  is rewritten to one clock; the row now carries only what the log carries, and nothing
+  further is owed here.
+- **`PageScreen` loses its autosave in link 9, and the ADR-038 guard does not go with it.**
+  The 800ms debounce and `lib/debounce.ts` are removed in favour of a commit on the settled
+  session. That does **not** make decision 4's read-only guard moot: the loss vector is
+  read → mount → write back a document the editor mangled, and changing *when* the write
+  fires does not change *what* it writes. The guard sits upstream of mounting either way,
+  and `toStoredPageDoc` becomes the parse in front of the history event instead of the
+  parse in front of the autosave.
 
 ## Alternatives rejected
 
@@ -139,7 +167,13 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
 - **Sharing the trip's stream.** Cheaper by one decision, and it makes board-level ⌘Z able
   to revert prose the presser cannot see. See decision 2.
 - **An event per autosave.** Correct and useless: a readable history is the point, and
-  this produces one entry per 800ms of typing.
+  this produces one entry per 800ms of typing. Note this is also the failure mode a *short*
+  idle threshold reintroduces now that one clock carries both jobs — see decision 3.
+- **A draft column, or a `PageDraftSaved` event.** The two ways to keep autosave and satisfy
+  invariant 2. Both were live options and both were dropped on 2026-09-03 in favour of
+  removing the second clock: each buys back crash durability at the price of a second writer
+  in front of the projection, contract-and-migration shaped, to solve a problem that
+  `localStorage` on the client solves later with neither.
 - **Keeping pages on CRUD and adding a `page_versions` table.** This is the "add
   versioning later" retrofit ADR-003 names as a trap, and it would leave two answers to
   "what is the content of this page".

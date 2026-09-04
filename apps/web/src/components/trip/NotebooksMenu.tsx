@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, NotebookText } from "lucide-react";
+import { newPageDoc } from "@tc/contracts";
 import type { PageSummary } from "@tc/contracts";
 import { createPage, fetchPages } from "@/lib/pagesClient";
 import { provenanceLabel } from "@/lib/pageScope";
@@ -81,7 +82,7 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
     void createPage(tripId, {
       title: "Untitled notebook",
       context: { tripId },
-      content: { type: "doc", content: [] },
+      content: newPageDoc(),
     }).then((result) => {
       setCreating(false);
       if (!result.ok) {

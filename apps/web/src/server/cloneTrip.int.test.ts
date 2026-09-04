@@ -1,3 +1,4 @@
+import { newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -52,7 +53,7 @@ describe("duplicateTrip", () => {
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
     await createPage(
       tripId,
-      { title: "Packing", context: { tripId }, content: { type: "doc", content: [] } },
+      { title: "Packing", context: { tripId }, content: newPageDoc() },
       actor,
     );
 

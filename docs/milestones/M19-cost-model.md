@@ -115,6 +115,20 @@ them.
 3. **An activity knows who it is for.** Participation against the trip's
    existing members. Also unblocks `rack-provenance` and `add-stop-who` if it
    carries provenance with it — coordinate with M13 rather than building twice.
+
+   **Two relations, not one — Mitchell, 2026-09-03**, deferring M14's person
+   widgets onto this link: *"we need activities to have owners (and i think
+   participants that are going to that activity)"*. Who **booked** a stop is not
+   who is **going** to it, and **link 4's splits need the participants, not the
+   owner**. A single `assignee` field would satisfy `add-stop-who`'s wording and
+   still be wrong for every split built on it.
+
+   **This link also unblocks two Notebook widgets.** `w-person` ("what one person
+   is in for") and `w-personline` ("a line for everything one person booked") left
+   M14 on 2026-09-03 because this field does not exist —
+   `docs/specs/2026-09-03-notebook-widget-catalogue.md`. They are not this
+   milestone's to build, but they are what makes the participants half
+   load-bearing rather than optional.
 4. **Cost splits.** Even split, per-head, or one payer — derived from link 3,
    never a second hand-maintained number. The renaming half is done (see §1's
    2026-09-01 note); what is left is the real per-head number, which needs

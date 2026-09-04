@@ -2,8 +2,10 @@
 
 **Status:** **Accepted — 2026-09-03.** Kicking off the implementation branch against it is
 the acceptance. Open questions 2, 3 and 4 were settled by Mitchell the same evening and are
-recorded inline; question 1's remaining sub-question (what the chrome row does when one block
-holds several bound widgets) is the only thing still open, and it does not block starting.
+recorded inline — **question 3 twice, ending in the two person widgets being deferred out of
+M14**. Question 1's remaining sub-question (what the chrome row does when one block holds
+several bound widgets) was **settled 2026-09-03: one row per bound widget, no aggregation**,
+because differing bindings in one document are a requirement. **No open questions remain.**
 **Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-035** (a widget is a function of declared inputs — this says how one is *built*),
 ADR-038 (how the document that holds them is stored), ADR-015/Invariant 5 (tool schemas are
@@ -346,11 +348,38 @@ nothing smuggles mutable state into a resolver, which decision 3c already forbid
    widget rendering three chips from one binding (A).
 
    **My read: both exist, and that is fine** — A for widgets that ship a sentence, B for chips
-   dropped into your own prose. Which leaves one genuinely open sub-question:
+   dropped into your own prose. Which left one genuinely open sub-question:
    **what does the chrome row do when one block holds several separately-bound widgets?**
    Three stacked rows is noisy; aggregating "these three all read a day" into one control is
-   nicer but means one interaction rewrites three nodes. I lean **one row per block listing
-   each bound widget**, because aggregation invents a grouping the document does not store.
+   nicer but means one interaction rewrites three nodes.
+
+   **SETTLED — Mitchell, 2026-09-03: one row per bound widget. No aggregation.**
+
+   > A, i should be able to have a notebook that shows day 1, day 3 and day 9, if we lock all
+   > widgets to one selection, its not possible
+
+   **Different bindings in one document are a requirement, not a preference**, and that is a
+   stronger reason than the one this ADR gave. The drafted argument was about provenance —
+   aggregation invents a grouping the document does not store. The requirement is about what
+   a person is trying to write, and it outranks it: a notebook whose sections read Day 1,
+   Day 3 and Day 9 is an ordinary thing to want, and a control that rewrites every day-bound
+   widget near it forbids writing one.
+
+   **One precision, so the decision is not later mistaken for something it did not settle.**
+   The aggregation option was scoped *within one block*, so the three-section notebook above
+   would have survived it — each section is its own block with its own row. What it actually
+   breaks is the same intent inside **one** block: *"We land on **Day 1** in Tokyo and by
+   **Day 9** we are in Kyoto"* is one sentence, two day-bound widgets, deliberately different
+   days. Aggregation has no honest answer there — it either shows one control that lies about
+   half the sentence, or detects the divergence and falls back to per-widget rows, which is
+   this decision with extra machinery. The requirement generalises down to the block; the
+   decision follows from the harder case, not the easy one.
+
+   **So: one row per block, listing each bound widget separately, each with its own selects.**
+   Every widget's binding stays independently addressable at every level — document, block,
+   sentence. If the noise proves costly in practice, an aggregate control may be added *on
+   top* as a convenience, and it must then be additive: never the only way to rebind, and
+   never applied to widgets whose bindings currently differ.
 2. ~~**Where does account scope come from?**~~ **SETTLED — Mitchell, 2026-09-03.**
 
    > notebooks are always account scope, they can access data from account like your name,
@@ -372,17 +401,30 @@ nothing smuggles mutable state into a resolver, which decision 3c already forbid
      (M20/M21). `resolve` reading `user` is what unblocks them.
 
    Root-account notebooks (no trip, a different widget set) are **explicitly out of scope**.
-3. ~~**Do the two person widgets get cut?**~~ **SETTLED — Mitchell, 2026-09-03: no, they are
-   in this milestone**, and `persons` (plural) with them.
+3. ~~**Do the two person widgets get cut?**~~ ~~**SETTLED — Mitchell, 2026-09-03: no, they
+   are in this milestone**, and `persons` (plural) with them.~~
+   **RE-SETTLED THE OTHER WAY — Mitchell, 2026-09-03, once the attribution model was costed:
+   they are cut from M14 after all.**
 
-   That overrides the catalogue's recommendation, and the reason it recommended cutting still
-   has to be paid for rather than wished away: **nothing links an activity to a person.** So
-   the milestone owes an attribution model — what a person is "in for", what they booked,
-   what they owe — before those two widgets can resolve anything. That is a domain change with
-   events behind it, not a resolver.
+   > Lets skip this widget for now, and add in future we need activities to have owners (and i
+   > think participants that are going to that activity)
 
-   **This is the largest single item the widget work now carries**, and it should be costed as
-   its own link rather than absorbed into "build the widgets".
+   The reason the catalogue recommended cutting them is the reason they are now deferred:
+   **nothing links an activity to a person**, so an attribution model — what a person is "in
+   for", what they booked, what they owe — is a domain change with events behind it, not a
+   resolver, and it was the largest single item the widget work carried.
+
+   **It needs no new milestone.** The field is already scoped twice: **M13**'s `add-stop-who`
+   and **M19 link 3**, and M19's prerequisites already say it must land in exactly one of
+   them. `w-person` and `w-personline` become downstream of whichever does.
+
+   **One thing to carry there, from the sentence above:** *owners* and *participants* are two
+   relations, not one — who booked a stop is not who is going to it, and M19 link 4's splits
+   need the second. A single `assignee` would satisfy `add-stop-who`'s wording and still be
+   wrong for splits.
+
+   `w-people` is unaffected and stays: it needs a display name on `TripMember`, not
+   attribution.
 
 4. **NEW, and the biggest one — a generic attribute widget over "trip globals".** Mitchell,
    2026-09-03:

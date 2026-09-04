@@ -5,6 +5,7 @@ import {
   PAGE_DOC_MIGRATIONS,
   PageContent,
   PageDoc,
+  collectPageDocNodeTypes,
   migratePageDoc,
   parsePageDoc,
   serializePageDoc,
@@ -381,5 +382,76 @@ describe("the v1 golden document", () => {
     const once = serializePageDoc(parsePageDoc(PAGE_DOC_V1_GOLDEN));
     const twice = serializePageDoc(parsePageDoc(once));
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+  });
+});
+
+// `collectPageDocNodeTypes` exists because ADR-038 decision 4's stated
+// criterion cannot answer the question it was written to answer — see
+// `apps/web/src/components/pages/editor/storedPageDoc.ts`, which is where the
+// comparison this feeds actually happens. These tests cover the half contracts
+// owns: does it see every node in the document, and does it name them
+// usefully?
+describe("collectPageDocNodeTypes", () => {
+  it("reaches nodes nested inside lists, list items and blockquotes", () => {
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [
+        {
+          type: "blockquote",
+          content: [
+            {
+              type: "bulletList",
+              content: [
+                { type: "listItem", content: [{ type: "codeBlock", content: [{ type: "text", text: "x" }] }] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    // `codeBlock` is four levels down. A collector that walked only the top
+    // level would report `blockquote` and stop, and the guard built on it would
+    // mount a document whose deepest node the editor cannot render.
+    expect([...collectPageDocNodeTypes(doc)].sort()).toEqual([
+      "blockquote",
+      "bulletList",
+      "codeBlock",
+      "listItem",
+      "text",
+    ]);
+  });
+
+  it("names an unknown node by the type it was wrapping, not by the wrapper", () => {
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [{ type: "somethingFromANewerBuild", attrs: {} }],
+    });
+    // The caller's next move is to tell a person what they cannot edit.
+    // `"unknown"` is our word for not knowing, not an answer to that.
+    expect([...collectPageDocNodeTypes(doc)]).toEqual(["somethingFromANewerBuild"]);
+  });
+
+  it("sees an unknown node buried inside a list item", () => {
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          content: [{ type: "listItem", content: [{ type: "alsoNewer" }] }],
+        },
+      ],
+    });
+    expect([...collectPageDocNodeTypes(doc)].sort()).toEqual(["alsoNewer", "bulletList", "listItem"]);
+  });
+
+  it("finds every node type in the v1 golden", () => {
+    const types = collectPageDocNodeTypes(parsePageDoc(PAGE_DOC_V1_GOLDEN));
+    // `repeat` is the one that matters: it is a v1 node with no TipTap
+    // extension behind it, and it is exactly what the editor-side guard has to
+    // notice. `hardBreak` and `macro` are inline, which is the other axis a
+    // top-level-only walk would miss.
+    for (const type of ["heading", "paragraph", "macro", "repeat", "hardBreak", "text", "codeBlock"]) {
+      expect(types.has(type)).toBe(true);
+    }
   });
 });
