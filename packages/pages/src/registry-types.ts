@@ -33,6 +33,28 @@ export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total
 // ADR-037 under decision 3 rather than only here.
 export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload;
 
+// What a REPEAT widget resolves to: one entry per item, each a lead phrase and
+// the resolved values that follow it. Kept apart from `BlockPayload` on purpose
+// — `BlockView` dispatches over that union with a `never` on the unhandled
+// branch, and a repeat is not a block component, it is N lines rendered by
+// `MacroView` itself.
+//
+// It is DATA, not segments: `resolve` answers "what does this mean against the
+// current trip" and `render` answers "what does that look like" (ADR-037
+// decision 1). Putting `Seg[]` here would collapse the two and hand the
+// resolver a rendering decision — which chips, which order — that belongs on
+// the other side of the seam.
+export interface RepeatRow {
+  // The line's opening phrase: "Day 1", a city name, a time. Always text, never
+  // a chip — it is the row's label, not one of its resolved values.
+  lead: string;
+  // The values that follow, each rendered as a chip. Empty is legitimate: a day
+  // with no date, no city and no cost is still a day, and its line still says
+  // which day it is.
+  values: string[];
+}
+export interface RepeatPayload { kind: "repeat-rows"; rows: RepeatRow[]; }
+
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
 // ---------------------------------------------------------------------------
@@ -185,4 +207,4 @@ export interface MacroDef<P, T> {
 }
 
 // Existentially-typed entry for the registry map.
-export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload>;
+export type AnyMacroDef = MacroDef<Record<string, unknown>, InlinePayload | BlockPayload | RepeatPayload>;

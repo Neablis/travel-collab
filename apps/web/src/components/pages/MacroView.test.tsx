@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext } from "@tc/contracts";
 import { MacroView } from "./MacroView";
 
@@ -53,5 +53,41 @@ describe("MacroView", () => {
     render(<MacroView detail={baseDetail} context={ctx} name="cost.day" params={{}} />);
     expect(screen.getByText("no day set")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  // The `rows` branch, which existed unexercised from the day the widget
+  // framework landed until a repeater reached it.
+  describe("a repeater's rows", () => {
+    // A widget node is INLINE — it sits inside a paragraph so a chip can read
+    // as a word in a sentence — so the rows have to be legal there. `<div>` in
+    // `<p>` is not merely unusual: the parser closes the paragraph at it, and
+    // the server's DOM and the client's then disagree. React says so outright,
+    // and this is the test that heard it.
+    it("renders rows that are legal inside a paragraph", () => {
+      const warnings: string[] = [];
+      const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+        warnings.push(String(args[0]));
+      });
+      render(
+        <p>
+          <MacroView detail={baseDetail} context={ctx} name="day.line" params={{}} />
+        </p>,
+      );
+      spy.mockRestore();
+      expect(warnings.filter((w) => w.includes("cannot be a descendant") || w.includes("hydration"))).toEqual([]);
+    });
+
+    it("renders one line per day, each leading with the day number", () => {
+      const twoDays: TripDetail = {
+        ...baseDetail,
+        days: [
+          baseDetail.days[0]!,
+          { dayId: "33333333-3333-3333-3333-333333333333", activityIds: [], date: null, costSubtotal: 0 },
+        ],
+      };
+      render(<MacroView detail={twoDays} context={ctx} name="day.line" params={{}} />);
+      expect(screen.getByText("Day 1")).toBeTruthy();
+      expect(screen.getByText("Day 2")).toBeTruthy();
+    });
   });
 });

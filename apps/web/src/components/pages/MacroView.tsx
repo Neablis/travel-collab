@@ -67,17 +67,28 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
       return <Segs segs={rendered.segs} />;
     case "block":
       return <BlockView block={rendered.block} />;
-    // A repeat's rows. Nothing emits one until M14 link 6 builds repeaters —
-    // the shape exists here for the same reason `PageDoc` understands a `repeat`
-    // node before the editor does (ADR-038): the renderer has to know a shape
-    // before the document can contain it.
+    // A repeat's rows.
+    //
+    // **`span`, not `div`, and that is not a style preference.** A widget node
+    // is inline — it sits inside a paragraph so a chip can read as a word in a
+    // sentence — and `<div>` inside `<p>` is not merely unusual markup: the HTML
+    // parser closes the paragraph at it, so the server's DOM and the client's
+    // disagree. React says so outright, measured on the first repeater to reach
+    // this branch: *"In HTML, <div> cannot be a descendant of <p>. This will
+    // cause a hydration error."* `display: block` on a span gets the same layout
+    // with none of that.
+    //
+    // The gap is here rather than in the resolver for the same reason the chips
+    // are: `resolve` answers what a line means and `render` answers what it
+    // looks like (ADR-037 decision 1). Separator segments baked into the payload
+    // would put a spacing decision inside the trip data.
     case "rows":
       return (
-        <>
+        <span className="flex flex-col gap-0.5">
           {rendered.rows.map((segs, i) => (
-            <div key={i}><Segs segs={segs} /></div>
+            <span key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} /></span>
           ))}
-        </>
+        </span>
       );
   }
 }

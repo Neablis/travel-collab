@@ -1,15 +1,17 @@
 import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
-import type { AnyMacroDef, InlinePayload, BlockPayload, Rendered, WidgetContext, WidgetInput } from "./registry-types";
+import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput } from "./registry-types";
 import type { MacroResult } from "./result";
 import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
 import { accountName, accountHomeAirport } from "./macros/account";
 import { dayDate, dayCity, dayWindow, budgetRemaining } from "./macros/day";
+import { dayLine, cityLine, bookingLine } from "./macros/repeat";
 
 const DEFS: AnyMacroDef[] = [
   tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
   accountName, accountHomeAirport,
   dayDate, dayCity, dayWindow, budgetRemaining,
+  dayLine, cityLine, bookingLine,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -20,7 +22,7 @@ export function getMacro(name: string): AnyMacroDef | undefined {
 }
 
 export type ResolveOutcome =
-  | MacroResult<InlinePayload | BlockPayload>
+  | MacroResult<InlinePayload | BlockPayload | RepeatPayload>
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 

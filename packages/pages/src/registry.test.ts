@@ -114,7 +114,11 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
         timeWindow: { start: "09:00", end: "17:00" }, location: null,
         cost: { amountMinor: 5000, currency: "USD" },
-        notes: null, kind: null, tags: [],
+        // `booked`, not `null`: `booking.line` resolves to `empty` for a day
+        // whose stops are all merely planned, so with a null kind it never
+        // reached `render` and the witness floor refused — the floor working,
+        // again, rather than a reason to lower it.
+        notes: null, kind: "booked", tags: [],
       },
     } as unknown as TripDetail["activities"],
     tripCostTotal: 5000,
