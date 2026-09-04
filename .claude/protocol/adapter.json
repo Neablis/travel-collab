@@ -1,14 +1,14 @@
 {
   "exclusiveCommands": [
     {
-      "resource": "postgres",
-      "pattern": "\\btest:int\\b|\\bdocker\\s+compose\\b|\\bdb:(reseed|reset|migrate)\\b",
-      "symptom": "Two units running the integration suite share one Postgres. The symptom is a different random subset of tests failing each run, which reads as flakiness and burns hours."
+      "resource": "shared-db-writes",
+      "pattern": "\\bdb:(reseed|reset|seed|migrate)\\b|\\bdocker\\s+compose\\b",
+      "symptom": "These write to the database DATABASE_URL names — the developer's own `travel`, which is shared. The test lanes no longer do (each run gets its own database, KI-2026-08-30-e), but a reset or a reseed still lands on whatever another worktree is looking at."
     },
     {
       "resource": "dev-server",
-      "pattern": "\\bpnpm\\s+(--filter\\s+\\S+\\s+)?dev\\b|\\bnext\\s+(dev|start)\\b|\\btest:e2e\\b",
-      "symptom": "Fixed ports. A second dev server either fails to bind or silently serves a different worktree than the one you are testing."
+      "pattern": "\\bpnpm\\s+(--filter\\s+\\S+\\s+)?dev\\b|\\bnext\\s+(dev|start)\\b",
+      "symptom": "A dev server started by hand binds WEB_PORT, which defaults to 3001 in every worktree. Set WEB_PORT to run a second one. `test:e2e` is deliberately NOT in this pattern: it picks a free port itself (with-test-db.mjs --with-port)."
     }
   ],
   "portabilityForbiddenTokens": [

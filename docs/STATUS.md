@@ -898,13 +898,17 @@ the two milestones.
 
 **Three things from M18's gate that will bite the next session if unread:**
 
-- **KI-76 is fixed, but `test:int` is still exclusive.** `pnpm check` now runs
-  the integration suite instead of silently skipping it. The suites also stopped
-  truncating whole shared tables, so `test:int` no longer destroys local dev
-  data, and `db:reset` clears all ten tables derived from the schema rather than
-  a stale list of three. What is **not** fixed is concurrency: two agents
-  running `test:int` at once still corrupt each other — KI-89, caught doing
-  exactly that on 2026-08-29.
+- **KI-76 is fixed, and as of 2026-09-04 `test:int` is no longer exclusive.**
+  `pnpm check` runs the integration suite instead of silently skipping it. The
+  suites stopped truncating whole shared tables, and `db:reset` clears all ten
+  tables derived from the schema rather than a stale list of three. The last
+  piece — concurrency — is now done too: `test:int` and `test:e2e` each
+  provision a private database per run (`apps/web/scripts/with-test-db.mjs`,
+  KI-2026-08-30-e), so two agents may run either lane at once. *(Superseded,
+  kept as the record: "What is not fixed is concurrency: two agents running
+  `test:int` at once still corrupt each other — KI-89, caught doing exactly
+  that on 2026-08-29." That was true until the wrapper landed; the `postgres`
+  lease it justified is gone from `.claude/protocol/adapter.json`.)*
 - **Walk the thing in a browser before believing the suite.** M18's headline
   Calendar rule passed nine unit tests and was wrong, because the tests shared
   the implementation's assumption about the fixture. `/demo` needs no database
