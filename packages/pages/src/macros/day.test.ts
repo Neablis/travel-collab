@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityView, TripDetail, TripGlobals } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import { dayDate, dayCity, dayWindow, budgetRemaining } from "./day";
 
 const activity = (id: string, start: string | null, end: string | null): ActivityView => ({
@@ -7,25 +8,27 @@ const activity = (id: string, start: string | null, end: string | null): Activit
   location: null, notes: null, anchors: [], kind: "planned", tags: [], cost: null,
 });
 
-const base: TripDetail = {
-  tripId: "11111111-1111-1111-1111-111111111111",
-  name: "Japan 2026", startDate: "2026-08-01", currency: "USD", budget: { amountMinor: 100000, currency: "USD" }, status: "active",
-  members: [{ userId: "u1", role: "owner" }],
-  forkedFrom: null,
+// **From the factory, overriding only what these cases are about.** A
+// hand-built `TripDetail` was here and it violates the repository rule outright
+// (AGENTS.md: "data comes from `@tc/factories`, never a hand-built rollup") —
+// it also makes every future contract field a required edit in a file that has
+// no opinion about it. Found by Copilot on PR 139.
+const base: TripDetail = tripDetailFixture({
+  name: "Japan 2026",
+  startDate: "2026-08-01",
+  budget: { amountMinor: 100000, currency: "USD" },
   days: [
     { dayId: "d0", activityIds: ["a-late", "a-early", "a-untimed"], date: "2026-08-01", costSubtotal: 5000 },
     { dayId: "d1", activityIds: [], date: null, costSubtotal: 0 },
   ],
-  backlog: [],
   activities: {
     "a-late": activity("a-late", "14:00", "21:30"),
     "a-early": activity("a-early", "09:00", "10:15"),
     "a-untimed": activity("a-untimed", null, null),
   },
-  conflicts: [], dismissedConflictIds: [],
-  createdAt: "2026-07-20T00:00:00.000Z",
-  unscheduledCostSubtotal: 0, tripCostTotal: 5000, budgetRemaining: 95000,
-};
+  tripCostTotal: 5000,
+  budgetRemaining: 95000,
+});
 
 const globals: TripGlobals = {
   days: [

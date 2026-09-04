@@ -32,7 +32,48 @@ export function described<T extends z.ZodTypeAny>(kind: ValueKind, label: string
   return annotated;
 }
 
-/** The kind `described()` attached, or `undefined` for a bare `.describe()`. */
+/**
+ * Walk a schema's wrappers down to the thing being wrapped.
+ *
+ * `.nullable()`, `.optional()` and `.default()` each return a NEW schema whose
+ * `_def.innerType` is the one they wrap, so anything attached to the inner
+ * schema — a description, a value kind — is invisible from the outside. Shared
+ * with the manifest's label lookup rather than written twice: the two must
+ * agree about what "the same field" means, and they did not.
+ */
+export function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
+  let current = schema;
+  for (;;) {
+    const def = current._def as { innerType?: z.ZodTypeAny };
+    if (!def.innerType) return current;
+    current = def.innerType;
+  }
+}
+
+/**
+ * The kind `described()` attached, or `undefined` for a bare `.describe()`.
+ *
+ * **It walks wrappers, and reading only the outer schema was a real bug.** The
+ * kind is attached to the exact object `described()` returned, so a normal later
+ * combinator — `described("date", label, z.string()).nullable()` — produced a
+ * wrapper this lookup did not recognise. `describedLabel` already unwrapped, so
+ * the manifest kept the field's LABEL and lost its kind, and published it as
+ * "listed but not printable": a field the generic attribute widget can name and
+ * cannot render. Worse than either answer alone, because the entry looks
+ * complete. Found by Copilot on PR 139.
+ *
+ * Checked at every level rather than only at the bottom, so both orders work —
+ * `described(...).nullable()` and `described(kind, label, z.string().nullable())`.
+ */
 export function valueKindOf(schema: object): ValueKind | undefined {
-  return KINDS.get(schema);
+  const own = KINDS.get(schema);
+  if (own !== undefined) return own;
+  let current = schema as z.ZodTypeAny;
+  for (;;) {
+    const def = current._def as { innerType?: z.ZodTypeAny } | undefined;
+    if (!def?.innerType) return undefined;
+    current = def.innerType;
+    const kind = KINDS.get(current);
+    if (kind !== undefined) return kind;
+  }
 }

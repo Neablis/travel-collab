@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActivityTag, DayRef } from "@tc/contracts";
+import { DayRef, TagRef } from "@tc/contracts";
 import type { MacroDef, RepeatPayload, RepeatRow, WidgetContext, WidgetInput } from "../registry-types";
 import { chip, rowsOf, text } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
@@ -136,7 +136,12 @@ export const bookingLine: MacroDef<DayParams, RepeatPayload> = {
 // at a day and does not wait for a second choice.
 export const StopLineParams = z.object({
   dayRef: DayRef.optional(),
-  tag: ActivityTag.optional(),
+  // `TagRef`, not a local `ActivityTag`, and the difference is not cosmetic:
+  // this value is PERSISTED in every document carrying this widget, and the
+  // editor, the AI path and this resolver all read it. ADR-037 decision 9 puts
+  // those shapes in `@tc/contracts` for exactly that reason; declaring it here
+  // let the three drift (Copilot, PR 139).
+  tag: TagRef.optional(),
 }).strip();
 export type StopLineParams = z.infer<typeof StopLineParams>;
 
@@ -152,7 +157,12 @@ export const stopLine: MacroDef<StopLineParams, RepeatPayload> = {
   name: "stop.line", title: "A line for every stop", shape: "repeat",
   params: StopLineParams, inputs: STOP_LINE_INPUTS,
   description: "One line per stop on a day: when it is, and what it costs. Optionally only the stops carrying one tag.",
-  emptyText: "no stops on this day",
+  // True whether the day has no stops at all or the bound tag matched none of
+  // them. `emptyText` is a fixed string on the definition and cannot see the
+  // params, so "no stops on this day" was a claim the widget could not keep:
+  // on a day full of stops filtered to a tag none carry, it said the day was
+  // empty (Copilot, PR 139).
+  emptyText: "no stops to show for this day",
   preview: "one line per stop, with its time and cost",
   resolve: ({ trip }: WidgetContext, params): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();

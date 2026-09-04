@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail, TripGlobals, UserPreferences } from "@tc/contracts";
+import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fetchTripDetail, fetchPreferences, fetchTripGlobals } from "@/lib/apiClient";
+import { fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
+import { usePreferences } from "@/components/account/PreferencesProvider";
 import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
@@ -53,13 +54,22 @@ function LockedNotice({ children }: { children: ReactNode }) {
 export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
-  // The account, for account-scope widgets (ADR-037 open question 2). It is
-  // fetched ALONGSIDE the page rather than gating it: a notebook that will not
-  // open because a preferences request failed is a worse outcome than one
-  // widget rendering "not set up", so a failure here leaves this `null` and the
-  // page loads regardless. That is why it is not in the `Promise.all` below,
-  // whose failures are page failures.
-  const [user, setUser] = useState<UserPreferences | null>(null);
+  // The account, for account-scope widgets (ADR-037 open question 2), READ FROM
+  // THE PROVIDER the whole app shell already mounts (`(app)/layout.tsx`).
+  //
+  // It used to be a `fetchPreferences()` of its own into local state, which was
+  // wrong twice: it duplicated the request on every notebook page, and — the
+  // part that showed — `PreferencesProvider` updates the moment someone saves
+  // in Account settings while this snapshot only refreshed on a route change,
+  // so `account.name` went stale against a value the same session had just
+  // changed. Found by Copilot on PR 139.
+  //
+  // `usePreferences` answers the defaults rather than throwing when no provider
+  // is above it, which keeps the fail-soft rule the old comment described: a
+  // notebook that will not open because a preferences read failed is a worse
+  // outcome than one widget rendering "not set up", and the defaults
+  // (`displayName: null`) are exactly what "not set up" renders from.
+  const user = usePreferences();
   // Reading vs Editing — §18's one control with two states. Reading is the
   // traveller's view: no sidebar, no chrome row, no compose box, and the
   // document is read-only.
@@ -94,9 +104,6 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
 
   useEffect(() => {
     let cancelled = false;
-    void fetchPreferences().then((r) => {
-      if (!cancelled && r.ok) setUser(r.value);
-    });
     void fetchTripGlobals(tripId).then((r) => {
       if (!cancelled && r.ok) setGlobals(r.value);
     });

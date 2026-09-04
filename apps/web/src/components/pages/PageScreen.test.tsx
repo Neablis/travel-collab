@@ -7,6 +7,7 @@ import { PageScreen } from "./PageScreen";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makePagesHandlers } from "@/mocks/handlers";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -119,7 +120,16 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
           : HttpResponse.json({ preferences }),
       ),
     );
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Wrapped in the REAL provider, because the screen reads preferences from it
+    // now rather than fetching its own copy — that fetch went stale against a
+    // value the same session had just saved (Copilot, PR 139). The provider does
+    // the `/api/account/preferences` read the handler above answers, so this
+    // still walks the whole path rather than injecting a value.
+    render(
+      <PreferencesProvider>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+      </PreferencesProvider>,
+    );
   }
 
   it("renders the account's chosen name in a widget on the page", async () => {

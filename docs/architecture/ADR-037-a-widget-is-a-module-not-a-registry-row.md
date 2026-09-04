@@ -290,6 +290,15 @@ resolvers all read them:
 | `tags` | `"all"` or `ActivityTag[]` | never — `"all"` is a valid binding, not an empty one |
 | `trip` | a `tripId` | absent, or not a trip the reader may see |
 
+**`tags` shipped narrower than this row, 2026-09-04, and the row is what should change.** The
+built binding is `TagRef` — a single optional `ActivityTag`, in `packages/contracts/src/pages.ts`
+where this decision says it belongs. SPEC §18 (2026-09-03, later than this ADR) reads *"every
+stop, or **one**"*, and a set-valued binding needs a control that can express a set, which
+nothing in the design shows. The trap below still holds in the narrowed form: **absent means
+every stop, not "not configured"**, so `stop.line` is finished the moment it is pointed at a
+day. Flagged rather than rewritten — widening back to a set is one line in `TagRef` and a
+control, and it is Mitchell's call whether §18 or this row is the one that moves.
+
 Two of these carry a trap worth stating. **`tags` has no unbound state** — "every stop" is a
 real choice, so an empty array must mean "no tags match", not "not configured". And
 **`person` and `trip` are the only bindings that can reference something the reader is not

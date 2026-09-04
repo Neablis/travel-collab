@@ -3,28 +3,30 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach } from "vitest";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import { WidgetChrome } from "./WidgetChrome";
 
 afterEach(cleanup);
 
-const detail = {
-  tripId: "11111111-1111-1111-1111-111111111111",
-  name: "Japan", status: "active", startDate: "2026-08-01", currency: "USD", budget: null,
-  members: [{ userId: "u1", role: "owner" }], forkedFrom: null,
+// From the factory with the two days these cases need, rather than a
+// hand-built `TripDetail` forced through `as unknown` — the cast hid contract
+// drift from the type checker, and the repository rule is unqualified
+// (AGENTS.md: "data comes from `@tc/factories`, never a hand-built rollup").
+// Found by Copilot on PR 139.
+const detail: TripDetail = tripDetailFixture({
+  name: "Japan",
+  startDate: "2026-08-01",
   days: [
     { dayId: "22222222-2222-2222-2222-222222222222", activityIds: [], date: "2026-08-01", costSubtotal: 0 },
     { dayId: "33333333-3333-3333-3333-333333333333", activityIds: [], date: "2026-08-02", costSubtotal: 0 },
   ],
-  backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [],
-  createdAt: "2026-07-20T00:00:00.000Z",
-  unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
-} as unknown as TripDetail;
+});
 
-const globals = {
+const globals: TripGlobals = {
   days: [], cities: [],
   tags: [{ tag: "meal", activityCount: 2 }, { tag: "outdoors", activityCount: 1 }],
   bookedCount: 0,
-} as unknown as TripGlobals;
+};
 
 const chrome = (params: Record<string, unknown>, onChange = vi.fn(), g: TripGlobals | null = globals) => {
   render(<WidgetChrome name="stop.line" params={params} detail={detail} globals={g} onChange={onChange} />);

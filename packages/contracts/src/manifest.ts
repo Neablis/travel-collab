@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { TripGlobals } from "./globals";
-import { VALUE_KINDS, valueKindOf, type ValueKind } from "./valueKind";
+// `unwrapSchema` is shared with `valueKindOf` rather than kept here: the label
+// lookup and the kind lookup must agree about what "the same field" means, and
+// while they were two walks they did not (Copilot, PR 139).
+import { VALUE_KINDS, unwrapSchema as unwrap, valueKindOf, type ValueKind } from "./valueKind";
 
 // The attribute manifest — ADR-037 open question 4, and the mechanism behind
 // *"a developer adding a new global attribute gets it for free"*.
@@ -123,15 +126,6 @@ const MANIFEST_ROOTS = { trip: TripGlobals } as const;
 // the inner. Unwrapping is what makes `date: z.string().nullable().describe(…)`
 // and `z.string().describe(…).nullable()` behave the same, which a reader would
 // reasonably expect and would otherwise silently not get.
-function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
-  let current = schema;
-  for (;;) {
-    const def = current._def as { innerType?: z.ZodTypeAny };
-    if (!def.innerType) return current;
-    current = def.innerType;
-  }
-}
-
 function describedLabel(schema: z.ZodTypeAny): string | undefined {
   return schema.description ?? unwrap(schema).description;
 }

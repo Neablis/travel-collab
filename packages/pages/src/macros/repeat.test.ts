@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityView, TripDetail, TripGlobals } from "@tc/contracts";
+import { tripDetailFixture } from "@tc/factories";
 import type { RepeatPayload, Seg } from "../registry-types";
 import { dayLine, cityLine, bookingLine, stopLine } from "./repeat";
 
@@ -8,17 +9,16 @@ const activity = (id: string, over: Partial<ActivityView> = {}): ActivityView =>
   anchors: [], kind: "planned", tags: [], cost: null, ...over,
 });
 
-const base: TripDetail = {
-  tripId: "11111111-1111-1111-1111-111111111111",
-  name: "Japan 2026", startDate: "2026-08-01", currency: "USD",
-  budget: { amountMinor: 100000, currency: "USD" }, status: "active",
-  members: [{ userId: "u1", role: "owner" }],
-  forkedFrom: null,
+// From the factory, overriding only what these cases are about (AGENTS.md:
+// "data comes from `@tc/factories`, never a hand-built rollup"). Copilot, PR 139.
+const base: TripDetail = tripDetailFixture({
+  name: "Japan 2026",
+  startDate: "2026-08-01",
+  budget: { amountMinor: 100000, currency: "USD" },
   days: [
     { dayId: "d0", activityIds: ["booked-1", "planned-1"], date: "2026-08-01", costSubtotal: 12000 },
     { dayId: "d1", activityIds: ["planned-2"], date: "2026-08-02", costSubtotal: 0 },
   ],
-  backlog: [],
   activities: {
     "booked-1": activity("booked-1", {
       title: "Ryokan", kind: "booked", timeWindow: { start: "15:00", end: "23:00" },
@@ -27,10 +27,9 @@ const base: TripDetail = {
     "planned-1": activity("planned-1", { title: "Market" }),
     "planned-2": activity("planned-2", { title: "Walk" }),
   },
-  conflicts: [], dismissedConflictIds: [],
-  createdAt: "2026-07-20T00:00:00.000Z",
-  unscheduledCostSubtotal: 0, tripCostTotal: 12000, budgetRemaining: 88000,
-};
+  tripCostTotal: 12000,
+  budgetRemaining: 88000,
+});
 
 const globals: TripGlobals = {
   days: [
@@ -169,6 +168,16 @@ describe("stop.line", () => {
   // the reader would believe the list was complete for that tag.
   it("is empty when the bound tag matches no stop, rather than dropping the filter", () => {
     expect(stopLine.resolve(ctx(), { ...day0, tag: "lodging" }).status).toBe("empty");
+  });
+
+  // `emptyText` is a fixed string on the definition and cannot see the params,
+  // so it has to be true of BOTH empty cases. It said "no stops on this day",
+  // which on a day full of stops filtered to a tag none carry is a claim the
+  // widget cannot keep — the reader is told the day is empty when it is not
+  // (Copilot, PR 139).
+  it("says nothing is showing, not that the day is empty, since it cannot tell which", () => {
+    expect(stopLine.emptyText).not.toMatch(/no stops on this day/);
+    expect(stopLine.emptyText).toBe("no stops to show for this day");
   });
 
   it("carries each stop's time and cost as the line's values", () => {
