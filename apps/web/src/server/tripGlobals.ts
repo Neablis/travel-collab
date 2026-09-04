@@ -61,7 +61,12 @@ export function buildTripGlobals(detail: TripDetail): TripGlobals {
   let bookedCount = 0;
   for (const activity of Object.values(detail.activities)) {
     if (activity.kind === "booked") bookedCount += 1;
-    for (const tag of activity.tags) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    // DEDUPED per activity. `tags` is `z.array(ActivityTag)` with no uniqueness
+    // refinement, so `["meal", "meal"]` is valid stored data — and the field
+    // this feeds says "how many STOPS carry this tag", not how many tag entries
+    // exist. Counting the raw array reported one stop twice. Found by Copilot
+    // on PR 134.
+    for (const tag of new Set(activity.tags)) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
   }
   const tags: TripGlobalsTag[] = [...tagCounts.entries()].map(([tag, activityCount]) => ({ tag, activityCount }));
 

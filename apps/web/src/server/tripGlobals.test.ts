@@ -111,3 +111,24 @@ describe("buildTripGlobals and the backlog", () => {
     expect(g.cities.reduce((n, c) => n + c.activityCount, 0)).toBe(2);
   });
 });
+
+// Found by Copilot on PR 134. `ActivityTag[]` carries no uniqueness refinement,
+// so a stop tagged ["meal", "meal"] is valid stored data — and `activityCount`
+// promises "how many stops carry this tag", not how many tag entries exist.
+describe("buildTripGlobals and duplicate tags", () => {
+  it("counts a stop once per tag however many times the stop repeats it", () => {
+    const base = tripDetailFixture();
+    const detail = {
+      ...base,
+      days: [{ dayId: "d0", activityIds: ["a1"], date: "2026-08-01", costSubtotal: 0 }],
+      activities: {
+        a1: {
+          activityId: "a1", tripId: base.tripId, title: "Lunch twice over", dayId: "d0",
+          position: 0, timeWindow: { start: "12:00", end: "13:00" }, location: { city: "Tokyo" },
+          notes: null, anchors: [], kind: "planned", tags: ["meal", "meal"], cost: null,
+        },
+      } as unknown as TripDetail["activities"],
+    } as TripDetail;
+    expect(buildTripGlobals(detail).tags.find((t) => t.tag === "meal")?.activityCount).toBe(1);
+  });
+});

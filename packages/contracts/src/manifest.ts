@@ -75,7 +75,15 @@ export const AttributeRef = z.object({
   /** Which member, for a collection. Absent means the collection itself. */
   key: z.string().min(1).optional(),
   field: z.string().min(1),
-}).strict();
+}).strict().refine((ref) => ref.collection !== undefined || ref.key === undefined, {
+  // Found by Copilot on PR 134. `collection` and `key` were independently
+  // optional, so `{ object: "trip", key: "Tokyo", field: "bookedCount" }`
+  // parsed — a member of no collection, which is not a reference to anything.
+  // Calling this format "closed and validated" while it accepted a shape with
+  // no meaning was the gap.
+  message: "a key names a member of a collection, so `collection` is required whenever `key` is set",
+  path: ["collection"],
+});
 export type AttributeRef = z.infer<typeof AttributeRef>;
 
 // The declared roots. One entry today; the point is that it is a LIST someone

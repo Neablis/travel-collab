@@ -95,6 +95,17 @@ describe("AttributeRef", () => {
     expect(AttributeRef.parse({ object: "trip", field: "bookedCount" }).field).toBe("bookedCount");
   });
 
+  it("refuses a key that names a member of no collection", () => {
+    // Found by Copilot on PR 134: `collection` and `key` were independently
+    // optional, so a member of nothing parsed cleanly. A format described as
+    // "closed and validated" should not accept a reference with no referent.
+    expect(AttributeRef.safeParse({ object: "trip", key: "Tokyo", field: "bookedCount" }).success).toBe(false);
+    // The two legitimate shapes still parse: a collection member, and a
+    // collection itself with no key.
+    expect(AttributeRef.safeParse({ object: "trip", collection: "cities", key: "Tokyo", field: "activityCount" }).success).toBe(true);
+    expect(AttributeRef.safeParse({ object: "trip", collection: "cities", field: "activityCount" }).success).toBe(true);
+  });
+
   it("refuses a string expression, which is the point of storing it structured", () => {
     // `{{trip.cities[Tokyo].activities.length}}` has no home in this shape, and
     // that is deliberate: ADR-037 dropped the syntax because a freeform string
