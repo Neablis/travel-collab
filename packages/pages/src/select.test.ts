@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costOfStops, dayIndexOf, narrow, type Narrowed } from "./select";
+import { cityDayOrdinals, costOfStops, dayIndexOf, narrow, stopsInCity, type Narrowed } from "./select";
 import { selectionTrip } from "./test-support/selectionTrip";
 
 // `narrow` is the one place ADR-039's selection is implemented, so it is the one
@@ -120,6 +120,21 @@ describe("narrow — what a filter selects (ADR-039 decisions 1 and 2)", () => {
     expect(selected(trip, null, {}).cities).toEqual([]);
     expect(selected(trip, null, { city: "Rome" }).stops).toEqual([]);
   });
+
+  it("excludes the BACKLOG too when a city is bound and there is no projection", () => {
+    // The half the rule above was missing. A backlog stop needs no day, so it
+    // was still matching on its own `location.city` while every scheduled stop
+    // dropped out for want of a day-to-city mapping — leaving the one
+    // unscheduled Kyoto stop and none of the scheduled ones. That is not a
+    // smaller answer, it is a different and wrong one (Copilot and CodeRabbit,
+    // PR 141).
+    const { trip } = selectionTrip();
+    expect(selected(trip, null, { city: "Kyoto" }).stops).toEqual([]);
+    // And the rule is about the CITY being unanswerable, not about the backlog:
+    // with no city bound, an absent projection costs nothing and the backlog is
+    // still selected.
+    expect(titles(selected(trip, null, {}))).toContain("Souvenirs");
+  });
 });
 
 describe("narrow — the two refusals", () => {
@@ -173,5 +188,38 @@ describe("costOfStops — one number, one implementation", () => {
     const scheduled = trip.days.reduce((sum, day) => sum + day.costSubtotal, 0);
     expect(costOfStops(selected(trip, globals, {}).stops) - scheduled).toBe(trip.unscheduledCostSubtotal);
     expect(trip.unscheduledCostSubtotal).toBeGreaterThan(0);
+  });
+});
+
+describe("attributing stops to a city (`stopsInCity`)", () => {
+  it("counts by the stop's OWN location, never by its day's city list", () => {
+    // The projection's rule, and deliberately NOT the rule `narrow` filters by.
+    // Day 2 touches Rome and Kyoto; its two stops are one of each. Counting per
+    // day would report both stops under both cities — `buildTripGlobals` says
+    // so in the same words, and a count that disagreed with the projection
+    // would make the same city report two different numbers on one page.
+    const { trip, globals } = selectionTrip();
+    const day2 = selected(trip, globals, { day: { kind: "index", index: 1 } });
+    expect(stopsInCity(day2.stops, "Rome").map((s) => s.activity.title)).toEqual(["Train to Kyoto"]);
+    expect(stopsInCity(day2.stops, "Kyoto").map((s) => s.activity.title)).toEqual(["Ryokan"]);
+  });
+
+  it("agrees with the projection's own totals when nothing is filtered", () => {
+    // The property that makes it safe to use in place of
+    // `TripGlobalsCity.activityCount` the moment a filter narrows things: they
+    // are the same number when there is nothing to narrow.
+    const { trip, globals } = selectionTrip();
+    const wide = selected(trip, globals, {});
+    for (const entry of globals.cities) {
+      expect(stopsInCity(wide.stops, entry.name).length, entry.name).toBe(entry.activityCount);
+    }
+  });
+
+  it("keeps only the days the selection kept, counting from 1", () => {
+    const { trip, globals } = selectionTrip();
+    const rome = globals.cities[0]!;
+    expect(cityDayOrdinals(rome, [0, 1, 2])).toEqual([1, 2]);
+    expect(cityDayOrdinals(rome, [0])).toEqual([1]);
+    expect(cityDayOrdinals(rome, [])).toEqual([]);
   });
 });

@@ -100,6 +100,43 @@ describe("count", () => {
     expect(textOf({ tag: "meal" })).toBe("1 stop");
   });
 
+  it("lets a tag or a kind narrow a DAY or CITY count, not just a stop one", () => {
+    // `narrow` applies `tag`/`kind` to stops only — `day.detail` depends on
+    // that — so reading `days.length` answered "how many days are selected"
+    // under a title promising "how many match". The fixture has three days and
+    // one meal, on day 1.
+    const ctx = contextOf(selectionTrip());
+    const textOf = (params: Record<string, unknown>) => {
+      const outcome = renderMacro(ctx, "count", params);
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "inline") throw new Error(`not ok: ${outcome.status}`);
+      return outcome.rendered.segs.map((s) => s.text).join("");
+    };
+    expect(textOf({ of: "day" })).toBe("3 days");
+    expect(textOf({ of: "day", tag: "meal" })).toBe("1 day");
+    // Two bookings, on days 1 and 2.
+    expect(textOf({ of: "day", kind: "booked" })).toBe("2 days");
+    // Rome has the meal-day's located stops; Kyoto has none tagged meal.
+    expect(textOf({ of: "city" })).toBe("2 cities");
+    expect(textOf({ of: "city", tag: "lodging" })).toBe("1 city");
+  });
+
+  it("keeps a city filter counting days and cities the way `narrow` selected them", () => {
+    // `city` already narrows the day and city sets inside `narrow`, so this
+    // pins the numbers that selection produces: Rome is on two of the three
+    // days, and is one city. (Deriving these from stops instead would give the
+    // same answers — a day's cities come FROM its stops — so what this actually
+    // guards is `narrow`'s city day-selection, which is what breaks if the
+    // filter stops being applied to days at all.)
+    const ctx = contextOf(selectionTrip());
+    const textOf = (params: Record<string, unknown>) => {
+      const outcome = renderMacro(ctx, "count", params);
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "inline") throw new Error(`not ok: ${outcome.status}`);
+      return outcome.rendered.segs.map((s) => s.text).join("");
+    };
+    expect(textOf({ of: "day", city: "Rome" })).toBe("2 days");
+    expect(textOf({ of: "city", city: "Rome" })).toBe("1 city");
+  });
+
   it("answers zero rather than going empty", () => {
     // The one primitive with no `empty()` against a loaded trip. "0 booked" is
     // exactly what somebody asks a notebook, and `emptyText` would replace the

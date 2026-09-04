@@ -445,6 +445,28 @@ describe("v1 → v2: the widget names become primitives (ADR-039)", () => {
     });
   });
 
+  it("lets the RENAMED key win over a stray param already using its new name", () => {
+    // A hand-edited v1 node carrying both `dayRef` and `day`. Only `dayRef`
+    // meant anything at v1, so it has to win — and it has to win regardless of
+    // which key JSON iteration reaches last, which a single-pass rename does
+    // not guarantee (Copilot, PR 141).
+    const day2 = { kind: "index", index: 1 };
+    const day5 = { kind: "index", index: 4 };
+    for (const params of [
+      { dayRef: day2, day: day5 },
+      { day: day5, dayRef: day2 },
+    ]) {
+      const doc = parsePageDoc({
+        type: "doc",
+        content: [{ type: "macro", attrs: { name: "cost.day", params } }],
+      });
+      expect(doc.content[0], JSON.stringify(params)).toEqual({
+        type: "macro",
+        attrs: { name: "cost", params: { day: day2 } },
+      });
+    }
+  });
+
   it("lets the name's own filter win over a stray param of the same key", () => {
     // A hand-edited document could carry `kind: "idea"` under `booking.line`,
     // where it meant nothing at all to the old resolver. It must not start

@@ -178,7 +178,24 @@ export function narrow(
   // selection sums to the board's own number — not a second implementation of
   // it, the same one narrowed. A day or a date range excludes the backlog
   // because an unscheduled stop is on no day and has no date.
-  if (filters.day === undefined && filters.dates === undefined) {
+  //
+  // **A bound city with no projection excludes the backlog too**, and that is
+  // the rule above kept rather than an extra one. Without `globals` no day
+  // reports a city, so every SCHEDULED stop drops out — and a backlog stop,
+  // which needs no day, was still matching on its own `location.city`. The
+  // selection then held the one unscheduled Kyoto stop and none of the
+  // scheduled ones, which is not a smaller answer, it is a different and wrong
+  // one (Copilot and CodeRabbit, PR 141).
+  //
+  // The alternative was to make a city filter work without the projection by
+  // matching stops on their own location only and deriving the days from them.
+  // Not taken: it inverts the day → stop dependency for a degraded path that
+  // production does not have (the globals request rides with the page), and it
+  // would quietly answer a DIFFERENT question — "stops that say Kyoto" rather
+  // than "stops in Kyoto" — from the one the same filter answers everywhere
+  // else.
+  const cityIsUnanswerable = filters.city !== undefined && globals === null;
+  if (filters.day === undefined && filters.dates === undefined && !cityIsUnanswerable) {
     for (const activityId of trip.backlog) {
       const activity = trip.activities[activityId];
       if (!activity || !stopSelected(activity, null)) continue;
@@ -226,3 +243,43 @@ export function narrow(
  */
 export const costOfStops = (stops: readonly SelectedStop[]): number =>
   stops.reduce((sum, stop) => sum + (stop.activity.cost?.amountMinor ?? 0), 0);
+
+/**
+ * The selected stops attributed to one city — **by the stop's OWN location,
+ * never by its day's city list.**
+ *
+ * That is deliberately a different rule from the one `narrow` filters by, and
+ * `buildTripGlobals` already draws the same distinction in the same words:
+ * *"stop counts are attributed by the stop's OWN city, not by its day's city
+ * list: a travel day touches two cities and its stops are not evenly split
+ * between them. Counting per day would double-count every stop on such a day."*
+ *
+ * So the two questions get two answers, on purpose. **"Is this stop in Rome?"**
+ * falls back to the day, because dropping an unlocated stop from a city-filtered
+ * cost under-reports money. **"How many stops are in Rome?"** does not, because
+ * counting an unlocated travel-day stop under both its cities reports more
+ * stops than the trip has. Sharing one rule would have to be wrong at one of
+ * them.
+ *
+ * Because it matches the projection's own attribution, an unfiltered count here
+ * equals `TripGlobalsCity.activityCount` — which is what makes it safe to use
+ * this in place of that field once a filter narrows the selection.
+ */
+export const stopsInCity = (stops: readonly SelectedStop[], city: string): SelectedStop[] =>
+  stops.filter((stop) => stop.activity.location?.city === city);
+
+/**
+ * A city's selected days, as ordinals a person counts from 1.
+ *
+ * `TripGlobalsCity.dayIndexes` is the whole trip's answer and counts from 0. A
+ * date-filtered widget must not print days its own filter excluded, so this
+ * intersects the two — and converts, because "Day 0" is the projection's private
+ * convention leaking onto the page.
+ */
+export const cityDayOrdinals = (
+  entry: { dayIndexes: readonly number[] },
+  selectedDays: readonly number[],
+): number[] => {
+  const selected = new Set(selectedDays);
+  return entry.dayIndexes.filter((index) => selected.has(index)).map((index) => index + 1);
+};

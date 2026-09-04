@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES } from "./registry";
+import { MACRO_REGISTRY, getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { insertWidget } from "./insert";
@@ -365,6 +365,32 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     }
   });
 
+  it("names each primitive's non-filter params and their vocabularies", () => {
+    // The catalogue is what the assistant composes from, and it described every
+    // widget as a selection plus filters — false for the two primitives that
+    // take something else. A model told "every param is a filter" cannot ask
+    // for the trip's name, so `attribute` was uninsertable by the AI path
+    // (Copilot, PR 141).
+    const catalogue = primitiveCatalog();
+    const paramsOf = (name: string) => catalogue.find((entry) => entry.name === name)!.params;
+    // Derived from the schema, so the vocabulary is the enum's own — a fifth
+    // `AttributeFieldRef` member reaches the model with no edit anywhere.
+    expect(paramsOf("attribute")).toEqual({
+      field: ["trip.name", "trip.budgetRemaining", "account.name", "account.homeAirport"],
+    });
+    expect(paramsOf("count")).toEqual({ of: ["stop", "day", "city"] });
+    // And a primitive that takes only filters says so with an empty object
+    // rather than by omission, so "no extra params" is a statement.
+    expect(paramsOf("cost")).toEqual({});
+    // Non-vacuous the other way: the filter dimensions must NOT leak in here,
+    // or every widget would look like it took ten extra params.
+    for (const entry of catalogue) {
+      for (const key of Object.keys(entry.params)) {
+        expect(FilterDimension.options, `${entry.name} lists the filter ${key} as an extra param`).not.toContain(key);
+      }
+    }
+  });
+
   it("gives every registered widget a title and a preview, catalogued or not", () => {
     // `macroCatalog()` lists only the browsable widgets (ADR-039 decision 5),
     // so the catalogue sweep above stopped covering the primitives the moment
@@ -389,11 +415,25 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(invented.ok === false && invented.error.reason).toBe("bad-params");
     const reversed = insertWidget("cost", { dates: { from: "2027-06-04", through: "2027-06-01" } });
     expect(reversed.ok, "a reversed date range").toBe(false);
-    // A dimension the primitive does not declare is stripped rather than
-    // refused — `.strip()` is what lets a document written by a later build
-    // still open — so the node lands with the filter simply absent.
-    const stripped = insertWidget("city.rows", { kind: "booked" });
-    expect(stripped.ok).toBe(true);
-    expect(stripped.ok === true && stripped.node.attrs.params).not.toHaveProperty("kind");
+    // **A dimension the primitive does not declare is REFUSED, not stripped.**
+    // Decision 3 says so outright — *"the picker offers only combinations that
+    // are legal; `insertWidget` refuses the rest"* — and stripping meant a
+    // caller's filter was discarded by the one function whose whole job is to
+    // refuse bad input (Copilot, PR 141). `city.rows` selects over cities, and
+    // a city has no kind.
+    const illegal = insertWidget("city.rows", { kind: "booked" });
+    expect(illegal.ok).toBe(false);
+    expect(illegal.ok === false && illegal.error.reason).toBe("bad-params");
+    // The message names the dimension and what the widget does accept, because
+    // "bad params" alone tells a caller nothing it can act on.
+    const message = illegal.ok === false && illegal.error.reason === "bad-params" ? illegal.error.message : "";
+    expect(message).toContain("kind");
+    expect(message).toContain("city");
+    // Strict on the way IN, permissive on the way out: the read path still
+    // strips, so a document written by a newer build still opens.
+    expect(getMacro("city.rows")!.params.parse({ kind: "booked" })).not.toHaveProperty("kind");
+    // And junk that is not a filter dimension at all still strips on insert —
+    // this refuses illegal FILTERS, not unfamiliar keys.
+    expect(insertWidget("city.rows", { somethingNewer: 1 }).ok).toBe(true);
   });
 });

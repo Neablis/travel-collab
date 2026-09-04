@@ -97,9 +97,11 @@ export function buildPageTools(): { tools: Record<string, Tool>; getInserts: () 
     insert_widget: tool({
       description:
         "Insert one live trip-data widget into the page at the cursor. Widget names come from the " +
-        "registry and cannot be invented. Params are that widget's own filters, and every one is " +
-        "optional — omit them all and the widget covers the whole trip, which is a real answer and " +
-        "usually the right one.",
+        "registry and cannot be invented. Most params are that widget's own filters, and every " +
+        "filter is optional — omit them all and the widget covers the whole trip, which is a real " +
+        "answer and usually the right one. A few widgets also take a NON-filter param that chooses " +
+        "what they read or count; the catalogue lists each widget's under `params`, with the exact " +
+        "values allowed. `attribute` renders nothing without its `field`.",
       inputSchema: InsertWidgetParams,
       execute: async (params: z.infer<typeof InsertWidgetParams>) => {
         // **The validation is delegated, not repeated.** `insertWidget` is the

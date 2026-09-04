@@ -62,6 +62,17 @@ describe("day.rows", () => {
 });
 
 describe("city.rows", () => {
+  it("scopes a city's days AND its stop count to the selection", () => {
+    // Same defect as `city.detail`'s, in the other shape: `entry.activityCount`
+    // is the whole trip's, so a date-narrowed line showed one day beside a
+    // count that included the days the filter had just excluded (CodeRabbit,
+    // PR 141).
+    const ctx = contextOf(selectionTrip());
+    expect(lines(ctx, "city.rows", { dates: { from: "2027-06-01", through: "2027-06-01" } })).toEqual([
+      "Rome Day 1 1 stop",
+    ]);
+  });
+
   it("counts a city's days from 1 and its stops by their own city — what `city.line` drew", () => {
     const ctx = contextOf(selectionTrip());
     expect(lines(ctx, "city.rows")).toEqual([
@@ -125,12 +136,21 @@ describe("stop.rows", () => {
 
 describe("cost.rows", () => {
   it("is a row per costed day, plus unscheduled, plus the total", () => {
+    // **Every row, not the first and the last.** Checking only Day 1, the
+    // unscheduled row and the total passes for a renderer that drops Day 2 and
+    // Day 3 entirely (CodeRabbit, PR 141) — which is exactly what a breakdown
+    // must not do.
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    const rows = lines(ctx, "cost.rows");
-    expect(rows.at(-1)).toBe(`Total ${formatMoney(fixture.trip.tripCostTotal, "USD")}`);
-    expect(rows.at(-2)).toBe(`Unscheduled ${formatMoney(fixture.trip.unscheduledCostSubtotal, "USD")}`);
-    expect(rows[0]).toBe(`Day 1 · 2027-06-01 ${formatMoney(fixture.trip.days[0]!.costSubtotal, "USD")}`);
+    const money = (index: number) => formatMoney(fixture.trip.days[index]!.costSubtotal, "USD");
+    expect(lines(ctx, "cost.rows")).toEqual([
+      `Day 1 · 2027-06-01 ${money(0)}`,
+      `Day 2 · 2027-06-02 ${money(1)}`,
+      // Day 3 has no date, so its label is the day number alone.
+      `Day 3 ${money(2)}`,
+      `Unscheduled ${formatMoney(fixture.trip.unscheduledCostSubtotal, "USD")}`,
+      `Total ${formatMoney(fixture.trip.tripCostTotal, "USD")}`,
+    ]);
   });
 
   it("re-sums the days when a content filter is set, since a subtotal cannot answer that", () => {

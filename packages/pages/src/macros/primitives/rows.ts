@@ -4,7 +4,7 @@ import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } f
 import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { costOfStops, narrow, type SelectedStop } from "../../select";
+import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
 import { formatMoney, formatDate } from "../../format";
 
 // The `repeat` primitives (ADR-039 decision 1): a shape that **lists** its
@@ -94,16 +94,22 @@ export const cityRows: MacroDef<CityRowsParams, RepeatPayload> = {
     if (selection.status !== "ok") return selection;
     const cities = selection.value.cities;
     if (cities.length === 0) return empty();
+    const { days, stops } = selection.value;
     const rows: RepeatRow[] = cities.map((entry) => {
       const values: RepeatValue[] = [];
+      // **Both values are scoped to the selection.** `TripGlobalsCity` carries
+      // the whole trip's answer, so a date-filtered line was showing one
+      // selected day beside a stop count that included the days the filter had
+      // just excluded (CodeRabbit, PR 141).
+      //
       // Day NUMBERS, not indexes: the projection counts from 0 and a person
       // counts from 1.
-      if (entry.dayIndexes.length > 0) {
-        values.push(rowValue(entry.dayIndexes.map((index) => `Day ${index + 1}`).join(", ")));
+      const ordinals = cityDayOrdinals(entry, days);
+      if (ordinals.length > 0) {
+        values.push(rowValue(ordinals.map((ordinal) => `Day ${ordinal}`).join(", ")));
       }
-      if (entry.activityCount > 0) {
-        values.push(rowValue(entry.activityCount === 1 ? "1 stop" : `${entry.activityCount} stops`));
-      }
+      const count = stopsInCity(stops, entry.name).length;
+      if (count > 0) values.push(rowValue(count === 1 ? "1 stop" : `${count} stops`));
       return { lead: rowCity(entry.name), values };
     });
     return ok({ kind: "repeat-rows", rows });

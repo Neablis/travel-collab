@@ -69,9 +69,17 @@ export type FilterDimension = z.infer<typeof FilterDimension>;
  * A city binding: the city's NAME, as `TripGlobals.cities` reports it.
  *
  * A name rather than an id because a city has no id — cities are derived from
- * `location.city` by `citiesOfDay`, so the name is the identity. A stale
- * binding (a city the trip no longer touches) therefore matches nothing, which
- * is the same answer a stale `DayRef` gets: never a guessed one.
+ * `location.city` by `citiesOfDay`, so the name is the identity.
+ *
+ * **A stale city and a stale day do NOT get the same answer, and this comment
+ * used to claim they did** (Copilot, PR 141). A city the trip no longer touches
+ * simply matches nothing — an empty selection, which the widget renders as its
+ * `emptyText`. A `DayRef` pointing at a deleted day reports `unbound("day")`, a
+ * state the chrome row can fix. The difference is not an oversight: a day ref
+ * names a row that USED to exist and can be re-pointed, while a city name is
+ * just a word that currently matches no stop — it may match again the moment
+ * somebody adds a stop there, and calling that "unbound" would be a widget
+ * demanding attention it does not need.
  */
 export const CityRef = z.string().min(1).max(200);
 export type CityRef = z.infer<typeof CityRef>;
@@ -106,7 +114,30 @@ export type PersonRef = z.infer<typeof PersonRef>;
 // A calendar date, `YYYY-MM-DD`. Local to this file rather than exported: the
 // rest of the contracts spell dates `z.string()` and widening that is its own
 // change, not a side effect of adding a filter.
-const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date");
+//
+// **The regex is the shape; the refinement is the calendar.** Format alone let
+// `2027-02-30` and `2027-13-01` through, and a filter bound to a date that
+// cannot happen matches nothing forever while looking perfectly valid in the
+// document (CodeRabbit, PR 141). Round-tripping through `Date.UTC` is the
+// cheapest total check: it normalises an out-of-range month or day, so a value
+// that comes back different was never a real date. February 29 falls out of it
+// for free — 2027-02-29 normalises to March 1 and is refused, 2028-02-29 does
+// not and is accepted.
+//
+// `Date.UTC` takes explicit values and reads no clock, so this stays pure
+// (Invariant 4) — the same construction `formatDate` already uses.
+const isCalendarDate = (value: string): boolean => {
+  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return (
+    utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day
+  );
+};
+
+const IsoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD date")
+  .refine(isCalendarDate, { message: "not a date that exists on the calendar" });
 
 /**
  * A date-range binding. A single date is `from === through`, so the control has

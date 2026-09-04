@@ -103,6 +103,25 @@ describe("city.detail", () => {
     });
   });
 
+  it("scopes BOTH the days and the stop count to what the filter selected", () => {
+    // `TripGlobalsCity` answers "across this whole trip". Narrowed to day 1 by
+    // a date range, Rome's card must say Day 1 and one stop — not Day 1 and
+    // Day 2 with the whole trip's two (CodeRabbit, PR 141). A card whose two
+    // numbers describe different selections is worse than either alone.
+    const ctx = contextOf(selectionTrip());
+    expect(renderMacro(ctx, "city.detail", { dates: { from: "2027-06-01", through: "2027-06-01" } })).toEqual({
+      status: "ok",
+      rendered: {
+        kind: "block",
+        block: {
+          kind: "city-detail",
+          // Kyoto is only on day 2, so the range drops it entirely.
+          cities: [{ name: "Rome", dayOrdinals: [1], activityCount: 1 }],
+        },
+      },
+    });
+  });
+
   it("narrows to one city", () => {
     const ctx = contextOf(selectionTrip());
     const outcome = renderMacro(ctx, "city.detail", { city: "Kyoto" });

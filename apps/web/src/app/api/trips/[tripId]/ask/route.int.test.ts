@@ -854,6 +854,12 @@ describe("POST /api/trips/:id/ask", () => {
       // a model composing the general form can see what is legal rather than
       // guessing from the input list.
       expect(instruction).toContain("filters");
+      // **And the params that are not filters.** Without them the catalogue
+      // described every widget as a selection, which is false for two of them —
+      // a model told "every param is a filter" cannot ask for the trip's name,
+      // so `attribute` was uninsertable by this path (Copilot, PR 141).
+      expect(instruction).toContain("trip.budgetRemaining");
+      expect(instruction).toContain("account.homeAirport");
       // None of the planning rules the command endpoint sent on every page
       // request — ~1.5k characters describing tools this turn is not handed.
       expect(instruction).not.toContain("activityRef");

@@ -4,7 +4,7 @@ import type { MacroDef, WidgetContext } from "../../registry-types";
 import { chip, inlineOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { costOfStops, narrow } from "../../select";
+import { costOfStops, narrow, stopsInCity, type Narrowed } from "../../select";
 import { formatMoney, formatDate } from "../../format";
 
 // The `single` primitives (ADR-039 decision 1): a shape that **collapses** its
@@ -91,6 +91,49 @@ const PLURAL: Record<CountOf, [one: string, many: string]> = {
   city: ["city", "cities"],
 };
 
+
+/**
+ * How many members the selection holds, of the thing `of` names.
+ *
+ * **`tag` and `kind` narrow STOPS, not which days or cities exist** — that is
+ * `narrow`'s design, and `day.detail` depends on it to decide which days to
+ * keep. So reading `days.length` when a tag is bound answered "how many days
+ * are selected" while the widget's own title promises "how many match":
+ * `count{of: "day", tag: "meal"}` returned all three fixture days rather than
+ * the one with a meal on it (Copilot and CodeRabbit, PR 141).
+ *
+ * With a stop-level filter bound, the count therefore comes from the stops that
+ * survived it — the days those stops are on, and the cities those stops are in.
+ * Without one, it comes from the sets `narrow` selected, which is what keeps an
+ * unfiltered `count{of: "city"}` equal to the number of cities on the trip
+ * including any the backlog alone names.
+ *
+ * Cities are attributed the projection's way (`stopsInCity` — the stop's own
+ * location, never its day's), so a filtered count and an unfiltered one are
+ * counting the same thing.
+ */
+function countOf(of: CountOf, selection: Narrowed): number {
+  const { filters, days, stops, cities } = selection;
+  // `city` is deliberately not in this list: it already narrows `days` and
+  // `cities` inside `narrow`, so those sets are correct for it. Only the two
+  // dimensions that touch stops ALONE need the stop-derived answer.
+  //
+  // **Including it would in fact be equivalent, and no test can prove
+  // otherwise** — said out loud so nobody later "fixes" this line thinking a
+  // test guards it. A day's cities are derived FROM its stops (`citiesOfDay`),
+  // so a day that touches Rome necessarily holds a stop located in Rome, and
+  // the stop-derived count can never differ from `days.length` here. The
+  // exclusion is about saying which set is authoritative, not about a behaviour
+  // difference; the assertions below pin the numbers either way.
+  const narrowedByContents = filters.tag !== undefined || filters.kind !== undefined;
+  if (of === "stop") return stops.length;
+  if (!narrowedByContents) return of === "day" ? days.length : cities.length;
+  if (of === "day") {
+    return new Set(stops.map((stop) => stop.dayIndex).filter((index) => index !== null)).size;
+  }
+  return cities.filter((entry) => stopsInCity(stops, entry.name).length > 0).length;
+}
+
 /**
  * `count` — how many members the selection holds.
  *
@@ -111,10 +154,9 @@ export const count: MacroDef<CountParams, string> = {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
-    const { days, stops, cities } = selection.value;
     const of = params.of ?? COUNTS_STOPS;
-    const n = of === "day" ? days.length : of === "city" ? cities.length : stops.length;
     const [one, many] = PLURAL[of];
+    const n = countOf(of, selection.value);
     return ok(`${n} ${n === 1 ? one : many}`);
   },
   render: (value) => inlineOf(chip("value", value)),

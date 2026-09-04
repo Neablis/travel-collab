@@ -69,6 +69,26 @@ describe("presets and the document migration agree", () => {
     }
   });
 
+  it("gives a retired name to the preset that IS its combination, not to its siblings", () => {
+    // `booking.line` meant `stop.rows` filtered to bookings. Grouping aliases
+    // by primitive alone handed it to "A line for every stop" as well, so
+    // searching a retired name surfaced a widget that is not what that name
+    // used to do — and `account.homeAirport` surfaced all four `attribute`
+    // presets (Copilot, PR 141).
+    const aliasesOf = (id: string) => presetCatalog().find((e) => e.name === id)!.aliases;
+    expect(aliasesOf("booking.line")).toEqual(["booking.line"]);
+    expect(aliasesOf("stop.line")).toEqual(["stop.line"]);
+    expect(aliasesOf("account.homeAirport")).toEqual(["account.homeAirport"]);
+    expect(aliasesOf("account.name")).toEqual(["account.name"]);
+    // A pair that genuinely collapsed onto one preset keeps BOTH names, which
+    // is the case this must not over-correct: `cost.trip` and `cost.day` are
+    // the same widget with and without a day.
+    expect([...aliasesOf("cost")].sort()).toEqual(["cost.day", "cost.trip"]);
+    // And a preset nothing migrates to has none rather than borrowing any.
+    expect(aliasesOf("count.booked")).toEqual([]);
+    expect(aliasesOf("day.detail.booked")).toEqual([]);
+  });
+
   it("lists every retired name as a search alias of the preset it became", () => {
     // §6's last line: *"filter values are searchable through their presets,
     // which is how `/booking` still finds something after `booking.line` stops

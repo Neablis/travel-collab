@@ -1,4 +1,6 @@
+import { z } from "zod";
 import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
+import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import type { MacroResult, UnboundNeeds } from "./result";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
@@ -103,6 +105,7 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
 export function primitiveCatalog(): {
   name: string; title: string; shape: WidgetShape; description: string; emptyText: string;
   preview: string; inputs: readonly WidgetInput[]; selection: WidgetSelection | undefined;
+  params: Record<string, readonly string[] | null>;
 }[] {
   return DEFS.map((d) => ({
     name: d.name, title: d.title, shape: d.shape,
@@ -113,5 +116,36 @@ export function primitiveCatalog(): {
     // `entity + filters`, so a model composing the general form can see which
     // dimensions are legal for this widget rather than guessing from `inputs`.
     selection: d.selection,
+    params: nonFilterParams(d),
   }));
+}
+
+/**
+ * A primitive's params that are NOT filter dimensions, with their vocabularies.
+ *
+ * **`attribute` was uninsertable by the assistant without this** (Copilot, PR
+ * 141). The catalogue described every widget as a selection plus filters, which
+ * is false for two of them: `count` also takes `of`, and `attribute` needs
+ * `field` to render anything at all. A model told "every param is a filter" and
+ * handed no other vocabulary has no way to ask for the trip's name — it can
+ * only insert an `attribute` that resolves to "nothing to show".
+ *
+ * **Derived from the schema, never listed a second time** (Invariant 5). It
+ * walks the params object, skips the closed filter vocabulary, and reads the
+ * allowed values straight off a `ZodEnum` — so `AttributeFieldRef` gaining a
+ * fifth field reaches the model with no edit here. `null` means the param is
+ * not an enum and has no list to give.
+ */
+function nonFilterParams(def: AnyMacroDef): Record<string, readonly string[] | null> {
+  const shape = (def.params as Partial<z.ZodObject<z.ZodRawShape>>).shape;
+  if (!shape) return {};
+  const out: Record<string, readonly string[] | null> = {};
+  for (const [key, schema] of Object.entries(shape)) {
+    if ((FilterDimension.options as readonly string[]).includes(key)) continue;
+    // `.optional()` is how every one of these is declared, so the enum is one
+    // unwrap down. Anything else reports "no list" rather than guessing.
+    const inner = schema instanceof z.ZodOptional ? (schema.unwrap() as z.ZodTypeAny) : schema;
+    out[key] = inner instanceof z.ZodEnum ? (inner.options as readonly string[]) : null;
+  }
+  return out;
 }

@@ -293,13 +293,35 @@ export interface WidgetCatalogEntry {
   aliases: readonly string[];
 }
 
-// The retired names, grouped by the primitive they became. Built once from the
-// migration map rather than typed out beside the presets: a second list of
-// "what `cost.day` is now" is a second thing to keep in step with the one that
-// actually rewrites documents.
-const RETIRED_NAMES_BY_WIDGET: Record<string, string[]> = {};
+// A stable spelling of a params object, so two of them can be compared for
+// equality. Keys sorted, because `{a, b}` and `{b, a}` are the same filter set
+// and JSON order is not a fact about either.
+const paramsKey = (params: Readonly<Record<string, unknown>>): string =>
+  JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)));
+
+/**
+ * The retired names each preset answers to, for the search index.
+ *
+ * **Matched by the preset's PARAMS, not just by its primitive.** Grouping by
+ * primitive alone gave every preset over `stop.rows` both retired names, so
+ * searching `booking.line` also surfaced "A line for every stop", and
+ * `account.homeAirport` surfaced all four `attribute` presets (Copilot, PR
+ * 141). A retired name meant one specific combination; the preset that IS that
+ * combination is the one it should find.
+ *
+ * The migration step's `set` is exactly that combination — it is the filter the
+ * old NAME carried — so a preset whose own params equal it is the same widget
+ * under a new title. A retired name whose combination no preset offers falls
+ * back to every preset on its primitive rather than becoming unfindable, which
+ * is the honest degradation: the reader gets the family, not nothing.
+ */
+const RETIRED_NAMES_BY_PRESET: Record<string, string[]> = {};
 for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
-  (RETIRED_NAMES_BY_WIDGET[step.name] ??= []).push(retired);
+  const onPrimitive = PRESETS.filter((preset) => preset.widget === step.name);
+  const exact = onPrimitive.filter((preset) => paramsKey(preset.params) === paramsKey(step.set ?? {}));
+  for (const preset of exact.length > 0 ? exact : onPrimitive) {
+    (RETIRED_NAMES_BY_PRESET[preset.id] ??= []).push(retired);
+  }
 }
 
 export function presetCatalog(): WidgetCatalogEntry[] {
@@ -327,7 +349,7 @@ export function presetCatalog(): WidgetCatalogEntry[] {
       // by name should not immediately offer to unpick it.
       inputs: def.inputs.filter((input) => !(input.name in preset.params)),
       keywords: preset.keywords,
-      aliases: RETIRED_NAMES_BY_WIDGET[preset.widget] ?? [],
+      aliases: RETIRED_NAMES_BY_PRESET[preset.id] ?? [],
     });
   }
   return entries;

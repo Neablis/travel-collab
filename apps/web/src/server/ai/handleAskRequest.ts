@@ -1010,7 +1010,7 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     // Found by CodeRabbit and Copilot on PR 139.
     "Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there.",
     "insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences.",
-    "insert_widget takes a widget name and that widget's own params. Every param is a filter and every one is optional: omit them all and the widget covers the whole trip, which is valid and usually what you want.",
+    "insert_widget takes a widget name and that widget's own params. Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want. Two widgets also take a NON-filter param — `attribute` needs `field` and renders nothing without one, and `count` takes `of` — and the catalogue below lists both under `params` with the exact values allowed.",
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.

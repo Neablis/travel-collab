@@ -74,6 +74,20 @@ export function presetBindableInputs(id: string): readonly WidgetInput[] {
 //
 // A `dayId` matching no day reads as unset, the same answer the resolvers give
 // it: a stale binding is silently no binding, never a guessed one.
+/**
+ * The value a day select shows for a binding aimed at a day that is gone.
+ *
+ * **Not `""`, and that was a dead end.** A stale ref read back as "All days",
+ * so the control already displayed the option that would fix it — and choosing
+ * it fired no change event, leaving the widget stuck on "that day was removed"
+ * with no way out but editing the document by hand (Copilot, PR 141). A
+ * distinct value gives the select something to move AWAY from.
+ *
+ * It is never written: `withBinding` treats it as a no-op, so the only thing a
+ * reader can do from here is pick a real day or All.
+ */
+export const STALE_DAY_VALUE = "__stale-day";
+
 export function valueOf(
   input: WidgetInput,
   params: Record<string, unknown>,
@@ -83,12 +97,13 @@ export function valueOf(
   if (input.type === "day") {
     const ref = raw as { kind?: string; index?: number; dayId?: string } | undefined;
     if (ref?.kind === "index" && typeof ref.index === "number") {
-      return ref.index < detail.days.length ? String(ref.index) : "";
+      return ref.index < detail.days.length ? String(ref.index) : STALE_DAY_VALUE;
     }
     if (ref?.kind === "dayId" && typeof ref.dayId === "string") {
       const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
-      return idx === -1 ? "" : String(idx);
+      return idx === -1 ? STALE_DAY_VALUE : String(idx);
     }
+    // No ref at all is the real "All days", and the one that means every day.
     return "";
   }
   return typeof raw === "string" ? raw : "";
@@ -133,14 +148,21 @@ export function optionsFor(
 ): readonly { value: string; label: string }[] {
   const bound = params[input.name];
   switch (input.type) {
-    case "day":
-      return [
+    case "day": {
+      const days = [
         { value: "", label: "All days" },
         ...detail.days.map((day, index) => ({
           value: String(index),
           label: day.date ? `Day ${index + 1} · ${day.date}` : `Day ${index + 1}`,
         })),
       ];
+      // A binding aimed at a deleted day gets its own option, selected, so the
+      // control tells the same story the widget does ("that day was removed")
+      // and picking All is a change the select actually reports.
+      return valueOf(input, params, detail) === STALE_DAY_VALUE
+        ? [...days, { value: STALE_DAY_VALUE, label: "The day this pointed at (removed)" }]
+        : days;
+    }
     case "city":
       return [
         { value: "", label: "All cities" },
@@ -181,6 +203,9 @@ export function withBinding(
   next: string,
 ): Record<string, unknown> {
   const merged = { ...params };
+  // Re-picking the stale option changes nothing, so it writes nothing. It is
+  // there to be moved away from, not chosen.
+  if (next === STALE_DAY_VALUE) return merged;
   if (next === "") {
     // Clearing goes back to ALL rather than to a default (ADR-039 decision 2).
     // Deleting the key rather than writing a null keeps `{}` the one spelling
@@ -214,16 +239,28 @@ export function withDateRange(
 ): Record<string, unknown> {
   const merged = { ...params };
   const current = dateRangeOf(input, params);
-  const from = end === "from" ? next : current.from;
-  const through = end === "through" ? next : current.through;
-  if (from === "" && through === "") {
+
+  // **Clearing either end clears the filter.** A range with one end is not a
+  // range, and the completion rule below would otherwise refill the box the
+  // reader just emptied from the box they left alone — so a date filter, once
+  // set, could never be taken off again except by editing the document. That is
+  // the same dead end the stale day select had, in the other control.
+  if (next === "") {
     delete merged[input.name];
     return merged;
   }
-  // One end typed means that single date, until the other arrives. Ordered, so
-  // a range typed back-to-front is never handed to the contract as a refusal.
-  const [lo, hi] = [from || through, through || from].sort();
-  merged[input.name] = { from: lo, through: hi };
+
+  const from = end === "from" ? next : current.from;
+  const through = end === "through" ? next : current.through;
+  // **One end typed means that single date; two ends typed mean exactly what
+  // was typed.** Completing an EMPTY other end is not the same as
+  // reinterpreting a filled one, and this used to `.sort()` both — so setting
+  // `from` to a date after `through` silently rewrote the author's input into
+  // the range they did not ask for (Copilot, PR 141). A genuinely reversed pair
+  // is written as given and refused by `DateRangeRef`, which is the contract's
+  // own stated intent: *"a reversed range is a mistake somebody made, and
+  // quietly reinterpreting it is how a widget shows a confident wrong answer."*
+  merged[input.name] = { from: from || through, through: through || from };
   return merged;
 }
 
@@ -368,12 +405,18 @@ function DateRangeControl({
 }) {
   const { from, through } = dateRangeOf(input, params);
   const size = layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full";
+  // A range typed back-to-front is written as given and refused by
+  // `DateRangeRef`, so the widget beside this renders its bad-params state.
+  // Saying which control is wrong is the other half of not silently fixing it:
+  // a refusal the reader cannot locate is barely better than a rewrite.
+  const reversed = from !== "" && through !== "" && from > through;
   return (
     <span className="inline-flex items-center gap-1">
       <Input
         id={id}
         type="date"
         aria-label={`${label} from`}
+        aria-invalid={reversed || undefined}
         className={size}
         value={from}
         onChange={(e) => onChange(withDateRange(params, input, "from", e.target.value))}
@@ -381,6 +424,7 @@ function DateRangeControl({
       <Input
         type="date"
         aria-label={`${label} through`}
+        aria-invalid={reversed || undefined}
         className={size}
         value={through}
         onChange={(e) => onChange(withDateRange(params, input, "through", e.target.value))}

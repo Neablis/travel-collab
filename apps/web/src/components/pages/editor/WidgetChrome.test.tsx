@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach } from "vitest";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
+import type { WidgetInput } from "@tc/pages";
 import { WidgetChrome } from "./WidgetChrome";
+import { STALE_DAY_VALUE, withDateRange } from "./widgetBind";
 
 afterEach(cleanup);
 
@@ -74,6 +76,34 @@ describe("WidgetChrome renders a control per declared filter", () => {
     expect(kinds).toEqual(["Any kind", "booked", "hold", "idea", "transit", "planned"]);
   });
 
+  it("gives a deleted day its own option, so picking All is a change the select reports", async () => {
+    // The dead end this closes: a stale ref read back as `""`, so the control
+    // already showed "All days" — and choosing it fired no change event, which
+    // left the widget stuck on "that day was removed" with no way out but
+    // editing the document by hand (Copilot, PR 141).
+    const onChange = vi.fn();
+    chrome({ day: { kind: "index", index: 9 } }, onChange);
+    const day = screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement;
+    // The control says the same thing the widget does, rather than contradicting it.
+    expect(within(day).getByRole("option", { name: /removed/i })).toBeTruthy();
+    expect(day.value).not.toBe("");
+    await userEvent.selectOptions(day, "");
+    // Cleared by removing the key, which is the one spelling of "every day".
+    expect(onChange).toHaveBeenCalledWith({});
+  });
+
+  it("writes nothing when the deleted-day option is re-picked", async () => {
+    // It exists to be moved away from. Writing it back would be storing a
+    // sentinel the contract has never heard of.
+    const onChange = vi.fn();
+    chrome({ day: { kind: "index", index: 9 }, tag: "meal" }, onChange);
+    const day = screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement;
+    await userEvent.selectOptions(day, day.value);
+    for (const call of onChange.mock.calls) {
+      expect(call[0]).toEqual({ day: { kind: "index", index: 9 }, tag: "meal" });
+    }
+  });
+
   it("offers a from/through pair for the date range rather than a select", async () => {
     const onChange = vi.fn();
     render(
@@ -84,6 +114,46 @@ describe("WidgetChrome renders a control per declared filter", () => {
     // One end typed is a single date, not a half-built range the contract would
     // refuse — `DateRangeRef` needs both ends and refuses a reversed one.
     expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2026-08-02", through: "2026-08-02" } });
+  });
+
+  it("writes a reversed range as typed rather than silently swapping the ends", () => {
+    // Completing a half-filled control is not the same as reinterpreting a
+    // filled one, and this used to sort both — so setting `from` after
+    // `through` rewrote the author's input into a range they did not ask for
+    // (Copilot, PR 141). The contract's own words: *"a reversed range is a
+    // mistake somebody made, and quietly reinterpreting it is how a widget
+    // shows a confident wrong answer."*
+    //
+    // The writer directly rather than through the control, because a date input
+    // fires a change per keystroke and the assertion is about the RULE, not
+    // about which partial value jsdom emits on the way to a full one.
+    const dates: WidgetInput = { name: "dates", type: "dates", label: "Dates" };
+    expect(withDateRange({ dates: { from: "2026-08-01", through: "2026-08-01" } }, dates, "through", "2026-07-01")).toEqual({
+      dates: { from: "2026-08-01", through: "2026-07-01" },
+    });
+    // Completing a half-filled control still collapses to a single date, which
+    // is the case that is NOT a reinterpretation.
+    expect(withDateRange({}, dates, "through", "2026-07-01")).toEqual({
+      dates: { from: "2026-07-01", through: "2026-07-01" },
+    });
+    // **Clearing EITHER end clears the filter**, which is what makes a date
+    // filter removable at all: the completion rule above would otherwise refill
+    // the box the reader just emptied from the one they left alone, and the
+    // filter could never be taken off except by editing the document — the same
+    // dead end the stale day select had, in the other control.
+    const range = { dates: { from: "2026-07-01", through: "2026-08-01" } };
+    expect(withDateRange(range, dates, "through", "")).toEqual({});
+    expect(withDateRange(range, dates, "from", "")).toEqual({});
+  });
+
+  it("marks both ends invalid when the range is reversed, so the refusal is locatable", () => {
+    chrome({ dates: { from: "2026-08-04", through: "2026-08-01" } });
+    expect(screen.getByLabelText(/dates from/i).getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByLabelText(/dates through/i).getAttribute("aria-invalid")).toBe("true");
+    // And an ordinary range is not marked, or the signal means nothing.
+    cleanup();
+    chrome({ dates: { from: "2026-08-01", through: "2026-08-04" } });
+    expect(screen.getByLabelText(/dates from/i).hasAttribute("aria-invalid")).toBe(false);
   });
 
   // THE reason this component changed. The old `onChange` replaced the whole
@@ -155,19 +225,27 @@ describe("WidgetChrome shows what the document actually holds", () => {
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("1");
   });
 
-  // A stale binding reads as All in the control, and the widget beside it says
-  // "that day was removed" — the two together are the honest pair: the widget
-  // says what happened, the control says what clearing it would give. Guessing
-  // a day here would be the control inventing a binding the document does not
-  // have.
-  it("reads a dayId for a day that no longer exists as unset", () => {
+  // A stale binding reads as its OWN option, not as All — the widget beside it
+  // says "that day was removed" and the control says the same, rather than
+  // showing the choice that would fix it as though it were already made.
+  // Guessing a real day here would be the control inventing a binding the
+  // document does not have.
+  it("reads a dayId for a day that no longer exists as the stale option", () => {
     chrome({ day: { kind: "dayId", dayId: "99999999-9999-9999-9999-999999999999" } });
-    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe(STALE_DAY_VALUE);
   });
 
-  it("reads an index past the end of the trip as unset", () => {
+  it("reads an index past the end of the trip as the stale option", () => {
     chrome({ day: { kind: "index", index: 99 } });
+    expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe(STALE_DAY_VALUE);
+  });
+
+  it("reads NO binding as All days, which is the state that means every day", () => {
+    // The distinction the stale option exists to preserve: absent is a real
+    // answer, a broken pointer is not, and they must not read the same.
+    chrome({});
     expect((screen.getByRole("combobox", { name: /day/i }) as HTMLSelectElement).value).toBe("");
+    expect(screen.queryByRole("option", { name: /removed/i })).toBeNull();
   });
 
   // Globals still loading, failed, or the last stop with that tag removed. The

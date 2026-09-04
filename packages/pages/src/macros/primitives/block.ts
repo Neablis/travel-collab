@@ -10,7 +10,7 @@ import type {
 import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { narrow, type SelectedStop } from "../../select";
+import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
 import { formatMoney } from "../../format";
 
 // The `block` primitives (ADR-039 decision 1): a shape that **details** its
@@ -141,14 +141,20 @@ export const cityDetail: MacroDef<CityDetailParams, CityDetailPayload> = {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
-    const cities = selection.value.cities;
+    const { cities, days, stops } = selection.value;
     if (cities.length === 0) return empty();
+    // **Both fields come from the NARROWED selection, not from the projection's
+    // full-trip totals.** `TripGlobalsCity` answers "across this whole trip",
+    // so a date-filtered card was listing days its own filter had excluded and
+    // counting stops outside the range beside them (CodeRabbit, PR 141). A card
+    // whose two numbers describe different selections is worse than either
+    // alone, because the reader has no way to tell which one they are reading.
     return ok({
       kind: "city-detail",
       cities: cities.map((entry) => ({
         name: entry.name,
-        dayOrdinals: entry.dayIndexes.map((index) => index + 1),
-        activityCount: entry.activityCount,
+        dayOrdinals: cityDayOrdinals(entry, days),
+        activityCount: stopsInCity(stops, entry.name).length,
       })),
     });
   },

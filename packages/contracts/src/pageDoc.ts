@@ -424,10 +424,23 @@ export const WIDGET_NAME_MIGRATION: Readonly<Record<string, WidgetNameMigration>
 function migrateWidgetAttrs(attrs: PageWidgetNode["attrs"]): PageWidgetNode["attrs"] {
   const step = WIDGET_NAME_MIGRATION[attrs.name];
   if (!step) return attrs;
+  const rename = step.rename ?? {};
+
+  // **Two passes, and the order is the whole point.** A single pass writing
+  // `params[rename[key] ?? key] = value` is at the mercy of JSON property
+  // order: a hand-edited v1 node carrying BOTH `{ dayRef: day2, day: day5 }`
+  // migrates to day 2 or day 5 depending on which key Zod happened to iterate
+  // last (Copilot, PR 141). Only `dayRef` meant anything at v1 — `day` was a
+  // param the old resolver ignored — so the renamed key has to win every time,
+  // not most of the time.
   const params: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(attrs.params)) {
-    params[step.rename?.[key] ?? key] = value;
+    if (!(key in rename)) params[key] = value;
   }
+  for (const [from, to] of Object.entries(rename)) {
+    if (from in attrs.params) params[to] = attrs.params[from];
+  }
+
   // `set` last, so the filter the NAME carried wins over a stray param of the
   // same key in a hand-edited document. `booking.line` means booked; a
   // `kind: "idea"` sitting in its params meant nothing to the old resolver and
