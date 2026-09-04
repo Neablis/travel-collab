@@ -1,5 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
@@ -9,6 +10,16 @@ import { makePagesHandlers } from "@/mocks/handlers";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+// jsdom has no layout engine, so ProseMirror's coordinate-based cursor
+// placement throws on `elementFromPoint`/`getClientRects`. Stubbed in the same
+// shape as `editor/PageEditor.test.tsx` — without them the editor cannot place
+// a caret, and `insertContent` at the cursor is exactly what item G is about.
+beforeEach(() => {
+  document.elementFromPoint = () => null;
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null }) as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+});
 
 const server = setupServer(
   // Every notebook page fetches the account now (ADR-037 open question 2), so
@@ -142,5 +153,102 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
     expect(await screen.findByText("no name set")).toBeTruthy();
     expect(screen.queryByText("SFO")).toBeNull();
+  });
+});
+
+// M14 item G, end to end and from the reader's side: this is the first thing in
+// the builder half a person can actually click. Insert a widget from the
+// sidebar, point it at a day from its chrome row, and watch it save.
+describe("PageScreen: inserting and pointing a widget (item G)", () => {
+  async function openPage() {
+    const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
+    const trip = tripDetailFixture({
+      days: [
+        { dayId, activityIds: [], date: "2027-06-01", costSubtotal: 0 },
+        { dayId: "2b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", activityIds: [], date: "2027-06-02", costSubtotal: 0 },
+      ],
+    });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    const onUpdate = vi.fn();
+    server.use(
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+    return { onUpdate };
+  }
+
+  it("opens ready to edit, and Reading hides the whole authoring surface", async () => {
+    // A notebook has always been something you open and type in, so Editing is
+    // the default — making Reading the default broke `m7-solo-delight`'s
+    // hand-typed-prose walk, which is the behaviour everyone already has.
+    await openPage();
+    expect(screen.getByRole("complementary", { name: "Widgets" })).toBeTruthy();
+
+    // Reading is the traveller's view (§18): no insert affordance, no chrome.
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    expect(screen.queryByRole("complementary", { name: "Widgets" })).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("lists widgets by the name a person calls them, not by their stored id", async () => {
+    await openPage();
+    // `title`, not `name`: "cost.trip" is a stored identifier a document keeps
+    // forever, and it is not what a sidebar shows a reader.
+    expect(screen.getByRole("button", { name: /What the trip costs/ })).toBeTruthy();
+    expect(screen.queryByText("cost.trip")).toBeNull();
+  });
+
+  it("inserts a widget at the cursor and renders it live", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What the trip costs/ }));
+    // It resolved against the loaded trip rather than rendering a placeholder:
+    // the fixture has no costs, so the widget's own emptyText is what shows.
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+  });
+
+  it("points a day widget at a day from its own chrome row, and saves it", async () => {
+    // The whole reason the chrome row exists: with no modal step at insert
+    // time, a day widget lands UNBOUND and this is where it gets pointed.
+    const { onUpdate } = await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+
+    // Unbound on arrival — not silently defaulted to day 1 (ADR-037 decision 6).
+    expect(await screen.findByText("no day set")).toBeTruthy();
+
+    const select = screen.getByRole("combobox", { name: /What a day costs/ });
+    // And the CONTROL agrees with the widget. Asserting only the widget's text
+    // let a break through where the select displayed "Day 1" while the widget
+    // still said "no day set" — a control lying about what the document holds,
+    // which is worse than either state alone because the reader believes it.
+    expect((select as HTMLSelectElement).value).toBe("");
+    await userEvent.selectOptions(select, "1");
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    const saved = onUpdate.mock.calls.at(-1)![1].content as { content: unknown[] };
+    // The binding is stored on the widget instance's own params — ADR-035
+    // decision 3, and what lets two widgets on one page read two different days.
+    expect(JSON.stringify(saved.content)).toContain('"index":1');
+  });
+
+  it("lets two widgets on one page point at different days", async () => {
+    // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
+    // notebook that shows day 1, day 3 and day 9". Each widget carries its own
+    // binding, so this is the assertion that an aggregated control would break.
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+    await userEvent.click(screen.getByRole("button", { name: /A day's stops/ }));
+
+    const selects = screen.getAllByRole("combobox");
+    expect(selects.length).toBeGreaterThanOrEqual(2);
+    await userEvent.selectOptions(selects[0]!, "0");
+    await userEvent.selectOptions(selects[1]!, "1");
+
+    expect((selects[0] as HTMLSelectElement).value).toBe("0");
+    expect((selects[1] as HTMLSelectElement).value).toBe("1");
   });
 });

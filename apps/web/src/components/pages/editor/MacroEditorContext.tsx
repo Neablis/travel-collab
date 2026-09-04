@@ -19,6 +19,10 @@ export interface MacroEditorContextValue {
   user: UserPreferences | null;
   // The trip's addressable collections; `null` until the request lands.
   globals: TripGlobals | null;
+  // Reading vs Editing (§18: one control, two states). Reading is the
+  // traveller's view and shows no chrome, so the chrome row reads this rather
+  // than each widget guessing.
+  editing: boolean;
   onBindDay?: () => void;
 }
 

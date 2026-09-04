@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Page, PageContent, TripDetail, TripGlobals, UserPreferences } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
@@ -8,6 +8,9 @@ import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { WidgetSidebar } from "@/components/pages/WidgetSidebar";
+import { Button } from "@/components/ui/button";
+import type { Editor } from "@tiptap/react";
 import { ComposePanel } from "@/components/pages/ai/ComposePanel";
 
 type Status = "loading" | "ready" | "error";
@@ -33,6 +36,22 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // page loads regardless. That is why it is not in the `Promise.all` below,
   // whose failures are page failures.
   const [user, setUser] = useState<UserPreferences | null>(null);
+  // Reading vs Editing — §18's one control with two states. Reading is the
+  // traveller's view: no sidebar, no chrome row, and the document is read-only.
+  //
+  // **Opens in EDITING, and that is a correction rather than a preference.** It
+  // opened in Reading first, on the reasoning that a page is mostly for reading
+  // — and `m7-solo-delight.spec.ts`'s "hand-typed prose survives untouched"
+  // went red, because a notebook has always been something you open and type
+  // in. Making Reading the default silently took that away from everyone to
+  // introduce a mode nobody had asked for. §18 specifies the control, not which
+  // side it starts on, so the established behaviour wins and Reading is the
+  // deliberate act — which is also the honest shape, since a traveller previewing
+  // their notebook is a thing you choose to do.
+  const [editing, setEditing] = useState(true);
+  // The live editor, handed up by `PageEditor` so the sidebar — which sits
+  // beside the editor, not inside it — can insert at the cursor.
+  const [editor, setEditor] = useState<Editor | null>(null);
   // Same fail-soft rule as `user` above, and for the same reason.
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
   const [status, setStatus] = useState<Status>("loading");
@@ -74,6 +93,10 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       }, AUTOSAVE_DELAY_MS),
     [tripId, pageId],
   );
+  // Stable, so `PageEditor`'s effect does not re-run on every render and
+  // re-publish the same editor.
+  const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
+
   const saveContentRef = useRef(saveContent);
   saveContentRef.current = saveContent;
   useEffect(() => () => saveContentRef.current.cancel(), []);
@@ -93,6 +116,17 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     saveContent(content);
   };
 
+  // Click-to-insert. `insertContent` puts the node at the current selection,
+  // which is what "it puts the widget inline at cursor" means (ADR-037 decision
+  // 4); `focus()` first so a click on the sidebar — which moved focus out of
+  // the editor — still lands where the caret was.
+  //
+  // Drag-and-drop and the slash menu are the same command with a different
+  // origin, and land next.
+  const insertAtCursor = (node: { type: "macro"; attrs: { name: string; params: Record<string, unknown> } }) => {
+    editor?.chain().focus().insertContent(node).run();
+  };
+
   return (
     <PageContainer>
       <div className="mb-2">
@@ -100,7 +134,16 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           ← Notebooks
         </Link>
       </div>
-      <Heading level={2}>{page.title}</Heading>
+      <div className="flex items-center justify-between gap-3">
+        <Heading level={2}>{page.title}</Heading>
+        <Button
+          variant="secondary"
+          aria-pressed={editing}
+          onClick={() => setEditing((was) => !was)}
+        >
+          {editing ? "Done editing" : "Edit page"}
+        </Button>
+      </div>
       {/* `mt-3` replaces the margin the day-binding control used to contribute.
           That control sat between the title and this panel in a `my-3` wrapper,
           so deleting it (SPEC §18 — a page has no scope) took the panel's only
@@ -111,14 +154,22 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       <div className="mb-3 mt-3">
         <ComposePanel tripId={tripId} pageId={pageId} onApply={handleContentChange} />
       </div>
-      <PageEditor
-        detail={trip}
-        context={page.context}
-        user={user}
-        globals={globals}
-        value={page.content}
-        onChange={handleContentChange}
-      />
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <PageEditor
+            detail={trip}
+            context={page.context}
+            user={user}
+            globals={globals}
+            value={page.content}
+            onChange={handleContentChange}
+            onEditorReady={handleEditorReady}
+            editable={editing}
+          />
+        </div>
+        {/* Reading shows no insert affordance (§18). */}
+        {editing ? <WidgetSidebar onInsert={insertAtCursor} /> : null}
+      </div>
     </PageContainer>
   );
 }
