@@ -4,8 +4,8 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-02 (Notebook widgets — pages no longer have a scope; billing
-surfaces for M20 / M21)
+Last substantive pass: 2026-09-03 (the phone Notebook; Notebook widgets — pages no longer
+have a scope; billing surfaces for M20 / M21)
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
 bundle. It supersedes the 2026-08-30 bundle.
@@ -17,6 +17,12 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
+- **The phone Notebook is the whole widget model.** `SPEC.md` §19, `DRIFT.md` §2f. It was one
+  repeater hardwired to the focused day; it is now index → page, with per-widget binds and the
+  full insert registry. **It adds no API surface** — the same resolvers §18 already asks for —
+  so Notebook should be costed as one number across both surfaces, not desktop-now /
+  phone-later. The one divergence is density: rebinding is a 44px "Pointed at …" button opening
+  a bind sheet, because the desktop's inline chrome row does not fit 390px.
 - **Notebook pages no longer have a scope.** `SPEC.md` §18, `DRIFT.md` §2e. Each **widget**
   owns its inputs — a day, a stretch of days, a person, a tag set, a trip — bound when you
   insert it and rebindable in place, so two widgets on one page can read two different days.
@@ -53,9 +59,9 @@ what may exist on a page — read `RULES.md` first.
 |---|---|
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
-| _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
-| `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
+| _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 

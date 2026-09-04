@@ -2,8 +2,9 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-Design side refreshed 2026-09-02 (§2c billing surfaces; §2d the shared-day map and the phone
-Playbooks tab; §2e Notebook widgets — pages no longer have a scope).
+Design side refreshed 2026-09-03 (§2f the phone Notebook; §2c billing surfaces; §2d the
+shared-day map and the phone Playbooks tab; §2e Notebook widgets — pages no longer have a
+scope).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -210,6 +211,27 @@ What it needs instead — and this is the part to cost:
 
 **It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
 
+## 2f. New this turn — the phone Notebook expresses the widget model
+
+`SPEC.md` §19. The previous bundle listed the phone Notebook as one hardwired widget and an
+open design pass; that pass is done, and the §8 item is removed.
+
+Phone Notebook is now index → page, with the same widget instances, the same binds and the
+same insert registry as desktop. **This adds no API surface.** Everything §2e asks for
+already covers it — widget instances with stored bindings, input types picking a control,
+`days` / `person` resolvers. What the client owes on top is layout only:
+
+- Rebinding is a **sheet**, not an inline select row (390px cannot hold the desktop chrome
+  row). One 44px "Pointed at …" button per widget opens it; it holds one control per declared
+  input plus the same *Reads as* preview.
+- Insert is one full-height sheet with two steps inside it — browse, then point it at.
+  Not a sheet over a sheet (rule 3).
+- The bind label joins multi-input widgets with ` → `.
+
+The consequence for planning: **there is no longer a mobile-only Notebook slice to schedule.**
+Notebook ships on both surfaces off the same resolvers, so M8's estimate should be one number,
+not desktop-now / phone-later. The remaining phone Notebook question is content, not model.
+
 ## 3. Designed, shelled in code behind `<Preview>`
 
 From the registry, unchanged this sync. **Blocked on a missing field:**
@@ -314,11 +336,6 @@ Carried forward because each one is a bug the design already hit:
   usage or the collaboration gate; the operator console is deliberately never on the phone.
   The two phone states rule 6 wants for the plan section are undesigned.
 
-- **The phone Notebook has one hardwired widget.** Its stop repeater follows the focused day
-  rather than carrying a binding of its own, so the phone does not yet express SPEC §18. That
-  is a deliberate stop, not an oversight: the phone is a companion (§10) and per-widget
-  rebinding on a 390px screen needs its own design pass. Nothing in the model prevents it.
-
 - **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
   after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project
   rule 6 requires all three of every screen.
@@ -340,7 +357,8 @@ Carried forward because each one is a bug the design already hit:
    feature block. §18 narrows it to a data question — instances with default bindings —
    rather than a reversal of M8.
 3. Land **KI-34** so the home hero can be honest.
-4. Design the phone **conflict** state; that is the last of rule 6.
+4. Design the phone **conflict** state; that is the last of rule 6 — and now the only
+   phone gap in Notebook's path, since §2f closed the other one.
 5. Then §4's undesigned lifecycle work.
 
 Build status, for planning: M10 Wave 2 Phases 5–8b are merged; **Phase 9 is M10's exit
