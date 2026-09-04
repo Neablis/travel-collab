@@ -387,7 +387,14 @@ describe("the slash menu", () => {
 
   it("narrows as you keep typing, and closes when nothing matches", async () => {
     const textbox = editorFor();
-    await userEvent.type(textbox, "/trip");
+    // **A query that matches FEWER widgets than the menu can show.** "trip"
+    // does not: seven widgets match it, the menu caps at six, and the first six
+    // registry entries all match — so an unfiltered menu renders the identical
+    // six rows and every assertion below passes while the filter does nothing
+    // (CodeRabbit, PR 139). The cap was doing the narrowing the test claimed to
+    // be watching.
+    const query = "airport";
+    await userEvent.type(textbox, `/${query}`);
     const menu = await screen.findByRole("listbox");
     const shown = within(menu).getAllByRole("option");
     // **Exactly the widgets that match, in the registry's order.** "some
@@ -397,23 +404,27 @@ describe("the slash menu", () => {
     // The expectation is DERIVED from the same registry and the same matcher
     // the menu uses, rather than a list of titles typed here: a copied list
     // goes stale the first time someone adds a widget whose description happens
-    // to say "trip", and would then fail for a reason that is not a bug.
-    //
-    // Capped at the menu's OWN limit, not at however many rows happened to
-    // render. `slice(0, shown.length)` made the expectation follow the result:
-    // a regression rendering only the first match would have compared one
-    // option against a one-item list and passed (CodeRabbit, PR 139). `MAX_ROWS`
-    // is imported rather than copied, for the same reason the list is derived.
+    // to say "airport", and would then fail for a reason that is not a bug.
     const expected = macroCatalog()
-      .filter((w) => widgetMatches(w, "trip"))
+      .filter((w) => widgetMatches(w, query))
       .slice(0, MAX_ROWS)
       .map((w) => w.title);
     expect(expected.length).toBeGreaterThan(0);
-    expect(expected.length).toBeLessThan(macroCatalog().length);
+    // The evidence that the FILTER is what shortened the list. If this ever
+    // fails, the registry grew enough matches to reach the cap and the query
+    // above needs to be narrower — not a licence to drop the assertion, which
+    // is the one thing standing between this test and passing on an unfiltered
+    // menu.
+    expect(expected.length).toBeLessThan(MAX_ROWS);
     expect(shown).toHaveLength(expected.length);
     for (const [i, option] of shown.entries()) {
       expect(option.textContent).toContain(expected[i]!);
     }
+    // And a widget the query does not answer is ABSENT, derived the same way.
+    // Length and order both compare against the filtered list; only this
+    // compares against what was left out.
+    const excluded = macroCatalog().find((w) => !widgetMatches(w, query))!;
+    expect(within(menu).queryByRole("option", { name: new RegExp(excluded.title) })).toBeNull();
 
     // A query nothing answers closes the menu rather than showing an empty box:
     // at that point the person is writing a date, not choosing a widget, and a
