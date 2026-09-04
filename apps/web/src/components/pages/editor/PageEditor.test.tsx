@@ -356,6 +356,34 @@ describe("the slash menu", () => {
     expect(last).not.toContain("/trip.name");
   });
 
+  // Mitchell, on the preview: *"starting to type the widget should filter down,
+  // then tab iterates and enter selects"*. Tab used to commit like Enter — two
+  // keys doing one job, and the job Tab is actually wanted for left undone.
+  it("moves the highlight on Tab rather than inserting, and Enter takes what Tab landed on", async () => {
+    const onChange = vi.fn();
+    const textbox = editorFor(onChange);
+    await userEvent.type(textbox, "/");
+    const menu = await screen.findByRole("listbox");
+    const options = within(menu).getAllByRole("option");
+    expect(options.length).toBeGreaterThan(1);
+    // The first row starts selected; Tab moves to the second and inserts
+    // NOTHING on the way.
+    expect(options[0]!.getAttribute("aria-selected")).toBe("true");
+
+    await userEvent.type(textbox, "{Tab}");
+    const afterTab = within(await screen.findByRole("listbox")).getAllByRole("option");
+    expect(afterTab[0]!.getAttribute("aria-selected")).toBe("false");
+    expect(afterTab[1]!.getAttribute("aria-selected")).toBe("true");
+    expect(JSON.stringify(onChange.mock.calls.at(-1)?.[0] ?? {})).not.toContain('"macro"');
+
+    // ...and Enter takes the row Tab landed on, not the one it started on.
+    const second = afterTab[1]!.textContent;
+    await userEvent.type(textbox, "{Enter}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain('"macro"');
+    expect(second).toBeTruthy();
+  });
+
   it("closes on Escape without inserting anything", async () => {
     const onChange = vi.fn();
     const textbox = editorFor(onChange);

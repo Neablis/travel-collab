@@ -157,20 +157,33 @@ export function useSlashMenu({
       setState(null);
       return true;
     }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      const delta = event.key === "ArrowDown" ? 1 : -1;
+    // **Tab ITERATES; Enter selects.** Mitchell, on the preview (2026-09-04):
+    // *"starting to type the widget should filter down, then tab iterates and
+    // enter selects"*. Tab used to commit, the same as Enter — two keys doing
+    // one job, and the one job the second key is actually wanted for (moving
+    // through the list without leaving the home row) left undone. Shift+Tab is
+    // its natural pair; the arrows keep working for anyone who reaches for them.
+    const step =
+      event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey)
+        ? 1
+        : event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey)
+          ? -1
+          : 0;
+    if (step !== 0) {
       setState((was) =>
         was === null
           ? was
-          : { ...was, active: (was.active + delta + was.names.length) % was.names.length },
+          : { ...was, active: (was.active + step + was.names.length) % was.names.length },
       );
+      // Swallowed, so Tab moves the highlight instead of moving focus out of
+      // the editor — which is what it would do next, leaving the menu open over
+      // a document the caret is no longer in.
       return true;
     }
-    // Enter and Tab both commit. Tab because the menu is a completion and that
-    // is what a completion answers to; Enter because it is what a menu answers
-    // to. Neither may reach the document while the menu is open — an Enter that
-    // splits the paragraph *and* inserts a widget is the worst of both.
-    if (event.key === "Enter" || event.key === "Tab") {
+    // Enter commits, and must not reach the document while the menu is open: an
+    // Enter that splits the paragraph *and* inserts a widget is the worst of
+    // both.
+    if (event.key === "Enter") {
       const chosen = current.names[current.active];
       if (chosen === undefined) return false;
       pickRef.current(chosen.name);
