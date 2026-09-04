@@ -179,6 +179,25 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     server.use(
       ...makePagesHandlers([page], { onUpdate }),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      // The suite default answers with no days at all, which is fine for every
+      // widget that reads `TripDetail` and useless for the one that does not.
+      // `day.city` is served entirely by this projection.
+      http.get("/api/trips/:tripId/globals", () =>
+        HttpResponse.json({
+          globals: {
+            days: [
+              { index: 0, date: "2027-06-01", cities: ["Lisbon"], activityCount: 0, costSubtotal: 0 },
+              { index: 1, date: "2027-06-02", cities: ["Porto"], activityCount: 0, costSubtotal: 0 },
+            ],
+            cities: [
+              { name: "Lisbon", dayIndexes: [0], activityCount: 0 },
+              { name: "Porto", dayIndexes: [1], activityCount: 0 },
+            ],
+            tags: [],
+            bookedCount: 0,
+          },
+        }),
+      ),
     );
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
@@ -253,6 +272,26 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
     expect((selects[0] as HTMLSelectElement).value).toBe("0");
     expect((selects[1] as HTMLSelectElement).value).toBe("1");
+  });
+
+  // The globals seam, end to end, and the only test that walks it. `day.city`
+  // is the one widget served by NOTHING on `TripDetail` — its cities come from
+  // the projection item D built, which travels a separate route
+  // (`GET /api/trips/:id/globals`), a separate piece of screen state, and the
+  // editor context before it reaches a resolver. Every other widget would keep
+  // rendering if that whole chain were cut; this one would quietly say "no city
+  // on this day", which reads like a trip with no cities rather than a bug.
+  it("renders a widget that is served only by the globals projection", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /A day's city/ }));
+
+    const select = screen.getByRole("combobox", { name: /A day's city/ });
+    await userEvent.selectOptions(select, "1");
+
+    // Day 2 is Porto. Asserting the SECOND day rather than the first is what
+    // makes this about the binding as well as the fetch: a widget that ignored
+    // its day and always read `days[0]` would pass on "Lisbon".
+    expect(await screen.findByText("Porto")).toBeTruthy();
   });
 });
 

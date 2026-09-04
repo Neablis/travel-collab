@@ -445,6 +445,25 @@ milestone opens:**
       above said the box was void and then left it standing in the gate, which is
       how a struck requirement gets built by the next session that reads only the
       checklist.)*
+
+      **CONTRADICTION, unresolved and deliberately not settled in code
+      (2026-09-04).** This box asks each row to carry *"a **real resolved
+      preview**"*. `ADR-037` decision 5 says the opposite in its own title — *"A
+      preview is a fixed sample, never a computed value"* — and gives the reason:
+      a preview asserting numbers the live widget computes makes the sidebar and
+      the page contradict each other in one session. **The two were written the
+      same day**, and the ADR is the accepted decision, so the sidebar built for
+      this box follows the ADR and shows `MacroDef.preview`. Flagged here rather
+      than fixed because striking a gate requirement is Mitchell's call, and
+      because doing it silently in a component comment is exactly the failure the
+      parenthetical above describes. Everything else in the box — search, the
+      shape tag, the mono line naming what it takes — is built.
+
+      The `needs a field` badge is **not** built, and that is not an omission:
+      the only input type with no data behind it is `person`, no widget declares
+      it (the two that would have were deferred out of M14 with the attribution
+      model), so a badge for it would be a branch nothing can reach and no test
+      could honestly cover.*
 - [ ] **Two widgets on one page read two different days**, bound at insert and
       rebindable from the chrome row — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.

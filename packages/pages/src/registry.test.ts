@@ -112,11 +112,30 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     activities: {
       a1: {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
-        timeWindow: null, location: null, cost: { amountMinor: 5000, currency: "USD" },
+        timeWindow: { start: "09:00", end: "17:00" }, location: null,
+        cost: { amountMinor: 5000, currency: "USD" },
         notes: null, kind: null, tags: [],
       },
     } as unknown as TripDetail["activities"],
     tripCostTotal: 5000,
+    // `budget.remaining` resolves to `empty` without a budget, and a timeless
+    // activity leaves `day.window` empty too. Both were added when those two
+    // widgets landed and the witness floor below refused to be met — which is
+    // the floor working: a widget that cannot reach `render` against a
+    // populated trip is one nobody has proved renders.
+    budget: { amountMinor: 100000, currency: "USD" },
+    budgetRemaining: 95000,
+  };
+
+  // `day.city` reads its cities from the globals projection rather than from
+  // `TripDetail` (they are derived by `citiesOfDay` in `@tc/domain`, which this
+  // package may not import). The sweep passed `globals: null` while nothing
+  // consumed it; now something does.
+  const globals = {
+    days: [{ index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000 }],
+    cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
+    tags: [],
+    bookedCount: 0,
   };
 
   // A loaded account. The sweep below needs one: `account.name` and
@@ -138,7 +157,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       // Bind anything that takes a day to the one day above, so block widgets
       // reach `ok` instead of `unbound`.
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
       if (outcome.status !== "ok") continue;
       seen.push(name);
       expect(["inline", "block", "rows"], `${name} rendered an unknown kind`).toContain(outcome.rendered.kind);
@@ -157,7 +176,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
       const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
       inspected += segs.length;
@@ -178,7 +197,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       const params = def.inputs.some((i) => i.type === "day") ? { dayRef: { kind: "index", index: 0 } } : {};
-      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals: null }, name, params);
+      const outcome = renderMacro({ trip: populated, page: { tripId: populated.tripId }, user, globals }, name, params);
       if (outcome.status !== "ok" || outcome.rendered.kind !== "block") continue;
       inspected += 1;
       expect(typeof outcome.rendered.block.kind, `${name}'s block payload has no kind`).toBe("string");

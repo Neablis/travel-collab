@@ -1,13 +1,15 @@
-import type { TripDetail, PageContext } from "@tc/contracts";
-import type { AnyMacroDef, InlinePayload, BlockPayload, Rendered, WidgetContext } from "./registry-types";
+import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
+import type { AnyMacroDef, InlinePayload, BlockPayload, Rendered, WidgetContext, WidgetInput } from "./registry-types";
 import type { MacroResult } from "./result";
 import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
 import { accountName, accountHomeAirport } from "./macros/account";
+import { dayDate, dayCity, dayWindow, budgetRemaining } from "./macros/day";
 
 const DEFS: AnyMacroDef[] = [
   tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
   accountName, accountHomeAirport,
+  dayDate, dayCity, dayWindow, budgetRemaining,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -64,10 +66,16 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
 // old `kind` (ADR-037 decision 1), and `title`/`preview` are here because the
 // sidebar lists a widget by the name a person calls it and shows a sample.
 export function macroCatalog(): {
-  name: string; title: string; shape: string; description: string; emptyText: string; preview: string;
+  name: string; title: string; shape: WidgetShape; description: string; emptyText: string;
+  preview: string; inputs: readonly WidgetInput[];
 }[] {
   return DEFS.map((d) => ({
     name: d.name, title: d.title, shape: d.shape,
     description: d.description, emptyText: d.emptyText, preview: d.preview,
+    // What the widget takes, so the sidebar can say so BEFORE a click rather
+    // than leaving a person to insert one and discover it wants a day (M14's
+    // gate: "a mono line naming what it takes"). The registry already knew;
+    // `macroCatalog` was the only thing dropping it on the floor.
+    inputs: d.inputs,
   }));
 }
