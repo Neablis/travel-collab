@@ -12,7 +12,7 @@ type NoParams = z.infer<typeof NoParams>;
 function dayPayload(detail: TripDetail, idx: number): ItineraryDayPayload {
   const day = detail.days[idx]!;
   return {
-    kind: "itinerary-day", dayId: day.dayId, date: day.date,
+    kind: "itinerary-day", dayId: day.dayId, ordinal: idx + 1, date: day.date,
     activities: day.activityIds.map((id) => {
       const a = detail.activities[id]!;
       return {

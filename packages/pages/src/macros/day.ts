@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { MacroDef, WidgetContext } from "../registry-types";
-import { inlineOf, text } from "../registry-types";
+import { chip, inlineOf, text } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
 import { DayParams, DAY_INPUT, resolveDayIndex } from "./inline";
@@ -29,7 +29,7 @@ export const dayDate: MacroDef<DayParams, string> = {
     const date = trip.days[idx]!.date;
     return date === null ? empty() : ok(formatDate(date));
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 // The catalogue's `w-daycity`, and the first widget to read `globals` for
@@ -39,28 +39,35 @@ export const dayDate: MacroDef<DayParams, string> = {
 // route is the one item D exists to provide.
 //
 // A day can touch more than one city; a travel day is the ordinary case rather
-// than the exotic one, and `citiesOfDay` returns them in arrival order. Joining
-// with an en dash reads as a journey ("Tokyo – Kyoto") where a comma would read
-// as a list.
+// than the exotic one, and `citiesOfDay` returns them in arrival order. An en
+// dash between them reads as a journey ("Tokyo – Kyoto") where a comma would
+// read as a list.
+//
+// **It resolves to the cities and joins them in `render`**, rather than
+// resolving to a joined string. Two reasons, and the second is the one that
+// showed: joining is a presentation decision and `resolve` is not where those
+// go (ADR-037 decision 1); and each city carries the trip's own colour for it,
+// which a single `"Tokyo – Kyoto"` value cannot do — one string can only wear
+// one colour, so the join was quietly deciding a travel day has a single city.
 //
 // `globals: null` renders the same as "no located stops". Both are inert and
 // neither guesses, which is the trade `account.name` already makes for
 // `user: null` — and the alternative, distinguishing them, would mean inventing
 // a "could not load" state for a widget whose honest answer is that it has
 // nothing to show.
-export const dayCity: MacroDef<DayParams, string> = {
+export const dayCity: MacroDef<DayParams, readonly string[]> = {
   name: "day.city", title: "A day's city", shape: "single", params: DayParams, inputs: DAY_INPUT,
   description: "The city or cities one day of the trip touches, in arrival order.",
   emptyText: "no city on this day",
   preview: "Tokyo – Kyoto",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<readonly string[]> => {
     if (!trip) return needsTrip();
     const idx = resolveDayIndex(trip, params);
     if (idx === null) return unbound("day");
     const cities = globals?.days[idx]?.cities ?? [];
-    return cities.length === 0 ? empty() : ok(cities.join(" – "));
+    return cities.length === 0 ? empty() : ok(cities);
   },
-  render: (value) => inlineOf(text(value)),
+  render: (cities) => inlineOf(...cities.flatMap((city, i) => (i === 0 ? [chip("city", city)] : [text(" – "), chip("city", city)]))),
 };
 
 // The catalogue's `w-dayends`. The earliest start and the latest end among the
@@ -95,7 +102,7 @@ export const dayWindow: MacroDef<DayParams, string> = {
     }
     return first === null || last === null ? empty() : ok(`${first} – ${last}`);
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 // The catalogue's `w-left`. `budgetRemaining` is already computed on
@@ -118,5 +125,5 @@ export const budgetRemaining: MacroDef<NoParams, string> = {
     if (!trip) return needsTrip();
     return trip.budgetRemaining === null ? empty() : ok(formatMoney(trip.budgetRemaining, trip.currency));
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };

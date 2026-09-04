@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DayRef, TagRef } from "@tc/contracts";
-import type { MacroDef, RepeatPayload, RepeatRow, WidgetContext, WidgetInput } from "../registry-types";
-import { chip, rowsOf, text } from "../registry-types";
+import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext, WidgetInput } from "../registry-types";
+import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
 import { DayParams, DAY_INPUT, resolveDayIndex } from "./inline";
@@ -26,11 +26,14 @@ type NoParams = z.infer<typeof NoParams>;
 // and a node whose content is a template are different things that can both
 // exist.
 //
-// One shared renderer: the lead is text and every value is a chip. A chip is a
-// resolved value reading as a word in a sentence (§7), and in a repeater's line
-// the lead ("Day 1") is the label while everything after it came from the trip.
+// One shared renderer: a label is text and every other kind is a chip. A chip is
+// a resolved value reading as a word in a sentence (§7), and in a repeater's
+// line the lead ("Day 1") is usually the label while everything after it came
+// from the trip — usually, because on `city.line` the lead IS the resolved
+// value, and `RepeatValue` is what lets one renderer say so.
+const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.name, v.text));
 const renderRows = (payload: RepeatPayload) =>
-  rowsOf(payload.rows.map((row) => [text(row.lead), ...row.values.map((v) => chip("value", v))]));
+  rowsOf(payload.rows.map((row) => [segOf(row.lead), ...row.values.map(segOf)]));
 
 // `w-dayline`. No inputs: it iterates the whole trip, so there is nothing to
 // point it at — `inputs: []` is a real answer meaning it is finished the moment
@@ -49,12 +52,16 @@ export const dayLine: MacroDef<NoParams, RepeatPayload> = {
     if (!trip) return needsTrip();
     if (trip.days.length === 0) return empty();
     const rows: RepeatRow[] = trip.days.map((day, index) => {
-      const values: string[] = [];
-      if (day.date !== null) values.push(formatDate(day.date));
-      const cities = globals?.days[index]?.cities ?? [];
-      if (cities.length > 0) values.push(cities.join(" – "));
-      if (day.costSubtotal !== 0) values.push(formatMoney(day.costSubtotal, trip.currency));
-      return { lead: `Day ${index + 1}`, values };
+      const values: RepeatValue[] = [];
+      if (day.date !== null) values.push(rowValue(formatDate(day.date)));
+      // One value PER CITY, not one joined string. A day that touches two
+      // cities wears two colours on the board, and `"Tokyo – Nikkō"` as a
+      // single value can only wear one — so the join was quietly deciding that
+      // a two-city day has one colour. It also read as a place name that does
+      // not exist.
+      for (const city of globals?.days[index]?.cities ?? []) values.push(rowCity(city));
+      if (day.costSubtotal !== 0) values.push(rowValue(formatMoney(day.costSubtotal, trip.currency)));
+      return { lead: rowLabel(`Day ${index + 1}`), values };
     });
     return ok({ kind: "repeat-rows", rows });
   },
@@ -75,18 +82,21 @@ export const cityLine: MacroDef<NoParams, RepeatPayload> = {
     const cities = globals?.cities ?? [];
     if (cities.length === 0) return empty();
     const rows: RepeatRow[] = cities.map((city) => {
-      const values: string[] = [];
+      const values: RepeatValue[] = [];
       if (city.dayIndexes.length > 0) {
         // Day NUMBERS, not indexes. `dayIndexes` counts from 0 because that is
         // how the projection addresses days; a person counts from 1, and a
         // notebook line saying "Day 0" would be the projection's private
         // convention leaking onto the page.
-        values.push(city.dayIndexes.map((i) => `Day ${i + 1}`).join(", "));
+        values.push(rowValue(city.dayIndexes.map((i) => `Day ${i + 1}`).join(", ")));
       }
       if (city.activityCount > 0) {
-        values.push(city.activityCount === 1 ? "1 stop" : `${city.activityCount} stops`);
+        values.push(rowValue(city.activityCount === 1 ? "1 stop" : `${city.activityCount} stops`));
       }
-      return { lead: city.name, values };
+      // The lead is the CITY, not a label: this is the one repeater whose
+      // opening phrase is itself a resolved value, so it carries the city's own
+      // colour like every other mention of that city does.
+      return { lead: rowCity(city.name), values };
     });
     return ok({ kind: "repeat-rows", rows });
   },
@@ -112,10 +122,10 @@ export const bookingLine: MacroDef<DayParams, RepeatPayload> = {
     for (const activityId of trip.days[idx]!.activityIds) {
       const activity = trip.activities[activityId];
       if (!activity || activity.kind !== "booked") continue;
-      const values: string[] = [];
-      if (activity.timeWindow) values.push(`${activity.timeWindow.start} – ${activity.timeWindow.end}`);
-      if (activity.cost) values.push(formatMoney(activity.cost.amountMinor, activity.cost.currency));
-      rows.push({ lead: activity.title, values });
+      const values: RepeatValue[] = [];
+      if (activity.timeWindow) values.push(rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`));
+      if (activity.cost) values.push(rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency)));
+      rows.push({ lead: rowLabel(activity.title), values });
     }
     return rows.length === 0 ? empty() : ok({ kind: "repeat-rows", rows });
   },
@@ -177,10 +187,10 @@ export const stopLine: MacroDef<StopLineParams, RepeatPayload> = {
       // day" rather than silently dropping the filter, because a filter that
       // quietly stops filtering is worse than one that finds nothing.
       if (params.tag && !activity.tags.includes(params.tag)) continue;
-      const values: string[] = [];
-      if (activity.timeWindow) values.push(`${activity.timeWindow.start} – ${activity.timeWindow.end}`);
-      if (activity.cost) values.push(formatMoney(activity.cost.amountMinor, activity.cost.currency));
-      rows.push({ lead: activity.title, values });
+      const values: RepeatValue[] = [];
+      if (activity.timeWindow) values.push(rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`));
+      if (activity.cost) values.push(rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency)));
+      rows.push({ lead: rowLabel(activity.title), values });
     }
     return rows.length === 0 ? empty() : ok({ kind: "repeat-rows", rows });
   },

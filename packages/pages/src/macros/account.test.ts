@@ -53,9 +53,12 @@ describe("account widgets read the field they name", () => {
     expect(accountHomeAirport.resolve(ctx(null), {}).status).toBe("empty");
   });
 
-  it("renders each as a single text segment", () => {
-    expect(accountName.render("Priya")).toEqual({ kind: "inline", segs: [{ kind: "text", text: "Priya" }] });
-    expect(accountHomeAirport.render("SFO")).toEqual({ kind: "inline", segs: [{ kind: "text", text: "SFO" }] });
+  // A CHIP, not text. In Reading there is no chrome row left to say which words
+  // came from the account rather than from the author, so the value itself has
+  // to (Mitchell, on the preview).
+  it("renders each as a chip, so the page says where the value came from", () => {
+    expect(accountName.render("Priya")).toEqual({ kind: "inline", segs: [{ kind: "chip", name: "value", text: "Priya" }] });
+    expect(accountHomeAirport.render("SFO")).toEqual({ kind: "inline", segs: [{ kind: "chip", name: "value", text: "SFO" }] });
   });
 });
 

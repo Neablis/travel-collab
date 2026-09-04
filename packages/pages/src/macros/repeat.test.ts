@@ -45,6 +45,9 @@ const ctx = (over: Partial<{ trip: TripDetail; globals: TripGlobals | null }> = 
   ({ trip: base, page, user: null, globals: null, ...over });
 const rowsOf = (r: ReturnType<typeof dayLine.resolve>) =>
   (r as { status: "ok"; value: RepeatPayload }).value.rows;
+// The line as a person reads it, with the kinds dropped. Most cases are about
+// the words; the ones about which words are CITIES say so by asserting `name`.
+const texts = (values: readonly { text: string }[]) => values.map((v) => v.text);
 
 describe("day.line", () => {
   it("emits one row per day, leading with the day NUMBER a person counts from", () => {
@@ -52,13 +55,13 @@ describe("day.line", () => {
     expect(rows).toHaveLength(2);
     // Day 1, not Day 0. `dayIndexes` counts from 0 because that is how the
     // projection addresses days; a page saying "Day 0" leaks that convention.
-    expect(rows[0]!.lead).toBe("Day 1");
-    expect(rows[1]!.lead).toBe("Day 2");
+    expect(rows[0]!.lead).toEqual({ name: "label", text: "Day 1" });
+    expect(rows[1]!.lead).toEqual({ name: "label", text: "Day 2" });
   });
 
   it("carries the date, the cities and the cost as the line's values", () => {
     const rows = rowsOf(dayLine.resolve(ctx({ globals }), {}));
-    expect(rows[0]!.values).toEqual(["Aug 1, 2026", "Tokyo", "$120.00"]);
+    expect(texts(rows[0]!.values)).toEqual(["Aug 1, 2026", "Tokyo", "$120.00"]);
   });
 
   // The honest degradation. Globals is a separate request, and dropping the
@@ -66,12 +69,40 @@ describe("day.line", () => {
   it("still renders every day, one value shorter, when globals did not load", () => {
     const rows = rowsOf(dayLine.resolve(ctx({ globals: null }), {}));
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.values).toEqual(["Aug 1, 2026", "$120.00"]);
+    expect(texts(rows[0]!.values)).toEqual(["Aug 1, 2026", "$120.00"]);
   });
 
   it("omits a zero cost rather than printing $0.00 on every quiet day", () => {
     const rows = rowsOf(dayLine.resolve(ctx({ globals }), {}));
-    expect(rows[1]!.values).toEqual(["Aug 2, 2026"]);
+    expect(texts(rows[1]!.values)).toEqual(["Aug 2, 2026"]);
+  });
+
+  // Mitchell, on the preview: *"[they] dont use the color coding we put
+  // together when showing a city"*. The colour is chosen in `apps/web`, so what
+  // this package owes is the fact — which value is a city — and nothing else.
+  it("marks a city value as a city, so the renderer can colour it like the board does", () => {
+    const rows = rowsOf(dayLine.resolve(ctx({ globals }), {}));
+    expect(rows[0]!.values).toContainEqual({ name: "city", text: "Tokyo" });
+    // The date and the cost are ordinary values; a renderer that coloured
+    // everything would be worse than one that coloured nothing.
+    expect(rows[0]!.values.filter((v) => v.name === "city")).toHaveLength(1);
+  });
+
+  // A day that touches two cities wears two colours on the board, and one
+  // joined `"Tokyo – Nikkō"` value can only wear one — the join was quietly
+  // deciding a two-city day has a single colour, and it read as a place that
+  // does not exist.
+  it("emits one value per city on a day that touches two, not one joined string", () => {
+    const twoCities: TripGlobals = {
+      ...globals,
+      days: [{ ...globals.days[0]!, cities: ["Tokyo", "Nikkō"] }, globals.days[1]!],
+    };
+    const rows = rowsOf(dayLine.resolve(ctx({ globals: twoCities }), {}));
+    expect(rows[0]!.values.filter((v) => v.name === "city")).toEqual([
+      { name: "city", text: "Tokyo" },
+      { name: "city", text: "Nikkō" },
+    ]);
+    expect(texts(rows[0]!.values)).not.toContain("Tokyo – Nikkō");
   });
 
   it("is empty for a trip with no days, and needs a trip without one", () => {
@@ -84,13 +115,16 @@ describe("city.line", () => {
   it("emits one row per city, with its days numbered from 1 and its stop count", () => {
     const rows = rowsOf(cityLine.resolve(ctx({ globals }), {}));
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.lead).toBe("Tokyo");
-    expect(rows[0]!.values).toEqual(["Day 1", "2 stops"]);
+    // The lead IS the resolved value here — this is the one repeater whose
+    // opening phrase came from the trip rather than being a label — so it is
+    // marked a city and carries the city's own colour.
+    expect(rows[0]!.lead).toEqual({ name: "city", text: "Tokyo" });
+    expect(texts(rows[0]!.values)).toEqual(["Day 1", "2 stops"]);
   });
 
   it("says '1 stop', not '1 stops'", () => {
     const one = { ...globals, cities: [{ name: "Kyoto", dayIndexes: [1], activityCount: 1 }] };
-    expect(rowsOf(cityLine.resolve(ctx({ globals: one }), {}))[0]!.values).toEqual(["Day 2", "1 stop"]);
+    expect(texts(rowsOf(cityLine.resolve(ctx({ globals: one }), {}))[0]!.values)).toEqual(["Day 2", "1 stop"]);
   });
 
   // Cities are derived by `citiesOfDay` in `@tc/domain`, which this package may
@@ -107,8 +141,8 @@ describe("booking.line", () => {
   it("emits a row for the booked stop and skips the merely planned one", () => {
     const rows = rowsOf(bookingLine.resolve(ctx(), day0));
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.lead).toBe("Ryokan");
-    expect(rows[0]!.values).toEqual(["15:00 – 23:00", "$120.00"]);
+    expect(rows[0]!.lead).toEqual({ name: "label", text: "Ryokan" });
+    expect(texts(rows[0]!.values)).toEqual(["15:00 – 23:00", "$120.00"]);
   });
 
   // A day with stops but none booked. A different sentence from "no stops",
@@ -137,6 +171,17 @@ describe("what a repeater renders", () => {
     // asserts the repeaters stay inside it.
     expect(rows.flat().every((s) => s.kind === "text" || s.kind === "chip")).toBe(true);
   });
+
+  // The kind survives the render, which is the whole point of `RepeatValue`:
+  // `apps/web` reads `seg.name` to choose the city's colour, so a renderer that
+  // flattened every value back to `chip("value", …)` would silently take the
+  // colour coding away again with every test above still green.
+  it("keeps a city's kind on the chip, because that is what the renderer colours", () => {
+    const rendered = dayLine.render((dayLine.resolve(ctx({ globals }), {}) as { status: "ok"; value: RepeatPayload }).value);
+    const rows = (rendered as { kind: "rows"; rows: Seg[][] }).rows;
+    expect(rows[0]).toContainEqual({ kind: "chip", name: "city", text: "Tokyo" });
+    expect(rows[0]).toContainEqual({ kind: "chip", name: "value", text: "Aug 1, 2026" });
+  });
 });
 
 // `w-stopline` — the catalogue's "only two-input widget, so it is the one that
@@ -149,7 +194,7 @@ describe("stop.line", () => {
     // Unset is a real answer, not an unfilled blank (§18: "every stop, or one"),
     // so the widget is useful the moment it has a day.
     const rows = rowsOf(stopLine.resolve(ctx(), day0));
-    expect(rows.map((r) => r.lead)).toEqual(["Ryokan", "Market"]);
+    expect(rows.map((r) => r.lead.text)).toEqual(["Ryokan", "Market"]);
   });
 
   it("filters to the stops carrying the bound tag", () => {
@@ -161,7 +206,7 @@ describe("stop.line", () => {
       },
     };
     const rows = rowsOf(stopLine.resolve(ctx({ trip: tagged }), { ...day0, tag: "meal" }));
-    expect(rows.map((r) => r.lead)).toEqual(["Market"]);
+    expect(rows.map((r) => r.lead.text)).toEqual(["Market"]);
   });
 
   // A filter that quietly stops filtering is worse than one that finds nothing:
@@ -181,7 +226,7 @@ describe("stop.line", () => {
   });
 
   it("carries each stop's time and cost as the line's values", () => {
-    expect(rowsOf(stopLine.resolve(ctx(), day0))[0]!.values).toEqual(["15:00 – 23:00", "$120.00"]);
+    expect(texts(rowsOf(stopLine.resolve(ctx(), day0))[0]!.values)).toEqual(["15:00 – 23:00", "$120.00"]);
   });
 
   it("is unbound until it is pointed at a day, whatever the tag says", () => {

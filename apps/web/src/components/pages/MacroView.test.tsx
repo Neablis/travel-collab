@@ -115,6 +115,86 @@ describe("MacroView", () => {
       expect(rows[0]!.textContent).not.toContain("Day 2");
     });
   });
+
+  // Mitchell, on the preview: *"A value coming from a widget in readonly mode
+  // should be clearly coming from a widget."* In Reading there is no chrome
+  // row and no bind control, so the value itself is the only thing left that
+  // can say where it came from.
+  //
+  // `data-widget-value` is the non-presentational handle for that claim: the
+  // treatment is a class the colour wall owns, and asserting classes is
+  // forbidden here, but "which words on this page came from the trip" is a
+  // question with a real answer.
+  describe("a resolved value says it came from a widget", () => {
+    it("marks the value, not the prose around it", () => {
+      render(<MacroView detail={baseDetail} context={ctx} name="cost.trip" params={{}} />);
+      expect(screen.getByText("$123.45").getAttribute("data-widget-value")).toBe("value");
+    });
+
+    it("marks a city as a city, so it can carry the trip's own colour for it", () => {
+      const globals = {
+        days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345 }],
+        cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
+        tags: [], bookedCount: 0,
+      };
+      render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.line" params={{}} />);
+      expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
+      // The date on the same line is an ordinary value. A renderer that marked
+      // everything a city would colour a page uniformly and pass a test that
+      // only looked at the city.
+      expect(screen.getByText("Aug 1, 2026").getAttribute("data-widget-value")).toBe("value");
+    });
+
+    // The lead of `day.line` is a label the widget wrote, not a value it
+    // resolved, and marking it would claim the trip supplied the words
+    // "Day 1".
+    it("leaves a row's own label unmarked", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="day.line" params={{}} />);
+      const lead = screen.getByText("Day 1");
+      expect(lead.hasAttribute("data-widget-value")).toBe(false);
+    });
+  });
+
+  // "Every day at a glance" used to stack a full `itinerary.day` card per day —
+  // the widget beside it, repeated, with every stop's time and cost nested one
+  // card inside another. Mitchell: *"The every day at a glance and every city
+  // at a glance are not rendering correctly."* A glance is one row per day.
+  describe("itinerary.trip is a glance, not a stack of day cards", () => {
+    const threeStops: TripDetail = {
+      ...costedDetail,
+      activities: {
+        ...costedDetail.activities,
+        a2: { ...costedDetail.activities.a1!, activityId: "a2", title: "Shrine" },
+        a3: { ...costedDetail.activities.a1!, activityId: "a3", title: "Market" },
+        a4: { ...costedDetail.activities.a1!, activityId: "a4", title: "Bar" },
+      },
+      days: [{ ...costedDetail.days[0]!, activityIds: ["a1", "a2", "a3", "a4"] }],
+    };
+
+    it("gives each day one row, labelled by the day the trip counts it as", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="itinerary.trip" params={{}} />);
+      const rows = screen.getAllByRole("row");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.textContent).toContain("Day 1");
+      expect(rows[0]!.textContent).toContain("Museum");
+    });
+
+    // The line names what the day IS. Naming every stop is the other widget's
+    // job, and it is what made this one unreadable on a two-week trip.
+    it("names three stops and counts the rest, rather than listing them all", () => {
+      render(<MacroView detail={threeStops} context={ctx} name="itinerary.trip" params={{}} />);
+      const row = screen.getAllByRole("row")[0]!;
+      expect(row.textContent).toContain("Museum · Shrine · Market · +1 more");
+      expect(row.textContent).not.toContain("Bar");
+    });
+
+    // An empty cell in a bordered table reads as a rendering fault, which is
+    // half of what "not rendering correctly" was.
+    it("says a day is empty rather than rendering an empty cell", () => {
+      render(<MacroView detail={baseDetail} context={ctx} name="itinerary.trip" params={{}} />);
+      expect(screen.getByText("Nothing planned yet")).toBeTruthy();
+    });
+  });
 });
 
 // **Every widget must be legal inside a paragraph, because that is where every

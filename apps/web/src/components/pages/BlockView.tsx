@@ -1,5 +1,6 @@
 "use client";
 import type { BlockPayload } from "@tc/pages";
+import type { CityAccents } from "./cityAccents";
 import { ItineraryDayBlock } from "./blocks/ItineraryDayBlock";
 import { ItineraryTripBlock } from "./blocks/ItineraryTripBlock";
 import { CostsTableBlock } from "./blocks/CostsTableBlock";
@@ -33,12 +34,17 @@ import { CostsTableBlock } from "./blocks/CostsTableBlock";
 // Measured before fixing: a probe member added to the union typechecked with no
 // error. That is `.coderabbit.yaml`'s own named defect class (KI-1, KI-14) — a
 // comment asserting an invariant nothing enforces.
-export function BlockView({ block }: { block: BlockPayload }) {
+// `accents` rides alongside the payload rather than inside it, and that is the
+// seam working rather than leaking: `resolve` answers what a day means and the
+// renderer answers what it looks like (ADR-037 decision 1). A colour in
+// `packages/pages` would be a resolver deciding presentation; a city NAME in
+// the payload and a family derived here is the split the ADR asks for.
+export function BlockView({ block, accents }: { block: BlockPayload; accents: CityAccents }) {
   switch (block.kind) {
     case "itinerary-day":
       return <ItineraryDayBlock payload={block} />;
     case "itinerary-trip":
-      return <ItineraryTripBlock payload={block} />;
+      return <ItineraryTripBlock payload={block} accents={accents} />;
     case "costs-table":
       return <CostsTableBlock payload={block} />;
     default: {

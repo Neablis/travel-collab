@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DayRef, type TripDetail } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput } from "../registry-types";
-import { inlineOf, text } from "../registry-types";
+import { chip, inlineOf } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
 
@@ -33,17 +33,25 @@ export function resolveDayIndex(detail: TripDetail, params: DayParams): number |
   return idx === -1 ? null : idx;
 }
 
-// The four inline widgets each render a single text segment — the faithful
-// translation of `InlinePayload = string`, and deliberately not more. A widget
-// that wants chips inside prose (the design's `w-person`) now CAN emit them;
-// none of these four has anything to chip.
+// **Every resolved value renders as a chip, not as bare text.**
+//
+// These four used to render `inlineOf(text(value))`, which made a widget's
+// output typographically identical to the sentence the author typed around it.
+// In Editing a chrome row says which words are widgets; in Reading there is no
+// chrome row, so nothing did. Mitchell, on the preview: *"A value coming from a
+// widget in readonly mode should be clearly coming from a widget."* dc.html's
+// own document renders `trip.name`, `trip.dates` and the rest as chips
+// (`:5117`), and `chip` is the segment kind that already meant "this word came
+// from the trip" — the repeaters have used it since they landed.
+//
+// `apps/web` decides what a chip looks like; this only says that it is one.
 export const tripName: MacroDef<NoParams, string> = {
   name: "trip.name", title: "The trip's name", shape: "single", params: NoParams, inputs: [],
   description: "The trip's name.", emptyText: "untitled trip",
   preview: "Japan, spring",
   resolve: ({ trip }): MacroResult<string> =>
     !trip ? needsTrip() : trip.name.trim() === "" ? empty() : ok(trip.name),
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 export const tripDates: MacroDef<NoParams, string> = {
@@ -66,7 +74,7 @@ export const tripDates: MacroDef<NoParams, string> = {
         : `${formatDate(trip.startDate)} – ${formatDate(lastDated)}`,
     );
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 export const costTrip: MacroDef<NoParams, string> = {
@@ -75,7 +83,7 @@ export const costTrip: MacroDef<NoParams, string> = {
   preview: "the trip's running total",
   resolve: ({ trip }): MacroResult<string> =>
     !trip ? needsTrip() : trip.tripCostTotal === 0 ? empty() : ok(formatMoney(trip.tripCostTotal, trip.currency)),
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };
 
 export const costDay: MacroDef<DayParams, string> = {
@@ -89,5 +97,5 @@ export const costDay: MacroDef<DayParams, string> = {
     const sub = trip.days[idx]!.costSubtotal;
     return sub === 0 ? empty() : ok(formatMoney(sub, trip.currency));
   },
-  render: (value) => inlineOf(text(value)),
+  render: (value) => inlineOf(chip("value", value)),
 };

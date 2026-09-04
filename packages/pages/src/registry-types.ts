@@ -11,7 +11,13 @@ import type { MacroResult, UnboundNeeds } from "./result";
 // `w-person` renders as chip, text, chip, text, chip from a single binding, and
 // a display-ready string cannot carry that.
 export type InlinePayload = string;
-export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
+// `ordinal` is which day of the trip this is, counting from 1 — a fact about
+// the trip, which is why it is in the payload rather than recovered from a
+// position in an array. `ItineraryTripBlock` labels its rows "Day 3", and
+// deriving that from the index of a payload it was handed would be right only
+// for as long as no widget ever renders a SUBSET of the days (the design's own
+// itinerary block already takes a from/to range).
+export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ordinal: number; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }
 export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total: string; }
@@ -44,15 +50,38 @@ export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTab
 // decision 1). Putting `Seg[]` here would collapse the two and hand the
 // resolver a rendering decision — which chips, which order — that belongs on
 // the other side of the seam.
-export interface RepeatRow {
-  // The line's opening phrase: "Day 1", a city name, a time. Always text, never
-  // a chip — it is the row's label, not one of its resolved values.
-  lead: string;
-  // The values that follow, each rendered as a chip. Empty is legitimate: a day
-  // with no date, no city and no cost is still a day, and its line still says
-  // which day it is.
-  values: string[];
+// One entry on a repeat row: the display text, plus what KIND of thing it is.
+//
+// `name` used to be implicit — every value became `chip("value", …)` — and that
+// was enough for as long as no value had a treatment of its own. A city does:
+// the trip colours its cities and a notebook page must use the same colours or
+// it is a fourth city palette (see `cityAccents`). `name` is what carries that
+// across the resolver seam WITHOUT carrying a colour across it: this package
+// says "this word is a city", `apps/web` decides what a city looks like
+// (ADR-037 decision 1).
+//
+// `"label"` renders as plain text and everything else as a chip, which is why
+// a row's lead and its values are the same type: whether the opening phrase is
+// a label ("Day 1") or a resolved value (a city's own name, on `city.line`) is
+// a fact about the widget, not a structural difference between the two slots.
+export interface RepeatValue {
+  name: "label" | "value" | "city";
+  text: string;
 }
+
+export interface RepeatRow {
+  // The line's opening phrase: "Day 1", a city name, a time.
+  lead: RepeatValue;
+  // The values that follow. Empty is legitimate: a day with no date, no city
+  // and no cost is still a day, and its line still says which day it is.
+  values: readonly RepeatValue[];
+}
+
+// Constructors, so a resolver reads as data rather than as object literals with
+// a discriminator repeated on every push.
+export const rowLabel = (t: string): RepeatValue => ({ name: "label", text: t });
+export const rowValue = (t: string): RepeatValue => ({ name: "value", text: t });
+export const rowCity = (t: string): RepeatValue => ({ name: "city", text: t });
 export interface RepeatPayload { kind: "repeat-rows"; rows: RepeatRow[]; }
 
 // ---------------------------------------------------------------------------

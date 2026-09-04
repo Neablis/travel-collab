@@ -1,6 +1,9 @@
 "use client";
+import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, type Seg } from "@tc/pages";
+import { cn } from "@/lib/cn";
+import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
 
@@ -15,7 +18,7 @@ import { BlockView } from "./BlockView";
 //
 // The C-era swap seam is unchanged and now stated by the types rather than by a
 // comment: block components consume resolver payloads, never markup.
-function Segs({ segs }: { segs: readonly Seg[] }) {
+function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents }) {
   return (
     <>
       {segs.map((seg, i) =>
@@ -25,7 +28,33 @@ function Segs({ segs }: { segs: readonly Seg[] }) {
           // A chip is a resolved value reading as a word in a sentence (§7).
           // `seg.text` is a text node either way — `Seg` has nowhere to put an
           // element, an attribute or a URL, which is ADR-037 decision 3a.
-          <span key={i} className="text-ink underline decoration-hairline underline-offset-2" title={seg.name}>
+          //
+          // **Brand tint under a brand rule, not a hairline underline.** The
+          // hairline said "this word is annotated"; it did not say the word
+          // came from the trip rather than from the author, and in Reading
+          // there is no chrome row left to say it either. Mitchell, on the
+          // preview: *"A value coming from a widget in readonly mode should be
+          // clearly coming from a widget — see the green text."* dc.html:2368
+          // is the treatment: `background: var(--color-brand-tint);
+          // border-bottom: 1.5px solid var(--color-brand)`. `border-b-2` is the
+          // scale's nearest rule width — 1.5px is not on it, and an arbitrary
+          // value is what the color wall exists to refuse.
+          //
+          // `data-widget-value` is the non-presentational handle: "how many
+          // values on this page came from a widget" is a question a test can
+          // ask without asserting a class, which the test-quality wall forbids
+          // outside `components/ui/**`.
+          <span
+            key={i}
+            data-widget-value={seg.name}
+            className={cn(
+              "rounded-sm border-b-2 border-brand bg-brand-tint px-px",
+              // A city is the one value with a colour of its own, and it is
+              // the trip's colour, not the widget's — see `cityAccents`.
+              seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
+            )}
+            title={seg.name}
+          >
             {seg.text}
           </span>
         ),
@@ -40,6 +69,11 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   params: Record<string, unknown>; onBindDay?: () => void;
 }) {
   const def = getMacro(name);
+  // One derivation per render of one widget, memoised on the trip: `cityAccents`
+  // walks every day and probes five buckets, and a page can hold a dozen
+  // widgets. It is cheap, but it is not free and the answer cannot change
+  // between two widgets on the same trip — that invariance is the point.
+  const accents = useMemo(() => cityAccents(detail), [detail]);
   const outcome = renderMacro({ trip: detail, page: context, user, globals }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
@@ -87,9 +121,9 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   const { rendered } = outcome;
   switch (rendered.kind) {
     case "inline":
-      return <Segs segs={rendered.segs} />;
+      return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} />;
+      return <BlockView block={rendered.block} accents={accents} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node
@@ -120,7 +154,7 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
       return (
         <span role="list" className="flex flex-col gap-0.5">
           {rendered.rows.map((segs, i) => (
-            <span role="listitem" key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} /></span>
+            <span role="listitem" key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} accents={accents} /></span>
           ))}
         </span>
       );

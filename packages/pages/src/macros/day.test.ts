@@ -69,7 +69,26 @@ describe("day.city", () => {
   // The route item D exists to provide: cities are derived by `citiesOfDay` in
   // `@tc/domain`, which this package may not import, so they arrive via globals.
   it("reads the day's cities from globals, in arrival order", () => {
-    expect(dayCity.resolve(ctx({ globals }), at(0))).toEqual({ status: "ok", value: "Tokyo – Kyoto" });
+    expect(dayCity.resolve(ctx({ globals }), at(0))).toEqual({ status: "ok", value: ["Tokyo", "Kyoto"] });
+  });
+
+  // The en dash is a rendering decision and lives in `render`, and each city is
+  // its own chip so each can carry the trip's own colour for it — one joined
+  // string can only wear one colour (Mitchell: *"dont use the color coding we
+  // put together when showing a city"*).
+  it("renders a travel day as two city chips with a journey dash between them", () => {
+    expect(dayCity.render(["Tokyo", "Kyoto"])).toEqual({
+      kind: "inline",
+      segs: [
+        { kind: "chip", name: "city", text: "Tokyo" },
+        { kind: "text", text: " – " },
+        { kind: "chip", name: "city", text: "Kyoto" },
+      ],
+    });
+  });
+
+  it("renders a one-city day as one chip and no dash", () => {
+    expect(dayCity.render(["Tokyo"])).toEqual({ kind: "inline", segs: [{ kind: "chip", name: "city", text: "Tokyo" }] });
   });
 
   it("is empty for a day that touches no located stop", () => {
