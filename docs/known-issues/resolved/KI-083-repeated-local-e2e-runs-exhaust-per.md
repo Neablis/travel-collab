@@ -1,4 +1,4 @@
-### KI-83 — Repeated local e2e runs exhaust the per-user AI quota, and `/ask` specs go red with 429 for a reason no code change explains
+### KI-83 — Repeated local e2e runs exhaust the per-user AI quota, and `/ask` specs go red with 429 for a reason no code change explains — RESOLVED, counters live in the run's own database, and the ceiling is untouched
 - **Severity:** reliability of the test lane (the product ceiling is working exactly as designed; what is missing is any way to tell that from the failure)
 - **Area:** `apps/web/src/server/quota.ts` (`aiQuotas()`), `apps/web/e2e/m10-simulated-ai.spec.ts`, `apps/web/e2e/m16-assistant.spec.ts`, `apps/web/playwright.config.ts` (`webServer.env`), the `rate_limit_counters` table
 - **How it presents:** every `/ask` e2e fails at once. `m10-simulated-ai.spec.ts:50` fails on `expect(response.status()).toBe(200)` with **`Received: 429`**, and the proposal-card specs fail a step later on `getByRole("region", { name: "Proposed change" })` never appearing, because the turn that would have produced it was refused. `m16-assistant.spec.ts` fails on the transcript never filling. The failure **appears after several suite runs, not on a first run**, and correlates with **nothing in the diff** — the specs that break are the ones you did not touch as readily as the ones you did.
@@ -21,3 +21,21 @@
 - **Cross-reference:** KI-27 (the other "a red lane is not a defect" trap, and the reason this one is written down), KI-79 (the same quota, read as a security boundary), `docs/guidelines/ci-cost-and-capacity.md`, security review 2026-08-28 finding H1 (why the quota exists).
 - **First noted:** 2026-08-29.
 - **Milestone:** **M9, carried (assigned 2026-09-02)** — owned by M9, not a gate box. Mitchell's 2026-09-01 decision was that *every* open AI known issue belongs to M9; the audit that recorded it enumerated twelve entries and missed this one, so the assignment is applied here rather than left to be re-derived. Gate-vs-carried rationale is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues". Carried, not gating: it bites the local lane rather than production, and it is the quota working as designed against a test loop. Listed under M9 because that is where the quota work lives.
+- **Fix (2026-09-04): the per-run database, not the raised ceiling.** This entry's proposed
+  durable fix was to raise `AI_RATE_LIMIT_PER_USER_HOURLY`/`_DAILY` in
+  `playwright.config.ts`'s `webServer.env`, and recorded a real objection to it: a lane that
+  raises the ceiling stops exercising it, and the 429 path would lose its only browser-level
+  cover — which is how KI-79's demo-trip quota interaction became reasonable to miss. That
+  trade is not needed. `pnpm --filter web test:e2e` now runs under
+  `scripts/with-test-db.mjs` (KI-2026-08-30-e), so `rate_limit_counters` starts empty every
+  run. **The ceiling is unchanged at 30/hour and is still exercised**, so the 429 path keeps
+  the cover the objection was protecting.
+- **Why the hooks still hold no database client.** The other half of the objection —
+  `global.setup.ts` and `global.teardown.ts` are HTTP-only by design, and handing them a
+  database client is a real widening of what they may touch — also stands unchanged. The
+  provisioning happens in a wrapper process outside Playwright entirely; neither hook was
+  touched.
+- **What is NOT covered, deliberately:** manual browsing against `pnpm dev`, which still uses
+  the developer's own `travel` database and can still spend `dev-alice`'s hourly quota. That
+  is the ceiling working as designed against a human, at a rate no test loop can reach, and
+  the diagnosis query in this entry still applies to it.

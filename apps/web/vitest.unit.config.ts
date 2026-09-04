@@ -69,7 +69,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          // Four unit tests live outside src/, because the things they cover
+          // Five unit tests live outside src/, because the things they cover
           // do too: `next.config.test.ts` covers the CSP's build-time
           // VERCEL_ENV branch and the js-profiling document policy,
           // `sentry.shared.test.ts` covers the sample-rate parsing shared by
@@ -81,7 +81,11 @@ export default defineConfig({
           // geocoder, and `lint-scope.test.ts` covers the `lint` script's own
           // file scope, i.e. that the root-level files listed here are also
           // reachable by the OTHER lane (KI-2026-08-30-b: this include list
-          // named them and `"lint": "eslint src"` did not). Named file by
+          // named them and `"lint": "eslint src"` did not).
+          // `scripts/with-test-db.test.ts` covers the four silent decisions in
+          // the per-run-database wrapper (KI-2026-08-30-e) — which hosts it
+          // may provision on, what URL the child gets, which database names
+          // the sweep may drop, and when the template is stale. Named file by
           // file, not by a `scripts/**` glob: the other files in `scripts/`
           // are entry points, not test subjects.
           include: [
@@ -90,6 +94,7 @@ export default defineConfig({
             "next.config.test.ts",
             "sentry.shared.test.ts",
             "scripts/geocode-japan-seed.test.ts",
+            "scripts/with-test-db.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

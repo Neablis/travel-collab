@@ -1,4 +1,4 @@
-### KI-20260831 — Repeated local e2e runs leave debris that eventually times a spec out, and it looks exactly like a defect in your diff
+### KI-20260831 — Repeated local e2e runs leave debris that eventually times a spec out, and it looks exactly like a defect in your diff — RESOLVED, the local lane now gets the fresh database per run CI always had
 - **Severity:** reliability of the local test lane (CI is unaffected — it gets a fresh database per run)
 - **Area:** `apps/web/e2e/global.teardown.ts`, `apps/web/e2e/m11-saved-days.spec.ts`, the `saved_days` / `trip_invites` / `trip_shares` / `trip_details` tables
 - **How it presents:** `m11-saved-days.spec.ts:27` ("keep a day out of one trip, and drop it into another") fails on
@@ -38,3 +38,19 @@
   on `origin/main` in a second worktree against the same database, and then measuring the same spec at 12.4s on a
   reset one.
 - **First noted:** 2026-08-31.
+- **Fix (2026-09-04): none of the three options this entry weighed.** It framed the durable
+  fix as widening `global.teardown.ts` to sweep saved days, invites and shares — which needed
+  an owner-scoped delete endpoint, a real API addition for a test-lane concern, and ran into
+  KI-83's objection that both e2e hooks are HTTP-only by design. That whole argument is moot:
+  `pnpm --filter web test:e2e` now runs under `scripts/with-test-db.mjs` (KI-2026-08-30-e), so
+  every run gets a private database cloned from a migrated template and dropped when the run
+  ends. This entry's own first line said CI is unaffected *because it gets a fresh database
+  per run*; the local lane now has the same thing, which is why no endpoint is needed.
+- **What that means for the debris itself.** `global.teardown.ts` still sweeps only
+  `[e2e]`-prefixed trips, and saved days, invites and shares still survive it — but nothing
+  survives the run, so the counts this entry measured (168 `saved_days`, 517 `trip_invites`,
+  255 `trip_shares`, 113 `trip_details` after ~8 runs) cannot accumulate. The hooks were not
+  touched and did not need to be.
+- **Still true and worth keeping:** the discriminator this entry records. A failure that
+  reproduces identically on `origin/main` against the same database, and vanishes on a reset
+  one, was never a defect in your diff. That reasoning outlives the specific cause.
