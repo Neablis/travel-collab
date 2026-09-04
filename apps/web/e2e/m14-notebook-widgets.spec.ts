@@ -182,3 +182,42 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
 });
+
+test("a two-input widget keeps both bindings, and each survives a reload", async ({ page }) => {
+  // `stop.line` is the catalogue's "only two-input widget, so it is the one
+  // that proves the model". The failure it exists to catch is not visible in
+  // any single-input walk: setting the second binding must not disturb the
+  // first. The chrome row replaced its whole params object before this widget
+  // existed, so choosing a tag would have silently unbound the day — and the
+  // widget would then read "no day set" while the day control still showed a
+  // choice.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  const sidebar = page.getByRole("complementary", { name: "Widgets" });
+  await sidebar.getByRole("searchbox", { name: "Search widgets" }).fill("every stop");
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await waitForPageSaved(page, () => sidebar.getByRole("button", { name: /A line for every stop/ }).click());
+
+  // Two controls, one per declared input.
+  const day = page.getByRole("combobox", { name: /A line for every stop: day/i });
+  const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
+  await expect(day).toBeVisible();
+  await expect(tags).toBeVisible();
+
+  // A tag input reads "every stop, or one" (§18), so unset is a real answer
+  // rather than an unfilled blank.
+  await expect(tags).toHaveValue("");
+
+  await waitForPageSaved(page, () => day.selectOption("1"));
+  await expect(day).toHaveValue("1");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  // The day binding survived a real round trip, with the second input present
+  // and unset the whole time.
+  await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveValue("1");
+  await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("");
+});

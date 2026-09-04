@@ -25,6 +25,7 @@ export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeVie
           name={name}
           params={params}
           detail={detail}
+          globals={globals}
           onChange={(next) => updateAttributes({ params: next })}
         />
       ) : null}

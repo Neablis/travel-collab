@@ -5,13 +5,13 @@ import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
 import { accountName, accountHomeAirport } from "./macros/account";
 import { dayDate, dayCity, dayWindow, budgetRemaining } from "./macros/day";
-import { dayLine, cityLine, bookingLine } from "./macros/repeat";
+import { dayLine, cityLine, bookingLine, stopLine } from "./macros/repeat";
 
 const DEFS: AnyMacroDef[] = [
   tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
   accountName, accountHomeAirport,
   dayDate, dayCity, dayWindow, budgetRemaining,
-  dayLine, cityLine, bookingLine,
+  dayLine, cityLine, bookingLine, stopLine,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

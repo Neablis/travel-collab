@@ -52,7 +52,13 @@ describe("registry", () => {
     day: { kind: "index", index: 0 },
     days: { from: { kind: "index", index: 0 }, through: { kind: "index", index: 1 } },
     person: "u1",
-    tags: ["Meal"],
+    // ONE tag, and a real `ActivityTag` member. This was `["Meal"]` — an array,
+    // and capitalised when the enum is lowercase — written speculatively before
+    // any widget declared a `tags` input, so nothing ever exercised it. The
+    // first widget that did (`stop.line`) rejected it, which is this test
+    // working: §18's table reads "every stop, or ONE", so a tag binding is a
+    // single optional member, not a list, and "Meal" is not a member at all.
+    tags: "meal",
     trip: "11111111-1111-1111-1111-111111111111",
   };
 

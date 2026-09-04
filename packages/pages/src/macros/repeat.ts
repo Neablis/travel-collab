@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { MacroDef, RepeatPayload, RepeatRow, WidgetContext } from "../registry-types";
+import { ActivityTag, DayRef } from "@tc/contracts";
+import type { MacroDef, RepeatPayload, RepeatRow, WidgetContext, WidgetInput } from "../registry-types";
 import { chip, rowsOf, text } from "../registry-types";
 import { ok, empty, unbound, needsTrip, type MacroResult } from "../result";
 import { formatMoney, formatDate } from "../format";
@@ -111,6 +112,61 @@ export const bookingLine: MacroDef<DayParams, RepeatPayload> = {
     for (const activityId of trip.days[idx]!.activityIds) {
       const activity = trip.activities[activityId];
       if (!activity || activity.kind !== "booked") continue;
+      const values: string[] = [];
+      if (activity.timeWindow) values.push(`${activity.timeWindow.start} – ${activity.timeWindow.end}`);
+      if (activity.cost) values.push(formatMoney(activity.cost.amountMinor, activity.cost.currency));
+      rows.push({ lead: activity.title, values });
+    }
+    return rows.length === 0 ? empty() : ok({ kind: "repeat-rows", rows });
+  },
+  render: renderRows,
+};
+
+
+// `w-stopline`, and the catalogue calls it what it is: *"the only two-input
+// widget, so it is the one that proves the model"*. Everything else in the
+// registry takes one thing or nothing, so this is the first widget whose
+// bindings can interfere — and the chrome row had a real defect that only it
+// could expose (its `onChange` replaced the whole params object, so setting a
+// tag would have discarded the day).
+//
+// **`tag` is optional and its absence is a REAL answer**, not an unfilled
+// blank: §18's table reads "every stop, or one". So an unbound tag means every
+// stop on the day, which is why this widget is useful the moment it is pointed
+// at a day and does not wait for a second choice.
+export const StopLineParams = z.object({
+  dayRef: DayRef.optional(),
+  tag: ActivityTag.optional(),
+}).strip();
+export type StopLineParams = z.infer<typeof StopLineParams>;
+
+// Both inputs declared. `name` must match this schema's own keys or the widget
+// declares a binding the validator ignores — enforced registry-wide rather than
+// by convention, which is what makes adding the second one safe.
+const STOP_LINE_INPUTS: readonly WidgetInput[] = [
+  { name: "dayRef", type: "day", label: "Day" },
+  { name: "tag", type: "tags", label: "Tags" },
+];
+
+export const stopLine: MacroDef<StopLineParams, RepeatPayload> = {
+  name: "stop.line", title: "A line for every stop", shape: "repeat",
+  params: StopLineParams, inputs: STOP_LINE_INPUTS,
+  description: "One line per stop on a day: when it is, and what it costs. Optionally only the stops carrying one tag.",
+  emptyText: "no stops on this day",
+  preview: "one line per stop, with its time and cost",
+  resolve: ({ trip }: WidgetContext, params): MacroResult<RepeatPayload> => {
+    if (!trip) return needsTrip();
+    const idx = resolveDayIndex(trip, params);
+    if (idx === null) return unbound("day");
+    const rows: RepeatRow[] = [];
+    for (const activityId of trip.days[idx]!.activityIds) {
+      const activity = trip.activities[activityId];
+      if (!activity) continue;
+      // No tag bound means every stop. A bound tag filters, and a day whose
+      // stops all lack it is `empty()` — the widget says "no stops on this
+      // day" rather than silently dropping the filter, because a filter that
+      // quietly stops filtering is worse than one that finds nothing.
+      if (params.tag && !activity.tags.includes(params.tag)) continue;
       const values: string[] = [];
       if (activity.timeWindow) values.push(`${activity.timeWindow.start} – ${activity.timeWindow.end}`);
       if (activity.cost) values.push(formatMoney(activity.cost.amountMinor, activity.cost.currency));

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityView, TripDetail, TripGlobals } from "@tc/contracts";
 import type { RepeatPayload, Seg } from "../registry-types";
-import { dayLine, cityLine, bookingLine } from "./repeat";
+import { dayLine, cityLine, bookingLine, stopLine } from "./repeat";
 
 const activity = (id: string, over: Partial<ActivityView> = {}): ActivityView => ({
   activityId: id, title: id, timeWindow: null, location: null, notes: null,
@@ -137,5 +137,46 @@ describe("what a repeater renders", () => {
     // The union has nowhere to put an element, an attribute or a URL, and this
     // asserts the repeaters stay inside it.
     expect(rows.flat().every((s) => s.kind === "text" || s.kind === "chip")).toBe(true);
+  });
+});
+
+// `w-stopline` — the catalogue's "only two-input widget, so it is the one that
+// proves the model". Everything else takes one thing or nothing, so this is the
+// first widget whose two bindings can interfere.
+describe("stop.line", () => {
+  const day0 = { dayRef: { kind: "index", index: 0 } as const };
+
+  it("lists every stop on the day when no tag is bound", () => {
+    // Unset is a real answer, not an unfilled blank (§18: "every stop, or one"),
+    // so the widget is useful the moment it has a day.
+    const rows = rowsOf(stopLine.resolve(ctx(), day0));
+    expect(rows.map((r) => r.lead)).toEqual(["Ryokan", "Market"]);
+  });
+
+  it("filters to the stops carrying the bound tag", () => {
+    const tagged = {
+      ...base,
+      activities: {
+        ...base.activities,
+        "planned-1": activity("planned-1", { title: "Market", tags: ["meal"] }),
+      },
+    };
+    const rows = rowsOf(stopLine.resolve(ctx({ trip: tagged }), { ...day0, tag: "meal" }));
+    expect(rows.map((r) => r.lead)).toEqual(["Market"]);
+  });
+
+  // A filter that quietly stops filtering is worse than one that finds nothing:
+  // the reader would believe the list was complete for that tag.
+  it("is empty when the bound tag matches no stop, rather than dropping the filter", () => {
+    expect(stopLine.resolve(ctx(), { ...day0, tag: "lodging" }).status).toBe("empty");
+  });
+
+  it("carries each stop's time and cost as the line's values", () => {
+    expect(rowsOf(stopLine.resolve(ctx(), day0))[0]!.values).toEqual(["15:00 – 23:00", "$120.00"]);
+  });
+
+  it("is unbound until it is pointed at a day, whatever the tag says", () => {
+    expect(stopLine.resolve(ctx(), {}).status).toBe("unbound");
+    expect(stopLine.resolve(ctx(), { tag: "meal" }).status).toBe("unbound");
   });
 });
