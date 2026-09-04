@@ -1,3 +1,4 @@
+import { newPageDoc } from "@tc/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -78,7 +79,7 @@ describe("pages repository", () => {
       // random-UUID tiebreaker put "Packing" in the middle of the list.
       const mine = await createPage(
         tripId,
-        { title: "Packing", context: { tripId }, content: { type: "doc", content: [] } },
+        { title: "Packing", context: { tripId }, content: newPageDoc() },
         "user-1",
       );
       expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
@@ -106,7 +107,7 @@ describe("pages repository", () => {
       {
         title: "Heavy",
         context: { tripId },
-        content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x".repeat(5000) }] }] },
+        content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "x".repeat(5000) }] }]),
       },
       "user-1",
     );
@@ -128,7 +129,7 @@ describe("pages repository", () => {
     const { tripId } = await seedTrip();
     const created = await createPage(
       tripId,
-      { title: "Notes", context: { tripId }, content: { type: "doc", content: [] } },
+      { title: "Notes", context: { tripId }, content: newPageDoc() },
       "user-1",
     );
     expect(created.title).toBe("Notes");

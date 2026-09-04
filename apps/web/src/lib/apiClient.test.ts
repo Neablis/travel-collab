@@ -40,6 +40,7 @@ import {
   updatePreferences,
   type ApiResult,
 } from "@/lib/apiClient";
+import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
@@ -588,7 +589,15 @@ describe("the composed page on the wire", () => {
     await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
     const pages = events.filter((e) => e.type === "page");
     expect(pages).toHaveLength(1);
-    expect(pages[0]).toEqual({ type: "page", title: "Trip Overview", content: PAGE.content });
+    // `PAGE.content` goes over the wire with no `v` — the shape every document
+    // written before ADR-038 has — and arrives carrying one, because the client
+    // parses it as a `PageDoc` now. That default is decision 2's single
+    // permitted inference: v1 is the only version that has ever existed.
+    expect(pages[0]).toEqual({
+      type: "page",
+      title: "Trip Overview",
+      content: { ...PAGE.content, v: CURRENT_PAGE_DOC_VERSION },
+    });
     expect(events.at(-1)).toBe(pages[0]);
   });
 

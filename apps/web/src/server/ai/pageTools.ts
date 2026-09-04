@@ -25,7 +25,13 @@
 // reject. /ask rejects: a doc that fails here never reaches the client.
 import { tool, type Tool } from "ai";
 import { z } from "zod";
-import { MacroNode, type PageContent } from "@tc/contracts";
+import { MacroNode, PageDoc, newPageDoc } from "@tc/contracts";
+import type {
+  PageHeadingNode,
+  PageNode,
+  PageParagraphNode,
+  PageWidgetNode,
+} from "@tc/contracts";
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 
 // z.enum requires a non-empty tuple; MACRO_NAMES is a readonly string[] from
@@ -58,20 +64,33 @@ const ComposePageParams = z.object({
 
 type ComposePageParams = z.infer<typeof ComposePageParams>;
 
-// Mirrors packages/pages/src/templates.ts's heading()/para()/macro() helpers.
-const heading = (level: number, text: string) => ({
+// Mirrors packages/pages/src/templates.ts's heading()/para()/macro() helpers,
+// and typed against the AST for the same reason they are (ADR-038): this is a
+// producer of stored page content, and the write path is `PageDoc` now, so a
+// block shape that drifts out of the vocabulary should fail to compile here
+// rather than 400 at the route with a document already streamed to a user.
+//
+// `heading`'s level is cast because `ComposePageParams` types it as a plain
+// int 1-6 while the AST types it as the union of those six literals. The two
+// ranges are the same range — deliberately, see `PageHeadingNode`'s comment,
+// which records Mitchell's 2026-09-03 call to widen the AST to the tool rather
+// than narrow the tool to the AST.
+const heading = (level: number, text: string): PageHeadingNode => ({
   type: "heading",
-  attrs: { level },
+  attrs: { level: level as PageHeadingNode["attrs"]["level"] },
   content: [{ type: "text", text }],
 });
-const para = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
-const macro = (name: string, params: Record<string, unknown> = {}) => ({
+const para = (text: string): PageParagraphNode => ({
+  type: "paragraph",
+  content: [{ type: "text", text }],
+});
+const macro = (name: string, params: Record<string, unknown> = {}): PageWidgetNode => ({
   type: "macro",
   attrs: { name, params },
 });
 
-function toPageContent(params: ComposePageParams): PageContent {
-  const content = params.blocks.map((block) => {
+function toPageDoc(params: ComposePageParams): PageDoc {
+  const content: PageNode[] = params.blocks.map((block) => {
     switch (block.type) {
       case "heading":
         return heading(block.level, block.text);
@@ -81,13 +100,13 @@ function toPageContent(params: ComposePageParams): PageContent {
         return macro(block.name, block.params ?? {});
     }
   });
-  return { type: "doc", content };
+  return newPageDoc(content);
 }
 
 /** What one `compose_page` call produced. */
 export interface ComposedPage {
   title: string;
-  content: PageContent;
+  content: PageDoc;
 }
 
 /**
@@ -111,7 +130,7 @@ export function buildPageTools(): { tools: Record<string, Tool>; getComposed: ()
         "Macro names are limited to the trip data registry — do not invent macro names.",
       inputSchema: ComposePageParams,
       execute: async (params: ComposePageParams) => {
-        composed = { title: params.title, content: toPageContent(params) };
+        composed = { title: params.title, content: toPageDoc(params) };
         return composed;
       },
     }),
@@ -128,13 +147,22 @@ export function buildPageTools(): { tools: Record<string, Tool>; getComposed: ()
  */
 export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().tools);
 
-export function validateComposedPage(content: PageContent): PageContent | { error: string } {
-  const error = walkForError(content.content);
+// ADR-038's consequences: "`validateComposedPage` stops being special. It
+// becomes 'parse the doc', the same call every other path makes." Half of that
+// is now literally true — the AST parse below is the same one the route and the
+// editor make. The registry walk that follows it is the half that stays
+// special, and rightly: `PageDoc` can say a `macro` node is well-formed, but
+// only the registry knows whether `cost.trip` exists and what params it takes,
+// and contracts cannot import the registry.
+export function validateComposedPage(content: unknown): PageDoc | { error: string } {
+  const parsed = PageDoc.safeParse(content);
+  if (!parsed.success) return { error: `Invalid page document: ${parsed.error.message}` };
+  const error = walkForError(parsed.data.content);
   if (error) return { error };
-  return content;
+  return parsed.data;
 }
 
-function walkForError(nodes: unknown[]): string | null {
+function walkForError(nodes: readonly unknown[]): string | null {
   for (const node of nodes) {
     if (typeof node !== "object" || node === null) continue;
     const record = node as Record<string, unknown>;

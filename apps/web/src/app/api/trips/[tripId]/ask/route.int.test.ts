@@ -1,3 +1,4 @@
+import { newPageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
@@ -109,7 +110,7 @@ async function seedTrip(): Promise<string> {
 async function seedPage(tripId: string, title = "Trip Overview") {
   const page = await createPage(
     tripId,
-    { title, context: { tripId }, content: { type: "doc", content: [] } },
+    { title, context: { tripId }, content: newPageDoc() },
     ACTOR_ID,
   );
   return page.id;

@@ -93,6 +93,37 @@ Format:
 - Breaking? **no.** Additive: a new schema and a new route. No existing response
   shape changed, and `fetchTripDetail` is untouched on purpose so the board, the
   lenses and the map do not pay for a projection only the Notebook reads
+## 2026-09-03 — the page write path becomes `PageDoc`; the read path stays permissive (ADR-038 decision 4)
+- Changed: `CreatePageInput.content` and `UpdatePageInput.content` are `PageDoc`,
+  not `PageContent` — a document this build cannot parse is refused at the API
+  boundary, and comes back out carrying its `v` (decision 2, "written on every
+  save")
+- Unchanged, deliberately: `Page.content` and `PageSummary` stay `PageContent`.
+  A strict read schema would make `fetchPage` throw on exactly the row decision
+  4 needs to show the reader a read-only explanation for. Read what is there,
+  write only what we understand — the asymmetry is the design, and ADR-038
+  decision 4 now says so
+- Added: `newPageDoc(content?)` — builds a document at
+  `CURRENT_PAGE_DOC_VERSION`, so no producer hard-codes `v: 1`
+- Added: `collectPageDocNodeTypes(doc)` — every node type in a document, at any
+  depth, with an unknown node reported by the type it WRAPS. This is the half of
+  decision 4's guard contracts can answer without importing TipTap; the editor
+  half is `PAGE_EDITOR_NODE_TYPES` in `apps/web`
+- Moved: `MacroNode` from `pages.ts` to `pageDoc.ts`. Same export from
+  `@tc/contracts`, no consumer change — `pages.ts` needs `PageDoc` now, and Zod
+  schemas built at module load do not survive a circular import
+- Why: ADR-038 decision 4. Its stated round-trip criterion was measured not to
+  detect either form of the loss it exists to prevent (a `repeat` node and a
+  newer build's node both round-trip byte-identically and both make TipTap
+  discard the whole document) — see the ADR's 2026-09-03 amendment
+- Consumers updated: `@tc/pages` (templates typed against the AST), `apps/web`
+  (`PageScreen` guard + read-only page, `PageEditor`, `pageTools`, `apiClient`,
+  `ComposePanel`, `NotebookScreen`, `NotebooksMenu`) — in this same PR
+- Breaking? **yes, on writes only.** A `POST`/`PATCH` whose `content` is not a
+  parseable `PageDoc` now 400s where it previously stored anything doc-shaped.
+  No stored row changes and no migration is needed: reads stay permissive, `v`
+  defaults to 1 for the rows that have none, and a row is rewritten at the
+  current version on its next ordinary save
 
 ## 2026-09-03 — `PageDoc` widens to the real v1 vocabulary (ADR-038 amendment)
 

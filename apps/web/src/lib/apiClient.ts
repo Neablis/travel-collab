@@ -1,7 +1,7 @@
 import {
   BatchableCommand,
   InvitePreview,
-  PageContent,
+  PageDoc,
   SavedDay,
   SharedTripView,
   TripAccess,
@@ -696,7 +696,7 @@ export type AskEvent =
    * validated against the macro registry server-side, so a doc that failed
    * validation arrives as `page-error` instead and never as content.
    */
-  | { type: "page"; title: string; content: PageContent }
+  | { type: "page"; title: string; content: PageDoc }
   /** A page turn that produced no usable doc, with the server's own reason. */
   | { type: "page-error"; message: string }
   | { type: "error"; message: string };
@@ -811,17 +811,22 @@ function proposalFrom(value: unknown): AssistantProposal | null {
 /**
  * `unknown` → a page we are willing to put in the editor, or `null`.
  *
- * `PageContent.parse` is the same contract schema the editor and `updatePage`
- * validate against, so a doc that would not survive a save never reaches the
- * editor either. The server validated it too (against the macro registry, which
- * this side cannot see) — this is the client half of the same rule, not a
- * substitute for it.
+ * `PageDoc`, not `PageContent`, and the difference is the whole point: `PageDoc`
+ * is what `CreatePageInput`/`UpdatePageInput` validate against since ADR-038, so
+ * this is again "a doc that would not survive a save never reaches the editor
+ * either". Under `PageContent` — a doc node wrapping `z.array(z.unknown())` —
+ * that sentence was true when it was written and stopped being true the moment
+ * the write path got a real schema, because `PageContent` accepts documents the
+ * write path now rejects.
+ *
+ * The server validated it too (against the macro registry, which this side
+ * cannot see) — this is the client half of the same rule, not a substitute.
  */
-function composedPageFrom(value: unknown): { type: "page"; title: string; content: PageContent } | null {
+function composedPageFrom(value: unknown): { type: "page"; title: string; content: PageDoc } | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as { title?: unknown; content?: unknown };
   if (typeof raw.title !== "string" || raw.title === "") return null;
-  const content = PageContent.safeParse(raw.content);
+  const content = PageDoc.safeParse(raw.content);
   return content.success ? { type: "page", title: raw.title, content: content.data } : null;
 }
 
