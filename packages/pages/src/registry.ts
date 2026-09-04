@@ -4,10 +4,12 @@ import type { MacroResult } from "./result";
 import { tripName, tripDates, costTrip, costDay } from "./macros/inline";
 import { itineraryDay, itineraryTrip, costsTable } from "./macros/block";
 import { accountName, accountHomeAirport } from "./macros/account";
+import { dayDate, dayCity, dayWindow, budgetRemaining } from "./macros/day";
 
 const DEFS: AnyMacroDef[] = [
   tripName, tripDates, costTrip, costDay, itineraryDay, itineraryTrip, costsTable,
   accountName, accountHomeAirport,
+  dayDate, dayCity, dayWindow, budgetRemaining,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
