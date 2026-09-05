@@ -74,7 +74,7 @@ Updated live. Times are PT.
 | Streams A–G dispatched | 00:31 | seven general-purpose agents, parallel |
 | A Security | running 00:31 | |
 | B Notebook / widget AST | running 00:31 | |
-| C Versioning / migration | running 00:31 | |
+| C Versioning / migration | done 00:40 | 7 findings (6 CONFIRMED), pivot-cost analysis, 13 verified-sound |
 | D Infra / DB / Vercel / review loop | running 00:31 | |
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | running 00:31 | |
