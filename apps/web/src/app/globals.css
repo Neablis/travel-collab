@@ -205,6 +205,16 @@
   .phone-tab-bar {
     padding-bottom: max(30px, env(safe-area-inset-bottom));
   }
+  /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
+     number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
+     so a utility class rather than `h-[26px] w-[46px]`, which the colour wall
+     rejects as an arbitrary value and which no inline style can express more
+     honestly. Same pattern as `.hero-grid` above: design-fixed geometry with no
+     token equivalent gets a real CSS rule, once. */
+  .phone-tab-pill {
+    width: 46px;
+    height: 26px;
+  }
   @media (max-width: 767px) {
     :root {
       --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));

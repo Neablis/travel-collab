@@ -4,16 +4,16 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, List, Luggage, Map, NotebookText } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
-// (the active-state logic). The phone's five-tab bottom bar, and — per SPEC
-// §13 "The tab bar is the router" — the *only* phone navigation between the
-// trip list, a trip's three views, and Playbooks.
+// (the active-state logic). The phone's bottom bar, and — per SPEC §13 "The tab
+// bar is the router" — the *only* phone navigation between the trip list, a
+// trip's three views, and Playbooks.
 //
-// SPEC §16 supersedes §13's four-tab list: Plan / Map / Notebook / Playbooks /
-// Trips.
+// SPEC §22 (2026-09-05) supersedes §16's five-tab list: the bar is SCOPED —
+// Plan / Map / Notebook inside a trip, Trips / Playbooks everywhere else. See
+// `tabsForScope`.
 //
 // ─── The one rule this file exists to keep ───────────────────────────────────
 // SPEC §13: "'Trips' is **not** a storable tab value — the route alone says
@@ -36,15 +36,37 @@ import { cn } from "@/lib/cn";
 // The mapping is semantic rather than shape-for-shape: Plan is the day's list,
 // Trips is the luggage. Names verified against the installed lucide-react
 // 1.24.0.
-const TABS = [
-  { id: "plan", label: "Plan", Icon: List },
-  { id: "map", label: "Map", Icon: Map },
-  { id: "notebook", label: "Notebook", Icon: NotebookText },
-  { id: "playbooks", label: "Playbooks", Icon: BookOpen },
-  { id: "trips", label: "Trips", Icon: Luggage },
-] as const;
+const TABS = {
+  plan: { label: "Plan", Icon: List },
+  map: { label: "Map", Icon: Map },
+  notebook: { label: "Notebook", Icon: NotebookText },
+  playbooks: { label: "Playbooks", Icon: BookOpen },
+  trips: { label: "Trips", Icon: Luggage },
+} as const;
 
-type PhoneTabId = (typeof TABS)[number]["id"];
+type PhoneTabId = keyof typeof TABS;
+
+/**
+ * Which tabs this route's scope contains — SPEC §22, "the phone tab bar is
+ * scoped, not disabled" (2026-09-05).
+ *
+ * Plan, Map and Notebook are three views onto **one open trip**; Trips and
+ * Playbooks are account-level destinations. Outside a trip the first three have
+ * nothing to point at, so they are absent rather than greyed. The spec is
+ * explicit about why, and it is `RULES.md` rule 2: a disabled control is UI with
+ * no purpose on the page, and it lies about the reason it is off — "a greyed
+ * Plan reads as 'do something and this unlocks', when the truth is 'this needs a
+ * trip open, and you are not in one'."
+ *
+ * This replaces a five-tab bar that disabled the trip three outside a trip. The
+ * argument for that was positional stability — five fixed slots, so a tab never
+ * moves. §22 weighed it and chose scope; the accepted cost is that Playbooks is
+ * two taps from inside a trip (`‹ Trips` → Playbooks), and the way back out is
+ * the header's `‹ Trips`, not a permanent fifth tab.
+ */
+function tabsForScope(inTrip: boolean): readonly PhoneTabId[] {
+  return inTrip ? (["plan", "map", "notebook"] as const) : (["trips", "playbooks"] as const);
+}
 
 /**
  * The trip id in the path, or `null` outside a trip. `/trips/<id>` and
@@ -93,27 +115,34 @@ function activePhoneTab(pathname: string, lens: string | null): PhoneTabId | nul
 }
 
 /**
- * Where each tab goes. `null` means "this tab has nowhere to go from here" —
- * the three trip tabs outside a trip, which render disabled rather than
- * guessing a trip. SPEC §13 names the failure that guessing produces: "a Plan
- * screen outside a trip has no focused day and renders an empty itinerary
- * under a header that still counts stops." Remembering the last trip would be
- * exactly the tab state that can disagree with the route which §13 forbids.
+ * Where each tab goes. Every tab the bar renders has a real destination now
+ * that the set is scoped (§22) — there is no "nowhere to go" case left, which
+ * is what the disabled state used to represent. Note what is still NOT done
+ * here: the trip tabs never guess a trip id from memory. SPEC §13 names the
+ * failure that guessing produces ("a Plan screen outside a trip has no focused
+ * day and renders an empty itinerary under a header that still counts stops"),
+ * and remembering the last trip would be exactly the tab state that can
+ * disagree with the route which §13 forbids. Outside a trip they are simply
+ * absent.
  */
-function phoneTabHref(tab: PhoneTabId, tripId: string | null): string | null {
+function phoneTabHref(tab: PhoneTabId, tripId: string | null): string {
   switch (tab) {
     case "trips":
       return "/";
     case "playbooks":
       return "/playbooks";
+    // The three trip views are only ever rendered inside a trip (`tabsForScope`),
+    // so `tripId` is non-null wherever these are reached. `""` is unreachable
+    // rather than a fallback worth designing — a tab with nowhere to go is the
+    // disabled state §22 removed.
     case "plan":
       // Not a bare `/trips/<id>`: that URL resolves to the *Board* lens
       // (LensRouter's default), and SPEC §10 keeps Day columns off the phone.
-      return tripId ? `/trips/${tripId}?lens=Schedule&view=Timeline` : null;
+      return tripId ? `/trips/${tripId}?lens=Schedule&view=Timeline` : "";
     case "map":
-      return tripId ? `/trips/${tripId}?lens=Map` : null;
+      return tripId ? `/trips/${tripId}?lens=Map` : "";
     case "notebook":
-      return tripId ? `/trips/${tripId}/pages` : null;
+      return tripId ? `/trips/${tripId}/pages` : "";
   }
 }
 
@@ -189,29 +218,10 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
       // under the takeover that is meant to cover everything.
       className="phone-tab-bar fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-surface pt-2 md:hidden"
     >
-      {TABS.map(({ id, label, Icon }) => {
+      {tabsForScope(tripId !== null).map((id) => {
+        const { label, Icon } = TABS[id];
         const href = phoneTabHref(id, tripId);
         const isActive = active === id;
-        const tone = isActive ? "font-semibold text-brand" : "font-normal text-slate";
-        const icon = <Icon aria-hidden className="size-4" />;
-
-        // No trip in the route ⇒ no destination. A disabled control, not a
-        // hidden one: the bar's five positions stay put between routes, which
-        // is the whole point of a tab bar.
-        if (href === null) {
-          return (
-            <Button
-              key={id}
-              variant="ghost"
-              disabled
-              aria-label={`${label} — open a trip first`}
-              className={cn(TAB_CLASS, "h-auto px-0 hover:bg-surface", tone)}
-            >
-              {icon}
-              {label}
-            </Button>
-          );
-        }
 
         return (
           <Link
@@ -223,9 +233,24 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
             // newly-mounted lens has scrolled itself to the selected day.
             scroll={false}
             aria-current={isActive ? "page" : undefined}
-            className={cn(TAB_CLASS, tone)}
+            className={cn(TAB_CLASS, isActive ? "font-semibold text-brand" : "font-normal text-slate")}
           >
-            {icon}
+            {/* The active affordance is a filled pill behind the glyph, not
+                colour alone — SPEC §22: "brand-green-on-slate was the only
+                active signal and at 16px it does not survive a glance … shape
+                carries the signal, colour confirms it." 46×26 and
+                `--color-brand-tint`, both the spec's numbers; no new colour is
+                introduced. The pill is on the GLYPH's box rather than the whole
+                tab so the label sits outside it, as the design draws it. */}
+            <span
+              // Named so a test can count the filled one: the pill is pure
+              // decoration with no role or accessible name of its own, and the
+              // lint wall rejects `container.querySelector`.
+              data-testid="phone-tab-pill"
+              className={cn("phone-tab-pill grid place-items-center rounded-full", isActive && "bg-brand-tint")}
+            >
+              <Icon aria-hidden className="size-4" />
+            </span>
             {label}
           </Link>
         );

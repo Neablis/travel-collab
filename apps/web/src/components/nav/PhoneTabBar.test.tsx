@@ -42,16 +42,18 @@ function currentTab(): string | null {
 }
 
 describe("PhoneTabBar", () => {
-  it("shows the five tabs SPEC §16 names, in order", () => {
-    // Inside a trip every tab is live, so DOM order and query order agree.
+  // SPEC §22 (2026-09-05): the bar is scoped, not five tabs with three
+  // disabled. Both scopes asserted as a whole list rather than by membership —
+  // a build that showed the trip three PLUS the account pair would satisfy any
+  // "is Plan present" check, and the whole point of §22 is what is absent.
+  it("shows the trip's three views inside a trip, in order", () => {
     renderAt("/trips/t1");
-    expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual([
-      "Plan",
-      "Map",
-      "Notebook",
-      "Playbooks",
-      "Trips",
-    ]);
+    expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map", "Notebook"]);
+  });
+
+  it("shows the account pair outside a trip, in order", () => {
+    renderAt("/playbooks");
+    expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Trips", "Playbooks"]);
   });
 
   // The design file's own predicate (`…dc.html:7218-7220`), route by route.
@@ -109,27 +111,44 @@ describe("PhoneTabBar", () => {
     expect(hrefOf("Notebook")).toBe("/trips/t1/pages");
   });
 
-  it("keeps Trips and Playbooks reachable from inside a trip", () => {
+  // The other half of §22, and its accepted cost: from inside a trip the
+  // account pair is NOT in the bar, so Playbooks is two taps via the header's
+  // `‹ Trips`. Asserted because it is a deliberate trade the spec names, not an
+  // oversight for a later change to quietly "fix" by re-adding a fifth tab.
+  it("does not carry Trips or Playbooks from inside a trip", () => {
     renderAt("/trips/t1?lens=Map");
+    expect(screen.queryByRole("link", { name: "Trips" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Playbooks" })).toBeNull();
+  });
+
+  // This replaces a test that asserted the trip three were rendered DISABLED
+  // outside a trip. §22 removed that state outright: "a disabled control is UI
+  // with no purpose on the page (RULES.md rule 2) and it lies about why it is
+  // off." So the assertion is now absence — and specifically absence of any
+  // control, not just of a link, because a disabled `<button>` is exactly what
+  // this used to render and exactly what must not come back.
+  it("renders no control at all for the trip views outside a trip", () => {
+    renderAt("/playbooks");
+
+    for (const label of ["Plan", "Map", "Notebook"]) {
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
+      expect(screen.queryByRole("button", { name: new RegExp(`^${label}`) })).toBeNull();
+    }
     expect(hrefOf("Trips")).toBe("/");
     expect(hrefOf("Playbooks")).toBe("/playbooks");
   });
 
-  // SPEC §13: "a Plan screen outside a trip has no focused day and renders an
-  // empty itinerary under a header that still counts stops." Outside a trip
-  // the three trip tabs have nowhere to go, and remembering the last trip
-  // would be exactly the tab state §13 forbids — so they are dead, not
-  // guessing.
-  it("disables Plan, Map and Notebook outside a trip", () => {
-    renderAt("/playbooks");
-
-    for (const label of ["Plan", "Map", "Notebook"]) {
-      const tab = screen.getByRole("button", { name: new RegExp(`^${label} `) });
-      expect((tab as HTMLButtonElement).disabled).toBe(true);
-      expect(screen.queryByRole("link", { name: label })).toBeNull();
-    }
-    // …and the two that are account scope stay live.
-    expect(hrefOf("Trips")).toBe("/");
-    expect(hrefOf("Playbooks")).toBe("/playbooks");
+  // §22's active affordance: "shape carries the signal, colour confirms it."
+  // The pill is on the glyph's own box, so the label sits outside it.
+  it("marks the active tab with a filled pill behind its glyph, and only that one", () => {
+    renderAt("/trips/t1?lens=Map");
+    const pills = screen.getAllByTestId("phone-tab-pill");
+    expect(pills).toHaveLength(3);
+    const filled = pills.filter((el) => el.className.includes("bg-brand-tint"));
+    expect(filled).toHaveLength(1);
+    // The active link is the one whose name matches; asserting through the
+    // accessible name rather than walking up the DOM keeps this off the
+    // lint wall's `no-node-access` list.
+    expect(screen.getByRole("link", { name: "Map" }).getAttribute("aria-current")).toBe("page");
   });
 });

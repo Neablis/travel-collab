@@ -169,6 +169,22 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   return (
     <PageContainer>
       <div className="mb-6">
+        {/* SPEC §22 asks for this by name. Once the phone tab bar became
+            scoped — Plan / Map / Notebook inside a trip, with Trips and
+            Playbooks only outside one — this surface lost the Trips tab it had
+            been relying on to get out, and "would otherwise have been a dead
+            end". The Plan and Map screens already carry `← Your trips` through
+            `TripHeader`; the notebook index does not render that header, so it
+            needs its own.
+
+            Shown at every width rather than `md:hidden`: on a desktop it is a
+            second way out beside the header's, which is redundant but harmless,
+            and a link that appears only under a breakpoint is the kind of thing
+            that goes stale unseen. Styled as `TripHeader`'s is, so the two read
+            as the same affordance. */}
+        <Link href="/" className="mb-2 inline-block min-h-11 text-xs text-slate no-underline hover:text-ink">
+          ← Your trips
+        </Link>
         <Heading level={2}>Notebooks</Heading>
         {/* The standfirst, VERBATIM from SPEC §7, including its two uses of
             "page" where §11's one-noun rule would say notebook. Deliberate: it
