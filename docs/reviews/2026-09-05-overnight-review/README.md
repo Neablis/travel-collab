@@ -1,6 +1,6 @@
 # Overnight project review — 2026-09-05
 
-**Status: A–F COMPLETE 08:20 PT 2026-09-05; stream G code hunt in progress.** This file is
+**Status: COMPLETE 08:45 PT 2026-09-05 (stream G's verifier pass still closing; its six findings are marked CONFIRMED by the finder's own live probes).** This file is
 the plan and the live tracker; it is updated as each stream finishes. The
 findings it produces live one-per-file under `findings/`, written so a fixer
 agent can act on one without re-deriving it.
@@ -78,15 +78,15 @@ Updated live. Times are PT.
 | D Infra / DB / Vercel / review loop | done 00:43 | 8 findings (6 CONFIRMED), 13 ranked recommendations, 08-28 items: 8 fixed, 2 still open |
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | done 00:44 | 12 findings (all CONFIRMED), /ask flow map, 13 deliberately-not |
-| G Broken functionality (lanes + hunt) | lanes done 00:46, hunt relaunched 07:35 | ALL LANES GREEN: typecheck, lint, unit, int 450/450, seed:verify 18/18, e2e ci-like 89/89, drizzle check. First agent killed by session limit during the browser walk |
+| G Broken functionality (lanes + hunt) | done 08:40 | ALL LANES GREEN: typecheck, lint, unit, int 450/450, seed:verify 18/18, e2e ci-like 89/89, drizzle check. First agent killed by session limit during the browser walk |
 | Verification wave | A–F done 08:05 | Session limit hit ~00:50 PT killed four verifiers + stream G mid-run; resumed 07:31 PT. Every stream had 1–4 cites pointing at wrong lines; all corrected in findings/. One escalation (F-B09), four downgrades, one drop (F09 truncators) |
-| Findings written | A–F done 08:10 (44 files); G pending | |
-| Executive summary | drafted 08:20 | may shift one item when G lands |
-| Committed + pushed | pending | |
+| Findings written | done 08:45 — 57 files | |
+| Executive summary | done 08:45 | |
+| Committed + pushed | continuous; final at 08:45 | |
 
 ## Findings
 
-Fifty-one finding files under `findings/`, one per issue, each carrying severity, confidence after independent verification, `file:line` cites (corrected where the finder's were wrong), reproduction, suggested fix, fix scope, the test that should exist, and a "do not" line. Ids are `F-<stream><nn>`; stream G's are appended below as they land.
+Fifty-seven finding files under `findings/`, one per issue, each carrying severity, confidence after independent verification, `file:line` cites (corrected where the finder's were wrong), reproduction, suggested fix, fix scope, the test that should exist, and a "do not" line. Ids are `F-<stream><nn>`.
 
 ### Severity index
 
@@ -102,6 +102,8 @@ Fifty-one finding files under `findings/`, one per issue, each carrying severity
 | [F-C03](findings/F-C03-undispatched-production-migration-undetectable.md) | MEDIUM | CONFIRMED | Merged-but-undispatched production migration is undetectable; PR template has no migration line (merged with D01) | S |
 | [F-C04](findings/F-C04-savedstop-has-no-version-or-defaults.md) | MEDIUM | CONFIRMED | Kept days carry no version and `SavedStop` has no defaults; first required field hides every Playbook | S |
 | [F-D03](findings/F-D03-drizzle-migrator-skips-older-migrations.md) | MEDIUM | CONFIRMED | Drizzle applies only migrations newer than the last applied; two PRs in flight can silently skip one — in production too | S |
+| [F-G01](findings/F-G01-non-uuid-route-params-500.md) | MEDIUM | CONFIRMED (live) | Any non-UUID route param reaches Postgres; ~12 routes 500 instead of 404 and the board renders "Internal Server Error" | S |
+| [F-G02](findings/F-G02-live-geocode-accepts-wrong-venue-in-right-box.md) | MEDIUM | CONFIRMED | Live geocode enrichment accepts a wrong venue inside the right box, renames the stop and marks it `verified`; the check for this exists and is unused | S |
 | [F-E01](findings/F-E01-activity-fields-hand-enumerated.md) | MEDIUM | CONFIRMED | Activity fields hand-enumerated in ~21 files; the 2026-08-28 descriptor fix was scheduled, never built, never filed (= F01) | M |
 | [F-E02](findings/F-E02-optimistic-queue-needs-interleaving-property.md) | MEDIUM | CONFIRMED | Six KIs of silent loss on the optimistic queue fixed as lines; no interleaving property test | M |
 | [F-E03](findings/F-E03-api-client-is-35-hand-mirrored-wrappers.md) | MEDIUM | CONFIRMED | "Typed API client" is 35 hand-mirrored wrappers + a second client + 3 raw fetches; MSW mocks are not generated | M |
@@ -141,14 +143,15 @@ Fifty-one finding files under `findings/`, one per issue, each carrying severity
 | [F-F10](findings/F-F10-queryable-declared-four-times.md) | LOW | CONFIRMED | `Queryable` declared four times | XS |
 | [F-F11](findings/F-F11-accountmenufromsession-dead-and-comments-stale.md) | LOW | CONFIRMED | `AccountMenuFromSession` dead; three comments stale | XS |
 | [F-F12](findings/F-F12-geocodenamematch-lives-in-ai-but-only-seed-uses-it.md) | LOW | CONFIRMED | `geocodeNameMatch` under `server/ai` but only the seed uses it (see G for whether it *should* be used live) | XS |
+| [F-G03](findings/F-G03-home-page-load-has-no-failure-path.md) | LOW | CONFIRMED | Home page `load()` handles only 401; a 500 leaves the page silently empty | XS |
+| [F-G04](findings/F-G04-adr-008-says-whole-yen-code-uses-hundredths.md) | LOW | CONFIRMED | ADR-008 says whole yen; code uses hundredths; board and notebook disagree on JPY decimals | XS |
+| [F-G05](findings/F-G05-profile-route-200-for-nonexistent-user.md) | LOW | CONFIRMED (live) | Profile route returns a plausible 200 for a nonexistent user | XS |
+| [F-G06](findings/F-G06-analytics-mount-unconditionally-off-vercel.md) | LOW | CONFIRMED (walk) | Analytics/SpeedInsights mount off-Vercel → 2 console errors on every page; hides real errors | XS |
 | [F-C05](findings/F-C05-superseded-by-F-B09.md) | — | superseded | Folded into F-B09 | — |
 | F-F01 | — | = F-E01 | Same finding from the simplification angle | — |
 
 Fix size: XS < 30 lines · S one PR, one afternoon · M own PR with a contracts change or a design note.
 
-### Stream G — appended below when the code hunt reports
-
-*(placeholder)*
 
 ## Executive summary — the ten things to act on first
 
@@ -162,10 +165,10 @@ Verification notes: every one of these was traced by the finding agent and re-tr
 6. **The widget framework is a framework for primitives and not yet for dimensions, shapes or data (F-B02, F-B03, F-B05).** Adding widget #13 is four files and every omission is red. Adding a filter dimension or a shape has two silent holes each (`narrow`, `optionsFor`, the CSS shape rule); adding a data source has no rule at all. Twelve proposed rules below; two mapped types and three `never` defaults close most of the holes.
 7. **The activity-field descriptor was scheduled on 2026-08-28 and never built (F-E01).** Three incidents (KI-1, KI-54, M18's sheet), ~21 files, and it is in neither the KI register nor TODO. A compile-forced descriptor ends the class.
 8. **The optimistic queue needs a property, not a seventh line-fix (F-E02).** KI-5 and KI-90 are open; four more were closed as lines and each opened the next window. One fast-check interleaving property would have caught all six.
-9. **The route ritual is hand-copied on both sides of the wire (F-E03, F-E04, F-F03).** 35 fetch wrappers with 35 identical catch blocks, a second client, three raw fetches, hand-written mocks documented as "generated"; five routes 500 on malformed JSON. A `fetch` lint and a `readBody` helper are the 80%.
-10. **Dependency hygiene has a human-shaped hole (F-D06).** GitHub reports 17 open Dependabot alerts (9 high) on `main`, untriaged in the repo; drizzle-kit is 18 months behind the ORM whose migrations it generates. Nothing here needs code first — it needs a look.
+9. **Client errors surface as 500s and Sentry faults, on both sides of the wire (F-G01, F-E04, F-E03, F-F03).** No route parameter is ever validated as a UUID, so a mistyped link 500s ~12 routes and the board prints "Internal Server Error" — measured live, stable. Five routes 500 on malformed JSON. Thirty-five fetch wrappers carry 35 identical catch blocks, a second client exists, and the mocks documented as "generated" are hand-written. A `uuidParam` check at the access seam, a `readBody` helper and a `fetch` lint are the whole fix.
+10. **The AI's geocoder accepts the wrong venue and calls it verified (F-G02), and dependency hygiene has a human-shaped hole (F-D06).** The seed pipeline learned three times that a bounding box cannot reject a wrong venue in the right city and grew `placeNameVerdict`; the live request path never got the call, so it renames the stop after the wrong place and hides it from the "unverified" notice. Separately, GitHub reports 17 open Dependabot alerts (9 high) on `main`, untriaged in the repo.
 
-**All test lanes are green** (stream G: typecheck, lint, unit, integration 450/450, `seed:verify`, production-build e2e 89/89, `drizzle-kit check`). The findings above are things the lanes do not reach.
+**All test lanes are green** (typecheck, lint, unit, integration 450/450, `seed:verify` 18/18, production-build e2e 89/89, `drizzle-kit check`), and a 17-path browser walk found no app-originated console error. Everything above is something the lanes do not reach.
 
 ## Per-stream summaries
 
@@ -207,6 +210,10 @@ See F-D09 for the thirteen ranked recommendations and the verified-sound list. O
 ### F — Simplifiable
 
 The `/ask` request flow is mapped step by step in the stream report (13 steps, one file each) — worth lifting into `docs/specs/2026-08-29-one-ai-route-design.md`. Line counts in `server/**` are roughly half comments recording incidents (`handleAskRequest.ts` 410 code / 583 comment); nothing here proposes deleting that record. **Deliberately not findings (complexity earning its keep):** `minimumRoleFor`'s re-check tripwire; `selectAiModel`'s three-way outcome (ADR-019); the `settled` promise that survives the serverless lifetime; `logAskAnalytics`'s triple try/catch on a raw abort listener; `ReadContextSchema`'s `z.custom` passthrough; `notDeleted` pasted into seven queries for grep-ability; the hand-rolled slash menu; `evolve.ts`'s `requireDay` throw (corrupt-stream totality). Two patterns worth a small PR: pure data helpers exported from `.tsx` (`DayChips.tsx`'s `chipModel`/`cityFor` imported by eight modules) belong in `lib/`; `lib/playbooks.ts` and `lib/cities.ts` both say "this belongs in `packages/contracts`" and neither is a KI or TODO line.
+
+### G — Broken functionality (lanes + hunt)
+
+**Every lane is green** on this tree: `pnpm typecheck`, `pnpm lint` (all five walls), `pnpm test` (fail 0), `pnpm test:int` (40 files, 450 tests), `pnpm seed:verify` (18), `pnpm --filter web test:e2e:ci-like` (89 passed, 2.1 min, teardown 63/63), `drizzle-kit check`. A 17-path browser walk against a local production build (desktop and phone; notebook editing with a `/cost` slash insert, invite accept, share view, playbooks) produced no `pageerror` and no app-originated console error. The only console noise was F-G06's two 404s per page and a `POST /monitoring` 403 that is the sandbox proxy refusing the Sentry tunnel host, not the app. The hunt then went where the lanes do not: **F-G01** is a live, stable 500 on any mistyped id in ~12 routes (no route param is ever validated as a UUID before it hits a uuid column); **F-G02** is the seed pipeline's wrong-venue fix never having been applied to the request path. **Verified sound:** every route awaits `params` under Next 16; `history/[seq]` range-guards; domain reducers are exhaustive by return type and never mutate input; `packages/pages` resolvers handle empty trip, no dates, deleted day, stale tag/kind as designed; no local/UTC date mixing found; money formatting is sign- and zero-aware; no `onClick` on non-interactive elements and every icon button carries a label; list keys are stable where state exists. **One lead worth a KI:** `MaxListenersExceededWarning: 11 close listeners added to [ServerResponse]` appears 299 times in the green e2e lane's server output and reproduces only under browser page loads (suspect Sentry 10 + Next 16 request instrumentation); no stack captured yet.
 
 ## Leads for a human with platform access
 
