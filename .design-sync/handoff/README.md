@@ -4,8 +4,8 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-04 (the notebook widget framework and its three components;
-Save this day as a Playbook; the phone Notebook)
+Last substantive pass: 2026-09-05 (the phone tab bar is scoped; the notebook widget framework
+and its three components; Save this day as a Playbook; the phone Notebook)
 
 **Building notebook widgets? Read these three, in this order:**
 1. `specs/notebook-widget-framework.md` — the three shape components, the four states, the
@@ -25,6 +25,13 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
+- **The phone tab bar is scoped to where you are, and no tab is ever disabled.**
+  `SPEC.md` §22, `DRIFT.md` §2h. Inside a trip the bar is Plan · Map · Notebook; everywhere
+  else it is Trips · Playbooks. Plan and Map had no meaning on "Your trips", on Discover or on
+  a shared day, and a greyed-out tab would have been UI with no purpose on the page. **The
+  tab list is derived from the route, not a constant array** — that is the part a build has to
+  change. The phone Notebook index gained the `‹ Trips` back link it now depends on, and the
+  active tab is a `--color-brand-tint` pill behind the glyph rather than a colour swap alone.
 - **The notebook widget framework — three reusable components, not just prose.**
   `specs/notebook-widget-framework.md` (`SPEC.md` §21), the gallery at
   `design/Notebook Widget Framework.dc.html`, and the components themselves:

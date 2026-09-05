@@ -2,9 +2,9 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-Design side refreshed 2026-09-04 (§2g the notebook widget framework; §2f the phone Notebook; §2c billing surfaces; §2d the
-shared-day map and the phone Playbooks tab; §2e Notebook widgets — pages no longer have a
-scope).
+Design side refreshed 2026-09-05 (§2h the phone tab bar is scoped; §2g the notebook widget
+framework; §2f the phone Notebook; §2c billing surfaces; §2d the shared-day map and the phone
+Playbooks tab; §2e Notebook widgets — pages no longer have a scope).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -211,7 +211,33 @@ What it needs instead — and this is the part to cost:
 
 **It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
 
-## 2g. New this turn — the widget framework is three components, and one rule needs a call
+## 2h. New this turn — the phone tab bar is scoped, and no tab is ever disabled
+
+`SPEC.md` §22. Small, but it changes a component's contract rather than its styling, so it
+is drift and not a cosmetic.
+
+The design's phone tab bar is no longer a fixed five-item list. **Its items are a function of
+the route**: inside a trip it is Plan · Map · Notebook; everywhere else it is Trips ·
+Playbooks. Any build that renders a constant `TABS` array — or renders five with two disabled
+— now disagrees with the design.
+
+What a build owes:
+
+- **The tab list is derived, not constant.** One predicate — "is a trip open" — picks between
+  two arrays. Do not implement a `disabled` prop on the tab item to get here; there is no
+  disabled tab in the design, and adding one invites the next person to use it.
+- **The phone Notebook index needs its own `‹ Trips` back link.** With Trips gone from the
+  in-trip bar, that header is the only exit. It is in the design file now. A build that ships
+  the scoped bar **without** this link strands the user on that screen.
+- **The active tab is a `--color-brand-tint` pill behind the glyph** (46×26, fully rounded),
+  not a colour swap alone. Existing token, no new colour. If the build's tab item only takes
+  an `active` boolean that maps to text colour, it needs the pill too.
+
+**Not checked against code.** The build's phone shell was not re-read this turn, so whether
+its tab bar is a constant array is unknown — treat this as "verify", not "fix". It is on the
+§6 build-check list.
+
+## 2g. Previously — the widget framework is three components, and one rule needs a call
 
 `specs/notebook-widget-framework.md`, `SPEC.md` §21. ADR-037 says a widget is a module whose
 `render` returns typed data and must be total. It does not say what the output *looks like*,
@@ -348,6 +374,11 @@ Carried forward because each one is a bug the design already hit:
    overwrite the phone's day selection from a still-mounted desktop timeline.
 4. **The tab is the route.** The phone client must not hold tab state independent of
    the router; "am I in a trip" belongs to the route alone.
+4b. **The phone tab bar's item list is derived from the route, not a constant.** Inside a
+   trip: Plan · Map · Notebook. Outside: Trips · Playbooks. If the build renders a fixed
+   five-item array, or adds a `disabled` prop to reach the same effect, it disagrees with
+   the design (§2h, `SPEC.md` §22). Check the Notebook index keeps its `‹ Trips` link —
+   without Trips in the bar, that link is the only exit from that screen.
 5. **Maps inside conditional markup need a container-identity guard** — remount leaves
    the instance bound to a detached node and the style load aborts silently.
 6. **Gesture handlers go on the element, not `document` with `capture: true`.**

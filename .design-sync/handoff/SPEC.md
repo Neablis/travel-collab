@@ -939,6 +939,41 @@ entry point, and what the Include chips actually do to the snapshot.
 
 ---
 
+## 22. The phone tab bar is scoped, not disabled — 2026-09-05
+
+The bar had five tabs: Plan, Map, Notebook, Playbooks, Trips. Three of those are views onto
+**one open trip**; two are account-level destinations. On "Your trips", on Discover and on a
+shared day there is no open trip, so Plan and Map had nothing to point at.
+
+**The bar's contents change with scope. There is no disabled tab.**
+
+| Where you are | Route | Tabs |
+|---|---|---|
+| Inside a trip | `trip` | Plan · Map · Notebook |
+| Everywhere else | `home`, `board`, `profile`, `playbooks`, `day` | Trips · Playbooks |
+
+**Why not a disabled state.** A disabled control is UI with no purpose on the page
+(`RULES.md` rule 2) and it lies about *why* it is off: a greyed Plan reads as "do something
+and this unlocks", when the truth is "this needs a trip open, and you are not in one". Two
+tabs that are always inert on three of five routes is worse than a bar that says what this
+scope contains.
+
+**Getting out of a trip** is the header's `‹ Trips` link, which already existed on Plan and
+on Map. It was **added to the phone Notebook index** this turn — that surface previously
+relied on the Trips tab for its way back, and would otherwise have been a dead end.
+
+**Known cost, accepted:** from inside a trip, Playbooks is two taps (`‹ Trips` → Playbooks).
+If telemetry shows people browse the library mid-trip, the fix is an entry point inside the
+trip, not a fifth permanent tab.
+
+**The active tab is a filled pill, not just a colour.** Brand-green-on-slate was the only
+active signal and at 16px it does not survive a glance. The active tab's glyph now sits in a
+46×26 `--color-brand-tint` pill; the ink stays `--color-brand`, the label stays 600 weight.
+**No new colours** — shape carries the signal, colour confirms it. This is the same
+active-affordance logic as the day rail's selected chip.
+
+---
+
 ## 21. The notebook widget framework — 2026-09-04
 
 **Full rules in `specs/notebook-widget-framework.md`; the gallery is
