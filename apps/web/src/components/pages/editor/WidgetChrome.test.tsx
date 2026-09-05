@@ -67,9 +67,15 @@ describe("WidgetChrome renders a control per declared filter", () => {
     // The trip's OWN days, numbered the way every other surface numbers them —
     // not a month calendar, which would need navigation and a concept of
     // "outside the trip" for a filter that is only ever over these.
+    //
+    // **The date is a date, not an ISO string.** It read `2026-08-01` until
+    // Mitchell said the popover's *"ui is a little lacking"* — and a column of
+    // ISO strings is not something anyone reads, it is something they decode.
+    // Asserted literally rather than through `formatTripDate`, because calling
+    // the formatter to build the expectation would pass however it formatted.
     expect(within(grid).getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "Day 12026-08-01",
-      "Day 22026-08-02",
+      "Day 1Sat, Aug 1",
+      "Day 2Sun, Aug 2",
     ]);
   });
 

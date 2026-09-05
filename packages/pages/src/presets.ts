@@ -96,9 +96,20 @@ export const PRESETS: readonly WidgetPreset[] = [
   {
     id: "hours",
     widget: "hours",
+    // **"Start and end times", not "First and last".** Mitchell, on the PR 141
+    // preview: *"I didnt expect something called 'First and last' to be the
+    // start and end of day, for some reason i thought it would be a date
+    // range."* He was reading it two rows under "The dates", and "first and
+    // last" names no unit at all — so the nearest one in view supplied it.
+    //
+    // The thing he expected already exists and is that neighbour, which is why
+    // this is a rename rather than a new widget: `dates` answers in calendar
+    // dates ("Fri 25 Sep – Sun 4 Oct") and `hours` answers in clock times
+    // ("09:00 – 21:30"). Naming the unit is what tells them apart, and the
+    // preview alone did not — it was already on the row he misread.
     params: {},
-    title: "First and last",
-    keywords: ["time", "hours", "window", "start", "end", "schedule", "morning", "night"],
+    title: "Start and end times",
+    keywords: ["time", "hours", "window", "start", "end", "schedule", "morning", "night", "clock", "first", "last"],
   },
   {
     id: "city",

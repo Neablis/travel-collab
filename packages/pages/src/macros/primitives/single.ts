@@ -225,7 +225,7 @@ type HoursParams = z.infer<typeof HoursParams>;
  * declaring it would put a dimension in the picker that only ever refuses.
  */
 export const hours: MacroDef<HoursParams, string> = {
-  name: "hours", title: "First and last", shape: "single",
+  name: "hours", title: "Start and end times", shape: "single",
   params: HoursParams, inputs: filterInputs(HOURS_FILTERS),
   selection: { entity: "stop", filters: HOURS_FILTERS },
   description:

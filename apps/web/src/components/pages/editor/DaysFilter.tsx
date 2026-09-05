@@ -4,6 +4,7 @@ import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
+import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
 
 // **One control for "which days", replacing three.**
@@ -207,7 +208,14 @@ export function DaysFilter({
             <Text variant="muted">
               {anchor === null ? "Pick a day, or pick two to select a range." : "Now pick the last day."}
             </Text>
-            <div role="group" aria-label="Trip days" className="grid grid-cols-4 gap-1">
+            {/* **Three columns, not four.** Mitchell, on the preview: *"i like
+                the UX, but the ui is a little lacking"*. Four cells across a
+                `w-72` popover left each one about 64px wide, which is why the
+                date underneath had to be squeezed to a raw `2027-06-01` — and a
+                column of ISO strings is not something anyone reads, it is
+                something they decode. Three cells give the date room to be a
+                date. */}
+            <div role="group" aria-label="Trip days" className="grid grid-cols-3 gap-1">
               {detail.days.map((day, index) => {
                 const selected = inRange(day.date) || legacyDay === index;
                 return (
@@ -220,7 +228,9 @@ export function DaysFilter({
                     onClick={() => pick(index)}
                   >
                     <span className="font-medium">Day {index + 1}</span>
-                    <span className="text-2xs text-slate">{day.date ?? "no date"}</span>
+                    <span className="text-2xs text-slate">
+                      {day.date === null ? "no date" : formatTripDate(day.date)}
+                    </span>
                   </Button>
                 );
               })}
