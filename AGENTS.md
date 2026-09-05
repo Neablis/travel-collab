@@ -189,7 +189,9 @@ Agents work per-boundary and meet at `packages/contracts`:
 - **Server agent** — event store, command pipeline, auth, CRUD modules,
   projections in `apps/web/src/server`. Integration-tested against real Postgres.
 - **UI agent** — pages/components against the typed client with MSW mocks
-  generated from contracts; features work against mocks before the server exists.
+  **hand-written against the contract schemas** (`apps/web/src/mocks/handlers.ts`
+  — nothing generates it); features work against mocks before the server exists,
+  and a new route costs a hand-written handler.
 
 Rule: a contract change (schema + changelog + all consumers) is its own reviewed
 step before dependent feature work continues.
