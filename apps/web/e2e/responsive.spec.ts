@@ -440,8 +440,16 @@ test.describe("responsive (trip header on a phone)", () => {
     // What deliberately stays. Actions are not information: "Add stop" and
     // History have no equivalent in Trip settings, and the tab strip and day
     // chips are the phone's primary navigation.
-    await expect(page.getByRole("button", { name: "Add stop" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "History", exact: true })).toBeVisible();
+    // Scoped to the trip header, which is the copy this spec means — "Add stop
+    // and History have no equivalent in Trip settings" is a claim about the
+    // HEADER's actions. Unscoped it was fine only while the phone landed on Day
+    // columns; SPEC §10 now sends a bare trip URL to Timeline, which renders an
+    // "Add stop" per day, so the bare locator resolves to four elements and
+    // trips strict mode. The ambiguity is the point being avoided, not a
+    // rename.
+    const tripHeader = page.getByLabel("Trip", { exact: true });
+    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
+    await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
     // The lens strip is no longer "the phone's primary navigation" — SPEC §16's
     // bottom tab bar is, and §10 keeps Day columns and Calendar off the phone
     // entirely, so a four-tab strip here has nothing left to offer. It is
@@ -456,6 +464,35 @@ test.describe("responsive (trip header on a phone)", () => {
     await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeVisible();
     await expect(page.getByRole("link", { name: /^Plan/ })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+
+    // The header's own Trips/Playbooks links go the same way and for the same
+    // reason (RULES.md 4 — the tab bar carries both now), and this is the only
+    // lane that can say so: they are gated by `hidden md:flex` in
+    // `AccountMenu.tsx`, which is inert at the suite's 1280px default, and
+    // `PhoneTabBar.test.tsx` never renders AccountMenu at all. Scoped to the
+    // banner because the tab bar legitimately carries links of the same two
+    // names — unscoped, these would be ambiguous under strict mode, which is
+    // itself the duplication being removed. (CodeRabbit, PR #143.)
+    const header = page.getByRole("banner");
+    await expect(header.getByRole("link", { name: "Trips" })).toBeHidden();
+    await expect(header.getByRole("link", { name: "Playbooks" })).toBeHidden();
+
+    // …and the half that would otherwise go unnoticed: account scope STAYS in
+    // the top bar (RULES.md 1) because the tab bar does not carry it. Asserted
+    // as reachable rather than merely present — a visible control that cannot
+    // be opened would satisfy `toBeVisible` and strand the only route to
+    // account settings and sign-out on a phone.
+    const account = header.getByRole("button", { name: "Account menu" });
+    await expect(account).toBeVisible();
+    await account.click();
+    // `button`, not `menuitem`: the account control is a Popover, not a Menu
+    // (SPEC §5 — "Account menu and History are both Popover"), so its contents
+    // carry no menu roles. Both entries asserted, because "Your account" is the
+    // only route to account settings on a phone once the header's links are
+    // gone, and it is the one that would be missed.
+    await expect(page.getByRole("button", { name: "Your account" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // "Crowded" has a measurable form at this width: a header wider than the
     // phone. The page must not scroll sideways.

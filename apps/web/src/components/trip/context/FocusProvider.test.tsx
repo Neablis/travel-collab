@@ -304,6 +304,65 @@ function FollowProbe({
   return null;
 }
 
+/**
+ * The whole path, wired the way the app wires it: a real provider, a real
+ * `useDaySync`, and `useFollowFocusedDay` driving the jump — so `pickedIn`
+ * travels from `setFocusedDay(i, "chips")` through `pickedHere` into
+ * `jumpTo`'s `keepLockIfUnmoved` without a test passing that flag by hand.
+ */
+function WiredProbe({ target }: { target: Element }) {
+  const { focusedDay, setFocusedDay } = useFocus();
+  const sync = useDaySync("chips");
+  useFollowFocusedDay(sync, focusedDay, 5, () => target);
+  return (
+    <div>
+      <output>day:{String(focusedDay)}</output>
+      <button onClick={() => setFocusedDay(2, "chips")}>pick 2 in chips</button>
+      <button onClick={() => setFocusedDay(2)}>pick 2 from elsewhere</button>
+      <button onClick={() => sync.reportScrolled(3)}>report 3</button>
+    </div>
+  );
+}
+
+// CodeRabbit, PR #143: the two lock tests above call `jumpTo` directly with
+// `keepLockIfUnmoved`, so they prove what `jumpTo` does with the flag and
+// nothing about how the flag is arrived at. `pickedIn` -> `pickedHere` ->
+// `keepLockIfUnmoved` was the untested half, and it is the half that carries
+// the actual fix: a wrong container name anywhere along it fails open, quietly,
+// and the day columns go back to overwriting a pick nobody can see them
+// overwrite.
+describe("FocusProvider — a pick made in this container", () => {
+  it("keeps the lock through the real setFocusedDay -> follow path", () => {
+    const { element } = scrollTarget({ moves: false });
+    render(
+      <FocusProvider>
+        <WiredProbe target={element} />
+      </FocusProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "pick 2 in chips" }));
+    fireEvent.click(screen.getByRole("button", { name: "report 3" }));
+    expect(screen.getByText(/day:2/)).not.toBeNull();
+  });
+
+  // The other side of the same wire, and the reason this cannot simply always
+  // hold: the identical unmoved jump must RELEASE when the day came from
+  // somewhere else, or the phone map strip's next flick is swallowed
+  // (`e2e/m10-growth.spec.ts`, "scrolling the phone map's day strip").
+  it("releases it when the same day was picked somewhere else", () => {
+    const { element } = scrollTarget({ moves: false });
+    render(
+      <FocusProvider>
+        <WiredProbe target={element} />
+      </FocusProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "pick 2 from elsewhere" }));
+    fireEvent.click(screen.getByRole("button", { name: "report 3" }));
+    expect(screen.getByText(/day:3/)).not.toBeNull();
+  });
+});
+
 describe("useFollowFocusedDay", () => {
   function stubSync(shouldFollow: boolean, jumps: number[]): DaySync {
     return {
