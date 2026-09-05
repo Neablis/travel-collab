@@ -1,0 +1,7 @@
+# F-B06 — Dead widget vocabulary reads as seams: `days`/`trip` input types, `UnboundNeeds.days`, `ItemScope`, `resolveMacro`, `MacroKind`
+
+- **Stream:** B Notebook · **Severity:** LOW · **Confidence:** CONFIRMED (verified)
+- **Area:** `packages/pages/src/registry-types.ts:156,167` (input types `days`/`trip` no dimension maps to — `filters.ts:77-84`), `:323` (`ItemScope`; `resolve(ctx, params, item?)` is called at `registry.ts:63,86` never with `item`); `result.ts:22` (`UnboundNeeds = "day"|"days"|"person"|"trip"`; `unbound("days")` is never produced, so `MacroView.tsx:133-134`'s "no days set" branch is unreachable); `registry.ts:54-64` (`resolveMacro`, callers only in `registry.test.ts:24-41`); `packages/contracts/src/pages.ts:241-242` (`MacroKind`, whose only non-definition reference is a comment at `registry-types.ts:305`).
+- **What is wrong:** each is a decision the next contributor has to make ("do I honour `item`?"), and the type-level `Assert` at `registry-types.ts:216-218` keeps `UnboundNeeds` in step with types nothing uses.
+- **Suggested fix:** delete `resolveMacro` and `MacroKind` now (CHANGELOG line for the contracts export); keep `days`/`trip`/`ItemScope` only if the repeat-template row (catalogue row 12, unowned) is the next ADR — otherwise remove them and let the `Assert` shrink.
+- **Scope of the fix:** 4 files + `registry.test.ts`; contracts removal → CHANGELOG. Check subset: `pnpm --filter @tc/pages test`, `@tc/contracts test`, web typecheck.
