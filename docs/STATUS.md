@@ -22,7 +22,33 @@ general setup.
 
 ## Where the work is right now
 
-**M14's BUILDER HALF IS MERGED, 2026-09-04.** `main` is **`947646f`**. The stack was six
+**THE PHONE HAS NAVIGATION, 2026-09-05.** `main` is **`3ff958e`**. PR **#143** merged
+(squashed, **`3558685`**) and its branch is deleted; `3ff958e` on top of it is a design-only
+commit adding **SPEC §23**. What landed: SPEC §22's scoped tab bar (Plan / Map / Notebook in
+a trip, Trips / Playbooks outside, **no disabled tabs**, active tab a brand-tint pill), a
+44px `touch` size on `Button`, `Sheet`'s optional Cancel / title / Save header, §10's
+two-view phone, and the two ways out §22 made load-bearing (`← Your trips` on the Notebook
+index; a 44px hit box on the avatar). Two pre-existing defects were fixed on the way — the
+phone Map overflowed by exactly the 56px of an unpublished `--launcher-height`, and the
+day-column jump lock let the scroll spy overwrite an explicit day pick at any width where
+more than ~two columns fit.
+
+**The phone is still unowned, and the biggest piece of it is barely started.**
+`TODO.md:537` and `KI-046` both say placing the phone is a milestone-sized decision; #143
+did not make it. **Measured after the merge: 189 of 209 interactive controls on the phone
+trip board are under 44px (90%)** — the `touch` primitive exists and is essentially unused,
+so §13.1 is a size in the design system rather than a property of the product. **SPEC §23
+(the assistant as an `Ask` pill and a bottom sheet, explicitly not a fourth tab) is wholly
+unbuilt** — there is no phone assistant in the code at all, so that is design ahead of
+build, not drift.
+
+**The full inventory is `docs/plans/2026-09-05-phone-surface-remaining-work.md`** — what is
+built, what is left in order, the defects left open (including `--rack-height`, which has
+the same root cause as the launcher bug and a trap that makes the obvious fix wrong), one
+decision that was made and then not honoured, and the gotchas. Read it before picking any
+of this up; do not re-derive it from the diff.
+
+**M14's BUILDER HALF IS MERGED, 2026-09-04.** `main` was **`947646f`**. The stack was six
 PRs — **#134 → #135 → #136 → #137 → #138 → #139** — and it landed as **four merges and two
 closes**: #134 (squashed, `513d8dc`), #136, #137, and #139 (`947646f`), whose diff was the
 whole stack because it had been retargeted to `main`. **#135 and #138 were CLOSED, not
