@@ -1,0 +1,10 @@
+# F-C02 — No operator path to rebuild projections against production; the only rebuild is all-or-nothing
+
+- **Stream:** C Versioning · **Severity:** MEDIUM · **Confidence:** CONFIRMED (verified)
+- **Area:** `apps/web/src/server/projections.ts:66-80` (`rebuildProjections`: `readAll` → delete both tables → re-insert, one transaction); callers are tests only (`commands.int.test.ts:116,268`, `anchors.int.test.ts:57`, `money.int.test.ts:67`, `projections.int.test.ts:47`, `cloneTrip.int.test.ts:141`); `apps/web/scripts/` has no rebuild script; no workflow.
+- **What is wrong:** AGENTS.md invariant 2 says projections are disposable, and CI proves it, but no CLI, route or workflow lets an operator rebuild after a reducer change or a projection-shape change. The function loads every event into memory and fails for every trip on the first unparseable row of any trip, without naming the stream.
+- **Suggested fix:** `apps/web/scripts/rebuild-projections.mjs` (exposed as `pnpm --filter web db:rebuild`) that rebuilds **per stream** (`readStream` → `projectTripDetails`/`projectTripSummaries` → upsert), logs `streamId`/`seq` of any row that fails to parse and continues; a `workflow_dispatch` beside `migrate-production.yml` using the unpooled URL. Keep the all-in-one function for the golden test.
+- **Scope of the fix:** `apps/web/scripts/`, `projections.ts` (add a per-stream variant), one workflow, `docs/guidelines/environments-and-deploys.md`. No contracts, no migration. Check subset: `projections.int.test.ts`, `commands.int.test.ts`.
+- **Test that should exist:** `rebuildTrip(streamId)` equals `rebuildProjections()`'s row for the same trip; a stream with one deliberately unparseable row reports its id and the others still rebuild.
+- **Cross-reference:** KI-089 (resolved), KI-2026-08-30-e (rejected adding a `tripIds` param to `rebuildProjections()` for tests — do not reintroduce), ADR-004, F-C01.
+- **Do not:** add a `tripIds` parameter to `rebuildProjections()`; run the rebuild at cold start.

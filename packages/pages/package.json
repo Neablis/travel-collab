@@ -17,6 +17,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@tc/factories": "workspace:*",
     "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^4.9.0",

@@ -135,21 +135,12 @@ describe("a shared day", () => {
     expect(within(rail).queryByText("Length")).toBeNull();
   });
 
-  it("tags a day over twelve hours as Long", async () => {
-    fetchSavedDayMock.mockResolvedValue(
-      ok({
-        savedDay: savedDay({
-          stops: [
-            stop({ timeWindow: { start: "08:20", end: "09:30" } }),
-            stop({ timeWindow: { start: "19:00", end: "20:30" } }),
-          ],
-        }),
-        isAuthor: false,
-      }),
-    );
-    renderDay();
-    expect(within(await screen.findByTestId("day-facts")).getByText("Long")).toBeTruthy();
-  });
+  // No "tags a day over twelve hours as Long" here. Which window is Long is
+  // `dayLength`'s rule, asserted from both sides of both edges in
+  // `lib/savedDayFacts.test.ts` — including this screen's own 08:20-20:30
+  // example. That the RAIL prints whatever `dayLength` answers is proved once,
+  // by the Medium case above; a second band was the same wiring with a second
+  // fixture.
 
   // M12's, and their absence is the milestone's decision rather than an
   // oversight — pinned so restoring them is a deliberate act.
@@ -207,6 +198,44 @@ describe("a shared day", () => {
     await waitFor(() =>
       expect(fetchSavedDayMock.mock.calls.length).toBeGreaterThan(readsBeforeClick),
     );
+  });
+
+  // KI-20260831. `visibility` is half this screen's signature and the publish
+  // path re-reads, so the author was told "its author published, withdrew or
+  // someone took it" about the button they had just pressed.
+  //
+  // The second half matters as much as the first: the fix moves the baseline
+  // forward rather than switching the comparison off, so an add by somebody
+  // else arriving afterwards still raises the banner. A test that only asserted
+  // the silence would pass just as well against a screen that had lost the
+  // conflict state entirely.
+  it("does not report your own publish as somebody else changing the day", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay({ visibility: "private" }), isAuthor: true }),
+    );
+    renderDay();
+    const publish = await screen.findByRole("button", { name: "Publish" });
+    // The re-read after a successful publish returns the day as it now is.
+    publishMock.mockImplementation(async () => {
+      fetchSavedDayMock.mockResolvedValue(
+        ok({ savedDay: savedDay({ visibility: "public" }), isAuthor: true }),
+      );
+      return ok(savedDay({ visibility: "public" }));
+    });
+    await userEvent.click(publish);
+    await screen.findByRole("button", { name: "Unpublish" });
+    expect(screen.queryByTestId("library-moved")).toBeNull();
+
+    // Now somebody genuinely takes it into a trip. The AddToTripDialog's 404
+    // path is the other caller of the comparing `reload()` on this screen.
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay({ visibility: "public", adds: 3 }), isAuthor: true }),
+    );
+    insertSavedDayMock.mockResolvedValue({ ok: false, error: { status: 404, message: "gone" } });
+    await userEvent.click(screen.getByRole("button", { name: "Add to a trip" }));
+    await screen.findByLabelText("Which trip");
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    expect(await screen.findByTestId("library-moved")).toBeTruthy();
   });
 
   it("says Publish on the author's own private day", async () => {

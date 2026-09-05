@@ -381,7 +381,9 @@ describe("SettingsSheet role gating", () => {
     // The money controls are disabled by their enclosing <fieldset>, which
     // disables descendants without stamping the attribute on each one — so
     // the fieldset is what carries it.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(true);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(true);
 
     // And the behavioural claim, which is the one that actually matters:
@@ -396,7 +398,9 @@ describe("SettingsSheet role gating", () => {
     renderSheet(vi.fn(), { myRole: "editor", onCommand });
 
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Total for the trip").closest("fieldset")?.disabled).toBe(false);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByLabelText("Currency").closest("fieldset")?.disabled).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));
@@ -464,24 +468,21 @@ describe("SettingsSheet role gating", () => {
 // either of these from the sheet would make those things unreachable on a
 // phone rather than merely relocated.
 describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
-  it("states the day, stop and city counts the header pill states", () => {
-    renderSheet(vi.fn(), { counts: { days: 5, stops: 14, cities: 3 } });
+  // Read-only by design, and shown to every role: every figure is derived from
+  // the plan, so it is a statement rather than a field. The role table is what
+  // says so — a viewer sees the same three counts as an owner, so "make them
+  // editable" (or withhold them) has to be a deliberate change rather than an
+  // accident of the gating above.
+  it.each(["owner", "viewer"] as const)(
+    "states the day, stop and city counts the header pill states, to a %s",
+    (myRole) => {
+      renderSheet(vi.fn(), { myRole, counts: { days: 5, stops: 14, cities: 3 } });
 
-    expect(screen.getByText("5 days")).toBeTruthy();
-    expect(screen.getByText("14 stops")).toBeTruthy();
-    expect(screen.getByText("3 cities")).toBeTruthy();
-  });
-
-  // Read-only by design: every figure is derived from the plan, so it is a
-  // statement rather than a field. Asserted so "make them editable" is a
-  // deliberate decision rather than an accident.
-  it("shows them to a viewer too, since they are a statement and not a control", () => {
-    renderSheet(vi.fn(), { myRole: "viewer", counts: { days: 5, stops: 14, cities: 3 } });
-
-    expect(screen.getByText("5 days")).toBeTruthy();
-    expect(screen.getByText("14 stops")).toBeTruthy();
-    expect(screen.getByText("3 cities")).toBeTruthy();
-  });
+      expect(screen.getByText("5 days")).toBeTruthy();
+      expect(screen.getByText("14 stops")).toBeTruthy();
+      expect(screen.getByText("3 cities")).toBeTruthy();
+    },
+  );
 });
 
 describe("SettingsSheet share", () => {

@@ -21,9 +21,26 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<void>):
   ]);
 }
 
-// M7 exit-gate demo, scripted: Notebook route + the two lazily-instantiated
-// default pages, and a day-bound page rebindable via DayBindingControl. See
-// docs/milestones/M7-solo-delight.md's exit gate.
+// The Notebook index's own heading, named exactly and by level. Both are
+// needed: `getByRole` name matching is substring-and-case-insensitive, and
+// this route now has an h2 "Notebooks" AND an h3 "Your notebooks", so a bare
+// { name: "Notebook" } matches two headings and trips strict mode.
+async function expectNotebookIndex(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+}
+
+// The way into the Notebook index since SPEC §11: the Notebooks pill at the far
+// right of the view row, then its pinned footer link. The plain text
+// `<Link>Notebook</Link>` this replaced sat in the trip header's nav row.
+async function openNotebookIndex(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Notebooks" }).click();
+  await page.getByRole("link", { name: /Browse all notebooks/ }).click();
+  await expectNotebookIndex(page);
+}
+
+// M7 exit-gate demo, scripted: the Notebook route reached from the Notebooks
+// pill, and the two lazily-instantiated default pages rendering their starter
+// text. See docs/milestones/M7-solo-delight.md's exit gate.
 //
 // Rewritten post-Wave-B (M8, commit 5f8683a): macro *authoring* left the
 // primary editing surface — no more `{{` autocomplete, and no other manual
@@ -44,10 +61,11 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<void>):
 // (env-gated test routing, an in-server MSW setup, etc.) — out of scope for
 // this task. Mitchell's hard constraint: no e2e test may ever make a real
 // call to the Vercel AI Gateway or any model provider (token cost). So this
-// spec only asserts `ComposePanel` renders (prompt box + submit button);
-// the actual compose behavior against a mocked model is covered by
-// apps/web/src/app/api/trips/[tripId]/ai/route.int.test.ts.
-test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
+// spec only asserts the assistant rail OPENS on a page (composer + Ask
+// button); what a turn actually does is covered by
+// apps/web/src/app/api/trips/[tripId]/ask/route.int.test.ts and, on the client
+// side, by PageAssistant.test.tsx.
+test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share the
   // "alice" dev user's trip list, and a same-millisecond Date.now() would
   // otherwise make specs' trip names collide (see m3/m4's comment).
@@ -60,16 +78,10 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  // Two days: gives Day Sheet's default day-0 binding somewhere to point,
-  // and a second day to rebind onto below.
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
-  await expect(page.getByTestId("day-column")).toHaveCount(1);
-  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
-  await expect(page.getByTestId("day-column")).toHaveCount(2);
-
-  // -- open the trip's Notebook: the two default pages exist --
-  await page.getByRole("link", { name: "Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  // -- open the trip's Notebooks: the two default notebooks exist --
+  // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
+  // text link that used to sit in the trip header's nav row.
+  await openNotebookIndex(page);
   const overviewLink = page.getByRole("link", { name: /Trip Overview/ });
   const daySheetLink = page.getByRole("link", { name: /Day Sheet/ });
   await expect(overviewLink).toBeVisible();
@@ -82,20 +94,41 @@ test("solo delight: notebook, dynamic pages, day binding", async ({ page }) => {
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  // -- ComposePanel renders (no real AI call — see the file-header note) --
-  await expect(page.getByLabel("Ask AI to draft this page")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Generate" })).toBeVisible();
+  // -- the assistant opens on a page, in EITHER mode (no real AI call) --
+  // It used to be an editing-only control, hidden in Reading because what it
+  // inserts is autosaved. Mitchell reversed that on the preview — *"it should
+  // be on the bottom right on desktop, floating till open, and always
+  // available in both editing and reading more"* — so a page that has never
+  // been put into Editing can open it, and leaving Editing does not close it.
+  // Reading still cannot be written into; that is the insert guard's job now,
+  // walked in `PageAssistant.test.tsx`.
+  //
+  // The panel replaced the prompt box in M14 link 8 (Mitchell: *"This should be
+  // the same style AI Assistant as on the trip page, not the top of the UI
+  // input box"*), which became possible when the page tools stopped replacing
+  // the document and started inserting into it (ADR-035 decision 5).
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
+  await page.getByRole("button", { name: /hide/i }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.getByRole("button", { name: /Assistant/ }).click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: "Done editing" }).click();
+  // Still open across the mode change — the reversal, stated as an assertion.
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  await page.getByRole("button", { name: /hide/i }).click();
 
-  // -- Day Sheet: its own starter text, and DayBindingControl (page-level
-  // metadata, independent of macro content) still binds/rebinds a day --
-  await page.getByRole("link", { name: "← Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  // -- Day Sheet: its own starter text --
+  // The day-binding control this used to drive went with SPEC §18: a page has
+  // no scope, and a day is a widget's own input (M14 link 2). The binding UI
+  // returns as the chrome row on a widget, which is M14 link 4's to cover.
+  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await expectNotebookIndex(page);
   await daySheetLink.click();
   await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
-  await expect(page.getByLabel("Bind to day")).toHaveValue("0");
-  await page.getByLabel("Bind to day").selectOption({ label: "Day 2" });
-  await expect(page.getByLabel("Bind to day")).toHaveValue("1");
 });
 
 // Exit-gate line "Open a fresh empty trip's Notebook → default pages render
@@ -113,16 +146,15 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("link", { name: "Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
-  await page.getByRole("link", { name: "← Notebook" }).click();
-  await expect(page.getByRole("heading", { name: "Notebook" })).toBeVisible();
+  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await expectNotebookIndex(page);
   await page.getByRole("link", { name: /Day Sheet/ }).click();
   await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
@@ -178,9 +210,20 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
   // -- open Trip Overview, add hand-typed prose --
-  await page.getByRole("link", { name: "Notebook" }).click();
+  await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+
+  // A notebook opens in READING now (Mitchell, 2026-09-04, walking the M14
+  // preview), so typing into it is a deliberate act here as it is for a person.
+  //
+  // This spec is why the default was Editing for a while: making Reading the
+  // default the first time turned this walk red, and I read that as the product
+  // telling me the default was wrong. It was telling me this line was missing.
+  // A spec that walks authoring should enter Editing itself rather than lean on
+  // whichever side the toggle happens to start on — otherwise the default is
+  // defended by a test instead of by a reason.
+  await page.getByRole("button", { name: "Edit page" }).click();
 
   const proseText = `Hand-typed notes ${Date.now()}`;
   await page.locator(".tc-page-editor h2", { hasText: "Overview" }).click();

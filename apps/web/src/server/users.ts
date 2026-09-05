@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { DistanceUnit, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
 import {
   cookiePendingAdmission,
   redeemAdmission,
@@ -77,6 +78,108 @@ export async function upsertUser(
       target: users.id,
       set: { email: identity.email, name: identity.name, image: identity.image, updatedAt: now },
     });
+}
+
+/**
+ * What a user row means as preferences, when there is no user row.
+ *
+ * Spelled once, here, so the API's answer for a session whose row has gone and
+ * the database's own `DEFAULT 'km'` cannot drift apart. `null` is the DTO's
+ * "unset" for the two settable fields; `distanceUnit` has no unset state, which
+ * is why the column is `not null default 'km'` rather than nullable.
+ */
+const PREFERENCE_DEFAULTS: UserPreferences = {
+  displayName: null,
+  homeAirport: null,
+  distanceUnit: DistanceUnit.enum.km,
+};
+
+type UserRow = typeof users.$inferSelect;
+
+/**
+ * The read boundary: a stored row becomes a `UserPreferences`, the same shape
+ * `savedDays.fromRow` uses and for the same reason.
+ *
+ * `distance_unit` is `text().$type<DistanceUnit>()`, and `$type` is a
+ * COMPILE-TIME cast on Drizzle's side — it describes what the write path
+ * intends, never what the bytes are. Handing `row.distanceUnit` straight into
+ * the DTO would let any string in the column out as a typed contract value, and
+ * the readers of it (`kmLabel`) branch on exactly two. A row holding anything
+ * else falls back to the default rather than failing the read: unlike a saved
+ * day, a preference nobody can parse has an obviously correct substitute, and
+ * refusing to render the whole account over it would be the wrong trade. It is
+ * LOGGED, never silent.
+ *
+ * `display_name` and `home_airport` are re-validated for the same reason — the
+ * columns are plain `text`, so a row written before the contract's bounds
+ * existed (or by hand) can hold a 500-character name or "San Francisco".
+ * A value the contract refuses reads back as unset, which is what the account
+ * settings Sheet can actually offer to fix.
+ */
+function toPreferences(row: UserRow): UserPreferences {
+  const parsed = UserPreferences.safeParse({
+    displayName: row.displayName,
+    homeAirport: row.homeAirport,
+    distanceUnit: row.distanceUnit,
+  });
+  if (parsed.success) return parsed.data;
+  console.error("users preference columns failed UserPreferences parse", {
+    userId: row.id,
+    issues: parsed.error.issues,
+  });
+  return {
+    displayName: UserPreferences.shape.displayName.safeParse(row.displayName).data ?? null,
+    homeAirport: UserPreferences.shape.homeAirport.safeParse(row.homeAirport).data ?? null,
+    distanceUnit: DistanceUnit.safeParse(row.distanceUnit).data ?? PREFERENCE_DEFAULTS.distanceUnit,
+  };
+}
+
+/**
+ * This person's preferences, or the storage defaults.
+ *
+ * **A missing row is not an error here.** Sessions are JWT-only (ADR-025), so a
+ * token outlives the row it was minted from — a database restored from before
+ * the account existed, or a row removed by hand, leaves a perfectly valid
+ * session pointing at nothing. Throwing would turn that into a 500 on every
+ * authenticated page rather than an account that shows its defaults, and the
+ * defaults are what a brand-new row would have said anyway.
+ */
+export async function readPreferences(userId: string): Promise<UserPreferences> {
+  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return rows[0] === undefined ? PREFERENCE_DEFAULTS : toPreferences(rows[0]);
+}
+
+/**
+ * Apply a partial update and answer with the whole of what is now stored.
+ *
+ * The patch's two states are kept apart all the way down, which is the reason
+ * `UpdateUserPreferences` is not a `Partial<>` of an optional-field schema: an
+ * ABSENT key is left alone, an explicit `null` clears the column. `in` is the
+ * test, not truthiness — `?? undefined` would silently turn "clear my name"
+ * into "leave my name", the one bug this shape exists to make impossible.
+ *
+ * `null` for no such row, the idiom every owner-scoped write in `savedDays`
+ * already uses. It must NOT quietly insert one: the sign-in callback is the
+ * Identity module's only creator of rows (`upsertUser`), and a settings PATCH
+ * minting an account would be a second door into that with none of the
+ * admission gate behind it (M11a).
+ */
+export async function writePreferences(
+  userId: string,
+  patch: UpdateUserPreferences,
+  now: string = new Date().toISOString(),
+): Promise<UserPreferences | null> {
+  const updated = await db
+    .update(users)
+    .set({
+      ...("displayName" in patch ? { displayName: patch.displayName } : {}),
+      ...("homeAirport" in patch ? { homeAirport: patch.homeAirport } : {}),
+      ...("distanceUnit" in patch ? { distanceUnit: patch.distanceUnit } : {}),
+      updatedAt: now,
+    })
+    .where(eq(users.id, userId))
+    .returning();
+  return updated[0] === undefined ? null : toPreferences(updated[0]);
 }
 
 /**

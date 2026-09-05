@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <script src="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: var(--color-paper); }
+    a { color: var(--color-brand); }
+    a:hover { color: var(--color-brand-pressed); }
+  </style>
+</helmet>
+
+<div style="max-width: 1180px; margin: 0 auto; padding: 34px 26px 90px; font-family: var(--font-next-sans, inherit); display: flex; flex-direction: column; gap: 30px;">
+
+  <div style="display: flex; flex-direction: column; gap: 9px; max-width: 760px;">
+    <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-brand-pressed);">Notebook framework</span>
+    <span style="font-family: var(--font-next-display); font-size: 34px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.14; color: var(--color-ink);">Three shapes, four states, one ghost rule</span>
+    <span style="font-size: 15px; line-height: 1.6; color: var(--color-slate); text-wrap: pretty;">Every widget in a notebook is one of three shapes. Each shape is a component, so the rules below are enforced by the code that draws it rather than restated per widget. A widget author picks a shape and supplies parts, columns or a sentence — never spacing, borders or empty copy.</span>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+    <sc-for list="{{ shapeCards }}" as="s" hint-placeholder-count="3">
+      <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 5px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 14px 16px;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-brand-pressed); background: var(--color-brand-tint); border-radius: 4px; padding: 2px 7px;">{{ s.tag }}</span>
+          <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ s.file }}</span>
+        </span>
+        <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ s.body }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="height: 1px; background: var(--color-hairline);"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px;">
+      <span style="font-family: var(--font-next-display); font-size: 21px; font-weight: 600; color: var(--color-ink);">The ghost: an empty that becomes the real thing</span>
+      <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); text-wrap: pretty;">Drop a widget in and it lands as a ghost of itself — the shape of the value, never a value. Bind one input and that part becomes real while the rest stays ghosted, so a half-configured widget looks half configured. Step through the three states to watch a two-input widget fill in.</span>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+      <sc-for list="{{ fillSteps }}" as="f" hint-placeholder-count="3">
+        <button onClick="{{ f.act }}" style="min-height: 38px; padding: 0 15px; border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: {{ f.ink }}; background: {{ f.bg }}; border: 1px solid {{ f.edge }};">{{ f.label }}</button>
+      </sc-for>
+      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ fillNote }}</span>
+    </div>
+
+    <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 24px 26px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; background: var(--color-brand-tint); border-radius: 999px; padding: 3px 10px;">
+          <span style="font-size: 10px; color: var(--color-brand-pressed);">&#9670;</span>
+          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-brand-pressed);">A line for every stop</span>
+        </span>
+        <sc-for list="{{ demoBinds }}" as="b" hint-placeholder-count="2">
+          <span style="display: inline-flex; align-items: center; gap: 6px;">
+            <span style="font-size: 12px; color: var(--color-slate);">{{ b.label }}</span>
+            <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ b.ink }}; background: {{ b.bg }}; border: 1px solid {{ b.edge }}; border-radius: 999px; padding: 3px 10px;">{{ b.value }}</span>
+          </span>
+        </sc-for>
+      </div>
+      <dc-import name="NotebookInline" parts="{{ demoParts }}" widget-name="A line for every stop" hint-size="100%,28px"></dc-import>
+      <dc-import name="NotebookBlock" state="{{ demoState }}" caption="A day&#39;s stops" columns="{{ stopCols }}" rows="{{ demoRows }}" needs-label="a day" empty-text="Nothing on this day carries that tag." hint-size="100%,180px"></dc-import>
+    </div>
+  </div>
+
+  <div style="height: 1px; background: var(--color-hairline);"></div>
+
+  <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="3">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px;">
+        <span style="display: flex; align-items: baseline; gap: 10px;">
+          <span style="font-family: var(--font-next-display); font-size: 21px; font-weight: 600; color: var(--color-ink);">{{ sec.title }}</span>
+          <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ sec.file }}</span>
+        </span>
+        <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); text-wrap: pretty;">{{ sec.lede }}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <sc-for list="{{ sec.rules }}" as="r" hint-placeholder-count="4">
+          <div style="display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: baseline;">
+            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-brand-pressed);">{{ r.n }}</span>
+            <span style="font-size: 13.5px; line-height: 1.55; color: var(--color-ink); text-wrap: pretty;">{{ r.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 14px;">
+        <sc-for list="{{ sec.states }}" as="st" hint-placeholder-count="4">
+          <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 8px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 16px;">
+            <span style="display: flex; align-items: baseline; gap: 8px;">
+              <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: {{ st.ink }}; background: {{ st.bg }}; border-radius: 4px; padding: 2px 7px;">{{ st.name }}</span>
+              <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ st.when }}</span>
+            </span>
+            <div style="padding-top: 4px;">
+              <sc-if value="{{ st.isInline }}" hint-placeholder-val="{{ false }}">
+                <dc-import name="NotebookInline" parts="{{ st.parts }}" widget-name="{{ st.wname }}" hint-size="100%,26px"></dc-import>
+              </sc-if>
+              <sc-if value="{{ st.isBlock }}" hint-placeholder-val="{{ false }}">
+                <dc-import name="NotebookBlock" state="{{ st.state }}" caption="{{ st.caption }}" columns="{{ st.columns }}" rows="{{ st.rows }}" needs-label="{{ st.needs }}" empty-text="{{ st.empty }}" lost-label="{{ st.lost }}" total-label="{{ st.total }}" total-value="{{ st.totalValue }}" hint-size="100%,170px"></dc-import>
+              </sc-if>
+              <sc-if value="{{ st.isRepeat }}" hint-placeholder-val="{{ false }}">
+                <dc-import name="NotebookRepeat" state="{{ st.state }}" mode="edit" over-label="{{ st.over }}" needs-label="{{ st.needs }}" lost-label="{{ st.lost }}" template="{{ st.template }}" items="{{ st.items }}" has-lead="{{ st.hasLead }}" accent="{{ st.accent }}" hint-size="100%,150px"></dc-import>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display: flex; flex-direction: column; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 20px 22px;">
+    <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">What a widget author supplies</span>
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <sc-for list="{{ contract }}" as="c" hint-placeholder-count="4">
+        <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: baseline; border-bottom: 1px solid var(--color-hairline); padding: 7px 0;">
+          <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-brand-pressed);">{{ c.k }}</span>
+          <span style="font-size: 13.5px; line-height: 1.5; color: var(--color-ink); text-wrap: pretty;">{{ c.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+    <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Nothing else. No spacing, no borders, no empty copy, no ghost glyphs — a widget that wants its own layout is a widget that will drift from the other twenty.</span>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+// The reference page for the notebook widget framework: the three shape components
+// mounted across every state they can be in, with the rules that hold for all
+// widgets of that shape. It is the gallery half of the handoff — the prose half is
+// design-sync/handoff/specs/notebook-widget-framework.md.
+class Component extends DCLogic {
+  state = { fill: 0 };
+  T = t => ({ kind: 'text', text: t });
+  renderVals() {
+    const fill = this.state.fill;
+    const dayBound = fill >= 1, tagBound = fill >= 2;
+
+    // The progressive-fill demo: ONE widget taking a day and tags, shown at each
+    // step of being bound. Parts resolve independently, which is the whole point.
+    const demoParts = [
+      this.T('We were at '),
+      { kind: 'text_value', of: 'stop.title', needs: 'a day', value: dayBound ? 'Kichi Kichi' : undefined },
+      this.T(' in '),
+      { kind: 'city', of: 'stop.area', needs: 'a day', value: dayBound ? 'Pontoch\u014d' : undefined },
+      this.T(' \u2014 '),
+      { kind: 'money', of: 'stop.cost', needs: 'a day', value: dayBound ? '$88' : undefined },
+      this.T(tagBound ? ', a meal stop.' : '.')
+    ];
+    const stopCols = [{ kind: 'time', width: '84px' }, { kind: 'text' }, { kind: 'money', width: '90px' }];
+    const demoRows = !dayBound ? [] : [
+      { cells: ['8:20 am', 'Romancecar to Hakone-Yumoto', '$31'] },
+      { cells: ['10:30 am', 'Open-Air Museum', '$16'] },
+      { cells: ['7:30 pm', 'Kichi Kichi', '$88'] }
+    ].filter((r, i) => (tagBound ? i === 2 : true));
+
+    return {
+      shapeCards: [
+        { tag: 'inline', file: 'NotebookInline', body: 'A value in a sentence. Takes a segment list \u2014 your words and its values, mixed.' },
+        { tag: 'block', file: 'NotebookBlock', body: 'A framed table. Takes columns and rows; owns its caption strip, total and note line.' },
+        { tag: 'repeat', file: 'NotebookRepeat', body: 'One authored sentence per item. Its lines ARE inline widgets, so chips match everywhere.' }
+      ],
+      fillSteps: [0, 1, 2].map(n => {
+        const on = fill === n, labels = ['Nothing bound', 'Day bound', 'Day + tags bound'];
+        return { label: labels[n], bg: on ? 'var(--color-brand)' : 'var(--color-surface)', ink: on ? 'var(--color-surface)' : 'var(--color-ink)',
+          edge: on ? 'var(--color-brand)' : 'var(--color-border-strong)', act: () => this.setState({ fill: n }) };
+      }),
+      fillNote: fill === 0 ? 'ghost \u2014 shape only, no values' : fill === 1 ? 'partial \u2014 the day\u2019s parts are real' : 'resolved \u2014 both inputs bound',
+      demoBinds: [
+        { label: 'Day', value: dayBound ? 'Day 6 \u00b7 Hakone' : 'Not set', ink: dayBound ? 'var(--color-ink)' : 'var(--color-warning-ink)',
+          bg: dayBound ? 'var(--color-surface)' : 'var(--color-warning-tint)', edge: dayBound ? 'var(--color-border-strong)' : 'var(--color-warning)' },
+        { label: 'Tags', value: tagBound ? 'Meals' : 'Every stop', ink: 'var(--color-ink)', bg: 'var(--color-surface)', edge: 'var(--color-border-strong)' }
+      ],
+      demoParts: demoParts,
+      demoState: dayBound ? 'ok' : 'ghost',
+      stopCols: stopCols,
+      demoRows: demoRows,
+
+      sections: [
+        {
+          title: 'Inline \u2014 a value inside a sentence', file: 'NotebookInline.dc.html',
+          lede: 'Every inline widget is a segment list: literal text you typed, values it resolved, and ghosts for the values it cannot resolve yet. One component, so a cost chip in your prose and a cost chip inside a repeat are the same object.',
+          rules: [
+            { n: '1', text: 'It never renders a bare string. A widget that can only return one word still returns a one-segment list, so it can hold a ghost.' },
+            { n: '2', text: 'A value chip is brand-tinted with a solid underline, never wraps mid-value, and carries the widget name in its title \u2014 hover tells you what wrote it.' },
+            { n: '3', text: 'A ghost is monospace, hatched, dashed-underlined, and shape-true: $XXX for money, NN for a count, Ddd Mmm N for a date. It can never be mistaken for data.' },
+            { n: '4', text: 'The words between values belong to the author. A widget never invents connective prose, and re-pointing it never rewrites your sentence.' },
+            { n: '5', text: 'Ghosts are visible in editing only. In reading mode an unresolved inline widget prints nothing rather than showing a traveller $XXX.' },
+            { n: '6', text: 'Stale is not a ghost. A widget whose day was deleted says so on the page \u2014 danger ink, naming what it lost \u2014 because a tooltip-only difference is no difference.' }
+          ],
+          states: [
+            { isInline: true, name: 'ok', when: 'every input bound', ink: 'var(--color-success-ink)', bg: 'var(--color-success-tint)', wname: 'A day\u2019s cost',
+              parts: [this.T('It\u2019s '), { kind: 'date', of: 'day.date', value: 'Fri Sep 25' }, this.T(' and you\u2019re in '), { kind: 'city', of: 'day.city', value: 'Hakone' }, this.T('. '), { kind: 'money', of: 'cost.day', value: '$310' }, this.T(' is spoken for.')] },
+            { isInline: true, name: 'ghost', when: 'nothing bound yet', ink: 'var(--color-warning-ink)', bg: 'var(--color-warning-tint)', wname: 'A day\u2019s cost',
+              parts: [this.T('It\u2019s '), { kind: 'date', of: 'day.date', needs: 'a day' }, this.T(' and you\u2019re in '), { kind: 'city', of: 'day.city', needs: 'a day' }, this.T('. '), { kind: 'money', of: 'cost.day', needs: 'a day' }, this.T(' is spoken for.')] },
+            { isInline: true, name: 'partial', when: 'one of two inputs bound', ink: 'var(--color-info-ink)', bg: 'var(--color-info-tint)', wname: 'Cost of a stretch',
+              parts: [this.T('Day '), { kind: 'count', of: 'range.from', value: '4' }, this.T(' through Day '), { kind: 'count', of: 'range.to', needs: 'the far end' }, this.T(' costs '), { kind: 'money', of: 'cost.stretch', needs: 'the far end' }, this.T('.')] },
+            { isInline: true, name: 'stale', when: 'bound to a deleted day', ink: 'var(--color-danger-ink)', bg: 'var(--color-danger-tint)', wname: 'A day\u2019s city',
+              parts: [this.T('We arrive in '), { kind: 'city', of: 'day.city', lost: 'Day 15' }, this.T(' that evening.')] }
+          ]
+        },
+        {
+          title: 'Block \u2014 a framed table', file: 'NotebookBlock.dc.html',
+          lede: 'A day\u2019s stops, a cost breakdown and days-at-a-glance are one component with different columns. That is why they share a border, a caption strip, a row rhythm and a note line \u2014 and why none of them can invent its own empty copy.',
+          rules: [
+            { n: '1', text: 'Columns are declared, not drawn: a kind per column picks its font and alignment, so money is mono and right-aligned in every block that has money.' },
+            { n: '2', text: 'A block never scrolls inside itself and never sets a fixed height. It is as tall as its rows \u2014 the page scrolls, not the widget.' },
+            { n: '3', text: 'Ghost and empty are different states and never share copy. Ghost says what to point it at; empty says why there is nothing to show.' },
+            { n: '4', text: 'A ghost block shows the real columns, three placeholder rows and NN rows in its caption \u2014 how many is exactly what nobody has chosen yet.' },
+            { n: '5', text: 'Stale names what it lost (\u201cDay 15 no longer exists\u201d) and never falls back to another day. A wrong day is worse than no day.' },
+            { n: '6', text: 'Its bind row sits above it in editing mode, one entry per widget. The block itself carries no controls.' }
+          ],
+          states: [
+            { isBlock: true, name: 'ok', when: 'bound, has rows', ink: 'var(--color-success-ink)', bg: 'var(--color-success-tint)', state: 'ok',
+              caption: 'Cost breakdown \u00b7 Day 4 \u2013 Day 8', columns: [{ kind: 'text' }, { kind: 'money', width: '110px' }],
+              rows: [{ cells: ['Day 4 \u00b7 Kyoto', '$212'] }, { cells: ['Day 6 \u00b7 Hakone', '$310'] }, { cells: ['Day 8 \u00b7 Kyoto', '$96'] }],
+              total: 'Day 4 \u2013 Day 8', totalValue: '$618', needs: '', empty: '', lost: '' },
+            { isBlock: true, name: 'ghost', when: 'no input bound', ink: 'var(--color-warning-ink)', bg: 'var(--color-warning-tint)', state: 'ghost',
+              caption: 'Cost breakdown', columns: [{ kind: 'text' }, { kind: 'money', width: '110px' }], rows: [],
+              total: 'The stretch', totalValue: '', needs: 'a stretch of days', empty: '', lost: '' },
+            { isBlock: true, name: 'empty', when: 'bound, nothing matches', ink: 'var(--color-slate)', bg: 'var(--color-moss)', state: 'empty',
+              caption: 'A day\u2019s stops \u00b7 Day 11', columns: [{ kind: 'time', width: '84px' }, { kind: 'text' }], rows: [],
+              needs: '', empty: 'Day 11 has no stops yet, so this prints nothing.', lost: '', total: '', totalValue: '' },
+            { isBlock: true, name: 'stale', when: 'its day was deleted', ink: 'var(--color-danger-ink)', bg: 'var(--color-danger-tint)', state: 'stale',
+              caption: 'A day\u2019s stops', columns: [{ kind: 'time', width: '84px' }, { kind: 'text' }], rows: [],
+              needs: '', empty: '', lost: 'Day 15', total: '', totalValue: '' }
+          ]
+        },
+        {
+          title: 'Repeat \u2014 one sentence, once per item', file: 'NotebookRepeat.dc.html',
+          lede: 'You write the line once and the widget prints it per stop, per day, per city. The sentence is document content \u2014 yours to edit \u2014 and the per-item values are handed in at render time and never stored, so moving a day cannot leave a stale line behind.',
+          rules: [
+            { n: '1', text: 'Its lines are inline widgets. Chips, ghosts, titles and wrapping are identical to a sentence you typed yourself \u2014 there is no second chip renderer.' },
+            { n: '2', text: 'The dashed rail is chrome: it names what it prints over and how many, and it appears in editing only. In reading mode the lines are plain prose.' },
+            { n: '3', text: 'A ghost repeat prints the sentence ONCE, fully ghosted. Three ghost rows would imply a count nobody has chosen.' },
+            { n: '4', text: 'Empty keeps the rail and the sentence in editing \u2014 the empty case is exactly when an author is writing \u2014 and prints nothing in reading.' },
+            { n: '5', text: 'Iteration values are never persisted. What is stored is the sentence and the binding, never \u201cstop #3\u201d.' },
+            { n: '6', text: 'The rail takes the accent of the thing it repeats over when resolved, and neutral grey in every other state \u2014 colour means \u201cthis is real\u201d.' }
+          ],
+          states: [
+            { isRepeat: true, name: 'ok', when: 'bound, three matches', ink: 'var(--color-success-ink)', bg: 'var(--color-success-tint)', state: 'ok',
+              over: 'stop', needs: '', lost: '', hasLead: true, accent: '#3f6f8f', template: [],
+              items: [
+                { lead: '8:20 am', parts: [this.T('We were at '), { kind: 'text_value', value: 'Romancecar' }, this.T(' in '), { kind: 'city', value: 'Shinjuku' }, this.T('.')] },
+                { lead: '10:30 am', parts: [this.T('We were at '), { kind: 'text_value', value: 'Open-Air Museum' }, this.T(' in '), { kind: 'city', value: 'Ninotaira' }, this.T('.')] },
+                { lead: '4:40 pm', parts: [this.T('We were at '), { kind: 'text_value', value: 'Gora Kadan' }, this.T(' in '), { kind: 'city', value: 'Gora' }, this.T('.')] }
+              ] },
+            { isRepeat: true, name: 'ghost', when: 'just dropped in', ink: 'var(--color-warning-ink)', bg: 'var(--color-warning-tint)', state: 'ghost',
+              over: 'stop', needs: 'a day', lost: '', hasLead: true, items: [],
+              template: [this.T('We were at '), { kind: 'text_value', of: 'stop.title' }, this.T(' in '), { kind: 'city', of: 'stop.area' }, this.T('.')] },
+            { isRepeat: true, name: 'empty', when: 'bound, nothing carries that tag', ink: 'var(--color-slate)', bg: 'var(--color-moss)', state: 'empty',
+              over: 'meal stop', needs: '', lost: '', hasLead: true, items: [],
+              template: [this.T('We ate at '), { kind: 'text_value', of: 'stop.title' }, this.T(' in '), { kind: 'city', of: 'stop.area' }, this.T('.')] },
+            { isRepeat: true, name: 'stale', when: 'its day was deleted', ink: 'var(--color-danger-ink)', bg: 'var(--color-danger-tint)', state: 'stale',
+              over: 'stop', needs: '', lost: 'Day 15', hasLead: true, items: [],
+              template: [this.T('We were at '), { kind: 'text_value', of: 'stop.title' }, this.T(' in '), { kind: 'city', of: 'stop.area' }, this.T('.')] }
+          ]
+        }
+      ],
+
+      contract: [
+        { k: 'shape', v: 'inline, block or repeat \u2014 which component draws it. There is no fourth shape and adding one is a framework change, not a widget.' },
+        { k: 'inputs', v: 'what it takes: a day, a stretch, tags, a person, a trip. The type picks the control, so a new widget needs no new UI.' },
+        { k: 'parts / columns / template', v: 'inline gives a segment list; block gives columns and rows; repeat gives one sentence. Each part declares its value KIND, which is what earns it a ghost.' },
+        { k: 'emptyText', v: 'one sentence saying why a bound widget has nothing to show. Required \u2014 the framework will not invent it, because only the widget knows.' },
+        { k: 'preview', v: 'a fixed, generic sample for the insert rail. Never a computed value, or the rail and the page contradict each other in one session.' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

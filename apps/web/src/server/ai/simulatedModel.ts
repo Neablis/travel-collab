@@ -1,24 +1,30 @@
 // The "AI is switched off" model (see docs/specs/2026-08-19-feature-flags-and-
 // ai-kill-switch-design.md). It is a real LanguageModelV4 that contacts
-// nothing: generateText calls doGenerate, gets canned tool calls back, and the
-// rest of handleAiRequest proceeds exactly as it would for a real model —
-// resolveBatch, the atomic batch, the event append, the projection. The trip
-// really changes. That is the point: a shared deployment stays exercisable at
-// zero token cost.
+// nothing: the agent loop calls it, gets canned tool calls back, and the rest of
+// /ask proceeds exactly as it would for a real model. That is the point — a
+// shared deployment stays exercisable at zero token cost, and `ai-live` is off
+// in EVERY Vercel environment today, so this file is what the deployed
+// assistant actually is.
 //
-// The `ask` surface (M16, ADR-022) raises the bar, because /ask has no
-// server-derived answer to fall back on the way the command endpoint's
-// `summarizeBatch` does: whatever this model says IS the answer. So the ask
-// branch does not emit a canned sentence. It runs the real agent loop — calls
-// the real read tools, waits for their real results, and writes its prose from
-// them. A trip with no free time left says so. That is what makes the
-// switched-off deployment (which is every Vercel environment today) a working
-// sidebar rather than a placeholder.
+// It has one surface, because /ask is the one AI route (ADR-033). Everything
+// here is a shape of one ask turn, and there is no canned-sentence branch left:
+// /ask has no server-derived answer to fall back on the way an applied batch's
+// `summarizeBatch` receipt did, so whatever this model says IS the answer. It
+// runs the real agent loop — calls the real tools, waits for their real
+// results, and writes its prose from them. A trip with no free time left says
+// so.
 //
-// M9 adds a third shape to that surface: asked to CHANGE something, and offered
-// write tools, it drafts a proposal — read, then propose, then say what it
-// would do. It never claims to have applied anything, because nothing has: the
-// write tools collect and the human approves (writeTools.ts).
+// Four shapes, in the order `askTurn` decides them:
+//
+//   * the pre-turn intent classification (`classifyStep`),
+//   * PAGE authoring — one `insert_text`, then a sentence. It moved here from
+//     the command endpoint with ADR-033 Decision 4, and it is the branch with
+//     the least slack: without it no deployed environment can author a Notebook
+//     page at all.
+//   * a PROPOSAL (M9) — read, then propose, then say what it WOULD do. It never
+//     claims to have applied anything, because nothing has: the write tools
+//     collect and the human approves (writeTools.ts).
+//   * an ANSWER — read, then speak.
 //
 // Hand-rolled rather than `MockLanguageModelV4` from `ai/test`, so no test
 // utility ships in the server bundle. Typed as `LanguageModel` (from `ai`, a
@@ -29,7 +35,7 @@ import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
-import { parseAskScope, type AiSurface, type AskScope } from "@/server/ai/context";
+import { parseAskScope, type AskScope } from "@/server/ai/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import type { DayReadout, FreeTimeReadout, ReadToolProblem, TripReadout } from "@/server/ai/readTools";
 
@@ -63,69 +69,32 @@ function call(toolName: string, input: Record<string, unknown>): ToolCall {
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) };
 }
 
-// Deterministic on purpose: e2e asserts this exact content, and a reviewer
-// should be able to recognize a simulated trip on sight.
+// Prose only — no `insert_widget`, so this stays decoupled from the @tc/pages
+// macro registry and validates unconditionally.
 //
-// AddDay takes no arguments at all — planningTools drops `type` and `tripId`,
-// and `dayId` is a `mint` field the server generates. AddActivity keeps
-// `title` and swaps `dayId` for the human `dayRef` ("day N", 1-based over the
-// days THIS batch creates).
+// What it inserts is real: it lands in the editor and the Notebook's debounced
+// autosave persists it like any other edit. Only its authorship is not a model,
+// and it says so in its own body rather than leaving the reader to infer it
+// from the Simulated badge alone.
 //
-// No `location` and no `cost`, and that is load-bearing rather than lazy:
-// enrichCommandLocations no-ops when there is nothing to look up, so the
-// simulated path cannot reach LocationIQ. That is how "the kill switch covers
-// the LLM only" stays honest without a second branch — enforced by the
-// empty-locationReport assertion in route.int.test.ts.
-function planCalls(): ToolCall[] {
-  return [
-    call("AddDay", {}),
-    call("AddDay", {}),
-    call("AddActivity", { title: "Sample: morning walk", dayRef: "day 1" }),
-    call("AddActivity", { title: "Sample: long lunch", dayRef: "day 1" }),
-    call("AddActivity", { title: "Sample: museum in the afternoon", dayRef: "day 2" }),
-  ];
-}
-
-// Headings and paragraphs only — no macro blocks, so this stays decoupled from
-// the @tc/pages macro registry and passes validateComposedPage unconditionally.
+// One markdown string where there used to be a title and a block list, because
+// `insert_text` takes markdown (ADR-035 decision 5). The `##` line exercises the
+// heading branch of `markdownToPageNodes`, so the simulated path covers the same
+// reader the live path uses rather than a straighter one.
 function pageCalls(): ToolCall[] {
   return [
-    call("compose_page", {
-      title: "Sample page",
-      blocks: [
-        { type: "heading", level: 2, text: "This page is simulated" },
-        {
-          type: "paragraph",
-          text: "AI is switched off on this deployment, so this page was composed by the server rather than by a model. Everything else about it is real — it saves, versions, and edits like any other page.",
-        },
-      ],
+    call("insert_text", {
+      markdown: [
+        "## This section is simulated",
+        "",
+        "AI is switched off on this deployment, so this text was written by the server rather than by a model. Everything else about it is real — it saves, versions, and edits like any other page content.",
+      ].join("\n"),
     }),
   ];
 }
 
-// What one message from a model on this surface would contain — mirroring the
-// tool sets handleAiRequest actually exposes there (KI-23). `combined` gets the
-// planning tools AND the page tools, so simulating it as a board request made
-// the switched-off deployment look less capable than the live one: a combined
-// ask only ever moved the board. Plan first, then the page, because that is the
-// order a model asked for both would sensibly work in — and because everything
-// in one message is applied as one batch anyway.
-//
-// `ask` is absent: it is not one canned message but a two-step conversation
-// with the read tools, and it lives in `askTurn` below.
-function callsFor(surface: Exclude<AiSurface, "ask">): ToolCall[] {
-  switch (surface) {
-    case "page":
-      return pageCalls();
-    case "board":
-      return planCalls();
-    case "combined":
-      return [...planCalls(), ...pageCalls()];
-  }
-}
-
 // ---------------------------------------------------------------------------
-// The ask surface
+// The ask turn
 // ---------------------------------------------------------------------------
 
 // The slice of LanguageModelV4CallOptions this model reads. Everything else
@@ -264,7 +233,8 @@ function pluralStops(n: number): string {
 }
 
 // How many days to name before an answer stops being a sentence. Same "first
-// three, then a count" shape `locationNotice` uses on the command path — a
+// three, then a count" shape the retired command endpoint's `locationNotice`
+// used — a
 // 14-day trip should not produce a fourteen-clause list.
 const MAX_NAMED_DAYS = 3;
 
@@ -453,8 +423,10 @@ function isQueued(result: ToolResultLike): boolean {
  *     dogfood run wrote `amountMinor: 0` on all nine activities it planned,
  *     which the board renders as *free* when the truth was *unknown*.
  *   * **No `location`.** `enrichCommandLocations` no-ops when there is nothing
- *     to look up, so the simulated path still cannot reach LocationIQ — the
- *     same guarantee `planCalls()` keeps for the command endpoint.
+ *     to look up, so the simulated path still cannot reach LocationIQ. This is
+ *     now the only place that guarantee is kept: the command endpoint's own
+ *     canned plan retired with the `board` surface (ADR-033), and the page it
+ *     composes never carried a location at all.
  */
 function proposeCalls(scope: AskScope, results: readonly ToolResultLike[]): ToolCall[] {
   const trip = resultFor<TripReadout>(results, "read_trip");
@@ -525,6 +497,49 @@ function classifyStep(options: CallOptionsLike): SimulatedStep {
   };
 }
 
+// ---------------------------------------------------------------------------
+// The page half of an ask turn (ADR-033 Decision 4)
+// ---------------------------------------------------------------------------
+
+const SIMULATED_PAGE_ANSWER = "I've drafted this page and put it in the editor for you to review and edit.";
+
+const SIMULATED_PAGE_NOTICE =
+  "AI is switched off on this deployment, so the server composed it rather than a model.";
+
+/**
+ * A page-scoped turn: compose, then say so.
+ *
+ * **This is the branch with the least slack in the file.** `ai-live` is off in
+ * every Vercel environment, so a deployed app that cannot reach here cannot
+ * author a Notebook page at all (ADR-033's consequences). It used to be reached
+ * through `generateText` on the command endpoint, which is why `doStream`
+ * carried a loud throw for it; that throw is gone because the command path is,
+ * and this is now streamed like every other turn.
+ *
+ * Two steps, and no latch — the same reason the answer half needs none: the
+ * second step is text, which ends the loop by itself. `toolResultsOf` reads the
+ * conversation rather than a counter, so "have I composed yet?" survives a
+ * retry the way a flag on the instance would not.
+ *
+ * It does NOT read the trip first, though the instruction asks a real model to.
+ * `pageCalls` inserts prose only, deliberately — no `insert_widget`, so it is
+ * decoupled from the registry and validates unconditionally — and there is
+ * nothing in a readout for it to put in it. A
+ * read it does not use would be a step charged to the actor's quota for nothing
+ * (KI-67).
+ */
+function pageTurn(results: readonly ToolResultLike[]): SimulatedStep {
+  if (!results.some((result) => result.toolName === "insert_text")) {
+    return { content: pageCalls(), finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const sentences = [SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE];
+  return {
+    content: [{ type: "text", text: sentences.join(" ") }],
+    finishReason: { unified: "stop", raw: undefined },
+    textDeltas: sentences.map((sentence, i) => (i === sentences.length - 1 ? sentence : `${sentence} `)),
+  };
+}
+
 /**
  * One ask step. Three shapes, in order — plus the classification call, which
  * is answered above them all because it is not a turn at all:
@@ -544,6 +559,11 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   if (isAskIntentCall(system)) return classifyStep(options);
   const scope = parseAskScope(system);
   const results = toolResultsOf(options);
+  // A page turn is a different job, not a variant of the answer: it composes
+  // instead of speaking, and `handleAskRequest` never classifies one, so the
+  // branches below would read its opening step as a question and reply with
+  // `read_trip`.
+  if (scope.kind === "page") return pageTurn(results);
   if (results.length === 0) {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }
@@ -559,20 +579,22 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   };
 }
 
-export function simulatedModel(surface: AiSurface): LanguageModel {
-  // One step's worth of calls, then silence. The AI SDK loops doGenerate until
-  // `stopWhen` fires (32 steps for board/combined), and re-emitting on every
-  // call would apply the same plan once per remaining step — the failure
-  // `modelThatNeverStops` documents in route.int.test.ts. The ask surface needs
-  // no latch: its second step is a text answer, which ends the loop by itself.
-  let spent = false;
-
-  const step = (options: CallOptionsLike): SimulatedStep => {
-    if (surface === "ask") return askTurn(options);
-    if (spent) return { content: [], finishReason: { unified: "stop", raw: undefined } };
-    spent = true;
-    return { content: callsFor(surface), finishReason: { unified: "tool-calls", raw: undefined } };
-  };
+/**
+ * The switched-off model. One surface, so no parameter: /ask is the one AI route
+ * (ADR-033 Decision 1) and every shape it serves is an ask turn.
+ *
+ * **No emission latch, and none is needed.** The command endpoint's branches
+ * kept one, because the SDK loops until `stopWhen` fires and a model that
+ * re-emitted the same tool calls every step composed once per remaining step —
+ * settling every one of those round-trips against the actor's quota (KI-67) and
+ * returning `truncated: true` on a page that was finished after the first step.
+ * Every branch here instead reads the CONVERSATION to decide what it has
+ * already done (`toolResultsOf`) and ends with a text step, which stops the loop
+ * by itself. That is the stronger version of the same guarantee: it survives a
+ * retry, where an instance flag does not.
+ */
+export function simulatedModel(): LanguageModel {
+  const step = (options: CallOptionsLike): SimulatedStep => askTurn(options);
 
   return {
     specificationVersion: "v4",
@@ -584,13 +606,10 @@ export function simulatedModel(surface: AiSurface): LanguageModel {
       return { content, finishReason, usage: NO_USAGE, warnings: [] };
     },
     async doStream(options: CallOptionsLike) {
-      // Only the ask surface streams. handleAiRequest still calls generateText
-      // exclusively, so throwing here keeps the loud seam the original comment
-      // asked for: if streaming is ever added to the command path, it fails
-      // here rather than silently serving canned data.
-      if (surface !== "ask") {
-        throw new Error(`simulatedModel does not stream the ${surface} surface — handleAiRequest uses generateText`);
-      }
+      // Every turn streams. This used to throw for the command surfaces — a
+      // loud seam marking that the command path never streamed — and ADR-033
+      // deletes it rather than relaxing it: there is no command path left for
+      // the seam to mark, and page authoring now arrives HERE.
       const { content, finishReason, textDeltas } = step(options);
       // Part order mirrors the SDK's own `simulateStreamingMiddleware`:
       // stream-start, then a start/deltas/end run per text part (tool calls

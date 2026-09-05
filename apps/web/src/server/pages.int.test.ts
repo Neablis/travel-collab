@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { newPageDoc } from "@tc/contracts";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
@@ -49,11 +50,86 @@ describe("pages repository", () => {
     expect(after.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
   });
 
+  // Found by walking the Notebook index in a browser on 2026-09-03, not by a
+  // test: a notebook created through the index appeared FIRST on the next
+  // read, while `NotebookScreen.handleCreate` had just appended it to the end
+  // of its own list. `listPages` was a bare `SELECT … WHERE` with no ORDER BY,
+  // so Postgres returned rows in physical order — which an UPDATE changes,
+  // because it writes a new row version.
+  //
+  // **The clock is frozen, and that is what makes this test worth having.**
+  // The first version ran on the real clock and passed locally while failing in
+  // CI, because the bug only appears when seeding and creating land in the SAME
+  // millisecond — which a fast runner does and a slow container does not. With
+  // Date frozen, the collision happens every run. Only `Date` is faked, not
+  // timers: this suite does real I/O against Postgres, and faking `setTimeout`
+  // would hang the driver.
+  it("returns notebooks in a stable order that an edit does not disturb", async () => {
+    const { tripId } = await seedTrip();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-03T02:00:00.000Z"));
+      const seeded = await listPages(tripId);
+      // The prebuilt pair comes back in `instantiateDefaults` order, which is
+      // the order SPEC §7 names them in — not whichever the database felt like.
+      expect(seeded.map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet"]);
+
+      // Created on the very millisecond the seeding ran. This is the case that
+      // broke CI: seeds stamped forward from `startedAt` tied with it, and the
+      // random-UUID tiebreaker put "Packing" in the middle of the list.
+      const mine = await createPage(
+        tripId,
+        { title: "Packing", context: { tripId }, content: newPageDoc() },
+        "user-1",
+      );
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+
+      // Edit the first row, then the last. Neither may move — this is the half
+      // that catches the physical-order reshuffle, since an UPDATE writes a new
+      // row version.
+      await updatePage(seeded[0]!.id, { title: "Trip Overview" });
+      await updatePage(mine.id, { title: "Packing" });
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // `listPages` has always been typed `Promise<PageSummary[]>` while returning
+  // full `Page` rows, so every notebook's whole document went over the wire and
+  // `PageSummary.parse` stripped it in the BROWSER, after the download. The
+  // Notebooks menu re-reads this list on every open (Copilot, PR #126).
+  it("returns summaries, not whole documents — no notebook content crosses the wire", async () => {
+    const { tripId } = await seedTrip();
+    await listPages(tripId);
+    await createPage(
+      tripId,
+      {
+        title: "Heavy",
+        context: { tripId },
+        content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "x".repeat(5000) }] }]),
+      },
+      "user-1",
+    );
+
+    const listed = await listPages(tripId);
+    for (const summary of listed) {
+      expect(summary).not.toHaveProperty("content");
+    }
+    // The rest of the summary is still there — a projection, not a truncation.
+    const heavy = listed.find((p) => p.title === "Heavy")!;
+    expect(heavy.actorId).toBe("user-1");
+    expect(heavy.context.tripId).toBe(tripId);
+    expect(typeof heavy.updatedAt).toBe("string");
+    // And the document itself is still readable one page at a time.
+    expect((await getPage(heavy.id))!.content).toBeDefined();
+  });
+
   it("creates, reads, updates, deletes a page", async () => {
     const { tripId } = await seedTrip();
     const created = await createPage(
       tripId,
-      { title: "Notes", context: { tripId }, content: { type: "doc", content: [] } },
+      { title: "Notes", context: { tripId }, content: newPageDoc() },
       "user-1",
     );
     expect(created.title).toBe("Notes");

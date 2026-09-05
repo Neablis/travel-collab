@@ -13,6 +13,7 @@ export function Popover({
   trigger,
   align = "end",
   contentClassName,
+  collisionPadding,
   children,
 }: {
   open: boolean;
@@ -20,6 +21,11 @@ export function Popover({
   trigger: React.ReactNode;
   align?: "start" | "center" | "end";
   contentClassName?: string;
+  // How close to the viewport edge Radix may place the content before it
+  // flips or shifts. Optional and defaulted to `undefined` on purpose: passing
+  // it through unset leaves Radix on its own default, so every caller that
+  // does not ask for it renders exactly as before.
+  collisionPadding?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -29,6 +35,7 @@ export function Popover({
         <RadixPopover.Content
           align={align}
           sideOffset={6}
+          collisionPadding={collisionPadding}
           className={cn(
             "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
             contentClassName,

@@ -199,6 +199,33 @@ describe("GET /api/playbooks", () => {
     expect(body.siblings.find((s) => s.city === sib)).toEqual({ city: sib, days: 2 });
   });
 
+  // A chip counted the whole MATCH while the page showed the BAND, so with a
+  // band on it promised days the page below it did not hold (KI-2026-08-31).
+  // The band cannot be a SQL predicate — a day's total is a sum over its priced
+  // stops, and ADR-029 says `stops` is a value that is never queried into — so
+  // the chips are counted in application code over the same in-band set the
+  // cards are drawn from.
+  it("counts a sibling chip inside the budget band, not across the whole match", async () => {
+    const a = city("ba");
+    const sib = city("bb");
+    // Three days touch both cities. One is under $200; the other two are not,
+    // so `budget=under200` must leave the chip reading 1 rather than 3.
+    await publish(await saveDay(`Band cheap ${RUN}`, [{ city: a, costMinor: 1_000 }, { city: sib }]));
+    await publish(await saveDay(`Band dear ${RUN}`, [{ city: a, costMinor: 150_000 }, { city: sib }]));
+    await publish(await saveDay(`Band dearer ${RUN}`, [{ city: a, costMinor: 250_000 }, { city: sib }]));
+
+    currentUserId = READER;
+    const { body } = await discover(`city=${a}&budget=under200`);
+    expect(body.days).toHaveLength(1);
+    expect(body.siblings.find((s) => s.city === sib)).toEqual({ city: sib, days: 1 });
+
+    // And the unbanded read still sees all three, so this is the band being
+    // honoured rather than the chips being counted over the page.
+    const any = await discover(`city=${a}`);
+    expect(any.body.days).toHaveLength(3);
+    expect(any.body.siblings.find((s) => s.city === sib)).toEqual({ city: sib, days: 3 });
+  });
+
   // An empty query is not a search for nothing — it is the "busy right now" row.
   //
   // Asserted in the `yours` scope with an owner used by no other test in this

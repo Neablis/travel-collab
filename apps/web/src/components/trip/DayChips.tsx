@@ -67,7 +67,7 @@ const INK_TEXT: Record<AccentFamily, string> = {
 // exports pre-formatted strings (day-of-week + month + day together), not a
 // bare Date, so this is a small local copy — exported so NextTripHero.tsx's
 // sparkline day-number derivation reuses it rather than a third copy.
-export function parseLocalDate(iso: string): Date {
+function parseLocalDate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
   return new Date(y, m - 1, d);
 }

@@ -2,6 +2,8 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
 import importPlugin from "eslint-plugin-import";
+import testingLibrary from "eslint-plugin-testing-library";
+import playwright from "eslint-plugin-playwright";
 
 const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
@@ -24,6 +26,15 @@ const domainAndServerWallPatterns = [
 export default [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    // A disable directive that no longer suppresses anything is the same
+    // species as a comment asserting an invariant nothing tests (AGENTS.md):
+    // it reads as a live constraint and is inert. ESLint reports these on its
+    // own; the default severity is "warn", which `pnpm lint` does not fail on,
+    // so it is raised here. This is also what keeps the pending directives
+    // below honest — the day a file stops violating a rule, the directive
+    // holding it back becomes an error and has to be deleted, so the backlog
+    // can only shrink and can never go stale silently.
+    linterOptions: { reportUnusedDisableDirectives: "error" },
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
@@ -241,6 +252,99 @@ export default [
         {
           selector: "JSXAttribute[name.name='style']",
           message: "No inline styles — use tokens. Enumerated exceptions need a line disable with a reason (design-system.md).",
+        },
+      ],
+    },
+  },
+  {
+    // THE TEST-QUALITY WALL, part 1: @testing-library's own rules.
+    //
+    // test-overhaul Task 7.1 asked for these in July and they never landed —
+    // the task was marked done on the strength of four unrelated walls in
+    // `scripts/`, so five of its six rows shipped as nothing. This is the
+    // largest row. The plugin encodes, as automated checks, most of what
+    // `AGENTS.md`'s Testing model can only say in prose: assert behaviour
+    // rather than DOM structure, await your async queries, don't reach past
+    // the query layer into nodes.
+    //
+    // Scoped to unit/component tests. `*.int.test.ts` files are here too —
+    // they render nothing, so almost every rule is inert for them, and
+    // excluding them would only create a hole for the day one of them does.
+    files: ["src/**/*.test.{ts,tsx}"],
+    ...testingLibrary.configs["flat/react"],
+    rules: {
+      ...testingLibrary.configs["flat/react"].rules,
+      // OFF, and this one is not a judgement call: `vitest.setup.ts` registers
+      // `afterEach(cleanup)` deliberately, with a comment explaining why. RTL's
+      // automatic cleanup only self-registers when it detects `globals: true`
+      // framework globals, and this repo does not set `test.globals`. Without
+      // the manual call, body state from one test (a Radix Dialog's
+      // `pointer-events: none` lock) leaks into the next. The rule assumes an
+      // auto-cleanup that is genuinely absent here, and fires 59 times.
+      "testing-library/no-manual-cleanup": "off",
+      // OFF: pure naming preference (`const view = render(...)` is banned in
+      // favour of a small allowed set). It has no failure mode behind it, and
+      // 21 call sites would be renamed to satisfy a rule that cannot catch a
+      // bug. The rules kept below all name a way a test can lie.
+      "testing-library/render-result-naming-convention": "off",
+      // Ships at "warn", and a warning does not fail `pnpm lint` — same
+      // reasoning as the Playwright block below. A `screen.debug()` left in a
+      // merged test is exactly the thing a wall should stop.
+      "testing-library/no-debugging-utils": "error",
+    },
+  },
+  {
+    // THE TEST-QUALITY WALL, part 2: Playwright's own rules, for the e2e lane.
+    //
+    // These reach e2e only because `apps/web`'s lint script was widened from
+    // `eslint src` to cover `e2e` and the root-level files in the same commit
+    // — until then nothing in `e2e/` was linted at all, which is why the sleep
+    // wall had to be a standalone script in `scripts/` (KI-2026-08-30-b).
+    files: ["e2e/**/*.ts"],
+    ...playwright.configs["flat/recommended"],
+    // EVERY RULE PROMOTED TO ERROR, on purpose. 22 of the plugin's 37
+    // recommended rules ship at "warn", and `eslint` exits 0 on warnings — so
+    // `pnpm lint` is green and `pnpm check` is green while the rule reports.
+    // A wall that does not fail the build is a suggestion. `no-wait-for-timeout`
+    // is in that warn set, which would have made a second, weaker copy of
+    // `scripts/check-sleep-wall.mjs` — a wall this repo built precisely because
+    // guidance alone did not hold it three times.
+    rules: Object.fromEntries(
+      Object.entries(playwright.configs["flat/recommended"].rules).map(([rule, setting]) => [
+        rule,
+        Array.isArray(setting) ? ["error", ...setting.slice(1)] : "error",
+      ]),
+    ),
+  },
+  {
+    // THE TEST-QUALITY WALL, part 3: never assert presentation.
+    //
+    // A class name is not a contract. It changes on every re-skin, it says
+    // nothing about what a user can do, and a test asserting one goes red for
+    // a change that broke nothing — which is how a suite trains its readers to
+    // ignore it. Assert roles, labels, values and behaviour instead. The
+    // design contract has its own enforcement and it is not this file:
+    // `scripts/check-color-wall.mjs` owns tokens, and the element wall above
+    // owns which primitives may be rendered.
+    //
+    // `src/components/ui/**` is exempt DELIBERATELY. A design-system primitive
+    // whose entire job is to map `variant="danger"` onto a token class has
+    // nothing else to assert — the class IS its observable behaviour, and
+    // there is no user-visible role or label standing in for it. That is a
+    // real exception, not a backlog: those 25 assertions are correct where
+    // they are and should not be migrated.
+    files: ["src/**/*.test.{ts,tsx}"],
+    ignores: ["src/components/ui/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name='toHaveClass']",
+          message: "Assert behaviour, not classes — roles, labels and values. The colour wall owns the design contract (docs/guidelines/testing.md).",
+        },
+        {
+          selector: "CallExpression[callee.name='expect'] > MemberExpression[property.name='className']",
+          message: "Assert behaviour, not classes — roles, labels and values. The colour wall owns the design contract (docs/guidelines/testing.md).",
         },
       ],
     },

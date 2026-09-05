@@ -17,8 +17,8 @@ the lease hook reads. A row marked otherwise below is yours to observe.
 
 | Resource | Why exclusive |
 |---|---|
-| `postgres` | One docker-compose instance. `pnpm --filter web test:int` runs the whole suite and cannot be scoped file-by-file, so two units running it concurrently corrupt each other's results — the symptom is a *different random subset* failing each run, which reads as flakiness and burns hours. |
-| `dev-server` | Fixed ports. A second `pnpm dev` either fails to bind or silently serves the wrong worktree. |
+| `shared-db-writes` | `db:reset`, `db:reseed`, `db:seed`, `db:migrate` and `docker compose` act on the database `DATABASE_URL` names — the developer's own `travel`, which every worktree shares. **The test lanes are no longer on this list:** since KI-2026-08-30-e, `test:int` and `test:e2e` each provision a private database and drop it afterwards, so any number of units may run them at once. |
+| `dev-server` | A hand-started `pnpm dev` binds `WEB_PORT`, which defaults to 3001 in every worktree — a second one either fails to bind or silently serves the wrong worktree. Set `WEB_PORT` and it is yours alone. `test:e2e` is **not** covered by this: it picks a free port itself. |
 | `ci-minutes` | **Human-observed policy, not a hook-enforced lease** — `adapter.json` declares no pattern for it, so no hook will stop a second unit; you have to hold this one yourself. This repo is private on a GitHub Free plan; a measured 30-day sample burned 1,956 of 2,000 minutes, 71% on pull-request runs. Open PRs as drafts and mark ready only when you believe they are green. See `docs/guidelines/ci-cost-and-capacity.md`. |
 
 ## Acceptance-check catalogue
@@ -32,8 +32,12 @@ the lease hook reads. A row marked otherwise below is yours to observe.
   Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
   produces timeouts CI does not have. The dev lane is for iterating on a
   spec you are writing — never for a verdict or a PR checkbox.
-- **Integration:** `pnpm --filter web test:int` claims the `postgres`
-  resource. It is whole-suite by design.
+- **Integration:** `pnpm --filter web test:int` is whole-suite by design, and
+  claims nothing. Each run gets its own database, cloned from a migrated
+  template and dropped at the end (`scripts/with-test-db.mjs`), so two units
+  may run it concurrently — verified, two full suites at once, 39 files / 445
+  tests green in both. `KEEP_TEST_DB=1` keeps a failed run's database and
+  prints its URL.
 
 ## Environment probe
 

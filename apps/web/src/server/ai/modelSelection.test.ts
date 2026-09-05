@@ -65,14 +65,14 @@ describe("aiLive", () => {
   // decryptOverrides throwing earlier in getRun(), which happens when
   // FLAGS_SECRET is unset/malformed and a stray override cookie is present.
   // aiLive() must fail closed (simulated) rather than let that throw become
-  // an unhandled rejection out of handleAiRequest.
+  // an unhandled rejection out of the AI handler.
   it("resolves to false, not rejects, when the flag throws", async () => {
     aiLiveFlag.mockRejectedValue(new Error("readOverrides: invalid FLAGS_SECRET"));
     await expect(aiLive()).resolves.toBe(false);
   });
 });
 
-const ACTOR = { surface: "board" as const, userId: "user-1" };
+const ACTOR = { surface: "ask" as const, userId: "user-1" };
 
 describe("selectAiModel", () => {
   it("returns the gateway model, and its own classifier model, when the flag is on", async () => {
@@ -108,7 +108,6 @@ describe("selectAiModel", () => {
   it("never constructs a gateway client, of either kind, when the flag is off", async () => {
     aiLiveFlag.mockResolvedValue(false);
     await selectAiModel(ACTOR);
-    await selectAiModel({ surface: "page", userId: "user-1" });
     await selectAiModel({ surface: "ask", userId: "user-1" });
     expect(aiModel).not.toHaveBeenCalled();
     expect(aiClassifierModel).not.toHaveBeenCalled();

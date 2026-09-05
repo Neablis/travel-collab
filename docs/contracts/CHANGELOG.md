@@ -13,6 +13,401 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — `PageDoc` v2: the seventeen widget names become twelve primitives
+- Added: `AttributeFieldRef` in `packages/contracts/src/pages.ts` — the closed
+  list of fields `attribute` may read (`trip.name`, `trip.budgetRemaining`,
+  `account.name`, `account.homeAirport`). Named `…Ref` rather than
+  `AttributeField` because `manifest.ts` already exports that for a describable
+  field of a collection, which is a different thing
+- Added: `WIDGET_NAME_MIGRATION` and the v1 → v2 step in
+  `PAGE_DOC_MIGRATIONS` (`packages/contracts/src/pageDoc.ts`).
+  `CURRENT_PAGE_DOC_VERSION` is **2**, derived from the chain as it always was
+- Why: ADR-039 decision 9, *"one migration, once"*. Four of the seventeen names
+  were the same widget written twice, and a preset is data that is never stored
+  — so this is the whole cost of the vocabulary change to stored documents, and
+  it is one function. `PAGE_DOC_MIGRATIONS` was built empty for exactly this
+- Note: the node SHAPE is unchanged, which is what lets the step be
+  `(PageDoc) => PageDoc`. It rewrites `attrs.name` and the KEYS of
+  `attrs.params` (`dayRef` → `day`), both of which the current schema already
+  accepts. The file's warning that a real migration would need a per-version
+  schema is still owed by the first change that alters the vocabulary of nodes
+- Note: a name this build does not recognise is left ALONE, not dropped —
+  decision 3's carry-don't-drop applied to a name rather than a node type
+- Consumers updated: `@tc/pages` (the twelve primitives, the preset table, and
+  `insertPreset`; the seventeen named defs are deleted), `apps/web` (the picker,
+  the slash menu, drag-and-drop, the chrome row, the assistant's tool surface,
+  and `apiClient`, which now migrates an inserts payload before it reaches the
+  editor)
+- Fixtures: `packages/contracts/test/fixtures/pageDocV2.ts` is the v2 golden,
+  hand-written beside the now-FROZEN v1 one. The round-trip tests moved to it;
+  the v1 golden is what the migration is tested against
+- Breaking? **no for readers, yes for writers.** Every stored v1 row migrates on
+  read and is written back at v2. Nothing outside this repo writes these
+  documents. A build older than this one reading a v2 row would refuse it
+  (`migratePageDoc` rejects a future version) and open the page read-only with
+  an explanation, which is ADR-038 decision 4 working as designed
+
+## 2026-09-04 — the filter vocabulary: six dimensions and their value shapes
+- Added: `FilterDimension` (`day` · `city` · `tag` · `kind` · `person` · `dates`),
+  `CityRef`, `KindRef`, `PersonRef`, `DateRangeRef` and `FILTER_VALUE_SCHEMAS` in
+  `packages/contracts/src/pages.ts`. Together with the existing `DayRef` and
+  `TagRef` they are the closed vocabulary a widget's selection can be narrowed
+  along (ADR-039 decision 1)
+- Why: they are here for exactly the reason `DayRef` and `TagRef` are — these
+  values are PERSISTED in `MacroNode.attrs.params`, and the editor, the AI
+  compose path and the resolvers all read them. `FILTER_VALUE_SCHEMAS` is the one
+  map `@tc/pages` builds each primitive's params schema from, so "the declared
+  filters and the params schema agree" is true by construction rather than by six
+  files remembering
+- Note: **an absent dimension means every member, not "unset"** (ADR-039 decision
+  2). `TagRef` already worked this way; this generalises it. `DateRangeRef`
+  refuses a reversed range rather than swapping the endpoints — quietly
+  reinterpreting a mistake is how a widget shows a confident wrong answer — and a
+  single date is `from === through`, so the control has one shape rather than two
+- Note: `PersonRef` is **vocabulary, not a capability** (ADR-039 decision 7).
+  `TripMember` has no display name and no stop carries a person, so a widget
+  handed one renders the "needs a field" state. It is declared now so the shape is
+  settled; the capability lights up with M13 `add-stop-who` / M19 link 3
+- Consumers updated: `@tc/pages` (the legality matrix, `filterParams`, and the
+  eleven primitives), `apps/web` (`MacroView`'s `person` branch now says "needs a
+  person field" rather than "no one set", which invited a choice no control can
+  offer)
+- Breaking? no — every schema is new, and nothing stored today carries one
+
+## 2026-09-04 — `TagRef`, and `valueKindOf` through a wrapper
+- Added: `TagRef` in `packages/contracts/src/pages.ts` — the value shape of a
+  `tags` input inside one widget's params, alongside `DayRef`. It is
+  `ActivityTag`; absent means "every stop", which is a real binding and not an
+  unset one
+- Why: it was declared locally inside `stop.line`, in `@tc/pages`. ADR-037
+  decision 9 puts these shapes in `packages/contracts` precisely because "the
+  editor, the AI path and the resolvers all read them", and this one is
+  PERSISTED in every document carrying that widget — three readers of a stored
+  value with no single definition between them. Found by Copilot on PR 139
+- Note: this is narrower than decision 9's own row, which reads
+  `"all" | ActivityTag[]`. SPEC §18 (later) asks for one tag or none, and no
+  control in the design expresses a set. Recorded in the ADR as Mitchell's call;
+  widening is one line here plus a control
+- Changed: `valueKindOf` now walks a schema's wrappers, so a kind attached by
+  `described()` survives a later `.nullable()` / `.optional()`. It read only the
+  outer object, so an ordinary nullable field was published with a label and no
+  kind — "listed but not printable". `unwrapSchema` is shared with the
+  manifest's label lookup, which already unwrapped
+- Consumers updated: `@tc/pages` (`stop.line`), `apps/web` (the bind controls
+  read the shared schema)
+- Breaking? no — `TagRef` is the shape `stop.line` already wrote, given a name
+  and a home; the `valueKindOf` change only widens what it can find
+
+## 2026-09-04 — the widget contract completed: `WidgetShape`, value kinds, an optional trip
+- Added: `WidgetShape` (`single` | `block` | `repeat`), superseding `MacroKind`
+  for widget definitions — `MacroKind` could say inline or block and had nowhere
+  to put a repeater (link 6). `MacroKind` stays for the older callers
+- Added: `ValueKind` (`money` | `date` | `count` | `text` | `duration`) and
+  `described(kind, label, schema)`, which annotates a readable field with both
+  facts in one line. `TripGlobals`' fields all go through it
+- Changed: `AttributeEntry` is a Zod discriminated union with `AttributeField`,
+  so the type is inferred rather than hand-written (invariant 5) and the
+  manifest's own output is parseable — a malformed entry is now a test failure
+- Changed: `AttributeRef` refuses a `key` with no `collection`
+- Why: all four came out of Copilot's review of PR 134. The value kind is what
+  ADR-037 open question 4 means by "how to serialize them"; without it
+  `costSubtotal` was indistinguishable from `activityCount`, so the manifest
+  could name a field and still not say how to print it
+- Consumers updated: `@tc/pages` (`MacroDef` gains `title`, `shape`, `preview`
+  and an `item?: ItemScope` argument; `WidgetContext.trip` becomes optional and
+  every resolver answers `unbound("trip")` without one), `apps/web`
+  (`MacroView` renders that state) — in this same PR
+- Breaking? **no** on the wire. `TripGlobals`' shape is unchanged — `described()`
+  is `.describe()` plus a WeakMap entry, so the schema it returns parses
+  identically. The widget-definition changes are internal to `@tc/pages`
+
+## 2026-09-03 — the attribute manifest, and `AttributeRef` (ADR-037 open question 4)
+- Added: `buildAttributeManifest()`, `AttributeEntry`, `AttributeRef`
+- Why: the settled answer to *"a developer adding a new global attribute gets it
+  for free"* — a widget whose control is a searchable select over a GENERATED
+  list of readable paths, with a structured stored param and no user-facing
+  syntax. `{{trip.cities[Tokyo].activities.length}}` was dropped because a
+  freeform string has no declared inputs (so no control, no preview, no
+  `needs a field` badge) and cannot express a lookup that MISSES, which
+  decision 6's "not set up" requires
+- Built by inverting the **Zod** schema, not the TypeScript type, per that
+  decision's own refinement: in this repo the type is the derived artifact
+  (invariant 5), so inverting it would need the compiler API plus a codegen
+  artifact to recover what Zod already holds at runtime. Walking
+  `ZodObject.shape` needs no build step and lives in `packages/contracts`, which
+  depends on nothing
+- **Exposure is opt-in twice over**, which is the half that is a safety property
+  rather than a feature: only schemas named in `MANIFEST_ROOTS` are walked
+  (`TripGlobals` and nothing else — there is no "walk everything" entry point,
+  so `TripDetail`'s `dismissedConflictIds`, `forkedFrom` and internal uuids
+  cannot be published by accident), and within a root only fields carrying
+  `.describe()` are listed. Anything added later is EXCLUDED by default
+- `AttributeRef` is `.strict()`: an extra key is a parse error rather than
+  something dropped on the next save, and a string expression does not parse at
+  all
+- Consumers updated: none yet — the `trip.attribute` widget that reads this
+  needs an `attribute` input type and a control to render it, which arrives with
+  the insert surface (item G). The manifest's contract is fully asserted by
+  `packages/contracts/test/manifest.test.ts` in the meantime
+- Breaking? **no.** Additive: new exports only
+
+## 2026-09-03 — `TripGlobals`: the trip's addressable collections (ADR-037 open question 4)
+- Added: `TripGlobals` (`days`, `cities`, `tags`, `bookedCount`) with
+  `TripGlobalsDay`, `TripGlobalsCity`, `TripGlobalsTag`
+- Why: ADR-037 open question 4's settled answer needs `trip.cities` to BE a
+  collection. It is not stored — cities are derived per-activity by
+  `citiesOfDay` in `@tc/domain`, and AGENTS.md's module map makes
+  `apps/web/src/server/**` the only code that may import domain. So the
+  projection is computed server-side, described here, and delivered to the
+  client, exactly as `TripDetail` already is. Mitchell chose this shape over
+  letting `@tc/pages` import `@tc/domain` (2026-09-03), which would have put
+  domain code in the browser bundle through a side door that three files in
+  `apps/web/src/lib` deliberately avoid
+- Every field carries `.describe()`, which is not documentation: item E's
+  attribute manifest is built by inverting this schema, per ADR-037 open
+  question 4's settled refinement (invert the Zod schema, not the TS type,
+  because in this repo the type is the derived artifact)
+- `people` is deliberately absent, not empty: nothing links an activity to a
+  person, and an empty array would read as "this trip has nobody on it" rather
+  than "this build cannot answer that". It arrives with M13 `add-stop-who` /
+  M19 link 3
+- Consumers updated: `apps/web` (`server/tripGlobals.ts`, a new
+  `GET /api/trips/:tripId/globals` behind the same viewer guard as the detail
+  route, `fetchTripGlobals`, and `WidgetContext.globals` through
+  `PageScreen` → `PageEditor` → `MacroView`) — in this same PR
+- Breaking? **no.** Additive: a new schema and a new route. No existing response
+  shape changed, and `fetchTripDetail` is untouched on purpose so the board, the
+  lenses and the map do not pay for a projection only the Notebook reads
+## 2026-09-03 — the page write path becomes `PageDoc`; the read path stays permissive (ADR-038 decision 4)
+- Changed: `CreatePageInput.content` and `UpdatePageInput.content` are `PageDoc`,
+  not `PageContent` — a document this build cannot parse is refused at the API
+  boundary, and comes back out carrying its `v` (decision 2, "written on every
+  save")
+- Unchanged, deliberately: `Page.content` and `PageSummary` stay `PageContent`.
+  A strict read schema would make `fetchPage` throw on exactly the row decision
+  4 needs to show the reader a read-only explanation for. Read what is there,
+  write only what we understand — the asymmetry is the design, and ADR-038
+  decision 4 now says so
+- Added: `newPageDoc(content?)` — builds a document at
+  `CURRENT_PAGE_DOC_VERSION`, so no producer hard-codes `v: 1`
+- Added: `collectPageDocNodeTypes(doc)` — every node type in a document, at any
+  depth, with an unknown node reported by the type it WRAPS. This is the half of
+  decision 4's guard contracts can answer without importing TipTap; the editor
+  half is `PAGE_EDITOR_NODE_TYPES` in `apps/web`
+- Moved: `MacroNode` from `pages.ts` to `pageDoc.ts`. Same export from
+  `@tc/contracts`, no consumer change — `pages.ts` needs `PageDoc` now, and Zod
+  schemas built at module load do not survive a circular import
+- Why: ADR-038 decision 4. Its stated round-trip criterion was measured not to
+  detect either form of the loss it exists to prevent (a `repeat` node and a
+  newer build's node both round-trip byte-identically and both make TipTap
+  discard the whole document) — see the ADR's 2026-09-03 amendment
+- Consumers updated: `@tc/pages` (templates typed against the AST), `apps/web`
+  (`PageScreen` guard + read-only page, `PageEditor`, `pageTools`, `apiClient`,
+  `ComposePanel`, `NotebookScreen`, `NotebooksMenu`) — in this same PR
+- Breaking? **yes, on writes only.** A `POST`/`PATCH` whose `content` is not a
+  parseable `PageDoc` now 400s where it previously stored anything doc-shaped.
+  No stored row changes and no migration is needed: reads stay permissive, `v`
+  defaults to 1 for the rows that have none, and a row is rewritten at the
+  current version on its next ordinary save
+
+## 2026-09-03 — `PageDoc` widens to the real v1 vocabulary (ADR-038 amendment)
+
+- Added to the node union: **`PageBlockquoteNode`, `PageBulletListNode`,
+  `PageOrderedListNode`, `PageListItemNode`, `PageCodeBlockNode`,
+  `PageHorizontalRuleNode`** at block position and **`PageHardBreakNode`** at inline
+  position, plus `PageCodeTextNode` (a code block's text carries no marks) and
+  `PageListContentNode`. `PageHeadingNode` now accepts **levels 1-6**, not 1-3
+- The union is now **recursive** — `bulletList → listItem → paragraph`, and a blockquote
+  holds blocks — so `PageNode` carries an explicit `z.ZodType` annotation and the four
+  recursive shapes are hand-written interfaces. `serializePageNode` recurses with it
+- Why: `PageEditor` loads full `StarterKit`, so every one of these is reachable **today**.
+  They were classifying as `unknown`, and under ADR-038 decision 4 a document that does
+  not round-trip opens **read-only** — so any existing notebook containing a bulleted list
+  would have become uneditable the moment the editor integration landed. Mitchell chose
+  widening the AST over narrowing `server/ai/pageTools.ts` (2026-09-03)
+- Every shape here is **measured**, not read off the ADR: an editor built with
+  `PageEditor`'s own `[StarterKit, MacroNodeExtension]` was fed one of each node and its
+  `getJSON()`/`schema.nodes` read back. That is where `orderedList`'s second attr (`type`,
+  not just `start`), `codeBlock`'s `language: null`, and the *absence* of an `attrs` key on
+  `horizontalRule`/`hardBreak` come from. The previous entry's "levels 1-3 per the ADR" is
+  what this reverses
+- The v1 golden fixture grew to match. A golden that omits half the version it is the
+  golden *for* is not a guard; it freezes when a v2 fixture sits beside it, not before
+- Consumers updated: none — nothing imports `PageDoc` yet, which is exactly why this was
+  worth doing now and not after the editor integration
+- Breaking? **no.** Strictly widening: every document that parsed before still parses,
+  and documents that previously became walls of unknown nodes now parse as themselves
+
+## 2026-09-03 — `PageDoc`: the notebook document becomes a versioned AST (ADR-038 step 1)
+
+- Added: `PageDoc` (`{ v, type: "doc", content: PageNode[] }`) and its node union —
+  `PageParagraphNode`, `PageHeadingNode`, `PageWidgetNode`, `PageRepeatNode`,
+  `PageUnknownNode`, plus `PageInlineNode`/`PageTextNode`/`PageMark` — in a new
+  `src/pageDoc.ts`. With them: `PAGE_DOC_MIGRATIONS` (an ordered, currently EMPTY
+  chain of pure `(doc) => doc` steps), `CURRENT_PAGE_DOC_VERSION` derived from its
+  length, `migratePageDoc`, `parsePageDoc`, `serializePageNode`, `serializePageDoc`
+- **`PageContent` is untouched and still in use.** `PageDoc` lands *alongside* it;
+  swapping the call sites belongs with the editor work (ADR-038 decision 4) and would
+  break the app if done here
+- Why: `PageContent`'s `z.array(z.unknown())` cannot say whether a stored page is
+  valid or what format it was written in. ADR-038 asked for the empirical answer first,
+  and it is now measured rather than asserted — see
+  `apps/web/src/components/pages/editor/PageEditor.test.tsx`, "PageEditor given a node
+  type the schema does not know". TipTap does not throw and does not drop the one node:
+  it catches ProseMirror's `RangeError: Unknown node type`, warns, and mounts an EMPTY
+  document, which `PageScreen` then autosaves over the original 800 ms later. The blast
+  radius is the whole page
+- Two places this build deviates from ADR-038 as written, both deliberate and both
+  pinned by tests: the widget node's stored discriminator stays **`"macro"`** (the ADR
+  writes `"widget"`; renaming it would reclassify every existing widget as an unknown
+  node, so it is a v2 migration, not a rename), and `heading` is **levels 1-3** per the
+  ADR even though `server/ai/pageTools.ts` accepts 1-6 today
+- Consumers updated: none — the schema is additive and nothing imports it yet.
+  `packages/contracts` gains `fast-check` as a devDependency for the round-trip property
+- Breaking? **no.** No stored data changes, no migration, no call site moves
+
+## 2026-09-03 — `PageContext` loses `dayRef`: a page has no scope (M14 link 2, ADR-035)
+
+- Changed: `PageContext` is now `{ tripId }`. The optional `dayRef` is **removed**
+- Kept, deliberately: **`DayRef` itself**, which is no longer a page property but *is*
+  now the value shape of a day binding inside a widget's `params` — still a
+  cross-boundary type, so it stays in contracts rather than moving into `@tc/pages`
+- Why: SPEC §18 (2026-09-02) replaced §7's page-scope model with ADR-035's — *a page is
+  not "about" anything; a widget is a function of its own declared inputs*. The case the
+  old model could not express is the one that motivates the new one: **two widgets on one
+  page reading two different days**. A page-level `dayRef` makes that impossible by
+  construction
+- **This un-ships part of PR #126 on purpose.** #126 shipped the Trip-wide / Day 6 badge
+  on the notebook index on 2026-09-03, built against §7 a day after §18 replaced it. A
+  conformance change, not a regression — `docs/STATUS.md` and `M14-rich-layer.md` both
+  say so in advance
+- Also here, because invariant 5 requires every consumer updated in the same PR and
+  leaving them broken is not "updated": **`cost.day` and `itinerary.day` now take their
+  day from their own `params`** rather than from the page context. That is ADR-035
+  decision 3 ("a binding lives on the widget instance, in the node's `params`") arriving
+  one link early. Without it these two widgets could not resolve a day at all between
+  this PR and link 4 — a dead widget on `main` across two merges. `inputs: WidgetInput[]`
+  and the UI that reads it are **not** here; they are links 3 and 4
+- Consumers updated: `packages/pages` (`macros/inline.ts`, `macros/block.ts`,
+  `templates.ts`), `apps/web` (`lib/pageScope.ts` — `scopeLabel` deleted,
+  `components/pages/DayBindingControl.tsx` — deleted, `PageScreen`, `NotebookScreen`,
+  `NotebooksMenu`, `server/ai/context.ts` — `resolveBoundDay` deleted,
+  `server/ai/handleAskRequest.ts`), plus the e2e spec and every test that built a
+  day-bound `PageContext`
+- Breaking? **yes for TypeScript, no for stored data and no migration.** `pages.context`
+  is a `jsonb` column (`server/db/schema.ts:103`) and `PageContext` is a plain, non-strict
+  Zod object, so a row still carrying `dayRef` parses and the key is stripped on read.
+  Nothing backfills; nothing needs to
+
+## 2026-09-03 — the notebook list route answers with `viewerId` (M14, follow-up)
+
+- Added: `GET /api/trips/:tripId/pages` now returns `{ pages, viewerId }`, and
+  `fetchPages` resolves a `NotebookList` (`{ pages, viewerId }`) instead of a
+  bare array
+- **Not a `packages/contracts` change** — the route's response envelope was
+  never a contract schema; `PageSummary` itself is untouched. Recorded here
+  anyway because it changes a shape two consumers read, and because the entry
+  below is what made `actorId` available in the first place
+- Why: `actorId` proves a *person* wrote a notebook, not that the **reader**
+  did, so the index's provenance line labelled every collaborator's notebook
+  "Yours" on a shared trip. The route already resolves the reader from its own
+  `guard(tripId, "viewer")`, so the truthful answer costs no extra request —
+  which is also why `KI-20260903` (filed on the premise that this needed a
+  `users` join) is resolved rather than carried
+- `viewerId` is `null` when absent, and `provenanceLabel` then stays
+  author-neutral rather than guessing
+- **`listPages` now projects a real `PageSummary`.** Its declared return type
+  said so already while it returned full `Page` rows, so every notebook's
+  unbounded `content` crossed the wire and was stripped client-side after
+  download — on a list the Notebooks menu re-reads on every open
+- Consumers updated: the list route, `lib/pagesClient.ts`, `lib/pageScope.ts`,
+  `NotebookScreen`, `NotebooksMenu`, `mocks/handlers.ts`
+- Breaking? **no** for the wire (additive field); **yes** for `fetchPages`'
+  TypeScript signature, and both call sites are updated here
+
+## 2026-09-03 — `PageSummary` carries `actorId`, and `SYSTEM_ACTOR_ID` moves into contracts (M14, navigation-and-index half)
+
+- Added: `actorId` to `PageSummary`'s `Page.pick({...})`, and a new exported
+  `SYSTEM_ACTOR_ID = "system"` in `packages/contracts/src/pages.ts`
+- Why: SPEC §7's Notebook index draws a provenance line — "Comes with your trip"
+  for a notebook the lazy template seeder wrote, "Yours" for one a person wrote
+  — and the only fact that separates the two is whether the row's `actorId` is
+  the seeder's sentinel. The list had no way to know
+- **Nothing new goes over the wire.** `listPages` already returns `toPage(row)`,
+  a full `Page`, on every call (`apps/web/src/server/pages.ts`); `PageSummary`'s
+  `.pick` was stripping `actorId` off at parse time in `pagesClient`. This
+  widens what the client is allowed to keep, not what the server sends
+- **`content` deliberately stays off `PageSummary`.** It is the one field that
+  makes a list response unbounded, and nothing in a list renders it. The
+  pre-existing test asserting a summary carries no `content`
+  (`pagesClient.test.ts:23`) still holds
+- **Why `SYSTEM_ACTOR_ID` is a contract and not a server constant:** it was
+  `const SYSTEM_ACTOR_ID` inside `apps/web/src/server/pages.ts`, private to the
+  module that writes it. The UI now READS it — the provenance line is "is this
+  row's `actorId` that sentinel?" — so a value compared on both sides of the
+  server/UI wall is exactly what `packages/contracts` is for (AGENTS.md
+  invariant 5). The server now imports it rather than declaring its own
+- **It is still load-bearing for a migration.** Migration 0005's
+  `pages_system_seed_unique` partial unique index is scoped to
+  `WHERE actor_id = 'system'`, so changing the string means changing that index.
+  The comment saying so moved with the constant rather than being left behind in
+  the file that no longer defines it
+- Consumers updated: `packages/contracts`, `apps/web` (`server/pages.ts`,
+  `lib/pageScope.ts`, `components/pages/NotebookScreen.tsx`)
+- Breaking? **no** — additive on a read DTO. An older client parsing a newer
+  response ignores the extra key; the field was already present in the JSON
+
+## 2026-09-02 — `UserPreferences`, the Identity module's first cross-boundary DTO (M17 PR1)
+
+- Added: `packages/contracts/src/identity.ts` with `DistanceUnit`
+  (`z.enum(["km", "mi"])`), `UserPreferences` and `UpdateUserPreferences`, all
+  types inferred. Exported from the package index
+- Why it is a contract and not an `apps/web` type: preferences cross the
+  server/UI wall — written by `PATCH /api/account/preferences`, read by the
+  settings Sheet and by every surface that renders a distance — which is
+  exactly what `packages/contracts` is for (AGENTS.md invariant 5)
+- Why it is NOT event-sourced: ADR-003 scopes the log to planning, and a
+  preference is not trip state. Putting "switch to miles" in the event log
+  would make it an entry in some trip's undo stack. These are ordinary CRUD
+  columns on `users` (ADR-025), the same shape as the Access module's tables
+- **`displayName` is a new column, not `users.name`.** `upsertUser`'s
+  `onConflictDoUpdate` rewrites `name` from the OAuth provider on every
+  sign-in, so one column cannot hold both the provider's value and a
+  user-chosen one — a name typed into settings would be silently clobbered at
+  the next Google sign-in. The resolution order becomes
+  `displayName ?? name ?? email ?? handle`, filling the seam `displayNameFor`
+  (`apps/web/src/lib/displayName.ts`) already reserved for M17
+- **Absent and `null` mean different things** on `UpdateUserPreferences`:
+  absent leaves a field alone, `null` clears it. That is why `UserPreferences`
+  declares its fields nullable rather than optional — a schema of optional
+  fields cannot express "clear this". `distanceUnit` has no `null` because the
+  storage layer defaults it and it has no unset state
+- **The empty patch is refused, not treated as a no-op.** A `PATCH` carrying
+  nothing is far likelier to be a client bug — a field name that silently
+  failed to match — than a deliberate request to change nothing, and a 200
+  would hide it. **"Empty" is measured by values, not keys** (fixed on #111
+  after review): a key whose value is `undefined` is still a key, so
+  `Object.keys(...).length` accepted `{ displayName: undefined }` — a patch
+  asking for nothing, passing the check written to refuse patches asking for
+  nothing. `null` still counts as a real instruction, since clearing a field is
+  the distinction this schema exists to preserve
+- **`homeAirport` is validated, never coerced.** Three uppercase letters or
+  `null`; this package holds no transforms by convention, so trimming and
+  upcasing a typed `sfo` belongs to the accepting route, before the parse. It
+  is deliberately not resolved against any airport dataset: the timezone it
+  would eventually feed is out of M17's gate by Mitchell's decision
+  (2026-09-01), because the app has no timezone infrastructure at all
+- Consumers updated: none yet, and that is the point — this PR is schema plus
+  changelog so it is reviewable on its own, per AGENTS.md's rule that a
+  contract change is its own reviewed step before dependent work continues.
+  The migration, the Identity module functions, the route, `kmLabel` and the
+  settings Sheet all land in M17 PR2
+- Tests: `packages/contracts/test/identity.test.ts` — presence of every field,
+  the null-vs-absent distinction, the empty-patch refusal, and that a
+  lowercase code is rejected rather than upcased (which fails loudly if
+  someone later adds the transform this package does not have)
+- Breaking? **no** — purely additive; nothing imports it yet
+
 ## 2026-08-30 — `SavedDay` gains `cities`, `visibility` and `adds` (M11b PR1)
 
 - Added: `cities: z.array(z.string().min(1))`, `visibility: SavedDayVisibility`

@@ -27,8 +27,8 @@
 //      even though they are on every log record — one turn per new trip would
 //      mean one series per trip, and a metrics backend answers that by
 //      dropping data. Every attribute below has a small, enumerable range:
-//      an outcome, a scope kind, a tool name from a fixed set of 15, a model
-//      id from the environment.
+//      an outcome, a scope kind, a tool name from the derived families, a
+//      model id from the environment.
 //   2. **No user content.** The same rule the spans keep (via
 //      `dataCollection.genAI` in the three `sentry.*.config.ts` files), for
 //      the same reason: the question goes in our own log, deliberately, and
@@ -120,8 +120,10 @@ function modelAttributes(modelId: string): MetricAttributes {
 export function recordAskMetrics(record: AskAnalyticsRecord): void {
   try {
     const model = modelAttributes(record.model);
-    // `agent` distinguishes this endpoint's numbers from the command
-    // endpoint's below; `simulated` keeps flag-off traffic (every Vercel
+    // `agent` used to separate this endpoint's numbers from the command
+    // endpoint's; that endpoint is gone (ADR-033) and the attribute stays, so
+    // a dashboard built against it does not break and a second agent has a
+    // dimension to arrive on. `simulated` keeps flag-off traffic (every Vercel
     // environment until `ai-live` is on) out of any cost number computed from
     // these, without needing a second metric name.
     const base: MetricAttributes = {
@@ -208,53 +210,6 @@ export function recordAskMetrics(record: AskAnalyticsRecord): void {
     }
   } catch {
     // Telemetry never breaks a turn. See this file's header.
-  }
-}
-
-/** What the command endpoint (`POST /api/trips/:id/ai`) reports about one generation. */
-export interface CommandMetricsRecord {
-  /** Which generation this was — `plan` for the planning loop, `page` for page composition. */
-  surface: string;
-  model: string;
-  simulated: boolean;
-  finishReason: string;
-  /** True when the step budget cut the model off mid-plan (`AiCallMeta.truncated`). */
-  truncated: boolean;
-  steps: number;
-  toolNames: readonly string[];
-  usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null };
-  durationMs: number;
-}
-
-/**
- * The command endpoint's half of the same picture.
- *
- * `/ai` and `/ask` reach the same gateway on the same key, so a token bill
- * that only counted one of them would be wrong by however much the other
- * spends — which is why the token metric names are SHARED between the two and
- * separated by the `agent` attribute rather than being two unrelated names
- * nobody remembers to add together.
- */
-export function recordCommandMetrics(record: CommandMetricsRecord): void {
-  try {
-    const base: MetricAttributes = {
-      agent: "command",
-      surface: record.surface,
-      ...modelAttributes(record.model),
-      simulated: record.simulated,
-    };
-    Sentry.metrics.count("ai.command.turns", 1, {
-      attributes: { ...base, finish_reason: record.finishReason, truncated: record.truncated },
-    });
-    countTokens(record.usage, { ...base, call: "turn" });
-    Sentry.metrics.distribution("ai.command.duration", record.durationMs, { unit: MS, attributes: base });
-    Sentry.metrics.distribution("ai.command.steps", record.steps, { attributes: base });
-    Sentry.metrics.distribution("ai.command.tool_calls", record.toolNames.length, { attributes: base });
-    for (const tool of record.toolNames) {
-      Sentry.metrics.count("gen_ai.tool.calls", 1, { attributes: { ...base, tool } });
-    }
-  } catch {
-    // Telemetry never breaks a request.
   }
 }
 

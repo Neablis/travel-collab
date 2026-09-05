@@ -13,6 +13,7 @@ import { signInAsDevUser } from "./helpers";
 // code `playwright.config.ts` gave the server. If that pairing ever breaks,
 // this file is where the whole run stops, and the symptom is every project
 // failing at once with no storage state written.
+// eslint-disable-next-line playwright/expect-expect -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
 setup("authenticate as alice", async ({ page }) => {
   await signInAsDevUser(page, "alice");
   await page.context().storageState({ path: ".auth/alice.json" });

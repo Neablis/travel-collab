@@ -7,7 +7,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tripId:
   // A viewer may read the Notebook; only an editor may add to it.
   const g = await guard(tripId, "viewer");
   if ("error" in g) return g.error;
-  return Response.json({ pages: await listPages(tripId) });
+  // `viewerId` rides along so the index's provenance line can say "Yours"
+  // truthfully. `actorId` alone only proves a PERSON wrote a notebook, not that
+  // the reader did — so on a shared trip every collaborator's notebook was
+  // labelled "Yours" (Copilot, PR #126; it was filed as KI-20260903 on the
+  // assumption this needed a `users` join, and it does not — the guard already
+  // resolved the reader).
+  return Response.json({ pages: await listPages(tripId), viewerId: g.userId });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ tripId: string }> }) {

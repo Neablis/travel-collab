@@ -13,9 +13,11 @@ Quick orientation:
 - How to build/connect/validate/enforce quality: `docs/guidelines/`
 - Contract change log: `docs/contracts/CHANGELOG.md`
 - Known issues & tech debt (unfixed-but-known): `docs/known-issues/` (one file per entry; `open/` is the list)
+- How to write a test worth its cost: `docs/guidelines/testing.md`
+- What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 
-Three rules that are cheap to state and were expensive to relearn:
+Four rules that are cheap to state and were expensive to relearn:
 
 1. **An e2e result only counts from `pnpm --filter web test:e2e:ci-like`.**
    Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
@@ -27,10 +29,22 @@ Three rules that are cheap to state and were expensive to relearn:
    entry describing it (KI-27) already existed and went unread. A failure whose
    location *moves between runs* is a timeout; a real defect fails in the same
    place every time.
-3. **Verification scales to the change; it is not one flat list.** A prose-only
-   change (`docs/**`, `.claude/**`, root `*.md`) runs **nothing** — CI and
-   CodeRabbit both filter those paths, so there is no check to wait for either.
-   Scoped code runs the `minimal-check-subset` skill's output, not `pnpm check`.
+3. **A test is not done until you have seen it fail.** Break the code it
+   protects, watch it go red *for your reason*, restore it, watch it go green.
+   Three tests written in one session (2026-09-02) passed while asserting
+   nothing, and every one was caught only by doing this afterwards. The PR
+   template asks for the source edit and the real failure text. Procedure:
+   `docs/guidelines/testing.md`, or the `write-a-test` skill.
+4. **Verification scales to the change; it is not one flat list.** A prose-only
+   **branch** — every path it changes, not just your latest commit, under
+   `docs/**`, `.claude/**`, root `*.md` — runs **nothing**. **Prose-only is a
+   property of the branch.** For `pull_request` events GitHub evaluates
+   `paths-ignore` against the whole PR diff, so a docs commit pushed onto a
+   branch that already has code re-runs the full suite; CodeRabbit *does* filter
+   per commit, and that asymmetry is what makes this easy to get backwards.
+   Measured on #103, then again on #141 — where this line was trusted as it used
+   to be written, and was wrong. Scoped code runs the `minimal-check-subset`
+   skill's output, not `pnpm check`.
    The full suite is a **final-review** cost, paid once when the branch leaves
    draft. `AGENTS.md`'s Definition of Done has the three tiers and the trap
    (`.design-sync/**` is a build input, not prose).

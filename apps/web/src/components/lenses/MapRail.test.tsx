@@ -42,6 +42,7 @@ describe("MapRail", () => {
     expect(first!.getAttribute("aria-current")).toBeNull();
     // Handoff: inactive rail days keep full-strength text — the tint and the
     // left spine are the only active-state signal.
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(first!.className).not.toMatch(/opacity-|text-slate\b/);
   });
 
@@ -51,6 +52,7 @@ describe("MapRail", () => {
     render(<MapRail days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]} focusedDay={0} onFocus={vi.fn()} />);
 
     for (const button of screen.getAllByRole("button")) {
+      // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(button.className).not.toMatch(/hover:bg-/);
     }
   });
@@ -71,6 +73,7 @@ describe("MapRail", () => {
 
   it("keeps the flag's warning-tint treatment for the empty-day copy", () => {
     render(<MapRail days={[day({ isEmpty: true, stops: [], bars: [], totalKm: null })]} focusedDay={null} onFocus={vi.fn()} />);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByText("Nothing planned yet").className).toContain("bg-warning-tint");
   });
 
@@ -106,6 +109,7 @@ describe("MapRail", () => {
      */
     const installLayout = (count: number) => {
       const rail = screen.getByLabelText("Days");
+      // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       const track = rail.querySelector("[data-rail-track]") as HTMLElement;
       const buttons = screen.getAllByRole("button");
 
@@ -169,6 +173,7 @@ describe("MapRail", () => {
       vi.useFakeTimers();
       render(<MapRail days={manyDays(14)} focusedDay={0} onFocus={vi.fn()} />);
       const rail = installLayout(14);
+      // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       const spacer = rail.querySelector("[data-rail-spacer]") as HTMLElement;
 
       // viewport + (14 - 1) days * 240px each
@@ -179,6 +184,7 @@ describe("MapRail", () => {
       vi.useFakeTimers();
       render(<MapRail days={manyDays(3)} focusedDay={0} onFocus={vi.fn()} />);
       const rail = installLayout(3);
+      // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       const spacer = rail.querySelector("[data-rail-spacer]") as HTMLElement;
 
       expect(spacer.style.height).toBe(`${VIEWPORT}px`);

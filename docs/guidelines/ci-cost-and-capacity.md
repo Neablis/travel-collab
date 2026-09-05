@@ -170,7 +170,8 @@ Four details that are easy to get wrong and were each got wrong once:
   `.design-sync/handoff/data/japan-trip-seed.json` and
   `japanTripImporter.test.ts` reads it. Ignoring it would let a broken seed
   through untested. `scripts/**` is likewise never ignored — `pnpm lint` runs
-  `check-lint-wall.mjs`, `check-color-wall.mjs` and `check-case-collisions.mjs`
+  `check-lint-wall.mjs` (which also fixtures the test-quality wall),
+  `check-color-wall.mjs`, `check-case-collisions.mjs` and `check-sleep-wall.mjs`
   out of it.
 - **YAML anchors don't work.** GitHub Actions' workflow parser has no support
   for `&anchor`/`*alias`, so the two `paths-ignore` lists are repeated verbatim.

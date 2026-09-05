@@ -225,12 +225,21 @@ export function makePagesHandlers(
     onCreate?: (tripId: string, input: CreatePageInput) => void;
     onUpdate?: (pageId: string, patch: UpdatePageInput) => void;
     onDelete?: (pageId: string) => void;
+    viewerId?: string;
   },
 ) {
   let pages = structuredClone(initialPages);
   return [
+    // `viewerId` mirrors the real route, which resolves the reader from its own
+    // guard so the index's provenance line can say "Yours" truthfully. Defaults
+    // to the fixture's own actor, so an unconfigured test sees its notebooks as
+    // the reader's own — `options.viewerId` is how a test asks for the
+    // collaborator case instead.
     http.get("/api/trips/:tripId/pages", ({ params }) =>
-      HttpResponse.json({ pages: pages.filter((p) => p.tripId === params.tripId) }),
+      HttpResponse.json({
+        pages: pages.filter((p) => p.tripId === params.tripId),
+        viewerId: options?.viewerId ?? "dev-alice",
+      }),
     ),
     http.post("/api/trips/:tripId/pages", async ({ params, request }) => {
       const input = CreatePageInput.parse(await request.json());

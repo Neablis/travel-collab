@@ -2,6 +2,9 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
+Design side refreshed 2026-09-04 (§2g the notebook widget framework; §2f the phone Notebook; §2c billing surfaces; §2d the
+shared-day map and the phone Playbooks tab; §2e Notebook widgets — pages no longer have a
+scope).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -21,6 +24,7 @@ shelled, not missing* — it is not a design gap.
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins; design should add it back or the build should drop it. Only survivor of the old D5 list. |
 | **D4** | New-trip "roughly when?" chips | `CreateTrip` (`contracts/src/trip.ts`) carries **name only** | First-run screen offers date-range chips | Shipped as a Preview-wrapped shell with a dashed border reading "needs a `CreateTrip` field". Contract change, or delete. |
 | **D6** | "Next trip" | `TripSummary` has no dates, so `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown derived from `TODAY` / `NEXT_TRIP_START` | **= their KI-34, still open**, and worse than first written: with nothing to sort by, the hero can surface the *wrong trip*, not just the wrong date. Countdown is honest in design and unbuildable until the field lands. |
+| **D10** | Billing | Nothing — no `plan`, no `plan_versions`, no `entitlement_grants`, no `is_admin`, no `subscriptions`, no `ai_usage`. `modelSelection.ts:89` is still `EVERYONE_IS_ENTITLED` | Four surfaces: pricing, operator console, the collaboration gate, plan + usage (§2c) | Design is ahead on purpose and blocked on **all** of M20 and M21. Not a defect on either side. |
 | **D9** | Playbooks scope | `playbooks-route` shell, private days only | Public search, reviews, ratings, leaderboard, profiles (§2b) | Design is far ahead. Needs `cities[]`, a city search endpoint and a reviews table before it is buildable. |
 | **D8** | Landing page has no route | nothing — the unauthenticated branch is four lines | A full screen with a rotating hero and three feature blocks | New with §2. Needs a real marketing route, not a conditional inside `page.tsx`. |
 
@@ -123,6 +127,146 @@ board — an adds ledger keyed by (day, trip) so an add can be counted once and 
 dated trip. A public user record is NOT needed: profiles are derived from days. Until
 the reviews table exists, every rating on this surface is fixture data.
 
+## 2c. New this turn — the billing surfaces (M20 / M21)
+
+`SPEC.md` §17 is the whole design. Four surfaces, **all fixture data**, and the two prices
+are placeholders: M21's own prerequisite makes the price Mitchell's decision, and the design
+has not made it. What matters for planning:
+
+- **They are blocked on the milestones, not on a field.** M20 introduces an Entitlements
+  module to `AGENTS.md`'s module map — structural law, ADR due before it opens. Until M20
+  lands there is no plan, no grant, no resolver and no `is_admin`; until M21 lands there is
+  no subscription, no MRR and no ARPU. Nothing here is a shell to wire up.
+- **The design asserts no new gate.** The two gates it shows are M20 link 4 (AI, 402 with
+  `ai-not-entitled`) and link 6 (invites, capped on read). If a diff written against these
+  screens touches `modelSelection.ts`, `quota.ts` or `members.ts` during **M21**, that is
+  M21's split failing, not the design asking for it.
+- **The ladder is presentation only.** Three plan cards nest in copy; nothing in the design
+  reads a display order as authority or derives one plan from another. A pricing page is the
+  most likely place for M20's enumeration rule to be lost quietly.
+- **Publishing and migrating plan versions are deliberately absent from the UI**
+  (Mitchell, 2026-09-02), which narrows M20 link 7: the admin surface owes the accounts
+  list, effective entitlements, grant history, granting and revoking, and per-tier stats —
+  **not** the two plan-version operations. Versions are still immutable and still pinned;
+  they are published from the repo. If link 7's exit gate is read as requiring publish-in-UI,
+  that gate and this design disagree, and the design is the newer decision.
+- **The console is not a product surface**, per link 7, and the design keeps that: plainest
+  primitives, no accent language, and it does not exist on the phone — entry point included.
+- **Costs-more-than-it-pays is segmented in the UI**, not just in the query: one count for
+  paying-and-underwater with a filter into the table, grant-funded accounts counted by
+  source and set aside. This is M21 link 7's requirement expressed as layout.
+
+Two smaller notes for whoever builds it. `Money` must not appear on these screens' data
+path — a request costing $0.0011 rounds to zero in `amountMinor` (M20 link 9, third
+recurrence of that defect class); the console shows dollars derived at read time from tokens
+plus a dated rate table. And the account's meters read the **pinned version's** per-user
+ceilings; the environment's global ceiling is deliberately not shown, because it was never
+sold to anyone.
+
+## 2d. New this turn — the shared-day map and the phone Playbooks tab
+
+Also absent from the previous bundle, which predated both. `SPEC.md` §16.
+
+The shared day draws a map beside its stop list. Three constraints are load-bearing and each
+one was a live bug in the design file: the map node stays mounted (a conditional container
+detaches it mid-style-load and the load aborts silently — DRIFT §6 build-check 5); pins draw
+immediately while lines wait for the style; and style-load recovery is per instance, with a
+rebuild at 3.5s and 7.5s and a list-only fallback at 11s.
+
+The phone tab bar is now **Plan / Map / Notebook / Playbooks / Trips** — SPEC §13's four-tab
+list is superseded. Phone Playbooks has parity with Discover, with all filters in one bottom
+sheet per rule 3 and the shared day's map collapsed behind a "Show route" row.
+
+## 2e. New this turn — Notebook widgets replace page scope
+
+`SPEC.md` §18, which supersedes §7's page-scope model. This is the first item on this pass
+that makes the build's job **smaller**, so it is worth reading before the next Notebook diff.
+
+A page no longer has a scope. **Each widget owns its inputs** — a day, a stretch of days, a
+person, a tag set, a trip — bound when it is inserted and rebindable in place. Two widgets on
+one page can read two different days, and the design demonstrates exactly that.
+
+What the build should stop planning for:
+
+- `PageContext.dayRef` **as a page property**, and with it `PageScreen.handleBindDay` and
+  `focusDayBinding`. The binding belongs to the widget instance. These three are real code
+  today, which is why §7 keeps the struck text rather than deleting it.
+- The page-header day dropdown, the "this page follows Day 6" Banner, the Trip-wide / Day
+  badge on the index, and "Following Day 6" on the phone. All four asserted a scope the model
+  no longer has, and three of them also duplicated a value already on screen (rule 4).
+- Scope as a facet in the insert picker. Scope × shape was a lens over the registry; with
+  inputs declared it is a category that does not exist. The picker is now search + shape over
+  a flat list, then a **Point it at** step with one control per declared input.
+
+What it needs instead — and this is the part to cost:
+
+- **Inputs are part of the registry entry**, not per-macro special cases: an input *type*
+  (`day` / `days` / `person` / `tags` / `trip`) picks the control, so a new widget needs no
+  new UI. This is §7's "macro param schema" promoted from one macro's extra to the model.
+- **A widget instance stores its bindings** — a page document therefore holds instances with
+  arguments, not bare macro references.
+- Ranges (`days`) and people (`person`) are new resolver arguments. The design added five
+  widgets that use them without inventing a mechanism; that is the test of the model, and it
+  is also five resolvers a build now owes.
+
+**It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
+
+## 2g. New this turn — the widget framework is three components, and one rule needs a call
+
+`specs/notebook-widget-framework.md`, `SPEC.md` §21. ADR-037 says a widget is a module whose
+`render` returns typed data and must be total. It does not say what the output *looks like*,
+so twenty widgets can satisfy it and still disagree on borders, empty copy and what an
+unbound widget shows. The framework closes that: **three components, one per shape**, and a
+widget author supplies content only — never spacing, borders, ghost glyphs or empty copy.
+
+What the build gains, and it maps onto ADR-037 directly:
+
+- **`Rendered`'s three arms get one renderer each.** `inline` → `NotebookInline`,
+  `block` → `NotebookBlock`, `rows` → `NotebookRepeat`. The repeat's rows **are** inline
+  mounts, so there is no second chip renderer to drift — which is the same reason ADR-037
+  deletes `MacroView`'s `switch (name)`.
+- **Four states per shape**: `ok`, `ghost`, `empty`, `stale`. This is the concrete form of
+  decision 6's "renders in every state", and it splits `empty` from `ghost` — one says the
+  answer is legitimately nothing, the other says point it somewhere.
+- **`unbound` must name its input, per part.** Decision 6c already owes
+  `needs: WidgetInput["type"]` instead of the day-shaped literal. The ghost needs it at part
+  granularity: a two-input widget shows the day's parts resolved and the tag's parts ghosted
+  in the same sentence.
+- **A value kind per part** — money, count, date, time, duration, city, text. `format.ts`
+  already has `formatMoney` / `formatDate`; this is the same closed set ADR-037 open
+  question 4 calls "how to serialize them", used for ghost glyphs as well as formatting.
+- **`stale` needs no new resolver state** — it is `unbound` plus the label of what was lost,
+  which the resolver knows when a `DayRef` fails to resolve.
+
+**One decision is owed and it is not the design's to take: ghosts are editing-only.** In
+reading mode a widget with an unbound input prints nothing, and only someone with edit
+rights sees a quiet "2 widgets aren't set up" line. The design's reason is that a reader is a
+traveller and `$XXX` is worse than silence. It **refines** decision 6 rather than
+contradicting it — the widget still renders in every state; in reading mode it renders as
+nothing — but it changes what a resolver's output does downstream, so the build should
+accept or reject it explicitly.
+
+## 2f. Previously — the phone Notebook expresses the widget model
+
+`SPEC.md` §19. The previous bundle listed the phone Notebook as one hardwired widget and an
+open design pass; that pass is done, and the §8 item is removed.
+
+Phone Notebook is now index → page, with the same widget instances, the same binds and the
+same insert registry as desktop. **This adds no API surface.** Everything §2e asks for
+already covers it — widget instances with stored bindings, input types picking a control,
+`days` / `person` resolvers. What the client owes on top is layout only:
+
+- Rebinding is a **sheet**, not an inline select row (390px cannot hold the desktop chrome
+  row). One 44px "Pointed at …" button per widget opens it; it holds one control per declared
+  input plus the same *Reads as* preview.
+- Insert is one full-height sheet with two steps inside it — browse, then point it at.
+  Not a sheet over a sheet (rule 3).
+- The bind label joins multi-input widgets with ` → `.
+
+The consequence for planning: **there is no longer a mobile-only Notebook slice to schedule.**
+Notebook ships on both surfaces off the same resolvers, so M8's estimate should be one number,
+not desktop-now / phone-later. The remaining phone Notebook question is content, not model.
+
 ## 3. Designed, shelled in code behind `<Preview>`
 
 From the registry, unchanged this sync. **Blocked on a missing field:**
@@ -145,10 +289,15 @@ chips.
 - **Notebook / Pages — an entire feature.** `packages/pages` (macro registry,
   templates, inline + block macros), `NotebookScreen`, `PageScreen`, `PageEditor`
   (TipTap), `MacroNodeView`, `ComposePanel`, `ItineraryDayBlock`, `ItineraryTripBlock`,
-  `CostsTableBlock`, routed at `/trips/[tripId]/pages`. **Blocked, not queued:** SPEC §7
-  says prose with live macro chips; the build removed macro authoring in M8 and seeds
-  templates with no macro nodes. Nobody should design or build to §7 until that is
-  settled. It is also why the phone Notebook stays unstarted.
+  `CostsTableBlock`, routed at `/trips/[tripId]/pages`. **Still the item to settle first,
+  but the question changed on 2026-09-02** (SPEC §18): the standoff was "design wants live
+  macro chips, M8 removed macro authoring, `templates.ts` seeds no macro nodes". Under the
+  widget model a seeded template is **a document holding widget instances with default
+  bindings** — `day-sheet` seeds its widgets pointed at day index 0 — so nothing has to
+  re-open macro *authoring*: the authoring surface is the insert sheet plus the in-place
+  chrome row, neither of which is a text-macro editor. Settle it as "what does a seeded
+  template instantiate", not "does macro authoring come back". It is still why the phone
+  Notebook stays unstarted.
 - **Trip lifecycle.** Delete → undo toast → `RestoreTrip`, and `duplicateTrip`. The
   optimistic pattern (drop the row on confirm, re-add on failure) has no design.
 - **Dev login.** `dev-login` credentials provider behind `AUTH_DEV_LOGIN` — the only
@@ -218,6 +367,10 @@ Carried forward because each one is a bug the design already hit:
 
 ## 8. Still open, on our side
 
+- **The billing surfaces are desktop and landing only.** No phone treatment for plan and
+  usage or the collaboration gate; the operator console is deliberately never on the phone.
+  The two phone states rule 6 wants for the plan section are undesigned.
+
 - **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
   after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project
   rule 6 requires all three of every screen.
@@ -234,10 +387,13 @@ Carried forward because each one is a bug the design already hit:
 ## Suggested order
 
 1. Settle **D1** (rename to Caesura in code) — it is trivial and a year stale.
-2. Settle **SPEC §7 vs `templates.ts`**. It blocks Notebook on both surfaces *and* the
-   landing page's second feature block.
+2. Settle **what a seeded template instantiates** (SPEC §18 vs `templates.ts`; was "§7 vs
+   `templates.ts`"). It blocks Notebook on both surfaces *and* the landing page's second
+   feature block. §18 narrows it to a data question — instances with default bindings —
+   rather than a reversal of M8.
 3. Land **KI-34** so the home hero can be honest.
-4. Design the phone **conflict** state; that is the last of rule 6.
+4. Design the phone **conflict** state; that is the last of rule 6 — and now the only
+   phone gap in Notebook's path, since §2f closed the other one.
 5. Then §4's undesigned lifecycle work.
 
 Build status, for planning: M10 Wave 2 Phases 5–8b are merged; **Phase 9 is M10's exit

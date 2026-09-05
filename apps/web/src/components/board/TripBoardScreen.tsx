@@ -13,6 +13,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
+import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
@@ -26,22 +27,19 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { toolNoteLabel, type AssistantTurn } from "@/components/assistant/Transcript";
+import type { AssistantTurn } from "@/components/assistant/Transcript";
+import { useAskThread } from "@/components/assistant/useAskThread";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
 import {
   AI_NOT_ENTITLED_CODE,
-  ASK_ABORTED_CODE,
   DEMO_TRIP_UNSUPPORTED_CODE,
   applyAssistantProposal,
-  askAssistant,
   type ApiError,
   type AskScope,
-  type AskWireMessage,
 } from "@/lib/apiClient";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
-import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 
 // Closed until asked for, at every width (Mitchell, walking the #71 preview:
 // "Can we default the assistant to minimized? Its a better experience").
@@ -104,15 +102,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // visitor has no outcome but an error. This is the one control on the board
   // with no read-only half to fall back to.
   const isDemo = isDemoTripId(tripId);
-  const [askStatus, setAskStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [askError, setAskError] = useState<string | null>(null);
-  // The conversation itself, oldest turn first. See runAsk below for why it
-  // lives here rather than in the rail.
-  const [thread, setThread] = useState<AssistantTurn[]>([]);
-  // Turn ids only have to be unique within one thread and stable across
-  // re-renders; a counter says so and stays deterministic under test, where
-  // crypto.randomUUID would not.
-  const turnSeq = useRef(0);
+  // The conversation lives in `useAskThread` now — it is the same machinery a
+  // notebook page needs (M14 link 8), and two copies would have meant two
+  // thread ceilings and two definitions of "this turn was abandoned". What
+  // stays here is what is genuinely the board's: the scope, the two refusals
+  // below, and proposals.
   // `pending`, readable AFTER an await — where the render closure's copy is
   // stale by a whole AI batch round-trip (see `approveProposal`). Assigned
   // during render rather than in an effect, the same way TripProvider keeps
@@ -121,24 +115,45 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // runs conditionally, and a `useRef` there is a hook-order violation.
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
-  // Held so "New conversation" — and unmounting — can hang up on a turn that
-  // is still streaming. Without it the composer stays disabled behind an
-  // answer nobody wants, and navigating away mid-answer leaves the read
-  // running and its setState firing into a tree that is gone.
-  const askAbort = useRef<AbortController | null>(null);
-  // Runs on unmount only, so it must not be keyed on anything that changes.
-  useEffect(() => () => askAbort.current?.abort(), []);
-  // The text of a turn that was rolled back, handed to the rail to put back in
-  // its composer. See the rollback in runAsk for why.
-  const [restoredDraft, setRestoredDraft] = useState<string | null>(null);
+  // Scope, derived HERE rather than beside its first use further down, because
+  // the hook below it is a hook: everything past the `status` early returns
+  // runs conditionally, and calling `useAskThread` there is a hook-order
+  // violation. `activeTrip` is null until the trip loads, and a scope with no
+  // trip behind it is simply trip-scoped — the same "wider reading is the safer
+  // one" call `parseAskScope` makes server-side for a scope line it cannot
+  // parse, and unobservable in any case because the rail is not rendered yet.
+  //
+  // The clamp is real and was a bug: focusing the last day and then deleting it
+  // left a scope pointing past the end, and every answer came back
+  // `this trip has N days, so day N+1 is out of range` with no way back.
+  const scopedDay =
+    focusedDay !== null && activeTrip !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
+  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
+  // NUMBER a human reads is +1, and that conversion happens in one place.
+  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
+  // The conversation itself. What the board still owns is the one event only it
+  // can act on: a `proposal`, attached to the answer and still PENDING. Nothing
+  // has been committed — the only thing that writes is `applyAssistantProposal`,
+  // below, behind the Approve button.
+  const ask = useAskThread({
+    tripId,
+    scope: askScope,
+    errorMessage: askErrorMessage,
+    onEvent: (event, patchAnswer) => {
+      if (event.type !== "proposal") return;
+      patchAnswer((turn) => ({
+        ...turn,
+        proposal: { proposal: event.proposal, status: "pending", note: null },
+      }));
+    },
+  });
+  const thread = ask.thread;
   // Collapsed by default (Phase 3's design). The open flag is paired with who
   // opened it, because a drag auto-opens the drawer and must only re-close the
   // ones it opened itself — that rule lives in `rackDisclosure` (a pure
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
-  // Whether the rail's last answer was simulated (ai-live flag off).
-  const [askSimulated, setAskSimulated] = useState(false);
   // CodeRabbit (PR #46 final review): the assistant's minimized launcher and
   // the unscheduled rack are both independently `position: fixed` to the
   // viewport (see UnscheduledRack's own comment for why the rack can't just
@@ -185,6 +200,51 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     rackObserverRef.current = observer;
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
+
+  // The launcher's twin of the above, and for the same class of reason: below
+  // 768px the assistant launcher is an in-flow button at the end of the plan
+  // column (see its own comment further below, and KI-2026-08-30 / SPEC §13.5),
+  // so unlike the `position: fixed` rack it *does* occupy real flow space —
+  // and the Map lens sizes its canvas to `100dvh - canvasTop - rack`, i.e. to
+  // exactly the whole viewport. The launcher therefore lands 56px *past* the
+  // bottom of a canvas that had already used the last pixel, and the document
+  // scrolls: `scrollHeight - innerHeight` was 56 at 411x760, failing
+  // responsive.spec.ts's "the canvas still owns the viewport" assertion.
+  //
+  // Measured, not the constant 56 (`mt-3` 12px + `min-h-11` 44px): both are
+  // rem-derived, so the real footprint grows with the user's text size and a
+  // hard-coded number would under-reserve at larger type — the same argument
+  // that made the rack a measurement.
+  //
+  // The wrapper is `flow-root` and the observed element, rather than the
+  // Button itself, for two reasons that both have to hold:
+  //   1. `mt-3` is the launcher's separation from the plan and is part of the
+  //      space it costs, but a child's top margin collapses out through
+  //      PageContainer (horizontal padding only) and would escape a plain
+  //      wrapper too — the wrapper would measure 44px, not 56px. A BFC stops
+  //      the collapse, so the box measures the whole flow footprint.
+  //   2. At >=768px the Button is `md:fixed` and `md:mt-0`, so it is out of
+  //      flow and the wrapper's height is genuinely 0 — which is exactly the
+  //      value desktop must publish. That is not a coincidence to be paired
+  //      with a breakpoint check here; "flow space the launcher occupies" IS
+  //      the quantity, and above the breakpoint it is zero by definition.
+  // A callback ref for the same reason as the rack's: the wrapper mounts
+  // below the `status === "loading"` early return, so an effect would run
+  // once against a null ref and never re-run.
+  const launcherObserverRef = useRef<ResizeObserver | null>(null);
+  const [launcherHeight, setLauncherHeight] = useState(0);
+  const launcherWrapperRef = useCallback((node: HTMLDivElement | null) => {
+    launcherObserverRef.current?.disconnect();
+    launcherObserverRef.current = null;
+    if (!node) {
+      setLauncherHeight(0);
+      return;
+    }
+    const observer = new ResizeObserver(() => setLauncherHeight(node.getBoundingClientRect().height));
+    observer.observe(node);
+    launcherObserverRef.current = observer;
+  }, []);
+  useEffect(() => () => launcherObserverRef.current?.disconnect(), []);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -260,11 +320,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //
   // Clamping to `null` is the same "wider reading is the safer one" call
   // `parseAskScope` makes server-side for a scope line it cannot parse.
-  const scopedDay = focusedDay !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
-  // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
-  // NUMBER a human reads is +1, and that conversion happens in one place.
-  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
-
   const updateActivity = (activityId: string, value: ActivityFormValue) =>
     void dispatch({
       type: "UpdateActivity",
@@ -384,8 +439,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // derived receipt for a batch it has already applied, which is structurally
   // the wrong channel for "have a discussion" (ADR-022 §4 says so outright).
   // Two ask boxes side by side — one that talks, one that silently rewrites
-  // your trip — is worse than either. `composeAiPlan` itself is untouched and
-  // still exported.
+  // your trip — is worse than either. `composeAiPlan` has since been deleted
+  // outright (ADR-033 Decision 4): the rail's judgement here is what left it
+  // with no caller at all, and dead code was the only thing keeping it.
   //
   // M9 (Task 6) brought applying a plan back through THIS endpoint, in the
   // strictly better form: the turn PROPOSES, the user reviews, and Approve
@@ -396,117 +452,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // the whole of it is posted back on every turn. It survives hiding the rail
   // (this component stays mounted) and dies with the page, which is the
   // honest lifetime for something the server keeps nothing of.
-  const nextTurnId = (prefix: string) => {
-    turnSeq.current += 1;
-    return `${prefix}${turnSeq.current}`;
-  };
-
-  const runAsk = async (text: string) => {
-    const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
-    const answerId = nextTurnId("a");
-    // `thread` from this render's closure is the thread the user is looking
-    // at: only one turn can be in flight (the composer and the suggestion
-    // chips are both disabled while `asking`), so there is no newer one.
-    const posted: AskWireMessage[] = [
-      ...thread
-        // A turn that failed before it produced any text is dropped below, but
-        // a partial one is kept — and an empty `parts` array is not a message
-        // the server's validator will accept.
-        .filter((turn) => turn.text.trim() !== "")
-        .map((turn) => ({ id: turn.id, role: turn.role, parts: [{ type: "text" as const, text: turn.text }] })),
-      { id: userTurn.id, role: "user" as const, parts: [{ type: "text" as const, text }] },
-    ];
-    setThread((current) => [
-      ...current,
-      userTurn,
-      { id: answerId, role: "assistant", text: "", tools: [], pending: true },
-    ]);
-    setAskStatus("loading");
-    setAskError(null);
-    setAskSimulated(false);
-    // Cleared so a second rollback of the SAME text still re-fires the rail's
-    // restore effect — the value has to change for the effect to see it.
-    setRestoredDraft(null);
-
-    const controller = new AbortController();
-    askAbort.current = controller;
-
-    // Only ever touches the one answer turn this call owns, by id — a stale
-    // stream that outlived its turn cannot write into a newer one.
-    const patchAnswer = (fn: (turn: Extract<AssistantTurn, { role: "assistant" }>) => AssistantTurn) =>
-      setThread((current) => current.map((t) => (t.id === answerId && t.role === "assistant" ? fn(t) : t)));
-
-    // Accumulated here as well as in the turn, because the rollback below has
-    // to know whether ANY text arrived, and `askAssistant` only returns the
-    // text when it succeeds.
-    let streamed = "";
-    const result = await askAssistant(
-      tripId,
-      posted,
-      askScope,
-      (event) => {
-        if (event.type === "text") {
-          streamed += event.delta;
-          patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
-        } else if (event.type === "tool") {
-          patchAnswer((turn) => ({
-            ...turn,
-            tools: [...turn.tools, { id: event.toolCallId, label: toolNoteLabel(event.toolName, event.input) }],
-          }));
-        } else if (event.type === "meta") {
-          // Ruling B: read from the response header the server sets, not from
-          // a phrase in the model's own answer. It arrives before the first
-          // delta, so a turn that dies mid-stream is still badged correctly —
-          // which the prose sniff could not do, because the sentence it
-          // matched is the LAST one.
-          setAskSimulated(event.simulated);
-        } else if (event.type === "proposal") {
-          // Attached to the answer, still pending. Nothing has been committed:
-          // the turn's write tools collected, and the only thing that writes is
-          // `applyAssistantProposal`, below, behind the Approve button.
-          patchAnswer((turn) => ({
-            ...turn,
-            proposal: { proposal: event.proposal, status: "pending", note: null },
-          }));
-        }
-      },
-      controller.signal,
-    );
-    askAbort.current = null;
-
-    if (result.ok) {
-      patchAnswer((turn) => ({ ...turn, pending: false }));
-      setAskStatus("idle");
-      return;
-    }
-
-    // Abandoned by "New conversation": its turn is already gone, and the user
-    // asked for it. Not an error.
-    if (result.error.code === ASK_ABORTED_CODE) return;
-
-
-    // A turn that produced no text at all did not happen — drop both halves so
-    // the thread stays a conversation rather than accumulating orphan
-    // questions, and let the inline error carry the reason. A turn that got
-    // PART of an answer out keeps it: the words are on screen already, and
-    // deleting them under the user is the worse lie.
-    if (streamed !== "") {
-      patchAnswer((turn) => ({ ...turn, pending: false }));
-    } else {
-      setThread((current) => current.filter((t) => t.id !== answerId && t.id !== userTurn.id));
-      // ...and the question goes back in the composer with it. The two
-      // refusals above keep the typed prompt on screen for the reason
-      // AssistantRail's own comment gives — a refusal the user has to retype
-      // reads as the box being broken — and a rolled-back turn is the same
-      // thing arriving later. It is the actionable 400s ("your message must be
-      // 4000 characters or fewer") that make this more than a nicety: being
-      // told to shorten a message you can no longer see is not actionable.
-      setRestoredDraft(text);
-    }
-    setAskStatus("error");
-    setAskError(askErrorMessage(result.error));
-  };
-
   const submitAssistantAsk = async (text: string) => {
     // A viewer's ask is refused here even though /ask itself admits a viewer
     // (ASK_MINIMUM_ROLE) and writes nothing. Kept deliberately, and still a
@@ -521,9 +466,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // a control that silently does nothing is the failure mode TripProvider's
     // runDispatch comment was written about.
     if (readOnly) {
-      setAskStatus("error");
-      setAskError("You have view-only access to this trip.");
-      setAskSimulated(false);
+      ask.refuse("You have view-only access to this trip.");
       return false;
     }
     // Refused while the optimistic queue still holds unsent work. The original
@@ -536,9 +479,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // confidently answer about a plan the user is not looking at. Same
     // refusal, same copy, a reason that is still real.
     if (pending) {
-      setAskStatus("error");
-      setAskError("Finish saving your changes before asking the assistant.");
-      setAskSimulated(false);
+      ask.refuse("Finish saving your changes before asking the assistant.");
       // false keeps the rail's typed prompt on screen: this ask never reached
       // the model, so making the user retype it would read as a broken box.
       return false;
@@ -546,7 +487,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // Deliberately NOT awaited: the answer streams for seconds, and the rail
     // clears its composer on whatever this resolves to. Accepting the ask is
     // the thing the composer waits for; the answer arrives in `thread`.
-    void runAsk(text);
+    void ask.runAsk(text);
     return true;
   };
 
@@ -580,10 +521,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       | NonNullable<Extract<AssistantTurn, { role: "assistant" }>["proposal"]>
       | null,
   ) =>
-    setThread((current) =>
-      current.map((t) =>
-        t.id === turnId && t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
-      ),
+    ask.patchTurn(turnId, (t) =>
+      t.role === "assistant" && t.proposal != null ? { ...t, proposal: fn(t.proposal) } : t,
     );
 
   const approveProposal = async (turnId: string) => {
@@ -640,16 +579,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     patchProposal(turnId, (state) =>
       state.status === "applied" ? state : { ...state, status: "rejected", note: null },
     );
-  };
-
-  const startNewConversation = () => {
-    askAbort.current?.abort();
-    askAbort.current = null;
-    setThread([]);
-    setAskStatus("idle");
-    setAskError(null);
-    setAskSimulated(false);
-    setRestoredDraft(null);
   };
 
   // Task L1: the page shell (P1) no longer pads its <main> (width="full"
@@ -714,8 +643,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // what the server will see. Each answered question adds two messages, so
   // `(cap − posted + 1) / 2` is what is left: at 39 posted, one more question
   // fits (40) and none after it.
-  const postedThreadLength = thread.filter((turn) => turn.text.trim() !== "").length;
-  const asksRemaining = Math.max(0, Math.floor((MAX_ASK_MESSAGES - postedThreadLength + 1) / 2));
 
   return (
     <>
@@ -761,23 +688,64 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // and it tracks the rack opening, closing and changing item count
           // for free — the same measurement the assistant launcher's `bottom`
           // offset reads.
+          // `--launcher-height` is the same idea for the in-flow phone
+          // launcher below (see launcherWrapperRef above): 0px wherever the
+          // launcher is out of flow or absent, its measured flow footprint
+          // where it is not. Published here rather than on the launcher
+          // itself so MapLens's canvas — a *sibling* subtree, not a
+          // descendant of the launcher — inherits it, exactly as it already
+          // inherits `--rack-height`.
           // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
-          style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
+          style={
+            {
+              "--rack-height": `${rackHeight}px`,
+              "--launcher-height": `${launcherHeight}px`,
+            } as React.CSSProperties
+          }
         >
           <TripHeader tripId={tripId}>
-            {/* "Beside the view tabs" (SPEC §11), so one row. `flex-wrap` and
-                the tabs' own `shrink-0` are what keep that true at a phone's
-                width: the line drops onto its own line rather than squeezing
-                the tab strip, which is the control you need most. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {/* "Beside the view tabs" (SPEC §11), so one row — and the design
+                keeps it one row at every width by SCROLLING it
+                (`flex-wrap: nowrap; overflow-x: auto`), not by wrapping. The
+                build wrapped, so on a phone the Notebooks pill dropped onto a
+                second line and pushed the day chips down; nothing here is
+                worth a row of its own. */}
+            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto">
               {/* `shrink-0` on the wrapper, not inside TabStrip: TabStrip is a
-                  primitive with no className seam, and the tab strip is the
-                  control you least want squeezed when the focus line appears
-                  beside it. */}
+                  primitive with no className seam, and under `nowrap` an
+                  unpinned child squeezes instead of scrolling — which is the
+                  failure mode this row is being changed to avoid. */}
               <div className="shrink-0">
                 <TripViewTabs />
               </div>
+              {/* Deliberately NOT wrapped in a `shrink-0` div the way the tabs
+                  are, though the design pins it `flex: 0 0 auto`: TagFocusLine
+                  renders null when no tag is focused and a wrapper does not, so
+                  the wrapper would leave a phantom flex item — and a `gap-4`
+                  worth of dead space — on every board that is not focused. It
+                  carries its own `min-w-0` and truncate for the squeeze. */}
               <TagFocusLine />
+              {/* The design's explicit spacer, in place of `ml-auto` on the
+                  pill: the focus line appears and disappears between the tabs
+                  and the pill, and a margin-auto would drag the pill leftwards
+                  whenever a tag came into focus. `min-w-3` is the design's
+                  12px floor, so the two never touch once the row is scrolling. */}
+              <div className="min-w-3 flex-auto" />
+              {/* SPEC §11: the Notebooks pill sits at the FAR RIGHT of this
+                  row, deliberately a different class of thing from the tabs —
+                  they project this trip through another view, it leaves for
+                  another route.
+
+                  Gated on `isDemoTripId` for the same reason `TripHeader`'s nav
+                  row is (ADR-031): the demo board's visitor has no session, so
+                  every notebook route behind it is a trip to /signin. A control
+                  that only leads to a sign-in wall still says "there is
+                  something here for you", and there is not. */}
+              {!isDemo && (
+                <div className="shrink-0">
+                  <NotebooksMenu tripId={tripId} readOnly={readOnly} />
+                </div>
+              )}
             </div>
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
@@ -907,6 +875,79 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             )}
           </div>
+          {!isDemo && !assistant.open && (
+            // The closed-rail launcher. Two presentations, and the breakpoint
+            // is the SAME 768px the rail itself already turns on
+            // (`.assistant-rail`, globals.css; `useIsPhone`'s
+            // PHONE_MAX_WIDTH_PX; TripHeader's `hidden md:block` Share).
+            //
+            // >=768px (`md:`) is unchanged: the design's minimized launcher
+            // (`Trip Planner Redesign.dc.html:1058-1063`), a filled-brand pill
+            // pinned bottom-right by `position: fixed`, not the edge-tab
+            // treatment this used to have (variant="secondary",
+            // rounded-r-none, vertically centred against the right edge) — the
+            // design has no bordered edge-tab state for the assistant, only
+            // this pill. Icon mirrors AssistantRail's own open-state mark
+            // glyph (◎, same component's header).
+            //
+            // Below 768px it stops floating (KI-2026-08-30). SPEC §13.5 is
+            // categorical about the phone — "Nothing floats over data. No
+            // floating action button." — and gives the reason this element hit
+            // first-hand: "a control hovering over a scrolling list will cover
+            // a value at some scroll position, and costs are right-aligned."
+            // The pill is bottom-RIGHT and a stop card's cost is
+            // right-aligned, so at 402x874 it sat on top of the day columns;
+            // the same fact already forced a 158px canvas reservation on the
+            // Map lens so it would stop covering MapLibre's attribution
+            // (`.assistant-launcher` in globals.css). §13.5's own remedy for a
+            // FAB is to put the control in normal flow at the end of the
+            // content ("Adding sits at the end of the day, as on desktop"), so
+            // that is what this is: a full-width, 44px-floor (§13.1) button in
+            // flow, as the last thing in the plan column.
+            //
+            // Mounted HERE, inside `.trip-board-content`, rather than as a
+            // sibling of the flex row above, for one concrete reason: that
+            // div's `padding-bottom: calc(24px + var(--rack-height))`
+            // (globals.css) is the app's existing reservation against the
+            // `position: fixed` unscheduled rack. An in-flow launcher placed
+            // after the row would land *below* that reservation, i.e. under
+            // the rack's bar; inside it, the reservation does for the launcher
+            // exactly the job it already does for the day columns. Nothing
+            // changes for the docked (>=768px) presentation, which is out of
+            // flow either way — a `position: fixed` element's containing block
+            // is the viewport, and no ancestor here establishes a new one.
+            // Deliberately outside the `inert` wrapper above (as before):
+            // asking a question about a previewed history state is a read, not
+            // a write, so it stays available while the board is inert.
+            //
+            // The `flow-root` wrapper exists only to be measured — it is the
+            // box whose height is "flow space the launcher costs", which the
+            // Map lens has to subtract from its canvas or the document
+            // scrolls past a canvas that already owns the viewport. See
+            // launcherWrapperRef above for why the BFC and why not the
+            // Button itself.
+            <div ref={launcherWrapperRef} className="flow-root">
+              <PageContainer width={boardUsesFullWidth || isFullLens ? "full" : "content"}>
+                <Button
+                  variant="primary"
+                  onClick={assistant.show}
+                  // `md:min-h-0` releases the phone's 44px floor above the
+                  // breakpoint so the docked pill keeps the exact 40.3px height
+                  // it has always had — this fix is not licensed to resize a
+                  // desktop control.
+                  className="mt-3 h-auto min-h-11 w-full gap-2 rounded-full px-4 py-2.5 text-base font-semibold md:fixed md:right-6 md:z-40 md:mt-0 md:min-h-0 md:w-auto md:shadow-overlay"
+                  // Only read while the pill is `position: fixed` (>=768px); a
+                  // static element ignores `bottom`, which is why the in-flow
+                  // phone presentation needs no counterpart here.
+                  // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+                  style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
+                >
+                  <span aria-hidden>◎</span>
+                  Assistant
+                </Button>
+              </PageContainer>
+            </div>
+          )}
         </div>
         {/* The assistant rail — a real streaming conversation against
             /api/trips/:id/ask (see runAsk above). Mounted here, as the row's
@@ -922,41 +963,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             scope={askScope}
             turns={thread}
             suggestions={assistantSuggestions}
-            asksRemaining={asksRemaining}
-            restoreDraft={restoredDraft}
-            onNewConversation={startNewConversation}
+            asksRemaining={ask.asksRemaining}
+            restoreDraft={ask.restoredDraft}
+            onNewConversation={ask.startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
             onRejectProposal={rejectProposal}
             approvalBlockedReason={approvalBlockedReason}
-            asking={askStatus === "loading"}
-            askError={askStatus === "error" ? askError : null}
-            simulated={askSimulated}
+            asking={ask.asking}
+            askError={ask.askError}
+            simulated={ask.simulated}
             onHide={assistant.hide}
           />
         )}
       </div>
-      {!isDemo && !assistant.open && (
-        // Matches the design's minimized launcher (`Trip Planner Redesign
-        // .dc.html:1058-1063`): a filled-brand pill FAB pinned bottom-right,
-        // not the edge-tab treatment this used to have (variant="secondary",
-        // rounded-r-none, vertically centered against the right edge) — the
-        // design has no bordered edge-tab state for the assistant, only this
-        // pill. Icon mirrors AssistantRail's own open-state mark glyph (◎,
-        // same component's header). Stays `position: fixed`, outside the row
-        // above — a closed rail costs no layout, so there is nothing for it
-        // to be a flex sibling of.
-        <Button
-          variant="primary"
-          onClick={assistant.show}
-          className="fixed right-6 z-40 h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay"
-          // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-          style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-        >
-          <span aria-hidden>◎</span>
-          Assistant
-        </Button>
-      )}
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}

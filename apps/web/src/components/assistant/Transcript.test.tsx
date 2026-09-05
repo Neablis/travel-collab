@@ -49,7 +49,9 @@ describe("Transcript", () => {
     render(<Transcript turns={THREAD} />);
     const question = screen.getByText("What's planned for day 3?");
     const answer = screen.getByText("Day 3 has 5 stops.");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(question.className).toContain("bg-brand-tint");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(answer.className).not.toContain("bg-brand-tint");
   });
 

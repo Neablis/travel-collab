@@ -143,10 +143,9 @@ export interface AskUsage {
  * prose (writeTools.ts); this is the same drop in a shape a log line can
  * filter and count.
  *
- * `no-op` is never in here — the same filter `handleAiRequest` applies to its
- * own `resolutionErrors` (the domain correctly declining to do nothing is not
- * a bug), so what's left is exactly the "was this a real drop" question
- * Mitchell asked for.
+ * `no-op` is never in here — the domain correctly declining to do nothing is
+ * not a bug — so what's left is exactly the "was this a real drop" question
+ * Mitchell asked for. `buildProposal`'s `skipped` filters it the same way.
  */
 export interface AskDroppedCall {
   /** The command type the model tried to emit — "MoveActivity", "RemoveActivity", … */
@@ -251,7 +250,7 @@ function truncateForLog(text: string): string {
 //     not to whoever writes it next. C0 and C1 both, because U+0085 is a
 //     line break to several log platforms' parsers and U+0000 truncates a
 //     line outright in others.
-export const MAX_LOGGED_CAUSE_CHARS = 500;
+const MAX_LOGGED_CAUSE_CHARS = 500;
 
 export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): string {
   const flattened = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim();
@@ -268,7 +267,7 @@ export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): stri
  * null-prototype object with no `toString`, or a `bigint` — so every read is
  * inside the try, not just the obvious ones.
  */
-export function describeFailure(err: unknown): AskFailureCause {
+function describeFailure(err: unknown): AskFailureCause {
   try {
     const e = err as { name?: unknown; message?: unknown; statusCode?: unknown; status?: unknown };
     // `statusCode` is what `AI_APICallError` carries; `status` is what a bare
@@ -371,9 +370,9 @@ export const logAskAnalytics: AskAnalyticsSink = (record) => {
 };
 
 // The step shape this module reads. Structural rather than the SDK's
-// `StepResult` generic, for the same reason `AiResultLike` is in
-// handleAiRequest.ts: threading a ToolSet generic through a recorder buys
-// nothing and makes the tests construct a fake step they cannot write.
+// `StepResult` generic: threading a ToolSet generic through a recorder buys
+// nothing and makes the tests construct a fake step they cannot write. The
+// command endpoint's `AiResultLike` was the same trick, for the same reason.
 export interface AskStepLike {
   toolCalls?: readonly { toolName: string; input: unknown }[];
   text?: string;

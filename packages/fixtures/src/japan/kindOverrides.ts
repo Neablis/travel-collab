@@ -48,6 +48,3 @@ export const KIND_OVERRIDES: Record<string, { upstream: string; ours: string; wh
     why: "Bundled with the Chichū ticket the export already has as booked; buying one and not the other was an inconsistency in the export, not a plan.",
   },
 };
-
-/** The two stops left deliberately un-bought, so `N to book` has something true to say. */
-export const STILL_TO_BOOK = ["d7-s3-nijo-castle", "d12-s2-nakanoshima-museum"] as const;

@@ -1,18 +1,21 @@
 import {
   BatchableCommand,
   InvitePreview,
-  PageContent,
+  PageDoc,
+  migratePageDoc,
   SavedDay,
   SharedTripView,
   TripAccess,
   TripDetail,
+  TripGlobals,
   TripHistory,
   TripInvite,
   TripShare,
   TripSummary,
+  UpdateUserPreferences,
+  UserPreferences,
   type CreateInviteInput,
   type CreateSavedDayInput,
-  type PageContext,
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
@@ -196,81 +199,6 @@ export async function sendTripCommandBatch(
   }
 }
 
-// Task 5.5: POST /api/trips/:id/ai. `composeAiPage` is the page-authoring
-// surface (returns a validated PageContent doc for the caller to review
-// before it autosaves — see ComposePanel/PageScreen). `composeAiPlan` is the
-// board/combined surface (the server executes 0+ planning tool calls as one
-// atomic batch and returns the resulting detail/history, same shape as
-// sendTripCommandBatch).
-export async function composeAiPage(
-  tripId: string,
-  prompt: string,
-  pageContext: PageContext,
-): Promise<ApiResult<{ content: PageContent; simulated: boolean }>> {
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, surface: "page", pageContext }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-      return {
-        ok: false,
-        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-      };
-    }
-    const data = (await res.json()) as { content: unknown; simulated?: unknown };
-    return { ok: true, value: { content: PageContent.parse(data.content), simulated: data.simulated === true } };
-  } catch (err) {
-    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-  }
-}
-
-// The plan surface returns the same detail/history as a command batch, plus a
-// human-readable `message` summarizing what the AI applied (or why nothing
-// was) — surfaced to the user by ComposePanel.
-// `simulated` is true when the ai-live flag is off: the change really applied,
-// but the server composed it rather than a model. Surfaced so the UI can say so.
-export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
-
-export async function composeAiPlan(
-  tripId: string,
-  prompt: string,
-  surface: "board" | "combined" = "board",
-): Promise<ApiResult<PlanOutcome>> {
-  try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ai`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, surface }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-      return {
-        ok: false,
-        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
-      };
-    }
-    const data = (await res.json()) as {
-      detail: unknown;
-      history: unknown;
-      message?: unknown;
-      simulated?: unknown;
-    };
-    return {
-      ok: true,
-      value: {
-        ...parseOutcome(data),
-        message: typeof data.message === "string" ? data.message : "",
-        simulated: data.simulated === true,
-      },
-    };
-  } catch (err) {
-    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-  }
-}
-
 // Task A11's clone endpoint: POST, no body, 201 with the new trip's id. Used
 // by both the trip-list row menu and SettingsSheet's in-trip mirror (A15) —
 // both just need the new id to navigate to.
@@ -447,6 +375,72 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
   }
 }
 
+// ── Account preferences (M17) ────────────────────────────────────────────────
+
+/**
+ * This person's preferences. Never 404s — the endpoint answers with the storage
+ * defaults for a session whose row has gone (ADR-025: JWT sessions outlive
+ * rows), so a failure here is a real failure.
+ *
+ * Read through the API rather than handed down from a server component, which
+ * is the shape ADR-019 prefers for a server-only value — because the lint wall
+ * forbids a page file importing `@/server/*` at all (`eslint.config.mjs` block
+ * 1; `scripts/check-lint-wall.mjs` fixtures exactly that import from `src/app`
+ * and asserts it is rejected). "UI calls the API" is the wall's own instruction
+ * for this case, and it is what `TripProvider` already does with trip state.
+ */
+/**
+ * The trip's addressable collections (ADR-037 open question 4).
+ *
+ * Separate from `fetchTripDetail` on purpose — see the route's own comment. A
+ * caller that only renders the board never asks for this.
+ */
+export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGlobals>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`));
+    return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+export async function fetchPreferences(): Promise<ApiResult<UserPreferences>> {
+  try {
+    const res = await fetch(apiUrl("/api/account/preferences"));
+    return await readJson(res, (data) =>
+      UserPreferences.parse((data as { preferences: unknown }).preferences),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Change some of them, and get the whole of what is now stored back.
+ *
+ * A PARTIAL patch: an absent field is left alone, an explicit `null` clears it.
+ * The empty patch is refused with a 400 rather than treated as a no-op — see
+ * `UpdateUserPreferences`. `homeAirport` is normalized SERVER-side (trim +
+ * uppercase), so this helper deliberately sends what the person typed rather
+ * than tidying it here, where a second client would be free not to.
+ */
+export async function updatePreferences(
+  patch: UpdateUserPreferences,
+): Promise<ApiResult<UserPreferences>> {
+  try {
+    const res = await fetch(apiUrl("/api/account/preferences"), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    return await readJson(res, (data) =>
+      UserPreferences.parse((data as { preferences: unknown }).preferences),
+    );
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
 // ── Saved parts (M11 link 6) ─────────────────────────────────────────────────
 
 export async function fetchSavedDays(): Promise<ApiResult<SavedDay[]>> {
@@ -617,8 +611,8 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 // ---------------------------------------------------------------------------
 // The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
 //
-// Deliberately NOT `composeAiPlan`'s shape. That endpoint applies a batch and
-// answers with a derived receipt; this one answers with the model's own prose,
+// Deliberately NOT `applyAssistantProposal`'s shape. Applying a batch answers
+// with a derived receipt; this one answers with the model's own prose,
 // streamed, and writes nothing. Two channels have to be handled and they are
 // easy to conflate:
 //
@@ -639,8 +633,20 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 // and viewer refusals can happen BEFORE a turn is ever appended.
 // ---------------------------------------------------------------------------
 
-/** `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server. */
-export type AskScope = { kind: "trip" } | { kind: "day"; dayIndex: number };
+/**
+ * What a turn is about.
+ *
+ * `dayIndex` is 0-based — it indexes `TripDetail.days`, matching the server.
+ *
+ * `page` is the Notebook's turn (ADR-033 Decision 4): the assistant drafts that
+ * page's body instead of answering. The id is sent, never trusted — the server
+ * resolves it to a page on THIS trip that this actor may edit before it offers
+ * a page tool, and refuses rather than widening if it cannot.
+ */
+export type AskScope =
+  | { kind: "trip" }
+  | { kind: "day"; dayIndex: number }
+  | { kind: "page"; pageId: string };
 
 /** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
 export type AskWireMessage = {
@@ -686,6 +692,18 @@ export type AskEvent =
   | { type: "meta"; simulated: boolean }
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
+  /**
+   * What a `page`-scoped turn wants INSERTED, on that same final chunk. Already
+   * validated against the macro registry server-side, so nodes that failed
+   * validation arrive as `page-error` instead and never as content.
+   *
+   * Inserted, not composed (ADR-035 decision 5). It carries no title because it
+   * is not a whole page any more — a turn adds to the document the reader is
+   * looking at, which is what lets a second turn mean something.
+   */
+  | { type: "page-inserts"; content: PageDoc }
+  /** A page turn whose nodes failed validation, with the server's own reason. */
+  | { type: "page-error"; message: string }
   | { type: "error"; message: string };
 
 /** Set on the ApiError when the failure arrived inside an already-open stream. */
@@ -753,13 +771,26 @@ export function askEventFromFrame(frame: string): AskEvent | null {
       message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
     };
   }
-  // The turn's proposal rides on the run's final chunk as message metadata —
-  // the first moment the server knows every write tool call the model made.
-  // Parsed, not cast: `commands` go straight back to `/ask/apply`, so a
-  // malformed proposal must be dropped here rather than posted.
+  // The turn's outcome rides on the run's final chunk as message metadata — the
+  // first moment the server knows every tool call the model made. A proposal OR
+  // a page, never both: the two tool sets are disjoint server-side
+  // (`offeredToolNamesFor`), so the scope that asked decides which arrives.
+  //
+  // Parsed, not cast, in both cases: `commands` go straight back to
+  // `/ask/apply` and `content` goes straight into the editor, so a malformed
+  // payload is dropped here rather than acted on.
   if (part.type === "finish") {
-    const proposal = proposalFrom((part.messageMetadata as { proposal?: unknown } | undefined)?.proposal);
-    return proposal === null ? null : { type: "proposal", proposal };
+    const metadata = part.messageMetadata as
+      | { proposal?: unknown; pageInserts?: unknown; composeError?: unknown }
+      | undefined;
+    const proposal = proposalFrom(metadata?.proposal);
+    if (proposal !== null) return { type: "proposal", proposal };
+    const inserts = pageInsertsFrom(metadata?.pageInserts);
+    if (inserts !== null) return inserts;
+    if (typeof metadata?.composeError === "string" && metadata.composeError !== "") {
+      return { type: "page-error", message: metadata.composeError };
+    }
+    return null;
   }
   return null;
 }
@@ -780,6 +811,43 @@ function proposalFrom(value: unknown): AssistantProposal | null {
     : [];
   const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
   return { proposalId: raw.proposalId, changes, commands: commands.data, skipped };
+}
+
+/**
+ * `unknown` → nodes we are willing to put in the editor, or `null`.
+ *
+ * `PageDoc`, not `PageContent`, and the difference is the whole point: `PageDoc`
+ * is what `CreatePageInput`/`UpdatePageInput` validate against since ADR-038, so
+ * this is again "a doc that would not survive a save never reaches the editor
+ * either". Under `PageContent` — a doc node wrapping `z.array(z.unknown())` —
+ * that sentence was true when it was written and stopped being true the moment
+ * the write path got a real schema, because `PageContent` accepts documents the
+ * write path now rejects.
+ *
+ * The server validated it too (against the macro registry, which this side
+ * cannot see) — this is the client half of the same rule, not a substitute.
+ */
+function pageInsertsFrom(value: unknown): { type: "page-inserts"; content: PageDoc } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as { content?: unknown };
+  const content = PageDoc.safeParse(raw.content);
+  if (!content.success) return null;
+  // **Migrated, not merely parsed.** What comes back here goes straight into
+  // the editor and then into `updatePage`, so it is a document entering this
+  // build and gets the same migrate-on-read every other entry point gives one
+  // (ADR-038 decision 2). Without it, a payload carrying an older `v` — from a
+  // server mid-deploy, or a `finish` frame replayed from before one — would
+  // reach the editor still spelling widgets the registry has retired, and the
+  // reader would see "unknown macro" chips in content the assistant had just
+  // written for them.
+  try {
+    return { type: "page-inserts", content: migratePageDoc(content.data) };
+  } catch {
+    // A document from a FUTURE version. Refusing is what `migratePageDoc` is
+    // saying, and dropping the payload is the same answer this function gives
+    // everything else it cannot use.
+    return null;
+  }
 }
 
 /**
@@ -878,6 +946,13 @@ export async function askAssistant(
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
 }
+
+// What applying a batch answers with: the same detail/history a command batch
+// returns, plus the server's derived `message` receipt. Named for the command
+// endpoint's plan surface, which is where it started and which retired with
+// ADR-033 Decision 4 — `/ask/apply` is its only caller now, and `simulated` is
+// always false there (see below).
+export type PlanOutcome = CommandOutcome & { message: string; simulated: boolean };
 
 /**
  * Approve a proposal — the ONE atomic batch (ADR-013), one history entry, one

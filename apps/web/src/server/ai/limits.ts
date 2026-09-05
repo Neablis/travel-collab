@@ -1,11 +1,13 @@
-// Request-size ceilings shared by both AI entry points.
+// Request-size ceilings for the AI entry point.
 //
-// Extracted from handleAiRequest.ts rather than re-declared in
-// handleAskRequest.ts: two endpoints spending the same key off two copies of
-// the literal 4000 is exactly the drift the "command path is not modified"
-// rule exists to prevent, and the second copy is the one nobody remembers to
-// change. The command endpoint's behaviour is unchanged — it reads the same
-// number from here.
+// Extracted here when there were two endpoints, rather than declared twice:
+// two doors spending the same key off two copies of the literal 4000 was
+// exactly the drift that produced KI-67, and the second copy is the one nobody
+// remembers to change. ADR-033 Decision 4 left one door, and these stay in
+// their own module anyway — `handleAskRequest` is not the only reader
+// (`apiClient` mirrors nothing, but the caps are quoted in the route's error
+// strings), and a ceiling is easier to find by name than inside a 700-line
+// handler.
 
 // Ceiling on a single prompt (security review 2026-08-28, H1). The prompt is
 // re-sent to the provider on EVERY step alongside the whole envelope, so its

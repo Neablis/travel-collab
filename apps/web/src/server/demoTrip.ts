@@ -15,7 +15,7 @@ import {
   japanTripCommandGroups,
 } from "@tc/fixtures";
 import { serverConflictContext } from "./conflictContext";
-import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 
 // The trip behind `/demo` — the one a stranger looks around before they have an
@@ -38,8 +38,6 @@ import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 // unset, which was every preview branch, every fresh clone and CI, it rendered
 // "Nothing to see here" — and it put a share lookup plus a full stream replay
 // on the path of a page anyone can hit as often as they like.
-
-export { DEMO_TRIP_ID, isDemoTripId };
 
 /** The demo's "author". No such account exists; nothing authenticates as it. */
 const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";

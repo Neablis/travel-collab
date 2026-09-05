@@ -80,8 +80,8 @@ export interface AssistantProposal {
   commands: BatchableCommand[];
   /**
    * Changes the resolver dropped, as sentences. `no-op` drops are excluded —
-   * the domain simply had nothing to do, which is not something to warn about
-   * (the same filter `handleAiRequest` applies).
+   * the domain simply had nothing to do, which is not something to warn about.
+   * `droppedWriteCalls` below filters it the same way.
    */
   skipped: string[];
 }
@@ -197,9 +197,9 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * RESOLVED command, only reaches a real assistant-authored creation.
  *
  * `resolveBatch` (`batchResolver.ts`) is pinned to its current behaviour on
- * this branch, so this cannot live there either even though it is the one
- * seam both `/ask` and the older `/ai` command endpoint share — see this
- * module's own note on `buildProposal` for where that leaves `/ai`.
+ * this branch, so this cannot live there either. It used to be the one seam
+ * `/ask` and the older `/ai` command endpoint shared; `/ai` was deleted in
+ * db5a5cb, so `/ask` is now the only caller.
  *
  * `UpdateActivity` is untouched: an omitted `kind` there means "unchanged"
  * (activity.ts), not "nothing was ever stated" — defaulting it would silently
@@ -224,12 +224,16 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
  * stands on its own prose.
  *
  * Also where a created stop with no stated `kind` becomes `hold` rather than
- * `planned` — see `withDefaultKind`. That makes `/ask` and the older `/ai`
- * command endpoint (`handleAiRequest.ts`, which calls `resolveBatch` directly
- * and never reaches this function) disagree about the default for the same
- * model behaviour. Recorded rather than fixed: `/ai` doesn't run
- * `withoutFabricatedCost` either, for the same reason — it predates this
- * wrapper and this task does not touch it.
+ * `planned` — see `withDefaultKind`.
+ *
+ * This used to disagree with the older `/ai` command endpoint, which called
+ * `resolveBatch` directly and so reached neither `withDefaultKind` nor
+ * `withoutFabricatedCost` — the same model behaviour read as `hold` on one
+ * door and `planned` on the other (KI-87). ADR-033 Decision 4 retired that
+ * endpoint's planning surfaces, so there is no second creation path left to
+ * disagree with: this function is now the only way a stop is created by a
+ * model. Do not reintroduce one without moving both wrappers into
+ * `resolveBatch` itself.
  */
 export function buildProposal(
   intents: RawToolIntent[],
@@ -271,8 +275,7 @@ export function buildProposal(
  *
  * `no-op` is filtered out, the same way `buildProposal`'s `skipped` filters
  * it: a no-op is the domain correctly declining to do nothing, not a failure
- * to explain (the same rule `handleAiRequest` applies to its own
- * `resolutionErrors`).
+ * to explain.
  */
 export function droppedWriteCalls(
   intents: RawToolIntent[],
@@ -323,9 +326,15 @@ export interface ProposalCommitResult {
  *      unverified reported.
  *   2. **`flushPlanningBatch`.** One `executeTripCommandBatch` call.
  *
- * `geocoder` is resolved lazily for the reason `handleAiRequest` documents at
- * length: `getGeocoder()` throws on a missing LOCATIONIQ_API_KEY, and a batch
- * with no location to look up must not need one.
+ * **`geocoder` is resolved lazily, and that is an incident rather than a
+ * style.** It used to be a `geocoder: Geocoder = getGeocoder()` default
+ * parameter on the command endpoint — evaluated at call time whenever omitted,
+ * which was every real request. `getGeocoder()` throws when LOCATIONIQ_API_KEY
+ * is unset, so a deployment without that key could not compose a Notebook page:
+ * a surface that touches no location data at all was broken by a lookup it
+ * never needed. Hence the thunk: a batch with nothing to look up must never
+ * construct one. The rule survives the endpoint (ADR-033 Decision 4) because
+ * this is where /ask still enriches.
  */
 export async function commitProposal(
   tripId: string,

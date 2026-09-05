@@ -84,4 +84,82 @@ describe("useLibraryRead's changed signal", () => {
     await waitFor(() => expect(result.current.data).toBe("c"));
     expect(result.current.changed).toBe(false);
   });
+
+  // KI-20260831, the third face of the same mistake: a difference the reader
+  // already knows about, reported as news. The shared day re-reads after its
+  // own publish, and `visibility` is half its signature.
+  it("says nothing about a refresh the caller made itself", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+    expect(result.current.changed).toBe(false);
+  });
+
+  // "It suppresses the comparison, it does not dismiss anything" was written on
+  // `refreshWithoutComparing` and nowhere enforced: every other test here calls
+  // it while `changed` is already false, so a `setChanged(false)` added to the
+  // silent path would have passed all of them (CodeRabbit, PR #123). That line
+  // is not cosmetic — the shared day refreshes after its own publish, and a
+  // banner standing at that moment is somebody ELSE's change, which the author
+  // has not seen and would never be told about again.
+  it("leaves a banner from an earlier genuine change standing", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    // Somebody else moves the library while the page sits open.
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.changed).toBe(true));
+
+    // …and only now does the reader publish, which re-reads silently. Waiting
+    // on `data` rather than asserting straight away: `changed` is already true,
+    // so a `waitFor` on it would pass before the refresh had settled and prove
+    // nothing about what the refresh did.
+    read.mockResolvedValue(ok("c"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("c"));
+    expect(result.current.changed).toBe(true);
+  });
+
+  // The half that keeps the fix from being a deletion of the feature. A silent
+  // refresh moves the baseline forward; it does not switch the comparison off,
+  // so the next genuine external change is caught — and is measured against
+  // what the caller's own write left on screen, not against what preceded it.
+  it("still reports a genuine change after a refresh the caller made itself", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+
+    read.mockResolvedValue(ok("c"));
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.changed).toBe(true));
+    expect(result.current.data).toBe("c");
+  });
+
+  // …and the baseline really is "b" and not the stale "a": a reload that brings
+  // back exactly what the caller's own write produced is not a change either.
+  // Without moving the baseline the bug would only be deferred by one read.
+  it("does not report the caller's own write again on the next reload", async () => {
+    const read = vi.fn<() => Promise<ApiResult<string>>>().mockResolvedValue(ok("a"));
+    const { result } = renderHook(() => useLibraryRead(read, signature));
+    await waitFor(() => expect(result.current.data).toBe("a"));
+
+    read.mockResolvedValue(ok("b"));
+    act(() => result.current.refreshWithoutComparing());
+    await waitFor(() => expect(result.current.data).toBe("b"));
+
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(result.current.changed).toBe(false);
+  });
 });

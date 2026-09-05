@@ -1,7 +1,11 @@
 # Spec — what the design file cannot say out loud
 
 Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
-a second file). Current as of 2026-08-30 — §15 is the newest section.
+a second file). Current as of 2026-09-04 — §21 is the newest section.
+
+**Not everything is in this file.** Flows that need per-frame or per-component detail live
+under `specs/`: `specs/notebook-widget-framework.md` (§21 — the three shape components and
+the ghost rule) and `specs/save-a-day-as-a-playbook.md` (§20).
 
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
@@ -119,6 +123,12 @@ thread. This actually happened in the design file; it is not hypothetical.
 
 ## 7. Notebook — pages that read like documents
 
+> **Partly superseded by §18 (2026-09-02).** Pages no longer have a scope, and the insert
+> picker is no longer scope × shape. The struck parts below are kept, not deleted, because
+> `PageContext.dayRef`, `PageScreen.handleBindDay` and `focusDayBinding` all exist in code
+> and whoever reads them needs to know the design walked away from them on purpose.
+> Everything not struck — chips, prose, prebuilt pages, repeaters — still holds.
+
 Route: `/trips/[tripId]/pages` (list) and `.../pages/[pageId]` (one page). Two audiences:
 the planner building the trip, and the traveller who didn't plan it and just needs the day.
 
@@ -127,34 +137,30 @@ underlined, the macro name in its `title`. It reads as words in a sentence but r
 the trip on every render, so moving a day or a stop rewrites the page with nobody editing it.
 Users never see or type macro syntax.
 
-**Every page has a scope.** Trip-wide, or pointed at one day via the "This page is about"
+~~**Every page has a scope.** Trip-wide, or pointed at one day via the "This page is about"
 dropdown (that is `PageContext.dayRef`, already in the contract). Changing it re-resolves the
-whole page and raises an info Banner naming what it now follows.
+whole page and raises an info Banner naming what it now follows.~~ **Struck — see §18.**
 
-**Reading / Editing** is one segmented control. Editing reveals the repeat rail's label, its
-"Edit the wording" action, and the insert affordance. Reading is the traveller's view.
+**Reading / Editing** is **one toggle button**, not a segmented control (changed 2026-09-02):
+*Edit* (secondary) → *Done editing* (primary), carrying `aria-pressed`. Editing reveals each
+widget's chrome — its name and its bind controls — plus the repeat rail's "Edit the wording"
+action and the insert affordance. Reading is the traveller's view and shows no chrome.
 
-**Prebuilt pages ship with the trip** — "Trip overview" (trip-wide) and "One day" (day-bound),
-matching `templates.ts`'s `trip-overview` / `day-sheet` seeds, plus the user's own pages.
+**Prebuilt pages ship with the trip** — "Trip overview" and "A day, written out", matching
+`templates.ts`'s `trip-overview` / `day-sheet` seeds, plus the user's own pages.
 "Blank page" creates an **Untitled page** (matching `NotebookScreen`'s `handleCreate`), which
 does not appear in the list until it exists.
 
-### The insert picker — two axes, not one list
+### ~~The insert picker — two axes, not one list~~ **Superseded by §18**
 
-`Insert from the plan` is a Sheet with **search**, then **scope** (Your account / This trip /
-The day this page is about — each a row with a live count and a one-line explanation), then
-**how it reads** (All / One value / A block / Repeats). Scope × shape is a lens, so the picker
-stays the same size as the registry grows. Each item shows the registry's own `description`, a
-shape tag, and a real resolved preview.
+~~`Insert from the plan` is a Sheet with search, then scope (Your account / This trip / The day
+this page is about), then how it reads. Scope × shape is a lens.~~ Scope stopped being a lens
+the moment inputs became explicit: a widget that takes a day is not "day-scoped", it is a
+function with a day argument. §18 has the picker that replaced this.
 
-Two states the picker must keep honest:
-
-- A value with no field behind it (e.g. a home airport) carries a `needs a field` badge and
-  says so on click instead of claiming an insert.
-- Choosing a **day** value on a **trip-wide** page **binds the page to a day** and reveals the
-  dropdown — the design of `MacroResult`'s `unbound("day")` case, matching
-  `PageScreen.handleBindDay` / `focusDayBinding`. The day scope's hint changes to
-  "Not pointed at a day yet — picking one of these will point it" when unbound.
+One rule from this subsection survives verbatim and must not be lost: **a value with no field
+behind it (e.g. a home airport) carries a `needs a field` badge and says so on click instead
+of claiming an insert.**
 
 ### The one new primitive
 
@@ -164,11 +170,89 @@ item, with chips filled from each item ("Today we're going to *Hakone Open-Air M
 
 **The registry cannot express this yet.** `itinerary.trip` resolves a fixed block; there is no
 loop macro and no params for an author-supplied row template. This needs a macro param schema
-(the registry already owns per-macro `params`), and it is the main engineering decision the
-Notebook creates.
+(the registry already owns per-macro `params`) — and §18 makes that schema the *whole* model
+rather than one macro's extra, which is a simplification, not more work.
 
-**Account scope is also new** — `Your name` / `Your email` exist in the NextAuth session, but
-there is no account model beyond that, so anything else at that scope needs fields first.
+**Account-level widgets are also new** — `Your name` / `Your email` exist in the NextAuth
+session, but there is no account model beyond that, so anything else needs fields first. Note
+these are the widgets that take **no** input at all; they are not a scope.
+
+---
+
+## 18. Notebook widgets — a page has no scope — 2026-09-02
+
+This replaces the page-scope model in §7. It is the newer decision and it is smaller.
+
+### A page is a document. Nothing else.
+
+A notebook page is not "about" a trip or a day. It holds widgets, and **each widget owns its
+own inputs**. The consequence is the whole point: two widgets on one page can read two
+different days. On the seeded "Hakone, written out" page the opening sentence is pointed at
+Day 6 while the stop repeater can be pointed at Day 9, and the page is neither.
+
+Removed from the design, and each should be removed from the build's plan too:
+
+- the **"This page is about [day]"** dropdown in the page header;
+- the **"this page follows Day 6"** info Banner;
+- the **Trip-wide / Day 6** badge on the notebook index;
+- **"Following Day 6"** on the phone Notebook header;
+- the **Your account / This trip / The day this page is about** rows in the insert sheet;
+- `PageContext.dayRef` as a *page* property, and with it `handleBindDay` /
+  `focusDayBinding`'s reason to exist. The binding moves onto the widget instance.
+
+### A widget is a function of declared inputs
+
+Every entry in the registry declares its inputs. The design ships five input types, and the
+type is what a control is chosen from — not a hardcoded list per widget:
+
+| Input | Control | Reads as |
+|---|---|---|
+| `day` | one day select | "Day 6 · Hakone" |
+| `days` | from / through, two selects | "Day 6 – Day 8", or "Day 6" when equal |
+| `person` | who | "Priya" |
+| `tags` | every stop, or one tag | "meal stops" |
+| `trip` | which trip | the trip name |
+
+Widgets with **no** inputs (your name, your email, a line for every trip you have) insert
+directly with nothing to bind. Ranges and people fall out of this for free — the design added
+*cost of a stretch*, *days at a glance*, *a line for every day* (over a range), *what one
+person is in for* and *a line for everything one person booked* without inventing a mechanism,
+which is the argument for the model.
+
+### Binding at insert and rebinding later are the same act
+
+**Insert is two steps in one Sheet.** Step one is search + *how it reads* (All / One value /
+A block / Repeats) over a flat list; each row carries its shape tag, a real resolved preview,
+and a mono line naming what it takes ("takes a day + tags"). Choosing a widget with inputs
+replaces the list with **Point it at** — one `FormField` + `NativeSelect` per input, a
+**Reads as** summary of the current binding, and *Insert it*. A back link returns to the list.
+Choosing a widget with no inputs inserts immediately.
+
+**On the page, in Editing mode, every widget with a binding wears the same controls** as a
+chrome row above it: a brand-tint pill with the widget's name, then its bind selects inline.
+Changing one re-renders that block and nothing else. Reading mode shows no chrome at all.
+
+Two details that are load-bearing rather than decorative:
+
+- The chrome row renders whenever a block **has binds** — the name pill is conditional on the
+  widget having a name. The itinerary widget under the authored heading "Every day at a
+  glance" shows only its two range selects, because a name pill there would print the heading
+  twice (rule 4).
+- A widget's registry **preview must not assert numbers the live widget computes**, or the
+  sheet and the page contradict each other in the same session. Person previews are phrased
+  generically for exactly this reason.
+
+### What this does to the `templates.ts` blocker
+
+§7's blocker was: the design says prose with live macro chips, M8 removed macro authoring,
+and `templates.ts` seeds templates with **no macro nodes**. That standoff is now a different,
+easier question. A seeded template under this model is **a document containing widget
+instances with default bindings** — `day-sheet` seeds its widgets pointed at day index 0.
+Nothing has to re-open macro *authoring* to make the seeds honest; the authoring UI is the
+insert sheet plus the chrome row, and neither is a text-macro editor.
+
+**This is still the item to settle first** (DRIFT "Suggested order" 2), but settle it as
+"what does a seeded template instantiate", not "does macro authoring come back".
 
 ## 8. Deliberately not designed yet
 
@@ -485,9 +569,10 @@ proposed for them. The two layouts are picked explicitly, not by media query: mo
 - The phone's **Map tab has an offline state** (tiles fail → titled panel, stops-still-readable
   message, Try again + Open Plan). The phone still has no **conflict** state, and no
   sync-fail state outside the map (project rule 6).
-- **Notebook on the phone** reads the focused day only. The full macro document (templates,
-  inline + block macros) has no phone treatment yet.
-  Desktop reuses `ConflictBanner`; mobile needs the equivalent decided.
+- **Notebook on the phone** was the focused day only until 2026-09-03; it now carries the
+  full widget model — see **§19**. This bullet is kept because it dated the gap.
+  Conflict is still the one missing phone state; desktop reuses `ConflictBanner`, and the
+  mobile equivalent is undecided.
 
 
 ---
@@ -608,3 +693,279 @@ day, board or Discover depending on where you came from, because the same page i
 reachable three ways.
 
 ### Until the reviews table exists, every rating here is fixture data.
+
+
+---
+
+## 16. The shared day gets a map, and Playbooks reaches the phone — 2026-09-01
+
+Two additions to §15's surfaces. The previous handoff bundle predated both.
+
+### The shared day is a map plus a list
+
+A shared day (route `day`) now draws its stops on a map beside the stop list, with a
+focus card and a legend. Three implementation constraints, each one a bug that was hit
+and fixed in the design file and will be hit again in a build:
+
+1. **The map node stays mounted.** Only the focus card and the legend are conditional.
+   Putting the map container inside a `<sc-if>` (or a React conditional) detaches the
+   node mid-style-load, the instance stays bound to the detached container, and the load
+   aborts with no error. This is the same trap as build-check 5 in DRIFT §6.
+2. **Pins draw immediately; lines wait for the style.** Drawing a line before the style
+   is ready silently drops the layer. Pins have no such dependency, so the day is legible
+   in the first frame either way.
+3. **Style-load recovery is explicit, and it is per instance.** Rebuild at 3.5s and 7.5s,
+   fall back to a list-only view at 11s. The poll must be scoped to the instance that
+   started it and re-arm itself until that instance finishes — a shared timer serving
+   whichever map is current will cancel a live load when the route changes.
+
+Accents reaching a map paint property must be converted out of `oklch` first
+(DRIFT §6 build-check 2). This is where that bites hardest.
+
+### Playbooks is a fifth phone tab
+
+The phone tab bar is **Plan / Map / Notebook / Playbooks / Trips** — §13's four-tab list
+is superseded. Playbooks on the phone has full parity with Discover: city search with the
+same four states, the filters in **one** bottom sheet (not a stack of popovers, per rule 3),
+and the shared day with its map collapsed behind a "Show route" row.
+
+Phone control sizing, restated because it was got wrong once: **44px minimum hit target on
+every control**, the horizontal scroller is a `min-content` grid rather than a column flex
+(children shrink otherwise), and `Button` needs `h-full` to fill the target inside its
+`display: contents` wrapper.
+
+---
+
+## 17. Billing surfaces — M20 / M21 — 2026-09-02
+
+Four surfaces for the two commercial milestones. **Every number on them is fixture data**,
+and the two prices are placeholders — M21's prerequisite says the price is Mitchell's
+decision, and nothing here should be read as having made it.
+
+The plans are M20's: `free`, `plus`, `premium`. `free` plans a whole trip; `plus` adds
+`ai.ask` + `ai.command`; `premium` adds `trip.collaborators`.
+
+### The ladder is presentation only
+
+The pricing page and the in-app chooser show a nested ladder ("Everything in Plus") because
+that is what a buyer understands. **Nothing in the design asserts that the data nests.**
+No screen compares plans, no screen derives one plan's contents from another's, and the
+display order is metadata about rendering. This is M20's most load-bearing rule and the
+easiest one to lose while implementing a pricing page.
+
+### 1. Pricing on the landing page (`#pricing`)
+
+A section on the existing landing page, plus a nav anchor — not a second route. Three cards
+in display order, each enumerating its own contents in full. Three things the copy must
+keep saying:
+
+- **The free week is Plus, not Premium.** M20 grants the trial `plus`, so nobody ever
+  experiences collaboration before paying for it. The Premium card says so in as many
+  words, because that gate is met cold.
+- **"Prices can change. Yours doesn't."** A purchase pins a plan version; a republished
+  price affects new purchases only. This is a promise the schema already keeps, and saying
+  it out loud is free.
+- **Cancelling runs to the end of the paid period**, then lapses through the resolver.
+
+§14's copy rules still hold: no "free" as a positioning claim, no "no credit card". The
+`Free` **plan name** is not that claim.
+
+### 2. Operator console (route `admin`)
+
+Entered from the account menu, visible only to an admin — and **not on the phone at all**,
+entry point included. It is an operator tool: plainest primitives, no accent language, no
+product chrome. The assistant bubble is gated off this route for the same reason (rule 2).
+
+- **Four numbers, in one strip:** MRR and its movement; **ARPU twice, labelled** (all
+  accounts / paying only — an unlabelled ARPU gets quoted as whichever is convenient);
+  median margin per paying account over a trailing 30 days.
+- **Accounts table** — address, what they hold (plan + version), why they hold it (bought /
+  trial / referral / founder / admin), what they pay, what they cost over 30 days, state.
+  Address search, six counted filters, 8 rows a page, and a no-match state.
+- **"Costs more than it pays" is a count, not a second list.** Paying-and-underwater is one
+  figure with a button that filters the table; grant-funded accounts are counted by source
+  and set aside, because they are underwater *by construction* and would swamp the list.
+- **Granting is the only write.** Grant a plan at a version with an expiry and a reason;
+  the copy states that the grant **pins that version** and applies on the account's next
+  request with no sign-out. Publishing and migrating plan versions are **deliberately not
+  in the UI** (Mitchell, 2026-09-02) — the tier panel is read-only.
+- **Per-tier stats** replace the version-publishing panel: accounts, MRR, median cost and
+  median margin per tier, with each tier's version history and hold counts beneath it.
+- States: `webhooks-behind` (revenue numbers stamped stale; grants still apply, they do not
+  go through Stripe) and `version-conflict` (someone published while you were here — reload
+  before migrating). It has no empty state; it cannot be empty.
+
+### 3. The collaboration gate lives in Trip settings
+
+Inviting requires `trip.collaborators`, so for a `free` or `plus` owner the **Invite
+someone button is not rendered** — a named-tier block takes its place. The refusal names
+Premium and says what is behind it; it never reads as a permission error (M20's gate box).
+
+On lapse the design shows what M20's read-boundary cap actually does: everyone except the
+owner is **capped at reading**, nothing is removed, no role is rewritten, and paying again
+restores all of them with no re-invites. The banner says exactly that, because a capability
+that disappears quietly is indistinguishable from a bug.
+
+### 4. Plan and usage in the account sheet
+
+Account settings gains a **Plan** section at the top — not a new route, and not a second
+place to see what the trip costs.
+
+- Plan, version and state (`Active` / `Free week` / `Payment failed` / `Lapsed`).
+- **Two meters, questions and steps**, against the ceilings of the version the account
+  holds. Steps is the one that binds first on a heavy day, and the copy says so. Ceilings
+  come from the pinned version; the global env ceiling is not shown, because it was never
+  sold to anyone.
+- **Past due is told before anything is taken**: the decline date, the date the grace
+  window ends, and what stops then — including the collaborators dropping to read-only.
+- Referral: a code, and one line saying it earns a month of whatever tier you hold when
+  they join. A `free` or trial-only account has no referral row, because it earns nothing.
+- **Upgrading has somewhere to land** — an inline three-plan chooser in the same sheet, so
+  the invite gate's CTA does not need a pricing route inside the app. Payment happens on
+  Stripe; the copy says nothing changes here until it clears.
+
+### What a build owes before any of this is real
+
+All of M20 and M21. Nothing on these four surfaces is buildable against `main` today:
+there is no `plan`, no `plan_versions`, no `entitlement_grants`, no `is_admin`, no
+`ai_usage` and no `subscriptions`. See DRIFT §2c.
+
+
+---
+
+## 19. The phone Notebook is the whole model — 2026-09-03
+
+§13's "still open" bullet is closed. Phone Notebook no longer hardwires one repeater to the
+focused day: it is the same two-level structure the desktop has, at phone density. Nothing
+new was invented for it — every screen below is a layout over state the desktop already holds
+(§13, *the phone is a surface, not a file*).
+
+### Index, then page — a push, not a tab
+
+The Notebook tab opens an **index of pages**, not a page. Each row is a `Card` with the city
+accent as a flush 3px spine (§13 rule 2), the page title, its first line, and mono
+`origin · edited` meta. Under it: **Blank page**, then *Start from a template* with the same
+three templates the desktop offers and the same copy.
+
+Opening a page pushes a second view with **‹ Notebook** back at the left. It is a push, not a
+sheet: a page is a document you read, and sheets are for editing with context behind them
+(§13 rule 6). The header carries no day, no scope, no share — the trip name only, in mono,
+per project rule 1.
+
+### One toggle, same as desktop
+
+**Edit** / **Done editing** is one button, secondary → primary with `aria-pressed`, at the
+right of the page header. Read mode shows the document; edit mode reveals binds and the
+insert affordance and nothing else. There is no separate phone editor screen — the editor is
+a mode of the page, exactly as on desktop.
+
+### Rebinding is a sheet, because a phone has no room for an inline select row
+
+The one real divergence, and it is density, not model. On desktop each widget's chrome row
+carries its name chip plus a select per input, inline. At 390px that row wraps into
+unreadability, so the phone collapses it to a single 44px button:
+
+> ◆ STOP REPEATER   [ Pointed at  Day 6 · Hakone ▾ ]
+
+Tapping it opens a bind sheet holding **one control per declared input** — the same controls,
+in the same order, with the same **Reads as** preview the insert flow uses. Binding and
+rebinding are therefore one act on both surfaces; only the container differs. The sheet says
+*"This widget only — everything else on the page keeps what it is pointed at"*, because the
+page-scope model is recent enough that a user may still expect the old behaviour.
+
+The button label is the resolved bind, joined with ` → ` for multi-input widgets
+(`Day 4 · Kyoto → Day 7 · Tokyo`). It is not a duplicate of anything else on the page: the
+widget's *output* is rendered below it, its *binding* is not otherwise visible (rule 4).
+
+### Insert is the desktop sheet, full height
+
+**Insert a widget** in edit mode opens a bottom sheet pinned 92px from the top — tall enough
+that search, shape chips and the first cards are visible at once. Two steps inside it:
+
+1. **Browse** — search, shape chips (All / One value / A block / Repeats), then widget cards
+   carrying the shape tag, the `takes …` input line, and the generic preview. Same registry,
+   same order, same copy as desktop. No scope facet exists here either (§18).
+2. **Point it at** — the bind step, then a full-width **Insert it**. Widgets with no inputs
+   skip step 2 and insert on tap; unmodelled ones flash the same "nothing models this yet".
+
+Back from step 2 is **‹ All**, back from step 1 is **Cancel** — the sheet is never a dead end.
+
+### What is binding here
+
+- **A phone page is a document too.** No day scope, no focused-day coupling. Changing the
+  day rail must not change what a notebook widget reads.
+- **44px on every bind control**, selects and the search field included (§13 rule 1, and the
+  sizing note in §16 that this got wrong once).
+- **Binds render on binds, not on name pills.** The name chip is a label; the tappable
+  element is the bind. Same rule as desktop.
+- **Previews stay generic.** The insert sheet's preview line never shows live values —
+  otherwise it reads as a result rather than a description.
+- **One sheet deep, ever.** The bind sheet opens from the page; the insert sheet's bind step
+  is a *step inside the same sheet*, not a sheet over a sheet (project rule 3).
+
+### Still open
+
+- The phone's **conflict** state, still the last of project rule 6.
+- **What a seeded template instantiates** is now the only thing blocking Notebook on *both*
+  surfaces rather than one.
+
+
+---
+
+## 20. Save this day as a Playbook — 2026-09-04
+
+**The flow is in `specs/save-a-day-as-a-playbook.md`.** It is a separate file because it is
+the one place in this product with an authored animation, and an animation needs elements,
+durations, easings and offsets rather than prose.
+
+It was built into the design and never written down here, which meant a build looking for
+it found §15's library and nothing about how a day gets *into* it. That is the gap this
+closes. Summary only:
+
+- **One entry point**: a flag pill in the desktop day header, with three states — not
+  kept / kept / just kept.
+- **One dialog**: name (prefilled), four Include chips, a live preview of that day's stops,
+  visibility (Just me / Anyone with the link / This trip), and **Keep this day**.
+- **A day loses its date, keeps its order and gaps.** That is what makes it insertable
+  anywhere, and it is the storage invariant.
+- **A ~2.7s celebration** on confirm: the pill fills brand, the flag glyph fills, a ring
+  and four sparks burst, and the word *Kept* expands to 52px, holds ~1.9s and collapses so
+  the header returns to its own width.
+- **The button is the receipt, not the toast.**
+
+The spec also names what is owed rather than designed: `prefers-reduced-motion`, a phone
+entry point, and what the Include chips actually do to the snapshot.
+
+
+---
+
+## 21. The notebook widget framework — 2026-09-04
+
+**Full rules in `specs/notebook-widget-framework.md`; the gallery is
+`design/Notebook Widget Framework.dc.html`.** §18–§19 define the *model* (a widget is a
+function of declared inputs, bound per instance). This defines the *rendering*, which the
+model deliberately left open and which twenty widgets will otherwise each answer
+differently.
+
+**Three components, one per shape**, and they are real files a build can read:
+
+- `NotebookInline.dc.html` — a segment list. Never a bare string, so it can always hold a
+  ghost.
+- `NotebookBlock.dc.html` — declared columns, rows, optional caption and total.
+- `NotebookRepeat.dc.html` — one authored sentence per item, **and its rows are
+  `NotebookInline` mounts**, so there is no second chip renderer.
+
+**Four states, the same four for every shape**: `ok`, `ghost`, `empty`, `stale`. `ghost`
+and `empty` never share copy — one asks you to act, the other says the answer is
+legitimately nothing. `stale` names what it lost and never falls back to another day.
+
+**The ghost replaces the "not set up" box.** A widget dropped in renders as a ghost of
+itself — `$XXX` for money, `NN` for a count, `Ddd Mmm N` for a date, the real columns of a
+table, the real sentence of a repeat — and **fills in per part as each input binds**, so a
+two-input widget is half real in between. A ghost is shape-true and never value-true: never
+`$0`, never a greyed real value, never a common-sense default.
+
+**One rule needs the build's sign-off**: ghosts are editing-only. In reading mode a widget
+with an unbound input prints nothing, and only someone with edit rights sees a quiet
+"2 widgets aren't set up" line. That refines ADR-037 decision 6 (it still renders in every
+state; in reading mode it renders as nothing) rather than contradicting it.

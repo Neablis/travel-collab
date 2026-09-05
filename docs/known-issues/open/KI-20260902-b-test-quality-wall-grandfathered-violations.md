@@ -1,0 +1,25 @@
+### KI-2026-09-02-b — 169 grandfathered violations of the new test-quality wall, carried on line-level directives
+
+- **Severity:** cleanup (no known defect; every one of these tests passes and most assert something real). What is wrong is that they assert it through DOM structure rather than behaviour, which is the shape that goes red for a re-skin that broke nothing.
+- **Area:** 53 test files under `apps/web/src/**/*.test.{ts,tsx}` and `apps/web/e2e/**`, each carrying one or more `// eslint-disable-next-line <rule> -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.` comments.
+- **What is wrong:** the test-quality wall (`eslint-plugin-testing-library` + `eslint-plugin-playwright` + the no-presentation-assertion rule) landed as **errors**, which is the point — a new test cannot add one of these. The suite that existed before it did not, and rewriting 228 assertions in the same PR that adds the wall would have meant a large, risky test rewrite hidden inside a config change. So they were grandfathered in place instead, one directive per site.
+- **The breakdown, at the moment the wall landed:**
+  - `testing-library/no-node-access` — 101. Reaching past the query layer: `.closest()`, `.parentElement`, `.querySelector`. The largest group by far and the one most worth migrating: nearly all of them are asking "is this element inside a container with some class", which is a presentation assertion wearing a DOM-traversal coat.
+  - `testing-library/prefer-find-by` — 40. `waitFor(() => getByX(...))` where `findByX(...)` says the same thing. Mechanical, and the plugin autofixes it — but see the warning below before reaching for `--fix`.
+  - `no-restricted-syntax` (the no-presentation rule) — 30 `toHaveClass` / `.className` assertions outside `src/components/ui/**`.
+  - `testing-library/no-container` — 23. `container.querySelector`, named explicitly by test-overhaul Task 7.1.
+  - `playwright/no-useless-not` — 12, `playwright/prefer-locator` — 10, `prefer-web-first-assertions` — 3, `no-unnecessary-act` — 2, `prefer-presence-queries` — 5, `expect-expect` — 1, `no-conditional-in-test` — 1.
+- **`--fix` IS NOT SAFE HERE, and this was measured, not assumed.** Running `eslint --fix` across the suite while sizing this work rewrote `screen.getByRole(...)` into `screen.queryByRole(...)` in `TripHeader.test.tsx` and six other files (`testing-library/prefer-presence-queries`, reading a `.toBeNull()` on the *result of `.closest()`* as an absence assertion about the element itself). `getBy*` throws when the element is missing; `queryBy*` returns `null`. The rewrite turns a clear failure into a `TypeError`, and under `strict` it does not even typecheck. It also deleted a load-bearing-looking `eslint-disable` in `src/components/ui/dialog.tsx`. **Migrate a file at a time, by hand, running its tests.** If you use `--fix`, scope it to `prefer-find-by` alone and read the diff.
+- **The backlog can only shrink, and that is enforced.** `apps/web/eslint.config.mjs` sets `linterOptions.reportUnusedDisableDirectives: "error"`, so a directive left behind after its violation is fixed **fails `pnpm lint`**. There is no way to migrate a site and silently leave the grandfathering comment, and no way to re-add a violation to a file that has been cleaned.
+- **`src/components/ui/**` is exempt from the presentation rule and is NOT part of this backlog.** Its 25 `toHaveClass` assertions are correct where they are: a primitive whose job is mapping `variant="danger"` onto a token class has no role, label or value standing in for that class. Do not "fix" them.
+- **Fix path:** file at a time, largest first (`Sparkline.test.tsx` 15, `PageEditor.test.tsx` 9, `SaveLight.test.tsx` 8, `board.test.tsx` 8, `NextTripHero.test.tsx` 8). For each: replace the DOM traversal with a role/label/value assertion, delete the directive, run that file's tests. A file with no directives left is done. Good ki-sweep material — the files are independent of each other and of the milestone chain.
+- **Cross-reference:** `docs/plans/test-overhaul/phase-7-guidelines.md` Task 7.1 (which specified this wall), KI-2026-08-30-b (resolved by the same PR — `eslint src` never saw `e2e/`), `docs/guidelines/testing.md`.
+- **First noted:** 2026-09-02, when the wall was added.
+- **2026-09-05 overnight review — a second, differently-shaped backlog next door ([F-E09](../../reviews/2026-09-05-overnight-review/findings/F-E09-design-wall-backlog-lives-in-128-disables.md)):**
+  the *element* wall (`eslint.config.mjs:253`, `JSXAttribute[name.name='style']`)
+  carries 128 line-level `no-restricted-syntax` disables across `apps/web/src`,
+  30 of them citing **this** entry's grandfathering reason and 71 of them
+  immediately preceding a `style={{` that is pure geometry the rule cannot
+  express. `scripts/design-wall-pending.json` is `[]` while the real backlog
+  lives in comments. Unlike this entry's backlog, that one shrinks by teaching
+  the rule the class rather than by rewriting tests. Filed as KI-2026-09-05-v.

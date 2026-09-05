@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type {
+  DistanceUnit,
   Origin,
   SavedDayVisibility,
   SavedStop,
@@ -35,6 +36,22 @@ export const users = pgTable("users", {
   email: text("email"),
   name: text("name"),
   image: text("image"),
+  // M17: the preference columns. Separate from `name`/`email`/`image` above,
+  // which the sign-in callback overwrites from the OAuth provider on EVERY
+  // sign-in — `upsertUser`'s `onConflictDoUpdate` enumerates its `set` list by
+  // hand, so these three are absent from it and a name someone typed is not
+  // clobbered the next time they sign in with Google. That absence is the
+  // whole reason `display_name` is its own column rather than a reuse of
+  // `name`; `users.int.test.ts` writes one and runs `recordSignIn` over it.
+  displayName: text("display_name"),
+  // Uppercase IATA, validated at the route (UserPreferences), never resolved:
+  // no airport dataset ships with the app.
+  homeAirport: text("home_airport"),
+  // Defaulted in the DATABASE, not in the reader: `UserPreferences` has no
+  // unset state for this field, so a row must always carry one and no caller
+  // ever picks a fallback. `$type` is a compile-time cast only — the read
+  // boundary in `server/users.ts` parses it, same as `savedDays.fromRow`.
+  distanceUnit: text("distance_unit").$type<DistanceUnit>().notNull().default("km"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });

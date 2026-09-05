@@ -7,8 +7,6 @@ import {
   applyAssistantProposal,
   askAssistant,
   cloneSharedTrip,
-  composeAiPage,
-  composeAiPlan,
   createSavedDay,
   createTrip,
   createTripInvite,
@@ -16,11 +14,13 @@ import {
   deleteSavedDay,
   duplicateTrip,
   fetchInvitePreview,
+  fetchPreferences,
   fetchSavedDay,
   fetchSavedDays,
   fetchSharedTrip,
   fetchTripAccess,
   fetchTripDetail,
+  fetchTripGlobals,
   fetchTrips,
   fetchTripDetailAt,
   fetchTripHistory,
@@ -37,8 +37,10 @@ import {
   sendTripCommand,
   sendTripCommandBatch,
   unpublishSavedDay,
+  updatePreferences,
   type ApiResult,
 } from "@/lib/apiClient";
+import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
@@ -177,14 +179,13 @@ const UUID = "22222222-2222-4222-8222-222222222222";
 const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createTrip: () => createTrip({ name: "Rome" }),
   fetchTripDetail: () => fetchTripDetail(TRIP_ID),
+  fetchTripGlobals: () => fetchTripGlobals(TRIP_ID),
   fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
   fetchTripDetailAt: () => fetchTripDetailAt(TRIP_ID, 1),
   sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
   sendTripCommandBatch: () =>
     sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
-  composeAiPage: () => composeAiPage(TRIP_ID, "plan it", { tripId: TRIP_ID }),
-  composeAiPlan: () => composeAiPlan(TRIP_ID, "plan it", "board"),
   duplicateTrip: () => duplicateTrip(TRIP_ID),
   resetDemoData: () => resetDemoData(),
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
@@ -197,6 +198,8 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   revokeTripShare: () => revokeTripShare(TRIP_ID, UUID),
   fetchSharedTrip: () => fetchSharedTrip("tok"),
   cloneSharedTrip: () => cloneSharedTrip("tok"),
+  fetchPreferences: () => fetchPreferences(),
+  updatePreferences: () => updatePreferences({ distanceUnit: "mi" }),
   fetchSavedDays: () => fetchSavedDays(),
   createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
   deleteSavedDay: () => deleteSavedDay(UUID),
@@ -565,6 +568,70 @@ describe("the proposal on the wire", () => {
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+});
+
+// The composed page rides the SAME final chunk as a proposal, and never beside
+// one: the server's tool sets are disjoint (`offeredToolNamesFor`), so the scope
+// that asked decides which arrives.
+describe("a page turn's inserts on the wire", () => {
+  const INSERTS = { content: { type: "doc", content: [{ type: "paragraph", content: [] }] } };
+  const finishWith = (metadata: unknown) =>
+    `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify(metadata)}}`;
+
+  it("arrives as one event, on the stream's final chunk", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, finishWith({ pageInserts: INSERTS })]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    const pages = events.filter((e) => e.type === "page-inserts");
+    expect(pages).toHaveLength(1);
+    // `PAGE.content` goes over the wire with no `v` — the shape every document
+    // written before ADR-038 has — and arrives carrying one, because the client
+    // parses it as a `PageDoc` now. That default is decision 2's single
+    // permitted inference: v1 is the only version that has ever existed.
+    expect(pages[0]).toEqual({
+      type: "page-inserts",
+      content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION },
+    });
+    expect(events.at(-1)).toBe(pages[0]);
+  });
+
+  // The server's own refusal reason — a macro whose params its registry schema
+  // rejects, or a turn that never composed. It has to reach the panel: silently
+  // doing nothing after "Generate" is a dead end.
+  it("passes the server's compose refusal through as page-error", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse(['{"type":"start"}', finishWith({ composeError: 'Macro "cost.day" params failed validation.' })]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "page-error")).toEqual([
+      { type: "page-error", message: 'Macro "cost.day" params failed validation.' },
+    ]);
+  });
+
+  // The content goes straight into the editor and then into `updatePage`, so a
+  // doc that would not survive a save must not reach the editor either.
+  const MALFORMED: [unknown, string][] = [
+    [{ composedPage: { title: "T" } }, "no content"],
+    [{ composedPage: { title: "T", content: { type: "not-a-doc" } } }, "content that is not a doc"],
+    [{ pageInserts: { content: { type: "notADoc" } } }, "content that is not a doc"],
+    [{ pageInserts: {} }, "no content at all"],
+    [{ composeError: "" }, "an empty refusal"],
+    [{}, "metadata with neither"],
+  ];
+
+  it.each(MALFORMED)("drops %j (%s)", async (metadata) => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', finishWith(metadata)])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "page-inserts" || e.type === "page-error")).toEqual([]);
   });
 });
 

@@ -22,11 +22,451 @@ general setup.
 
 ## Where the work is right now
 
-**Signup and onboarding feedback is on `claude/signup-onboarding-feedback-lx1qvx`
-(pull request 104), 2026-09-01.** Fifteen items Mitchell brought back from
-walking three people through signing up, then a second round from CodeRabbit
-and his own Vercel toolbar comments on the preview. Not a milestone, and it
-does not move the order below.
+**M14's BUILDER HALF IS MERGED, 2026-09-04.** `main` is **`947646f`**. The stack was six
+PRs — **#134 → #135 → #136 → #137 → #138 → #139** — and it landed as **four merges and two
+closes**: #134 (squashed, `513d8dc`), #136, #137, and #139 (`947646f`), whose diff was the
+whole stack because it had been retargeted to `main`. **#135 and #138 were CLOSED, not
+merged**, and the reason is worth keeping: resolving #135's conflict left exactly two files
+differing from `main` — `WidgetSidebar.tsx` and its test, the `<aside>` flex sibling the
+Popover replaced — which `main` deletes and nothing imports, so merging it would have
+re-added a component the design rejected and nothing else. #138 was based on #135's branch
+and carried the same shape of conflict.
+
+**The squash is what made the stack fight itself.** #134 landing squashed put its content on
+`main` as a commit unrelated to the history the stack carried, so #139 hit twenty-one add/add
+and content conflicts against its own ancestor. Resolved to the branch throughout (`806535d`)
+after checking every main-only line for anything newer — there was none, `main`'s side was
+#134 as it was — and the merged tree came out byte-identical to the branch tip, which is the
+evidence nothing was dropped. **Expect this whenever a squashed PR is the base of a live
+stack.**
+
+**ADR-039 is ACCEPTED (2026-09-04), and its phase 1 is built.** A widget stops being a name
+and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
+came out of Mitchell's preview comment (*"where we have a tool that you can select a day, it
+can also select All at the top, and it gives you a sum"*) and the finding underneath it —
+four of the seventeen widgets are the same widget written twice, differing only in whether a
+filter is set. Twelve primitives replace them; named widgets become presets, which are data
+and are never stored in a document. `docs/specs/2026-09-04-widget-primitives.md` carries the
+primitives, the filter vocabulary, the preset table (which doubles as the migration map from
+today's seventeen names), and the `/cost 3 meal` slash grammar. Mitchell settled its three
+open questions the same evening: person and date-range filters are declared now (person
+honest about having neither a display name on `TripMember` nor any person on a stop to filter
+by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
+while ghost rendering waits for the next milestone.
+
+**§8 steps 1-3 are built, and the picker is the proof.** Mitchell, on the first cut:
+*"how am i spose to test any of this if they arent in the picker? … this is another
+milestone thats not functionally reviewable."* He was right — a registry nobody can click
+is not a reviewable milestone — so the phase boundary moved to where a person can walk it.
+
+**Twelve primitives, eighteen presets, one migration.** The registry holds `cost`,
+`count`, `dates`, `hours`, `city`, `attribute`, `day.detail`, `city.detail`, `day.rows`,
+`city.rows`, `stop.rows`, `cost.rows` — each declaring `entity + filters` beside the
+`shape` it already had. **The seventeen named widgets are deleted.** What a person browses
+is `packages/pages/src/presets.ts`: `(primitive, params, title, keywords)` rows, data with
+no code, which ADR-039 decision 4 says a named widget is. Stored documents carrying an old
+name are rewritten once, on read, by `PAGE_DOC_MIGRATIONS`' v1 → v2 step —
+`CURRENT_PAGE_DOC_VERSION` is **2**, and `packages/contracts/test/fixtures/pageDocV2.ts`
+is the hand-written golden it is tested against.
+
+**How "a rename, not a behaviour change" was actually established.** Every one of the
+seventeen was asserted IDENTICAL in rendered output to the primitive replacing it while
+both still existed (commit `db013f9` on this branch — `cost{}` to `cost.trip`,
+`day.detail{day}` to `itinerary.day`, `stop.rows{day, kind: booked}` to `booking.line`, and
+so on). Those comparisons could not survive deleting the named defs, so what guards it now
+is a sweep that puts each retired name through the real `parsePageDoc` migration and
+renders the result against a real trip, plus per-primitive golden assertions of the exact
+chips and rows. The equivalence run is in the branch history, not in the suite.
+
+**What is clickable.** Insert a preset from the header popover, by dragging it, by typing
+`/`, or from the phone's bottom sheet — all four go through `insertPreset` → `insertWidget`
+(ADR-037 decision 4 intact). The chrome row then renders **one control per declared
+dimension with All at the top of each**: "All days", "All cities", "Any kind", "Every
+stop", and a from/through pair for dates. That is Mitchell's *"it can also select All at
+the top, and it gives you a sum"* literally. Search matches every word of a query across
+title, description, id, keywords and the RETIRED names, so `/booking` and `cost.day` both
+still find something (§6).
+
+**The chrome row has ONE control for "which days".** Mitchell, on the preview: *"I dont
+think we need the date pickers, and the dropdown for all days/specific day, and the range.
+Combine them into one experience."* A button opening a grid of the trip's own days
+replaced the day select and the two date inputs. **It always writes `dates`** — his call
+when the alternative was put to him — which costs one thing worth knowing: a trip created
+with "Create empty" has no dates, so its widgets cannot be filtered by day until someone
+sets a start date. The popover says so, All days stays reachable, and an e2e walk pins it
+so it cannot become a surprise. Spec §8 records the one-line reversal if it bites.
+
+**What is still owed, and it is written into the spec's §8 rather than only here:** §5's
+slash ARGUMENT grammar (`/cost 3 meal` — a space still ends the query), and §7's `sample`
+status with its ghost rendering. `person` is declared, has no control, and renders "needs
+a person field"; that is its finished behaviour until `TripMember` carries a display name
+and a stop carries a person (decision 7).
+
+**What the merge contains.** Merged before the stack: **#129** (a page loses its scope),
+**#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037, 038 and 039 are
+all Accepted.**
+
+**M14's gate is NOT closed: 2 of 14 boxes ticked** (`docs/milestones/M14-rich-layer.md`).
+Several unticked boxes are now satisfied by merged code and the nine e2e walks in
+`apps/web/e2e/m14-notebook-widgets.spec.ts` and were deliberately not ticked by the session
+that merged the code — ticking a box is a claim of verification, and the gate's manual walk
+is still owed. **Genuinely unbuilt**: link 7 (prebuilt pages shipping with a new trip), link
+9 (notebook history as one event per edit session), the repeat row template (catalogue row
+12, unowned), and the block-level editor node block widgets actually want. **Still blocked**:
+the manual signed-in preview walk needs this environment's `INVITE_SUPER_CODE`.
+
+**The roadmap flags say M17 and the work says M14.** All four sources agree with each other
+— `docs/milestones/README.md:201`, `TODO.md:174` — so `pnpm state` reports no drift, and the
+recorded order still runs M14 near the end. The builder half was pulled forward on Mitchell's
+instruction (TODO.md records the first half of that decision) and has now merged. **Whether
+M14 becomes the current milestone or this is recorded as a finished excursion back to M17 is
+Mitchell's call and is not yet made.**
+
+**What is clickable now**: a notebook page opens in **Reading**, one button flips it to
+Editing, and in Editing a widget can be inserted three ways — a **Popover** off the page
+header, **dragged** from that popover onto the page, or **typed** as `/` at the caret. All
+three go through `insertWidget`, so ADR-037 decision 4 ("no way to put a widget into a
+document that skips validation") holds for each. Each widget carries its own binding and is
+rebindable in place.
+
+**The phone Notebook is built too** (design handoff `6b7e362`, `SPEC.md` §19 / `DRIFT.md`
+§2f, landed 2026-09-04). It adds **no API surface** — same resolvers, same registry, same
+binds — and diverges only on density, in the two places §19 names: rebinding is a 44px
+*"Pointed at …"* button opening a bind sheet, and insert is one bottom sheet with browse and
+*Point it at* as two steps inside it. `widgetBind.tsx` and `WidgetPicker.tsx` are the single
+sources both surfaces read, so a phone cannot offer a day the desktop does not.
+
+**ADR-038 decision 4 is done, with its criterion corrected.** `PageScreen` inspects the
+stored document before mounting: it parses through `PageDoc`, compares the document's node
+vocabulary against the editor's own schema, and opens the page **read-only with a visible
+explanation and every write path off** when the editor could not mount it. The write path
+(`Create`/`UpdatePageInput`) is `PageDoc` now and stamps `v`; the read path (`Page.content`)
+stays permissive on purpose, because you cannot explain a document you refused to deliver.
+
+**M14 link 8 is done, both halves** (2026-09-04). The page tools are insert-shaped
+(`insert_text` / `insert_widget` replacing `compose_page`, ADR-035 decision 5), and the
+notebook's AI surface is now the **assistant rail** — the same one the board runs — rather
+than a prompt box: Mitchell, *"This should be the same style AI Assistant as on the trip
+page, not the top of the UI input box"*. The two changes are one change. `ComposePanel`'s own
+header had recorded why it could not be a conversation — `compose_page` REPLACED the
+document, so *"a page that accumulated turns would have to decide what 'draft this page'
+means the second time"* — and that objection was an objection to replacing. Inserts have an
+obvious second time. `ComposePanel` is deleted.
+
+The conversation machinery moved to **`useAskThread`**, out of `TripBoardScreen`. What stayed
+behind is what is genuinely the board's: the scope, the two pre-ask refusals (view-only,
+unsent edits), and proposals. A page turn carries no proposal — the page tools insert, so
+there are no write commands to collect and nothing to approve.
+
+**The next unit is M14's remaining gate work.** Link 6's `repeat` node shipped as
+fixed-line-per-item via
+`Rendered.rows`: ADR-035 decision 4 says a repeater's content is the author's row template,
+and **row 12 of the catalogue's gap list — how an author edits a row template without seeing
+macro syntax — is still unowned**, so `PageRepeatNode` was left untouched rather than guessed
+at.
+
+### Four things measured that a session must not re-derive or re-guess
+
+0. **ADR-038 decision 4's ORIGINAL criterion did not work, and was replaced.** It said:
+   re-serialise the document and open read-only if it differs from what was stored. Both
+   documents the guard exists for pass that test — a `repeat` node (known to the AST, no
+   TipTap extension) and a node from a newer build both round-trip **byte-identically**, the
+   second because that is exactly what decision 3 promises. Meanwhile a stored document with
+   no `v` — i.e. every pre-ADR row — *fails* a strict comparison, so a literal implementation
+   also locks ordinary pages. Round-tripping proves a document survives *our parser*; the
+   editor is what eats the page. The criterion is now a **vocabulary comparison against the
+   editor's schema**, derived from the live extension set via TipTap's `getSchema`, never a
+   hand-written list. Tests:
+   `apps/web/src/components/pages/editor/storedPageDoc.test.ts` (both halves asserted side by
+   side), ADR-038's 2026-09-03 amendment.
+
+1. **TipTap discards the ENTIRE document when it meets an unknown node type.** Not a throw,
+   not a targeted drop: it catches ProseMirror's `RangeError`, warns `[tiptap warn]: Invalid
+   content.`, and mounts an **empty** doc — which `PageScreen` autosaves over the original
+   800ms later. A page needs nothing new in it to be lost; it only needs to be opened by a
+   client that does not know one node in it. Test:
+   `apps/web/src/components/pages/editor/PageEditor.test.tsx`. **This is why decision 4 is
+   the primary defence rather than belt-and-braces** — preserving unknown nodes protects
+   nothing, because the content is gone before our serialiser runs.
+2. **`enableContentCheck: true` does not help.** `Editor.createView` catches the error,
+   emits `contentError`, then re-runs the same fallback. **`contentError` is a notification,
+   not a veto.** The refusal has to be ours, upstream of mounting.
+3. **A test can pass while asserting nothing, and it happened twice today.** The nested
+   round-trip test guarding `serializePageNode`'s recursion was insensitive as written: a
+   serialiser that stops recursing still emits byte-identical output when every node below
+   is a *known* type. Only a nested **unknown** node exposes it. Both cases were caught by
+   breaking the source and watching the test stay green (CLAUDE.md rule 3).
+
+### Two blockers settled 2026-09-03, and NOTHING in M14 is blocked now
+
+- **Notebook history (link 9) is open.** ADR-036's draft-durability question is answered:
+  **one clock, not two.** The 800ms autosave is dropped and the write happens on the settled
+  edit session, so the `pages` row carries only what the log carries and invariant 2 holds
+  with no draft column and no `PageDraftSaved` event — both were live options and both are
+  now in the ADR's rejected alternatives. Mitchell: *"Can we punt on the 800ms autosaving as
+  a future feature, and we save on edit finished to history."* **The accepted cost, stated
+  as a regression rather than a footnote:** prose typed since the last settle is lost on
+  refresh, crash or a closed tab. Browser-local drafts (`localStorage`, no contract, no
+  migration) are the named future mitigation. **Link 9 also owns deleting `PageScreen`'s
+  autosave**, and decision 4's guard survives that unchanged — changing *when* the write
+  fires does not change *what* it writes.
+- **The attribution model (item F) is deferred, and the two person widgets go with it.**
+  Mitchell: *"Lets skip this widget for now, and add in future we need activities to have
+  owners (and i think participants that are going to that activity)."* **This needs no new
+  milestone** — the field is already scoped twice, as M13's `add-stop-who` and M19 link 3,
+  and M19's prerequisites already say it must land in exactly one. M14 ships 19 of the 21
+  catalogued widgets; `w-people` is unaffected (it needs a display name on `TripMember`, not
+  attribution). **Carried into M19 link 3: owners and participants are two relations** — who
+  booked a stop is not who is going to it, and link 4's splits need the second, so a single
+  `assignee` would satisfy `add-stop-who`'s wording and still be wrong.
+
+- **ADR-037 open question 1 is settled too, so the ADR has none left: one chrome-row entry
+  per bound widget, never an aggregated control.** Mitchell: *"i should be able to have a
+  notebook that shows day 1, day 3 and day 9, if we lock all widgets to one selection, its
+  not possible."* Differing bindings in one document are a **requirement**, and it
+  generalises down to a single block — *"We land on Day 1 in Tokyo and by Day 9 we are in
+  Kyoto"* is one sentence with two day-bound widgets pointed at different days. Aggregation
+  has no honest answer there, so it is out; it may only ever be added later as an additive
+  convenience that never becomes the only way to rebind. The M14 gate carries a box that
+  fails if a block-wide rebind control appears.
+
+### Open, and not a build's to settle
+
+- **Whether M14's remainder (A, B, C, D, E, G, H) splits further.** F's departure was the
+  seam the split proposal named, and it has been taken; whether what is left is still too big
+  is open, and nothing waits on the answer. **This is the only open item, and it blocks
+  nothing.**
+
+### The next unit is item B — the widget module contract
+
+`MacroView.tsx:35` still has `switch (name)` with `default: no renderer: <name>`: a
+hand-maintained duplicate of the registry, and the reason a widget cannot be added inside
+`packages/pages` without editing a React component in `apps/web`. That is what ADR-037 exists
+to delete, no open question touches it, and it gates the "easily add more" requirement.
+Then C (`WidgetContext = { user, trip? }`, which does not exist in the tree at all), D (the
+trip-globals projection — `trip.cities` is not data, it is derived per-activity via
+`cityFor()`), E (the attribute manifest from annotated Zod fields). Link 3 already landed in
+#130.
+
+### Still true from earlier today
+
+**`KI-2026-09-03-d` is measured and RESOLVED (2026-09-03), nothing changed.** A top-level
+`macro` mounts with no warning, renders, and round-trips — `Node.fromJSON` does not
+content-check, so it is inert on the path that matters. `doc.check()` *does* throw, and
+nothing calls it; that is pinned by its own test so a TipTap release that starts checking
+content on load shows up as a failure rather than as lost pages. The speculative fix was
+measured to be harmful: making `macro` a block node breaks the inline macro every stored
+page uses.
+
+**One honest gap that is still open: #131 received no code review.** It merged before either
+reviewer was triggered. Its CI went green and `pnpm check` passed twice locally, but the
+recursive `z.lazy` seam and `serializePageNode` are exactly what a second reader earns their
+keep on. The branch above touches both, so a review of it covers most of that ground.
+
+---
+
+**SPEC §18 landed in `f365f0b` and rescoped M14, 2026-09-03.** *"Notebook widgets — a page
+has no scope"* (dated 2026-09-02) replaced §7's model, and it reached `main` **after** the
+navigation half merged in #126 — so part of #126 was built against a spec that had already
+been superseded. Two consequences a session must not miss:
+
+1. **The Trip-wide / Day 6 badge on the notebook index is struck by the design**, along
+   with `PageContext.dayRef` as a page property. #126 shipped that badge on 2026-09-03.
+   Removing it is a planned conformance change (M14 link 2), not a regression.
+   **Done — link 2 is built** (see *The builder half* below).
+2. **ADR-035 was rewritten, not amended.** It was *"Repeaters are document content"*; it is
+   now *"A notebook page is text and widgets; a widget is a function of declared inputs"*.
+   Repeaters are one shape of one kind of widget. **Accepted 2026-09-03.**
+
+**ADR-036 is new and Accepted (2026-09-03)**: notebook history is event-sourced per page at
+edit-session granularity. It completes a space ADR-003 explicitly reserved — its accepted
+Option C says the log covers *"Trip Planning (and later, trip-page content)"* — which the
+build never took. A page is its own stream so board-level ⌘Z cannot revert prose; autosave
+keeps 800ms for durability while history commits once per settled edit session. **The real
+cost is that `pages` becomes a projection rather than the authority.**
+
+**§18 dissolves the `templates.ts` blocker** that gated M14's builder half, so the gating
+question is now ADR acceptance rather than an unresolved macro-authoring standoff.
+
+## The builder half — started 2026-09-03, on `claude/new-session-z796k4`
+
+**Both ADRs were accepted**, which is what starting this work means. Links 2–8 are open.
+**Link 9 is not, despite ADR-036 being accepted**, and this is the one thing to carry
+forward: accepting it left a question a build cannot answer for itself. Decision 3 keeps
+autosave writing the `pages` row every 800ms; the Consequences make that row a projection.
+Invariant 2 says a projection is rebuildable from the log, and `rebuildProjections()`
+enforces that by deleting and re-inserting — so during an open edit session the row holds
+prose no event carries, and a rebuild in that window destroys it. The unsettled draft needs
+somewhere to live that is not the projected content. That is contract-and-migration shaped;
+it belongs in the ADR before link 9 is briefed. Recorded as that ADR's last Consequence.
+
+**Link 2 — "a page loses its scope" — is built.** `PageContext` is `{ tripId }`; gone with
+`dayRef` are the "This page is about" dropdown, `DayBindingControl`, `handleBindDay`,
+`focusDayBinding`, `scopeLabel`, `resolveBoundDay`, and the Trip-wide / Day 6 badge on both
+the index and the Notebooks menu. Three things a session picking this up must not miss:
+
+1. **It carries more than the milestone's link 2 says, on purpose.** Link 2 as written only
+   removes the field, which would leave `cost.day` and `itinerary.day` unable to resolve a
+   day at all until link 4 — a dead widget on `main` across two merges. So their binding
+   moved into their own `params` here, which is ADR-035 decision 3 one link early and is
+   what invariant 5's "every consumer updated in the same PR" actually requires. **The
+   `inputs: WidgetInput[]` declaration is NOT here** — that is link 3, still open.
+2. **No migration, and that was checked rather than assumed.** `pages.context` is `jsonb`
+   and `PageContext` is non-strict, so a stored row keeping a dead `dayRef` key parses and
+   the key is stripped on read. There is now a contracts test asserting exactly that, so
+   the claim breaks loudly if anyone ever `.strict()`s the schema. Note the nuance: rows
+   keep the dead key forever and nothing cleans it — "not migrated", not "nothing to
+   migrate".
+3. **Two known issues were filed rather than fixed** — `KI-2026-09-03-c` (the "select a
+   day" chip is now a real button with nothing behind it, which link 4's chrome row
+   replaces) and `KI-2026-09-03-b` (the `NotebooksMenu` eslint-disable citing the design
+   canvas's no-JIT rule as if it bound `apps/web`).
+
+
+**M14's navigation-and-index half is on `claude/notebook-milestone-nlq5kv`,
+2026-09-03 — pulled forward out of order, on Mitchell's instruction, with M17's
+gate still open.** M17 is still the current milestone and none of its three
+boxes moved; this is a deliberate excursion, not a handover.
+
+What landed: the **Notebooks menu** (SPEC §11's pill in the view row, replacing
+the plain link at `TripHeader.tsx:137`) and the **rebuilt Notebook index**
+(standfirst, scope badge, provenance + relative freshness, "Start from a
+template" over the existing seeds). Plus **ADR-035 on repeaters — PROPOSED, and
+the thing to read next**: M14 link 1 requires it *accepted* before any repeater
+code lands, so the builder half (the insert picker, repeaters, Reading/Editing)
+is still gated and is gated on Mitchell, not on engineering.
+
+**Four things a session picking this up must not miss:**
+
+1. **It needed a contract change, which the plan said it would not.**
+   `PageSummary` now carries `actorId` and `SYSTEM_ACTOR_ID` moved into
+   `packages/contracts` — the provenance line cannot tell a seeded notebook from
+   an authored one otherwise. Entry in `docs/contracts/CHANGELOG.md`.
+2. **The e2e lane is green — `test:e2e:ci-like`, 80 passed, 2.1m** (CLAUDE.md
+   rule 1: never `test:e2e`). That matters here specifically because the specs
+   that used to click a link named "Notebook" were **rewritten** to open the
+   pill and click through its footer (`m7-solo-delight`'s three tests,
+   `m11-demo`'s withheld-controls test), and a rewritten spec is exactly what a
+   green unit suite does not vouch for. Both were re-run alone afterwards to
+   confirm they ran rather than being filtered out.
+3. **The browser walk happened, against a local production build, and it found
+   a defect no test layer could see** — `listPages` had no `ORDER BY`, so the
+   notebook list reshuffled after an edit and disagreed with the index's own
+   optimistic placement. Fixed, covered, and then **re-walked on the deployed
+   preview** (built from `a4bfbc2`) where the new notebook lands last, as it
+   should. Two reusable facts came out of it: the walk needs
+   `VERCEL_AUTOMATION_BYPASS_SECRET` **in the session's own environment** (a
+   share link redeems as `429 Vercel Security Checkpoint` — three tried), and
+   it needs **no invite code**, because `admission.ts` only gates someone with
+   no `users` row and an existing dev user is admitted as `returning-user`.
+4. **Two planning-doc claims about the code were wrong and are corrected in
+   place** — the scope string was `describeBinding` and was already rendered,
+   and this half was not contract-free. Both had been copied verbatim into
+   `TODO.md`. See `M14-rich-layer.md`.
+
+
+**M17 and the AI-door consolidation are landing, 2026-09-02.** Three PRs merged
+overnight; two are open, green and reviewed.
+
+| PR | State | What |
+|---|---|---|
+| **#109** | **merged** (`5766e79`) | ADR-033; `/ai`'s `board` and `combined` surfaces retired (they had no callers) |
+| **#111** | **merged** (`a4b6304`) | M17 PR1 — the `UserPreferences` contract |
+| **#115** | **merged** (`8648103`) | M20 and M21 scoped — the first commercial milestones |
+| **#110** | open, CI green, review clean | `/ai` deleted; page authoring moves onto `/ask`; `/ask` charges the step quota |
+| **#112** | open, CI green, review clean | M17 PR2 — migration `0015`, settings Sheet, `kmLabel` |
+
+**Two things a fresh session must not miss:**
+
+1. **#112 carries migration `0015` and merging does not apply it** —
+   `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+   That is M17's gate box 4. **Check `0014` too** (from the merged pull request
+   104): merging never applied it either, and nothing in the repo records that
+   it was ever dispatched.
+2. **Neither #110 nor #112 has had a browser walk.** Both have full CI green
+   *including* the e2e lane — #112's `m17-account-preferences.spec.ts` ran for
+   the first time and passed — but #110 rewrote the Notebook compose client from
+   `await fetch → res.json()` onto a stream, and `m7-solo-delight.spec.ts` only
+   asserts two strings are *visible*. It would pass over a compose that silently
+   produced nothing.
+
+**Both PRs were reviewed and both reviewers found real bugs**, which is worth
+recording because the fixes are load-bearing. On #110: the step settlement
+under-metered every classified turn by one, because `classifyAskIntent` is a
+separate model call the agent's `onStepEnd` cannot see — **KI-67's own shape,
+reintroduced inside the fix for KI-67**. And `ComposePanel` held an
+`AbortController` that nothing ever aborted. On #112: `UpdateUserPreferences`
+accepted `{ displayName: undefined }`, because `Object.keys` counts a key whose
+value is `undefined` — the empty-patch refusal failing at the one job it had.
+
+**The red `github-advanced-security` check on every PR is not ours** and is now
+filed: `docs/known-issues/open/KI-20260902-ghas-code-scanning-fails-on-an-unavailable-model.md`.
+The operational point that entry makes is the one to remember here — it makes
+`mergeStateStatus` read `UNSTABLE`, which reads as "do not merge yet" to a
+reviewer who has not read the entry. **Only the agentic check is broken**:
+CodeQL and both `Analyze` jobs pass on the same head, so CodeQL is a safe
+required check and that one is not.
+
+**A design handoff landed on `main` in `169b7c1` (2026-09-02) and has been
+reconciled into the plan.** `.design-sync/handoff/SPEC.md` §16 (the shared-day
+map, Playbooks as a fifth phone tab) and **§17 (four billing surfaces)**, with
+`DRIFT.md` §2c-§2d. Nothing in it is buildable against `main` and nothing holds
+the current milestone. Two things a session touching M20 or M21 must not miss,
+both now recorded in those milestone files:
+
+- **M20 lost scope, by Mitchell's decision of 2026-09-02.** The design took
+  publishing and migrating plan versions out of the UI; the decision took the
+  `plan_versions` **table** with them. Plan versions are now a **static file
+  committed to the repo** and the admin console is **read-only over plans** —
+  it shows what is currently live. Three consequences a session opening M20
+  must carry: **a price change costs a deploy** (the property versioned data
+  existed to avoid, accepted on the record); **migrating an account onto a
+  newer version is not built at all**, and that exit-gate box is amended out;
+  and **granting is untouched and stays**, because it is account state, not
+  plan definition, and it is what proves M20 without Stripe. Threaded through
+  M20's *The shape*, links 1 and 7, three gate boxes, its ADR prerequisite,
+  and M21's link 2.
+- **The operator console the design draws is half M21's.** Its MRR / ARPU /
+  margin strip and the per-tier revenue columns need a subscription to exist.
+  Built inside M20 from the finished screen, they break the split the two
+  milestones were carved apart to keep.
+
+**One designed surface is deliberately unowned and parked.** The pricing
+section and its `#pricing` anchor on the landing page (`SPEC.md` §17.1) — M20
+forbids a price string in its diff and none of M21's links is unauthenticated,
+so Mitchell ruled it out of both on 2026-09-02 and **parked it in `TODO.md`'s
+Candidate ideas, to be revisited when M21 opens.** The full requirement stays
+in M21 under *An unowned surface*; the Candidate ideas entry points there. It
+is small wherever it lands — a section on M15's existing landing route, not a
+new one — and it may only name a price at or after M21.
+
+**The handoff contains no *new* Notebook design** — the whole commit touches
+one Notebook line, a code comment about the phone router, and `SPEC.md` §7 is
+unchanged since the 2026-08-23 sync. **But the Notebook design in the bundle is
+much further ahead of the build than the plan said**, and reviewing it on
+2026-09-02 turned up a live correction:
+
+**§7 has two halves and only one of them is blocked.** `DRIFT.md` §4's
+*"nobody should design or build to §7 until that is settled"* is about **macro
+authoring in prose**; it has been read as covering the whole feature. The
+**navigation and index half needs no ADR, no contract change and no macro
+decision** — the **Notebooks menu** (§11's pill at the far right of the view
+row; the build has a plain text link at `TripHeader.tsx:137`, and **no M14 link
+owns the menu at all**) and the **Notebook index page** — standfirst, per-page
+scope badge (`scopeLabel` computes the string at `NotebookScreen.tsx:19` and
+nothing renders it), provenance and edited time, and a **"Start from a
+template"** trio over the `templates.ts` seeds that already exist. The build
+has `+ New page` over a flat list. Recorded in `M14-rich-layer.md`;
+**separable from the blocked half, so pulling it forward is a decision
+available to be taken.**
+
+*(Superseded, kept as the record: "Signup and onboarding feedback is on
+`claude/signup-onboarding-feedback-lx1qvx` (pull request 104), 2026-09-01."
+That merged as `63c7fdb`, and #106 merged after it, but this section was never
+updated — so the file every session is told to read first spent a day naming a
+merged PR as the live work. The four durable facts that PR established are
+still below; only its in-flight status was wrong.)*
 
 Four things a fresh session should know, because they changed a rule rather
 than a string:
@@ -67,10 +507,14 @@ Discover budget bands moved to $200/$500/$1,000 and **three of the four now
 have no occupant** (every seeded day is under $200), and whether "Add stop"
 should join the header controls hidden on a phone.
 
-**It carries migration `0014`** (`saved_days.deleted_at`, for the soft delete),
-which merging does not apply — see `environments-and-deploys.md`.
+**PR #104 carried migration `0014`** (`saved_days.deleted_at`, for the soft
+delete). It is merged, and merging does not apply a migration — so unless it was
+dispatched by hand, `0014` is outstanding against production. Check before
+dispatching `0015` (PR #112), which is the next one in line:
+`gh workflow run migrate-production.yml -f confirm=migrate` from `main`. See
+`environments-and-deploys.md`.
 
-Verified at `617b3fe`: `pnpm check` (typecheck across 8 packages, lint plus all
+Verified at `617b3fe` (PR #104, before merge): `pnpm check` (typecheck across 8 packages, lint plus all
 four walls, 2,100+ unit, 440 integration), `pnpm seed:verify`, and
 `pnpm --filter web test:e2e:ci-like` at **78 passed**. Two red runs along the
 way were both identified from their recorded entries rather than guessed:
@@ -88,12 +532,28 @@ against production. Retros and gate evidence are in
 `docs/milestones/M11a-invite-gate.md` and
 `docs/milestones/M11b-playbooks-public-library.md`.
 
-**Order from here: `M17 → M9 → M12 → M13 → M14 → M19`** — **reordered
-2026-09-01 by Mitchell**, moving M9 from last to second. M9 turned out to be
+**Order from here: `M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`** —
+**reordered 2026-09-01 by Mitchell**, moving M9 from last to second, and
+**extended the same day** by M20 and M21. M9 turned out to be
 four-sevenths built and both of ADR-022's grounds for placing it last (polish
 first, sharing first) have since happened. The reorder note is in
 `docs/milestones/README.md`; the working is in
 `docs/reviews/2026-09-01-milestone-audit.md`.
+
+**M20 and M21 — the first commercial milestones — were minted, scoped and
+placed 2026-09-01, after M9.** Account tiers and entitlements (M20), then
+Stripe (M21). Nothing in the repo had ever described a paid tier, a plan, a
+price or a payment, so this is a structural addition rather than a feature:
+**M20 needs an ADR before it opens**, adding an Entitlements module to
+`AGENTS.md`'s module map. Three things a session should know before reading
+either file: the AI entitlement seam has been built and stubbed since M16
+(`modelSelection.ts:88-89`) and M20 mostly fills it in; **a plan is a set, not
+a rank**, because Mitchell's tiers are "not necessarily subsets", so
+`accessPolicy.ts:11`'s `RANK` must not be copied; and **M20 takes no money** —
+its admin grant UI is what makes it provable without Stripe.
+**One decision is outstanding and it blocks M21, not M20: the plans and their
+prices.** Files: `M20-account-tiers-and-entitlements.md`,
+`M21-subscriptions-and-billing.md`.
 
 **M12, M13 and M14 were scoped the same day** and now have files and exit
 gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
@@ -101,9 +561,9 @@ gates — `M12-reviews-and-moderation.md`, `M13-collaboration.md`,
 milestone gets one before work begins. **Every milestone in the order now has a
 written gate except M19**, which is deliberately placed-but-not-scoped.
 
-**Two prerequisites are ADRs, and both are due before their milestone opens**,
-not during it: **M13's realtime transport ADR** and **M14's repeaters ADR**.
-Neither is a deliverable to write mid-build.
+**Three prerequisites are ADRs, and each is due before its milestone opens**,
+not during it: **M20's Entitlements-module ADR**, **M13's realtime transport
+ADR** and **M14's repeaters ADR**. None is a deliverable to write mid-build.
 
 **All twelve open AI known issues are assigned to M9** (2026-09-01) — three
 promoted to gate boxes (KI-12, KI-93, KI-94 with KI-97), nine carried. The
@@ -111,9 +571,10 @@ split rule, and why it is not all twelve: a gate box is something whose absence
 means the milestone is not done. See `M9-ai-planning-partner.md`.
 
 **M19 — a cost knows who and what it is for** was minted and placed last on
-2026-08-31 and is the newest milestone: `docs/milestones/M19-cost-model.md`.
-It is **placed but not scoped** — the exit gate is deliberately unwritten until
-link 1's design question is answered.
+2026-08-31: `docs/milestones/M19-cost-model.md`. It is **placed but not
+scoped** — the exit gate is deliberately unwritten until link 1's design
+question is answered, and it is now **the only milestone in the order without
+one**. (It was the newest until M20 and M21 were minted 2026-09-01.)
 
 > **This section was two gates stale from 2026-08-31 to 2026-09-01**, still
 > describing M11a and M11b as open PRs in review. The cause was structural:
@@ -550,13 +1011,14 @@ and the adds ledger. This is the thing most likely to be missed, because merging
 no longer applies a migration and the PR body is the only place anyone looks.
 
 Per `docs/milestones/README.md` the next milestone's plan re-checks the
-gate-close checklist, and **M18b's close (2026-08-30) is the one being
-re-checked** — TODO tick, six exit-gate boxes, retro, Current milestone and
-this file, all flipped in one commit on PR #91.
+gate-close checklist, and **M11b's close (2026-08-31) is the one to re-check**
+— not M18b's, which this line named until 2026-09-02 and which two gate closes
+have since superseded.
 
-**Alongside them, the activity-field descriptor refactor** (project review
-§6.1) is scheduled by the same 2026-08-29 decision, moving off the deferred
-list below. Two facts it needs: its stated prerequisite is **already met** —
+**Still unscheduled and now unattached: the activity-field descriptor
+refactor** (project review §6.1). It was scheduled 2026-08-29 "alongside" M11a
+and M11b; both closed 2026-08-31 and it did not happen, so it belongs to no
+milestone and nothing surfaces it. It is not blocked — Two facts it needs: its stated prerequisite is **already met** —
 §1.6 / KI-54 is resolved and `equality.ts:55-56` compares `city` and
 `countryCode` — and `AGENTS.md` reserves the contracts step as **its own
 reviewed PR**, which Mitchell scheduled it knowing. Keep it a separate PR from
@@ -564,13 +1026,17 @@ the two milestones.
 
 **Three things from M18's gate that will bite the next session if unread:**
 
-- **KI-76 is fixed, but `test:int` is still exclusive.** `pnpm check` now runs
-  the integration suite instead of silently skipping it. The suites also stopped
-  truncating whole shared tables, so `test:int` no longer destroys local dev
-  data, and `db:reset` clears all ten tables derived from the schema rather than
-  a stale list of three. What is **not** fixed is concurrency: two agents
-  running `test:int` at once still corrupt each other — KI-89, caught doing
-  exactly that on 2026-08-29.
+- **KI-76 is fixed, and as of 2026-09-04 `test:int` is no longer exclusive.**
+  `pnpm check` runs the integration suite instead of silently skipping it. The
+  suites stopped truncating whole shared tables, and `db:reset` clears all ten
+  tables derived from the schema rather than a stale list of three. The last
+  piece — concurrency — is now done too: `test:int` and `test:e2e` each
+  provision a private database per run (`apps/web/scripts/with-test-db.mjs`,
+  KI-2026-08-30-e), so two agents may run either lane at once. *(Superseded,
+  kept as the record: "What is not fixed is concurrency: two agents running
+  `test:int` at once still corrupt each other — KI-89, caught doing exactly
+  that on 2026-08-29." That was true until the wrapper landed; the `postgres`
+  lease it justified is gone from `.claude/protocol/adapter.json`.)*
 - **Walk the thing in a browser before believing the suite.** M18's headline
   Calendar rule passed nine unit tests and was wrong, because the tests shared
   the implementation's assumption about the fixture. `/demo` needs no database

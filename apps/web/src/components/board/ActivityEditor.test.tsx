@@ -67,6 +67,7 @@ function renderEditor(initial: ActivityView | null, mode: "create" | "edit", onS
 describe("ActivityEditor kind picker", () => {
   it("offers all five kinds", () => {
     renderEditor(null, "create");
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const options = Array.from(screen.getByLabelText("Kind").querySelectorAll("option")).map((o) => o.value);
     expect(options).toEqual(["planned", "idea", "hold", "booked", "transit"]);
   });
@@ -111,6 +112,7 @@ describe("ActivityEditor tag picker", () => {
   it("offers the four contract tags and never the handoff's six (KI-52)", () => {
     renderEditor(null, "create");
     const group = screen.getByRole("group", { name: "Tags" });
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const labels = Array.from(group.querySelectorAll("button")).map((b) => b.textContent);
     expect(labels).toEqual(["Meal", "Lodging", "Ticketed", "Outdoors"]);
     expect(screen.queryByRole("button", { name: /considering/i })).toBeNull();

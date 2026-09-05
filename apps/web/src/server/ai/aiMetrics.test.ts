@@ -17,12 +17,7 @@ vi.mock("@sentry/nextjs", () => ({
   },
 }));
 
-import {
-  recordAskMetrics,
-  recordCommandMetrics,
-  recordProposalApplyMetrics,
-  splitModelId,
-} from "@/server/ai/aiMetrics";
+import { recordAskMetrics, recordProposalApplyMetrics, splitModelId } from "@/server/ai/aiMetrics";
 
 interface Emitted {
   name: string;
@@ -379,61 +374,6 @@ describe("recordAskMetrics", () => {
       throw new Error("no client");
     });
     expect(() => recordAskMetrics(ASK_RECORD)).not.toThrow();
-  });
-});
-
-describe("recordCommandMetrics", () => {
-  const COMMAND = {
-    surface: "board",
-    model: "anthropic/claude-haiku-4-5",
-    simulated: false,
-    finishReason: "stop",
-    truncated: false,
-    steps: 4,
-    toolNames: ["AddActivity", "AddActivity", "SetTripDates"],
-    usage: { inputTokens: 12000, outputTokens: 900, totalTokens: 12900 },
-    durationMs: 9100,
-  };
-
-  it("counts one generation, tagged with its surface, finish reason and truncation", () => {
-    recordCommandMetrics(COMMAND);
-    expect(counted("ai.command.turns")[0]!.attributes).toMatchObject({
-      agent: "command",
-      surface: "board",
-      model: "claude-haiku-4-5",
-      provider: "anthropic",
-      simulated: false,
-      finish_reason: "stop",
-      truncated: false,
-    });
-    expect(distributed("ai.command.duration")[0]).toMatchObject({ value: 9100, unit: "millisecond" });
-    expect(distributed("ai.command.steps")[0]).toMatchObject({ value: 4 });
-    expect(distributed("ai.command.tool_calls")[0]).toMatchObject({ value: 3 });
-  });
-
-  // `/ai` and `/ask` reach the same gateway on the same key, so a token bill
-  // that counted only one of them would be wrong by whatever the other spends.
-  // The names are shared on purpose; `agent` is what separates them.
-  it("counts its tokens under the same metric names as the ask endpoint's", () => {
-    recordCommandMetrics(COMMAND);
-    expect(counted("gen_ai.usage.input_tokens")[0]).toMatchObject({ value: 12000 });
-    expect(counted("gen_ai.usage.input_tokens")[0]!.attributes).toMatchObject({ agent: "command", call: "turn" });
-  });
-
-  it("counts every tool call the plan made, by name", () => {
-    recordCommandMetrics(COMMAND);
-    expect(counted("gen_ai.tool.calls").map((m) => m.attributes.tool)).toEqual([
-      "AddActivity",
-      "AddActivity",
-      "SetTripDates",
-    ]);
-  });
-
-  it("never throws when the metrics client throws", () => {
-    count.mockImplementation(() => {
-      throw new Error("no client");
-    });
-    expect(() => recordCommandMetrics(COMMAND)).not.toThrow();
   });
 });
 

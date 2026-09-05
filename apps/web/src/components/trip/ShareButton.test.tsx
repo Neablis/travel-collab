@@ -50,11 +50,13 @@ const openPanel = async () => {
 describe("ShareButton", () => {
   it("defaults to the ghost variant (trip header call site)", () => {
     render(<ShareButton tripId={tripId} />);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("button", { name: "Share" }).className).toMatch(/text-slate/);
   });
 
   it("renders the secondary variant when asked (next-trip hero call site)", () => {
     render(<ShareButton tripId={tripId} variant="secondary" />);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("button", { name: "Share" }).className).toMatch(/border-border-strong/);
   });
 

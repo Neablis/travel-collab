@@ -1,0 +1,9 @@
+# F-B04 — An open notebook page fetches trip detail once and never refreshes it (the whole app is refresh-on-navigate)
+
+- **Stream:** B Notebook · **Severity:** LOW (downgraded: the board has the same behaviour) · **Confidence:** CONFIRMED facts (verified)
+- **Area:** `apps/web/src/components/pages/PageScreen.tsx:118-143` (one effect keyed `[tripId, pageId]`; the only `setTrip` is `:137`), `:80` (`usePreferences` — `user` *does* refresh, the one asymmetry); `MacroEditorContext.tsx:5-11` (built to propagate "a live `detail` refresh"; nothing feeds it); `MacroView.tsx:94` (widgets resolve client-side only). No `visibilitychange`, `EventSource`, `setInterval` or `useSyncExternalStore` anywhere in `apps/web/src`; `TripProvider.tsx` also fetches on mount only.
+- **What is wrong (and what is not):** a day deleted in another tab keeps rendering in an open page until reload; after reload the path is correct (`narrow` → `unbound("day")` → "that day was removed"). This is not a notebook bug — it is the app's model — so a fix scoped to `PageScreen` would *create* the asymmetry the finding first described.
+- **Suggested fix:** if wanted at all, a focus/`visibilitychange` refetch in the shared trip source (`TripProvider` / `apiClient`) that both board and notebook consume; the notebook then inherits it through `MacroEditorContext`, which is already reactive. Otherwise record the model ("trip detail is fetched on navigation") in ADR-012 so the next reader does not rediscover it.
+- **Scope of the fix:** `TripProvider.tsx` or a small hook, then `PageScreen.tsx` consumes it. Check subset: `PageScreen.test.tsx`, `TripProvider.test.tsx`.
+- **Cross-reference:** ADR-012, ADR-037 decision 12 ("re-resolution is per block" assumes something triggers it), M13 collaboration (where a real refresh story belongs).
+- **Do not:** poll on an interval; fix the notebook alone.

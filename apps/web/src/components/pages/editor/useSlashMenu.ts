@@ -1,0 +1,288 @@
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Editor } from "@tiptap/react";
+import { presetCatalog } from "@tc/pages";
+import { widgetMatches } from "@/components/pages/WidgetPicker";
+
+// Typing `/` opens the widget picker where the caret is — Mitchell, walking the
+// preview (2026-09-04): *"Typing '/' doesnt bring up the inline widget picker"*.
+//
+// **Hand-rolled, on purpose.** The obvious implementation is `@tiptap/suggestion`
+// plus `tippy.js`, and neither is a dependency of this repo. A slash menu is
+// roughly forty lines of "read the text behind the caret, filter the registry,
+// replace a range" — a new runtime dependency (and a second popover engine
+// alongside Radix) is a poor trade for that. What it costs instead is this
+// comment and the tests beside it.
+//
+// It reads the SAME preset list and the SAME matcher as the popover and the
+// phone sheet (`widgetMatches`), so a widget cannot be findable in one and
+// hidden in the other. Insertion goes through `insertPreset` in the caller —
+// which goes through `insertWidget` — so there is still one construction path
+// (ADR-037 decision 4).
+
+// How many rows the caret menu shows. It is a menu at the caret, not the
+// catalogue: past about six rows it covers the paragraph the author is writing,
+// which is the thing they are trying to look at. Refining the query is the way
+// to see the seventh, and the popover in the header is the way to browse.
+export const MAX_ROWS = 6;
+
+// `/` counts as opening the menu only at the start of a word — after a space, a
+// newline, or at the very start of the block. Otherwise `and/or` and a typed URL
+// both open a widget menu mid-word, which is the classic way this feature
+// becomes something people turn off.
+//
+// The query is letters, digits and dots: dots because a preset's id is
+// `booking.line` and the picker searches those, so `/booking.line` has to
+// survive the match rather than ending at the dot.
+//
+// **Spaces are deliberately NOT in it yet.** Spec §5's grammar — *"the first
+// space locks the highlighted row, and every token after it is an argument"*,
+// so `/cost 3 meal` inserts `cost{day: 3, tag: meal}` — is step 4 of the order
+// of work. Until it lands, a space ends the query, which is the behaviour that
+// has been shipping and is the one that keeps the menu from hanging open across
+// a sentence.
+const TRIGGER = /(?:^|\s)\/([\w.]*)$/;
+
+// **The editor keeps focus while this listbox is open, so the listbox has to
+// announce itself through the editor.** A sighted user sees the highlight move
+// as Tab iterates; a screen-reader user was told nothing at all, because the
+// focused element had no relationship to the list and the rows had no ids
+// (Copilot, PR 139).
+//
+// `aria-activedescendant` is the pattern for exactly this: focus stays where it
+// is and the focused element names which option is current. It needs both ends
+// — a stable id per option, and the attributes below on the contenteditable —
+// so both live here rather than in the component, which owns only the drawing.
+//
+// Dots are legal in an HTML id but awkward in a CSS selector, and a widget's
+// stored name is `cost.day`. Swapped for hyphens so the id is usable either way.
+export const SLASH_LISTBOX_ID = "tc-slash-menu";
+export const slashOptionId = (name: string) => `tc-slash-option-${name.replace(/\./g, "-")}`;
+
+export interface SlashMenuState {
+  // Document position of the `/` itself. The replaced range is [from, caret),
+  // so the typed query disappears when the widget lands.
+  from: number;
+  query: string;
+  // Viewport coordinates of the caret, for a `position: fixed` menu. Fixed
+  // rather than absolute so the menu does not need a positioned ancestor
+  // inside ProseMirror's contenteditable — putting a wrapper in there is how
+  // you end up with a node the schema did not ask for.
+  //
+  // Both edges of the caret, because the menu may have to open ABOVE it when
+  // there is no room below (`SlashMenu.tsx` does the clamping).
+  left: number;
+  top: number;
+  caretTop: number;
+  active: number;
+  // `name` is the PRESET's id — what `onPick` hands back and what
+  // `insertPreset` resolves. It is not what the document stores.
+  names: readonly { name: string; title: string; preview: string }[];
+}
+
+export interface SlashMenu {
+  state: SlashMenuState | null;
+  close: () => void;
+  // Called by the caller's insert path once it has a validated node.
+  rangeToReplace: () => { from: number; to: number } | null;
+  // Wired into the editor's keydown so Enter/arrows drive the menu instead of
+  // the document while it is open.
+  handleKeyDown: (event: KeyboardEvent) => boolean;
+  onPick: (name: string) => void;
+}
+
+export function useSlashMenu({
+  editor,
+  enabled,
+  onPick,
+}: {
+  editor: Editor | null;
+  enabled: boolean;
+  onPick: (name: string, range: { from: number; to: number }) => void;
+}): SlashMenu {
+  const [state, setState] = useState<SlashMenuState | null>(null);
+  // The keydown handler is installed once, at editor creation, and must see the
+  // CURRENT menu. A ref rather than a dependency, because re-creating the
+  // editor on every keystroke is not an option.
+  const stateRef = useRef<SlashMenuState | null>(null);
+  stateRef.current = state;
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+
+  const close = useCallback(() => setState(null), []);
+
+  // Recompute from the document on every transaction. Deriving the menu from
+  // the document rather than tracking keystrokes is what makes it survive
+  // undo, paste, and a click that moves the caret away — all three of which
+  // leave a keystroke-tracked menu open over nothing.
+  useEffect(() => {
+    if (!editor || !enabled) {
+      setState(null);
+      return;
+    }
+    const sync = () => {
+      const { state: editorState, view } = editor;
+      const { selection } = editorState;
+      if (!selection.empty) return setState(null);
+      const $from = selection.$from;
+      if (!$from.parent.isTextblock) return setState(null);
+      const textBefore = editorState.doc.textBetween($from.start(), $from.pos, "\n", "￼");
+      const match = TRIGGER.exec(textBefore);
+      if (!match) return setState(null);
+      const query = match[1] ?? "";
+      const from = $from.pos - query.length - 1;
+      const names = presetCatalog()
+        .filter((w) => widgetMatches(w, query))
+        .slice(0, MAX_ROWS)
+        .map((w) => ({ name: w.name, title: w.title, preview: w.preview }));
+      // A query that matches nothing closes the menu rather than showing an
+      // empty box: at that point the person is writing a date, not choosing a
+      // widget, and a menu hovering over "9/11" is in the way.
+      if (names.length === 0) return setState(null);
+      const coords = view.coordsAtPos(from);
+      setState((was) => ({
+        from,
+        query,
+        left: coords.left,
+        top: coords.bottom,
+        caretTop: coords.top,
+        // **Keep the highlighted WIDGET, not the highlighted index.** Holding
+        // the number meant one more typed letter could re-filter the list under
+        // a stationary highlight, so Enter inserted a widget the reader never
+        // chose — silently, and looking exactly like a correct selection.
+        // Falls back to the first row when the chosen one is filtered out,
+        // which is the only honest answer once it is gone. Found by Copilot on
+        // PR 139.
+        active: Math.max(0, names.findIndex((n) => n.name === was?.names[was.active]?.name)),
+        names,
+      }));
+    };
+    sync();
+    editor.on("transaction", sync);
+    return () => {
+      editor.off("transaction", sync);
+    };
+  }, [editor, enabled]);
+
+  // **The menu follows the caret when the page scrolls.** Mitchell, on the
+  // preview: *"scrolling on the page should keep the widget alongside the cursor
+  // not the page"*. It is positioned at VIEWPORT coordinates (`position: fixed`
+  // — see `SlashMenu.tsx` for why it cannot live inside ProseMirror's DOM), and
+  // those were computed once when the menu opened and then only recomputed on a
+  // transaction. Scrolling changes no transaction, so the document slid away
+  // underneath a menu parked where the caret used to be.
+  //
+  // `capture: true` because the scroll may be on any ancestor — the page, a
+  // pane, the phone's own scrollport — and scroll events do not bubble.
+  //
+  // `coordsAtPos` is called unguarded, as `sync` calls it: `from` is only
+  // invalidated by a transaction, and a transaction runs `sync` synchronously
+  // during dispatch, which either moves `from` or closes the menu. So there is
+  // no window in which a scroll can read a position the document no longer has.
+  const open = state !== null;
+  useEffect(() => {
+    if (!editor || !open) return;
+    const follow = () => {
+      setState((was) => {
+        if (was === null) return was;
+        const coords = editor.view.coordsAtPos(was.from);
+        return { ...was, left: coords.left, top: coords.bottom, caretTop: coords.top };
+      });
+    };
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [editor, open]);
+
+  // Mirrors the menu's state onto the element that actually has focus. Removed
+  // on close and on unmount, because a `aria-expanded="true"` left behind on a
+  // plain text box is worse than none at all.
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const active = state === null ? undefined : state.names[state.active];
+    if (active === undefined) {
+      dom.removeAttribute("aria-expanded");
+      dom.removeAttribute("aria-controls");
+      dom.removeAttribute("aria-activedescendant");
+      return;
+    }
+    dom.setAttribute("aria-expanded", "true");
+    dom.setAttribute("aria-controls", SLASH_LISTBOX_ID);
+    dom.setAttribute("aria-activedescendant", slashOptionId(active.name));
+    return () => {
+      dom.removeAttribute("aria-expanded");
+      dom.removeAttribute("aria-controls");
+      dom.removeAttribute("aria-activedescendant");
+    };
+  }, [editor, state]);
+
+  const rangeToReplace = useCallback(() => {
+    const current = stateRef.current;
+    if (!current || !editor) return null;
+    return { from: current.from, to: editor.state.selection.from };
+  }, [editor]);
+
+  const pick = useCallback(
+    (name: string) => {
+      const range = rangeToReplace();
+      if (!range) return;
+      onPickRef.current(name, range);
+      setState(null);
+    },
+    [rangeToReplace],
+  );
+
+  // `handleKeyDown` is installed into the editor once, at creation, so it
+  // cannot close over `pick` — this ref is the seam, the same one `stateRef`
+  // is above and for the same reason.
+  const pickRef = useRef(pick);
+  pickRef.current = pick;
+
+  const handleKeyDown = useCallback((event: KeyboardEvent): boolean => {
+    const current = stateRef.current;
+    if (current === null) return false;
+    if (event.key === "Escape") {
+      setState(null);
+      return true;
+    }
+    // **Tab ITERATES; Enter selects.** Mitchell, on the preview (2026-09-04):
+    // *"starting to type the widget should filter down, then tab iterates and
+    // enter selects"*. Tab used to commit, the same as Enter — two keys doing
+    // one job, and the one job the second key is actually wanted for (moving
+    // through the list without leaving the home row) left undone. Shift+Tab is
+    // its natural pair; the arrows keep working for anyone who reaches for them.
+    const step =
+      event.key === "ArrowDown" || (event.key === "Tab" && !event.shiftKey)
+        ? 1
+        : event.key === "ArrowUp" || (event.key === "Tab" && event.shiftKey)
+          ? -1
+          : 0;
+    if (step !== 0) {
+      setState((was) =>
+        was === null
+          ? was
+          : { ...was, active: (was.active + step + was.names.length) % was.names.length },
+      );
+      // Swallowed, so Tab moves the highlight instead of moving focus out of
+      // the editor — which is what it would do next, leaving the menu open over
+      // a document the caret is no longer in.
+      return true;
+    }
+    // Enter commits, and must not reach the document while the menu is open: an
+    // Enter that splits the paragraph *and* inserts a widget is the worst of
+    // both.
+    if (event.key === "Enter") {
+      const chosen = current.names[current.active];
+      if (chosen === undefined) return false;
+      pickRef.current(chosen.name);
+      return true;
+    }
+    return false;
+  }, []);
+
+  return { state, close, rangeToReplace, handleKeyDown, onPick: pick };
+}

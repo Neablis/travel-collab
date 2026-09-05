@@ -53,6 +53,7 @@ describe("LandingFeatureBlocks", () => {
   // Nothing in this file is interactive, so nothing in it may become a shell.
   it("wraps nothing in a Preview shell", () => {
     const { container } = render(<LandingFeatureBlocks />);
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector("[data-preview-id]")).toBeNull();
   });
 });

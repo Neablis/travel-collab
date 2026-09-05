@@ -76,20 +76,23 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
     } as unknown as TripDetail;
   });
 
-// Includes a dayId that is not in the trip — the "unbound" path a Day Sheet
-// hits when its binding points at a day that has since been removed.
-const contextArb = fc.oneof(
-  fc.constant({ tripId: TRIP }),
-  fc.constant({ tripId: TRIP, dayId: uuid(100) }),
-  fc.constant({ tripId: TRIP, dayId: uuid(103) }),
-  fc.constant({ tripId: TRIP, dayId: uuid(777) }),
-);
+// A page context is the trip and nothing else (SPEC §18): the only thing left
+// to vary is nothing, so this stays a constant rather than pretending otherwise.
+const contextArb = fc.constant({ tripId: TRIP });
 
-// Params a model or a stale document could plausibly hand a macro, including
-// out-of-range and negative day numbers. Anything the macro's own Zod schema
-// rejects is skipped — that is the schema's job, not the resolver's.
+// Params a model or a stale document could plausibly hand a macro — including
+// the day binding itself, since that is where a day lives now. The refs
+// deliberately include ones the trip cannot satisfy (a day removed under the
+// widget, an index past the end), which is the `unbound` path. Anything the
+// macro's own Zod schema rejects is skipped — that is the schema's job, not the
+// resolver's.
 const paramsArb = fc.oneof(
   fc.constant({}),
+  fc.constant({ dayRef: { kind: "index", index: 0 } }),
+  fc.constant({ dayRef: { kind: "index", index: 3 } }),
+  fc.constant({ dayRef: { kind: "index", index: 99 } }),
+  fc.constant({ dayRef: { kind: "dayId", dayId: uuid(100) } }),
+  fc.constant({ dayRef: { kind: "dayId", dayId: uuid(777) } }),
   fc.constant({ dayId: uuid(100) }),
   fc.constant({ dayId: uuid(777) }),
   fc.constant({ dayNumber: 1 }),
@@ -116,7 +119,7 @@ describe("macro registry — every resolver is pure and total", () => {
           if (!parsed.success) return; // the schema rejected it — not the resolver's problem
           let result: { status?: string };
           try {
-            result = def.resolve(detail, ctx as never, parsed.data as never) as never;
+            result = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null }, parsed.data as never) as never;
           } catch (error) {
             throw new Error(
               `resolver threw on params=${JSON.stringify(raw)} ctx=${JSON.stringify(ctx)}: ${(error as Error).message}`,
@@ -143,8 +146,8 @@ describe("macro registry — resolvers are deterministic", () => {
         for (const def of Object.values(MACRO_REGISTRY)) {
           const parsed = def.params.safeParse(raw);
           if (!parsed.success) continue;
-          const first = def.resolve(detail, ctx as never, parsed.data as never);
-          const second = def.resolve(detail, ctx as never, parsed.data as never);
+          const first = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null }, parsed.data as never);
+          const second = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null }, parsed.data as never);
           w.tick();
           expect(first).toEqual(second);
         }

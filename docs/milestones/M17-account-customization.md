@@ -51,7 +51,7 @@ on the same absence:
 
 | DRIFT | Asks for | Needs |
 |---|---|---|
-| C5 | An **Account settings** Sheet off the avatar menu — Your name, read-only email, Home airport, a Display section. `Your account` currently flashes "not built yet" | Somewhere to store a name and an airport |
+| C5 | An **Account settings** Sheet off the avatar menu — Your name, read-only email, Home airport, a Display section | Somewhere to store a name and an airport |
 | C6 | **Distance units** (`Kilometres`/`Miles`) at **account** scope — "a trip does not have a unit, a person does". One `kmLabel` owns every distance | A per-person preference |
 | C7 | **Home time on hover** (default off) — `SFO 10:30 pm −1d` in Timeline's time gutter | A home airport, its tz, **and** `trip.tz` |
 
@@ -67,6 +67,14 @@ carries no preference columns**, so there is nowhere to put a home airport or a
 distance unit. `users.name` does already exist (populated from the provider),
 which makes "resolve `who` to a display name" smaller than the scope below
 implies — closer to wiring than to building.
+
+**SPEC §12's "`Your account` previously flashed 'not built yet'" is not what
+this app does** (corrected 2026-09-01). It has never flashed anything: task
+8b.2 **omitted the item** rather than ship one that did nothing, and
+`AccountMenu.tsx` said so in a comment for four milestones. The dropdown held
+"Sign out" and, in preview only, "Reset to demo data". So the C5 row above is a
+missing item, not a broken one — which is a smaller thing to fix and a
+different one to look for.
 
 Mitchell's framing is the important part and is why this is a milestone rather
 than a table: **the question is not "where do we put a distance unit", it is
@@ -101,9 +109,22 @@ resolve against.
   This is why the milestone needed a re-scope before it could be placed: its
   stated headline deliverable had been built by another milestone.
 - Account settings Sheet: name, read-only email, home airport, Display section.
-- `kmLabel` — one helper owning every distance. Call sites today hardcode `km`:
-  `mapRailData.ts:68`, `MapFocusCard.tsx:24`, `MapRail.tsx:358`, and
-  Timeline's day summary. Miles below 0.19 → feet; km below 1 → metres.
+- `kmLabel` — one helper owning every distance. Miles below 0.19 → feet; km
+  below 1 → metres. **The call-site list above was wrong in both directions and
+  is corrected here (2026-09-01, verified by grep).** There are exactly three,
+  all in the map lens: `MapFocusCard.tsx:24`, `MapRail.tsx:361`,
+  `MapDayStrip.tsx:144` — the day strip is the one this list missed.
+  `mapRailData.ts` is **not** a call site: it holds no unit string at all, it
+  is the `totalKm` *source*, and its computation does not change.
+  **Timeline's day summary no longer renders a distance** — M10 Phase 8 removed
+  it, and `TimelineLens.tsx:167-171` and `:192-195` record that; there is
+  nothing there to convert. The **"longest-hop" surface named in the exit gate
+  does not exist** in this app either; it is in the design prototype only.
+  `packages/domain/src/trip/conflicts.ts:211` stays in kilometres: it emits a
+  user-visible `~N km apart on the same day`, but it lives in the pure domain,
+  which the UI may not import and which takes no I/O, so plumbing a preference
+  in would cross the architecture wall (AGENTS.md invariant 4). Left as is,
+  deliberately.
 - Home time on hover, which additionally needs `trip.tz` and a tz resolved from
   the home airport. SPEC §12 argues — correctly — that this must stay a
   *reference on demand*, never a global display mode: every time in a plan is
@@ -115,11 +136,43 @@ resolve against.
 
 - [ ] A signed-in person can set their name and home airport, and both survive a
       sign-out/sign-in and a server restart.
-- [ ] Switching Kilometres/Miles changes **every** distance in the app — map
-      rail totals, focus card, longest-hop, leg labels, Timeline day summary —
+- [ ] Switching Kilometres/Miles changes **every** distance the app renders —
+      the map rail day totals, the map focus card, and the map day strip —
       through one helper, with no per-trip unit field anywhere.
-- [ ] Home time on hover is off by default, and when on shows the reference line
-      without altering any stored or displayed plan time.
+      *(**Call-site list corrected 2026-09-01**, verified by grep. The original
+      box named "longest-hop, leg labels, Timeline day summary": the
+      **longest-hop surface does not exist** outside the design prototype,
+      Timeline's day summary **no longer renders a distance at all** — M10
+      Phase 8 removed it, `TimelineLens.tsx:167-171` and `:192-195` record it —
+      and the day strip, which does render one, was missing. This is a
+      correction of fact about the code, not a change to what the box asks for:
+      it still says "every distance, through one helper". The one distance
+      string NOT converted is the conflict engine's `~N km apart on the same
+      day` (`packages/domain/src/trip/conflicts.ts:211`), which stays in
+      kilometres because it lives in the pure domain — plumbing a preference in
+      would cross AGENTS.md invariant 4.)*
+- [ ] ~~Home time on hover is off by default, and when on shows the reference
+      line without altering any stored or displayed plan time.~~
+      **Amended OUT of the gate 2026-09-01 by Mitchell's explicit decision**
+      (`docs/milestones/README.md`: a gate definition changes only that way).
+      **It carries forward as its own item, not a deletion** — see
+      "Deliberately not here" below for its prerequisites.
+
+      Why: the app has **no timezone infrastructure at all** (checked
+      2026-09-01). There is no `tz` field anywhere in `packages/contracts`, so
+      a trip has no zone to be "away from"; the two date formatters do not take
+      one from anything — `lib/dates.ts` pins `Intl` to UTC and
+      `lib/formatDate.ts` deliberately constructs in local time, and neither is
+      a zone-aware clock; there is no airport dataset to resolve a code
+      against; and there is no date/tz library in the dependency tree at all.
+      This box needs all three of those built *plus* a `packages/contracts`
+      change for `trip.tz` — and AGENTS.md invariant 5 reserves a contract
+      change for its own reviewed PR, so it cannot sit inside another
+      milestone's gate anyway. Sizing it honestly makes it a milestone, not a
+      box.
+
+      What M17 still delivers of C7: the **home airport is stored and
+      displayed**. It simply does not yet drive a tz reference line.
 - [ ] **The preferences migration is written, applied locally, and its
       production dispatch is called out in the PR body.** Merging does not
       apply a migration — it is dispatched with
@@ -136,3 +189,20 @@ resolve against.
 
 - Anything trip-scoped. If a preference could differ between two trips of the
   same person, it does not belong in this milestone.
+- **Plan and usage in the account sheet** — designed 2026-09-02
+  (`.design-sync/handoff/SPEC.md` §17.4), owned by **M21 link 5**, blocked on
+  all of M20 and M21. Noted here only because of where it lands: the design
+  puts a **Plan section at the top of this same sheet**, above the preferences
+  this milestone is building, carrying two usage meters, past-due copy, a
+  referral row and an inline three-plan chooser. Nothing here should be built
+  to it — but the sheet's layout should not assume preferences are the first
+  thing in it, because the cheapest moment to leave room is now and the
+  dearest is after the meters exist.
+- **Home time on hover (SPEC §12 C7)** — amended out of the exit gate
+  2026-09-01, see box 3 above. It carries forward as its own item and still
+  needs a slot in `docs/milestones/README.md`'s order; placing it is Mitchell's
+  call, not something this milestone's PR decides. Its prerequisites, in the
+  order they have to happen: a `trip.tz` contract field (its own reviewed PR,
+  AGENTS.md invariant 5), a way to resolve an IATA code to a zone, and a
+  zone-aware formatter. The home airport this milestone stores is the input it
+  will read.

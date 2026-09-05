@@ -53,9 +53,11 @@ const contentSecurityPolicy = [
   // revisiting, not worth blocking this fix on.
   //
   // No third-party script is loaded in production: next/font/google
-  // self-hosts at build time, and @vercel/analytics serves from
-  // /_vercel/insights on our own origin. In dev it fetches a debug script
-  // from va.vercel-scripts.com instead, and React Refresh needs 'unsafe-eval'.
+  // self-hosts at build time, and @vercel/analytics and
+  // @vercel/speed-insights serve from /_vercel/insights and
+  // /_vercel/speed-insights on our own origin. In dev both fetch a debug
+  // script from va.vercel-scripts.com instead, and React Refresh needs
+  // 'unsafe-eval'.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval' https://va.vercel-scripts.com" : ""}${toolbar("https://vercel.live")}`,
 
   // Tailwind ships a linked stylesheet, but inline styles are unavoidable

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <script src="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.js"></script>
+</helmet>
+
+<span style="font-size: 15.5px; line-height: 1.68; color: var(--color-ink);"><sc-for list="{{ segs }}" as="g" hint-placeholder-count="4"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isValue }}" hint-placeholder-val="{{ false }}"><span title="{{ g.title }}" style="background: var(--color-brand-tint); border-bottom: 1.5px solid var(--color-brand); border-radius: 3px; padding: 0 1px; white-space: nowrap;">{{ g.text }}</span></sc-if><sc-if value="{{ g.isStale }}" hint-placeholder-val="{{ false }}"><span title="{{ g.title }}" aria-label="{{ g.aria }}" style="font-family: var(--font-next-mono); font-size: 0.9em; color: var(--color-danger-ink); background: var(--color-danger-tint); border-bottom: 1.5px dashed var(--color-danger); border-radius: 3px; padding: 0 4px; white-space: nowrap;">&#9888; {{ g.text }}</span></sc-if><sc-if value="{{ g.isGhost }}" hint-placeholder-val="{{ false }}"><span title="{{ g.title }}" aria-label="{{ g.aria }}" style="font-family: var(--font-next-mono); font-size: 0.92em; letter-spacing: 0.02em; color: var(--color-slate); background: repeating-linear-gradient(135deg, var(--color-moss) 0 4px, transparent 4px 8px); border-bottom: 1.5px dashed var(--color-border-strong); border-radius: 3px; padding: 0 3px; white-space: nowrap;">{{ g.text }}</span></sc-if></sc-for></span>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:520,&quot;height&quot;:90},&quot;parts&quot;:{&quot;editor&quot;:null,&quot;default&quot;:[{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot;It costs &quot;},{&quot;kind&quot;:&quot;money&quot;,&quot;of&quot;:&quot;cost.day&quot;,&quot;needs&quot;:&quot;a day&quot;},{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot; on &quot;},{&quot;kind&quot;:&quot;date&quot;,&quot;of&quot;:&quot;day.date&quot;,&quot;value&quot;:&quot;Fri Sep 25&quot;},{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot;.&quot;}],&quot;tsType&quot;:&quot;Part[]&quot;},&quot;widgetName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;A day's cost&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+// An inline widget is a SEGMENT LIST, never a string: it can hold text, resolved
+// values and ghosts in one sentence (the build's `Rendered.inline` is `Seg[]` for
+// the same reason). Every inline widget in the notebook renders through this, so
+// chips, ghosts, titles and wrapping behave identically wherever they appear.
+class Component extends DCLogic {
+  // A ghost is SHAPE-TRUE and never VALUE-TRUE: it shows the format of the value
+  // that is coming and could not be mistaken for the value itself. One entry per
+  // value kind, so a new widget taking money gets `$XXX` for free.
+  // `text` is the literal-prose kind, so a widget's own free-text VALUE is
+  // `text_value` — otherwise a resolved title would be indistinguishable from the
+  // author's words and could never render a ghost.
+  GHOSTS = {
+    money: '$XXX', count: 'NN', date: 'Ddd Mmm N', time: '--:-- am',
+    duration: 'Nh Nm', city: '\u2014\u2014\u2014', text_value: '\u2014\u2014\u2014', name: '\u2014\u2014\u2014'
+  };
+  renderVals() {
+    const parts = this.props.parts || [];
+    const name = this.props.widgetName || 'Widget';
+    // Progressive fill: a part resolves the moment ITS input is bound. A widget
+    // with two inputs is half real and half ghost in between, which is the state
+    // the old "not set up" box could not express.
+    const segs = parts.map(p => {
+      if (p.kind === 'text') return { isText: true, text: p.text };
+      const has = p.value !== undefined && p.value !== null && p.value !== '';
+      if (has) return { isValue: true, text: String(p.value), title: name + ' \u00b7 ' + (p.of || p.kind) };
+      // STALE is not a ghost. A ghost is waiting for a choice; a stale widget was
+      // pointed at something that has since been deleted, and that has to be
+      // visible on the page rather than only in a tooltip — a mouse-only
+      // difference is no difference. So it names what it lost, in danger ink.
+      if (p.lost) return {
+        isStale: true, text: p.lost + ' \u2014 deleted',
+        title: name + ' \u2014 ' + p.lost + ' no longer exists',
+        aria: p.lost + ' no longer exists \u2014 point this widget somewhere else'
+      };
+      return {
+        isGhost: true,
+        text: p.ghost || this.GHOSTS[p.kind] || this.GHOSTS.text_value,
+        title: name + ' \u2014 waiting on ' + (p.needs || 'an input'),
+        aria: 'Not set up yet \u2014 needs ' + (p.needs || 'an input')
+      };
+    });
+    return { segs: segs };
+  }
+}
+
+</script>
+</body>
+</html>

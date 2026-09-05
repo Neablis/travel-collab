@@ -11,3 +11,13 @@
 - **Found by:** the Task 3 implementer, 2026-08-29, while reading `requireTripAccess` for the guard choice; escalated and ruled on in review.
 - **Cross-reference:** ADR-022 §3, ADR-031, KI-61 (the `DEMO_SHARE_TOKEN` problem the demo trip replaced).
 - **First noted:** 2026-08-29.
+- **Milestone:** **M9, carried (assigned 2026-09-02)** — owned by M9, not a gate box. Mitchell's 2026-09-01 decision was that *every* open AI known issue belongs to M9; the audit that recorded it enumerated twelve entries and missed this one, so the assignment is applied here rather than left to be re-derived. Gate-vs-carried rationale is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues". Carried, not gating: the refusal CLOSES the exposure, so nothing is broken while it stands, and the three decisions needed to open the demo path are product calls rather than milestone work. ADR-033 leaves it untouched and stricter — the merged door must not turn it into a role check.
+- **2026-09-05 overnight review — the same composition is open on another route ([F-A01](../../reviews/2026-09-05-overnight-review/findings/F-A01-demo-branch-makes-viewer-routes-anonymous.md)):**
+  `/ask` is closed by the refusal above, but the demo branch in
+  `requireTripAccess` is generic, so *every* viewer-minimum caller inherits the
+  anonymous answer — and `POST /api/saved-days` is an **unbounded anonymous
+  write** (201 + a `saved_days` row with `owner_id = "demo-visitor"`, no
+  quota, no FK, unlistable and undeletable forever). Stream A calls the
+  hand-written refusal in `handleAskRequest` "the tell" that the seam, not the
+  caller, is the thing to fix; the suggested fix is to make the demo answer
+  opt-in per route. Filed as KI-2026-09-05-d.

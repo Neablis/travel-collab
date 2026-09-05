@@ -92,6 +92,38 @@ export function devLoginIdentity(
   };
 }
 
+/**
+ * Which deployment environment minted (or is reading) a session token.
+ *
+ * Exists because Preview and Production **share one `AUTH_SECRET`** — one
+ * variable scoped to both in the Vercel dashboard — and sessions here are
+ * stateless JWTs with no adapter. A token signed anywhere therefore verifies
+ * everywhere, and `AUTH_DEV_LOGIN=true` is set on Preview, where the
+ * credentials provider accepts ANY username with no password and yields
+ * `dev-<name>` — an identity that post-M11 inherits real trip memberships.
+ * Lifting a preview-minted cookie onto `caesura.today` was, until this claim
+ * existed, a working sign-in as that member. Deployment Protection on
+ * previews was the only thing in the way, and that is a fence, not a check.
+ *
+ * The sharing is not incidental and cannot simply be undone: Auth.js's
+ * redirect proxy (`AUTH_REDIRECT_PROXY_URL`, the fix for KI-50) encrypts the
+ * OAuth `state` with this same secret and requires the proxy and the
+ * originating deployment to agree on it. So the secret stays shared and the
+ * *token* carries the environment instead — which is the second of the two
+ * options the 2026-08-28 project review left open under M3, and the one that
+ * does not require giving up dev login on previews.
+ *
+ * `VERCEL_ENV` is set by Vercel and never by us — the same property
+ * `isDevLoginEnabled()` leans on — so a deployment cannot lie about which
+ * environment it is. Unset off-Vercel, where "development" covers local dev,
+ * `pnpm check` and the Playwright lane alike; those mint and read their own
+ * tokens within one process, so the value only has to be stable, not
+ * meaningful.
+ */
+export function authEnvironment(): string {
+  return process.env.VERCEL_ENV ?? "development";
+}
+
 const providers: Provider[] = [];
 
 if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
@@ -121,8 +153,28 @@ export const authConfig: NextAuthConfig = {
   // page. AuthScreen renders that code as human copy.
   pages: { signIn: "/signin", error: "/signin" },
   callbacks: {
+    // Called with `user` exactly once, on sign-in; with the decoded token
+    // alone on every subsequent session read, in both runtimes.
     jwt: ({ token, user }) => {
-      if (user?.id) token.userId = user.id;
+      if (user) {
+        if (user.id) token.userId = user.id;
+        // Stamped at mint time, so the claim describes where the credential
+        // was actually issued rather than where it is being presented.
+        token.env = authEnvironment();
+        return token;
+      }
+      // Returning null is Auth.js's own "this session is over" signal: it
+      // clears the session cookie and answers with no session
+      // (`@auth/core/lib/actions/session.js` — `sessionStore.clean()`), so a
+      // cross-environment token is discarded rather than merely ignored.
+      //
+      // A token with NO claim fails this too, deliberately. Tokens minted
+      // before this shipped are exactly the ones whose origin we cannot
+      // establish, so they are the ones the check exists for. The cost is one
+      // forced re-sign-in for anyone holding a live session when this
+      // deploys; the alternative — trusting an unstamped token — would leave
+      // the hole open for the 30-day life of every cookie already issued.
+      if (token.env !== authEnvironment()) return null;
       return token;
     },
     session: ({ session, token }) => {

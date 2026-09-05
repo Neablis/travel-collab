@@ -130,6 +130,100 @@ checkpoint ever renders. Until that secret exists, a cloud session cannot
 produce preview evidence for a gate, and should say so rather than reporting a
 walk it could not perform.
 
+**The secret now exists** (Vercel → Settings → Deployment Protection →
+Protection Bypass for Automation) and was used for a full signed-in walk on
+2026-09-03. Two things that were not obvious the first time:
+
+- **It has to be in the SESSION's environment, not just in Vercel.** A cloud
+  container's environment is fixed when it starts, so setting the value in the
+  project does not reach a session already running — it has to be handed to
+  that session. The value is deliberately not written down in this repo.
+  **Where it belongs, per surface, is in the recipe below.**
+- **A signed-in walk needs no invite code.** `server/admission.ts` evaluates
+  admission only for someone with **no `users` row**; an existing dev user is
+  admitted as `returning-user`. So `/signin` → dev login as a username that has
+  been here before is enough. `INVITE_SUPER_CODE` is a first-sign-in concern and
+  `playwright.config.ts` injects it only into the LOCAL e2e web server — which
+  is easy to misread as "the preview is unreachable".
+
+### Using the bypass secret
+
+`.env.example` documents the variable's NAME and how to generate it; this is
+how to use it. Nothing in the app reads it — its only consumer is
+`apps/web/scripts/walk-preview.mjs`, which sends it as
+`x-vercel-protection-bypass` (plus `x-vercel-set-bypass-cookie`) on
+**preview-origin requests only**. That per-request scoping is not fussiness:
+the pages walked here fetch from `tiles.openfreemap.org`, `vercel.live` and
+Google Fonts, and a context-level header would hand all of them a secret that
+unlocks every protected deployment this project has.
+
+Where the value goes depends on where the walk runs, and only one of these
+works for a cloud session:
+
+| Running on | Put the value | Why |
+|---|---|---|
+| A laptop | `apps/web/.env.local` | `walk:preview` loads it with `--env-file-if-exists`, the same way every `db:*` script does |
+| A **cloud** Claude Code session | the **Claude Code environment's** variables (Claude Code web → that environment's settings) | The container's environment is fixed at boot. Vercel holding the value does not put it in the session |
+| CI | the workflow env | Same mechanism as every other secret there |
+
+### A fresh worktree has no `.env.local`, and the failure does not say so
+
+`scripts/setup-env.mjs` runs at session start and writes `apps/web/.env.local`
+**in the primary worktree only**. The file is gitignored, so a worktree created
+later with `git worktree add` starts without it — and nothing tells you until a
+build gets far enough to need a database:
+
+    Error: Failed to collect page data for /api/health/ai-mode
+      [cause]: Error: DATABASE_URL is not set. Copy .env.example to apps/web/.env.local
+
+That reads like a broken route. It is a missing file, and it costs a full
+`test:e2e:ci-like` cycle (build included) to find out. Measured 2026-09-04 in a
+worktree three deep in a stack, where the first run had already been spent on a
+different error, so the second one landed here.
+
+**Before running anything heavier than a unit test in a new worktree:**
+
+    cp <primary-worktree>/apps/web/.env.local apps/web/.env.local
+    # or, equivalently:
+    pnpm setup
+
+`pnpm --filter web test` does not need it, which is exactly why the gap survives
+until the expensive lane. `test:e2e:ci-like`, `test:int` and every `db:*` script
+do.
+
+**A real environment variable wins over `.env.local`.** Node's `--env-file`
+only fills in names that are not already set (verified on Node 22:
+`PROBE=from_environment node --env-file-if-exists=.env.local` prints
+`from_environment`). So a stale `.env.local` cannot shadow the environment's
+value, and `scripts/setup-env.mjs` creating `.env.local` from `.env.example` at
+session start cannot break a cloud walk.
+
+Then:
+
+    pnpm --filter web walk:preview <preview-url> [path ...]
+
+with a plain preview URL — no `?_vercel_share=` needed once the secret is set.
+It exits non-zero if any path fails, so it is usable as a check.
+
+**Do not ask for the value in chat if it can be avoided.** A secret pasted into
+a conversation lives in that transcript; setting it on the environment means it
+is never spoken. If one does get pasted, rotate it afterwards — Vercel →
+Settings → Deployment Protection → Protection Bypass for Automation regenerates
+it, and nothing else in this project depends on the old value.
+
+**What it does NOT get you.** The bypass clears Deployment Protection and the
+anti-bot checkpoint; it is not a session. A signed-in walk still has to sign in
+(see the dev-login note above), and the two container-networking obstacles —
+the gateway CA and the TLS 1.2 cap — are unrelated to it and still apply.
+
+One trap that cost two runs, and belongs to whoever writes the walk script
+rather than to the app: Playwright's `getByRole(..., { name })` matches the
+accessible name by **substring**. A fixture trip named `[walk] notebooks …`
+makes the trip-title button (accessible name `<trip name> — Trip settings`)
+match `getByRole("button", { name: "Notebooks" })`, and the resulting strict-mode
+violation reads exactly like the app rendering the control twice. Name walk
+fixtures so they cannot collide with a control you intend to query.
+
 Three things had to be true at once, and each failed with an error naming none
 of the others. Worth knowing, because they bite anything else you point at the
 network from a renderer:

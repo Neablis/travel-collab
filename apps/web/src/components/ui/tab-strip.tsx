@@ -21,7 +21,18 @@ export function TabStrip<T extends string>({
   "aria-label": string;
 }) {
   return (
-    <div role="tablist" aria-label={ariaLabel} className="inline-flex gap-0.5 rounded-md bg-moss p-0.5">
+    // `h-8` pins the strip at the design's 32px (`hint-size="auto,32px"`), and it
+    // has to be pinned rather than left to content: this repo overrides
+    // `--text-sm` to 13px/1.4 (globals.css), so the intrinsic height is
+    // 2 + 4 + 18.2 + 4 + 2 = 30.2px — not the 32 that stock Tailwind's 14px/20px
+    // would give. The Notebooks pill beside it is 32px, and 1.8px of mismatch on
+    // two controls sharing a row reads as a misalignment rather than as a
+    // rounding error (Mitchell, 2026-09-03: "should be aligned with the tabs").
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="inline-flex h-8 items-center gap-0.5 rounded-md bg-moss p-0.5"
+    >
       {options.map((o) => (
         <button
           key={o.value}

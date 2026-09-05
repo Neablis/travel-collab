@@ -1,7 +1,7 @@
 {
   "$schema": "japan-trip-seed-coordinates/v1",
   "generatedBy": "apps/web/scripts/geocode-japan-seed.mts",
-  "generatedAt": "2026-08-29",
+  "generatedAt": "2026-08-30",
   "sourceSeed": "japan-trip-seed.json",
   "resolvedStopCount": 41,
   "totalStopCount": 72,

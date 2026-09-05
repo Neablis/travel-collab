@@ -18,9 +18,10 @@
   2 req/sec instead of a `Promise.all` burst, so a 9-name batch no longer 429s
   itself into coordinate-less locations. The response carries a
   `locationReport` (`verified`/`unverified`/`unchecked`/`failed`/`skipped`),
-  and `handleAiRequest.ts`'s `locationNotice` names up to three unverified,
-  failed, or skipped places in the reply message instead of reporting success
-  either way — `unchecked` (accepted with nothing yet to check it against,
+  and the reply names up to three unverified, failed, or skipped places instead
+  of reporting success either way (as `locationNotice` in the since-deleted
+  `handleAiRequest.ts`; the surviving implementation is `commitProposal` in
+  `writeTools.ts`, on the approval path, unchanged in substance) — `unchecked` (accepted with nothing yet to check it against,
   which is the common case on the very first lookup of a freshly planned trip)
   is deliberately excluded from the message to avoid training the user to
   ignore it, but stays in the payload.
@@ -67,7 +68,8 @@
      path. An `unverified` fallback is still a raw, unvalidated model guess,
      and it still gets persisted and still feeds `tripRegionOf` on the
      next request exactly as much as a verified one would; the fix makes that
-     widening *announced* (via `locationNotice`) rather than eliminating it.
+     widening *announced* (the unverified-locations notice in `commitProposal`)
+     rather than eliminating it.
 - **Fix path:** M9, "Grounding". The model cites a `placeRef` from a real
   `SearchPlaces` result, so there is nothing to overwrite and nothing to
   guess; enrichment survives only as a fallback for user-typed text.
@@ -78,3 +80,18 @@
   1. **Unconditional top-match overwrite.** `geocodeOne` takes `forward(name, { limit: 1 })[0]` with **no viewbox, no region bias, and no acceptance test**, then the caller replaces the command's `location` with it. In the Red Coach Inn case the model had supplied **correct** coordinates (`43.0866, -79.0628` — Niagara Falls, NY, visible in `meta.toolCalls`); enrichment discarded a right answer for a fuzzy string match on another continent. The "canonical name REPLACES the model's raw name" rule was lifted from the manual `LocationInput.tsx` flow, where **a human picks from candidates** — that human is the part that didn't survive the port.
   2. **Parallel burst against a 2 req/sec vendor.** `enrichCommandLocations` fires every unique name concurrently via `Promise.all`. **LocationIQ's free tier is 5,000/day but rate-limited to 2 requests/second**, so a 9-name batch 429s on most of them; `forward` throws on `!res.ok`, and `geocodeOne`'s bare `catch { return { name } }` swallows every one into a coordinate-less `Location` indistinguishable from "this place does not exist". The dedupe/parallelism was written as a free-tier *saving* (daily cap) and is counterproductive against the *per-second* limit that actually binds.
 - **First noted:** 2026-08-02 (Mitchell, M8 dogfooding — trip `13fc0d33`).
+- **2026-09-05 overnight review — the "verified guess" residual now has an off-the-shelf fix, unwired ([F-G02](../../reviews/2026-09-05-overnight-review/findings/F-G02-live-geocode-accepts-wrong-venue-in-right-box.md)):**
+  stream G traced the live path and found the sharpest instance of "a guess that
+  agrees with a fuzzy string match is still reported verified" above.
+  `resolveOne` (`geocodeEnrichment.ts:157-199`) accepts on distance-to-hint or
+  `withinBox` **only**, then overwrites `location.name` with the vendor's
+  `canonicalName` — so a *wrong venue inside the right box* (Kegon Falls →
+  Urami Falls, 8 km) renames the stop, moves the pin, and reports `verified`,
+  which excludes it from `hasUnverifiedLocations` and lets it widen
+  `tripRegionOf` permanently. The net-new part is that the identity check
+  written for exactly this — `server/ai/geocodeNameMatch.ts`'s
+  `placeNameVerdict`, grown by the seed pipeline over KI-39/58/77 — **has no
+  caller on the request path**; only `geocode-japan-seed.mts` imports it
+  ([F-F12](../../reviews/2026-09-05-overnight-review/findings/F-F12-geocodenamematch-lives-in-ai-but-only-seed-uses-it.md)).
+  The finding carries a unit-level reproduction. Wiring it is smaller than M9
+  grounding and does not replace it.

@@ -1,0 +1,18 @@
+### KI-2026-09-02-d — `packages/factories/src/scenarios.ts` has no consumers outside its own package
+
+- **Severity:** cleanup (no defect; the scenarios are correct and tested — they are simply unused).
+- **Area:** `packages/factories/src/scenarios.ts`, and every component test under `apps/web/src/components/**`.
+- **What is wrong:** `scenarios` was built by the test overhaul (Phase 2) as the thing a component test starts from — `emptyTrip()`, `threeDayTrip()`, `overBudgetTrip()` and friends, each a fully-typed self-consistent `TripDetail`, so that "shows the over-budget banner" begins with `scenarios.overBudgetTrip()` and nothing else. `grep -rn "scenarios\." apps/web/src --include=*.test.tsx` returns **nothing**. The only importers are the factories package's own tests. Component tests all reach for the lower-level `tripDetailFixture` and rebuild the interesting state by hand.
+- **Why it matters more than it looks:** the named states are where the *meaning* lives. `tripDetailFixture({ budget: … })` plus four lines assembling activities with costs is a hand-built rollup, which is exactly the drift `@tc/factories` exists to stop — and the test then has to keep its own budget arithmetic consistent with the domain's. The scenario has already done that once, in a place with its own tests (`packages/factories/src/contract.test.ts`).
+- **How it happened, probably:** Phase 2 built the scenarios; Phase 5 (which would have migrated call sites to them) was closed as superseded when the prune it was written for turned out not to be needed. The migration went with it, and nothing recorded that it had.
+- **Fix path:** opportunistic, not a project. When you touch a component test that hand-builds a recognisable state, swap it for the scenario. If no scenario fits, add one — that is the intended direction of travel and `docs/guidelines/testing.md` §6 now says so. Do not do a sweep: a mass rewrite of working tests is the cost this repo already decided not to pay once.
+- **Cross-reference:** `docs/plans/test-overhaul/phase-2-factories.md`, `TODO.md` (Phase 5 superseded), `docs/guidelines/testing.md` §6.
+- **First noted:** 2026-09-02, while writing `docs/guidelines/testing.md` — the guideline's component example named a scenario, and checking whether that matched reality is what turned this up.
+- **2026-09-05 overnight review — the same shape found in the widget catalogue ([F-B05](../../reviews/2026-09-05-overnight-review/findings/F-B05-count-of-day-city-has-no-preset.md)):**
+  `count{of: "day" | "city"}` is declared, parsed, resolved and tested, and no
+  preset carries `of`, so "how many days / how many cities" is code a person
+  cannot reach from the picker — only the AI can, through
+  `primitiveCatalog()`. Stream B names this entry as the precedent for
+  "built, no consumer". The generalisable guard is the one `presets.test.ts`
+  does not have: every enum value of every `nonFilterParams` entry must appear
+  in some preset. Filed as KI-2026-09-05-i.

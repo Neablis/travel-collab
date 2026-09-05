@@ -1,7 +1,16 @@
 ### KI-9 — AI model outputs are validated ad hoc per call site, not via one typed gateway boundary
 - **Severity:** cleanup (defensive; no known reachable bug today)
-- **Area:** `apps/web/src/server/ai/{gateway,handleAiRequest,planningTools,pageTools}.ts`
+- **Area:** `apps/web/src/server/ai/{gateway,handleAskRequest,planningTools,pageTools}.ts` — `handleAiRequest.ts` was the original site and was deleted by ADR-033 Decision 4; the validation question moved with the tools, it did not close.
 - **Background:** every point where model output crosses into our system is meant to be *parsed, not trusted* — and today each does so, but in a different place and shape: tool arguments are validated by the AI SDK against each tool's derived `inputSchema`; assembled commands are parsed by `collect()` (KI-8) and re-parsed by `executeTripCommandBatch`'s `BatchBody.safeParse`; `compose_page` output is checked by `validateComposedPage`; the board/combined user-facing `message` is server-derived (`summarizeBatch`), never taken from the model. It works, but the "parse at the boundary" invariant is a convention spread across call sites rather than something the type system *forces* — a future call site could consume a model result without a schema and nothing would catch it.
 - **Deferred fix (agreed 2026-07-24, Mitchell):** introduce a single typed gateway wrapper around `generateText`/`generateObject` that *requires* an output schema and returns a `Result<T, GatewayError>`, so no model call can be consumed un-parsed; use `generateObject`/`experimental_output` where the final free-text answer itself should be schema-constrained. Keep the two invariants that already do the work (executors typed `input: unknown` to force the parse; the exhaustive `decideTripCommand` switch with no `default:`) and document them as such. This is the generalized, type-enforced version of the per-field KI-8 fixes; scoped out of the KI-8 PR deliberately to keep it small.
 - **First noted:** 2026-07-24 (raised while fixing KI-8).
 - **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: cleanup, no known reachable bug. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".
+- **2026-09-05 overnight review — this entry is the hub of ~15 of the 40 open KIs ([F-E07](../../reviews/2026-09-05-overnight-review/findings/F-E07-ask-handler-is-one-455-line-function.md)):**
+  stream E's census found 14–17 open entries citing `server/ai`, and KI-9, 22,
+  80, 82, 93/94/97 are all consequences of model output crossing into the
+  system at many places with no single typed boundary. The wrapper agreed here
+  in July — a gateway call that *requires* an output schema — would make a new
+  un-parsed consumer a type error. The net-new finding beside it is that
+  `handleAskRequest()` is one 455-line function whose seams are already named
+  in its own code; that is filed separately as KI-2026-09-05-t so this entry
+  stays the record of the validation boundary alone.

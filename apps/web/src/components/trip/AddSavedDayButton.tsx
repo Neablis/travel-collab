@@ -11,9 +11,11 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 // since M10 Wave 2 moved the action out of the trip header (KI-31).
 //
 // It comes back where the design put it: in the plan flow, at the end of the
-// trip — NOT in the header. EndOfTrip mounts it beside its own "Add a day",
-// outside the still-shelled <Preview id="insert-playbook"> that carries the
-// Playbook shortcuts (those are M11 Playbooks, a separate scope, still unbuilt).
+// trip — NOT in the header. EndOfTrip mounts it beside its own "Add a day".
+// It used to sit outside a <Preview id="insert-playbook"> shell carrying the
+// Playbook shortcuts; M11b deleted that shell along with the other three
+// PLAYBOOKS previews, and `preview-registry.test.ts` now asserts all four ids
+// are absent.
 //
 // Reads `applyOutcome` from TripProvider rather than taking a callback prop:
 // the insert is a real command batch and returns the authoritative detail and

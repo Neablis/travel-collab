@@ -2,7 +2,7 @@
 // "Done — moved “Treasure Island” to day 2 and added “Dinner in Oakland” to
 // the backlog." Kept in its own module (types-only imports, no server/DB/auth
 // dependencies) so it's unit-testable — the DB-backed route.int test can't run
-// without a migrated test DB, and importing handleAiRequest pulls in next-auth,
+// without a migrated test DB, and importing handleAskRequest pulls in next-auth,
 // which won't load under the jsdom unit runner.
 //
 // Derived from the committed commands (not the model's own narration), so it
