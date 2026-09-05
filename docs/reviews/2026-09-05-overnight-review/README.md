@@ -1,6 +1,6 @@
 # Overnight project review — 2026-09-05
 
-**Status: PLANNED. Real run begins 00:30 PT (07:30 UTC) 2026-09-05.** This file is
+**Status: RUNNING since 00:31 PT 2026-09-05.** This file is
 the plan and the live tracker; it is updated as each stream finishes. The
 findings it produces live one-per-file under `findings/`, written so a fixer
 agent can act on one without re-deriving it.
@@ -71,14 +71,14 @@ Updated live. Times are PT.
 | Orientation read (AGENTS, STATUS, layout, prior reviews) | done 22:40 | This file |
 | Briefs written for A–G | done 22:55 | `briefs/` |
 | Wake scheduled 00:30 | done 22:56 | send_later → 07:30 UTC |
-| Streams A–G dispatched | pending | |
-| A Security | pending | |
-| B Notebook / widget AST | pending | |
-| C Versioning / migration | pending | |
-| D Infra / DB / Vercel / review loop | pending | |
-| E Maintainability / patterns | pending | |
-| F Simplifiable | pending | |
-| G Broken functionality (lanes + hunt) | pending | |
+| Streams A–G dispatched | 00:31 | seven general-purpose agents, parallel |
+| A Security | running 00:31 | |
+| B Notebook / widget AST | running 00:31 | |
+| C Versioning / migration | running 00:31 | |
+| D Infra / DB / Vercel / review loop | running 00:31 | |
+| E Maintainability / patterns | running 00:31 | |
+| F Simplifiable | running 00:31 | |
+| G Broken functionality (lanes + hunt) | running 00:31 | |
 | Verification wave | pending | |
 | Findings written | pending | |
 | Executive summary | pending | |
