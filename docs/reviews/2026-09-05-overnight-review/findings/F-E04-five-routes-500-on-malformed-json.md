@@ -1,0 +1,10 @@
+# F-E04 — Five routes 500 on malformed JSON while three return 400; body reading has no shared helper
+
+- **Stream:** E Maintainability (= A02 adjacent, F03 adjacent) · **Severity:** LOW-MEDIUM · **Confidence:** CONFIRMED (verified)
+- **Area:** bare `safeParse(await request.json())` at `apps/web/src/app/api/trips/route.ts:43`, `trips/[tripId]/pages/route.ts:23`, `pages/[pageId]/route.ts:20`, `commands/route.ts:18`, `commands/batch/route.ts:21` — none of the five files has a try/catch, and there is no wrapper, middleware or `onError` anywhere in `src/server` or `app/api`; the guarded `.catch(() => null)` form at `invites/route.ts:14`, `saved-days/route.ts:17`, `account/preferences/route.ts:72`; the correct in-repo pattern already exists at `handleAskRequest.ts:297-302` (try / `JSON.parse` / 400) and is tested at `ask/apply/route.int.test.ts:342` ("400s malformed JSON"). `pages-guard.ts:25-27` is a pure alias of `requireTripAccess`.
+- **What is wrong:** `Request.json()` rejects on invalid JSON; in the bare form the rejection escapes the handler and Next returns 500 for a client error (and Sentry records it as a server fault). Zod failures do return 400 in all five, so the inconsistency is purely the body read. The access half of the route preamble is well centralised (`requireTripAccess`); body reading is not, which is why the split is 5 bare vs 3 guarded.
+- **Suggested fix:** `readBody(request, schema): { data } | { error: Response }` in `apps/web/src/server/`, returning the same `"error" in x` shape as `requireTripAccess`, used by all eight routes and both AI handlers (F-F03); delete `guard()` in `pages-guard.ts` and import the seam directly.
+- **Scope of the fix:** 8 routes + 1 helper (+ the two AI handlers if F-F03 is taken together). No contracts. Check subset: those routes' int tests.
+- **Test that should exist:** one int test per route family sending `not json` and asserting 400 — seen red first against the bare form.
+- **Cross-reference:** F-A02, F-F03, F-E03.
+- **Do not:** introduce a `withAuth(handler)` higher-order wrapper — the 3-line access preamble is honest and greppable; only the body read repeats.

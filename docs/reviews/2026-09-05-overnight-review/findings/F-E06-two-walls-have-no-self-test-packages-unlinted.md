@@ -1,0 +1,9 @@
+# F-E06 — Two lint walls have no self-test, and `packages/*` are not linted at all
+
+- **Stream:** E Maintainability · **Severity:** LOW-MEDIUM · **Confidence:** CONFIRMED, narrowed (verified)
+- **Area:** `scripts/check-lint-wall.mjs` and `scripts/check-case-collisions.mjs` — both wired into root `pnpm lint` (`package.json:12`), neither has a test in `scripts/__tests__/` (which covers `check-color-wall`, `check-sleep-wall`, `check-ki-filenames`, `redfirst`, `state-digest`); `ls packages/*/eslint.config.*` → nothing (KI-2026-09-02-c, open). `check-auth-proxy.mjs` is a manual deployment probe, not a wall — the first draft of this finding counted it wrongly.
+- **What is wrong:** a wall whose scope or sensitivity was asserted but never demonstrated with a known violation is the species behind KI-13/76 (`pnpm check` exits 0 running zero int tests), KI-51 (colour wall blind to untracked files), KI-20260830-b (`eslint src` never saw root files or `e2e/`), KI-20260901 (CodeRabbit green while skipping), KI-20260902-a (Node 26 red locally, CI green). The two untested walls are the remaining places that class can recur; the unlinted packages mean the test-quality and element walls do not reach `packages/domain` (where F-E01 lives) or `packages/pages`.
+- **Suggested fix:** red-first for walls — `check-lint-wall.mjs` and `check-case-collisions.mjs` each get a fixture that must fail plus a scope test; a root or per-package `eslint.config.mjs` so `pnpm lint` covers `packages/*` (KI-2026-09-02-c's fix).
+- **Scope of the fix:** `scripts/__tests__/`, 5 package `eslint.config.mjs` + `lint` scripts, root `package.json:12`. Check subset: `pnpm lint` + `node --test scripts/__tests__`.
+- **Cross-reference:** KI-2026-09-02-c (open), KI-51, KI-13/76, 2026-08-28 review §4, F-F07 (the sleep wall is now redundant with ESLint).
+- **Do not:** re-file the individual KIs; the class fix is the deliverable.
