@@ -227,12 +227,21 @@ export function getPreset(id: string): WidgetPreset | undefined {
  * decision 4's *"rebinding a preset away from its params is not an error
  * state"* said in code: an author who picks "A line for every booking" and then
  * chooses a different kind gets that kind, not a refusal.
+ *
+ * It assumes `extra` IS a record — `insertPreset` checks that before calling,
+ * because a spread is the wrong place to find out (see below).
  */
 export function presetParams(
   preset: WidgetPreset,
   extra: Readonly<Record<string, unknown>> = {},
 ): Record<string, unknown> {
   return { ...preset.params, ...extra };
+}
+
+// Object, not null, not an array — the shape a spread can merge without
+// silently changing what the caller asked for.
+function isParamRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -243,16 +252,26 @@ export function presetParams(
  * door. So this resolves the preset to `(primitive, params)` and hands both to
  * the same validator every other caller uses.
  */
-export function insertPreset(
-  id: string,
-  extra: Readonly<Record<string, unknown>> = {},
-): InsertResult {
+export function insertPreset(id: string, extra: unknown = {}): InsertResult {
   const preset = getPreset(id);
   // The same typed refusal an unknown widget gets. A preset id is not a widget
   // name, but from a caller's point of view "I asked for a thing that is not
   // there" is one outcome, and inventing a second error shape for it would make
   // every call site handle two.
   if (!preset) return { ok: false, error: { reason: "unknown-widget", name: id } };
+  // **A non-record override is a caller error, not "no override".**
+  // `{ ...preset.params, ...null }` is a silent no-op in JS, so
+  // `insertPreset("booking.line", null)` handed `insertWidget` the preset's own
+  // `{ kind: "booked" }` and came back `ok` — the caller's input discarded by
+  // the one path whose whole job is to refuse bad input.
+  //
+  // This is the SAME hole `insertWidget` already closed one layer down, where
+  // `params ?? {}` turned an explicit `null` into an empty object (CodeRabbit,
+  // PR 139) — reopened by the spread above. So `extra` is `unknown` here for
+  // exactly the reason `insertWidget`'s `params` is: the preset door and the
+  // general door have to refuse the same inputs, or the preset door is the
+  // second insert path ADR-037 decision 4 exists to forbid.
+  if (!isParamRecord(extra)) return insertWidget(preset.widget, extra);
   return insertWidget(preset.widget, presetParams(preset, extra));
 }
 

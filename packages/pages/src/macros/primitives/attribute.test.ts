@@ -77,6 +77,17 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
     // And it did not reach for the sibling field that IS set.
     expect(JSON.stringify(renderMacro(blank, "attribute", { field: "account.name" }))).not.toContain("SFO");
 
+    // **Present but blank, which is a different branch from absent.** `read()`
+    // tests `code === ""` and `trip.name.trim() === ""` separately from the
+    // null checks above, and neither was reached: a regression that rendered an
+    // empty chip's worth of nothing as a VALUE — a tinted, underlined empty
+    // pill sitting in a sentence — passed this test while it claimed "every
+    // absent case" (CodeRabbit, PR 141).
+    const noAirport: WidgetContext = { ...ctx, user: { displayName: "Priya", homeAirport: "", distanceUnit: "km" } };
+    expect(renderMacro(noAirport, "attribute", { field: "account.homeAirport" }).status).toBe("empty");
+    const unnamed = tripDetailFactory.build({ name: "   " }, { transient: { dayCount: 1 } });
+    expect(renderMacro({ ...ctx, trip: unnamed }, "attribute", { field: "trip.name" }).status).toBe("empty");
+
     const noBudget = tripDetailFactory.build({}, { transient: { dayCount: 1 } });
     expect(
       renderMacro({ ...ctx, trip: noBudget }, "attribute", { field: "trip.budgetRemaining" }).status,

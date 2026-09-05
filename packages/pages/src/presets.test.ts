@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WIDGET_NAME_MIGRATION, parsePageDoc } from "@tc/contracts";
 import { PRESETS, getPreset, insertPreset, presetCatalog } from "./presets";
+import { insertWidget } from "./insert";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { WidgetContext } from "./registry-types";
 import { selectionTrip } from "./test-support/selectionTrip";
@@ -148,6 +149,19 @@ describe("insertPreset", () => {
     const result = insertPreset("cost", { day: "day 2" });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.reason).toBe("bad-params");
+  });
+
+  it("refuses a non-record override instead of spreading it away", () => {
+    // `{ ...preset.params, ...null }` is a silent no-op, so this used to come
+    // back `ok` carrying the preset's own `{ kind: "booked" }` — the caller's
+    // input discarded by the path whose job is to refuse it (CodeRabbit, PR
+    // 141). It is the same hole `insertWidget` closed on PR 139, reopened by
+    // the spread one layer up, which is why the assertion is that BOTH doors
+    // give the same answer rather than merely that this one refuses.
+    const throughPreset = insertPreset("booking.line", null);
+    expect(throughPreset.ok).toBe(false);
+    expect(!throughPreset.ok && throughPreset.error.reason).toBe("bad-params");
+    expect(insertWidget("stop.rows", null).ok).toBe(false);
   });
 
   it("refuses an unknown preset id with the same typed reason", () => {

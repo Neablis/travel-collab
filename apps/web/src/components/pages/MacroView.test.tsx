@@ -49,13 +49,55 @@ const costedDetail: TripDetail = {
       cost: { amountMinor: 12345, currency: "USD" },
     },
   },
+  // Zero, for the same reason `tripCostTotal` above is: there is no unscheduled
+  // stop here, so any other number is a rollup contradicting the stops it is a
+  // rollup of. It said 500, which made the `$123.45` assertion below prove
+  // nothing about a total — the fixture claimed 500 of unscheduled cost that
+  // `cost` could not find and no reader could account for (CodeRabbit, PR 141).
+  unscheduledCostSubtotal: 0,
+  // And the trip's total is now the one stop on it, so the fixture agrees with
+  // itself the way `rollupCosts` would make it agree on real data.
+  tripCostTotal: 12345,
+};
+
+// The same trip with one stop left OFF a day, which is the case the fixture
+// above used to gesture at with a number and no stop behind it.
+//
+// **The backlog is in an unfiltered answer, and that is a decision, not an
+// accident**: ADR-039 decision 2 says an absent filter means everything, and a
+// stop nobody has scheduled yet is still money the trip owes. `narrow` includes
+// it exactly when no `day` and no `dates` filter is set — so this fixture is
+// the only place the difference between "the whole trip" and "every scheduled
+// day" is visible at this level.
+const backloggedDetail: TripDetail = {
+  ...costedDetail,
+  activities: {
+    ...costedDetail.activities,
+    u1: {
+      activityId: "u1", title: "Souvenirs", timeWindow: null,
+      location: null, notes: null, anchors: [], kind: "idea", tags: [],
+      cost: { amountMinor: 500, currency: "USD" },
+    },
+  },
+  backlog: ["u1"],
   unscheduledCostSubtotal: 500,
+  tripCostTotal: 12845,
 };
 
 describe("MacroView", () => {
   it("shows the formatted total for an unfiltered cost when there is a total", () => {
     render(<MacroView detail={costedDetail} context={ctx} name="cost" params={{}} />);
     expect(screen.getByText("$123.45")).toBeTruthy();
+  });
+
+  it("adds an unscheduled stop into the unfiltered total", () => {
+    // The claim "no filters means the whole trip" is only testable where the
+    // whole trip is more than its days. $123.45 + $5.00 — and a `cost` that
+    // summed only scheduled stops, or read `tripCostTotal` off the projection
+    // without summing anything, is told apart from the right answer here and
+    // nowhere else in this file.
+    render(<MacroView detail={backloggedDetail} context={ctx} name="cost" params={{}} />);
+    expect(screen.getByText("$128.45")).toBeTruthy();
   });
 
   it("shows the 'no costs yet' chip when nothing is priced", () => {

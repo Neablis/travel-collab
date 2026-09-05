@@ -98,6 +98,39 @@ async function addTaggedStop(page: Page, title: string, tagLabel: string): Promi
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
 }
 
+// Adds a stop carrying a LOCATION, so the trip's globals projection reports a
+// city and the chrome row can offer one.
+//
+// Unscheduled is enough, and that is `buildTripGlobals`' own rule rather than a
+// shortcut: its second pass attributes a stop to its OWN city whether or not a
+// day is behind it, precisely so a backlog stop in a city the trip plans to
+// visit is still in the collection. So this needs no drag onto a day.
+//
+// The geocoder is stubbed because e2e has no `LOCATIONIQ_API_KEY` (same reason
+// and same shape as `m3-place-and-time`), and the stub is where `city` comes
+// from: `LocationInput` copies the result's `city` field straight onto the
+// Location, so a result without one produces a stop with no city and no option
+// in the select.
+async function addStopInCity(page: Page, title: string, cityName: string): Promise<void> {
+  await page.route("**/api/geocode**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        results: [
+          { lat: 35.0116, lng: 135.7681, canonicalName: `${cityName}, Japan`, countryCode: "JP", city: cityName },
+        ],
+      }),
+    });
+  });
+  await page.getByRole("button", { name: "Add stop" }).click();
+  await page.getByLabel("What or where").fill(title);
+  await page.getByLabel("Place name").fill(cityName);
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("option", { name: `${cityName}, Japan` }).click();
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
+}
+
 async function openTripOverview(page: Page): Promise<void> {
   await openNotebookIndex(page);
   await page.getByRole("link", { name: /Trip Overview/ }).click();
@@ -295,8 +328,11 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // replaced its whole params object before this widget existed, so choosing a
   // tag would have silently unbound the day.
   await tripWithTwoDays(page);
-  // A selectable tag has to exist before the chrome row can offer one.
+  // A selectable tag has to exist before the chrome row can offer one, and a
+  // selectable city likewise — `globals.tags` and `globals.cities` are both
+  // "what this trip actually has", never the whole enum.
   await addTaggedStop(page, "Ramen", "Meal");
+  await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openTripOverview(page);
 
   await insertFromList(page, /A line for every stop/, "every stop");
@@ -310,8 +346,10 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // dimension — reaching the row as FOUR controls, because `day` and `dates`
   // are one. `person` is the one with no control, and deliberately so: no stop
   // carries a person (decision 7).
-  await expect(page.getByRole("combobox", { name: /A line for every stop: city/i })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: /A line for every stop: kind/i })).toBeVisible();
+  const cities = page.getByRole("combobox", { name: /A line for every stop: city/i });
+  const kinds = page.getByRole("combobox", { name: /A line for every stop: kind/i });
+  await expect(cities).toBeVisible();
+  await expect(kinds).toBeVisible();
   await expect(page.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
   await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveCount(0);
 
@@ -337,11 +375,34 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // assertion the whole widget exists to make possible.
   await expect(days).not.toHaveText("All days");
 
+  // **And the other two dimensions, bound rather than merely rendered.** This
+  // walk used to assert that the city and kind controls were VISIBLE and stop
+  // there, then claim in its own name that every binding survives a reload —
+  // so a broken city or kind binding path passed it (CodeRabbit, PR 141). Four
+  // declared filters, four bound, four checked after the round trip.
+  //
+  // The city comes off the control rather than being typed in: the trip has
+  // exactly one, from the located stop above, and what a geocoded result
+  // reduces to is the geocoder's business, not this test's.
+  // Index 1 is the first real city — index 0 is "All cities", the unbound
+  // answer every filter control leads with (ADR-039 decision 2).
+  await waitForPageSaved(page, () => cities.selectOption({ index: 1 }));
+  await expect(cities).not.toHaveValue("");
+  const cityValue = await cities.inputValue();
+  await waitForPageSaved(page, () => kinds.selectOption("booked"));
+  await expect(kinds).toHaveValue("booked");
+  // Every earlier binding still standing after the last one was set — the
+  // replace-instead-of-merge failure, checked at the widest point.
+  await expect(tags).toHaveValue("meal");
+  await expect(days).not.toHaveText("All days");
+
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByRole("button", { name: /A line for every stop: dates/i })).not.toHaveText("All days");
   await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
+  await expect(page.getByRole("combobox", { name: /A line for every stop: city/i })).toHaveValue(cityValue);
+  await expect(page.getByRole("combobox", { name: /A line for every stop: kind/i })).toHaveValue("booked");
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
