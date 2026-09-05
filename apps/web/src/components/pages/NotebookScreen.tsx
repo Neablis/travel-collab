@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DEFAULT_TEMPLATES, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageSummary } from "@tc/contracts";
+import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages, updatePage } from "@/lib/pagesClient";
+import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
 import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { PageContainer } from "@/components/ui/page-container";
@@ -16,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { submitOnEnter } from "@/lib/submitOnEnter";
+import { AskPill } from "@/components/assistant/AskPill";
+import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { phoneAskContext } from "@/components/assistant/phoneAskContext";
+import { useAskThread } from "@/components/assistant/useAskThread";
 
 type Status = "loading" | "ready" | "error";
 
@@ -71,6 +76,25 @@ const BLANK_STARTER: Starter = {
 
 const STARTERS: Starter[] = [...DEFAULT_TEMPLATES.map(starterFrom), BLANK_STARTER];
 
+// What the assistant says when a turn opened from this surface came back with
+// a proposal.
+//
+// This screen's scope is the whole trip (no page is open), and a trip-scoped
+// turn reaches the WRITE tools — so "move dinner to Tuesday" really does come
+// back with a proposal here, unlike on a notebook page, whose tools only
+// insert. What this screen does not have is the other half of the ghost path:
+// approving reconciles authoritative server state onto the board, and only
+// `TripBoardScreen` holds a board to reconcile onto (`AssistantRail`'s own note
+// on `onApproveProposal`).
+//
+// It SAYS so rather than dropping the proposal on the floor, for the reason
+// `PageScreen`'s `READING_REFUSAL` gives: attaching no proposal leaves an
+// answer that promises a change and shows nothing, which reads as the
+// assistant being broken rather than as this surface declining. The note names
+// the way through, because a refusal without one is a dead end.
+const PROPOSE_ON_THE_PLAN =
+  "I drafted that change, but it can only be applied from the trip's plan — open Plan and ask again to put it in.";
+
 // The Notebook index — SPEC §7's list half. A separate route subtree (design
 // spec decision 11, refined 2026-07-20), reached from the Notebooks menu in the
 // board's view row rather than from a lens tab.
@@ -86,6 +110,18 @@ const STARTERS: Starter[] = [...DEFAULT_TEMPLATES.map(starterFrom), BLANK_STARTE
 export function NotebookScreen({ tripId }: { tripId: string }) {
   const router = useRouter();
   const [pages, setPages] = useState<PageSummary[] | null>(null);
+  // The trip itself, for the title block's meta line (SPEC §23: *"the Notebook
+  // index gained a title block — 'Notebook' at title scale with the trip name
+  // as its meta line… That is where the trip name lives now"*).
+  //
+  // **Required, not fail-soft**, which is a deliberate change to this screen's
+  // failure modes. `PageScreen` — the sibling this list links into — already
+  // treats `fetchTripDetail` as load-bearing and shows this same one-line
+  // error, and both requests are gated by the same membership check, so a
+  // pages-succeeded / trip-failed split is transient rather than a state worth
+  // rendering. Two adjacent notebook screens answering "the trip did not load"
+  // differently is the drift that costs more than the failure does.
+  const [trip, setTrip] = useState<TripDetail | null>(null);
   // Who is reading, so the provenance line can say "Yours" without guessing.
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
@@ -96,24 +132,72 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchPages(tripId).then((result) => {
+    void Promise.all([fetchPages(tripId), fetchTripDetail(tripId)]).then(([pagesResult, tripResult]) => {
       if (cancelled) return;
-      if (result.ok) {
-        setPages(result.value.pages);
-        setViewerId(result.value.viewerId);
-        setStatus("ready");
-      } else {
-        setError(result.error.message);
+      if (!pagesResult.ok) {
+        setError(pagesResult.error.message);
         setStatus("error");
+        return;
       }
+      if (!tripResult.ok) {
+        setError(tripResult.error.message);
+        setStatus("error");
+        return;
+      }
+      setPages(pagesResult.value.pages);
+      setViewerId(pagesResult.value.viewerId);
+      setTrip(tripResult.value);
+      setStatus("ready");
     });
     return () => {
       cancelled = true;
     };
   }, [tripId]);
 
+  // **SPEC §23's phone entry point, and this screen had none of it.** Plan, Map
+  // and an open page all reached the assistant before today; the Notebook index
+  // is the one surface where §23's *"no entry point at all"* was literally true
+  // (KI-2026-09-05-aa has the audit). So the whole path lands here at once —
+  // pill, open state, sheet, thread — shaped like `PageScreen`'s rather than as
+  // a second pattern.
+  //
+  // The scope is the TRIP, because that is what this surface is showing: a list
+  // of the trip's notebooks, with none of them open. §23's load-bearing claim
+  // is that the pill inherits the surface's scope instead of inventing one, and
+  // `phoneAskContext` is where that derivation lives — not here.
+  const ask = useAskThread({
+    tripId,
+    scope: { kind: "trip" },
+    // Identity, for the reason `PageScreen` gives: /ask's own refusals are
+    // already the words a reader needs — the demo-trip 403's prose is
+    // byte-identical to the board's rewrite of it, and the not-entitled one
+    // carries the server's own reason. The board's `askErrorMessage` is private
+    // to `TripBoardScreen`; a copy of it here would be a second place those two
+    // strings live, which is worse than the strings themselves.
+    errorMessage: (error: ApiError) => error.message,
+    // `proposal` is the one event this surface has to answer for. Everything
+    // else `useAskThread` already handles; a proposal it does not handle is
+    // silently dropped, which is the failure `PROPOSE_ON_THE_PLAN` exists to
+    // prevent. **Not a phone-only proposal path** (§23 forbids one, for the
+    // same reason the widget framework has no second chip renderer) — it is
+    // this surface saying it is not the one that lands changes.
+    onEvent: (event, patchAnswer) => {
+      if (event.type !== "proposal") return;
+      patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${PROPOSE_ON_THE_PLAN}` }));
+    },
+  });
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  // Closing hangs up on the turn in flight, the same as `PageScreen`: the
+  // thread lives on this screen, so unmounting the sheet cancels nothing on its
+  // own and a still-streaming answer would keep running against the server
+  // behind a surface the user has put away.
+  const closeAssistant = () => {
+    ask.cancel();
+    setAssistantOpen(false);
+  };
+
   if (status === "loading") return <PageContainer>Loading…</PageContainer>;
-  if (status === "error" || pages === null) {
+  if (status === "error" || pages === null || trip === null) {
     return (
       <PageContainer>
         <p role="alert">{error ?? "Something went wrong"}</p>
@@ -166,6 +250,13 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     });
   };
 
+  // `page: null` IS the index — it is the only thing separating this surface
+  // from an open page, and it is what makes the sheet trip-scoped here and
+  // page-scoped one route down. `focusedDay` is `null` because it is: the
+  // `FocusProvider` is mounted on the board route, not this one, and there is
+  // no day open on a list of notebooks to point at.
+  const phoneAsk = phoneAskContext(trip, null, { tab: "notebook", page: null });
+
   return (
     <PageContainer>
       <div className="mb-6">
@@ -182,10 +273,38 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             and a link that appears only under a breakpoint is the kind of thing
             that goes stale unseen. Styled as `TripHeader`'s is, so the two read
             as the same affordance. */}
-        <Link href="/" className="mb-2 inline-block min-h-11 text-xs text-slate no-underline hover:text-ink">
-          ← Your trips
-        </Link>
+        {/* The top row, SPEC §23: the way out on the left, `Ask` last. Same
+            position as on Plan and Map, which is the whole of §23's *"same
+            pill, same label, same position, so it never moves as you change
+            tabs"* — a pill that sits in the header on two screens and
+            somewhere else on the third is the inconsistency it exists to end.
+            `AskPill` hides itself above 768px, so this row is a bare link on a
+            desktop exactly as it was. */}
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
+            ← Your trips
+          </Link>
+          <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+        </div>
         <Heading level={2}>Notebooks</Heading>
+        {/* SPEC §23's meta line: *"'Notebook' at title scale with the trip name
+            as its meta line, matching Plan's rhythm. That is where the trip
+            name lives now."* It is not decoration — with the tab bar scoped
+            (§22) this screen no longer sits under a trip header of any kind, so
+            without this the phone Notebook names no trip at all and a user with
+            two trips open in two tabs cannot tell them apart.
+
+            The heading above it stays "Notebooks", plural, where §23 writes
+            "Notebook" singular. Deliberate: §23 is describing the tab's name,
+            and the plural is what this list has been called since §7 — three
+            e2e specs name it exactly (`m7-solo-delight`, `m14-notebook-widgets`
+            both assert `heading name "Notebooks" exact level 2`). Renaming a
+            heading the design did not ask to rename, to a word that also has to
+            be right in the tab bar, is a change to make in the design's own
+            terms rather than as a side effect of adding a meta line. */}
+        <Text variant="secondary" className="mt-1">
+          {trip.name}
+        </Text>
         {/* The standfirst, VERBATIM from SPEC §7, including its two uses of
             "page" where §11's one-noun rule would say notebook. Deliberate: it
             is the design's own sentence, and paraphrasing the one line a
@@ -318,6 +437,40 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           </ul>
         )}
       </section>
+
+      {/* **`presentation="sheet"` unconditionally, and no `useIsPhone` on this
+          screen at all.** The only control that can set `assistantOpen` here is
+          `AskPill`, which is `md:hidden` — so an open sheet is already proof of
+          a phone-width viewport, and asking a hook what width we are at would
+          be asking a question the open state has answered. That also settles
+          the first-paint flash `AssistantRail`'s `presentation` note warns
+          about: `useIsPhone` starts `false` and corrects in an effect, but the
+          rail cannot mount before a tap, and a tap cannot land before effects
+          have run. There is no frame in which the wrong presentation paints,
+          because there is no frame in which anything paints.
+
+          The consequence, stated so it is not mistaken for an omission: this
+          screen still has NO desktop assistant. It never had one, §23 adds the
+          phone's entry point and not a desktop one, and inventing a bubble here
+          would be build ahead of design. */}
+      {assistantOpen ? (
+        <AssistantRail
+          presentation="sheet"
+          contextLine={phoneAsk.contextLine}
+          scope={phoneAsk.scope}
+          turns={ask.thread}
+          suggestions={phoneAsk.quickAsks}
+          emptyHint={phoneAsk.emptyHint}
+          asksRemaining={ask.asksRemaining}
+          restoreDraft={ask.restoredDraft}
+          onNewConversation={ask.startNewConversation}
+          onAsk={(text) => void ask.runAsk(text)}
+          asking={ask.asking}
+          askError={ask.askError}
+          simulated={ask.simulated}
+          onHide={closeAssistant}
+        />
+      ) : null}
     </PageContainer>
   );
 }

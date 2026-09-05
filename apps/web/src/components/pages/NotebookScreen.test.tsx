@@ -1,11 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
-import { NotebookScreen } from "./NotebookScreen";
-import { pageFixture } from "@tc/factories";
+import { http, HttpResponse } from "msw";
+import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { makePagesHandlers } from "@/mocks/handlers";
+import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const pushMock = vi.fn();
@@ -13,9 +15,48 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }));
 
-const server = setupServer();
+// The wire is mocked at `askAssistant` and nothing else is, for the reason
+// `PageAssistant.test.tsx` gives: `apiClient.test.ts` already owns SSE frame
+// parsing, and these tests are about what this SCREEN does with an event once
+// it has one. `fetchTripDetail` stays real, through MSW, because the title
+// block's meta line is one of the things under test.
+const askAssistantMock = vi.fn();
+vi.mock("@/lib/apiClient", async (orig) => {
+  const actual = await orig<typeof import("@/lib/apiClient")>();
+  return { ...actual, askAssistant: (...args: unknown[]) => askAssistantMock(...args) };
+});
+
+// Imported after the `vi.mock` calls, which are hoisted anyway — written this
+// way so a reader is not left wondering whether the screen got the real client.
+import { NotebookScreen } from "./NotebookScreen";
+
+/** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
+function turnEmitting(...events: AskEvent[]) {
+  return async (
+    _tripId: string,
+    _messages: AskWireMessage[],
+    _scope: AskScope,
+    onEvent: (e: AskEvent) => void,
+  ) => {
+    for (const event of events) onEvent(event);
+    return { ok: true as const, value: { text: "" } };
+  };
+}
+
+const server = setupServer(
+  // Every render of this screen now fetches the trip: SPEC §23 puts the trip
+  // name in the title block, and with the tab bar scoped (§22) there is no trip
+  // header above this route to carry it. A suite-wide default rather than a
+  // line in each test — without it `onUnhandledRequest: "error"` fires on every
+  // one, which is how a genuinely unhandled request later gets missed.
+  http.get("/api/trips/:tripId", () => HttpResponse.json({ trip: tripDetailFixture() })),
+);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-beforeEach(() => pushMock.mockClear());
+beforeEach(() => {
+  pushMock.mockClear();
+  askAssistantMock.mockReset();
+  askAssistantMock.mockImplementation(turnEmitting({ type: "text", delta: "Two notebooks, both trip-wide." }));
+});
 afterEach(() => {
   server.resetHandlers();
   cleanup();
@@ -168,5 +209,132 @@ describe("NotebookScreen", () => {
         }),
       ),
     );
+  });
+
+  // SPEC §23 — the phone assistant, and this is the ONE screen where §23's
+  // *"no entry point at all"* was literally true (KI-2026-09-05-aa audited the
+  // other three, which all had one). So these are not "the pill still renders"
+  // tests: each is a claim §23 or DRIFT build-check 4c makes that nothing else
+  // in the suite holds.
+  describe("SPEC §23's Ask pill and sheet", () => {
+    async function openSheet() {
+      server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
+      render(<NotebookScreen tripId={TRIP_ID} />);
+      await screen.findByRole("region", { name: "Your notebooks" });
+      await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    }
+
+    // §23: *"the Notebook index gained a title block — 'Notebook' at title
+    // scale with the trip name as its meta line… That is where the trip name
+    // lives now."* Load-bearing rather than decorative: since §22 scoped the
+    // tab bar, this route sits under no trip header of any kind, so without
+    // this line the phone Notebook names no trip at all.
+    it("names the trip under the heading, because nothing else on this screen does", async () => {
+      server.use(
+        ...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]),
+        http.get("/api/trips/:tripId", () => HttpResponse.json({ trip: tripDetailFixture({ name: "Kyoto 2027" }) })),
+      );
+
+      render(<NotebookScreen tripId={TRIP_ID} />);
+
+      expect(await screen.findByText("Kyoto 2027")).toBeTruthy();
+    });
+
+    // The scope is what §23 is actually about — *"the pill inherits the
+    // surface's scope"*, which is why it is a pill and not a fourth tab. On
+    // this surface no page is open, so the honest scope is the whole trip, and
+    // the sheet's first line has to SAY so ("scope is stated, never inferred by
+    // the user"). Both halves, because a line that says one thing while the
+    // wire carries another is the failure worth catching.
+    it("opens a sheet scoped to the trip's Notebook, and says so", async () => {
+      await openSheet();
+
+      expect(screen.getByText("Asking about this trip’s Notebook")).toBeTruthy();
+
+      // DRIFT §2i asks for the empty-state hint to be derived from the surface
+      // too, not only the context line. The rail's default sentence — "Ask
+      // about this trip and the conversation stays here" — is the one that
+      // sounds nearly right on this screen and is still the wrong promise: the
+      // Notebook sheet reads pages, not the itinerary.
+      expect(screen.getByText(/It reads the page you have open/)).toBeTruthy();
+      expect(screen.queryByText(/the conversation stays here/)).toBeNull();
+
+      await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
+      const [, , scope] = askAssistantMock.mock.calls[0]!;
+      expect(scope).toEqual({ kind: "trip" });
+    });
+
+    // DRIFT.md build-check 4c: *"An open assistant sheet must block the tab
+    // bar. Switching tabs behind an open sheet changes its scope mid-
+    // conversation."* The scrim is the mechanism, and it is `position: fixed`
+    // — so what this asserts is that it is MOUNTED, and the review note beside
+    // it records that no ancestor of this mount point creates a containing or
+    // stacking block that would trap it (`(app)/layout.tsx` puts only a
+    // padding-only wrapper between `<body>` and here).
+    it("covers the phone tab bar with a scrim while the sheet is open", async () => {
+      await openSheet();
+
+      expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+    });
+
+    // **Closing hangs up on the turn.** The thread lives on this screen, so
+    // unmounting the sheet cancels nothing by itself — the same defect Copilot
+    // and CodeRabbit found on PR 139 for the notebook page. Asserting the
+    // sheet went away would pass whether or not the request was abandoned;
+    // asserting the SIGNAL is what makes this about hanging up.
+    it("hangs up on a turn in flight when the sheet is dismissed", async () => {
+      let signal: AbortSignal | null = null;
+      askAssistantMock.mockImplementation(
+        async (
+          _t: string,
+          _m: AskWireMessage[],
+          _s: AskScope,
+          _onEvent: (e: AskEvent) => void,
+          abortSignal: AbortSignal,
+        ) => {
+          signal = abortSignal;
+          return await new Promise<never>(() => {});
+        },
+      );
+      await openSheet();
+      await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
+      await waitFor(() => expect(signal).not.toBeNull());
+      expect(signal!.aborted).toBe(false);
+
+      await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+      expect(signal!.aborted).toBe(true);
+    });
+
+    // A trip-scoped turn reaches the WRITE tools, so unlike a notebook page
+    // this surface really can be handed a proposal — and it is the board, not
+    // this screen, that can land one. Left unhandled the proposal is dropped
+    // silently and the answer promises a change nothing carries out, which
+    // reads as the assistant being broken rather than as this surface
+    // declining (`PageScreen`'s READING_REFUSAL, same argument).
+    it("says where a proposal has to be applied instead of dropping it", async () => {
+      askAssistantMock.mockImplementation(
+        turnEmitting(
+          { type: "text", delta: "I can move that." },
+          {
+            type: "proposal",
+            proposal: { proposalId: "p1", changes: [{ type: "activity.move", text: "Move “Dinner” to day 2" }], commands: [], skipped: [] },
+          },
+        ),
+      );
+      await openSheet();
+
+      await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Move dinner to Tuesday{Enter}");
+
+      // The answer's own paragraph. Two other nodes carry the same string —
+      // the turn's wrapper, which holds nothing else, and the `sr-only` live
+      // region that reads the answer out — so an unqualified query is
+      // ambiguous rather than wrong. (That the live region carries it too is
+      // the right behaviour: a refusal a screen-reader user does not hear is
+      // a refusal that reads as silence.)
+      expect(await screen.findByText(/open Plan and ask again/i, { selector: "p:not(.sr-only)" })).toBeTruthy();
+    });
   });
 });

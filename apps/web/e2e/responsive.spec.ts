@@ -379,16 +379,27 @@ test.describe("responsive (Map lens on a phone)", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
 
-    // Why there is no `--launcher-height` assertion here, though this screen is
-    // exactly where that variable is spent: one was written and then removed.
-    // It stayed GREEN with the production fix reverted — at 3 days and at 14 —
-    // because the bug needs the render volume of the seeded 14-day/68-stop trip
-    // to reproduce, and it also had to reach for `.trip-board-content` and
-    // `.flow-root` by class, which are implementation details rather than
-    // anything a reader can see. A test that cannot go red is a claim, not a
-    // control (CLAUDE.md rule 3), so it is gone. The guard is the unit test —
-    // TripBoardScreen.test.tsx, "publishes the launcher's flow height on
-    // attach" — which does fail without the fix. (Copilot, PR #143.)
+    // The `overflow` assertion above is the whole of what this screen still
+    // owes on that subject, and there is **no `--launcher-height` assertion
+    // because there is no such variable any more.** Both halves of the note
+    // that used to be here are now history, kept because they are the reason
+    // the assertion is absent rather than merely missing:
+    //
+    // 1. One was written and then removed. It stayed GREEN with the production
+    //    fix reverted — at 3 days and at 14 — because the bug needed the render
+    //    volume of the seeded 14-day/68-stop trip to reproduce, and it also had
+    //    to reach for `.trip-board-content` and `.flow-root` by class. A test
+    //    that cannot go red is a claim, not a control (CLAUDE.md rule 3).
+    //    (Copilot, PR #143.)
+    // 2. Its replacement guard, the unit test "publishes the launcher's flow
+    //    height on attach", is gone too — with what it measured. SPEC §23
+    //    deleted the phone's in-flow launcher (the entry point is the trip
+    //    header's Ask pill now), so the launcher is `position: fixed` at every
+    //    width it renders at and costs the plan column no flow space by
+    //    construction. `TripBoardScreen.test.tsx`'s "has no in-flow launcher on
+    //    a phone, and publishes no height for one" asserts that from the other
+    //    side, including that the custom property is absent rather than pinned
+    //    at `0px`.
   });
 
   test("keeps the rail and legend at desktop width", async ({ page }) => {

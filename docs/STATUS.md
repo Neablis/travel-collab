@@ -22,6 +22,37 @@ general setup.
 
 ## Where the work is right now
 
+**THE ASSISTANT REACHED THE PHONE, 2026-09-05.** Branch
+`claude/caesura-phone-mobile-design-dcb4b9`, off `f7d2122`. **SPEC §23 is built**: an `Ask`
+pill last in the top row of all four in-trip phone screens, opening a bottom sheet
+(`max-height: 80dvh`, 18px top radius, scrim z-30 over the z-20 tab bar, sheet z-31). Scope
+is inherited from the surface and printed in the sheet, proposals reuse the desktop ghost
+path, and the Notebook index — which had **no** assistant at all — has one now. Evidence:
+`pnpm --filter web test:e2e:ci-like` **90 passed**, plus a browser walk at 412×855 where the
+pill measures 44px in flow, the sheet lands flush at x0/bottom, and `elementFromPoint` over
+the Plan tab returns the scrim (DRIFT build-check 4c).
+
+**§23 reverses KI-84 deliberately.** The phone assistant was a full-screen takeover because
+of Mitchell's own report that a modal *"breaks the entire website"*; §23 specifies the modal
+sheet instead. He was shown the conflict on 2026-09-05 and chose §23 literally, so
+`e2e/m16-mobile-assistant.spec.ts`'s four assertions were rewritten (five now, the new one
+being 4c) with the KI-84 → KI-2026-08-30 → §23 sequence recorded in the file header.
+
+**Three things §23 does not settle, all open.** (1) The phone Plan focuses **no day** on
+arrival — 14 chips, none current — so the sheet opens trip-wide until you tap one, which is
+the scope loss §23 exists to prevent; the derivation itself is correct ("Asking about Thu 17
+· Tokyo" the moment a chip is picked). (2) Quick asks are **derived** from real trip state
+rather than §23's three fixed chips, and the placeholder stays **scope**-keyed rather than
+§23's tab-keyed — both deliberate, both reversible, both recorded where the code is. (3)
+§23's "sync dot and avatar drop to the title row" is **not built**: it needs the phone to
+stop rendering the global `AppHeader`, which is the same unconfirmed architecture decision
+the Map chrome work is waiting on. Three KIs were filed: **`KI-2026-09-05-aa`** (§23 and
+DRIFT §2i assert the phone had no assistant; it had one on three of four screens — design
+is regenerated wholesale, so the build cannot fix it in place), **`-ab`** (the notebook
+assistant's second turn types into the document, not the composer — deterministic, and
+possibly a real product defect rather than a test bug), **`-ac`** (three affordances share
+the accessible name `Ask`).
+
 **THE PHONE HAS NAVIGATION, 2026-09-05.** `main` is **`3ff958e`**. PR **#143** merged
 (squashed, **`3558685`**) and its branch is deleted; `3ff958e` on top of it is a design-only
 commit adding **SPEC §23**. What landed: SPEC §22's scoped tab bar (Plan / Map / Notebook in
@@ -37,10 +68,10 @@ more than ~two columns fit.
 `TODO.md:537` and `KI-046` both say placing the phone is a milestone-sized decision; #143
 did not make it. **Measured after the merge: 189 of 209 interactive controls on the phone
 trip board are under 44px (90%)** — the `touch` primitive exists and is essentially unused,
-so §13.1 is a size in the design system rather than a property of the product. **SPEC §23
-(the assistant as an `Ask` pill and a bottom sheet, explicitly not a fourth tab) is wholly
-unbuilt** — there is no phone assistant in the code at all, so that is design ahead of
-build, not drift.
+so §13.1 is a size in the design system rather than a property of the product. **SPEC §23 was believed wholly unbuilt when this was
+written, and that was wrong** — the phone had an assistant on three of four screens, in
+three different places. It is now built as §23 specifies; see the entry above and
+`KI-2026-09-05-aa`.
 
 **The full inventory is `docs/plans/2026-09-05-phone-surface-remaining-work.md`** — what is
 built, what is left in order, the defects left open (including `--rack-height`, which has

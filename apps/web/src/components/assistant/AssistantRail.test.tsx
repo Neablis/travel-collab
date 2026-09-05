@@ -51,6 +51,20 @@ describe("AssistantRail", () => {
     expect(screen.getByText("Ask about this trip and the conversation stays here.")).not.toBeNull();
   });
 
+  // SPEC §23 / DRIFT §2i: the sheet's copy is derived from the surface it was
+  // opened on, and the default sentence is a trip-wide claim — false on a
+  // day-scoped or page-scoped sheet, which is exactly where the phone opens
+  // it. `phoneAskContext` supplies the honest one; this is the seam it arrives
+  // through. Both halves asserted, because a prop that is accepted and then
+  // ignored would leave the test above green on its own.
+  it("prints the caller's empty hint instead of the default when it is given one", () => {
+    renderRail({ emptyHint: "It reads the page you have open, its widgets and what they are pointed at." });
+    expect(
+      screen.getByText("It reads the page you have open, its widgets and what they are pointed at."),
+    ).not.toBeNull();
+    expect(screen.queryByText("Ask about this trip and the conversation stays here.")).toBeNull();
+  });
+
   it("the Ask box is real: typing and submitting calls onAsk with the typed text", async () => {
     const onAsk = vi.fn();
     renderRail({ onAsk });
@@ -223,6 +237,58 @@ describe("AssistantRail — the composer follows the scope", () => {
     renderRail({ scope: { kind: "trip" }, contextLine: "Looking at Kyoto 2027" });
     expect(screen.getByPlaceholderText("Ask about this trip…")).not.toBeNull();
     expect(screen.queryByPlaceholderText("Ask about this day…")).toBeNull();
+  });
+});
+
+// SPEC §23: the phone gets the assistant as a bottom sheet over what it was
+// already looking at. Two things this block can honestly assert, and one it
+// cannot. It CAN assert the scrim is real and dismisses (DRIFT.md build-check
+// 4c's whole point is that the tab bar behind an open sheet must not be
+// reachable, and a scrim that renders but does not close is the half-built
+// version of that), and it CAN assert the sheet kept ONE way out rather than
+// gaining a second. It CANNOT assert the 44px floor or the z-index order:
+// jsdom applies no stylesheet, so `getComputedStyle` here would report the
+// defaults for every rule in `globals.css` and a test built on it would pass
+// against no geometry at all. Those live in the browser lane.
+describe("AssistantRail — SPEC §23's sheet presentation", () => {
+  it("lays a scrim over the page, and clicking it hides the assistant", () => {
+    const onHide = vi.fn();
+    renderRail({ presentation: "sheet", onHide });
+    fireEvent.click(screen.getByTestId("assistant-scrim"));
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  // The scrim covers the phone tab bar, so a presentation that is not over a
+  // phone must not have one: docked is a flex sibling with nothing to cover
+  // (the scrim that used to sit in front of it was deleted outright — KI-16,
+  // KI-17), and floating is a desktop card whose whole premise is that the
+  // page behind it stays live.
+  it("renders no scrim in the docked or floating presentations", () => {
+    const { rerender } = renderRail({ presentation: "docked" });
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+    rerender(<AssistantRail {...baseProps} presentation="floating" />);
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+  });
+
+  // One control, not two. The scrim is a dismissal SURFACE and the design
+  // draws exactly one dismissal BUTTON — an ✕ where docked and floating write
+  // "Hide" — so a sheet carrying both would be the same act rendered twice in
+  // a 390px row (RULES.md rule 4).
+  it("carries exactly one dismissal control, the design's ✕ where docked says Hide", () => {
+    renderRail({ presentation: "sheet" });
+    expect(screen.getAllByRole("button", { name: /hide|close|dismiss/i })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Hide" }).textContent).toBe("✕");
+    expect(screen.queryByText("Hide")).toBeNull();
+  });
+
+  // §23 keeps the panel: same mark, same heading, same stated scope. "Scope is
+  // stated, never inferred by the user" is the section's own rule, and the
+  // context line is where it is stated.
+  it("keeps the panel's mark, heading and context line", () => {
+    renderRail({ presentation: "sheet" });
+    expect(screen.getByText("◎")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Assistant" })).not.toBeNull();
+    expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
   });
 });
 

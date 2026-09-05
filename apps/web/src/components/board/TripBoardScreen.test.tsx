@@ -14,6 +14,16 @@ import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/
 import { makeTripHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
+// Two controls on this screen are called "Ask" once the assistant is open: the
+// trip header's phone Ask pill (SPEC §23, `AskPill`) and the composer's submit
+// button. The pill is `md:hidden` and would never be on screen beside the
+// composer in a browser — but jsdom loads no stylesheet, so the breakpoint is
+// inert here and both are in the accessibility tree. Every reach for the
+// composer therefore has to say which one it means, and scoping to the panel is
+// the answer that stays true in all three of its presentations.
+const assistantPanel = () => screen.getByRole("complementary", { name: "Assistant" });
+const askButton = () => within(assistantPanel()).getByRole("button", { name: "Ask" });
+
 // The Assistant rail holds a real streaming conversation against
 // /api/trips/:id/ask (M16 Wave 2). Mocked at the client seam rather than with
 // an MSW handler this file otherwise has no use for — an SSE handler would
@@ -547,7 +557,7 @@ describe("TripBoardScreen", () => {
     // anything inside it.
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     const log = await screen.findByRole("log", { name: "Conversation" });
     await waitFor(() => expect(log.textContent).toContain("Rome 2027 runs to 0 days."));
@@ -570,13 +580,12 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i);
     fireEvent.change(box, { target: { value: "What's planned?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
-    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy());
+    fireEvent.click(askButton());
+    await waitFor(() => expect(askButton()).toBeTruthy());
 
     askAssistantMock.mockImplementation(answers("Four stops."));
     fireEvent.change(box, { target: { value: "What about the next day?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
 
     expect(askCall(0).messages.map((m) => [m.role, m.parts[0]!.text])).toEqual([["user", "What's planned?"]]);
@@ -601,7 +610,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Five stops.")).toBeTruthy());
 
@@ -609,7 +618,7 @@ describe("TripBoardScreen", () => {
     expect(screen.queryByRole("log", { name: "Conversation" })).toBeNull();
 
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Fresh start" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["Fresh start"]);
   });
@@ -635,7 +644,7 @@ describe("TripBoardScreen", () => {
     // "this day" here regardless (final branch review, finding 3).
     expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "trip" });
 
@@ -643,7 +652,7 @@ describe("TripBoardScreen", () => {
     expect(screen.getByText("Looking at Day 2")).toBeTruthy();
     expect(screen.getByPlaceholderText("Ask about this day…")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And here?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).scope).toEqual({ kind: "day", dayIndex: 1 });
   });
@@ -709,7 +718,7 @@ describe("TripBoardScreen", () => {
     ).toContain("How is the trip looking?");
 
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "trip" });
   });
@@ -731,7 +740,7 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Here?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
     expect(askCall(0).scope).toEqual({ kind: "day", dayIndex: 1 });
 
@@ -739,7 +748,7 @@ describe("TripBoardScreen", () => {
     expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
     expect(screen.getByPlaceholderText("Ask about this trip…")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "And now?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).scope).toEqual({ kind: "trip" });
   });
@@ -765,7 +774,7 @@ describe("TripBoardScreen", () => {
       fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
         target: { value: `question ${n}` },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      fireEvent.click(askButton());
       await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
     };
 
@@ -780,7 +789,7 @@ describe("TripBoardScreen", () => {
 
     // The composer is gone, so there is no 21st ask to make…
     expect(screen.queryByPlaceholderText(/ask about this (?:day|trip)/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(within(assistantPanel()).queryByRole("button", { name: "Ask" })).toBeNull();
     // …and nothing was trimmed out from under the user: the first question is
     // still on screen.
     expect(screen.getByText("question 1")).toBeTruthy();
@@ -804,7 +813,7 @@ describe("TripBoardScreen", () => {
       fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
         target: { value: `question ${n}` },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      fireEvent.click(askButton());
       await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(n));
     }
     // 34 messages posted-so-far leaves room for three more questions, which is
@@ -824,7 +833,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "First ask" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("Simulated")).not.toBeNull());
 
@@ -836,7 +845,7 @@ describe("TripBoardScreen", () => {
       error: { status: 503, message: "The model is unavailable right now." },
     });
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Second ask" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
     expect(screen.queryByText("Simulated")).toBeNull();
@@ -857,7 +866,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Day nine?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     // The 400's own words, verbatim: they are the actionable part.
     await waitFor(() =>
@@ -879,7 +888,7 @@ describe("TripBoardScreen", () => {
 
     askAssistantMock.mockImplementationOnce(answers("Two days."));
     fireEvent.change(composer, { target: { value: "How many days?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);
   });
@@ -900,7 +909,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("model call failed: upstream 500"),
@@ -922,7 +931,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Anything" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("The assistant isn't available on the demo trip."),
@@ -952,7 +961,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
@@ -975,7 +984,7 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
     fireEvent.change(box, { target: { value: "a very long question" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("your message must be 4000 characters or fewer"),
@@ -1000,7 +1009,7 @@ describe("TripBoardScreen", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Slow one" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     await waitFor(() => expect(signal).toBeDefined());
     expect(signal!.aborted).toBe(false);
 
@@ -1056,45 +1065,119 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(launcher.style.bottom).toBe("80px"));
   });
 
-  // The phone Map lens overflowed its viewport by exactly 56px, and this is
-  // the measurement that was missing. `MapLens` sizes its canvas from
-  // `calc(100dvh - … - var(--launcher-height))` because below 768px the
-  // launcher is an in-flow button at the end of the plan (SPEC §13.5 allows no
-  // phone FAB), so it costs real flow space that the canvas has to give back.
-  // `--launcher-height` published `0px` while the launcher's `.flow-root`
-  // wrapper was really 56px, so the canvas kept the whole viewport and the
-  // document scrolled past it.
+  // What used to be here: "publishes the launcher's flow height on attach".
+  // `--launcher-height` was a real measurement with a real consumer — MapLens
+  // sized its canvas from `calc(100dvh - … - var(--launcher-height))`, because
+  // below 768px the launcher was an in-flow button at the end of the plan
+  // column (SPEC §13.5 allows no phone FAB) and cost flow space the canvas had
+  // to give back. SPEC §23 deleted that button: the phone's entry point is the
+  // trip header's Ask pill now, so the launcher is `position: fixed` at every
+  // width it renders at, and the variable could only ever publish `0px`.
   //
-  // The cause was relying on ResizeObserver's FIRST notification, which is
-  // delivered at end-of-frame and is dropped outright if the observer is
-  // disconnected before then — which it was, because the ref built one
-  // observer per invocation into a single shared slot and React invokes it
-  // more than once per mount. Verified in a real browser: two observers
-  // constructed, both `observe()`ing a 56px element, zero callbacks ever
-  // delivered, and a forced 30px resize of that element fired nothing at all.
-  //
-  // So this test deliberately NEVER calls `triggerResize()`. That is the whole
-  // assertion: the height must be published on attach. `vitest.setup.ts`'s
-  // polyfill fires only on an explicit `triggerResize`, which models the real
-  // browser's dropped first notification exactly — a version of this component
-  // that waits for the observer reads 0px here, which is what the browser did.
-  it("publishes the launcher's flow height on attach, without waiting for a resize notification", async () => {
-    // Stubbed on the prototype, not on the node: the ref measures during
-    // React's commit, so a spy installed after render would be too late to
-    // see the call that matters.
-    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
-      const height = this.classList?.contains("flow-root") ? 56 : 0;
-      return { height, width: 0, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
-    });
-
+  // This is the replacement, and it is the same claim from the other side —
+  // the launcher costs the plan column no flow space — asserted against the
+  // thing that is now true by construction rather than by measurement.
+  it("has no in-flow launcher on a phone, and publishes no height for one", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
+    // jsdom loads no stylesheet, so this asserts the CLASSES rather than a
+    // computed style — the same trade TripHeader.test.tsx's phone block makes,
+    // and the real geometry is pinned in a browser by
+    // e2e/m16-mobile-assistant.spec.ts. `hidden md:inline-flex` is the whole
+    // change: below 768px the launcher is `display: none`, so there is no
+    // second entry point beside the header pill and nothing in flow to measure.
+    const launcher = screen.getByRole("button", { name: "Assistant" });
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(launcher.className).toMatch(/(^| )hidden( |$)/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(launcher.className).toMatch(/(^| )md:inline-flex( |$)/);
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(launcher.className).toMatch(/(^| )fixed( |$)/);
+
+    // And the variable is gone rather than pinned at zero: a custom property
+    // that always publishes `0px` reads to the next person as a live
+    // measurement, which is what MapLens spent three comments believing.
     const content = screen.getByTestId("trip-board-content");
-    await waitFor(() => expect(content.style.getPropertyValue("--launcher-height")).toBe("56px"));
+    expect(content.style.getPropertyValue("--launcher-height")).toBe("");
+    // The one measurement that IS still live on this element is untouched.
+    expect(content.style.getPropertyValue("--rack-height")).toBe("0px");
+  });
+
+  // SPEC §23's entry point, and the reason the in-flow launcher could go: the
+  // phone reaches the assistant from the trip header, at every scroll position
+  // and whether the panel is open or shut.
+  it("opens the assistant from the trip header's Ask pill", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const pill = within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" });
+    // Shut, and saying so — `aria-expanded` is what carries the state, since
+    // the label never changes.
+    expect(pill.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+
+    fireEvent.click(pill);
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(pill.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  // The presentation swap, and the half of §23 that is not chrome: the sheet
+  // states the day it is looking at in the DAY RAIL's own words, where the
+  // docked rail says "Looking at Day 2" — an array position the reader has no
+  // way to check. Both are derived from the same clamped index the scope is
+  // built from, so the line and the wire can never disagree.
+  it("opens as a bottom sheet on a phone, and names the day the way the day rail does", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" }));
+
+    const panel = assistantPanel();
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(panel.className).toMatch(/(^| )assistant-sheet( |$)/);
+    // The scrim is the half DRIFT build-check 4c is about — it is what makes
+    // the phone tab bar untappable behind an open sheet.
+    expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+
+    // No day is focused on load, so the sheet is trip-scoped and says the
+    // trip's name — `phoneAskContext`'s wording, not the rail's "Looking at".
+    expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
+
+    // DRIFT §2i wants the sheet's copy derived from the surface, and the
+    // rail's default sentence is the one piece that was not: "Ask about this
+    // trip and the conversation stays here" is a promise a day-scoped sheet
+    // does not keep. The hint says what the sheet actually reads.
+    expect(within(panel).getByText(/It reads the day you have open/)).toBeTruthy();
+    expect(within(panel).queryByText(/the conversation stays here/)).toBeNull();
+  });
+
+  it("stays a docked rail above the breakpoint", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+
+    const panel = assistantPanel();
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(panel.className).toMatch(/(^| )assistant-rail( |$)/);
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+    expect(within(panel).getByText("Looking at Rome 2027")).toBeTruthy();
+    // The desktop copy is unchanged by §23. Asserted here rather than only on
+    // the phone, because a call site that passed the phone's hint
+    // unconditionally would leave the sheet test above green and change every
+    // desktop board.
+    expect(within(panel).getByText("Ask about this trip and the conversation stays here.")).toBeTruthy();
   });
 });
 
@@ -1210,7 +1293,7 @@ describe("assistant ask — unsent work blocks the ask", () => {
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe(
@@ -1277,7 +1360,7 @@ describe("TripBoardScreen — a viewer's board", () => {
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
 
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
@@ -1348,7 +1431,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     });
     // Deliberately the BUTTON, not Enter: the Ask control has been covered by
     // the fixed rack before, and every keyboard-driven test missed it.
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(askButton());
     return screen.findByLabelText("Proposed change");
   }
 

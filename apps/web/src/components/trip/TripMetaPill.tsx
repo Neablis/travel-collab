@@ -29,6 +29,30 @@ export function tripCounts(detail: TripDetail): TripCounts {
   };
 }
 
+/**
+ * "Fri, Oct 9 – Fri, Oct 16", or "No dates set".
+ *
+ * Exported for the same reason `tripCounts` above is: the pill that used to be
+ * this string's only reader is hidden below 768px, and SPEC §23 puts the date
+ * range back on a phone as its own line under the trip title (`TripHeader`).
+ * Lifted out of the pill's body rather than written a second time there —
+ * `SettingsSheet`'s `datesLabel` is already a second copy of these three rules
+ * (no dates / one date / a range), and a third would be the point at which the
+ * header and the sheet start disagreeing about the same trip.
+ *
+ * Takes the detail, not two dates, because the range is derived from the DAYS:
+ * `detail.startDate` is only the fallback for a trip whose days have not been
+ * laid out yet.
+ */
+export function tripDateRange(detail: TripDetail): string {
+  const days = detail.days;
+  const start = days[0]?.date ?? detail.startDate;
+  const end = days[days.length - 1]?.date ?? null;
+  if (start === null) return "No dates set";
+  if (end === null || end === start) return formatTripDate(start);
+  return `${formatTripDate(start)} – ${formatTripDate(end)}`;
+}
+
 // Handoff `current/…dc.html:255-296`: a bordered pill — accent dot, date
 // range, then (each separated by a divider) day/stop/city counts. The
 // handoff also put a crew control here (stacked avatars + label, opening
@@ -37,15 +61,7 @@ export function tripCounts(detail: TripDetail): TripCounts {
 export function TripMetaPill({ detail }: { detail: TripDetail }) {
   const days = detail.days;
   const { stops, cities } = tripCounts(detail);
-
-  const start = days[0]?.date ?? detail.startDate;
-  const end = days[days.length - 1]?.date ?? null;
-  const dateRange =
-    start === null
-      ? "No dates set"
-      : end === null || end === start
-        ? formatTripDate(start)
-        : `${formatTripDate(start)} – ${formatTripDate(end)}`;
+  const dateRange = tripDateRange(detail);
 
   return (
     <div className="inline-flex items-center gap-3 rounded-full border border-hairline bg-surface py-1.5 pl-3 pr-3.5">

@@ -39,7 +39,17 @@ the real numbers, not a substitute for making it.
 
 ## What is left, roughly in order
 
-### 1. SPEC §23 — the assistant reaches the phone
+### 1. SPEC §23 — the assistant reaches the phone — **BUILT 2026-09-05**
+
+Built on `claude/caesura-phone-mobile-design-dcb4b9`; `test:e2e:ci-like` 90 passed
+plus a browser walk at 412×855. **The premise below was wrong** and is kept as
+written so the correction is legible: the phone had an assistant on three of four
+screens (an in-flow `◎ Assistant` at the end of the plan column on Plan and Map,
+another beside "Edit page" on an open page, and nothing on the Notebook index),
+and §23's sheet **reverses KI-84** rather than filling a blank. Mitchell chose it
+knowingly. See `KI-2026-09-05-aa`, and STATUS.md for what §23 left open — chiefly
+that the phone Plan focuses no day on arrival, so the sheet opens trip-wide until
+a chip is tapped.
 
 The newest design (2026-09-05) and wholly unbuilt: **there is no phone assistant
 in the code at all**, so this is design ahead of build, not drift. `DRIFT.md` §2i

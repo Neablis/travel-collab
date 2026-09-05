@@ -21,6 +21,8 @@ import {
 } from "@/components/pages/editor/storedPageDoc";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
+import { AskPill } from "@/components/assistant/AskPill";
+import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
@@ -78,10 +80,14 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // outcome than one widget rendering "not set up", and the defaults
   // (`displayName: null`) are exactly what "not set up" renders from.
   const user = usePreferences();
-  // The assistant's presentation turns on this and nothing else does. SPEC
-  // §13.5 forbids anything floating over data on a phone ("No floating action
-  // button"), so the bubble is desktop-only and the phone opens the same panel
-  // from a control in the page header.
+  // The assistant's PRESENTATION turns on this, and after §23 that is the only
+  // thing left that does. `AssistantRail` gates itself on nothing, so choosing
+  // sheet-or-floating is the caller's and there is no CSS breakpoint that can
+  // make the choice — which is the one job this hook still has here. The entry
+  // point no longer needs it: `AskPill` carries its own `md:hidden`, so it is
+  // right at first paint where an `isPhone` branch around it was one frame
+  // late on every phone load. SPEC §13.5 still forbids anything floating over
+  // data on a phone, which is why the bubble below stays desktop-only.
   const isPhone = useIsPhone();
   // Reading vs Editing — §18's one control with two states. Reading is the
   // traveller's view: no sidebar, no chrome row, no compose box, and the
@@ -305,6 +311,25 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     editor?.chain().focus().insertContent(node as never).run();
   };
 
+  // What the phone sheet says it is looking at, derived rather than written
+  // here (SPEC §23, DRIFT §2i: the context line, the placeholder and the quick
+  // asks are all a function of "which phone tab, and is a page open").
+  //
+  // **`unsetUpWidgets: null`, and that is the honest answer, not a placeholder
+  // for zero.** It gates "What is not set up?", and `phoneAskContext` withholds
+  // that ask on an unknown count precisely so it is never offered on a page
+  // with nothing outstanding. Counting is possible in principle — `renderMacro`
+  // is pure and reports `unbound` — but the count is only true once `globals`
+  // has landed, and `globals` here is fail-soft and nullable, so a count taken
+  // during (or after a failed) load would report widgets as unset up that are
+  // bound. A wrong number is worse than no number when the number's whole job
+  // is deciding whether to promise an answer. The doc-walk that would total it
+  // belongs in `@tc/pages` beside `renderMacro`, not in a screen.
+  const phoneAsk = phoneAskContext(trip, null, {
+    tab: "notebook",
+    page: { pageId, title: page.title, unsetUpWidgets: null },
+  });
+
   // Bare, with no margin of its own: it is a flex item in the row above the
   // container, and a bottom margin there pushes it off the toggle's baseline.
   // The locked branch below, where it is the first block in normal flow,
@@ -356,19 +381,18 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
-          {/* The phone's entry to the assistant. SPEC §13.5 forbids a floating
-              control over data on a phone, so the bubble below is desktop-only
-              and this is what replaces it — a header control, not a pill over
-              the page. Both modes, like the bubble. */}
-          {isPhone ? (
-            <Button
-              variant="secondary"
-              aria-pressed={assistantOpen}
-              onClick={() => (assistantOpen ? closeAssistant() : setAssistantOpen(true))}
-            >
-              <span aria-hidden>◎</span> Assistant
-            </Button>
-          ) : null}
+          {/* The phone's entry to the assistant, and it is now the SAME control
+              this app puts on Plan, Map and the Notebook index (SPEC §23) —
+              this screen's own `◎ Assistant` button was one of the three
+              different entry points §23 exists to collapse into one.
+
+              It only OPENS. The button it replaces toggled, because it was the
+              sheet's only dismissal; the sheet owns two of its own now (the ✕
+              and the scrim), and a third that also has to say which state it is
+              in is a control competing with the surface it opened. Closing
+              still runs `closeAssistant`, so hanging up on a turn in flight is
+              unchanged — `onHide` below is where it goes. */}
+          <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
           <Button
             variant={editing ? "primary" : "secondary"}
             aria-pressed={editing}
@@ -459,17 +483,38 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       ) : null}
       {assistantOpen ? (
         <AssistantRail
-          // Floating on desktop; on a phone the same panel takes the screen,
-          // which is what `.assistant-rail` already does below 768px.
-          presentation={isPhone ? "docked" : "floating"}
-          contextLine={`Looking at ${page.title}`}
+          // Floating on desktop; §23's bottom sheet on a phone. It used to be
+          // `docked`, which below 768px was KI-84's full-screen takeover —
+          // Mitchell was shown that conflict on 2026-09-05 and chose §23's
+          // sheet, reversal and all (see `.assistant-sheet` in globals.css,
+          // which carries the reasoning where the geometry is).
+          //
+          // The first-paint flash `AssistantRail`'s `presentation` note warns
+          // about is not reachable here: `useIsPhone` starts `false` and
+          // corrects in an effect, but this rail mounts only when
+          // `assistantOpen` is true, `assistantOpen` starts `false`, and the
+          // only things that set it are a tap on `AskPill` or on the bubble.
+          // Effects have run long before a user can tap, so there is no frame
+          // in which `isPhone` is stale AND the rail is on screen.
+          presentation={isPhone ? "sheet" : "floating"}
+          // The phone's line is derived from the surface (§23); the desktop's
+          // is the panel's own and is deliberately left alone — "Looking at" is
+          // the floating panel's voice, "Asking about" is the sheet's, and the
+          // sheet is the one whose scope a user cannot otherwise see.
+          contextLine={isPhone ? phoneAsk.contextLine : `Looking at ${page.title}`}
           scope={{ kind: "page", pageId }}
           turns={ask.thread}
-          // No suggestion chips. The board derives its four from real trip
-          // state (`suggestedQuestions.ts`); a page has no equivalent to
-          // derive from, and inventing four fixed prompts here would be the
-          // hardcoded array M16 Wave 2 deleted, wearing a notebook badge.
-          suggestions={[]}
+          // Nothing on the desktop, for the reason this has always given: the
+          // board derives its four from real trip state
+          // (`suggestedQuestions.ts`), a page has no equivalent, and four fixed
+          // prompts would be the hardcoded array M16 Wave 2 deleted wearing a
+          // notebook badge. §23 asks the phone for two, and `phoneAskContext`
+          // supplies them under the same rule — "What is not set up?" is
+          // withheld until something can prove there is anything to set up.
+          suggestions={isPhone ? phoneAsk.quickAsks : []}
+          // Same branch, same way round, and for the reason directly above:
+          // §23 rewrites the phone's copy and leaves the desktop panel's alone.
+          emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
           onNewConversation={() => {
