@@ -26,12 +26,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           and `children` are siblings, so there is nowhere else to hang a
           reservation that applies to the content and not to the bar itself. */}
       <div className="phone-tab-bar-inset">{children}</div>
-      {/* The five tabs span exactly the authenticated routes (SPEC §16:
-          Plan / Map / Notebook / Playbooks / Trips), which is exactly what
-          this layout wraps — so this is the mount point, and mounting it here
-          rather than per-page is also what stops it remounting (and losing
-          nothing, since it holds no state) as you move between them. Below
-          768px only; it hides itself with `md:hidden`.
+      {/* The bar spans exactly the authenticated routes, which is what this
+          layout wraps — so this is the mount point, and mounting it here rather
+          than per-page is also what stops it remounting (and losing nothing,
+          since it holds no state) as you move between them. Below 768px only;
+          it hides itself with `md:hidden`.
+
+          What it RENDERS is scoped, not fixed: SPEC §22 gives the trip's three
+          views inside a trip and the account pair everywhere else. See
+          `tabsForScope`. Do not assume a stable five-slot bar here — that was
+          the earlier §16 shape and it is gone.
 
           The Suspense boundary is Next's requirement, not a loading state:
           the bar reads `useSearchParams()` (the `?lens=` half of "which tab

@@ -492,7 +492,16 @@ test.describe("responsive (trip header on a phone)", () => {
     // gone, and it is the one that would be missed.
     await expect(page.getByRole("button", { name: "Your account" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+
+    // Asserted, not just pressed. This started as cleanup so the popover would
+    // not sit over the sideways-overflow check below, which meant a broken
+    // Escape handler passed silently — a keypress with no assertion is a test
+    // asserting nothing on the path it claims to cover. Escape is also the only
+    // dismiss this popover has on a phone once the header links are gone, so it
+    // is worth a real assertion. (CodeRabbit, PR #143.)
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Your account" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
 
     // "Crowded" has a measurable form at this width: a header wider than the
     // phone. The page must not scroll sideways.

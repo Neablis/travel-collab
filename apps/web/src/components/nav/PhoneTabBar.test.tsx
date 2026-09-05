@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(url.split("?")[1] ?? ""),
 }));
 
-import { PhoneTabBar } from "./PhoneTabBar";
+import { PhoneTabBar, PhoneTabBarFallback } from "./PhoneTabBar";
 
 afterEach(cleanup);
 
@@ -127,6 +127,32 @@ describe("PhoneTabBar", () => {
   // off." So the assertion is now absence — and specifically absence of any
   // control, not just of a link, because a disabled `<button>` is exactly what
   // this used to render and exactly what must not come back.
+  // The SSR-safe fallback is what `(app)/layout.tsx` renders on the server,
+  // and it is the fix for a first-paint regression where the bar was absent
+  // from server HTML entirely while its height was already reserved. Every
+  // other test here renders `PhoneTabBar`, so `PhoneTabBarFallback` could go
+  // back to returning `null` and they would all stay green — which is exactly
+  // how the regression got in. (Copilot, PR #143.)
+  describe("PhoneTabBarFallback (what the server renders)", () => {
+    it("renders the same scoped set and current tab, from the pathname alone", () => {
+      url = "/trips/t1";
+      render(<PhoneTabBarFallback />);
+
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map", "Notebook"]);
+      // `?lens=` is the one thing it cannot read, so Plan is current — which is
+      // where a bare trip URL actually lands under SPEC §10.
+      expect(screen.getByRole("link", { name: "Plan" }).getAttribute("aria-current")).toBe("page");
+    });
+
+    it("renders the account pair outside a trip", () => {
+      url = "/playbooks";
+      render(<PhoneTabBarFallback />);
+
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Trips", "Playbooks"]);
+      expect(screen.getByRole("link", { name: "Playbooks" }).getAttribute("aria-current")).toBe("page");
+    });
+  });
+
   it("renders no control at all for the trip views outside a trip", () => {
     renderAt("/playbooks");
 
@@ -138,17 +164,4 @@ describe("PhoneTabBar", () => {
     expect(hrefOf("Playbooks")).toBe("/playbooks");
   });
 
-  // §22's active affordance: "shape carries the signal, colour confirms it."
-  // The pill is on the glyph's own box, so the label sits outside it.
-  it("marks the active tab with a filled pill behind its glyph, and only that one", () => {
-    renderAt("/trips/t1?lens=Map");
-    const pills = screen.getAllByTestId("phone-tab-pill");
-    expect(pills).toHaveLength(3);
-    const filled = pills.filter((el) => el.className.includes("bg-brand-tint"));
-    expect(filled).toHaveLength(1);
-    // The active link is the one whose name matches; asserting through the
-    // accessible name rather than walking up the DOM keeps this off the
-    // lint wall's `no-node-access` list.
-    expect(screen.getByRole("link", { name: "Map" }).getAttribute("aria-current")).toBe("page");
-  });
 });

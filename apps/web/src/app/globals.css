@@ -215,6 +215,31 @@
     width: 46px;
     height: 26px;
   }
+  /* A 44px tap target around a control that must stay visually small.
+     §13.1's floor is about what a thumb can hit, not about how big a thing
+     looks, and the design draws the phone header's avatar at 28px — so the
+     box grows and the circle does not. `inset: -7px` on the 30px avatar is
+     exactly 44.
+
+     This exists for the account avatar, which §22 turned into the only
+     account-scope control on a phone: scoping the tab bar removed Trips and
+     Playbooks from inside a trip, and the header's own links are hidden below
+     768px, so the avatar is the sole route to account settings and sign-out.
+     It was 30×30. Raised by Copilot on PR #143.
+
+     A pseudo-element rather than padding: padding would move the avatar within
+     the header row and change a desktop layout this has no business touching.
+     Phone-only for the same reason. */
+  @media (max-width: 767px) {
+    .phone-hit-44 {
+      position: relative;
+    }
+    .phone-hit-44::after {
+      content: "";
+      position: absolute;
+      inset: -7px;
+    }
+  }
   @media (max-width: 767px) {
     :root {
       --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));
@@ -280,7 +305,23 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    /* NOT `0`: below 768px the phone tab bar is also `position: fixed;
+       bottom: 0` at `z-index: 20`, and it is the later sibling (mounted after
+       `children` in `(app)/layout.tsx`), so it won the tie and painted over the
+       rack completely. Measured at 412×924 on `?lens=Board`: the rack's box was
+       885–924, the bar's 841–924, and `elementFromPoint` at the rack's own
+       centre returned the bar — the rack was unreachable. Raised by Copilot on
+       PR #143.
+
+       `?lens=Board` is reachable on a phone at all because `usePhoneTwoViews`
+       rewrites only the DEFAULT lens (SPEC §10), so an explicit link is
+       honoured — which is exactly when this bites.
+
+       Lifting rather than restacking: under the bar the rack is hidden, over it
+       the rack covers navigation. Both are bottom-anchored and the bar owns the
+       bottom, so the rack takes the space above it. The variable is 0px at
+       >=768px, where the bar is not rendered, so desktop is unchanged. */
+    bottom: var(--phone-tab-bar-height, 0px);
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }
   /* Both forms, because the rack is mounted inside a wrapper <div> (it needs

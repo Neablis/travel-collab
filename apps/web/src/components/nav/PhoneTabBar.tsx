@@ -227,11 +227,19 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
           <Link
             key={id}
             href={href}
-            // `scroll: false` for LensRouter's reason (see its `write`
-            // comment): the lens owns where the page sits after a view
-            // change, and Next's default scroll-to-top lands *after* the
-            // newly-mounted lens has scrolled itself to the selected day.
-            scroll={false}
+            // `scroll: false` ONLY for a same-path lens switch, which is the
+            // only case LensRouter's reasoning covers: Plan↔Map stay on
+            // `/trips/<id>` and change `?lens=`, the newly-mounted lens scrolls
+            // itself to the selected day, and Next's default scroll-to-top
+            // would land after that and undo it.
+            //
+            // Applying it to every tab was wrong, and visibly so: going from a
+            // deeply scrolled Notebook to Plan, or between Playbooks and Trips,
+            // is a real page change with nothing to preserve — suppressing the
+            // reset there opens the destination halfway down at whatever offset
+            // the previous page happened to be at. Raised by Copilot on
+            // PR #143.
+            scroll={href.startsWith(`${pathname}?`) ? false : undefined}
             aria-current={isActive ? "page" : undefined}
             className={cn(TAB_CLASS, isActive ? "font-semibold text-brand" : "font-normal text-slate")}
           >
@@ -270,13 +278,15 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
  * it until hydration, which is worse than the pop-in `md:hidden` was chosen to
  * avoid. Copilot caught it on PR #143.
  *
- * `usePathname()` triggers no such bailout, and the route alone settles four
- * of the five tabs. The one thing it cannot know is Plan-vs-Map inside a trip,
- * so it renders `lens: null` — which `activePhoneTab` reads as Plan, the right
- * guess: a bare `/trips/<id>` is normalised to Timeline (SPEC §10), so Plan is
- * where a trip route without an explicit lens actually lands. A reader who
- * deep-links `?lens=Map` sees Plan lit for one paint and Map thereafter; the
- * bar's position, size and hit targets never move.
+ * `usePathname()` triggers no such bailout, and the route alone settles which
+ * SET the bar shows (§22's trip three vs account pair) and which tab is current
+ * in every case but one. The exception is Plan-vs-Map inside a trip, which is
+ * the only thing `?lens=` decides — so this renders `lens: null`, which
+ * `activePhoneTab` reads as Plan. That is the right guess: a bare
+ * `/trips/<id>` is normalised to Timeline (SPEC §10), so Plan is where a trip
+ * route without an explicit lens actually lands. A reader who deep-links
+ * `?lens=Map` sees Plan lit for one paint and Map thereafter; the bar's
+ * contents, position, size and hit targets never move.
  */
 export function PhoneTabBarFallback() {
   return <PhoneTabBarView pathname={usePathname()} lens={null} />;

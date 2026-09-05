@@ -128,7 +128,15 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               onward belongs. */}
           {!isDemoTripId(tripId) && (
             <nav className="flex items-center gap-3">
-              <Link href="/" className="text-xs text-slate hover:text-ink">
+              {/* `min-h-11` and the inline-flex that makes it apply: §22 made
+                  this link load-bearing on a phone. Scoping the tab bar removed
+                  the Trips tab from inside a trip, so this is now the ONLY way
+                  out of Plan and Map — and SPEC §13.1's "44px targets, always"
+                  covers "every tag chip, nav item and row action". It was a
+                  bare `text-xs` anchor with no height or padding, about 17px.
+                  The type stays `text-xs`; §13.1 grows the box, never the font.
+                  Raised by Copilot on PR #143. */}
+              <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
                 ← Your trips
               </Link>
               {/* The Notebook link that used to sit here is gone. It is now

@@ -79,7 +79,10 @@ export function AccountMenu({
         size="icon"
         aria-label="Account menu"
         title={name}
-        className="shrink-0 rounded-full border border-hairline bg-moss text-xs font-semibold text-slate hover:bg-moss hover:text-slate"
+        // `phone-hit-44` (globals.css) grows the TAP target to 44px below
+        // 768px without moving the 30px circle — see that rule for why the
+        // avatar in particular needs it.
+        className="phone-hit-44 shrink-0 rounded-full border border-hairline bg-moss text-xs font-semibold text-slate hover:bg-moss hover:text-slate"
         // eslint-disable-next-line no-restricted-syntax -- see AVATAR_SIZE above
         style={AVATAR_SIZE}
       >
@@ -219,13 +222,25 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 
   return (
     <>
-      {/* Hidden below 768px: PhoneTabBar carries "Trips" and "Playbooks" as
-          two of its five tabs, and RULES.md 4 ("avoid showing the same
-          information twice on one page") makes a second, smaller, less
-          reachable copy of them in the top bar a thing to remove rather than
-          to keep. The avatar below deliberately stays at every width —
-          RULES.md 1 puts account scope in the top bar, and the tab bar does
-          not carry it.
+      {/* Hidden below 768px, and the reason is now per-scope rather than one
+          sentence — SPEC §22 made the tab bar's contents change with route:
+
+          - Outside a trip the bar IS Trips + Playbooks, so these two links are
+            a second, smaller, less reachable copy of it. RULES.md 4.
+          - Inside a trip the bar is Plan / Map / Notebook, so there is no
+            duplication to remove. They stay hidden anyway because §22 settles
+            both destinations elsewhere: Trips is `TripHeader`'s `← Your trips`,
+            and Playbooks is deliberately two taps ("if telemetry shows people
+            browse the library mid-trip, the fix is an entry point inside the
+            trip, not a fifth permanent tab").
+
+          Stated in full because the first bullet alone would justify this hide
+          on a page where it is not true, and a later reader could then "fix"
+          the trip case by un-hiding them. (Copilot, PR #143.)
+
+          The avatar below deliberately stays at every width — RULES.md 1 puts
+          account scope in the top bar, the tab bar does not carry it, and after
+          §22 it is the ONLY account-scope control a phone has.
 
           A CSS breakpoint, not `useIsPhone()`: that hook starts `false` on
           the server and for the first client paint by design, so a JS gate
