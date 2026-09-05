@@ -78,8 +78,8 @@ Updated live. Times are PT.
 | D Infra / DB / Vercel / review loop | done 00:43 | 8 findings (6 CONFIRMED), 13 ranked recommendations, 08-28 items: 8 fixed, 2 still open |
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | done 00:44 | 12 findings (all CONFIRMED), /ask flow map, 13 deliberately-not |
-| G Broken functionality (lanes + hunt) | running 00:31 | |
-| Verification wave | running 00:42 | C, E verifiers launched 00:41; A, B launched 00:43 |
+| G Broken functionality (lanes + hunt) | lanes done 00:46, hunt relaunched 07:35 | ALL LANES GREEN: typecheck, lint, unit, int 450/450, seed:verify 18/18, e2e ci-like 89/89, drizzle check. First agent killed by session limit during the browser walk |
+| Verification wave | C, E done; A, B, D, F relaunched 07:35 | Session limit hit ~00:50 PT and killed four verifiers + stream G mid-run; resumed 07:31 PT |
 | Findings written | pending | |
 | Executive summary | pending | |
 | Committed + pushed | pending | |
