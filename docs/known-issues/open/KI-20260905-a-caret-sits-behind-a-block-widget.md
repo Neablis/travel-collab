@@ -32,3 +32,11 @@
 - **Cross-reference:** `docs/milestones/M14-rich-layer.md` (the unowned block-node box),
   ADR-035 decision 1, ADR-038, Vercel toolbar thread `khxE1i54SgN4`.
 - **First noted:** 2026-09-04, on the PR 141 preview.
+- **2026-09-05 overnight review — shares one cause with KI-2026-09-05-c:**
+  stream B's read of the widget layer concluded that this entry and
+  KI-2026-09-05-c (the inline chrome row) are two symptoms of the same thing —
+  the macro node is an **inline atom** in ProseMirror while the AST treats it as
+  a block (the shape recorded in resolved KI-2026-09-03-d) — and that
+  KI-2026-09-05-b (the unreachable Reading/Editing toggle) is unrelated to
+  both. Fixing the atom's node spec is expected to move both. Context:
+  `../../reviews/2026-09-05-overnight-review/README.md` §"B — Notebook and widget AST".

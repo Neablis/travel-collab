@@ -28,3 +28,10 @@
 - **Why not fixed here:** found by the test-value pass on 2026-09-02, which was scoped to test files only; `vitest.setup.ts`, `package.json` and a new `.nvmrc` are all outside that scope, and half of the fix is a version choice (22 vs 24) that is Mitchell's, not an agent's.
 - **Cross-reference:** KI-13 (the other reason a local unit run lies — parallel load, a *different* random subset each time; this one fails in the same place every run, which is how the two are told apart), KI-2026-08-30-b (`vitest.setup.ts` is one of the unlinted root files), `CLAUDE.md` rule 2, `AGENTS.md` "Verification scales to the change".
 - **First noted:** 2026-09-02, during the late-night cleanup session.
+- **2026-09-05 overnight review ([F-D06](../../reviews/2026-09-05-overnight-review/findings/F-D06-dependency-skew-and-open-dependabot-alerts.md)):**
+  the unpinned Node version is item 9 of F-D09's ranked list (`.nvmrc` plus a
+  narrower `engines.node`, once 22 vs 24 is picked). F-D06 adds the rest of the
+  dependency picture around it — `@types/node@22` while Vercel builds on 24,
+  `drizzle-kit@0.28.1` against `drizzle-orm@0.45.2`, `next-auth` floating on a
+  beta, and **17 open Dependabot alerts (9 high) on `main`** that nothing in the
+  repo records. Filed as KI-2026-09-05-n.

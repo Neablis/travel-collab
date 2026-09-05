@@ -9,3 +9,11 @@
 - **First noted:** 2026-08-29.
 
 - **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77/78 the same night. Renumbered to 90 on merge. Nothing outside this file references it.
+- **2026-09-05 overnight review ([F-E02](../../reviews/2026-09-05-overnight-review/findings/F-E02-optimistic-queue-needs-interleaving-property.md)):**
+  re-confirmed live at `TripProvider.tsx:315` (`await sendTripCommand`) then
+  `:322` (unconditional `setOptimistic(… pending: [] …)`) — literally the
+  KI-70 line again, after the `await`. The review's recommendation is to stop
+  fixing this family a line at a time and add the interleaving property
+  (KI-2026-09-05-p), which also forces the one product decision this entry
+  defers: gate edits during a history command, or re-predict the queue on top
+  of the reconciled state.

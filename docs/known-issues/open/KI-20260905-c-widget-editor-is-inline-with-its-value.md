@@ -56,3 +56,11 @@
   `docs/specs/2026-09-04-widget-primitives.md` §8, Vercel toolbar threads
   `gjQBcepKXXkF` and `MoDEHsHSo4Z0`.
 - **First noted:** 2026-09-04, on the PR 141 preview.
+- **2026-09-05 overnight review — shares one cause with KI-2026-09-05-a:**
+  stream B concluded this entry and KI-2026-09-05-a (the caret parking behind a
+  block widget) are two symptoms of the macro node being an **inline atom** in
+  ProseMirror while the AST treats it as a block (resolved KI-2026-09-03-d);
+  KI-2026-09-05-b is unrelated to both. The same read verified that the chrome
+  row itself is *generated* from the widget's declarations with no per-widget
+  case, so this is a placement problem, not a per-widget one. Context:
+  `../../reviews/2026-09-05-overnight-review/README.md` §"B — Notebook and widget AST".
