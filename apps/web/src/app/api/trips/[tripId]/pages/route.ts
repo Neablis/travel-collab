@@ -5,7 +5,7 @@ import { listPages, createPage } from "@/server/pages";
 export async function GET(_req: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   // A viewer may read the Notebook; only an editor may add to it.
-  const g = await guard(tripId, "viewer");
+  const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
   // `viewerId` rides along so the index's provenance line can say "Yours"
   // truthfully. `actorId` alone only proves a PERSON wrote a notebook, not that

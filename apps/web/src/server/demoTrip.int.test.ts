@@ -3,7 +3,9 @@ import { TripAccess, TripDetail, TripHistory } from "@tc/contracts";
 import { JAPAN_TRIP_NAME } from "@tc/fixtures";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { db } from "@/server/db/client";
-import { events, tripDetails, tripMemberships, tripSummaries } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { events, pages, savedDays, tripDetails, tripMemberships, tripSummaries } from "@/server/db/schema";
+import { demoTripDetail } from "@/server/demoTrip";
 import { getTripDetail } from "@/server/projections";
 
 // The demo trip travels the REAL routes (ADR-031). These are the four reads the
@@ -167,5 +169,57 @@ describe("POST /api/trips/:id/duplicate — 'Make this trip mine'", () => {
   it("401s a signed-out visitor — the page turns that into a trip to /signin", async () => {
     const response = await postDuplicate(request(), params());
     expect(response.status).toBe(401);
+  });
+});
+
+// KI-2026-09-05-d — the demo answer is opt-in at the seam, so a route that does
+// not ask for it gets the ordinary unauthenticated refusal.
+//
+// The hole: `requireTripAccess` answered the demo BEFORE `auth()` for every
+// caller asking `viewer`, and `POST /api/saved-days` asks for exactly that. So
+// a request with no cookie at all returned 201 and inserted a `saved_days` row
+// owned by the literal string `demo-visitor` — unbounded, unquota'd, and
+// unreachable afterwards by any user through any route.
+describe("the demo trip is read-only all the way down (KI-2026-09-05-d)", () => {
+  // A REAL day of the demo trip, so the request is well-formed and the only
+  // thing that can refuse it is the access seam under test.
+  const demoDayId = () => {
+    const dayId = demoTripDetail().days[0]?.dayId;
+    if (dayId === undefined) throw new Error("demo trip has no days");
+    return dayId;
+  };
+
+  it("refuses an anonymous saved-day write instead of inserting an orphan row", async () => {
+    currentUserId = null;
+    const { POST: postSavedDay } = await import("@/app/api/saved-days/route");
+
+    const before = await db.select().from(savedDays);
+    const response = await postSavedDay(
+      new Request("http://test/api/saved-days", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "x", tripId: DEMO_TRIP_ID, dayId: demoDayId() }),
+      }),
+    );
+    const after = await db.select().from(savedDays);
+
+    expect(response.status).toBe(401);
+    expect(after.length).toBe(before.length);
+    expect(after.some((row) => row.ownerId === "demo-visitor")).toBe(false);
+  });
+
+  it("serves the demo's pages to an anonymous reader without writing rows for it", async () => {
+    currentUserId = null;
+    const { GET: getPages } = await import("@/app/api/trips/[tripId]/pages/route");
+
+    const before = await db.select().from(pages).where(eq(pages.tripId, DEMO_TRIP_ID));
+    const response = await getPages(new Request("http://test/pages"), params());
+    const after = await db.select().from(pages).where(eq(pages.tripId, DEMO_TRIP_ID));
+
+    expect(response.status).toBe(200);
+    // The reader still gets the prebuilt pages — folded in memory, per ADR-031's
+    // "the only database work in the whole demo is the clone".
+    expect((await response.json()).pages.length).toBeGreaterThan(0);
+    expect(after.length).toBe(before.length);
   });
 });

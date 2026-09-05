@@ -59,9 +59,37 @@ export type TripAccessResult =
   | { error: Response }
   | { userId: string; role: TripRole; detail: TripDetail };
 
+/**
+ * Options for {@link requireTripAccess}.
+ *
+ * `allowDemo` is OPT-IN, and that is the whole point (KI-2026-09-05-d).
+ *
+ * The demo answer used to be a property of this seam, so every caller asking
+ * for `viewer` inherited an anonymous, session-less actor whether or not it
+ * wanted one. ADR-031 intended FOUR anonymous READS and says so — "the only
+ * database work in the whole demo is the clone" (ADR-031:186) — but the seam
+ * is generic, and two write paths inherited it: `POST /api/saved-days`
+ * returned 201 to a caller with no cookie at all, inserting an unbounded
+ * number of `saved_days` rows owned by `demo-visitor` that no user can ever
+ * list or delete, and the pages route seeded default rows for the same
+ * anonymous caller.
+ *
+ * The tell that the generic answer was wrong: `handleAskRequest.ts` had to
+ * hand-write its own demo refusal (KI-79) — one call site patching a default
+ * the rest of the codebase silently accepted.
+ *
+ * So a route now ASKS for the demo rather than being handed it. A new route
+ * that forgets is refused, which is the safe direction to forget in.
+ */
+export type TripAccessOptions = {
+  /** Serve the built-in demo trip to an anonymous visitor. Reads only. */
+  allowDemo?: boolean;
+};
+
 export async function requireTripAccess(
   tripId: string,
   minimum: TripRole,
+  { allowDemo = false }: TripAccessOptions = {},
 ): Promise<TripAccessResult> {
   // The built-in demo trip (ADR-031), answered here and nowhere else.
   //
@@ -77,7 +105,7 @@ export async function requireTripAccess(
   // every write route asks for `editor` or `owner` here and is refused, and the
   // refusal is the product's own permission rule rather than a special case
   // somebody has to remember to write on each new endpoint.
-  if (isDemoTripId(tripId)) {
+  if (allowDemo && isDemoTripId(tripId)) {
     if (RANK_VIEWER_IS_ENOUGH !== minimum) {
       return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
     }

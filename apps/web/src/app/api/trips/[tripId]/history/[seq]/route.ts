@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ tripId: string; seq: string }> },
 ) {
   const { tripId, seq } = await params;
-  const access = await requireTripAccess(tripId, "viewer");
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   const at = await getTripDetailAt(tripId, Number(seq));
   if (at === null) return Response.json({ error: "not-found" }, { status: 404 });

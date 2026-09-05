@@ -5,6 +5,7 @@ import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/co
 import { instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
@@ -76,6 +77,23 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   // granularity; the only thing that saves it here is that these rows are the
   // ones whose timestamps we choose.
   const defaults = instantiateDefaults(tripId);
+
+  // The demo trip is READ-ONLY, all the way down (KI-2026-09-05-d). ADR-031:186
+  // is explicit that "the only database work in the whole demo is the clone",
+  // and seeding here broke that: a GET from a visitor with no session wrote
+  // rows. The demo trip is folded in memory by `demoTripDetail()`, so its
+  // prebuilt pages are returned the same way — shaped exactly like the seeded
+  // rows, minus the INSERT. Nothing downstream can tell the difference; every
+  // caller of this function consumes `PageSummary`.
+  if (isDemoTripId(tripId)) {
+    const startedAt = Date.now();
+    return defaults
+      .map((seed, i) =>
+        newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),
+      )
+      .map(toSummary);
+  }
+
   const startedAt = Date.now();
   const seeds = defaults.map((seed, i) =>
     newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),

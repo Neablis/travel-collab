@@ -8,7 +8,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   // — `requireTripAccess` encodes exactly that, and also serves the effective
   // member list (log owner + accepted invites), which is what makes an invited
   // traveler show up in the trip's Travelers row (M11 link 3).
-  const access = await requireTripAccess(tripId, "viewer");
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   // Contract-honest response: validate against the schema before returning.
   return Response.json({ trip: TripDetail.parse(access.detail) });
