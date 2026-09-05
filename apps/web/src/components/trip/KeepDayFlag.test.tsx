@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
@@ -143,5 +143,57 @@ describe("the keep-day pennant's wave", () => {
     renderFlag({ stops: [] });
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
     expect(wavingFlag()).toBeNull();
+  });
+});
+
+// The design's `celebrate()` (`Trip Planner Redesign.dc.html:4871`) — the
+// spring, the brand fill, the ring burst, the sparks and the "Kept" pill that
+// expands and collapses over 2.6s. KeepDayDialog.tsx used to carry a comment
+// saying "the save is real; the confetti is not"; this is the confetti.
+//
+// Asserted through the pill's visible text rather than the animation class:
+// the colour wall owns classes (no `toHaveClass`), and KI-2026-09-02-b
+// grandfathers the one `document.querySelector` above without wanting more.
+// The text is a real seam anyway — it is conditionally rendered precisely so a
+// day that is not being kept never announces "Kept".
+describe("the keep-day celebration", () => {
+  it("does not say Kept before the save lands", async () => {
+    renderFlag();
+    await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
+    await screen.findByRole("button", { name: "Save" });
+    expect(screen.queryByText("Kept")).toBeNull();
+  });
+
+  it("says Kept on the pennant once the save lands", async () => {
+    renderFlag();
+    await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Kept")).toBeTruthy();
+  });
+
+  // The label is driven by a timer rather than `animationend` — under
+  // `prefers-reduced-motion` globals.css drops the animation, so an
+  // `animationend` that never fires would leave "Kept" on the pennant forever.
+  it("clears Kept when the celebration finishes", async () => {
+    // `shouldAdvanceTime` matters: without it the save's promise and
+    // testing-library's own `waitFor` polling both stall, because everything
+    // that would tick them is mocked. This mocks the clock while still letting
+    // it run, so `advanceTimersByTime` below jumps the celebration to its end
+    // without stopping the queries that get us there.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderFlag();
+      await user.click(screen.getByRole("button", { name: "Keep day 1" }));
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+      expect(await screen.findByText("Kept")).toBeTruthy();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2600);
+      });
+      expect(screen.queryByText("Kept")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

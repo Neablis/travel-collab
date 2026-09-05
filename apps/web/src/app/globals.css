@@ -476,6 +476,197 @@
     }
   }
 
+  /* The keep-a-day celebration (`Trip Planner Redesign.dc.html:4871`'s
+     `celebrate()`) — the wow moment the build shipped without. The design runs
+     six concurrent `Element.animate()` calls; these are the same six curves as
+     keyframes, for the reason `om-flag-wave` above is: the colour wall bans
+     bracket values in a className, so `animate-[...]` is not available, and a
+     rule keeps the whole choreography — and its reduced-motion drop — in one
+     place instead of spread across imperative call sites.
+
+     Durations and offsets are the design's own. The label's 2600ms is the
+     longest and sets the length of the moment; `KeepDayFlag` holds the label
+     in the DOM for 2600ms to match. */
+  @keyframes om-flag-pop {
+    0% {
+      transform: scale(1);
+    }
+    20% {
+      transform: scale(0.84);
+    }
+    50% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  /* Out and back, not `forwards`: this branch builds the celebration only, so
+     the pennant returns to its neutral circle rather than resting in the
+     design's kept state. Nothing is left on screen claiming a persistence the
+     schema cannot back — `SavedDay` has no `sourceDayId`, so after a reload
+     "is this day kept?" has no answer (ADR-040). */
+  @keyframes om-flag-keep {
+    0% {
+      background-color: var(--color-surface);
+    }
+    12%,
+    88% {
+      background-color: var(--color-brand);
+      color: var(--color-surface);
+    }
+    100% {
+      background-color: var(--color-surface);
+    }
+  }
+  @keyframes om-flag-fill {
+    0% {
+      fill: transparent;
+    }
+    12%,
+    88% {
+      fill: currentColor;
+    }
+    100% {
+      fill: transparent;
+    }
+  }
+  @keyframes om-flag-label {
+    0% {
+      max-width: 0;
+      opacity: 0;
+      margin-left: 0;
+    }
+    14%,
+    86% {
+      max-width: 52px;
+      opacity: 1;
+      margin-left: 6px;
+    }
+    100% {
+      max-width: 0;
+      opacity: 0;
+      margin-left: 0;
+    }
+  }
+  @keyframes om-flag-ring {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(1.75);
+      opacity: 0;
+    }
+  }
+  @keyframes om-flag-spark {
+    0% {
+      transform: translate(0, 0) scale(0.3);
+      opacity: 0;
+    }
+    30% {
+      transform: translate(calc(var(--dx) * 0.4), calc(var(--dy) * 0.4)) scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(var(--dx), var(--dy)) scale(0.7);
+      opacity: 0;
+    }
+  }
+  .flag-celebrate {
+    animation:
+      om-flag-pop 540ms ease-out,
+      om-flag-keep 2600ms cubic-bezier(0.2, 1, 0.3, 1);
+  }
+  /* lucide's `Flag` is one `path` (the pennant) plus one `line` (the staff),
+     so `svg path` is exactly the half that fills. The presentational
+     `fill="none"` on the svg root loses to a CSS `fill` on the path. */
+  .flag-celebrate svg path {
+    animation: om-flag-fill 2600ms cubic-bezier(0.2, 1, 0.3, 1);
+  }
+  .flag-celebrate-label {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    animation: om-flag-label 2600ms cubic-bezier(0.2, 1, 0.3, 1);
+  }
+  .flag-celebrate-ring {
+    position: absolute;
+    inset: -5px;
+    border: 2px solid var(--color-brand);
+    border-radius: 999px;
+    pointer-events: none;
+    animation: om-flag-ring 700ms ease-out;
+  }
+  /* The design's four spark paths, in its order: (-14,-20) at 0ms, (2,-26) at
+     60ms, (18,-18) at 40ms, (12,20) at 120ms. Offsets live here as `nth-child`
+     rules rather than inline custom properties so the component adds no new
+     style-attribute escapes to the colour wall. */
+  /* Its own box, so the sparks' `nth-child` rules below count sparks and
+     not the button and ring they would otherwise sit beside. */
+  .flag-celebrate-sparks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .flag-celebrate-spark {
+    position: absolute;
+    top: 50%;
+    border-radius: 999px;
+    background: var(--color-brand);
+    pointer-events: none;
+    animation: om-flag-spark 780ms ease-out both;
+  }
+  .flag-celebrate-spark:nth-child(1) {
+    left: 10px;
+    width: 5px;
+    height: 5px;
+    --dx: -14px;
+    --dy: -20px;
+  }
+  .flag-celebrate-spark:nth-child(2) {
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    --dx: 2px;
+    --dy: -26px;
+    animation-delay: 60ms;
+  }
+  .flag-celebrate-spark:nth-child(3) {
+    right: 12px;
+    width: 5px;
+    height: 5px;
+    --dx: 18px;
+    --dy: -18px;
+    animation-delay: 40ms;
+  }
+  .flag-celebrate-spark:nth-child(4) {
+    right: 18px;
+    width: 4px;
+    height: 4px;
+    --dx: 12px;
+    --dy: 20px;
+    animation-delay: 120ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Same call as `.flag-wave`: the toast carries the outcome, so all of this
+       is decoration. The label still appears and leaves on its timer — that is
+       a state change, not motion, and it is the one part of the celebration
+       that says anything. The ring and sparks have no resting state worth
+       showing, so they are hidden outright rather than frozen mid-flight. */
+    .flag-celebrate,
+    .flag-celebrate svg path,
+    .flag-celebrate-label,
+    .flag-celebrate-ring,
+    .flag-celebrate-spark {
+      animation: none;
+    }
+    .flag-celebrate-ring,
+    .flag-celebrate-sparks {
+      display: none;
+    }
+  }
+
   /* Landing hero veil (`dc.html:1871`): a 97deg wash that fades the paper
      background out across the decorative map so the headline column keeps
      full contrast while the art dissolves toward the right edge. Five colour

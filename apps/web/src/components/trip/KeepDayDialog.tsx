@@ -31,7 +31,12 @@ import { toClockRange } from "@/lib/time";
 //    (ADR-029). A select with one real option is worse than a sentence.
 //
 // The prototype's celebrate() choreography — spring, ring burst, sparks, the
-// "Kept" pill — is not built. The save is real; the confetti is not.
+// "Kept" pill — is built as of this branch, and fires off `onSaved` below:
+// see `KeepDayFlag`. What is still NOT built is where that choreography lands
+// in the design — `data-kept="1"`, the pennant resting solid green with "In
+// your Playbooks — edit or share". `SavedDay` records `sourceTripId` but no
+// `sourceDayId`, so after a reload nothing can answer "is this day kept?".
+// ADR-040 is that question.
 
 function includedSummary(stops: SavedStop[]): string {
   if (stops.length === 0) return "Nothing yet — this day has no stops.";
