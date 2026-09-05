@@ -5,7 +5,7 @@ import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/co
 import { instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
-import { isDemoTripId } from "@/lib/demoTrip";
+import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
 import { isUuid } from "@/server/ids";
 
 function toPage(row: typeof pages.$inferSelect): Page {
@@ -46,7 +46,45 @@ export async function createPage(tripId: string, input: CreatePageInput, actorId
 // seeded notebooks stay where a returning reader last saw them. `id` breaks
 // any remaining tie, so two notebooks created in the same millisecond still
 // come back in a fixed order rather than a lucky one.
+// The demo trip is READ-ONLY, all the way down (KI-2026-09-05-d). ADR-031:186
+// is explicit that "the only database work in the whole demo is the clone", and
+// seeding broke that: a GET from a visitor with no session wrote rows.
+//
+// Both halves of this are load-bearing, and the first draft of the fix got the
+// second one wrong (caught in review of PR #147):
+//
+//   * **Stable ids.** `newRow` mints a `randomUUID()` per call, so folding the
+//     pages in memory with it gave every list request DIFFERENT page ids —
+//     and `GET /pages/[pageId]` reads through `getPage`, which queries
+//     Postgres, so every id the list handed out 404'd. Demo ids are derived
+//     from the page's index instead, so they are the same on every request and
+//     resolvable by `getPage` below.
+//   * **A fixed clock.** `Date.now()` would reorder the list against itself
+//     between requests, which is the same defect `listPages`' ORDER BY comment
+//     above describes. These rows are ordered by construction.
+const DEMO_PAGE_EPOCH = "2026-01-01T00:00:00.000Z";
+
+/** The demo trip's prebuilt pages, folded in memory — never read, never written. */
+function demoPageRows(tripId: string): (typeof pages.$inferInsert)[] {
+  const defaults = instantiateDefaults(tripId);
+  const epoch = Date.parse(DEMO_PAGE_EPOCH);
+  return defaults.map((seed, i) => ({
+    ...newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(epoch + i).toISOString()),
+    // Derived, not random: `…e000`, `…e001`, one per default page. The `e`
+    // block keeps them in the same reserved space as DEMO_TRIP_ID's `…d000`.
+    id: `00000000-0000-4000-8000-00000000e${String(i).padStart(3, "0")}`,
+  }));
+}
+
+/** The demo page with this id, or null. Lets `getPage` answer without a query. */
+function demoPageById(id: string): (typeof pages.$inferInsert) | null {
+  return demoPageRows(DEMO_TRIP_ID).find((row) => row.id === id) ?? null;
+}
+
 export async function listPages(tripId: string): Promise<PageSummary[]> {
+  // BEFORE the select, so a demo request performs no database work at all and
+  // cannot surface rows the old seeding behaviour left behind.
+  if (isDemoTripId(tripId)) return demoPageRows(tripId).map(toSummary);
   const existing = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
   if (existing.length > 0) return existing.map(toSummary);
 
@@ -79,22 +117,6 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   // ones whose timestamps we choose.
   const defaults = instantiateDefaults(tripId);
 
-  // The demo trip is READ-ONLY, all the way down (KI-2026-09-05-d). ADR-031:186
-  // is explicit that "the only database work in the whole demo is the clone",
-  // and seeding here broke that: a GET from a visitor with no session wrote
-  // rows. The demo trip is folded in memory by `demoTripDetail()`, so its
-  // prebuilt pages are returned the same way — shaped exactly like the seeded
-  // rows, minus the INSERT. Nothing downstream can tell the difference; every
-  // caller of this function consumes `PageSummary`.
-  if (isDemoTripId(tripId)) {
-    const startedAt = Date.now();
-    return defaults
-      .map((seed, i) =>
-        newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),
-      )
-      .map(toSummary);
-  }
-
   const startedAt = Date.now();
   const seeds = defaults.map((seed, i) =>
     newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),
@@ -110,6 +132,10 @@ export async function getPage(id: string): Promise<Page | null> {
   // one place that fix guarded from IN FRONT of the query rather than inside
   // it, so a future caller added here would inherit the old 500.
   if (!isUuid(id)) return null;
+  // A demo page id never reached a table, so it has to be answered from the
+  // same fold `listPages` hands out — otherwise every id in that list 404s.
+  const demo = demoPageById(id);
+  if (demo !== null) return toPage(demo as typeof pages.$inferSelect);
   const [row] = await db.select().from(pages).where(eq(pages.id, id));
   return row ? toPage(row) : null;
 }

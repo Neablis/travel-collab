@@ -66,3 +66,5 @@ tests, all green — the whole lane rather than six files because the
 their callers validate, so no request reaches them, but a new caller would
 inherit the old behaviour — the one place in this bug's class where the guard is
 in front of the query rather than inside it.
+
+- **Correction, 2026-09-06 (review of PR #147):** the note above about `pages.ts`'s `getPage`/`updatePage`/`deletePage` being left unguarded is **out of date within the same PR** — they were guarded with `isUuid` before it merged. Do not read this entry as leaving that gap deliberately open.

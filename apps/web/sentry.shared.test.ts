@@ -374,6 +374,13 @@ describe("what actually reaches the Sentry transport", () => {
       new Error(`fetch failed for /signin?callbackUrl=%2Finvite%2F${TOKEN}`),
     );
 
+    // The THIRD pipeline. `enableLogs` gives structured logs their own hook
+    // (`beforeSendLog`), which `beforeSend` never sees — so without this the
+    // log scrubber is the one hook no assertion here exercises, and an SDK or
+    // options change could unwire it while everything else stayed green
+    // (Copilot, PR #147).
+    Sentry.logger.info("share opened", { url: `/api/shares/${TOKEN}` });
+
     await Sentry.flush(5000);
   });
 

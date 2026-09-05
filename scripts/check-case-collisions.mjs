@@ -26,6 +26,11 @@ import { execSync } from "node:child_process";
 //     last, so both files answer to `@/components/trip/UnscheduledRack`.
 const files = execSync("git ls-files --cached --others --exclude-standard", {
   encoding: "utf8",
+  // `execSync` truncates at 1MB by default and THROWS ENOBUFS rather than
+  // returning short — but adding `--others` grew this list, and a wall that
+  // dies on a big checkout is a wall that stops running. 64MB is far past any
+  // plausible path list. (CodeRabbit, PR #147.)
+  maxBuffer: 64 * 1024 * 1024,
 })
   .split("\n")
   .filter(Boolean);

@@ -51,13 +51,15 @@ Red-first (any PR adding a test): <!-- For each new test: the source edit that
      required of every PR, and treating them as a flat list is the exact defect
      KI-2026-09-05-u closed in quality-enforcement.md. Tier 1 (prose-only
      BRANCH) runs NOTHING. Tier 2 (scoped code) runs the minimal-check-subset
-     skill's output and nothing more. Tier 3 (final review) runs the lot. Tick
+     skill's output and nothing more. Tier 3 (final review) runs `pnpm check`, plus the conditional lanes below that actually apply. Tick
      what the tier actually required and strike the rest. -->
 
 - [ ] Tier for this PR (1 prose / 2 scoped / 3 final review): <!-- state it -->
 - [ ] `pnpm check` green locally (typecheck + lint + unit) — Tier 3
 - [ ] `pnpm --filter web test:int` green (needs Postgres) — Tier 3
-- [ ] `pnpm --filter web test:e2e:ci-like` green (production build + full e2e) — Tier 3
+- [ ] `pnpm --filter web test:e2e:ci-like` green — Tier 3 **and only if this
+      changed a user flow**; e2e is conditional per AGENTS.md, not automatic
+- [ ] Seed/fixture verification — only if contracts or fixtures changed
 - [ ] Manual browser walk of the changed flow
 
 Preview URL walked: <!-- https://travel-collab-git-<branch>-neablis-projects.vercel.app -->

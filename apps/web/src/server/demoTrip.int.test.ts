@@ -221,5 +221,38 @@ describe("the demo trip is read-only all the way down (KI-2026-09-05-d)", () => 
     // "the only database work in the whole demo is the clone".
     expect((await response.json()).pages.length).toBeGreaterThan(0);
     expect(after.length).toBe(before.length);
+    // Nothing persisted means nothing to read back: the rows above are the fold,
+    // not leftovers from the old seeding behaviour.
+    expect(before.length).toBe(0);
+  });
+
+  // Review of PR #147 (CodeRabbit, Major) caught this in the first draft of the
+  // fix: folding the pages in memory with `newRow` gave them a fresh
+  // `randomUUID()` per request, so every id the list handed out 404'd from the
+  // item route, and two list calls disagreed about what the same page was.
+  it("hands out demo page ids that are stable and actually resolvable", async () => {
+    currentUserId = null;
+    const { GET: getPages } = await import("@/app/api/trips/[tripId]/pages/route");
+    const { GET: getPage } = await import("@/app/api/trips/[tripId]/pages/[pageId]/route");
+
+    const first = (await (await getPages(new Request("http://test/pages"), params())).json()) as {
+      pages: { id: string; title: string }[];
+    };
+    const second = (await (await getPages(new Request("http://test/pages"), params())).json()) as {
+      pages: { id: string; title: string }[];
+    };
+
+    // Same identities, same order, on a second request.
+    expect(second.pages.map((p) => p.id)).toEqual(first.pages.map((p) => p.id));
+    expect(first.pages.length).toBeGreaterThan(0);
+
+    // And every one of them resolves through the item route rather than 404ing.
+    for (const page of first.pages) {
+      const response = await getPage(new Request("http://test/page"), {
+        params: Promise.resolve({ tripId: DEMO_TRIP_ID, pageId: page.id }),
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json()).page.title).toBe(page.title);
+    }
   });
 });
