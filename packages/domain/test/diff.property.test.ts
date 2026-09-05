@@ -215,3 +215,107 @@ describe("diffTripStates lifecycle reconciliation (M8)", () => {
     expect(diffTripStates(base, base)).toEqual([]);
   });
 });
+
+// KI-2026-09-02-e. Step 7 of `diffTripStates` reconciles `dismissedConflictIds`
+// between the two states. `pnpm mutate packages/domain/src/trip/diff.ts`
+// reported EVERY mutant in those two loops as no-coverage: both loop bodies
+// could be deleted, both conditions inverted and both event types blanked, and
+// no test executed the lines at all. The round-trip property above can only
+// reach step 7 by luck — it needs a generated history that raises a real
+// conflict, dismisses it, AND cuts either side of the dismissal — and the
+// mutation report is the measurement that says it never does.
+//
+// What breaks if step 7 is wrong: reverting past a dismissal either re-raises a
+// conflict the user dismissed or silently keeps one dismissed that should be
+// back. Neither fails loudly; both are the shape of KI-1.
+//
+// States are built through the real command path (`decideTripCommand` +
+// `evolveTrip`), not hand-assembled, so the dismissed id is a genuine
+// content-derived conflict id rather than a literal that can drift from the
+// conflict engine. `@tc/factories` is deliberately NOT used here: it depends on
+// `@tc/domain`, and the dependency rule in AGENTS.md ("Depends on contracts
+// only") forbids the cycle. `test/support/tripGenerator.ts` is this package's
+// equivalent, and it is what supplies TRIP/CTX/uuid/foldTo below.
+describe("diffTripStates conflict dismissals (step 7, KI-2026-09-02-e)", () => {
+  const DAY = uuid(301);
+  const A1 = uuid(302);
+  const A2 = uuid(303);
+
+  // Two overlapping activities on one day raise one real time-overlap
+  // conflict; dismissing it is the only way `dismissedConflictIds` is ever
+  // non-empty. Returns the state either side of that single dismissal.
+  function statesAroundADismissal(): {
+    undismissed: TripState;
+    dismissed: TripState;
+    conflictId: string;
+  } {
+    const events: TripEvent[] = [];
+    let state: TripState | null = null;
+    const apply = (command: TripCommand): void => {
+      const decision = decideTripCommand(state, command, CTX);
+      if (!decision.ok) throw new Error(`setup rejected ${command.type}: ${decision.rejection.code}`);
+      for (const event of decision.events) {
+        events.push(event);
+        state = evolveTrip(state, event);
+      }
+    };
+    apply({ type: "CreateTrip", tripId: TRIP, name: "Dismissals", forkedFrom: null });
+    apply({ type: "AddDay", tripId: TRIP, dayId: DAY });
+    apply({
+      type: "AddActivity", tripId: TRIP, activityId: A1, dayId: DAY,
+      title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" },
+    });
+    apply({
+      type: "AddActivity", tripId: TRIP, activityId: A2, dayId: DAY,
+      title: "Vatican", timeWindow: { start: "10:00", end: "12:00" },
+    });
+    const beforeDismissal = events.length;
+
+    const conflict = detectConflicts(state!)[0];
+    if (conflict === undefined) throw new Error("setup produced no conflict to dismiss");
+    apply({ type: "DismissConflict", tripId: TRIP, conflictId: conflict.id });
+
+    return {
+      undismissed: foldTo(events, beforeDismissal),
+      dismissed: foldTo(events, events.length),
+      conflictId: conflict.id,
+    };
+  }
+
+  it("emits ConflictUndismissed when current dismissed a conflict the target had not", () => {
+    const { undismissed, dismissed, conflictId } = statesAroundADismissal();
+    // Guard the fixture itself: if these two states stopped differing, the
+    // assertions below would pass while proving nothing.
+    expect(dismissed.dismissedConflictIds).toEqual([conflictId]);
+    expect(undismissed.dismissedConflictIds).toEqual([]);
+
+    const events = diffTripStates(dismissed, undismissed);
+
+    expect(events).toEqual([
+      { type: "ConflictUndismissed", version: 1, payload: { tripId: TRIP, conflictId } },
+    ]);
+    expect(tripStatesEqual(events.reduce(evolveTrip, dismissed), undismissed)).toBe(true);
+  });
+
+  it("emits ConflictDismissed when the target dismissed a conflict current has not", () => {
+    const { undismissed, dismissed, conflictId } = statesAroundADismissal();
+
+    const events = diffTripStates(undismissed, dismissed);
+
+    expect(events).toEqual([
+      { type: "ConflictDismissed", version: 1, payload: { tripId: TRIP, conflictId } },
+    ]);
+    expect(tripStatesEqual(events.reduce(evolveTrip, undismissed), dismissed)).toBe(true);
+  });
+
+  it("emits nothing when both states hold the SAME dismissal", () => {
+    const { dismissed } = statesAroundADismissal();
+    // Distinct from the generated `diff(x, x) is empty` property: no generated
+    // history reaches a non-empty `dismissedConflictIds`, so only this case
+    // runs step 7's loops over a populated list. A condition that ignored the
+    // other state would churn an undismiss/re-dismiss pair on every no-op
+    // revert.
+    expect(dismissed.dismissedConflictIds).toHaveLength(1);
+    expect(diffTripStates(dismissed, dismissed)).toEqual([]);
+  });
+});
