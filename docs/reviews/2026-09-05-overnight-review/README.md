@@ -77,7 +77,7 @@ Updated live. Times are PT.
 | C Versioning / migration | done 00:40 | 7 findings (6 CONFIRMED), pivot-cost analysis, 13 verified-sound |
 | D Infra / DB / Vercel / review loop | done 00:43 | 8 findings (6 CONFIRMED), 13 ranked recommendations, 08-28 items: 8 fixed, 2 still open |
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
-| F Simplifiable | running 00:31 | |
+| F Simplifiable | done 00:44 | 12 findings (all CONFIRMED), /ask flow map, 13 deliberately-not |
 | G Broken functionality (lanes + hunt) | running 00:31 | |
 | Verification wave | running 00:42 | C, E verifiers launched 00:41; A, B launched 00:43 |
 | Findings written | pending | |
