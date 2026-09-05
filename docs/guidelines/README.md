@@ -4,6 +4,13 @@ These guides tell future agents *how* to work in this repo. `AGENTS.md` is the
 binding law (invariants, module map, definition of done); these expand it into
 practice. Read the one that matches your task:
 
+> **House rule: a guideline cites `AGENTS.md §X`; it does not re-quote it.** A
+> copy is accurate on the day it is written and silently wrong the day the law
+> moves — `quality-enforcement.md` carried a copy of the Definition of Done that
+> outlived the arrival of the verification tiers and ended up instructing a
+> prose-only change to run the full suite (KI-2026-09-05-u). Same rule for any
+> other single-source text: link to it, do not restate it.
+
 | Guide | Answers |
 |---|---|
 | `stack-and-constraints.md` | What framework/stack are we on, and what limits bind every decision? |

@@ -30,7 +30,9 @@ typecheck → lint (including boundary rules) → unit → integration (Postgres
 service container) → e2e smoke → golden tests. All green or it doesn't merge.
 
 `pnpm check` (typecheck + lint + unit) is the fast subset with no
-infrastructure dependency — run it constantly while iterating. It does
+infrastructure dependency — but it is **not** the mid-branch default: that is
+the `minimal-check-subset` skill's output, per `AGENTS.md` §Definition of Done
+Tier 2. `pnpm check` does
 **not** run integration or e2e, since those need a running Postgres
 (`pnpm setup` once, then `docker compose up -d` or equivalent) and, for e2e,
 installed Playwright browsers. Run those explicitly before claiming done on
@@ -84,21 +86,32 @@ timeout; a real defect fails in the same place every time.** And before
 recording a failure as environmental anywhere, grep `docs/known-issues/` for
 the symptom — see `cloud-agent-sessions.md`.
 
-## Definition of done (restated from AGENTS.md — the checklist)
+## Definition of done — read it in `AGENTS.md`, not here
 
-- [ ] `pnpm check` green locally; CI green.
-- [ ] New logic has tests at its layer per the pyramid above, and **each new
-      test was seen red before it was seen green** — the source edit and the
-      real failure text go in the PR (`testing.md` §3).
-- [ ] Milestone e2e extended if a user flow changed.
-- [ ] Contracts changelog entry if any schema changed; consumers updated in
-      the same PR.
-- [ ] No invariant weakened; blockers reported, not bent.
-- [ ] Docs updated (ADR / milestone file / guidelines) if behavior or
-      interfaces changed.
-- [ ] Conventional commit(s), one logical change each.
-- [ ] PR opened from `.github/PULL_REQUEST_TEMPLATE.md`, with **Verification
-      actually performed** filled in — including what was *not* run and why.
+**This file used to carry a copy of the checklist, and the copy is gone.** It
+was accurate when written; `AGENTS.md` then grew the three verification tiers
+and the copy did not follow, so this section sat here telling you "`pnpm check`
+green locally" under a header reading *every change* — which is precisely the
+reflex the tiers were added to stop. A prose-only branch runs **nothing**.
+Correcting the copy would only buy time until the next drift, so there is now
+one text and a pointer to it.
+
+- **The bar itself:** `AGENTS.md` §Definition of Done. Its §*Verification scales
+  to the change* has the three tiers — Tier 1 (prose-only branch: run nothing),
+  Tier 2 (mid-branch code: the `minimal-check-subset` skill's output and nothing
+  more), Tier 3 (leaving draft: the single `pnpm check` a branch pays for). Its
+  §*What the change itself must carry* has the rest of the checklist — tests at
+  the layer, fixtures, contracts changelog, invariants, migrations, the PR
+  template.
+- **Which tier you are in is a property of the whole branch**, decided by every
+  path it changes, not by the diff in front of you. `AGENTS.md` documents the
+  trap and the run that proved it.
+- **Seeing a new test fail before you trust it** is `testing.md` §3, per this
+  file's opening note — that rule lives with the test procedure, not with the
+  bar.
+
+**House rule (`docs/guidelines/README.md`): a guideline cites `AGENTS.md §X`.
+It does not re-quote it.** That is what went wrong here.
 
 ## Waiting on PR checks
 
