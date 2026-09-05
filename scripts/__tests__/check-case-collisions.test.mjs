@@ -77,7 +77,7 @@ test("reports every colliding group, not just the first", () => {
 test("passes a repo whose paths differ by more than case, and counts what it scanned", () => {
   const { status, stdout } = runWall(["src/Trip.tsx", "src/trip/fitIntoDay.ts", "README.md"]);
   assert.equal(status, 0);
-  assert.match(stdout, /case collision check OK \(3 tracked paths\)/);
+  assert.match(stdout, /case collision check OK \(3 paths\)/);
 });
 
 // `Foo.ts` and `foo.ts` in DIFFERENT directories are two distinct paths on every
@@ -88,39 +88,49 @@ test("does not flag the same basename in two different directories", () => {
   assert.equal(status, 0, stdout);
 });
 
-// SCOPE, the part worth knowing before trusting this wall: it reads `git ls-files`,
-// which lists the INDEX. An untracked file that collides with a tracked one is invisible
-// to it — you get the failure at `next build` time and the wall stays green. That is the
-// same blind spot KI-51 found in the colour wall, which was fixed there by adding
-// `--others --exclude-standard`; it has not been fixed here. This test pins the current
-// reach so the gap is a recorded fact rather than an assumption.
-test("does not reach untracked files — the collision must be in the index to be seen", () => {
+// SCOPE, closed by KI-2026-09-05-s's follow-up: the wall previously read a plain
+// `git ls-files`, so a collision introduced by an untracked file was invisible until it
+// was committed — the KI-51 blind spot. It now reads `--cached --others
+// --exclude-standard`. An untracked file therefore counts toward the scan.
+//
+// NOTE the pair itself cannot be built in this test's working tree: on macOS APFS and
+// Windows NTFS `Alpha.ts` and `alpha.ts` ARE one file, which is the whole reason KI-33
+// was invisible locally. So the tracked side is injected via `update-index --cacheinfo`
+// and the untracked side asserts reach (the count), not detection.
+test("reaches untracked files, so an uncommitted path counts toward the scan", () => {
   const { status, stdout } = runWall(["Trip.ts"], { untracked: { "other.ts": "// not added\n" } });
   assert.equal(status, 0);
-  assert.match(stdout, /1 tracked paths/);
+  assert.match(stdout, /2 paths/, "the untracked file must be counted, not skipped");
 });
 
-// SCOPE, and a finding this self-test produced on its first run (KI-2026-09-05-s):
-// the wall does NOT reach the actual KI-33 pair its own header comment cites.
-// `UnscheduledRack.tsx` and `unscheduledRack.ts` differ in EXTENSION as well as case, so
-// lowercased they are two different strings and the whole-path comparison sees no
-// collision. The real KI-33 collision was at the module-specifier level:
-// `@/components/trip/UnscheduledRack` resolves extension-last, so on a case-insensitive
-// filesystem both files answer to one specifier.
-//
-// This is characterisation, not approval. It is asserted so the gap is a recorded fact
-// with a reproduction rather than an assumption — if a later change teaches the wall
-// extension-blind comparison, this test SHOULD go red and be rewritten as a red-first
-// fixture for the new behaviour.
-test("does NOT catch the KI-33 pair itself: differing extensions defeat the whole-path comparison", () => {
-  const { status, stdout } = runWall([
+// RED-FIRST FIXTURE for the behaviour that replaced this file's former characterisation
+// test. The wall now compares MODULE SPECIFIERS as well as whole paths, so KI-33's own
+// pair — cited in the wall's header comment and, until now, not caught by it — fails.
+// `@/components/trip/UnscheduledRack` resolves extension-last, so both files answer to
+// one specifier on a case-insensitive filesystem.
+test("catches the KI-33 pair itself: differing extensions no longer defeat the comparison", () => {
+  const { status, stderr } = runWall([
     "apps/web/src/components/trip/UnscheduledRack.tsx",
     "apps/web/src/components/trip/unscheduledRack.ts",
   ]);
-  assert.equal(
-    status,
-    0,
-    "the wall now catches extension-differing module collisions — good; rewrite this test as a red-first fixture",
-  );
-  assert.match(stdout, /case collision check OK \(2 tracked paths\)/);
+  assert.equal(status, 1, "the pair the wall exists to catch must fail it");
+  assert.match(stderr, /UnscheduledRack\.tsx/);
+  assert.match(stderr, /unscheduledRack\.ts/);
+});
+
+// The narrowing that makes the specifier comparison safe: `foo.ts` + `foo.tsx` share a
+// specifier but differ in NO case, and `index.ts` + `index.css` are not both resolvable
+// from one extensionless specifier. Neither is this wall's business; flagging either
+// would be the false positive that made this fix look risky.
+test("does not flag an extension ambiguity, or a non-module file sharing a stem", () => {
+  assert.equal(runWall(["a/foo.ts", "a/foo.tsx"]).status, 0, "same specifier, no case difference");
+  assert.equal(runWall(["a/index.ts", "a/index.css"]).status, 0, "css is not specifier-reachable");
+});
+
+// A pure-case pair with matching extensions trips BOTH comparisons; it must be reported
+// once, not twice.
+test("reports a pair caught by both comparisons exactly once", () => {
+  const { status, stderr } = runWall(["a/Bar.ts", "a/bar.ts"]);
+  assert.equal(status, 1);
+  assert.equal(stderr.match(/case-only collision:/g).length, 1);
 });
