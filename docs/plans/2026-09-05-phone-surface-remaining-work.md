@@ -41,15 +41,16 @@ the real numbers, not a substitute for making it.
 
 ### 1. SPEC §23 — the assistant reaches the phone — **BUILT 2026-09-05**
 
-Built on `claude/caesura-phone-mobile-design-dcb4b9`; `test:e2e:ci-like` 90 passed
-plus a browser walk at 412×855. **The premise below was wrong** and is kept as
-written so the correction is legible: the phone had an assistant on three of four
-screens (an in-flow `◎ Assistant` at the end of the plan column on Plan and Map,
-another beside "Edit page" on an open page, and nothing on the Notebook index),
-and §23's sheet **reverses KI-84** rather than filling a blank. Mitchell chose it
-knowingly. See `KI-2026-09-05-aa`, and STATUS.md for what §23 left open — chiefly
-that the phone Plan focuses no day on arrival, so the sheet opens trip-wide until
-a chip is tapped.
+Built in PR #148; `test:e2e:ci-like` 91 passed plus a browser walk at 412×856.
+**§23's job is unification** — one pill, one label, one position across all four
+in-trip phone screens — and the drift it fixes was worse than the paragraph below
+records: the phone had an assistant on three of four screens, in three different
+places (an in-flow `◎ Assistant` at the end of the plan column on Plan and Map,
+another beside "Edit page" on an open page, nothing on the Notebook index). The
+sentence below is kept as written so the correction stays legible. One
+consequence the design does not mention: §23's sheet **reverses KI-84**, and
+Mitchell chose it knowingly. See `KI-2026-09-05-aa`, and STATUS.md for what §23
+left open.
 
 The newest design (2026-09-05) and wholly unbuilt: **there is no phone assistant
 in the code at all**, so this is design ahead of build, not drift. `DRIFT.md` §2i

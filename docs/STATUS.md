@@ -32,9 +32,14 @@ path, and the Notebook index — which had **no** assistant at all — has one n
 pill measures 44px in flow, the sheet lands flush at x0/bottom, and `elementFromPoint` over
 the Plan tab returns the scrim (DRIFT build-check 4c).
 
-**§23 reverses KI-84 deliberately.** The phone assistant was a full-screen takeover because
-of Mitchell's own report that a modal *"breaks the entire website"*; §23 specifies the modal
-sheet instead. He was shown the conflict on 2026-09-05 and chose §23 literally, so
+**The point of §23 is unification, and that is what it bought.** The assistant had drifted
+apart: three phone entry points, in three places, under two labels, with the Notebook index
+missing it entirely — on top of desktop's own three presentations from §9. It is now one
+pill, one label, one position, on all four in-trip screens. **A side effect worth knowing:
+§23 reverses KI-84** — the phone assistant was full-screen because of Mitchell's own report
+that a modal *"breaks the entire website"*, and §23 specifies the modal sheet. The design
+does not mention the reversal because one sentence in it understates what already existed
+(`KI-2026-09-05-aa`). He was shown it on 2026-09-05 and chose §23 literally, so
 `e2e/m16-mobile-assistant.spec.ts`'s four assertions were rewritten (five now, the new one
 being 4c) with the KI-84 → KI-2026-08-30 → §23 sequence recorded in the file header.
 
@@ -46,9 +51,10 @@ rather than §23's three fixed chips, and the placeholder stays **scope**-keyed 
 §23's tab-keyed — both deliberate, both reversible, both recorded where the code is. (3)
 §23's "sync dot and avatar drop to the title row" is **not built**: it needs the phone to
 stop rendering the global `AppHeader`, which is the same unconfirmed architecture decision
-the Map chrome work is waiting on. Three KIs were filed: **`KI-2026-09-05-aa`** (§23 and
-DRIFT §2i assert the phone had no assistant; it had one on three of four screens — design
-is regenerated wholesale, so the build cannot fix it in place), **`-ab`** (the notebook
+the Map chrome work is waiting on. Three KIs were filed: **`KI-2026-09-05-aa`** (§23's
+unification plan is right, but the sentence describing what it unifies understates it, and
+that is what hid the KI-84 reversal — design is regenerated wholesale, so the build cannot
+fix it in place), **`-ab`** (the notebook
 assistant's second turn types into the document, not the composer — deterministic, and
 possibly a real product defect rather than a test bug), **`-ac`** (three affordances share
 the accessible name `Ask`).
@@ -68,10 +74,10 @@ more than ~two columns fit.
 `TODO.md:537` and `KI-046` both say placing the phone is a milestone-sized decision; #143
 did not make it. **Measured after the merge: 189 of 209 interactive controls on the phone
 trip board are under 44px (90%)** — the `touch` primitive exists and is essentially unused,
-so §13.1 is a size in the design system rather than a property of the product. **SPEC §23 was believed wholly unbuilt when this was
-written, and that was wrong** — the phone had an assistant on three of four screens, in
-three different places. It is now built as §23 specifies; see the entry above and
-`KI-2026-09-05-aa`.
+so §13.1 is a size in the design system rather than a property of the product. **SPEC §23 is now built.** When this
+paragraph was written it was thought wholly unbuilt; in fact the phone had an assistant on
+three of four screens, in three different places — which is the inconsistency §23 exists to
+unify. See the entry above and `KI-2026-09-05-aa`.
 
 **The full inventory is `docs/plans/2026-09-05-phone-surface-remaining-work.md`** — what is
 built, what is left in order, the defects left open (including `--rack-height`, which has
