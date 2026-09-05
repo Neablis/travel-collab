@@ -379,47 +379,16 @@ test.describe("responsive (Map lens on a phone)", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
 
-    // …and the reason it does not scroll, asserted separately, because the
-    // line above did NOT catch the bug it looks like it would. The canvas is
-    // `calc(100dvh - … - var(--launcher-height))`, and that variable published
-    // `0px` for months while the in-flow assistant launcher really occupied
-    // 56px — the seeded Japan trip overflowed by exactly 56 on this screen.
-    // This spec stayed green throughout, because its own three-day trip is
-    // short enough to absorb the error.
-    //
-    // So assert the ARITHMETIC, not just its result: the published height has
-    // to equal the launcher wrapper's real flow footprint.
-    //
-    // Stated honestly, because it was measured rather than assumed: this pair
-    // of assertions still does NOT reproduce the original bug. Reverting the
-    // fix (dropping the synchronous measure in TripBoardScreen's
-    // `launcherWrapperRef`) leaves this spec green at 3 days and at 14, while
-    // the same build serves `0px` on the seeded Japan trip — 14 days and 68
-    // stops — on a cold server's first load. The trigger is how many times
-    // React invokes the ref while a heavy board settles, and this spec's
-    // synthetic trip is too light to get there.
-    //
-    // It is kept anyway for what it does do: it pins the relationship, so a
-    // change that publishes a wrong non-zero number is caught here, and it
-    // documents the arithmetic the canvas depends on. **The regression guard
-    // is the unit test** — TripBoardScreen.test.tsx, "publishes the launcher's
-    // flow height on attach, without waiting for a resize notification" —
-    // which does fail without the fix, because vitest.setup.ts's polyfill
-    // never delivers a notification unless a test asks for one.
-    const launcher = await page.evaluate(() => {
-      const content = document.querySelector(".trip-board-content");
-      const wrapper = document.querySelector(".flow-root");
-      if (!content || !wrapper) return null;
-      return {
-        published: getComputedStyle(content).getPropertyValue("--launcher-height").trim(),
-        measured: `${Math.round(wrapper.getBoundingClientRect().height)}px`,
-      };
-    });
-    expect(launcher).not.toBeNull();
-    expect(Number.parseFloat(launcher!.measured)).toBeGreaterThan(0);
-    expect(Math.round(Number.parseFloat(launcher!.published))).toBe(
-      Number.parseFloat(launcher!.measured),
-    );
+    // Why there is no `--launcher-height` assertion here, though this screen is
+    // exactly where that variable is spent: one was written and then removed.
+    // It stayed GREEN with the production fix reverted — at 3 days and at 14 —
+    // because the bug needs the render volume of the seeded 14-day/68-stop trip
+    // to reproduce, and it also had to reach for `.trip-board-content` and
+    // `.flow-root` by class, which are implementation details rather than
+    // anything a reader can see. A test that cannot go red is a claim, not a
+    // control (CLAUDE.md rule 3), so it is gone. The guard is the unit test —
+    // TripBoardScreen.test.tsx, "publishes the launcher's flow height on
+    // attach" — which does fail without the fix. (Copilot, PR #143.)
   });
 
   test("keeps the rail and legend at desktop width", async ({ page }) => {

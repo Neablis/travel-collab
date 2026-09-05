@@ -43,7 +43,14 @@ export type SheetSize = "rail" | "full" | "bottom";
  */
 export type SheetActions = {
   onCancel?: () => void;
-  onSave?: () => void;
+  /**
+   * Required, unlike the rest. Opting into this header ALWAYS renders a Save,
+   * and there is no form-submit fallback behind it — so an optional `onSave`
+   * let a caller ship an enabled button that silently does nothing. Cancel is
+   * optional because it has a real default: `RadixDialog.Close` dismisses the
+   * sheet whether or not the caller wants to hear about it. (Copilot, PR #143.)
+   */
+  onSave: () => void;
   cancelLabel?: string;
   saveLabel?: string;
   saveDisabled?: boolean;

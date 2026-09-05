@@ -271,9 +271,10 @@ describe("FocusProvider — the jump lock", () => {
   // pick — clicking "Day 1" selected day 1 and then snapped to day 2 on its
   // own, at every desktop width.
   //
-  // This test and the one above differ ONLY in `arriving`, which is the whole
-  // of the fix: the same unmoved jump keeps its lock when it was a follow, and
-  // releases it when it was an arrival.
+  // This test and the one above differ ONLY in `keepLockIfUnmoved`, which is
+  // the whole of the fix: the same unmoved jump RELEASES its lock for an
+  // ordinary follow (above), and KEEPS it when the day was picked in this
+  // container (here).
   it("keeps the lock when the day was picked HERE — clamped, not already right", () => {
     const { element } = scrollTarget({ moves: false });
     render(

@@ -120,13 +120,15 @@ function phoneTabHref(tab: PhoneTabId, tripId: string | null): string | null {
 const TAB_CLASS =
   "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-2xs leading-none no-underline";
 
-export function PhoneTabBar() {
-  const pathname = usePathname();
-  const params = useSearchParams();
+/**
+ * The bar itself, taking the route as plain values so it can be rendered from
+ * both the server-safe path and the `useSearchParams()` one below.
+ */
+function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | null }) {
   const barRef = useRef<HTMLElement>(null);
 
   const tripId = tripIdFromPathname(pathname);
-  const active = activePhoneTab(pathname, params.get("lens"));
+  const active = activePhoneTab(pathname, lens);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -230,4 +232,31 @@ export function PhoneTabBar() {
       })}
     </nav>
   );
+}
+
+/**
+ * What the server renders, and the Suspense fallback in `(app)/layout.tsx`.
+ *
+ * `useSearchParams()` opts its subtree out of static rendering, and Next
+ * satisfies that by rendering the *fallback* on the server and the component
+ * itself on the client. With `fallback={null}` that meant the whole bar was
+ * absent from first-paint HTML while `.phone-tab-bar-inset` was already
+ * reserving its height — a phone would show an 83px gap with no navigation in
+ * it until hydration, which is worse than the pop-in `md:hidden` was chosen to
+ * avoid. Copilot caught it on PR #143.
+ *
+ * `usePathname()` triggers no such bailout, and the route alone settles four
+ * of the five tabs. The one thing it cannot know is Plan-vs-Map inside a trip,
+ * so it renders `lens: null` — which `activePhoneTab` reads as Plan, the right
+ * guess: a bare `/trips/<id>` is normalised to Timeline (SPEC §10), so Plan is
+ * where a trip route without an explicit lens actually lands. A reader who
+ * deep-links `?lens=Map` sees Plan lit for one paint and Map thereafter; the
+ * bar's position, size and hit targets never move.
+ */
+export function PhoneTabBarFallback() {
+  return <PhoneTabBarView pathname={usePathname()} lens={null} />;
+}
+
+export function PhoneTabBar() {
+  return <PhoneTabBarView pathname={usePathname()} lens={useSearchParams().get("lens")} />;
 }

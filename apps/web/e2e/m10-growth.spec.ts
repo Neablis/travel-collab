@@ -232,18 +232,11 @@ test("every day container follows the selection, and any of them can move it", a
   // "Changing the tab jumps to the selected day." Selected from a column, then
   // read in two lenses that were not even mounted when the choice was made.
   //
-  // Widened to a desktop viewport first, because this clause — alone in this
-  // test — drives the LENS STRIP, and SPEC §10 ("two views, not four") hides
-  // that strip below 768px: Timeline and Map are bottom-nav tabs on a phone
-  // and Calendar does not exist there at all. Without this the clicks below
-  // time out waiting for a tab that is `display: none`.
-  //
-  // Clauses 1 and 2 stay at 411px on purpose. They are about the chips row and
-  // the day columns syncing to each other, which needs most of the ten days
-  // off-screen in both — that is what the narrow width buys, and it is still
-  // reachable on a phone because `?lens=Board` above is an EXPLICIT lens and
-  // `usePhoneTwoViews` only rewrites the default.
-  await page.setViewportSize({ width: 1000, height: 760 });
+  // No viewport change here: the whole test runs at the 800px set at the top.
+  // This clause is the one that drives the LENS STRIP, and SPEC §10 ("two
+  // views, not four") hides that strip below 768px — which is the other reason
+  // 411px is no longer a viable width for this test, alongside the reading-line
+  // geometry described up there.
   await columns.last().getByRole("button", { name: /^Day 10/ }).click();
   await expect(selectedChip()).toHaveAttribute("data-day-index", "9");
 

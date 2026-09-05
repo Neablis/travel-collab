@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { PhoneTabBar } from "@/components/nav/PhoneTabBar";
+import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 // The app chrome belongs to authenticated surfaces, not to every route. The
@@ -38,8 +38,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           is this"), and an unwrapped `useSearchParams` in a *layout* opts
           every route under it out of static rendering — including the two
           that have no dynamic API of their own (`/playbooks`,
-          `/playbooks/board`). The boundary keeps that cost on the bar. */}
-      <Suspense fallback={null}>
+          `/playbooks/board`). The boundary keeps that cost on the bar.
+
+          The fallback is a REAL bar, not `null`. Next satisfies the bailout by
+          rendering this fallback on the server and the component on the
+          client, so `null` left the bar out of first-paint HTML entirely while
+          `.phone-tab-bar-inset` above was already reserving its height — an
+          83px gap with no navigation in it, on exactly the surface that has
+          nowhere else to navigate from. `PhoneTabBarFallback` renders the same
+          five tabs from `usePathname()` alone, which triggers no bailout.
+          Copilot caught this on PR #143. */}
+      <Suspense fallback={<PhoneTabBarFallback />}>
         <PhoneTabBar />
       </Suspense>
     </PreferencesProvider>
