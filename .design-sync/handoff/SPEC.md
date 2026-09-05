@@ -265,6 +265,9 @@ insert sheet plus the chrome row, and neither is a text-macro editor.
 
 ## 9. The assistant — one panel, three presentations
 
+> **Extended by §23 (2026-09-05).** The three presentations below are the **desktop** ones.
+> The phone reaches the assistant through an `Ask` pill and a bottom sheet — see §23.
+
 The assistant is **not a fixed rail**. One panel, three presentations, and the user picks:
 
 | Mode | What it is | Layout cost |
@@ -936,6 +939,52 @@ closes. Summary only:
 The spec also names what is owed rather than designed: `prefers-reduced-motion`, a phone
 entry point, and what the Include chips actually do to the snapshot.
 
+
+---
+
+## 23. The assistant reaches the phone — as a pill, not a tab — 2026-09-05
+
+§9 gave the assistant three presentations, **all of them desktop**: docked rail, floating
+panel, collapsed bubble. The phone had none, and no entry point at all. It has one now.
+
+**An `Ask` pill, last item in the top row, on all four in-trip screens** — Plan, Map, the
+Notebook index and an open Notebook page. Same pill, same label, same position, so it never
+moves as you change tabs. It opens a **bottom sheet** over what you are already looking at.
+
+**Why not a fourth tab — this is the load-bearing decision.** A tab is a destination, and a
+destination has to invent its own scope. It would open on "the whole trip" and lose the day
+or the page you were reading, which is the one thing the phone assistant has to get right on
+a screen that shows one day at a time. **The pill inherits the surface's scope instead.**
+
+**Scope is stated, never inferred by the user.** The sheet's first line names what it is
+looking at, and the placeholder and quick asks change with it:
+
+| Where you open it | Context line | Quick asks |
+|---|---|---|
+| Plan / Map | *Asking about Fri 26 · Kyoto* | Is this day too full? · Rainy-day swap · What is near what? |
+| Notebook index | *Asking about this trip's Notebook* | What is not set up? · Summarise this page |
+| An open page | *Asking about "Kyoto — getting around"* | as above |
+
+**It proposes, it does not act silently.** Ask it to move something and you get the **same
+ghost the desktop timeline shows** — `state.ghosts`, one entry per proposal — rendered in the
+sheet with *Keep it* / *Not now*. Keeping one lands it on its day exactly as it would on
+desktop. There is deliberately **no phone-only proposal path**, for the same reason the
+notebook framework has no second chip renderer.
+
+**Geometry:** sheet `max-height: 80%`, rounded 18px top, scrim at `z-index: 6` over the tab
+bar (`z-index: 4`) with the sheet at `7`, so the bar is covered and not tappable behind it.
+Every control is 44px.
+
+### Two knock-on changes to the phone trip header
+
+Made so the pill has a fixed home rather than displacing something different per screen:
+
+- **The sync dot and avatar dropped to the title row** on Plan, right of the trip name. The
+  top row is now `‹ Trips` … `Ask`.
+- **The date meta line is the date range only.** Stops and cities came out — the day rail
+  and the trip below it already carry both (rule 4).
+- **The Notebook index gained a title block** — "Notebook" at title scale with the trip name
+  as its meta line, matching Plan's rhythm. That is where the trip name lives now.
 
 ---
 

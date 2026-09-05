@@ -155,10 +155,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
           <sc-if value="{{ phoneNbIndex }}" hint-placeholder-val="{{ false }}">
             <div style="flex: 0 0 auto; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 34px;">
-                <button onClick="{{ goHome }}" style="flex: 0 0 auto; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
-                <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">Notebook</span>
-                <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">{{ phoneTitleShort }}</span>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px;">
+                <button onClick="{{ goHome }}" style="flex: 0 0 auto; min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
+                <button onClick="{{ openPhoneAsk }}" title="{{ phoneAskCtx }}" style="flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--color-brand-tint); border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand-pressed); cursor: pointer;"><span style="font-size: 12px;">◎</span>Ask</button>
+              </div>
+              <div style="padding: 2px 0 2px;">
+                <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">Notebook</div>
+                <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ phoneTitleShort }}</div>
               </div>
             </div>
             <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 18px 16px 110px; background: var(--color-surface); display: flex; flex-direction: column; gap: 10px;">
@@ -188,14 +191,15 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
           <sc-if value="{{ phoneNbDoc }}" hint-placeholder-val="{{ false }}">
             <div style="flex: 0 0 auto; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
-              <div style="display: grid; grid-template-columns: 1fr 92px; align-items: center; gap: 10px; min-height: 44px;">
+              <div style="display: grid; grid-template-columns: 1fr 92px auto; align-items: center; gap: 10px; min-height: 44px;">
                 <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
                   <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">Editing</span>
                 </sc-if>
                 <sc-if value="{{ docReading }}" hint-placeholder-val="{{ false }}">
                   <button onClick="{{ phoneCloseDoc }}" style="justify-self: start; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer; min-height: 44px;">‹ Notebook</button>
                 </sc-if>
-                <button onClick="{{ toggleDocMode }}" aria-pressed="{{ docEditing }}" style="width: 92px; min-height: 40px; padding: 0 12px; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; background: {{ phoneEditBg }}; color: {{ phoneEditInk }}; border: 1px solid {{ phoneEditEdge }};">{{ docEditLabel }}</button>
+                <button onClick="{{ toggleDocMode }}" aria-pressed="{{ docEditing }}" style="width: 92px; min-height: 44px; padding: 0 12px; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; background: {{ phoneEditBg }}; color: {{ phoneEditInk }}; border: 1px solid {{ phoneEditEdge }};">{{ docEditLabel }}</button>
+                <button onClick="{{ openPhoneAsk }}" title="{{ phoneAskCtx }}" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--color-brand-tint); border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand-pressed); cursor: pointer;"><span style="font-size: 12px;">◎</span>Ask</button>
               </div>
               <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
                 <div style="background: {{ docSaveBg }}; border-radius: 8px; padding: 7px 10px; margin: 8px 0 2px; font-size: 12.5px; line-height: 1.4; color: {{ docSaveInk }}; text-wrap: pretty;">{{ docSaveNote }}</div>
@@ -365,17 +369,20 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
           <sc-if value="{{ phonePlan }}" hint-placeholder-val="{{ true }}">
             <div style="flex: 0 0 auto; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline); padding: 58px 16px 0;">
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 38px;">
-                <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
-                <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; min-height: 44px;">
+                <button onClick="{{ goHome }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
+                <button onClick="{{ openPhoneAsk }}" title="{{ phoneAskCtx }}" style="display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--color-brand-tint); border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand-pressed); cursor: pointer;"><span style="font-size: 12px;">◎</span>Ask</button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; padding: 2px 0 8px;">
+                <button onClick="{{ openSettings }}" title="Open trip settings" style="flex: 1; min-width: 0; display: block; text-align: left; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer;">
+                  <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">{{ phoneTitleShort }}</div>
+                  <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 4px;">{{ trip.dates }}</div>
+                </button>
+                <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 10px;">
                   <span role="status" aria-label="{{ syncLabel }}" style="width: 8px; height: 8px; border-radius: 999px; background: {{ logoBg }};"></span>
                   <span style="width: 28px; height: 28px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
                 </div>
               </div>
-              <button onClick="{{ openSettings }}" title="Open trip settings" style="display: block; width: 100%; text-align: left; background: none; border: 0; font-family: inherit; cursor: pointer; padding: 2px 0 8px;">
-                <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; line-height: 1.2; color: var(--color-ink);">{{ phoneTitleShort }}</div>
-                <div style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 4px;">{{ trip.dates }} · {{ trip.stops }} · {{ tripCities }}</div>
-              </button>
               <div data-phone-rail="plan" style="display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 10px; scrollbar-width: none;">
                 <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
                   <button onClick="{{ c.jump }}" data-rail-sel="{{ c.selFlag }}" style="flex: 0 0 auto; width: 62px; padding: 7px 9px; border-radius: 11px; background: {{ c.tint }}; box-shadow: {{ c.ring }}; border: 0; font-family: inherit; text-align: left; cursor: pointer;">
@@ -450,10 +457,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
           <sc-if value="{{ phoneMapTab }}" hint-placeholder-val="{{ false }}">
             <div style="position: absolute; left: 0; right: 0; top: 0; z-index: 3; background: var(--color-surface); padding: 58px 16px 12px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; height: 34px;">
-                <button onClick="{{ goHome }}" style="background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
-                <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ phoneDayCity }}</span>
-                <span style="width: 28px; height: 28px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px;">
+                <button onClick="{{ goHome }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Trips</button>
+                <span style="flex: 1; min-width: 0; text-align: center; font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ phoneDayCity }}</span>
+                <button onClick="{{ openPhoneAsk }}" title="{{ phoneAskCtx }}" style="flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--color-brand-tint); border: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-brand-pressed); cursor: pointer;"><span style="font-size: 12px;">◎</span>Ask</button>
               </div>
               <div data-phone-rail="map" style="display: flex; gap: 6px; overflow-x: auto; padding-top: 10px; scrollbar-width: none;">
                 <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
@@ -873,6 +880,55 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <sc-if value="{{ insMore }}" hint-placeholder-val="{{ false }}">
                     <div style="font-size: 12px; color: var(--color-slate); padding-top: 6px;">{{ insMoreLabel }}</div>
                   </sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneAskOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closePhoneAsk }}" style="position: absolute; inset: 0; z-index: 6; background: rgba(21, 29, 46, 0.34);"></div>
+            <div role="dialog" aria-label="Assistant" style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; flex-direction: column; max-height: 80%; background: var(--color-surface); border-top: 1px solid var(--color-hairline); border-radius: 18px 18px 0 0; box-shadow: 0 -14px 44px rgba(21, 29, 46, 0.22);">
+              <div style="flex: none; padding: 12px 16px 11px; border-bottom: 1px solid var(--color-hairline);">
+                <div style="display: flex; align-items: center; gap: 9px; min-height: 44px;">
+                  <span style="width: 22px; height: 22px; border-radius: 7px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 11px;">◎</span>
+                  <span style="flex: 1; font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Assistant</span>
+                  <button onClick="{{ closePhoneAsk }}" title="Close" style="width: 44px; height: 44px; border: 0; border-radius: 10px; background: transparent; font-family: inherit; font-size: 17px; color: var(--color-slate); cursor: pointer;">✕</button>
+                </div>
+                <div style="font-size: 12.5px; color: var(--color-slate); background: var(--color-paper); border: 1px solid var(--color-hairline); border-radius: 7px; padding: 7px 10px; text-wrap: pretty;">{{ phoneAskCtx }}</div>
+              </div>
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+                <sc-if value="{{ phoneAskEmpty }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ phoneAskHint }}</div>
+                </sc-if>
+                <sc-for list="{{ phoneChat }}" as="m" hint-placeholder-count="0">
+                  <div style="align-self: {{ m.side }}; max-width: 86%; background: {{ m.bg }}; border: 1px solid {{ m.edge }}; border-radius: 13px; padding: 9px 12px;">
+                    <div style="font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 3px;">{{ m.from }}</div>
+                    <div style="font-size: 13.5px; line-height: 1.5; color: var(--color-ink); text-wrap: pretty;">{{ m.text }}</div>
+                  </div>
+                </sc-for>
+                <sc-for list="{{ phoneProposals }}" as="p" hint-placeholder-count="0">
+                  <div style="border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 13px; padding: 12px;">
+                    <div style="display: flex; align-items: baseline; gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-brand-pressed);">{{ p.when }}</span>
+                      <span style="flex: 1; font-size: 14px; font-weight: 600; color: var(--color-brand-pressed); text-wrap: pretty;">{{ p.title }}</span>
+                    </div>
+                    <div style="font-size: 12.5px; line-height: 1.5; color: var(--color-brand-pressed); padding-top: 4px; text-wrap: pretty;">{{ p.why }}</div>
+                    <div style="display: flex; gap: 8px; padding-top: 10px;">
+                      <button onClick="{{ p.keep }}" style="flex: 1; min-height: 44px; border: 0; border-radius: 999px; background: var(--color-brand); font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--color-surface); cursor: pointer;">Keep it</button>
+                      <button onClick="{{ p.drop }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 16px; border: 1px solid var(--color-brand); border-radius: 999px; background: transparent; font-family: inherit; font-size: 13.5px; color: var(--color-brand-pressed); cursor: pointer;">Not now</button>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="flex: none; border-top: 1px solid var(--color-hairline); padding: 11px 16px 26px;">
+                <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;">
+                  <sc-for list="{{ phoneQuickAsks }}" as="q" hint-placeholder-count="3">
+                    <button onClick="{{ q.act }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 13px; font-family: inherit; font-size: 13px; color: var(--color-slate); background: var(--color-moss); border: 0; border-radius: 999px; cursor: pointer;">{{ q.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" placeholder="{{ phoneAskPlaceholder }}" value="{{ ask }}" onChange="{{ setAsk }}"></x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,44px" variant="primary" onClick="{{ send }}">Ask</x-import>
                 </div>
               </div>
             </div>
@@ -3758,7 +3814,7 @@ class Component extends DCLogic {
     focus: 0,
     asst: (this.props.assistantDefault || 'expanded') === 'expanded' && (typeof window === 'undefined' || window.innerWidth > 1180),
     asstPos: null, asstDragging: false, asstDock: false,
-    ask: '', chat: [], dismissed: [], ghosts: [],
+    ask: '', chat: [], dismissed: [], ghosts: [], askSheet: false,
     ntOpen: false, step: 0, dest: '', start: '2027-04-10', end: '2027-04-17',
     people: ['Sam K', 'Priya R'], invitee: '', pace: 'balanced',
     addOpen: false, addTitle: '', addDayV: '10', addStart: '19:00', addDur: '2 hours', addNote: '',
@@ -7493,6 +7549,46 @@ class Component extends DCLogic {
         : route === 'day' ? 'Looking at a shared day'
         : route === 'board' ? 'Looking at who shares the most'
         : route === 'profile' ? 'Looking at someone who shares days' : 'Looking at all three of your trips',
+      // The phone assistant is a sheet over what you are already looking at, opened from
+      // an Ask pill in the header of Plan, Map and the Notebook index. It is deliberately
+      // NOT a tab: a tab is a destination, and a destination has to invent its own scope —
+      // it would open on "the whole trip" and lose the day or the page you were reading.
+      // The pill inherits the surface's scope instead, which is the one thing the phone
+      // assistant has to get right.
+      phoneAskOpen: route === 'trip' && !!s.askSheet,
+      openPhoneAsk: () => this.setState({ askSheet: true }),
+      closePhoneAsk: () => this.setState({ askSheet: false }),
+      phoneAskCtx: s.phoneTab === 'notebook'
+        ? (s.phoneDoc ? 'Asking about “' + this.doc().title + '”' : 'Asking about this trip\u2019s Notebook')
+        : 'Asking about ' + (focusDay ? focusDay.label + ' · ' + focusDay.city : trip.name),
+      phoneAskPlaceholder: s.phoneTab === 'notebook' ? 'Ask about this page…' : 'Ask about this day…',
+      phoneAskHint: s.phoneTab === 'notebook'
+        ? 'It reads the page you have open, its widgets and what they are pointed at.'
+        : 'It reads the day you have open — the stops, their times, what is booked and what is not. Ask it to move something and you get a proposal to keep or discard.',
+      phoneAskEmpty: !s.chat.length && !s.ghosts.length,
+      phoneChat: s.chat.map(m => ({
+        from: m.from, text: m.text,
+        side: m.from === 'You' ? 'flex-end' : 'flex-start',
+        bg: m.from === 'You' ? 'var(--color-moss)' : 'var(--color-paper)',
+        edge: m.from === 'You' ? 'var(--color-moss)' : 'var(--color-hairline)'
+      })),
+      // Proposals are the same ghosts the desktop timeline shows, so keeping one from the
+      // sheet lands it on its day exactly as it would there — there is no phone-only
+      // proposal path to drift.
+      phoneProposals: s.ghosts.map(g => ({
+        title: g.title, why: g.why,
+        when: this.fmt(g.start) + ' · Day ' + (g.day + 1),
+        keep: () => { this.setState(st => ({ ghosts: st.ghosts.filter(x => x !== g) })); this.flash('Added to Day ' + (g.day + 1)); },
+        drop: () => this.setState(st => ({ ghosts: st.ghosts.filter(x => x !== g) }))
+      })),
+      phoneQuickAsks: s.phoneTab === 'notebook' ? [
+        { label: 'What is not set up?', act: () => this.askAbout('the widgets on this page', s.focus) },
+        { label: 'Summarise this page', act: () => this.askAbout('what this page says', s.focus) }
+      ] : [
+        { label: 'Is this day too full?', act: () => this.askAbout('the pace of this day', s.focus) },
+        { label: 'Rainy-day swap', act: () => this.askAbout('a rainy-day alternative', s.focus) },
+        { label: 'What is near what?', act: () => this.askAbout('how close these stops are', s.focus) }
+      ],
       chat: s.chat, ask: s.ask, setAsk: e => this.setState({ ask: e.target.value }),
       send: () => {
         if (!s.ask.trim()) return;

@@ -2,7 +2,8 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-Design side refreshed 2026-09-05 (§2h the phone tab bar is scoped; §2g the notebook widget
+Design side refreshed 2026-09-05 (§2i the assistant reaches the phone; §2h the phone tab bar
+is scoped; §2g the notebook widget
 framework; §2f the phone Notebook; §2c billing surfaces; §2d the shared-day map and the phone
 Playbooks tab; §2e Notebook widgets — pages no longer have a scope).
 
@@ -211,7 +212,35 @@ What it needs instead — and this is the part to cost:
 
 **It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
 
-## 2h. New this turn — the phone tab bar is scoped, and no tab is ever disabled
+## 2i. New this turn — the assistant reaches the phone
+
+`SPEC.md` §23, which extends §9. Until this turn the assistant existed **only on desktop**;
+the phone had no entry point, and the code has no phone assistant either — so this is design
+ahead of build, not a disagreement.
+
+What a build owes:
+
+- **An `Ask` pill in the phone trip header, last in the top row, on all four in-trip
+  screens** (Plan, Map, Notebook index, open page), opening a bottom sheet. Not a tab — see
+  §23 for why; a tab forces a trip-wide scope and loses the day or page you were reading.
+- **The sheet's scope comes from the surface, and is printed in the sheet.** The context
+  line, the input placeholder and the quick asks are all derived from "which phone tab, and
+  is a page open". A build that opens the sheet with a trip-wide default has reimplemented
+  the thing this design rejected.
+- **Proposals reuse the desktop ghost path.** The sheet renders `state.ghosts` with
+  *Keep it* / *Not now*; keeping one lands the stop on its day. **Do not add a phone-only
+  proposal type** — same reasoning as the single chip renderer in §2g.
+- **The sheet must cover the tab bar** (scrim above the bar, sheet above the scrim). A sheet
+  that leaves the bar tappable lets you switch tabs underneath an open assistant, which
+  changes its scope out from under the conversation.
+
+**Related header changes** (§23): sync dot and avatar moved to the title row; the date meta
+line is the range only; the Notebook index gained a title block carrying the trip name.
+
+**Entitlements matter here.** §17's plans gate `ai.ask` / `ai.command` — the pill is on
+screens a Free user sees, so the build needs the gated state for it. **Undesigned; see §8.**
+
+## 2h. Previously — the phone tab bar is scoped, and no tab is ever disabled
 
 `SPEC.md` §22. Small, but it changes a component's contract rather than its styling, so it
 is drift and not a cosmetic.
@@ -379,6 +408,8 @@ Carried forward because each one is a bug the design already hit:
    five-item array, or adds a `disabled` prop to reach the same effect, it disagrees with
    the design (§2h, `SPEC.md` §22). Check the Notebook index keeps its `‹ Trips` link —
    without Trips in the bar, that link is the only exit from that screen.
+4c. **An open assistant sheet must block the tab bar.** Switching tabs behind an open sheet
+   changes its scope mid-conversation. Scrim above the bar, sheet above the scrim (§2i).
 5. **Maps inside conditional markup need a container-identity guard** — remount leaves
    the instance bound to a detached node and the style load aborts silently.
 6. **Gesture handlers go on the element, not `document` with `capture: true`.**
@@ -402,6 +433,12 @@ Carried forward because each one is a bug the design already hit:
   usage or the collaboration gate; the operator console is deliberately never on the phone.
   The two phone states rule 6 wants for the plan section are undesigned.
 
+- **The phone assistant has no gated state.** §17 puts `ai.ask` behind Plus, but the `Ask`
+  pill sits in the header of every in-trip phone screen, including for a Free user. What the
+  pill does on Free — hidden, visible-and-explaining, or a sheet that sells the upgrade — is
+  undesigned. The desktop assistant has the same hole; the phone makes it more visible.
+- **No phone entry point for Save this day as a Playbook.** Unchanged, and now the odd one
+  out: the assistant reached the phone this turn and this did not.
 - **The phone has no conflict state.** Offline / sync-fail landed (map tiles time out
   after 2.6s with *Try again* / *Open Plan*); conflict is still missing, and project
   rule 6 requires all three of every screen.

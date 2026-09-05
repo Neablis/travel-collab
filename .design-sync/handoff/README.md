@@ -4,7 +4,8 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-05 (the phone tab bar is scoped; the notebook widget framework
+Last substantive pass: 2026-09-05 (the assistant reaches the phone; the phone tab bar is
+scoped; the notebook widget framework
 and its three components; Save this day as a Playbook; the phone Notebook)
 
 **Building notebook widgets? Read these three, in this order:**
@@ -25,6 +26,13 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
+- **The assistant reaches the phone.** `SPEC.md` §23 (extending §9), `DRIFT.md` §2i. An
+  `Ask` pill, last in the top row of all four in-trip screens, opening a bottom sheet over
+  what you are looking at. **Deliberately not a tab:** a tab is a destination and would have
+  to default to a trip-wide scope, losing the day or the Notebook page you were reading. The
+  sheet states its scope in its first line and derives its placeholder and quick asks from
+  it. Proposals reuse the **desktop ghost path** — no phone-only proposal type. One hole this
+  opens: the pill has **no entitlement-gated state** for a Free user (`DRIFT.md` §8).
 - **The phone tab bar is scoped to where you are, and no tab is ever disabled.**
   `SPEC.md` §22, `DRIFT.md` §2h. Inside a trip the bar is Plan · Map · Notebook; everywhere
   else it is Trips · Playbooks. Plan and Map had no meaning on "Your trips", on Discover or on
