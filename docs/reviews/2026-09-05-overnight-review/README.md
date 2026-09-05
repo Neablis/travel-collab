@@ -80,13 +80,13 @@ Updated live. Times are PT.
 | F Simplifiable | done 00:44 | 12 findings (all CONFIRMED), /ask flow map, 13 deliberately-not |
 | G Broken functionality (lanes + hunt) | done 08:40 | ALL LANES GREEN: typecheck, lint, unit, int 450/450, seed:verify 18/18, e2e ci-like 89/89, drizzle check. First agent killed by session limit during the browser walk |
 | Verification wave | A–F done 08:05 | Session limit hit ~00:50 PT killed four verifiers + stream G mid-run; resumed 07:31 PT. Every stream had 1–4 cites pointing at wrong lines; all corrected in findings/. One escalation (F-B09), four downgrades, one drop (F09 truncators) |
-| Findings written | done 08:45 — 57 files | |
+| Findings written | done 08:45 — 56 files | |
 | Executive summary | done 08:45 | |
 | Committed + pushed | continuous; final at 08:45 | |
 
 ## Findings
 
-Fifty-seven finding files under `findings/`, one per issue, each carrying severity, confidence after independent verification, `file:line` cites (corrected where the finder's were wrong), reproduction, suggested fix, fix scope, the test that should exist, and a "do not" line. Ids are `F-<stream><nn>`.
+Fifty-six finding files under `findings/`, one per issue, each carrying severity, confidence after independent verification, `file:line` cites (corrected where the finder's were wrong), reproduction, suggested fix, fix scope, the test that should exist, and a "do not" line. Ids are `F-<stream><nn>`.
 
 ### Severity index
 
