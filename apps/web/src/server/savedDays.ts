@@ -10,6 +10,7 @@ import {
 import { citiesOfStops } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
+import { isUuid } from "./ids";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
 import { addCounts, recordAdd } from "./savedDayAdds";
 import type { AccessError, AccessResult } from "./access/invites";
@@ -247,6 +248,11 @@ export async function listSavedDays(ownerId: string): Promise<SavedDay[]> {
  * a row a caller has to remember to check.
  */
 export async function getSavedDay(savedDayId: string, ownerId: string): Promise<SavedDay | null> {
+  // `saved_days.id` is a uuid column (KI-2026-09-05-x). "No row" is the answer
+  // to a day that is not yours, was deleted, or never existed — and it is the
+  // answer to an id that could never have named one. Anything else here is a
+  // `22P02` from the driver, which the routes turned into a 500.
+  if (!isUuid(savedDayId)) return null;
   const rows = await db
     .select()
     .from(savedDays)
@@ -277,6 +283,10 @@ export async function readableSavedDay(
   savedDayId: string,
   readerId: string,
 ): Promise<SavedDay | null> {
+  // `getSavedDay`'s reason. This one also covers `insertSavedDay`, which reads
+  // through here — so `POST /api/trips/:id/saved-days/not-a-uuid` answers 404
+  // without the route learning that uuids exist.
+  if (!isUuid(savedDayId)) return null;
   const rows = await db
     .select()
     .from(savedDays)
@@ -321,6 +331,9 @@ export async function setSavedDayVisibility(
   visibility: SavedDayVisibility,
   now: string = new Date().toISOString(),
 ): Promise<SavedDay | null> {
+  // `getSavedDay`'s reason: `null` here already means "no such row of yours",
+  // and the publish route turns it into a 404 (KI-2026-09-05-x).
+  if (!isUuid(savedDayId)) return null;
   const at = new Date(now);
   const updated = await db
     .update(savedDays)
@@ -408,6 +421,10 @@ export async function deleteSavedDay(
   ownerId: string,
   now: string = new Date().toISOString(),
 ): Promise<SavedDayDeletion> {
+  // `getSavedDay`'s reason. `not-found` and not `published`: an id that is not
+  // a uuid names nothing, so there is nothing to unpublish first
+  // (KI-2026-09-05-x).
+  if (!isUuid(savedDayId)) return "not-found";
   const deleted = await db
     .update(savedDays)
     .set({ deletedAt: new Date(now) })

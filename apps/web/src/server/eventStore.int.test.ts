@@ -64,4 +64,15 @@ describe("event store", () => {
     expect(first.ok).toBe(true);
     expect(second).toEqual({ ok: false, code: "concurrency-conflict" });
   });
+
+  // KI-2026-09-05-x, the second instance. `events.stream_id` is a uuid column,
+  // so this used to throw `22P02 invalid input syntax for type uuid` out of the
+  // driver instead of reading an empty stream. Only reachable behind the access
+  // seam today — which is why the KI reported it as the instance nobody hit —
+  // but "no such stream" is what this function already answers for a trip with
+  // no events, and it is the honest answer for an id that could never have been
+  // a stream.
+  it("reads an empty stream for a streamId that is not a uuid", async () => {
+    expect(await readStream(db, "not-a-uuid")).toEqual([]);
+  });
 });

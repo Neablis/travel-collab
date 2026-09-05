@@ -6,6 +6,7 @@ import { serverConflictContext } from "./conflictContext";
 import { db, type Db } from "./db/client";
 import { tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
+import { isUuid } from "./ids";
 
 type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -59,6 +60,14 @@ export async function upsertTripDetail(tx: Queryable, detail: TripDetail): Promi
 }
 
 export async function getTripDetail(tripId: string): Promise<TripDetail | null> {
+  // `trip_id` is a uuid column, so a `tripId` that is not one is not a miss —
+  // it is `22P02` out of the driver, and the 500 that reached the board as the
+  // literal words "Internal Server Error" (KI-2026-09-05-x). This is the single
+  // highest-traffic instance: `requireTripAccess` calls it before anything
+  // else, so answering "no such trip" here is what turns `GET /api/trips/:id`,
+  // `/history`, `/pages`, `/access`, `/globals` and `POST /duplicate` from 500
+  // into the 404 they always meant.
+  if (!isUuid(tripId)) return null;
   const rows = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
   return rows[0]?.doc ?? null;
 }

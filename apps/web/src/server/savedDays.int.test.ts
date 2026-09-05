@@ -11,7 +11,9 @@ import {
   insertCommands,
   insertSavedDay,
   listSavedDays,
+  readableSavedDay,
   saveDay,
+  setSavedDayVisibility,
 } from "./savedDays";
 
 // Fresh identities per TEST, not per file (KI-69).
@@ -260,6 +262,43 @@ describe("inserting a saved day", () => {
 // the same field had two shapes depending on which call you got it from.
 // `mode: "date"` plus one `.toISOString()` in `toDto` is what makes these
 // equal; asserting the ISO literal is what stops it silently coming back.
+// KI-2026-09-05-x. `saved_days.id` is a uuid column, so every one of these
+// reached Postgres and came back `22P02 invalid input syntax for type uuid` —
+// `GET`, `DELETE` and publish on `/api/saved-days/:id`, plus `POST
+// /api/trips/:id/saved-days/:id`, all 500ed on a mistyped or truncated library
+// link. Each guard returns the function's OWN empty answer, which is why no
+// route needed a new branch: `null` and `not-found` are already 404 there.
+//
+// `deleteSavedDay` is the one worth naming: `not-found`, never `published` —
+// an id that could not name a day cannot name a published one either, and
+// answering `published` would tell a caller to go and unpublish nothing.
+describe("an id that is not a uuid is a miss, not a database error", () => {
+  const BAD = "not-a-uuid";
+
+  it("getSavedDay returns null", async () => {
+    expect(await getSavedDay(BAD, OWNER)).toBeNull();
+  });
+
+  it("readableSavedDay returns null", async () => {
+    expect(await readableSavedDay(BAD, OWNER)).toBeNull();
+  });
+
+  it("setSavedDayVisibility returns null", async () => {
+    expect(await setSavedDayVisibility(BAD, OWNER, "public")).toBeNull();
+  });
+
+  it("deleteSavedDay answers not-found", async () => {
+    expect(await deleteSavedDay(BAD, OWNER)).toBe("not-found");
+  });
+
+  it("insertSavedDay answers not-found", async () => {
+    const { tripId } = await seedDay();
+    const result = await insertSavedDay(BAD, tripId, OWNER);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("not-found");
+  });
+});
+
 describe("saved-day timestamps have one shape", () => {
   it("returns the same createdAt from the write path and both read paths", async () => {
     const { tripId, dayId } = await seedDay();
