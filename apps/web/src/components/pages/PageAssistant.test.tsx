@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
@@ -31,6 +32,33 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 // not actually matter to the runtime — it is written this way so a reader is
 // not left wondering whether the screen picked up the real client.
 import { PageScreen } from "./PageScreen";
+
+// The AI insert FOCUSES THE EDITOR as its last act — `PageScreen.tsx`'s
+// `page-inserts` handler runs `chain().focus().insertContent(...)` — and that
+// focus call lands after the inserted text has already rendered. So
+// `findByText(...)` is NOT a safe signal to resume typing on: `userEvent.type`
+// gets two keystrokes into the composer, the editor takes focus mid-string, and
+// every remaining character — including the `{Enter}` — goes into the document
+// instead. The turn is never submitted and it surfaces as a call count, which
+// reads like a product bug and is not one. (That the product does this to a
+// real user's follow-up is KI-2026-09-06-b; this helper only stops the tests
+// racing it.)
+//
+// Both tests below type a SECOND message, and both were red locally while CI
+// stayed green on the same tree: the race is decided by how fast the machine
+// gets from render to focus (KI-2026-09-06-a).
+//
+// The wait is the AUTOSAVE, not the focus. `onUpdate` fires from the editor
+// after the insert chain has run, so observing it means the focus call has
+// already happened — and it costs no `document.activeElement`, which
+// `testing-library/no-node-access` forbids and whose only existing use is
+// grandfathered under KI-2026-09-02-b with "Do not add more."
+async function readyForAnotherTurn(onUpdate: Mock): Promise<HTMLElement> {
+  await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+  const composer = screen.getByPlaceholderText(/add to this page/i);
+  await userEvent.click(composer);
+  return composer;
+}
 
 const DOC = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Bring a raincoat" }] }]);
 
@@ -121,7 +149,7 @@ describe("the assistant on a notebook page", () => {
   // second time". ADR-035 decision 5 made the tools insert-shaped; this is that
   // second time, and it has an obvious meaning.
   it("accumulates a second turn instead of replacing the first", async () => {
-    await openRail();
+    const { onUpdate } = await openRail();
     const composer = screen.getByPlaceholderText(/add to this page/i);
     await userEvent.type(composer, "Add a packing list{Enter}");
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
@@ -132,7 +160,7 @@ describe("the assistant on a notebook page", () => {
         content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "And a power adapter" }] }]),
       }),
     );
-    await userEvent.type(composer, "One more thing{Enter}");
+    await userEvent.type(await readyForAnotherTurn(onUpdate), "One more thing{Enter}");
 
     expect(await screen.findByText("And a power adapter")).toBeTruthy();
     // The first turn's text is STILL THERE. That is the whole difference
@@ -153,11 +181,11 @@ describe("the assistant on a notebook page", () => {
         { type: "page-inserts", content: DOC },
       ),
     );
-    await openRail();
+    const { onUpdate } = await openRail();
     const composer = screen.getByPlaceholderText(/add to this page/i);
     await userEvent.type(composer, "Add a packing list{Enter}");
     await screen.findByText("Bring a raincoat");
-    await userEvent.type(composer, "One more thing{Enter}");
+    await userEvent.type(await readyForAnotherTurn(onUpdate), "One more thing{Enter}");
 
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     const [, messages] = askAssistantMock.mock.calls[1]!;
