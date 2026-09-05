@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { getMacro, macroCatalog, renderMacro } from "@tc/pages";
+import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
 import { MacroView } from "./MacroView";
 
 afterEach(cleanup);
@@ -21,7 +21,14 @@ const baseDetail: TripDetail = {
   dismissedConflictIds: [],
   createdAt: "2026-07-20T00:00:00.000Z",
   unscheduledCostSubtotal: 0,
-  tripCostTotal: 12345,
+  // Zero, and it used to be 12345 with no activities behind it — a rollup that
+  // contradicted the stops it was supposedly a rollup OF. `cost.trip` read the
+  // field and never noticed; `cost` sums the selected stops, which is what
+  // makes it equal `tripCostTotal` on real data (`@tc/domain`'s `rollupCosts`
+  // sums exactly those stops) and unequal on a fixture that made the number up.
+  // The fixture was wrong, not the widget — AGENTS.md, "never a hand-built
+  // rollup".
+  tripCostTotal: 0,
   budgetRemaining: null,
   status: "active",
 };
@@ -42,18 +49,59 @@ const costedDetail: TripDetail = {
       cost: { amountMinor: 12345, currency: "USD" },
     },
   },
+  // Zero, for the same reason `tripCostTotal` above is: there is no unscheduled
+  // stop here, so any other number is a rollup contradicting the stops it is a
+  // rollup of. It said 500, which made the `$123.45` assertion below prove
+  // nothing about a total — the fixture claimed 500 of unscheduled cost that
+  // `cost` could not find and no reader could account for (CodeRabbit, PR 141).
+  unscheduledCostSubtotal: 0,
+  // And the trip's total is now the one stop on it, so the fixture agrees with
+  // itself the way `rollupCosts` would make it agree on real data.
+  tripCostTotal: 12345,
+};
+
+// The same trip with one stop left OFF a day, which is the case the fixture
+// above used to gesture at with a number and no stop behind it.
+//
+// **The backlog is in an unfiltered answer, and that is a decision, not an
+// accident**: ADR-039 decision 2 says an absent filter means everything, and a
+// stop nobody has scheduled yet is still money the trip owes. `narrow` includes
+// it exactly when no `day` and no `dates` filter is set — so this fixture is
+// the only place the difference between "the whole trip" and "every scheduled
+// day" is visible at this level.
+const backloggedDetail: TripDetail = {
+  ...costedDetail,
+  activities: {
+    ...costedDetail.activities,
+    u1: {
+      activityId: "u1", title: "Souvenirs", timeWindow: null,
+      location: null, notes: null, anchors: [], kind: "idea", tags: [],
+      cost: { amountMinor: 500, currency: "USD" },
+    },
+  },
+  backlog: ["u1"],
   unscheduledCostSubtotal: 500,
+  tripCostTotal: 12845,
 };
 
 describe("MacroView", () => {
-  it("shows the formatted total for cost.trip when there is a total", () => {
-    render(<MacroView detail={baseDetail} context={ctx} name="cost.trip" params={{}} />);
+  it("shows the formatted total for an unfiltered cost when there is a total", () => {
+    render(<MacroView detail={costedDetail} context={ctx} name="cost" params={{}} />);
     expect(screen.getByText("$123.45")).toBeTruthy();
   });
 
-  it("shows the 'no costs yet' chip for cost.trip when the total is zero", () => {
-    const zeroDetail: TripDetail = { ...baseDetail, tripCostTotal: 0 };
-    render(<MacroView detail={zeroDetail} context={ctx} name="cost.trip" params={{}} />);
+  it("adds an unscheduled stop into the unfiltered total", () => {
+    // The claim "no filters means the whole trip" is only testable where the
+    // whole trip is more than its days. $123.45 + $5.00 — and a `cost` that
+    // summed only scheduled stops, or read `tripCostTotal` off the projection
+    // without summing anything, is told apart from the right answer here and
+    // nowhere else in this file.
+    render(<MacroView detail={backloggedDetail} context={ctx} name="cost" params={{}} />);
+    expect(screen.getByText("$128.45")).toBeTruthy();
+  });
+
+  it("shows the 'no costs yet' chip when nothing is priced", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="cost" params={{}} />);
     expect(screen.getByText("no costs yet")).toBeTruthy();
   });
 
@@ -62,15 +110,33 @@ describe("MacroView", () => {
   // test they replace asserted only the chip's text while calling it
   // "actionable", so it passed just as happily once `PageScreen` stopped
   // passing `onBindDay` and the chip became a button that did nothing.
-  it("offers an actionable 'select a day' chip for cost.day when rebinding is possible", () => {
-    render(<MacroView detail={baseDetail} context={ctx} name="cost.day" params={{}} onBindDay={() => {}} />);
-    expect(screen.getByRole("button", { name: "select a day" })).toBeTruthy();
+  //
+  // **The params are what changed under ADR-039, not the branch.** `{}` used to
+  // be "no day set"; it is now every day, and the only way left to reach
+  // `unbound: "day"` is a ref aimed at a day the trip no longer has. So both
+  // bind a day past the end of a one-day trip — which is exactly what a
+  // document says after someone deletes the day it pointed at.
+  const staleDay = { day: { kind: "index", index: 9 } };
+
+  it("offers an actionable chip for a deleted day when rebinding is possible", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="cost" params={staleDay} onBindDay={() => {}} />);
+    expect(screen.getByRole("button", { name: "that day was removed" })).toBeTruthy();
   });
 
-  it("states 'no day set' without offering a control when nothing can rebind", () => {
-    render(<MacroView detail={baseDetail} context={ctx} name="cost.day" params={{}} />);
-    expect(screen.getByText("no day set")).toBeTruthy();
+  it("says the day was removed without offering a control when nothing can rebind", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="cost" params={staleDay} />);
+    expect(screen.getByText("that day was removed")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("shows the trip's total for an EMPTY params object, rather than asking for a day", () => {
+    // ADR-039 decision 2, at the surface a person sees: nothing bound is the
+    // widest true answer, not a widget waiting to be pointed. This is the
+    // assertion that would have caught the old "no day set" behaviour surviving
+    // the change.
+    render(<MacroView detail={costedDetail} context={ctx} name="cost" params={{}} />);
+    expect(screen.queryByText("that day was removed")).toBeNull();
+    expect(screen.getByText(/\$/)).toBeTruthy();
   });
 
   // The `rows` branch, which existed unexercised from the day the widget
@@ -88,7 +154,7 @@ describe("MacroView", () => {
       });
       render(
         <p>
-          <MacroView detail={baseDetail} context={ctx} name="day.line" params={{}} />
+          <MacroView detail={baseDetail} context={ctx} name="day.rows" params={{}} />
         </p>,
       );
       spy.mockRestore();
@@ -103,7 +169,7 @@ describe("MacroView", () => {
           { dayId: "33333333-3333-3333-3333-333333333333", activityIds: [], date: null, costSubtotal: 0 },
         ],
       };
-      render(<MacroView detail={twoDays} context={ctx} name="day.line" params={{}} />);
+      render(<MacroView detail={twoDays} context={ctx} name="day.rows" params={{}} />);
       // **One row per day, and each row carrying its own lead.** Asserting only
       // that both labels appear somewhere passes for a renderer that duplicates
       // a row or puts both leads in one (CodeRabbit, PR 139) — which is exactly
@@ -127,7 +193,7 @@ describe("MacroView", () => {
   // question with a real answer.
   describe("a resolved value says it came from a widget", () => {
     it("marks the value, not the prose around it", () => {
-      render(<MacroView detail={baseDetail} context={ctx} name="cost.trip" params={{}} />);
+      render(<MacroView detail={costedDetail} context={ctx} name="cost" params={{}} />);
       expect(screen.getByText("$123.45").getAttribute("data-widget-value")).toBe("value");
     });
 
@@ -137,7 +203,7 @@ describe("MacroView", () => {
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
         tags: [], bookedCount: 0,
       };
-      render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.line" params={{}} />);
+      render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.rows" params={{}} />);
       expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
       // The date on the same line is an ordinary value. A renderer that marked
       // everything a city would colour a page uniformly and pass a test that
@@ -145,11 +211,11 @@ describe("MacroView", () => {
       expect(screen.getByText("Aug 1, 2026").getAttribute("data-widget-value")).toBe("value");
     });
 
-    // The lead of `day.line` is a label the widget wrote, not a value it
+    // The lead of `day.rows` is a label the widget wrote, not a value it
     // resolved, and marking it would claim the trip supplied the words
     // "Day 1".
     it("leaves a row's own label unmarked", () => {
-      render(<MacroView detail={costedDetail} context={ctx} name="day.line" params={{}} />);
+      render(<MacroView detail={costedDetail} context={ctx} name="day.rows" params={{}} />);
       const lead = screen.getByText("Day 1");
       expect(lead.hasAttribute("data-widget-value")).toBe(false);
     });
@@ -159,30 +225,41 @@ describe("MacroView", () => {
   // the widget beside it, repeated, with every stop's time and cost nested one
   // card inside another. Mitchell: *"The every day at a glance and every city
   // at a glance are not rendering correctly."* A glance is one row per day.
-  describe("itinerary.trip is a glance, not a stack of day cards", () => {
-    const threeStops: TripDetail = {
+  describe("day.detail wide is a glance, not a stack of day cards", () => {
+    // **Two days, and that is the point rather than fixture padding.** ADR-039
+    // decision 1 makes a block's arity a fact about its SELECTION: one selected
+    // day is one day's card, many are the glance table. A one-day trip is
+    // therefore the wrong fixture for a test about the table — it exercises the
+    // other branch — and the last test here, "says a day is empty", is exactly
+    // the case where a single day answers `empty()` instead.
+    const twoDays: TripDetail = {
       ...costedDetail,
+      days: [costedDetail.days[0]!, { ...costedDetail.days[0]!, dayId: "d1", activityIds: [] }],
+    };
+    const threeStops: TripDetail = {
+      ...twoDays,
       activities: {
         ...costedDetail.activities,
         a2: { ...costedDetail.activities.a1!, activityId: "a2", title: "Shrine" },
         a3: { ...costedDetail.activities.a1!, activityId: "a3", title: "Market" },
         a4: { ...costedDetail.activities.a1!, activityId: "a4", title: "Bar" },
       },
-      days: [{ ...costedDetail.days[0]!, activityIds: ["a1", "a2", "a3", "a4"] }],
+      days: [{ ...costedDetail.days[0]!, activityIds: ["a1", "a2", "a3", "a4"] }, twoDays.days[1]!],
     };
 
     it("gives each day one row, labelled by the day the trip counts it as", () => {
-      render(<MacroView detail={costedDetail} context={ctx} name="itinerary.trip" params={{}} />);
+      render(<MacroView detail={twoDays} context={ctx} name="day.detail" params={{}} />);
       const rows = screen.getAllByRole("row");
-      expect(rows).toHaveLength(1);
+      expect(rows).toHaveLength(2);
       expect(rows[0]!.textContent).toContain("Day 1");
       expect(rows[0]!.textContent).toContain("Museum");
+      expect(rows[1]!.textContent).toContain("Day 2");
     });
 
     // The line names what the day IS. Naming every stop is the other widget's
     // job, and it is what made this one unreadable on a two-week trip.
     it("names three stops and counts the rest, rather than listing them all", () => {
-      render(<MacroView detail={threeStops} context={ctx} name="itinerary.trip" params={{}} />);
+      render(<MacroView detail={threeStops} context={ctx} name="day.detail" params={{}} />);
       const row = screen.getAllByRole("row")[0]!;
       expect(row.textContent).toContain("Museum · Shrine · Market · +1 more");
       expect(row.textContent).not.toContain("Bar");
@@ -191,8 +268,24 @@ describe("MacroView", () => {
     // An empty cell in a bordered table reads as a rendering fault, which is
     // half of what "not rendering correctly" was.
     it("says a day is empty rather than rendering an empty cell", () => {
-      render(<MacroView detail={baseDetail} context={ctx} name="itinerary.trip" params={{}} />);
+      render(<MacroView detail={twoDays} context={ctx} name="day.detail" params={{}} />);
       expect(screen.getByText("Nothing planned yet")).toBeTruthy();
+    });
+
+    // The other arity, and the one that keeps `itinerary.day`'s output intact
+    // through the migration: pointed at a day, it is that day's card, not a
+    // one-row table.
+    it("is one day's card when the selection holds one day", () => {
+      render(
+        <MacroView
+          detail={twoDays}
+          context={ctx}
+          name="day.detail"
+          params={{ day: { kind: "index", index: 0 } }}
+        />,
+      );
+      expect(screen.queryAllByRole("row")).toHaveLength(0);
+      expect(screen.getByText("Museum")).toBeTruthy();
     });
   });
 });
@@ -226,9 +319,11 @@ describe("every widget is legal where widgets actually go", () => {
   // widget, so the seventeenth widget is bound the day it lands. An unset `tags`
   // is deliberately left unset: §18 makes "no tag" mean every stop, so that IS
   // the bound case.
-  function boundParams(name: string): Record<string, unknown> {
-    const params: Record<string, unknown> = {};
-    for (const input of getMacro(name)?.inputs ?? []) {
+  // A preset's own filters, plus a day for anything that still asks for one, so
+  // block widgets reach `ok` instead of a deleted-day chip.
+  function boundParams(entry: { widget: string; params: Readonly<Record<string, unknown>> }): Record<string, unknown> {
+    const params: Record<string, unknown> = { ...entry.params };
+    for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
     }
     return params;
@@ -261,15 +356,15 @@ describe("every widget is legal where widgets actually go", () => {
     // The witness for the test below, and a real assertion in its own right: if
     // one entry stops resolving here, the nesting walk quietly stops covering
     // it, and this is the line that says so by name.
-    for (const widget of macroCatalog()) {
+    for (const widget of presetCatalog()) {
       const outcome = renderMacro(
         { trip: richDetail, page: ctx, user: richUser, globals: richGlobals },
-        widget.name,
-        boundParams(widget.name),
+        widget.widget,
+        boundParams(widget),
       );
       expect(outcome.status, `${widget.name} did not resolve — its renderer never runs below`).toBe("ok");
     }
-    expect(macroCatalog().length).toBeGreaterThan(10);
+    expect(presetCatalog().length).toBeGreaterThan(10);
   });
 
   it("renders no block-level element inside a paragraph, for any widget in the registry", () => {
@@ -278,7 +373,7 @@ describe("every widget is legal where widgets actually go", () => {
       errors.push(args.map(String).join(" "));
     });
     try {
-      for (const widget of macroCatalog()) {
+      for (const widget of presetCatalog()) {
         const { unmount } = render(
           <p>
             <MacroView
@@ -286,8 +381,8 @@ describe("every widget is legal where widgets actually go", () => {
               context={ctx}
               user={richUser}
               globals={richGlobals}
-              name={widget.name}
-              params={boundParams(widget.name)}
+              name={widget.widget}
+              params={boundParams(widget)}
             />
           </p>,
         );

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { macroCatalog } from "@tc/pages";
+import { presetCatalog } from "@tc/pages";
 import { widgetMatches } from "@/components/pages/WidgetPicker";
 
 // Typing `/` opens the widget picker where the caret is — Mitchell, walking the
@@ -14,10 +14,11 @@ import { widgetMatches } from "@/components/pages/WidgetPicker";
 // alongside Radix) is a poor trade for that. What it costs instead is this
 // comment and the tests beside it.
 //
-// It reads the SAME registry and the SAME matcher as the popover and the phone
-// sheet (`widgetMatches`), so a widget cannot be findable in one and hidden in
-// the other. Insertion goes through `insertWidget` in the caller, which is the
-// one construction path (ADR-037 decision 4).
+// It reads the SAME preset list and the SAME matcher as the popover and the
+// phone sheet (`widgetMatches`), so a widget cannot be findable in one and
+// hidden in the other. Insertion goes through `insertPreset` in the caller —
+// which goes through `insertWidget` — so there is still one construction path
+// (ADR-037 decision 4).
 
 // How many rows the caret menu shows. It is a menu at the caret, not the
 // catalogue: past about six rows it covers the paragraph the author is writing,
@@ -30,9 +31,16 @@ export const MAX_ROWS = 6;
 // both open a widget menu mid-word, which is the classic way this feature
 // becomes something people turn off.
 //
-// The query is letters, digits and dots: dots because a widget's stored name is
-// `cost.day` and the picker searches those too, so `/cost.day` has to survive
-// the match rather than ending at the dot.
+// The query is letters, digits and dots: dots because a preset's id is
+// `booking.line` and the picker searches those, so `/booking.line` has to
+// survive the match rather than ending at the dot.
+//
+// **Spaces are deliberately NOT in it yet.** Spec §5's grammar — *"the first
+// space locks the highlighted row, and every token after it is an argument"*,
+// so `/cost 3 meal` inserts `cost{day: 3, tag: meal}` — is step 4 of the order
+// of work. Until it lands, a space ends the query, which is the behaviour that
+// has been shipping and is the one that keeps the menu from hanging open across
+// a sentence.
 const TRIGGER = /(?:^|\s)\/([\w.]*)$/;
 
 // **The editor keeps focus while this listbox is open, so the listbox has to
@@ -67,6 +75,8 @@ export interface SlashMenuState {
   top: number;
   caretTop: number;
   active: number;
+  // `name` is the PRESET's id — what `onPick` hands back and what
+  // `insertPreset` resolves. It is not what the document stores.
   names: readonly { name: string; title: string; preview: string }[];
 }
 
@@ -121,7 +131,7 @@ export function useSlashMenu({
       if (!match) return setState(null);
       const query = match[1] ?? "";
       const from = $from.pos - query.length - 1;
-      const names = macroCatalog()
+      const names = presetCatalog()
         .filter((w) => widgetMatches(w, query))
         .slice(0, MAX_ROWS)
         .map((w) => ({ name: w.name, title: w.title, preview: w.preview }));

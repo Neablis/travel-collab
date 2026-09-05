@@ -38,7 +38,7 @@ import { z } from "zod";
 import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent, type LanguageModel } from "ai";
 import type { Page, TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { macroCatalog } from "@tc/pages";
+import { primitiveCatalog } from "@tc/pages";
 import { guard } from "@/server/pages-guard";
 import { hasAtLeast } from "@/server/accessPolicy";
 import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } from "@/server/quota";
@@ -1010,20 +1010,20 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     // Found by CodeRabbit and Copilot on PR 139.
     "Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there.",
     "insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences.",
-    "insert_widget takes a widget name and that widget's own params. Omit the params to insert it unbound, which is valid — the reader points it at a day afterwards.",
+    "insert_widget takes a widget name and that widget's own params. Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want. Two widgets also take a NON-filter param — `attribute` needs `field` and renders nothing without one, and `count` takes `of` — and the catalogue below lists both under `params` with the exact values allowed.",
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.
     "A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes.",
-    `These are the only macros that exist — never invent a name: ${JSON.stringify(macroCatalog())}`,
-    // A page is about nothing in particular (SPEC §18) — the day a day-scoped
-    // macro reads is that macro's own param. `macroCatalog()` above names
-    // macros without describing what they take, so nothing here tells a model
-    // how to set one, and a day macro drafted with no day renders as an unbound
-    // chip. Say so rather than letting the model find out on the page. The
-    // catalog grows an input description in ADR-035 decision 5 (M14 link 8),
-    // and this sentence is what should change when it does.
-    "A page is not about any one day: a day-scoped macro reads the day from its own settings. Write the page about the trip as a whole and prefer the trip-scoped macros — a day-scoped one drafted with no day set renders as a 'no day set' placeholder instead of a value.",
+    `These are the only macros that exist — never invent a name: ${JSON.stringify(primitiveCatalog())}`,
+    // A page is about nothing in particular (SPEC §18) — the day a macro reads
+    // is that macro's own filter. This sentence used to warn that a day macro
+    // drafted with no day renders as a "no day set" placeholder; under ADR-039
+    // decision 2 that is no longer true, and repeating it would push the model
+    // towards binding a day it has no reason to guess. `primitiveCatalog()`
+    // above carries each widget's `selection` — its entity and the dimensions
+    // it accepts — so the model can see what is legal rather than infer it.
+    "A page is not about any one day. A widget with no filters set covers the whole trip, which is a real answer and never a placeholder — leave a filter out unless the sentence you are writing is specifically about one day, city, tag or kind.",
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
     "Then say ONE short sentence about what you added. What you inserted lands in the editor for the user to review and edit, so never say you have saved or published it.",

@@ -1,11 +1,12 @@
 "use client";
-import type { TripDetail, TripGlobals } from "@tc/contracts";
-import { getMacro } from "@tc/pages";
+import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
+import { DaysFilter, daysSummary } from "./DaysFilter";
 
-// Pointing a widget at its inputs, in ONE place — because as of SPEC §19 there
+// Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
 //
 //   1. the desktop chrome row, inline under/beside the widget (`WidgetChrome`),
@@ -17,30 +18,85 @@ import { NativeSelect } from "@/components/ui/native-select";
 // surfaces; only the container differs". A second copy of the option list is
 // exactly how a phone ends up offering a day the desktop does not.
 //
+// **Every control's first option is "All", and that is ADR-039 decision 2 made
+// visible.** Mitchell, on the preview: *"where we have a tool that you can
+// select a day, it can also select All at the top, and it gives you a sum, or
+// whatever makes sense in that context."* An absent filter is not a widget
+// waiting for a choice — it is the widest true answer, and the one default that
+// cannot be wrong about what the author meant.
+//
 // Nothing here writes to a document. Callers own that: the chrome row writes
 // node attrs, the insert sheet builds params for `insertWidget`.
 
-// Which of a widget's declared inputs this app can actually render a control
-// for. `person` is declared in §18 and filtered out rather than shown empty:
-// nothing links an activity to a person yet, so its control would resolve
-// against data that does not exist. No widget declares it today; this keeps
-// that true if one lands before the field does.
+// Which of a widget's declared filters this app can render a control for.
+//
+// **`person` is filtered out, and it is the only one.** ADR-039 decision 7
+// declares the dimension and says plainly that it cannot resolve: `TripMember`
+// is `{ userId, role }` with no display name, so an option list built today
+// would show ids, and no stop carries a person at all, so the filter would have
+// nothing to narrow by. A control here would be a choice that changes nothing
+// except turning the widget into "needs a person field". The vocabulary exists
+// so the shape is settled; the control arrives with M13 `add-stop-who` / M19
+// link 3.
 export function bindableInputs(name: string): readonly WidgetInput[] {
-  return (getMacro(name)?.inputs ?? []).filter((i) => i.type === "day" || i.type === "tags");
+  return collapseDays((getMacro(name)?.inputs ?? []).filter((i) => i.type !== "person"));
+}
+
+/**
+ * **`day` and `dates` become ONE control.**
+ *
+ * Mitchell, on the PR 141 preview: *"I dont think we need the date pickers, and
+ * the dropdown for all days/specific day, and the range. Combine them into one
+ * experience."* Three controls for one question — which days is this about — is
+ * two too many, and the two raw date boxes were the worst of them.
+ *
+ * The `dates` input is the one that survives, because `DaysFilter` writes that
+ * dimension (Mitchell's call: one control writing two different dimensions
+ * depending on how many cells you touched is a rule nobody can predict from
+ * outside). The `day` input drops out of the row and its stored value is still
+ * read, shown and clearable by the same control.
+ *
+ * Every primitive declaring `day` also declares `dates` — asserted in
+ * `filters.test.ts`, because this collapse silently loses a control the day one
+ * does not.
+ */
+function collapseDays(inputs: readonly WidgetInput[]): readonly WidgetInput[] {
+  const hasDates = inputs.some((input) => input.type === "dates");
+  return hasDates ? inputs.filter((input) => input.type !== "day") : inputs;
+}
+
+/**
+ * The widget a picker row inserts, and the filters its name already answers.
+ *
+ * A row in the picker is a PRESET (ADR-039 decision 4) — `(primitive, params,
+ * title, keywords)` — so the insert sheet's bind step has to start from the
+ * preset's own filters and offer only the dimensions the preset has not already
+ * decided. `getPreset` is the one place that resolution happens.
+ */
+export function presetTarget(id: string): { widget: string; params: Record<string, unknown> } | null {
+  const preset = getPreset(id);
+  return preset ? { widget: preset.widget, params: presetParams(preset) } : null;
+}
+
+/** The controls a preset's bind step offers: its widget's, minus what it fixes. */
+export function presetBindableInputs(id: string): readonly WidgetInput[] {
+  const preset = getPreset(id);
+  if (!preset) return [];
+  return bindableInputs(preset.widget).filter((input) => !(input.name in preset.params));
 }
 
 // Reading a param back into a select value, kept beside the writer below so the
 // two cannot drift: whatever shape is written is the shape read.
 //
 // **A `dayId` ref resolves to its current index, and reading only `index` was a
-// real bug.** `DayRef` has two shapes and `resolveDayIndex` honours both, so a
-// widget bound by `dayId` — what a hand-edited document or an AI insert can
-// carry — rendered its day correctly while the control said "Not set up". A
+// real bug.** `DayRef` has two shapes and the resolvers honour both, so a widget
+// bound by `dayId` — what a hand-edited document or an AI insert can carry —
+// rendered its day correctly while the control said the widget was unbound. A
 // control contradicting the document it describes is worse than either state
 // alone, because the reader believes the control. Found by Copilot on PR 139.
 //
-// A `dayId` matching no day reads as unset, the same answer `resolveDayIndex`
-// gives it: a stale binding is silently no binding, never a guessed one.
+// A `dayId` matching no day reads as unset, the same answer the resolvers give
+// it: a stale binding is silently no binding, never a guessed one.
 export function valueOf(
   input: WidgetInput,
   params: Record<string, unknown>,
@@ -56,17 +112,19 @@ export function valueOf(
       const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
       return idx === -1 ? "" : String(idx);
     }
+    // No ref at all is the real "All days", and the one that means every day.
     return "";
   }
   return typeof raw === "string" ? raw : "";
 }
 
-// The tags a person may choose: the trip's tags in use, plus whatever this
-// widget is already bound to. Union rather than replacement, so a stale binding
-// stays visible and clearable instead of silently reading as "every stop".
-function tagOptions(bound: unknown, globals: TripGlobals | null): string[] {
-  const inUse = (globals?.tags ?? []).map((t) => t.tag as string);
-  return typeof bound === "string" && bound !== "" && !inUse.includes(bound) ? [...inUse, bound] : inUse;
+// A stale binding stays visible and clearable rather than silently reading as
+// "All": the union keeps whatever the document says even once the trip no longer
+// offers it. Same rule for tags and cities.
+function withBound(options: readonly string[], bound: unknown): string[] {
+  return typeof bound === "string" && bound !== "" && !options.includes(bound)
+    ? [...options, bound]
+    : [...options];
 }
 
 // The option list for one input, as data rather than as JSX — so the phone's
@@ -74,35 +132,66 @@ function tagOptions(bound: unknown, globals: TripGlobals | null): string[] {
 // same string from the same array. Building the label a second time in the
 // button is how the two start disagreeing.
 //
-// The empty value is a real option in both cases, and it means different things:
-// a day binds nothing until you point it (ADR-037 decision 6 — never a default
-// day), while an unset tag is the answer "every stop" (§18's table).
+// **The empty option is a real, named choice on every dimension** (ADR-039
+// decision 2): "All days", "All cities", "Every stop", "Any kind". It used to
+// read "Not set up" on the day select, which was true of the seventeen named
+// widgets — `cost.day` with no day WAS unbound — and is a lie about a primitive,
+// where an unset day means the whole trip.
 export function optionsFor(
   input: WidgetInput,
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
 ): readonly { value: string; label: string }[] {
-  if (input.type === "day") {
-    return [
-      { value: "", label: "Not set up" },
-      ...detail.days.map((day, index) => ({
-        value: String(index),
-        label: day.date ? `Day ${index + 1} · ${day.date}` : `Day ${index + 1}`,
-      })),
-    ];
+  const bound = params[input.name];
+  switch (input.type) {
+    // Reachable only for a primitive that declares `day` WITHOUT `dates`, which
+    // none does today — `collapseDays` hands the whole question to `DaysFilter`
+    // otherwise. Kept because `filters.test.ts` pins the every-day-primitive-
+    // also-declares-dates property rather than assuming it, and this is the
+    // honest fallback if that ever stops being true.
+    case "day":
+      return [
+        { value: "", label: "All days" },
+        ...detail.days.map((day, index) => ({
+          value: String(index),
+          label: day.date ? `Day ${index + 1} · ${day.date}` : `Day ${index + 1}`,
+        })),
+      ];
+    case "city":
+      return [
+        { value: "", label: "All cities" },
+        ...withBound((globals?.cities ?? []).map((c) => c.name), bound).map((name) => ({
+          value: name,
+          label: name,
+        })),
+      ];
+    case "kind":
+      return [
+        { value: "", label: "Any kind" },
+        // The enum itself, not a list copied here: a sixth `ActivityKind` shows
+        // up in this select the day it exists.
+        ...withBound(ActivityKind.options, bound).map((kind) => ({ value: kind, label: kind })),
+      ];
+    default:
+      return [
+        { value: "", label: "Every stop" },
+        // The trip's tags in use, plus whatever this widget is already bound to.
+        // `ActivityTag.options` is deliberately NOT the source: a tag no stop
+        // carries is a filter that can only find nothing, and offering it is
+        // offering an empty result.
+        ...withBound((globals?.tags ?? []).map((t) => t.tag as string), bound).map((tag) => ({
+          value: tag,
+          label: tag,
+        })),
+      ];
   }
-  return [
-    { value: "", label: "Every stop" },
-    ...tagOptions(params[input.name], globals).map((tag) => ({ value: tag, label: tag })),
-  ];
 }
 
-// Merge, never replace. With one input the two are indistinguishable; with two,
+// Merge, never replace. With one input the two are indistinguishable; with six,
 // replacing means pointing a widget at a tag silently unbinds its day — and the
-// widget would then render "no day set" with the tag control still showing a
-// choice, which is a control contradicting the document. `stop.line` is the
-// widget that exposes this, and it is why this function exists.
+// widget would then render the whole trip with the day control still showing a
+// choice, which is a control contradicting the document.
 export function withBinding(
   params: Record<string, unknown>,
   input: WidgetInput,
@@ -110,9 +199,10 @@ export function withBinding(
 ): Record<string, unknown> {
   const merged = { ...params };
   if (next === "") {
-    // Clearing goes back to UNBOUND rather than to a default (ADR-037 decision
-    // 6: "not common-sense defaults"). Deleting the key rather than writing a
-    // null keeps `{}` the one spelling of "not set up".
+    // Clearing goes back to ALL rather than to a default (ADR-039 decision 2).
+    // Deleting the key rather than writing a null keeps `{}` the one spelling
+    // of "every member" — which matters because it is also what a widget lands
+    // with, and two spellings of the same state is two things to test.
     delete merged[input.name];
   } else {
     merged[input.name] = input.type === "day" ? { kind: "index", index: Number(next) } : next;
@@ -121,32 +211,48 @@ export function withBinding(
 }
 
 /**
- * What this widget is pointed at, as one line — §19's button label.
+ * What this widget is showing, as one line — §19's button label.
  *
- * Multi-input widgets join with ` → ` ("Day 4 · … → lodging"), which is the
- * separator §19 names. `null` for a widget that binds nothing: there is no
- * button to label, and rendering "Pointed at nothing" would be purposeless UI
- * (project rule 2) on the one widget that is finished the moment it lands.
+ * **Only the dimensions that are actually SET**, joined with ` → ` (the
+ * separator §19 names), and "everything" when none are. A widget under ADR-039
+ * declares up to five controls, so listing every one would give a phone button
+ * reading *"All days → All cities → Every stop → Any kind → All dates"* — five
+ * words for "everything", on a 44px control. The unset ones are exactly the
+ * ones with nothing to say.
+ *
+ * `null` for a widget that declares no filters at all: there is no button to
+ * label, and rendering "Showing everything" would be purposeless UI (project
+ * rule 2) on the one widget that has no set behind it.
  */
 export function bindSummary(
   name: string,
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
+  inputs: readonly WidgetInput[] = bindableInputs(name),
 ): string | null {
-  const inputs = bindableInputs(name);
   if (inputs.length === 0) return null;
-  return inputs
+  const bound = inputs
     .map((input) => {
+      if (input.type === "dates") {
+        // One entry for the whole "which days" question, reading a stored `day`
+        // as well as a range — `DaysFilter` owns both.
+        const summary = daysSummary(params, detail);
+        return summary === "All days" ? null : summary;
+      }
       const value = valueOf(input, params, detail);
-      const option = optionsFor(input, params, detail, globals).find((o) => o.value === value);
-      return option?.label ?? "Not set up";
+      if (value === "") return null;
+      return optionsFor(input, params, detail, globals).find((o) => o.value === value)?.label ?? value;
     })
-    .join(" → ");
+    .filter((label): label is string => label !== null);
+  // "everything" rather than "nothing": ADR-039 decision 2, and the difference
+  // between a widget waiting to be told what to do and one already showing the
+  // widest true answer.
+  return bound.length === 0 ? "everything" : bound.join(" → ");
 }
 
 /**
- * One control per declared input.
+ * One control per declared filter.
  *
  * `layout` is the only thing §19 lets differ between surfaces, and it is
  * density, not model:
@@ -156,6 +262,10 @@ export function bindSummary(
  * - `stacked` — the phone bind sheet and the insert step. Visible labels and
  *   44px targets (§13 rule 1, and the sizing note §16 got wrong once); there is
  *   no name pill next to the control here to say what it is for.
+ *
+ * `inputs` is passed in rather than looked up, because the insert step binds a
+ * PRESET and a preset offers only the dimensions its name has not already
+ * answered (`presetBindableInputs`).
  */
 export function WidgetBindControls({
   name,
@@ -165,6 +275,7 @@ export function WidgetBindControls({
   onChange,
   layout,
   idPrefix,
+  inputs = bindableInputs(name),
 }: {
   name: string;
   params: Record<string, unknown>;
@@ -173,28 +284,38 @@ export function WidgetBindControls({
   onChange: (params: Record<string, unknown>) => void;
   layout: "inline" | "stacked";
   idPrefix: string;
+  inputs?: readonly WidgetInput[];
 }) {
-  const inputs = bindableInputs(name);
   const title = getMacro(name)?.title ?? name;
 
   return (
     <>
       {inputs.map((input) => {
-        const control = (
-          <NativeSelect
-            id={`${idPrefix}-${input.name}`}
-            aria-label={layout === "inline" ? `${title}: ${input.label.toLowerCase()}` : undefined}
-            className={layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full"}
-            value={valueOf(input, params, detail)}
-            onChange={(e) => onChange(withBinding(params, input, e.target.value))}
-          >
-            {optionsFor(input, params, detail, globals).map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </NativeSelect>
-        );
+        const control =
+          input.type === "dates" ? (
+            <DaysFilter
+              params={params}
+              detail={detail}
+              onChange={onChange}
+              layout={layout}
+              id={`${idPrefix}-${input.name}`}
+              label={`${title}: ${input.label.toLowerCase()}`}
+            />
+          ) : (
+            <NativeSelect
+              id={`${idPrefix}-${input.name}`}
+              aria-label={layout === "inline" ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              className={layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full"}
+              value={valueOf(input, params, detail)}
+              onChange={(e) => onChange(withBinding(params, input, e.target.value))}
+            >
+              {optionsFor(input, params, detail, globals).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </NativeSelect>
+          );
         if (layout === "inline") return <span key={input.name}>{control}</span>;
         return (
           <FormField key={input.name} id={`${idPrefix}-${input.name}`} label={input.label}>

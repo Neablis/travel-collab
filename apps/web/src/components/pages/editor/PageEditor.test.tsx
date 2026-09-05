@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import type { PageDoc } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { DEFAULT_TEMPLATES, macroCatalog } from "@tc/pages";
+import { DEFAULT_TEMPLATES, presetCatalog } from "@tc/pages";
 import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
@@ -222,8 +222,8 @@ describe("PageEditor typography (KI-44)", () => {
           {
             type: "paragraph",
             content: [
-              { type: "macro", attrs: { name: "cost.trip", params: {} } },
-              { type: "macro", attrs: { name: "itinerary.trip", params: {} } },
+              { type: "macro", attrs: { name: "cost", params: {} } },
+              { type: "macro", attrs: { name: "day.detail", params: {} } },
             ],
           },
         ])}
@@ -381,8 +381,15 @@ describe("the slash menu", () => {
   it("opens at the caret when you type a slash, listing widgets by their title", async () => {
     await userEvent.type(editorFor(), "/");
     const menu = await screen.findByRole("listbox", { name: "Insert a widget" });
-    expect(within(menu).getAllByRole("option").length).toBeGreaterThan(0);
-    expect(within(menu).getByRole("option", { name: /The trip's name/ })).toBeTruthy();
+    const shown = within(menu).getAllByRole("option");
+    expect(shown.length).toBeGreaterThan(0);
+    // The catalogue's own first rows, in its own order — not a title copied
+    // into this file, which would go stale the first time somebody reorders the
+    // preset table. The menu caps at `MAX_ROWS`, so this compares against the
+    // same slice the menu takes.
+    expect(shown.map((o) => o.textContent)).toEqual(
+      presetCatalog().slice(0, shown.length).map((w) => expect.stringContaining(w.title)),
+    );
   });
 
   it("narrows as you keep typing, and closes when nothing matches", async () => {
@@ -405,7 +412,7 @@ describe("the slash menu", () => {
     // the menu uses, rather than a list of titles typed here: a copied list
     // goes stale the first time someone adds a widget whose description happens
     // to say "airport", and would then fail for a reason that is not a bug.
-    const expected = macroCatalog()
+    const expected = presetCatalog()
       .filter((w) => widgetMatches(w, query))
       .slice(0, MAX_ROWS)
       .map((w) => w.title);
@@ -423,7 +430,7 @@ describe("the slash menu", () => {
     // And a widget the query does not answer is ABSENT, derived the same way.
     // Length and order both compare against the filtered list; only this
     // compares against what was left out.
-    const excluded = macroCatalog().find((w) => !widgetMatches(w, query))!;
+    const excluded = presetCatalog().find((w) => !widgetMatches(w, query))!;
     expect(within(menu).queryByRole("option", { name: new RegExp(excluded.title) })).toBeNull();
 
     // A query nothing answers closes the menu rather than showing an empty box:
@@ -479,9 +486,9 @@ describe("the slash menu", () => {
     // rule out (CodeRabbit, PR 139). The name comes from the option's id, which
     // `slashOptionId` derives from the registry — so the assertion cannot name
     // a widget the menu was not actually showing.
-    const chosen = macroCatalog().find((w) => slashOptionId(w.name) === afterTab[1]!.id);
+    const chosen = presetCatalog().find((w) => slashOptionId(w.name) === afterTab[1]!.id);
     expect(chosen).toBeDefined();
-    expect(chosen!.name).not.toBe(macroCatalog().find((w) => slashOptionId(w.name) === afterTab[0]!.id)!.name);
+    expect(chosen!.name).not.toBe(presetCatalog().find((w) => slashOptionId(w.name) === afterTab[0]!.id)!.name);
     await userEvent.type(textbox, "{Enter}");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(JSON.stringify(onChange.mock.calls.at(-1)![0])).toContain(`"${chosen!.name}"`);

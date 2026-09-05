@@ -36,9 +36,13 @@ function stubView({ pos = 3 }: { pos?: number | null } = {}) {
 }
 
 describe("dropping a widget onto the page", () => {
-  it("builds the dropped widget through insertWidget, at the position dropped on", () => {
+  it("builds the dropped preset through insertWidget, at the position dropped on", () => {
     const { view, dispatch } = stubView({ pos: 7 });
-    const event = dragEvent({ data: "cost.trip" });
+    // The payload is a PRESET id — what the picker row carries — and what lands
+    // in the document is the primitive it resolves to. `booking.line` is the
+    // sharpest case: the id is a retired widget name, and the node is
+    // `stop.rows` with the filter that name used to mean.
+    const event = dragEvent({ data: "booking.line" });
 
     expect(handleWidgetDrop(view, event)).toBe(true);
     expect(event.preventDefault).toHaveBeenCalled();
@@ -48,13 +52,15 @@ describe("dropping a widget onto the page", () => {
     // difference between this origin and the popover's click.
     expect(at).toBe(7);
     expect(node.type.name).toBe("macro");
-    expect(node.attrs.name).toBe("cost.trip");
+    expect(node.attrs.name).toBe("stop.rows");
+    expect(node.attrs.params).toEqual({ kind: "booked" });
   });
 
   // ADR-037 decision 4: "there is no way to put a widget into a document that
-  // skips validation". The drag payload is a name, so this is the check that
-  // stops a name nothing in the registry answers to from reaching the document.
-  it("refuses a name the registry does not know, and leaves the document alone", () => {
+  // skips validation". The drag payload is an id, so this is the check that
+  // stops an id nothing in the preset list answers to from reaching the
+  // document.
+  it("refuses an id the preset list does not know, and leaves the document alone", () => {
     const { view, dispatch } = stubView();
     const event = dragEvent({ data: "not.a.widget" });
 

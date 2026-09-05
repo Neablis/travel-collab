@@ -163,9 +163,105 @@ them: renderers take a payload and do not ask where it came from.
 
 ## 8. Order of work
 
-1. Primitives, filters and the legality matrix, with the registry-wide test that keeps
-   declared filters and params in step.
-2. `attribute` and its allow-list.
-3. The migration from the seventeen names, and presets built from the §4 table.
-4. The slash grammar and `keywords`.
-5. `sample` as a status; ghost rendering next milestone.
+1. ~~Primitives, filters and the legality matrix, with the registry-wide test that keeps
+   declared filters and params in step.~~ **Built, 2026-09-04.**
+2. ~~`attribute` and its allow-list.~~ **Built, 2026-09-04.** `AttributeFieldRef` in
+   `packages/contracts/src/pages.ts` is the closed list; the four fields ship as four
+   presets.
+3. ~~The migration from the seventeen names, and presets built from the §4 table.~~
+   **Built, 2026-09-04.** `WIDGET_NAME_MIGRATION` + `PAGE_DOC_MIGRATIONS[0]` in
+   `@tc/contracts` rewrite stored documents on read (`CURRENT_PAGE_DOC_VERSION` is 2);
+   `packages/pages/src/presets.ts` is the browsable list, and the seventeen named defs
+   are deleted.
+4. The slash grammar (§5's `/cost 3 meal` argument tokens) — **not built**. `keywords`
+   and token matching from §6 **are**: the picker and the slash menu match every word of
+   a query against title, description, id, keywords and the retired names.
+5. `sample` as a status; ghost rendering next milestone — **not built**.
+
+### What is clickable now
+
+Twelve primitives are registered; eighteen presets are what a person browses. Insert one
+from the popover, the slash menu, a drag, or the phone's bottom sheet — all four go
+through `insertPreset` → `insertWidget`, so ADR-037 decision 4 still holds. The chrome
+row renders one control per declared dimension with **All at the top of each**, which is
+Mitchell's *"it can also select All at the top, and it gives you a sum"* made literal.
+
+### The preset list is CURATED, not the §4 table row for row
+
+§4 has seventeen rows because it is also the migration map, and four of those pairs are
+the same widget written twice — the finding ADR-039 opens with. Listing both halves would
+put two rows in the picker that insert the identical node, which is this change's own
+duplication one layer up. So `cost.trip` and `cost.day` are **one** preset ("What it
+costs", narrowed to a day or not); both names still migrate to their own params, and both
+still find that row by search, because every retired name is a search alias of the preset
+its primitive became.
+
+Eighteen presets over twelve primitives, including the four §4 asks for that no widget
+covered: *how many stops are booked*, *everything on a day booked only*, plus `count` and
+`city.detail`, which nothing migrates to because nothing ever named them.
+
+### Rules the tables above do not state, settled while building
+
+- **A stop's city is its own, falling back to its day's.** By the stop's own
+  `location.city` alone, an unlocated lunch on a Tokyo day drops out of
+  `cost{city: Tokyo}` and the widget under-reports money; by its day's cities alone, the
+  Kyoto hotel booked on the Tokyo→Kyoto travel day counts as Tokyo.
+- **An absent day filter is every day; a day filter aimed at a DELETED day is
+  `unbound`.** Decision 2 retires `unbound` for a filter left alone. A stale ref is not
+  left alone, and widening it would turn `cost{day: 100}` into the trip total the moment
+  day 100 was removed. The chip says "that day was removed"; the control beside it says
+  "All days", which is what clearing it would give.
+- **A preset does not offer to unpick itself.** The chrome row on "A line for every
+  booking" has no kind select — the dimension is reachable through the unfiltered preset,
+  but the row a person picked by name should not immediately offer to contradict its own
+  title.
+- **`cost` sums the selected stops, always** — the same stops `rollupCosts` sums in
+  `@tc/domain` — so wide it equals `tripCostTotal` and day-bound it equals that day's
+  `costSubtotal`. Not three code paths that agree; one that cannot disagree.
+- **`day.detail` drops stopless days only when a content filter is set.** Unfiltered,
+  every selected day appears (a day with nothing on it is a real day, and the table says
+  "Nothing planned yet"); with `kind: booked`, days with no booking are dropped rather
+  than rendered as a wall of empty cards.
+
+### Still owed
+
+- The **slash argument grammar** (§5). `/cost` opens the menu and filters it; `/cost 3
+  meal` does not yet insert `cost{day: 3, tag: meal}` — a space still ends the query.
+- **`person` has no control and never filters** (decision 7), which is its finished
+  behaviour until `TripMember` carries a display name and a stop carries a person.
+
+### One control for "which days", and what it stores
+
+Mitchell, on the PR 141 preview: *"I dont think we need the date pickers, and the dropdown
+for all days/specific day, and the range. Combine them into one experience. Im picturing a
+calendar where you pick a range, it defaults to all days of trip, and you can select the
+days."*
+
+So the chrome row's `day` select and its two date inputs are **one control**: a button
+showing the current selection, opening a grid of the trip's own days. Click one for a
+single day, click a second to reach a range, "All days" to clear. It lists the trip's days
+rather than a month, because a month grid needs navigation and a concept of "outside the
+trip" for a filter that is only ever over these.
+
+**It always writes `dates`, never `day`** — Mitchell's call when the two were put to him.
+One control writing two different dimensions depending on how many cells you touched is a
+rule nobody can predict from outside. `day` and `dates` remain two dimensions in the AST
+because they are not interchangeable; the UI simply only produces one of them.
+
+Three consequences, all deliberate:
+
+- **A stored `day` is still read, shown and clearable.** Documents migrated from `cost.day`
+  and friends carry one, and a binding the UI can no longer write must still be one the UI
+  can undo — otherwise the migration would strand every dated page ever written. Clearing
+  removes both keys.
+- **A trip with no dates cannot be filtered by day at all.** A date range resolves against
+  real dates, so on an undated trip there is nothing to select; the popover says so rather
+  than offering cells that would store a range matching nothing, and All days stays
+  reachable so it is never a dead end. **This is a real cost on a common path** — "Create
+  empty" leaves a trip undated — and `m14-notebook-widgets.spec.ts` pins it with a walk of
+  its own so it cannot become a surprise. The one-line reversal, if it turns out to bite,
+  is to let a single click on an undated day write `day` instead.
+- **Every primitive declaring `day` must also declare `dates`**, or it would silently lose
+  its only day control. Asserted in `filters.test.ts` (over the matrix) and
+  `presets.test.ts` (over the registry) rather than assumed in the component.
+- **`sample`** and ghost rendering (§7).

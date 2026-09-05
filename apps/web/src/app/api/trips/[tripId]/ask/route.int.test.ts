@@ -844,7 +844,48 @@ describe("POST /api/trips/:id/ask", () => {
 
       const instruction = turnInstruction();
       expect(instruction).toContain('The page is called "Day Sheet"');
-      expect(instruction).toContain("itinerary.day");
+      // **Parsed, not grepped.** These were four `toContain` checks, and
+      // `toContain("filters")` in particular passed on the word appearing
+      // anywhere in ~2k characters of prose — including in the sentence that
+      // says filters are optional. It asserted nothing about the catalogue
+      // (CodeRabbit, PR 141). The catalogue is serialized into the instruction
+      // as one JSON array, so the test can read what the model reads.
+      const catalog = JSON.parse(
+        instruction.split("\n").find((line) => line.startsWith("These are the only macros"))!
+          .replace(/^[^[]*/, ""),
+      ) as { name: string; selection?: { entity: string; filters: string[] }; params: Record<string, string[] | null> }[];
+
+      // A real primitive from the live registry — `itinerary.day` was one of
+      // the seventeen named widgets ADR-039 retired, and naming a retired one
+      // here would have gone on passing right up until the model tried to
+      // insert it.
+      const dayDetail = catalog.find((entry) => entry.name === "day.detail");
+      expect(dayDetail).toBeDefined();
+      // And the model is told what the widget SELECTS over, not just its name:
+      // a model composing the general form can see what is legal rather than
+      // guessing from `inputs`. Asserted whole rather than by `toContain`, so a
+      // dimension quietly ADDED to what the model is offered fails here too —
+      // `person` above all, which no `day` widget may take.
+      //
+      // This pins what `day.detail` publishes. That its declaration stays
+      // within `LEGAL_FILTERS.day` is `registry.test.ts`'s sweep, and that the
+      // matrix row itself never grows a `person` is `filters.test.ts` — three
+      // separate claims, and widening one constant leaves the other two green.
+      expect(dayDetail!.selection).toEqual({
+        entity: "day",
+        filters: ["day", "city", "tag", "kind", "dates"],
+      });
+
+      // **And the params that are not filters.** Without them the catalogue
+      // described every widget as a selection, which is false for two of them —
+      // a model told "every param is a filter" cannot ask for the trip's name,
+      // so `attribute` was uninsertable by this path (Copilot, PR 141). The
+      // closed allow-list reaches the model as its exact vocabulary.
+      const attribute = catalog.find((entry) => entry.name === "attribute");
+      expect(attribute!.params.field).toEqual([
+        "trip.name", "trip.budgetRemaining", "account.name", "account.homeAirport",
+      ]);
+      expect(catalog.find((entry) => entry.name === "count")!.params.of).toEqual(["stop", "day", "city"]);
       // None of the planning rules the command endpoint sent on every page
       // request — ~1.5k characters describing tools this turn is not handed.
       expect(instruction).not.toContain("activityRef");

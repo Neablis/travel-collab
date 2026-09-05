@@ -1,4 +1,6 @@
 import type { MacroNode } from "@tc/contracts";
+import { FilterDimension } from "@tc/contracts";
+import type { AnyMacroDef } from "./registry-types";
 import { getMacro } from "./registry";
 
 // ADR-037 decision 4: **insert is one derived command, not a UI action per
@@ -20,6 +22,33 @@ import { getMacro } from "./registry";
 export type InsertError =
   | { reason: "unknown-widget"; name: string }
   | { reason: "bad-params"; name: string; message: string };
+
+/**
+ * The filter dimensions this widget does not accept, out of the ones supplied.
+ *
+ * **ADR-039 decision 3 asks for a refusal here, not a strip**: *"the picker
+ * offers only combinations that are legal; `insertWidget` refuses the rest,
+ * with the same typed refusal it uses for bad params today."* The params schema
+ * is `.strip()`, so `insertWidget("city.rows", { kind: "booked" })` was landing
+ * a node with the kind quietly dropped — a caller's filter discarded by the one
+ * function whose whole job is to refuse bad input (Copilot, PR 141).
+ *
+ * **Strict on the way in, permissive on the way out**, which is the same
+ * asymmetry `PageContent` already documents: `.strip()` stays on the read path
+ * so a document written by a NEWER build still opens, and this closes the write
+ * path so no build writes one carelessly.
+ *
+ * Only the closed filter vocabulary is checked. A key outside it is either a
+ * primitive's own non-filter param (`count`'s `of`, `attribute`'s `field`) —
+ * which its schema validates — or ordinary junk, and junk has always stripped.
+ */
+function illegalFilters(def: AnyMacroDef, params: unknown): string[] {
+  if (!def.selection || typeof params !== "object" || params === null || Array.isArray(params)) return [];
+  const declared = new Set<string>(def.selection.filters);
+  return Object.keys(params).filter(
+    (key) => (FilterDimension.options as readonly string[]).includes(key) && !declared.has(key),
+  );
+}
 
 export type InsertResult =
   | { ok: true; node: MacroNode }
@@ -48,6 +77,20 @@ export function insertWidget(name: string, params: unknown = {}): InsertResult {
   // function whose whole job is to refuse bad input. The default argument above
   // still covers an OMITTED argument, which is the case that wanted defaulting.
   // Found by CodeRabbit on PR 139.
+  // Legality before shape: "this widget has no kind" is a more useful sentence
+  // than whatever a stripped schema would have said, which is nothing at all.
+  const illegal = illegalFilters(def, params);
+  if (illegal.length > 0) {
+    return {
+      ok: false,
+      error: {
+        reason: "bad-params",
+        name,
+        message: `${name} does not accept ${illegal.join(", ")} (it selects over ${def.selection!.entity} by ${def.selection!.filters.join(", ") || "nothing"})`,
+      },
+    };
+  }
+
   const parsed = def.params.safeParse(params);
   if (!parsed.success) {
     return { ok: false, error: { reason: "bad-params", name, message: parsed.error.message } };

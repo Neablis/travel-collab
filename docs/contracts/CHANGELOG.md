@@ -13,6 +13,67 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-04 — `PageDoc` v2: the seventeen widget names become twelve primitives
+- Added: `AttributeFieldRef` in `packages/contracts/src/pages.ts` — the closed
+  list of fields `attribute` may read (`trip.name`, `trip.budgetRemaining`,
+  `account.name`, `account.homeAirport`). Named `…Ref` rather than
+  `AttributeField` because `manifest.ts` already exports that for a describable
+  field of a collection, which is a different thing
+- Added: `WIDGET_NAME_MIGRATION` and the v1 → v2 step in
+  `PAGE_DOC_MIGRATIONS` (`packages/contracts/src/pageDoc.ts`).
+  `CURRENT_PAGE_DOC_VERSION` is **2**, derived from the chain as it always was
+- Why: ADR-039 decision 9, *"one migration, once"*. Four of the seventeen names
+  were the same widget written twice, and a preset is data that is never stored
+  — so this is the whole cost of the vocabulary change to stored documents, and
+  it is one function. `PAGE_DOC_MIGRATIONS` was built empty for exactly this
+- Note: the node SHAPE is unchanged, which is what lets the step be
+  `(PageDoc) => PageDoc`. It rewrites `attrs.name` and the KEYS of
+  `attrs.params` (`dayRef` → `day`), both of which the current schema already
+  accepts. The file's warning that a real migration would need a per-version
+  schema is still owed by the first change that alters the vocabulary of nodes
+- Note: a name this build does not recognise is left ALONE, not dropped —
+  decision 3's carry-don't-drop applied to a name rather than a node type
+- Consumers updated: `@tc/pages` (the twelve primitives, the preset table, and
+  `insertPreset`; the seventeen named defs are deleted), `apps/web` (the picker,
+  the slash menu, drag-and-drop, the chrome row, the assistant's tool surface,
+  and `apiClient`, which now migrates an inserts payload before it reaches the
+  editor)
+- Fixtures: `packages/contracts/test/fixtures/pageDocV2.ts` is the v2 golden,
+  hand-written beside the now-FROZEN v1 one. The round-trip tests moved to it;
+  the v1 golden is what the migration is tested against
+- Breaking? **no for readers, yes for writers.** Every stored v1 row migrates on
+  read and is written back at v2. Nothing outside this repo writes these
+  documents. A build older than this one reading a v2 row would refuse it
+  (`migratePageDoc` rejects a future version) and open the page read-only with
+  an explanation, which is ADR-038 decision 4 working as designed
+
+## 2026-09-04 — the filter vocabulary: six dimensions and their value shapes
+- Added: `FilterDimension` (`day` · `city` · `tag` · `kind` · `person` · `dates`),
+  `CityRef`, `KindRef`, `PersonRef`, `DateRangeRef` and `FILTER_VALUE_SCHEMAS` in
+  `packages/contracts/src/pages.ts`. Together with the existing `DayRef` and
+  `TagRef` they are the closed vocabulary a widget's selection can be narrowed
+  along (ADR-039 decision 1)
+- Why: they are here for exactly the reason `DayRef` and `TagRef` are — these
+  values are PERSISTED in `MacroNode.attrs.params`, and the editor, the AI
+  compose path and the resolvers all read them. `FILTER_VALUE_SCHEMAS` is the one
+  map `@tc/pages` builds each primitive's params schema from, so "the declared
+  filters and the params schema agree" is true by construction rather than by six
+  files remembering
+- Note: **an absent dimension means every member, not "unset"** (ADR-039 decision
+  2). `TagRef` already worked this way; this generalises it. `DateRangeRef`
+  refuses a reversed range rather than swapping the endpoints — quietly
+  reinterpreting a mistake is how a widget shows a confident wrong answer — and a
+  single date is `from === through`, so the control has one shape rather than two
+- Note: `PersonRef` is **vocabulary, not a capability** (ADR-039 decision 7).
+  `TripMember` has no display name and no stop carries a person, so a widget
+  handed one renders the "needs a field" state. It is declared now so the shape is
+  settled; the capability lights up with M13 `add-stop-who` / M19 link 3
+- Consumers updated: `@tc/pages` (the legality matrix, `filterParams`, and the
+  eleven primitives), `apps/web` (`MacroView`'s `person` branch now says "needs a
+  person field" rather than "no one set", which invited a choice no control can
+  offer)
+- Breaking? no — every schema is new, and nothing stored today carries one
+
 ## 2026-09-04 — `TagRef`, and `valueKindOf` through a wrapper
 - Added: `TagRef` in `packages/contracts/src/pages.ts` — the value shape of a
   `tags` input inside one widget's params, alongside `DayRef`. It is

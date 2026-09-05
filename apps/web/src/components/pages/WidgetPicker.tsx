@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { macroCatalog } from "@tc/pages";
+import { presetCatalog } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import type { WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +15,14 @@ import { Input } from "@/components/ui/input";
 // registry, same order, same copy as desktop". A second hand-written list is
 // precisely the thing that made `MacroView`'s name switch a bug.
 //
-// **It lists the registry, not a menu.** `macroCatalog()` is live, so a widget
-// added inside `packages/pages` appears on every surface with no edit here.
+// **It lists the PRESETS, not the registry** (ADR-039 decision 5: *"the
+// combination space is not the browsable list; the preset list is"*). Twelve
+// primitives times six filter dimensions is a cross product nobody wants to
+// browse; a preset is a `(primitive, params, title, keywords)` row that names
+// one useful cell of it, and adding one is data with no code at all.
+//
+// `presetCatalog()` is live, so a preset added inside `packages/pages` appears
+// on every surface with no edit here.
 //
 // Nothing here decides what a valid node is: `insertWidget` does, and it is the
 // one path (ADR-037 decision 4 — "there is no way to put a widget into a
@@ -54,34 +60,57 @@ const FILTERS: readonly { value: ShapeFilter; label: string }[] = [
   { value: "repeat", label: "A line each" },
 ];
 
-// The gate's "a mono line naming what it takes". Said BEFORE the click rather
-// than discovered after it: a widget that lands unbound is correct behaviour
-// (ADR-037 decision 6 — never a default day) and still surprising if the row
-// gave no warning that it wanted pointing.
+// The gate's "a mono line naming what it takes", said BEFORE the click rather
+// than discovered after it.
 //
-// `[]` is a real answer meaning "binds nothing, inserts immediately" (ADR-035
-// decision 2), and saying so is worth a line — it tells a person the widget is
-// finished the moment it lands.
+// **"Narrow it by", not "point it at".** Under ADR-039 decision 2 a widget with
+// nothing bound is not waiting for anything — it is showing everything, which
+// is the widest true answer — so every row here is ready as soon as it lands
+// and the filters are what a person can do NEXT, not a debt the widget arrives
+// with. The old wording was correct about `cost.day`, which really was unbound
+// until you pointed it at a day, and is a lie about `cost`.
 function takesLine(inputs: readonly WidgetInput[]): string {
   if (inputs.length === 0) return "ready as soon as it lands";
-  return `point it at: ${inputs.map((i) => i.label.toLowerCase()).join(", ")}`;
+  return `narrow it by: ${inputs.map((i) => i.label.toLowerCase()).join(", ")}`;
 }
 
-// Match on everything a person might type: the title they see, the description,
-// and the stored name. The name is included deliberately — someone who has read
-// a document's JSON, or the AI tool surface, knows a widget as `cost.day`, and a
-// search that refused to find it would be hiding what the app itself uses.
+/**
+ * Does this row match what was typed? (spec §6, findability.)
+ *
+ * **Every word of the query must match something, rather than the whole query
+ * matching one field.** The old rule was a single substring over title,
+ * description and name, so *"day cost"* found nothing at all — the words are in
+ * two different fields, and no field contains the phrase. Token matching is
+ * what makes a person's actual search behaviour work.
+ *
+ * What a token can match:
+ *
+ * - the **title** they see;
+ * - the **description**, which is the sentence under it;
+ * - the **id**, deliberately — someone who has read a document's JSON or the AI
+ *   tool surface knows a widget by name, and a search that refused to find it
+ *   would hide what the app itself uses;
+ * - the **keywords**, which are what somebody types when they do not know the
+ *   title: `cost` answers to total, spend, price, sum, budget;
+ * - the **aliases** — the retired names. `booking.line` stopped existing, and
+ *   `/booking` still finds "A line for every booking" (§6's last line).
+ */
 export function widgetMatches(
-  w: { name: string; title: string; description: string },
+  w: {
+    name: string;
+    title: string;
+    description: string;
+    keywords?: readonly string[];
+    aliases?: readonly string[];
+  },
   query: string,
 ): boolean {
-  const q = query.trim().toLowerCase();
-  if (q === "") return true;
-  return (
-    w.title.toLowerCase().includes(q) ||
-    w.description.toLowerCase().includes(q) ||
-    w.name.toLowerCase().includes(q)
-  );
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const haystack = [w.title, w.description, w.name, ...(w.keywords ?? []), ...(w.aliases ?? [])]
+    .join(" ")
+    .toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
 }
 
 // The drag payload's MIME type, exported so the editor's drop handler and this
@@ -95,7 +124,11 @@ export function WidgetPicker({
   draggable = false,
   autoFocus = false,
 }: {
-  onPick: (name: string) => void;
+  // The PRESET's id, not a widget name: the row a person clicked is
+  // `(primitive, params)`, and only `insertPreset` knows which. Callers hand it
+  // straight back rather than resolving it themselves, so there is still one
+  // place that turns a click into a node.
+  onPick: (presetId: string) => void;
   // Desktop only, and not a styling flag: a phone has no drag-and-drop into a
   // contenteditable, and a `draggable` row there fights the touch scroll of the
   // sheet it lives in.
@@ -104,16 +137,16 @@ export function WidgetPicker({
 }) {
   const [query, setQuery] = useState("");
   const [shape, setShape] = useState<ShapeFilter>(null);
-  const widgets = useMemo(() => macroCatalog(), []);
+  const widgets = useMemo(() => presetCatalog(), []);
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
 
   return (
     <>
-      {/* The gate's "search over a flat list". The registry passed nine widgets
-          on the day this shipped and passes thirteen now; the list is what grows
-          every time someone does the thing the widget model was built to make
-          cheap. `min-h-11` is §13 rule 1 — the phone sheet uses this same field,
-          and §16 records getting that sizing wrong once already. */}
+      {/* The gate's "search over a flat list". It lists presets now, and the
+          list is what grows every time someone names a combination worth
+          naming — which is a row of data, not code (ADR-039 decision 4).
+          `min-h-11` is §13 rule 1 — the phone sheet uses this same field, and
+          §16 records getting that sizing wrong once already. */}
       <Input
         type="search"
         aria-label="Search widgets"

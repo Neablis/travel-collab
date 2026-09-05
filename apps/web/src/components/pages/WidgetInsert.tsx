@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
-import { getMacro, insertWidget } from "@tc/pages";
+import { getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -9,7 +9,12 @@ import { Popover } from "@/components/ui/popover";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { WidgetPicker } from "@/components/pages/WidgetPicker";
-import { WidgetBindControls, bindableInputs, bindSummary } from "@/components/pages/editor/widgetBind";
+import {
+  WidgetBindControls,
+  bindSummary,
+  presetBindableInputs,
+  presetTarget,
+} from "@/components/pages/editor/widgetBind";
 
 // The insert surface — ADR-037 decision 4. It has two containers and one model,
 // which is the whole point of SPEC §19: *"the same registry, same order, same
@@ -33,12 +38,16 @@ import { WidgetBindControls, bindableInputs, bindSummary } from "@/components/pa
 
 export type MacroNode = { type: "macro"; attrs: { name: string; params: Record<string, unknown> } };
 
-// The picker only ever offers names the registry gave it, so a refusal here can
-// only mean a widget's own schema cannot parse the params — which the
-// registry-wide insert test asserts never happens for `{}`. Nothing is inserted
-// rather than something invalid.
-function build(name: string, params: Record<string, unknown>): MacroNode | null {
-  const result = insertWidget(name, params);
+// The picker only ever offers preset ids the catalogue gave it, so a refusal
+// here can only mean the resolved params do not parse — which
+// `presets.test.ts` asserts never happens for a preset's own params. Nothing is
+// inserted rather than something invalid.
+//
+// `insertPreset` resolves `(primitive, params)` and then goes through
+// `insertWidget`, so a preset is a shortcut for choosing arguments and not a
+// second door into a document (ADR-037 decision 4).
+function build(presetId: string, extra: Record<string, unknown>): MacroNode | null {
+  const result = insertPreset(presetId, extra);
   return result.ok ? result.node : null;
 }
 
@@ -67,8 +76,8 @@ export function WidgetInsert({
     setParams({});
   };
 
-  const insert = (name: string, withParams: Record<string, unknown>) => {
-    const node = build(name, withParams);
+  const insert = (presetId: string, withParams: Record<string, unknown>) => {
+    const node = build(presetId, withParams);
     if (node) onInsert(node);
     close();
   };
@@ -106,8 +115,8 @@ export function WidgetInsert({
           // the behaviour a side effect of where focus went, so a later change
           // to the insert path would silently change whether the popover
           // closes. Closing here makes it the decision it already was.
-          onPick={(name) => {
-            const node = build(name, {});
+          onPick={(presetId) => {
+            const node = build(presetId, {});
             if (node) onInsert(node);
             close();
           }}
@@ -116,7 +125,11 @@ export function WidgetInsert({
     );
   }
 
-  const pendingDef = pending === null ? null : getMacro(pending);
+  // The phone's step 2 works on the preset's PRIMITIVE — its controls, its
+  // preview — while the id it inserts stays the preset's.
+  const pendingPreset = pending === null ? null : getPreset(pending);
+  const pendingTarget = pending === null ? null : presetTarget(pending);
+  const pendingDef = pendingTarget === null ? null : getMacro(pendingTarget.widget);
 
   return (
     <>
@@ -125,19 +138,19 @@ export function WidgetInsert({
         open={open}
         onOpenChange={(next) => (next ? setOpen(true) : close())}
         size="bottom"
-        title={pendingDef ? pendingDef.title : "Insert a widget"}
+        title={pendingPreset ? pendingPreset.title : "Insert a widget"}
       >
-        {pending === null || pendingDef === null || pendingDef === undefined ? (
+        {pending === null || pendingDef === null || pendingDef === undefined || pendingTarget === null ? (
           <WidgetPicker
-            onPick={(name) => {
-              // A widget that binds nothing is finished the moment it lands
-              // (ADR-035 decision 2), so §19 has it skip step 2 entirely
-              // rather than showing an empty "point it at" with nothing in it.
-              if (bindableInputs(name).length === 0) {
-                insert(name, {});
+            onPick={(presetId) => {
+              // A preset whose name already answers every dimension is finished
+              // the moment it lands, so §19 has it skip step 2 entirely rather
+              // than showing an empty "point it at" with nothing in it.
+              if (presetBindableInputs(presetId).length === 0) {
+                insert(presetId, {});
                 return;
               }
-              setPending(name);
+              setPending(presetId);
               setParams({});
             }}
           />
@@ -156,15 +169,19 @@ export function WidgetInsert({
             >
               ‹ All
             </Button>
-            <Text variant="secondary">{pendingDef.description}</Text>
+            <Text variant="secondary">{pendingPreset?.description ?? pendingDef.description}</Text>
             <WidgetBindControls
-              name={pending}
+              name={pendingTarget.widget}
               params={params}
               detail={detail}
               globals={globals}
               onChange={setParams}
               layout="stacked"
               idPrefix="widget-insert"
+              // Only the dimensions the preset has NOT already answered. "A
+              // line for every booking" does not offer to stop being about
+              // bookings on the way in.
+              inputs={presetBindableInputs(pending)}
             />
             <div>
               <Text variant="muted">Reads as</Text>
@@ -172,13 +189,22 @@ export function WidgetInsert({
                   §19 restates it for this screen: "the insert sheet's preview
                   line never shows live values — otherwise it reads as a result
                   rather than a description." */}
-              <Text variant="secondary">{pendingDef.preview}</Text>
+              <Text variant="secondary">{pendingPreset?.preview ?? pendingDef.preview}</Text>
             </div>
             {/* What it will be pointed at, in the words the button on the page
                 will use afterwards — so "Insert it" is not a leap of faith.
                 Unset is a real, legal outcome here (decision 6 never defaults a
                 day), so this never blocks the insert; it only says so. */}
-            <Text variant="muted">Pointed at {bindSummary(pending, params, detail, globals)}</Text>
+            <Text variant="muted">
+              Showing{" "}
+              {bindSummary(
+                pendingTarget.widget,
+                { ...pendingTarget.params, ...params },
+                detail,
+                globals,
+                presetBindableInputs(pending),
+              )}
+            </Text>
             <Button
               variant="primary"
               className="min-h-12 w-full"

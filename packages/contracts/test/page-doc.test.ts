@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CURRENT_PAGE_DOC_VERSION,
   PAGE_DOC_MIGRATIONS,
+  WIDGET_NAME_MIGRATION,
   PageContent,
   PageDoc,
   collectPageDocNodeTypes,
@@ -11,6 +12,7 @@ import {
   serializePageDoc,
 } from "../src";
 import { PAGE_DOC_V1_GOLDEN } from "./fixtures/pageDocV1";
+import { PAGE_DOC_V2_GOLDEN } from "./fixtures/pageDocV2";
 
 // Restated here on purpose rather than imported: the generator's job is to
 // produce types the parser does NOT know, and sharing the parser's own set
@@ -246,19 +248,26 @@ describe("the v1 vocabulary is the editor's vocabulary (ADR-038, amended 2026-09
 });
 
 describe("the recursive vocabulary round-trips (ADR-038 decisions 3 and 5)", () => {
+  // **The v2 golden, not the v1 one.** These assert byte-identity through
+  // parse-and-serialise, and `parsePageDoc` also MIGRATES — so run against a v1
+  // document they were really asserting "the migration changes nothing", which
+  // is false by design now that a migration exists and was the shape of the
+  // failure when ADR-039's v1→v2 step landed. The migration has its own
+  // describe below; this one is about the serialiser.
+  //
   // Not the whole document: an empty `{ type: "paragraph" }` canonicalises to
   // `content: []` by design, so byte-identity is a per-node promise, never a
   // per-document one.
   const goldenNode = (type: string): unknown => {
-    const stored = PAGE_DOC_V1_GOLDEN as { content: { type: string }[] };
+    const stored = PAGE_DOC_V2_GOLDEN as { content: { type: string }[] };
     const index = stored.content.findIndex((node) => node.type === type);
     expect(index).toBeGreaterThanOrEqual(0);
     return stored.content[index];
   };
   const roundTrippedNode = (type: string): unknown => {
-    const stored = PAGE_DOC_V1_GOLDEN as { content: { type: string }[] };
+    const stored = PAGE_DOC_V2_GOLDEN as { content: { type: string }[] };
     const index = stored.content.findIndex((node) => node.type === type);
-    return (serializePageDoc(parsePageDoc(PAGE_DOC_V1_GOLDEN)) as { content: unknown[] }).content[index];
+    return (serializePageDoc(parsePageDoc(PAGE_DOC_V2_GOLDEN)) as { content: unknown[] }).content[index];
   };
 
   // bulletList → listItem → bulletList → listItem → { paragraph → macro,
@@ -379,9 +388,125 @@ describe("the v1 golden document", () => {
   });
 
   it("re-serialises to a stable document: round-tripping twice changes nothing", () => {
+    // Still the v1 golden, deliberately: the second pass is where a migration
+    // that is not idempotent shows up, and it is a v1 row that has one to run.
     const once = serializePageDoc(parsePageDoc(PAGE_DOC_V1_GOLDEN));
     const twice = serializePageDoc(parsePageDoc(once));
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+  });
+});
+
+// **ADR-039 decision 9: one migration, once.** Seventeen widget names become
+// eleven primitives with their filters; the preset a person picks is data and
+// is never stored, so retiring one migrates nothing. This is the whole cost of
+// the vocabulary change to stored documents, and it is one function.
+describe("v1 → v2: the widget names become primitives (ADR-039)", () => {
+  const migrated = () => serializePageDoc(parsePageDoc(PAGE_DOC_V1_GOLDEN));
+
+  it("turns the whole v1 golden into the v2 golden, at every depth", () => {
+    // The strongest form available: two hand-written documents, one migration
+    // between them. It covers the widget in a paragraph, the widget as a block,
+    // the `repeat` node's own attrs, and the widget two lists down — the depth
+    // at which a walk that stopped recursing would quietly leave a stale name.
+    expect(migrated()).toEqual(serializePageDoc(parsePageDoc(PAGE_DOC_V2_GOLDEN)));
+  });
+
+  it("carries a day binding across the rename rather than dropping it", () => {
+    // `itinerary.day` spelled its binding `dayRef`; `day.detail` spells it
+    // `day`. A migration that renamed the widget and not the key would leave
+    // every dated page pointed at nothing — and, because an absent filter now
+    // means EVERY day (ADR-039 decision 2), it would silently widen a page
+    // about day 3 into a page about the whole trip rather than break loudly.
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [
+        { type: "macro", attrs: { name: "itinerary.day", params: { dayRef: { kind: "index", index: 2 } } } },
+      ],
+    });
+    expect(doc.content[0]).toEqual({
+      type: "macro",
+      attrs: { name: "day.detail", params: { day: { kind: "index", index: 2 } } },
+    });
+  });
+
+  it("turns a name that WAS a filter into that filter", () => {
+    // "A line for every booking" was a widget; booking is `kind: "booked"`, an
+    // enum member that already existed. The name carried the filter, so the
+    // migration has to write it down or the page starts listing every stop.
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [
+        { type: "macro", attrs: { name: "booking.line", params: { dayRef: { kind: "index", index: 1 } } } },
+      ],
+    });
+    expect(doc.content[0]).toEqual({
+      type: "macro",
+      attrs: { name: "stop.rows", params: { day: { kind: "index", index: 1 }, kind: "booked" } },
+    });
+  });
+
+  it("lets the RENAMED key win over a stray param already using its new name", () => {
+    // A hand-edited v1 node carrying both `dayRef` and `day`. Only `dayRef`
+    // meant anything at v1, so it has to win — and it has to win regardless of
+    // which key JSON iteration reaches last, which a single-pass rename does
+    // not guarantee (Copilot, PR 141).
+    const day2 = { kind: "index", index: 1 };
+    const day5 = { kind: "index", index: 4 };
+    for (const params of [
+      { dayRef: day2, day: day5 },
+      { day: day5, dayRef: day2 },
+    ]) {
+      const doc = parsePageDoc({
+        type: "doc",
+        content: [{ type: "macro", attrs: { name: "cost.day", params } }],
+      });
+      expect(doc.content[0], JSON.stringify(params)).toEqual({
+        type: "macro",
+        attrs: { name: "cost", params: { day: day2 } },
+      });
+    }
+  });
+
+  it("lets the name's own filter win over a stray param of the same key", () => {
+    // A hand-edited document could carry `kind: "idea"` under `booking.line`,
+    // where it meant nothing at all to the old resolver. It must not start
+    // meaning something under the new one.
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [{ type: "macro", attrs: { name: "booking.line", params: { kind: "idea" } } }],
+    });
+    expect(doc.content[0]).toMatchObject({ attrs: { params: { kind: "booked" } } });
+  });
+
+  it("leaves a name it does not recognise alone", () => {
+    // Carry, don't drop (decision 3), applied to a NAME rather than a node
+    // type: it is either a widget from a newer build or one already migrated,
+    // and rewriting it would be guessing. `MacroView` has a legible answer for
+    // a name the registry cannot resolve.
+    const doc = parsePageDoc({
+      type: "doc",
+      content: [{ type: "macro", attrs: { name: "weather.tomorrow", params: { city: "Kyoto" } } }],
+    });
+    expect(doc.content[0]).toEqual({
+      type: "macro",
+      attrs: { name: "weather.tomorrow", params: { city: "Kyoto" } },
+    });
+  });
+
+  it("covers all seventeen names, and lands each on a primitive", () => {
+    // Non-vacuous, and it is the count that matters: ADR-039 opens by saying
+    // the registry holds seventeen widgets. A migration table that quietly
+    // covered fifteen would leave two pages broken and no test red.
+    expect(Object.keys(WIDGET_NAME_MIGRATION)).toHaveLength(17);
+    const targets = new Set(Object.values(WIDGET_NAME_MIGRATION).map((step) => step.name));
+    // Ten of the twelve primitives. `count` and `city.detail` are the two the
+    // seventeen never covered — the cells of the cross product nobody had typed
+    // out yet — so nothing migrates to them, and pinning the number is what
+    // makes that a stated fact rather than a suspicion about a short table.
+    expect([...targets].sort()).toEqual([
+      "attribute", "city", "city.rows", "cost", "cost.rows",
+      "dates", "day.detail", "day.rows", "hours", "stop.rows",
+    ]);
   });
 });
 

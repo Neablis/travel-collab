@@ -40,7 +40,7 @@ after checking every main-only line for anything newer — there was none, `main
 evidence nothing was dropped. **Expect this whenever a squashed PR is the base of a live
 stack.**
 
-**ADR-039 is PROPOSED (2026-09-04) and is what happens next.** A widget stops being a name
+**ADR-039 is ACCEPTED (2026-09-04), and its phase 1 is built.** A widget stops being a name
 and becomes a selection: an entity, a set of filters, and a shape that decides arity. It
 came out of Mitchell's preview comment (*"where we have a tool that you can select a day, it
 can also select All at the top, and it gives you a sum"*) and the finding underneath it —
@@ -54,10 +54,58 @@ honest about having neither a display name on `TripMember` nor any person on a s
 by), `attribute` is generic in the AST behind an allow-list, and the `sample` status ships
 while ghost rendering waits for the next milestone.
 
+**§8 steps 1-3 are built, and the picker is the proof.** Mitchell, on the first cut:
+*"how am i spose to test any of this if they arent in the picker? … this is another
+milestone thats not functionally reviewable."* He was right — a registry nobody can click
+is not a reviewable milestone — so the phase boundary moved to where a person can walk it.
+
+**Twelve primitives, eighteen presets, one migration.** The registry holds `cost`,
+`count`, `dates`, `hours`, `city`, `attribute`, `day.detail`, `city.detail`, `day.rows`,
+`city.rows`, `stop.rows`, `cost.rows` — each declaring `entity + filters` beside the
+`shape` it already had. **The seventeen named widgets are deleted.** What a person browses
+is `packages/pages/src/presets.ts`: `(primitive, params, title, keywords)` rows, data with
+no code, which ADR-039 decision 4 says a named widget is. Stored documents carrying an old
+name are rewritten once, on read, by `PAGE_DOC_MIGRATIONS`' v1 → v2 step —
+`CURRENT_PAGE_DOC_VERSION` is **2**, and `packages/contracts/test/fixtures/pageDocV2.ts`
+is the hand-written golden it is tested against.
+
+**How "a rename, not a behaviour change" was actually established.** Every one of the
+seventeen was asserted IDENTICAL in rendered output to the primitive replacing it while
+both still existed (commit `db013f9` on this branch — `cost{}` to `cost.trip`,
+`day.detail{day}` to `itinerary.day`, `stop.rows{day, kind: booked}` to `booking.line`, and
+so on). Those comparisons could not survive deleting the named defs, so what guards it now
+is a sweep that puts each retired name through the real `parsePageDoc` migration and
+renders the result against a real trip, plus per-primitive golden assertions of the exact
+chips and rows. The equivalence run is in the branch history, not in the suite.
+
+**What is clickable.** Insert a preset from the header popover, by dragging it, by typing
+`/`, or from the phone's bottom sheet — all four go through `insertPreset` → `insertWidget`
+(ADR-037 decision 4 intact). The chrome row then renders **one control per declared
+dimension with All at the top of each**: "All days", "All cities", "Any kind", "Every
+stop", and a from/through pair for dates. That is Mitchell's *"it can also select All at
+the top, and it gives you a sum"* literally. Search matches every word of a query across
+title, description, id, keywords and the RETIRED names, so `/booking` and `cost.day` both
+still find something (§6).
+
+**The chrome row has ONE control for "which days".** Mitchell, on the preview: *"I dont
+think we need the date pickers, and the dropdown for all days/specific day, and the range.
+Combine them into one experience."* A button opening a grid of the trip's own days
+replaced the day select and the two date inputs. **It always writes `dates`** — his call
+when the alternative was put to him — which costs one thing worth knowing: a trip created
+with "Create empty" has no dates, so its widgets cannot be filtered by day until someone
+sets a start date. The popover says so, All days stays reachable, and an e2e walk pins it
+so it cannot become a surprise. Spec §8 records the one-line reversal if it bites.
+
+**What is still owed, and it is written into the spec's §8 rather than only here:** §5's
+slash ARGUMENT grammar (`/cost 3 meal` — a space still ends the query), and §7's `sample`
+status with its ghost rendering. `person` is declared, has no control, and renders "needs
+a person field"; that is its finished behaviour until `TripMember` carries a display name
+and a stop carries a person (decision 7).
+
 **What the merge contains.** Merged before the stack: **#129** (a page loses its scope),
 **#130** (widget catalogue, ADR-037, ADR-038, M14 rescope), **#131** (`PageDoc`, the
-versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037 and 038 are
-Accepted; ADR-039 is Proposed.**
+versioned AST), **#132** (handover docs + GHAS KI). **ADRs 035, 036, 037, 038 and 039 are
+all Accepted.**
 
 **M14's gate is NOT closed: 2 of 14 boxes ticked** (`docs/milestones/M14-rich-layer.md`).
 Several unticked boxes are now satisfied by merged code and the nine e2e walks in

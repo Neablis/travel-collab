@@ -28,12 +28,16 @@ describe("inspectStoredPageDoc", () => {
   // specified passes, and the guard refuses anyway.
   // ────────────────────────────────────────────────────────────────────────
   it("refuses a document the round-trip criterion says is fine", () => {
+    // At the CURRENT version, so the round trip below is about the serialiser
+    // and nothing else. A v1 document would also be migrated by `parsePageDoc`
+    // (ADR-039 renamed the widgets), and the comparison would then be measuring
+    // the migration rather than the criterion this test is about.
     const stored = {
-      v: 1,
+      v: CURRENT_PAGE_DOC_VERSION,
       type: "doc",
       content: [
         { type: "paragraph", content: [{ type: "text", text: "written by the user" }] },
-        { type: "repeat", attrs: { name: "day.line", params: {} }, content: [] },
+        { type: "repeat", attrs: { name: "day.rows", params: {} }, content: [] },
       ],
     };
 
@@ -49,7 +53,7 @@ describe("inspectStoredPageDoc", () => {
 
   it("refuses a node type from a newer build, which also round-trips byte-identically", () => {
     const stored = {
-      v: 1,
+      v: CURRENT_PAGE_DOC_VERSION,
       type: "doc",
       content: [{ type: "paragraph", content: [] }, { type: "somethingFromANewerBuild", attrs: { a: 1 } }],
     };
@@ -84,9 +88,10 @@ describe("inspectStoredPageDoc", () => {
       content: [{ type: "paragraph", content: [{ type: "text", text: "hello" }] }],
     });
     expect(verdict.status).toBe("mountable");
-    // Parsed, so `v` is materialised — the caller passes this straight to the
-    // editor and must not be handed something that still needs a parse.
-    expect(verdict.status === "mountable" && verdict.doc.v).toBe(1);
+    // Parsed AND migrated, so `v` is materialised at the version this build
+    // speaks — the caller passes this straight to the editor and must not be
+    // handed something that still needs a parse or a migration.
+    expect(verdict.status === "mountable" && verdict.doc.v).toBe(CURRENT_PAGE_DOC_VERSION);
   });
 
   it("mounts every node type the v1 vocabulary has an extension for", () => {
@@ -94,7 +99,7 @@ describe("inspectStoredPageDoc", () => {
       type: "doc",
       content: [
         { type: "heading", attrs: { level: 6 }, content: [{ type: "text", text: "h" }] },
-        { type: "paragraph", content: [{ type: "macro", attrs: { name: "cost.trip", params: {} } }, { type: "hardBreak" }] },
+        { type: "paragraph", content: [{ type: "macro", attrs: { name: "cost", params: {} } }, { type: "hardBreak" }] },
         { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [] }] }] },
         { type: "orderedList", attrs: { start: 3, type: null }, content: [] },
         { type: "codeBlock", attrs: { language: null }, content: [{ type: "text", text: "x" }] },
@@ -142,8 +147,24 @@ describe("toStoredPageDoc", () => {
     expect(stored?.v).toBe(CURRENT_PAGE_DOC_VERSION);
   });
 
-  it("keeps a document that already carries its version at that version", () => {
-    expect(toStoredPageDoc({ v: 1, type: "doc", content: [] })?.v).toBe(1);
+  it("keeps a document already at the current version there", () => {
+    expect(toStoredPageDoc({ v: CURRENT_PAGE_DOC_VERSION, type: "doc", content: [] })?.v).toBe(
+      CURRENT_PAGE_DOC_VERSION,
+    );
+  });
+
+  it("writes a migrated v1 document back at the version it was migrated TO", () => {
+    // "We write only what we would open", and what we opened is the migrated
+    // document. Writing it back stamped v1 would label v2 content as v1 — the
+    // next read would run the migration over already-migrated names, and the
+    // row would never leave v1 however many times it was saved.
+    const stored = toStoredPageDoc({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "macro", attrs: { name: "cost.trip", params: {} } }] }],
+    });
+    expect(stored?.v).toBe(CURRENT_PAGE_DOC_VERSION);
+    expect(JSON.stringify(stored)).toContain('"cost"');
+    expect(JSON.stringify(stored)).not.toContain("cost.trip");
   });
 
   it("refuses a document it would not have opened, so the two rules cannot diverge", () => {

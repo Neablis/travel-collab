@@ -79,6 +79,10 @@ describe("PageScreen", () => {
             content: [
               // The day is the widget's, not the page's (SPEC §18): the page
               // below is about nothing in particular.
+              // Stored the v1 way, deliberately: `cost.day` with a `dayRef` is
+              // what every page written before ADR-039 holds, and this is the
+              // only test that walks a REAL stored document through
+              // `parsePageDoc`'s v1 → v2 migration and out to the screen.
               { type: "macro", attrs: { name: "cost.day", params: { dayRef: { kind: "index", index: 0 } } } },
             ],
           },
@@ -92,7 +96,11 @@ describe("PageScreen", () => {
 
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
-    expect(await screen.findByText("no costs on this day")).toBeTruthy();
+    // Migrated to `cost{day: 0}` on read, resolved against the loaded trip, and
+    // empty because the fixture has no costs — not "unknown macro", which is
+    // what a page carrying a retired name renders if the migration does not run.
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+    expect(screen.queryByText(/unknown macro/)).toBeNull();
   });
 });
 
@@ -104,7 +112,10 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
   const pageWithAccountName = {
     type: "doc" as const,
     content: [
-      { type: "paragraph", content: [{ type: "macro", attrs: { name: "account.name", params: {} } }] },
+      {
+        type: "paragraph",
+        content: [{ type: "macro", attrs: { name: "attribute", params: { field: "account.name" } } }],
+      },
     ],
   };
 
@@ -142,7 +153,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // dependency. Failing it must cost one widget, never the notebook — the
     // page below must still render rather than showing the error screen.
     await renderWithPreferences(null);
-    expect(await screen.findByText("no name set")).toBeTruthy();
+    expect(await screen.findByText("nothing to show")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -155,16 +166,16 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // with every other preference null too, a resolver that wrongly fell back
     // to a sibling field would still render "no name set" and this test would
     // still pass. A real value there makes that fallback observable: the widget
-    // must still say "no name set", and "SFO" must appear nowhere.
+    // must still say it has nothing to show, and "SFO" must appear nowhere.
     //
     // CodeRabbit also suggested scoping the assertion to the widget's own node
-    // via `closest('[data-macro-name="account.name"]')`. Not taken: that trips
+    // via `closest('[data-macro-name="attribute"]')`. Not taken: that trips
     // `testing-library/no-node-access`, which KI-2026-09-02-b grandfathers for
     // existing violations and says not to add more of. It buys nothing here
     // either — breaking the resolver to fall back to `homeAirport` fails the
     // first assertion below on its own, which is how this was checked.
     await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
-    expect(await screen.findByText("no name set")).toBeTruthy();
+    expect(await screen.findByText("nothing to show")).toBeTruthy();
     expect(screen.queryByText("SFO")).toBeNull();
   });
 });
@@ -288,42 +299,56 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
     await openPage();
-    // `title`, not `name`: "cost.trip" is a stored identifier a document keeps
+    // `title`, not `name`: "cost" is a stored identifier a document keeps
     // forever, and it is not what a sidebar shows a reader.
-    expect(screen.getByRole("button", { name: /What the trip costs/ })).toBeTruthy();
-    expect(screen.queryByText("cost.trip")).toBeNull();
+    expect(screen.getByRole("button", { name: /What it costs/ })).toBeTruthy();
+    expect(screen.queryByText("cost.rows")).toBeNull();
   });
 
   it("inserts a widget at the cursor and renders it live", async () => {
     await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What the trip costs/ }));
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
     // It resolved against the loaded trip rather than rendering a placeholder:
     // the fixture has no costs, so the widget's own emptyText is what shows.
     expect(await screen.findByText("no costs yet")).toBeTruthy();
   });
 
-  it("points a day widget at a day from its own chrome row, and saves it", async () => {
+  it("narrows a widget to one day from its own chrome row, and saves it", async () => {
     // The whole reason the chrome row exists: with no modal step at insert
-    // time, a day widget lands UNBOUND and this is where it gets pointed.
+    // time, a widget lands WIDE and this is where it gets narrowed.
     const { onUpdate } = await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
 
-    // Unbound on arrival — not silently defaulted to day 1 (ADR-037 decision 6).
-    expect(await screen.findByText("no day set")).toBeTruthy();
+    // **Wide on arrival, not unbound** — ADR-039 decision 2, and the change
+    // Mitchell asked for: *"it can also select All at the top, and it gives you
+    // a sum"*. The fixture has no costs, so the widget says so; what it must
+    // NOT say is that it is waiting for a day.
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+    expect(screen.queryByText("that day was removed")).toBeNull();
 
-    const select = screen.getByRole("combobox", { name: /What a day costs/ });
-    // And the CONTROL agrees with the widget. Asserting only the widget's text
-    // let a break through where the select displayed "Day 1" while the widget
-    // still said "no day set" — a control lying about what the document holds,
-    // which is worse than either state alone because the reader believes it.
-    expect((select as HTMLSelectElement).value).toBe("");
-    await userEvent.selectOptions(select, "1");
+    // And the CONTROL agrees with the widget: it reads All days. Asserting only
+    // the widget's text let a break through where the control displayed "Day 1"
+    // while the widget covered the whole trip — a control lying about what the
+    // document holds, which is worse than either state alone because the reader
+    // believes it.
+    //
+    // ONE control for "which days", not a day select plus a date pair
+    // (Mitchell, on the preview: *"combine them into one experience"*).
+    const days = screen.getByRole("button", { name: /What it costs: dates/ });
+    expect(days.textContent).toBe("All days");
+    await userEvent.click(days);
+    await userEvent.click(
+      within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
+    );
 
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
     const saved = onUpdate.mock.calls.at(-1)![1].content as { content: unknown[] };
     // The binding is stored on the widget instance's own params — ADR-035
     // decision 3, and what lets two widgets on one page read two different days.
-    expect(JSON.stringify(saved.content)).toContain('"index":1');
+    // A single day is a range whose ends are equal — `DateRangeRef`'s own shape
+    // for one date rather than a second spelling of it.
+    expect(JSON.stringify(saved.content)).toContain('"from":"2027-06-02"');
+    expect(JSON.stringify(saved.content)).toContain('"through":"2027-06-02"');
   });
 
   it("lets two widgets on one page point at different days", async () => {
@@ -331,21 +356,31 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // notebook that shows day 1, day 3 and day 9". Each widget carries its own
     // binding, so this is the assertion that an aggregated control would break.
     await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What a day costs/ }));
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
     // Re-opened, because the popover closes behind each insert.
     await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
-    await userEvent.click(screen.getByRole("button", { name: /A day's stops/ }));
+    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
 
-    const selects = screen.getAllByRole("combobox");
-    expect(selects.length).toBeGreaterThanOrEqual(2);
-    await userEvent.selectOptions(selects[0]!, "0");
-    await userEvent.selectOptions(selects[1]!, "1");
+    // Each widget's own days control, found by the widget's name rather than by
+    // position: a primitive declares several controls now, so "the first two on
+    // the page" are both the FIRST widget's and the assertion below would pass
+    // while proving nothing about the second.
+    const pickDay = async (widget: RegExp, day: RegExp) => {
+      await userEvent.click(screen.getByRole("button", { name: widget }));
+      const grid = await screen.findByRole("group", { name: "Trip days" });
+      await userEvent.click(within(grid).getByRole("button", { name: day }));
+      // Radix leaves the popover open after a pick, so close it before reaching
+      // for the next widget's grid.
+      await userEvent.keyboard("{Escape}");
+    };
+    await pickDay(/What it costs: dates/, /Day 1/);
+    await pickDay(/The days in detail: dates/, /Day 2/);
 
-    expect((selects[0] as HTMLSelectElement).value).toBe("0");
-    expect((selects[1] as HTMLSelectElement).value).toBe("1");
+    expect(screen.getByRole("button", { name: /What it costs: dates/ }).textContent).toBe("2027-06-01");
+    expect(screen.getByRole("button", { name: /The days in detail: dates/ }).textContent).toBe("2027-06-02");
   });
 
-  // The globals seam, end to end, and the only test that walks it. `day.city`
+  // The globals seam, end to end, and the only test that walks it. `city`
   // is the one widget served by NOTHING on `TripDetail` — its cities come from
   // the projection item D built, which travels a separate route
   // (`GET /api/trips/:id/globals`), a separate piece of screen state, and the
@@ -354,15 +389,19 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // on this day", which reads like a trip with no cities rather than a bug.
   it("renders a widget that is served only by the globals projection", async () => {
     await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /A day's city/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Which cities/ }));
 
-    const select = screen.getByRole("combobox", { name: /A day's city/ });
-    await userEvent.selectOptions(select, "1");
+    await userEvent.click(screen.getByRole("button", { name: /The cities: dates/ }));
+    await userEvent.click(
+      within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
+    );
 
     // Day 2 is Porto. Asserting the SECOND day rather than the first is what
     // makes this about the binding as well as the fetch: a widget that ignored
-    // its day and always read `days[0]` would pass on "Lisbon".
+    // its day and always read `days[0]` would pass on "Lisbon". Unfiltered it
+    // would show both, which is the other way this can be wrong.
     expect(await screen.findByText("Porto")).toBeTruthy();
+    expect(screen.queryByText("Lisbon")).toBeNull();
   });
 
   // The phone Notebook — design handoff 2026-09-03, `SPEC.md` §19. The model is
@@ -418,33 +457,39 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
       // Step 1: browse. The same registry, the same order, the same copy.
       const dialog = await screen.findByRole("dialog");
-      await userEvent.click(within(dialog).getByRole("button", { name: /What a day costs/ }));
+      await userEvent.click(within(dialog).getByRole("button", { name: /What it costs/ }));
 
       // Step 2: point it at. This is what the desktop does NOT have — there the
       // widget lands at the caret with its chrome row under it, so a bind step
       // would be the same choice offered twice (project rule 4).
-      const select = within(dialog).getByRole("combobox", { name: /day/i });
-      await userEvent.selectOptions(select, "1");
+      await userEvent.click(within(dialog).getByRole("button", { name: /dates/i }));
+      await userEvent.click(
+        within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
+      );
       await userEvent.click(within(dialog).getByRole("button", { name: "Insert it" }));
 
-      // It arrives BOUND. A phone insert that landed unbound would mean the
-      // bind step decided nothing, which is the failure worth catching here.
+      // It arrives NARROWED, and it arrives as the PRIMITIVE with the filter
+      // the bind step chose — never as the preset's id, which is not a thing a
+      // document stores (ADR-039 decision 4). A phone insert that landed wide
+      // would mean the bind step decided nothing, which is the failure worth
+      // catching here.
       await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
       const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
-      expect(saved).toContain('"cost.day"');
-      expect(saved).toContain('"index":1');
+      expect(saved).toContain('"cost"');
+      expect(saved).not.toContain('"cost.day"');
+      expect(saved).toContain('"from":"2027-06-02"');
     });
 
     // §19's one real divergence, and it is density: at 390px the desktop chrome
     // row — a name chip plus a select per input, inline — wraps into
     // unreadability. So the phone shows the resolved binding on a button and
     // opens the same controls in a sheet.
-    it("shows one 'Pointed at' button per widget instead of an inline select row", async () => {
+    it("shows one 'Showing …' button per widget instead of an inline select row", async () => {
       setPhone(true);
       await openPage({ reachInsert: false });
       await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
       await userEvent.click(
-        within(await screen.findByRole("dialog")).getByRole("button", { name: /What a day costs/ }),
+        within(await screen.findByRole("dialog")).getByRole("button", { name: /What it costs/ }),
       );
       await userEvent.click(screen.getByRole("button", { name: "Insert it" }));
 
@@ -452,14 +497,19 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // button *and* kept the select row would be the same binding twice
       // (project rule 4), and would not have fixed the wrapping this replaces.
       expect(screen.queryByRole("combobox")).toBeNull();
-      const bind = await screen.findByRole("button", { name: /Pointed at/ });
+      const bind = await screen.findByRole("button", { name: /^Showing/ });
       // The label IS the binding, not the widget's name: §19 rule — "binds
-      // render on binds, not on name pills".
-      expect(bind.textContent).toContain("Not set up");
+      // render on binds, not on name pills". Inserted with nothing chosen, it
+      // covers everything (ADR-039 decision 2) and says so in one word rather
+      // than listing five unset filters.
+      expect(bind.textContent).toContain("everything");
 
       await userEvent.click(bind);
       const sheet = await screen.findByRole("dialog");
-      await userEvent.selectOptions(within(sheet).getByRole("combobox"), "0");
+      await userEvent.click(within(sheet).getByRole("button", { name: /dates/i }));
+      await userEvent.click(
+        within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }),
+      );
       // The sheet is a Radix Dialog, so it `aria-hidden`s the page behind it —
       // the button below is genuinely unreachable until it closes, and that is
       // the correct accessibility behaviour rather than something to work
@@ -471,7 +521,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // still reads its old binding is the control-contradicts-the-document
       // bug, from the third surface.
       await vi.waitFor(() =>
-        expect(screen.getByRole("button", { name: /Pointed at Day 1/ })).toBeTruthy(),
+        expect(screen.getByRole("button", { name: /Showing 2027-06-01/ })).toBeTruthy(),
       );
     });
   });

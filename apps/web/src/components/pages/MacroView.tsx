@@ -44,11 +44,28 @@ function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents })
           // values on this page came from a widget" is a question a test can
           // ask without asserting a class, which the test-quality wall forbids
           // outside `components/ui/**`.
+          //
+          // **`mx-0.5 px-1`, and the margin is the half that was missing.**
+          // Mitchell, on the PR 141 preview: *"These inline elements should
+          // have a natural space at the start and end, otherwise ill need to go
+          // in and put a unnatural space."* A widget node is an inline atom, so
+          // the tinted background butted straight against the character beside
+          // it — the author's own typed space landed OUTSIDE the tint and did
+          // nothing to separate them, which is what made a second, unnatural one
+          // look necessary.
+          //
+          // Margin rather than more padding, because the two say different
+          // things: padding widens the tinted pill around the value (so `$45.00`
+          // gets room inside its own highlight), while margin holds the pill off
+          // the prose. The complaint was about the second, and padding alone
+          // would have grown the highlight without moving it away from anything.
+          // `0.5`/`1` are scale steps; an arbitrary value is what the colour
+          // wall refuses.
           <span
             key={i}
             data-widget-value={seg.name}
             className={cn(
-              "rounded-sm border-b-2 border-brand bg-brand-tint px-px",
+              "mx-0.5 rounded-sm border-b-2 border-brand bg-brand-tint px-1",
               // A city is the one value with a colour of its own, and it is
               // the trip's colour, not the widget's — see `cityAccents`.
               seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
@@ -98,18 +115,36 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     switch (outcome.needs) {
       case "trip":
         return <EmptyChip tone="muted" label="needs a trip" />;
+      // **The only way to reach this now is a day that was DELETED.** Under
+      // ADR-039 decision 2 an absent day filter means every day — the widest
+      // true answer — so a widget with nothing bound is finished, not waiting.
+      // What is left is a `DayRef` pointing at a day the trip no longer has,
+      // and silently widening that to the whole trip would turn a page about
+      // day 100 into a page about everything the moment day 100 was removed.
+      //
+      // So the label names what actually happened rather than saying "no day
+      // set", which would invite the reader to set one when the real news is
+      // that theirs is gone. The chrome row's day select reads "All days"
+      // beside it, which is what clearing this would give.
       case "day":
         return onBindDay
-          ? <EmptyChip tone="action" label="select a day" onClick={onBindDay} />
-          : <EmptyChip tone="muted" label="no day set" />;
+          ? <EmptyChip tone="action" label="that day was removed" onClick={onBindDay} />
+          : <EmptyChip tone="muted" label="that day was removed" />;
       case "days":
         return <EmptyChip tone="muted" label="no days set" />;
-      // Unreachable today and rendered anyway: no widget declares a `person`
-      // input, because nothing links an activity to a person yet (§18 declares
-      // the type; M13/M19 bring the field). A branch that throws or falls
-      // through here is how the first person widget ships broken.
+      // **Reachable now, and it says the truth about why.** ADR-039 decision 7
+      // declares `person` as a filter dimension and states plainly that it
+      // cannot resolve: `TripMember` is `{ userId, role }` with no display
+      // name, and no stop carries a person at all. So a widget filtered by one
+      // answers ADR-037 decision 7's "needs a field" state.
+      //
+      // "no one set" was the old label and it would now be a lie in the one way
+      // that matters: it invites a reader to set somebody, and there is no
+      // control to do it with and no field for it to write to. Naming the
+      // missing FIELD says whose problem this is — ours, until M13
+      // `add-stop-who` / M19 link 3 lands.
       case "person":
-        return <EmptyChip tone="muted" label="no one set" />;
+        return <EmptyChip tone="muted" label="needs a person field" />;
       default: {
         const exhaustive: never = outcome.needs;
         return exhaustive;

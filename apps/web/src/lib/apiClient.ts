@@ -2,6 +2,7 @@ import {
   BatchableCommand,
   InvitePreview,
   PageDoc,
+  migratePageDoc,
   SavedDay,
   SharedTripView,
   TripAccess,
@@ -830,7 +831,23 @@ function pageInsertsFrom(value: unknown): { type: "page-inserts"; content: PageD
   if (typeof value !== "object" || value === null) return null;
   const raw = value as { content?: unknown };
   const content = PageDoc.safeParse(raw.content);
-  return content.success ? { type: "page-inserts", content: content.data } : null;
+  if (!content.success) return null;
+  // **Migrated, not merely parsed.** What comes back here goes straight into
+  // the editor and then into `updatePage`, so it is a document entering this
+  // build and gets the same migrate-on-read every other entry point gives one
+  // (ADR-038 decision 2). Without it, a payload carrying an older `v` — from a
+  // server mid-deploy, or a `finish` frame replayed from before one — would
+  // reach the editor still spelling widgets the registry has retired, and the
+  // reader would see "unknown macro" chips in content the assistant had just
+  // written for them.
+  try {
+    return { type: "page-inserts", content: migratePageDoc(content.data) };
+  } catch {
+    // A document from a FUTURE version. Refusing is what `migratePageDoc` is
+    // saying, and dropping the payload is the same answer this function gives
+    // everything else it cannot use.
+    return null;
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { EditorView } from "@tiptap/pm/view";
-import { insertWidget } from "@tc/pages";
+import { insertPreset } from "@tc/pages";
 import { WIDGET_DRAG_TYPE } from "@/components/pages/WidgetPicker";
 
 /**
@@ -7,11 +7,12 @@ import { WIDGET_DRAG_TYPE } from "@/components/pages/WidgetPicker";
  * a widget onto page"*.
  *
  * It is the SAME insert as a click, at a position the pointer chose rather than
- * one the caret chose: `insertWidget` still builds and validates the node, so
+ * one the caret chose: `insertPreset` still goes through `insertWidget`, so
  * ADR-037 decision 4 ("there is no way to put a widget into a document that
  * skips validation") holds for this origin too. The dragged payload carries a
- * NAME and nothing else, which is what keeps that true — dragging a built node
- * would be a second construction path, and the one thing decision 4 forbids.
+ * PRESET ID and nothing else, which is what keeps that true — dragging a built
+ * node would be a second construction path, and the one thing decision 4
+ * forbids.
  *
  * A function rather than an inline `editorProps.handleDrop` closure so it can be
  * tested. jsdom has no layout, so `posAtCoords` there answers `null` for every
@@ -25,14 +26,14 @@ import { WIDGET_DRAG_TYPE } from "@/components/pages/WidgetPicker";
 export function handleWidgetDrop(view: EditorView, event: DragEvent): boolean {
   // The custom MIME type is load-bearing. With `text/plain`, any dragged text —
   // a word from another paragraph, a URL from the address bar — would arrive
-  // here looking like a widget name.
-  const name = event.dataTransfer?.getData(WIDGET_DRAG_TYPE);
-  if (!name) return false;
+  // here looking like a preset id.
+  const presetId = event.dataTransfer?.getData(WIDGET_DRAG_TYPE);
+  if (!presetId) return false;
 
   const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
   if (at === null || at === undefined) return false;
 
-  const built = insertWidget(name);
+  const built = insertPreset(presetId);
   if (!built.ok) return false;
 
   const macro = view.state.schema.nodes.macro;
