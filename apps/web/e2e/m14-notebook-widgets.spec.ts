@@ -253,6 +253,30 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
 
+  // **A resolved value reads as a word with room around it, not flush against
+  // the prose.** Mitchell, on the preview: *"These inline elements should have
+  // a natural space at the start and end, otherwise ill need to go in and put a
+  // unnatural space."* A widget node is an inline atom, so its tinted
+  // background butted straight against the character beside it.
+  //
+  // Asserted in e2e rather than in a unit test because it is genuinely
+  // presentational: `toHaveClass` and `.className` are eslint errors in
+  // `src/**/*.test.tsx` outside `components/ui/**`, and rightly — but a
+  // computed margin is a real measurement, and e2e is where this repo already
+  // measures rendered geometry (§13's 44px floor is checked the same way).
+  //
+  // A repeater's rows are where a value definitely renders: this trip has days
+  // and dates but no costs, so an inline `cost` would resolve to its empty
+  // chip and there would be no value to measure.
+  const value = page.locator(".tc-page-editor [data-widget-value]").first();
+  await expect(value).toBeVisible();
+  const gaps = await value.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
+  });
+  expect(gaps.left).toBeGreaterThan(0);
+  expect(gaps.right).toBeGreaterThan(0);
+
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which

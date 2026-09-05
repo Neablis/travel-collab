@@ -44,11 +44,28 @@ function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents })
           // values on this page came from a widget" is a question a test can
           // ask without asserting a class, which the test-quality wall forbids
           // outside `components/ui/**`.
+          //
+          // **`mx-0.5 px-1`, and the margin is the half that was missing.**
+          // Mitchell, on the PR 141 preview: *"These inline elements should
+          // have a natural space at the start and end, otherwise ill need to go
+          // in and put a unnatural space."* A widget node is an inline atom, so
+          // the tinted background butted straight against the character beside
+          // it — the author's own typed space landed OUTSIDE the tint and did
+          // nothing to separate them, which is what made a second, unnatural one
+          // look necessary.
+          //
+          // Margin rather than more padding, because the two say different
+          // things: padding widens the tinted pill around the value (so `$45.00`
+          // gets room inside its own highlight), while margin holds the pill off
+          // the prose. The complaint was about the second, and padding alone
+          // would have grown the highlight without moving it away from anything.
+          // `0.5`/`1` are scale steps; an arbitrary value is what the colour
+          // wall refuses.
           <span
             key={i}
             data-widget-value={seg.name}
             className={cn(
-              "rounded-sm border-b-2 border-brand bg-brand-tint px-px",
+              "mx-0.5 rounded-sm border-b-2 border-brand bg-brand-tint px-1",
               // A city is the one value with a colour of its own, and it is
               // the trip's colour, not the widget's — see `cityAccents`.
               seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
