@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
+import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 
 afterEach(cleanup);
@@ -38,10 +39,17 @@ const ctx: PageContext = { tripId: baseDetail.tripId };
 // A trip with a costed, timed stop on a dated day, so the BLOCK widgets resolve
 // to `ok` and actually render their markup — an `empty` chip would prove
 // nothing about the shape of a rendered table.
-const costedDetail: TripDetail = {
+// **Every total here is computed, not typed.** Both of this fixture's rollups
+// were wrong at some point on PR 141 — `tripCostTotal: 12345` with no
+// activities, then `unscheduledCostSubtotal: 500` with no unscheduled stop —
+// and a reviewer found each, because a fixture that lies about its own money
+// fails in the direction nobody checks: it passes. `withCostRollups` delegates
+// to `@tc/domain`'s `rollupCosts`, the same arithmetic the app runs, so the
+// numbers below cannot drift from the stops above them.
+const costedDetail: TripDetail = withCostRollups({
   ...baseDetail,
   startDate: "2026-08-01",
-  days: [{ dayId: baseDetail.days[0]!.dayId, activityIds: ["a1"], date: "2026-08-01", costSubtotal: 12345 }],
+  days: [{ dayId: baseDetail.days[0]!.dayId, activityIds: ["a1"], date: "2026-08-01", costSubtotal: 0 }],
   activities: {
     a1: {
       activityId: "a1", title: "Museum", timeWindow: { start: "09:00", end: "10:00" },
@@ -49,16 +57,7 @@ const costedDetail: TripDetail = {
       cost: { amountMinor: 12345, currency: "USD" },
     },
   },
-  // Zero, for the same reason `tripCostTotal` above is: there is no unscheduled
-  // stop here, so any other number is a rollup contradicting the stops it is a
-  // rollup of. It said 500, which made the `$123.45` assertion below prove
-  // nothing about a total — the fixture claimed 500 of unscheduled cost that
-  // `cost` could not find and no reader could account for (CodeRabbit, PR 141).
-  unscheduledCostSubtotal: 0,
-  // And the trip's total is now the one stop on it, so the fixture agrees with
-  // itself the way `rollupCosts` would make it agree on real data.
-  tripCostTotal: 12345,
-};
+});
 
 // The same trip with one stop left OFF a day, which is the case the fixture
 // above used to gesture at with a number and no stop behind it.
@@ -69,7 +68,7 @@ const costedDetail: TripDetail = {
 // it exactly when no `day` and no `dates` filter is set — so this fixture is
 // the only place the difference between "the whole trip" and "every scheduled
 // day" is visible at this level.
-const backloggedDetail: TripDetail = {
+const backloggedDetail: TripDetail = withCostRollups({
   ...costedDetail,
   activities: {
     ...costedDetail.activities,
@@ -80,9 +79,7 @@ const backloggedDetail: TripDetail = {
     },
   },
   backlog: ["u1"],
-  unscheduledCostSubtotal: 500,
-  tripCostTotal: 12845,
-};
+});
 
 describe("MacroView", () => {
   it("shows the formatted total for an unfiltered cost when there is a total", () => {
