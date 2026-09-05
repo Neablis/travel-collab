@@ -50,7 +50,9 @@ packages/contracts  ←  apps/web (UI)  — via the typed API client only
 
 - Domain, server, and UI agents may work concurrently **only after** the
   contract change for the feature has landed.
-- UI works against MSW mocks generated from the contract; server works against
-  contract-driven integration tests; they meet without coordination.
+- UI works against MSW mocks **hand-written against the contract types**
+  (`apps/web/src/mocks/handlers.ts` — there is no generator; adding a route means
+  adding a handler); server works against contract-driven integration tests; they
+  meet without coordination.
 - Never "temporarily" define a type locally to avoid waiting on contracts —
   that is the drift the whole structure exists to prevent.

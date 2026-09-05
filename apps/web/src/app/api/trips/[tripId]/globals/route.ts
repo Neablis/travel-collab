@@ -15,7 +15,7 @@ import { buildTripGlobals } from "@/server/tripGlobals";
 // may not must not be able to count its cities either.
 export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer");
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   // Contract-honest response, matching the detail route next door: validate
   // against the schema before returning rather than trusting the builder.

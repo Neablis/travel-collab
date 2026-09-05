@@ -1,0 +1,17 @@
+-- KI-2026-09-05-d: delete the orphan rows the anonymous demo write path made.
+--
+-- `requireTripAccess` answered the demo trip BEFORE `auth()` and did so for
+-- every caller asking `viewer`, so `POST /api/saved-days` accepted a request
+-- with no cookie at all and inserted a row owned by the literal string
+-- `demo-visitor`. That is not a `users.id`, and `saved_days.owner_id` carries
+-- no foreign key ON PURPOSE (ADR-025, the same terms as `events.actor_id`), so
+-- nothing rejected it and nothing cascades it away now. No user can list or
+-- delete these rows through any route in the product: they are unreachable.
+--
+-- The seam is opt-in as of this migration's commit, so no new rows of this
+-- shape can be written. This clears what the hole already produced.
+--
+-- Deliberately NOT adding a foreign key here. The absence of one is an ADR-025
+-- decision recorded at `schema.ts:224`; overturning it is a separate argument
+-- with its own migration, not a side effect of a cleanup.
+DELETE FROM "saved_days" WHERE "owner_id" = 'demo-visitor';

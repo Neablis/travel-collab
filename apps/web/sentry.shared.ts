@@ -133,6 +133,153 @@ export const profileSessionSampleRate = envRate(
 );
 
 /**
+ * **URL scrubbing: why this file has to do it at all (KI-2026-09-05-e).**
+ *
+ * Share links (ADR-026) and invite links (ADR-027) put a bearer token in the
+ * URL *path*. The token is not an identifier that points at a secret — it IS
+ * the secret; anyone holding `/s/<token>` can read the trip. `sendDefaultPii:
+ * false` above strips IP addresses, cookies and headers, and it does not touch
+ * URLs. So without the hooks below, every traced request to one of those
+ * routes copies a live credential into a third-party SaaS and leaves it there
+ * for the retention period, at `tracesSampleRate` 1.0.
+ *
+ * The reproduction that motivated this, run against a real client and a
+ * capturing transport (`sentry.shared.test.ts` still runs it), found the token
+ * in nine places across two envelope item types:
+ *
+ *     transaction :: .transaction                      GET /api/shares/<token>
+ *     transaction :: .request.url                      /api/shares/<token>
+ *     transaction :: .contexts.trace.data["url.full"]  https://…/api/shares/<token>
+ *     transaction :: .contexts.trace.data["url.path"]  /api/shares/<token>
+ *     transaction :: .spans[0].description             GET /api/invites/<token>/accept
+ *     transaction :: .breadcrumbs[0].data.to           /invite/<token>
+ *     event       :: .contexts.nextjs.request_path     /s/<token>
+ *     event       :: .breadcrumbs[0].data.to           /invite/<token>
+ *     event       :: .exception.values[0].value        …?callbackUrl=%2Finvite%2F<token>
+ *
+ * That list is the argument for scrubbing every string in the event rather
+ * than a named set of fields. A field list is a guess about an SDK we do not
+ * control — `url.full` and `url.path` are OpenTelemetry attribute names that
+ * changed once already, and the next integration to attach a URL will pick its
+ * own key. Walking the whole event is O(event) once per send and cannot be
+ * defeated by a field being renamed or added.
+ *
+ * Over-masking is the safe direction here and under-masking is not, which is
+ * why the patterns are applied to prose (`exception.value`) too.
+ */
+
+/** What replaces a token. Deliberately not `[token]`: a reader of a Sentry
+ * event should be able to tell that the value was scrubbed rather than that it
+ * happened to be Next's route pattern. */
+export const REDACTED = "[redacted]";
+
+/**
+ * The three URL shapes that carry a bearer token in this app.
+ *
+ *   1. `/s/<token>` and `/invite/<token>` — the recipient-facing pages.
+ *   2. `/api/shares/<token>` and `/api/invites/<token>` — and everything under
+ *      them (`/clone`, `/accept`), which the trailing segment match leaves in
+ *      place because the suffix is useful and is not a secret.
+ *   3. `?callbackUrl=…` — `proxy.ts` sends a signed-out visitor to
+ *      `/signin?callbackUrl=%2Finvite%2F<token>`, percent-encoded, so patterns
+ *      1 and 2 cannot see it. The whole value goes rather than a decoded
+ *      substring: decoding to scrub and re-encoding is more moving parts than
+ *      a callback path is worth in a stack trace.
+ *
+ * The token-segment class ends at `&`, whitespace and quotes as well as at
+ * `/?#`, so masking stays inside the segment. Without `&` the first pattern
+ * eats the rest of the query string — `?callbackUrl=/invite/<token>&x=1`
+ * masked as far as the `1`, which is over-masking, i.e. lost triage data, in
+ * the one place a `callbackUrl` is most likely to appear.
+ */
+const URL_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\/(s|invite)\/[^/?#&\s"']+/g, `/$1/${REDACTED}`],
+  [/\/api\/(shares|invites)\/[^/?#&\s"']+/g, `/api/$1/${REDACTED}`],
+  [/([?&]callbackUrl=)[^&#\s"']*/gi, `$1${REDACTED}`],
+];
+
+/**
+ * Mask every bearer token in one string. Idempotent — re-scrubbing an already
+ * scrubbed value returns it unchanged — which is what lets the client apply
+ * both an event processor and `beforeSend` without thinking about order.
+ */
+export function scrubUrl(value: string): string {
+  let scrubbed = value;
+  for (const [pattern, replacement] of URL_SECRET_PATTERNS) {
+    scrubbed = scrubbed.replace(pattern, replacement);
+  }
+  return scrubbed;
+}
+
+/**
+ * Walk a Sentry payload and scrub every string in it, in place.
+ *
+ * Three guards, each for a real hazard rather than for tidiness:
+ *
+ *   * **`seen`** — a payload is not guaranteed acyclic when `beforeSend` runs
+ *     (normalization happens after it), and a cycle here would hang the
+ *     process inside the SDK's send path.
+ *   * **the prototype check** — only plain objects and arrays are descended
+ *     into. `sdkProcessingMetadata` can hold a live `Request`, and reading
+ *     arbitrary getters off a host object during a send is a good way to turn
+ *     an error report into a second error.
+ *   * **`sdkProcessingMetadata` by name** — the SDK deletes it before the
+ *     envelope is built, so scrubbing it is cost with no benefit.
+ */
+function scrubDeep(node: unknown, seen: WeakSet<object>): unknown {
+  if (typeof node === "string") return scrubUrl(node);
+  if (node === null || typeof node !== "object") return node;
+  if (seen.has(node)) return node;
+  seen.add(node);
+
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i += 1) node[i] = scrubDeep(node[i], seen);
+    return node;
+  }
+
+  const proto: unknown = Object.getPrototypeOf(node);
+  if (proto !== Object.prototype && proto !== null) return node;
+
+  const record = node as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key === "sdkProcessingMetadata") continue;
+    record[key] = scrubDeep(record[key], seen);
+  }
+  return node;
+}
+
+/**
+ * The `beforeSend` / `beforeSendTransaction` / event-processor body: mask every
+ * share and invite token anywhere in an outbound payload.
+ *
+ * Generic over the payload type because the same function has to satisfy three
+ * differently-typed Sentry hooks and a replay event, all of which want their
+ * own type back.
+ */
+export function scrubSentryPayload<T extends object>(payload: T): T {
+  return scrubDeep(payload, new WeakSet()) as T;
+}
+
+/**
+ * Scrub the URL out of a Session Replay recording event.
+ *
+ * Replay needs its own two hooks because neither of the ones below can see it:
+ * `prepareReplayEvent` in `@sentry/replay` calls `prepareEvent` and then sends,
+ * so a replay envelope never passes through `beforeSend` at all. The recording
+ * payload — navigation breadcrumbs, `performanceSpan` descriptions — never even
+ * becomes an event. `instrumentation-client.ts` wires both.
+ *
+ * Only `EventType.Custom` (5) events reach a `beforeAddRecordingEvent`
+ * callback; those are the ones with a `{ tag, payload }` body, which is exactly
+ * the part that carries URLs.
+ */
+export function scrubReplayRecordingEvent<T extends object>(event: T): T {
+  const data = (event as { data?: unknown }).data;
+  if (data && typeof data === "object") scrubDeep(data, new WeakSet());
+  return event;
+}
+
+/**
  * The options shared by all three runtimes.
  *
  * `enableLogs` and `enableMetrics` are the two that are not defaults:
@@ -158,4 +305,23 @@ export const sharedSentryOptions = {
   // additionally attach IP addresses, cookies and request bodies by default
   // would put PII into Sentry that nobody decided to send.
   sendDefaultPii: false,
+  // The three hooks that keep share and invite tokens out of Sentry. They live
+  // here, in the object all three `Sentry.init` calls spread, because a scrub
+  // that is on for the server and off for the edge is worse than no scrub —
+  // it reads as done. See the block comment above `REDACTED`.
+  //
+  // `beforeBreadcrumb` matters separately from the other two: it runs when a
+  // crumb is *recorded*, so a token never sits in the scope waiting to be
+  // attached to whatever error happens next.
+  beforeSend: scrubSentryPayload,
+  beforeSendTransaction: scrubSentryPayload,
+  // The third door, and it does NOT go through `beforeSend` (KI-2026-09-05-e's
+  // follow-up). `enableLogs` above gives structured logs their own pipeline
+  // with their own hook; without this, a log line carrying a share or invite
+  // URL would reach Sentry unscrubbed while the event and transaction paths
+  // next door were clean — the failure mode of scrubbing per-pipeline instead
+  // of per-payload. Nothing writes such a line today; this is so nothing has
+  // to remember not to.
+  beforeSendLog: scrubSentryPayload,
+  beforeBreadcrumb: scrubSentryPayload,
 } as const;

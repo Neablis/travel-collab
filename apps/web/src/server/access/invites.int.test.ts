@@ -371,6 +371,18 @@ describe("invites — create, accept, revoke", () => {
     if (!result.ok) expect(result.error.code).toBe("gone");
   });
 
+  // KI-2026-09-05-x. `trip_invites.id` is a uuid column, so the revoking UPDATE
+  // came back `22P02 invalid input syntax for type uuid` and `DELETE
+  // /api/trips/:id/invites/not-a-uuid` 500ed. The route already maps
+  // `not-found` to a 404, so the fix is to answer the same way this function
+  // answers an inviteId that names nothing.
+  it("answers not-found for an inviteId that is not a uuid, rather than throwing", async () => {
+    const tripId = await seedTrip();
+    const result = await revokeInvite(tripId, "not-a-uuid");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("not-found");
+  });
+
   it("revoking twice is a no-op, not an error", async () => {
     const tripId = await seedTrip();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });

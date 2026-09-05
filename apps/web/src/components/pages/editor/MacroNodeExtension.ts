@@ -1,6 +1,5 @@
 import { Node, mergeAttributes, ReactNodeViewRenderer } from "@tiptap/react";
-import { getMacro } from "@tc/pages";
-import { MacroNodeView } from "./MacroNodeView";
+import { MacroNodeView, macroShape } from "./MacroNodeView";
 
 // The `macro` ProseMirror node. Its attrs shape mirrors `@tc/contracts`'
 // MacroNode exactly (`{ name: string, params: Record<string, unknown> }`) so
@@ -70,15 +69,22 @@ export const MacroNodeExtension = Node.create({
   // `display: block`, which takes them out of that line box. `single` stays
   // inline: it IS a word in a sentence (SPEC §7) and its box is the size of one.
   //
-  // It is set HERE and not inside `MacroNodeView` because `NodeViewWrapper`
-  // renders INSIDE TipTap's own `.react-renderer` element, and that element is
-  // the one ProseMirror puts in the text flow — `display: block` on a span
-  // nested inside an inline span changes nothing about the line box. `attrs`
-  // is TipTap's own hook for exactly this, and it re-runs on update, so a
-  // rebind that changed a widget's shape would carry.
+  // The attribute is set HERE and not inside `MacroNodeView` because
+  // `NodeViewWrapper` renders INSIDE TipTap's own `.react-renderer` element,
+  // and that element is the one ProseMirror puts in the text flow —
+  // `display: block` on a span nested inside an inline span changes nothing
+  // about the line box. `attrs` is TipTap's own hook for exactly this, and it
+  // re-runs on update, so a rebind that changed a widget's shape would carry.
+  //
+  // The shape itself is `macroShape`, which lives beside the node view: the
+  // node view has to answer the same question to draw a selected state that
+  // fits the widget's box (KI-2026-09-05-a), and two independent readings of
+  // "what shape is this?" are how the attribute and the ring end up
+  // disagreeing. Importing it here keeps the dependency one-way — the node
+  // spec already imports its own node view.
   addNodeView() {
     return ReactNodeViewRenderer(MacroNodeView, {
-      attrs: ({ node }) => ({ "data-macro-shape": getMacro(node.attrs.name as string)?.shape ?? "single" }),
+      attrs: ({ node }) => ({ "data-macro-shape": macroShape(node.attrs.name as string) }),
     });
   },
 });

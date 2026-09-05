@@ -226,5 +226,46 @@ describe("/api/trips/:id/pages", () => {
       const body = await res.json();
       expect(body.error).toMatch(/tripId/i);
     });
+
+    // KI-2026-09-05-x. `pages.id` is a uuid column, so before the guard these
+    // three answered 500 — `22P02 invalid input syntax for type uuid` escaping
+    // `getPage` — for a mistyped or truncated page link. 404, not 400: a
+    // malformed id and an id naming nothing are the same fact to whoever
+    // followed the link.
+    describe.each([
+      ["GET", (tripId: string, pageId: string) =>
+        GET_ITEM(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`), {
+          params: Promise.resolve({ tripId, pageId }),
+        })],
+      ["PATCH", (tripId: string, pageId: string) =>
+        PATCH(
+          new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: "Renamed" }),
+          }),
+          { params: Promise.resolve({ tripId, pageId }) },
+        )],
+      ["DELETE", (tripId: string, pageId: string) =>
+        DELETE(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, { method: "DELETE" }), {
+          params: Promise.resolve({ tripId, pageId }),
+        })],
+    ])("%s with a pageId that is not a uuid", (_method, call) => {
+      it("404s instead of reaching Postgres", async () => {
+        const tripId = await seedTrip();
+        await seedPage(tripId);
+        const res = await call(tripId, "not-a-uuid");
+        expect(res.status).toBe(404);
+      });
+    });
+
+    // The trip half of the same KI, asserted through a real route rather than
+    // at the seam: `requireTripAccess` reads `trip_details` by a uuid tripId,
+    // and every trip-scoped route inherits whatever it answers.
+    it("404s a tripId that is not a uuid, rather than 500ing", async () => {
+      const req = new Request("http://test/api/trips/not-a-uuid/pages");
+      const res = await GET(req, { params: Promise.resolve({ tripId: "not-a-uuid" }) });
+      expect(res.status).toBe(404);
+    });
   });
 });

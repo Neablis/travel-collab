@@ -1,7 +1,14 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { sampleRate } from "./sentry.shared";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import * as Sentry from "@sentry/nextjs";
+import {
+  REDACTED,
+  sampleRate,
+  scrubReplayRecordingEvent,
+  scrubUrl,
+  sharedSentryOptions,
+} from "./sentry.shared";
 
 /**
  * Every environment name `sentry.shared.ts` reads at module scope. Keep this
@@ -232,6 +239,234 @@ describe("SENTRY_ENVIRONMENT", () => {
   it("defaults to development when none of the three is set", async () => {
     const mod = await moduleWith({});
     expect(mod.SENTRY_ENVIRONMENT).toBe("development");
+  });
+});
+
+/**
+ * **KI-2026-09-05-e — share and invite bearer tokens must not reach Sentry.**
+ *
+ * A share link's token (ADR-026) and an invite's (ADR-027) are the whole
+ * credential, and they live in the URL path. `sendDefaultPii: false` does not
+ * cover URLs, so before the scrubbers existed every traced request to one of
+ * those routes shipped a live secret to a third-party SaaS at 100% sampling.
+ */
+const TOKEN = "sh_live_TOKEN_ABC123";
+
+describe("scrubUrl", () => {
+  it.each([
+    // The recipient-facing pages.
+    [`/s/${TOKEN}`, `/s/${REDACTED}`],
+    [`/invite/${TOKEN}`, `/invite/${REDACTED}`],
+    // A full URL, which is the shape `url.full` and `request.url` carry.
+    [`https://example.test/s/${TOKEN}`, `https://example.test/s/${REDACTED}`],
+    // The API routes, and the suffix under them — `/clone` and `/accept` are
+    // not secrets and are worth keeping in a trace.
+    [`/api/shares/${TOKEN}`, `/api/shares/${REDACTED}`],
+    [`/api/shares/${TOKEN}/clone`, `/api/shares/${REDACTED}/clone`],
+    [`/api/invites/${TOKEN}/accept`, `/api/invites/${REDACTED}/accept`],
+    // A transaction name is "METHOD path", not a bare path.
+    [`GET /api/shares/${TOKEN}`, `GET /api/shares/${REDACTED}`],
+    // Query and fragment end the segment; neither is part of the token.
+    [`/s/${TOKEN}?utm=x#frag`, `/s/${REDACTED}?utm=x#frag`],
+    // `proxy.ts` sends a signed-out visitor here, percent-encoded — which is
+    // why the path patterns alone are not enough.
+    [
+      `/signin?callbackUrl=%2Finvite%2F${TOKEN}`,
+      `/signin?callbackUrl=${REDACTED}`,
+    ],
+    // ...and the masking stops at the next parameter rather than eating it.
+    [
+      `/signin?callbackUrl=/invite/${TOKEN}&x=1`,
+      `/signin?callbackUrl=${REDACTED}&x=1`,
+    ],
+    // Prose: an exception message that quotes a URL. Mask the token, keep the
+    // sentence — a scrubbed message nobody can read is not a better outcome.
+    [`request to /s/${TOKEN} failed`, `request to /s/${REDACTED} failed`],
+  ])("masks %o", (raw, expected) => {
+    expect(scrubUrl(raw)).toBe(expected);
+  });
+
+  // Over-masking is the safe direction, but a scrubber that mangles every path
+  // makes traces useless and would be quietly reverted. These are the
+  // neighbours most likely to be caught by a sloppier pattern: `shares` and
+  // `invites` also appear as owner-side collections under a trip, where the id
+  // is a row id and not a bearer token.
+  it.each([
+    "/trips/abc/days/def",
+    "/api/trips/abc/shares/share-1",
+    "/api/trips/abc/invites/invite-1",
+    "/settings",
+    "/api/health",
+  ])("leaves %o alone", (raw) => {
+    expect(scrubUrl(raw)).toBe(raw);
+  });
+
+  // The client applies both an event processor and `beforeSend`, so a value
+  // can be scrubbed twice. If that were not a no-op the second pass would eat
+  // the `[redacted]` marker it found.
+  it("is idempotent", () => {
+    const once = scrubUrl(`/s/${TOKEN}`);
+    expect(scrubUrl(once)).toBe(once);
+  });
+});
+
+/**
+ * The scrubbers, checked against the bytes a real client hands its transport —
+ * not against a hand-built event.
+ *
+ * That distinction is the whole reason this test exists rather than a unit test
+ * of `beforeSend`. The nine leak sites this run covers were *discovered* by
+ * dumping this envelope; a field list written from the docs would have missed
+ * `contexts.trace.data["url.full"]` and `spans[].description`, and nothing
+ * would ever have said so. It also pins the wiring: a `beforeSend` that exists
+ * but is not spread into `Sentry.init` looks identical from a unit test.
+ */
+describe("what actually reaches the Sentry transport", () => {
+  const sent: [unknown, Array<[{ type: string }, unknown]>][] = [];
+
+  beforeAll(async () => {
+    Sentry.init({
+      ...sharedSentryOptions,
+      // Well-formed and unreachable — the transport never leaves the process.
+      dsn: "https://0123456789abcdef0123456789abcdef@o0.ingest.us.sentry.io/0",
+      tracesSampleRate: 1,
+      transport: () => ({
+        send: async (envelope: unknown) => {
+          sent.push(envelope as never);
+          return {};
+        },
+        flush: async () => true,
+      }),
+    });
+
+    // Exactly what `instrumentation.ts`'s `onRequestError` does for a throw
+    // inside `s/[token]/page.tsx` — the reproduction named in the KI. The SDK
+    // copies `request.path` into `contexts.nextjs.request_path` verbatim.
+    Sentry.captureRequestError(
+      new Error("boom"),
+      { path: `/s/${TOKEN}`, method: "GET", headers: {} },
+      { routerKind: "App Router", routePath: "/s/[token]", routeType: "render" },
+    );
+
+    await Sentry.startSpan(
+      {
+        name: `GET /api/shares/${TOKEN}`,
+        op: "http.server",
+        attributes: {
+          "url.full": `https://example.test/api/shares/${TOKEN}`,
+          "url.path": `/api/shares/${TOKEN}`,
+          "http.route": "/api/shares/[token]",
+        },
+      },
+      async () => {
+        Sentry.addBreadcrumb({
+          category: "navigation",
+          data: { from: "/trips", to: `/invite/${TOKEN}` },
+        });
+        await Sentry.startSpan(
+          { name: `GET /api/invites/${TOKEN}/accept`, op: "http.client" },
+          async () => {},
+        );
+      },
+    );
+
+    Sentry.captureException(
+      new Error(`fetch failed for /signin?callbackUrl=%2Finvite%2F${TOKEN}`),
+    );
+
+    // The THIRD pipeline. `enableLogs` gives structured logs their own hook
+    // (`beforeSendLog`), which `beforeSend` never sees — so without this the
+    // log scrubber is the one hook no assertion here exercises, and an SDK or
+    // options change could unwire it while everything else stayed green
+    // (Copilot, PR #147).
+    Sentry.logger.info("share opened", { url: `/api/shares/${TOKEN}` });
+
+    await Sentry.flush(5000);
+  });
+
+  /** Every string anywhere in every envelope item, with its path, so a failure
+   * names the field instead of saying "somewhere in 40KB of JSON". */
+  function everyString(): Array<{ type: string; path: string; value: string }> {
+    const found: Array<{ type: string; path: string; value: string }> = [];
+    const walk = (type: string, node: unknown, path: string): void => {
+      if (typeof node === "string") {
+        found.push({ type, path, value: node });
+        return;
+      }
+      if (node && typeof node === "object") {
+        for (const [key, value] of Object.entries(node)) walk(type, value, `${path}.${key}`);
+      }
+    };
+    for (const [, items] of sent) for (const [header, item] of items) walk(header.type, item, "");
+    return found;
+  }
+
+  // A witness floor. `not.toContain` over an empty payload is the
+  // strongest-looking, emptiest assertion available — a failed init, a dropped
+  // transport or a flush that sent nothing would pass it silently.
+  it("sent both an error event and a transaction", () => {
+    const types = new Set(sent.flatMap(([, items]) => items.map(([header]) => header.type)));
+    expect(types).toContain("event");
+    expect(types).toContain("transaction");
+  });
+
+  it("carries no share or invite token in any field of any envelope item", () => {
+    const leaks = everyString()
+      .filter((entry) => entry.value.includes(TOKEN))
+      .map((entry) => `${entry.type} :: ${entry.path} = ${entry.value}`);
+    expect(leaks).toEqual([]);
+  });
+
+  // The other half of the floor: prove the scrubber ran on the fields the
+  // reproduction found the token in, rather than that those fields vanished.
+  it.each([
+    [".transaction", `GET /api/shares/${REDACTED}`],
+    [".request.url", `/api/shares/${REDACTED}`],
+    ['.contexts.trace.data.url.full', `https://example.test/api/shares/${REDACTED}`],
+    ['.contexts.trace.data.url.path', `/api/shares/${REDACTED}`],
+    [".spans.0.description", `GET /api/invites/${REDACTED}/accept`],
+    [".breadcrumbs.0.data.to", `/invite/${REDACTED}`],
+    [".contexts.nextjs.request_path", `/s/${REDACTED}`],
+    [".exception.values.0.value", `fetch failed for /signin?callbackUrl=${REDACTED}`],
+  ])("still reports %s, masked", (path, expected) => {
+    const values = everyString()
+      .filter((entry) => entry.path === path)
+      .map((entry) => entry.value);
+    expect(values).toContain(expected);
+  });
+});
+
+/**
+ * Session Replay is the one signal the three `beforeSend*` hooks cannot reach.
+ * `prepareReplayEvent` calls `prepareEvent` and sends; `beforeSend` lives in
+ * `_processEvent`, which a replay envelope never enters. So the client wires two
+ * extra hooks, and these are what stop them being deleted as redundant.
+ */
+describe("Session Replay", () => {
+  it("scrubs the URLs out of a recording event's payload", () => {
+    const recorded = {
+      type: 5,
+      timestamp: 0,
+      data: {
+        tag: "breadcrumb",
+        payload: { category: "navigation", data: { from: "/trips", to: `/s/${TOKEN}` } },
+      },
+    };
+    expect(scrubReplayRecordingEvent(recorded).data.payload.data.to).toBe(`/s/${REDACTED}`);
+  });
+
+  // A wiring check, and honest about being one: it reads source text, so it
+  // proves the hooks are passed and not that Replay calls them. The end-to-end
+  // alternative needs a browser and a running replay session, which is a
+  // Playwright-shaped cost for a two-line wiring. What it does catch is the
+  // regression that actually happens — someone tidying an option away.
+  it("hands both of its bypass hooks to the client SDK", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./src/instrumentation-client.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(source).toContain("beforeAddRecordingEvent: scrubReplayRecordingEvent");
+    expect(source).toContain("Sentry.addEventProcessor(scrubSentryPayload)");
   });
 });
 

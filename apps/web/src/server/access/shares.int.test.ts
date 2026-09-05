@@ -171,6 +171,17 @@ describe("share lifecycle", () => {
     expect((await listShares(tripId))[0]!.revokedAt).toBe(stored);
   });
 
+  // KI-2026-09-05-x. `trip_shares.id` is a uuid column, so this SELECT came
+  // back `22P02 invalid input syntax for type uuid` and `DELETE
+  // /api/trips/:id/shares/not-a-uuid` 500ed. Same answer as the test below
+  // gives a shareId belonging to another trip: there is no such link here.
+  it("answers not-found for a shareId that is not a uuid, rather than throwing", async () => {
+    const tripId = await seedTrip();
+    const result = await revokeShare(tripId, "not-a-uuid");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("not-found");
+  });
+
   it("scopes revoke to the trip in the URL", async () => {
     const a = await seedTrip("A");
     const b = await seedTrip("B");

@@ -1,5 +1,5 @@
 import type { TripDetail, TripRole } from "@tc/contracts";
-import { requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess, type TripAccessOptions } from "@/server/access/trip-access";
 
 // Explicit return type: without it, TS infers complementary optional keys
 // (`{ error: Response; userId?: undefined; detail?: undefined } | { userId: string; detail: TripDetail; error?: undefined }`)
@@ -22,6 +22,10 @@ type GuardResult = { error: Response } | { userId: string; role: TripRole; detai
  * `"editor"`. Making the parameter required means the next route that calls
  * this cannot inherit the old default by forgetting to think about it.
  */
-export async function guard(tripId: string, minimum: TripRole): Promise<GuardResult> {
-  return requireTripAccess(tripId, minimum);
+export async function guard(
+  tripId: string,
+  minimum: TripRole,
+  options: TripAccessOptions = {},
+): Promise<GuardResult> {
+  return requireTripAccess(tripId, minimum, options);
 }

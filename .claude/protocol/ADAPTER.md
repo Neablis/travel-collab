@@ -75,11 +75,17 @@ without either one a dispatched subagent's first command fails for a reason
 that looks like a code fault:
 
 1. **`pnpm install --frozen-lockfile`** — a new worktree has no `node_modules`.
-2. **`apps/web/.env.local`, copied from the main checkout.** Without it
-   `drizzle.config.ts` reaches `server/config.ts`, which throws on a missing
-   `DATABASE_URL` — so `db:generate`, `db:migrate` and the whole integration
-   lane die before running. `.gitignore:41` covers the file, so a copy cannot
-   reach a commit.
+2. **`apps/web/.env.local`.** Without it `drizzle.config.ts` reaches
+   `server/config.ts`, which throws on a missing `DATABASE_URL` — so
+   `db:generate`, `db:migrate` and the whole integration lane die before
+   running. `.gitignore:41` covers the file, so it cannot reach a commit.
+
+   **Build it from the repo's own `.env.example`, not by copying the main
+   checkout.** This instruction used to say "copied from the main checkout",
+   and a `cp` reaching outside the worktree is refused by the permission
+   classifier — so the documented bootstrap could not be performed by the
+   agents it was written for (found 2026-09-05 by two KI-fixers independently).
+   Exporting `DATABASE_URL` for the command also works and creates no file.
 
 Recorded 2026-08-30, after an M11a implementer hit both and had to diagnose
 them itself.

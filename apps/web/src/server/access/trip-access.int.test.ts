@@ -75,6 +75,28 @@ describe("requireTripAccess", () => {
     expect(access.detail.members).toEqual([{ userId: OWNER, role: "owner" }]);
   });
 
+  // KI-2026-09-05-x. `trip_details.trip_id` is a uuid column, so a path segment
+  // that is not one used to reach Postgres and come back as `22P02 invalid
+  // input syntax for type uuid` — a throw out of the seam, which every
+  // trip-scoped route turned into a 500 and the board rendered as the literal
+  // words "Internal Server Error".
+  //
+  // 404 and not 400 on purpose: a mistyped shared link and a link to a trip
+  // that no longer exists are the same fact to the person holding it, and the
+  // seam already refuses to let a caller tell "no such trip" from "not yours".
+  //
+  // Asserted at BOTH ranks because they take different paths out of the
+  // function — `viewer` is the demo trip's rank, so a regression that put the
+  // check behind the demo branch would still pass one of them.
+  it.each(["viewer", "editor"] as const)(
+    "404s a tripId that is not a uuid, rather than throwing (minimum: %s)",
+    async (minimum) => {
+      const access = await requireTripAccess("not-a-uuid", minimum);
+      if (!("error" in access)) throw new Error("a malformed id should not grant access");
+      expect(access.error.status).toBe(404);
+    },
+  );
+
   it("403s a stranger", async () => {
     const { tripId } = await seedDay();
     currentUserId = STRANGER;
