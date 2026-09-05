@@ -76,7 +76,7 @@ Updated live. Times are PT.
 | B Notebook / widget AST | running 00:31 | |
 | C Versioning / migration | running 00:31 | |
 | D Infra / DB / Vercel / review loop | running 00:31 | |
-| E Maintainability / patterns | running 00:31 | |
+| E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | running 00:31 | |
 | G Broken functionality (lanes + hunt) | running 00:31 | |
 | Verification wave | pending | |
