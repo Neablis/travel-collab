@@ -165,6 +165,90 @@
     padding-bottom: 0;
   }
 
+  /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
+     are the same `--rack-height` bargain one level up: the bar is
+     `position: fixed`, so it reserves no flow space, and a page's last row
+     ends underneath it.
+
+     `.phone-tab-bar` — the design's `padding: 8px 0 30px`. The 8px top is a
+     Tailwind class on the element; only the bottom needs to be here, because
+     it is not a scale value: `max()` rather than `calc()` so the 30px the
+     design draws is the floor on a device with no home indicator and the
+     inset takes over on one that has (34px on current iPhones) instead of
+     stacking to 64px.
+
+     `.phone-tab-bar-inset` — the reservation, applied by `(app)/layout.tsx`
+     to the wrapper around `children`. `--phone-tab-bar-height` is published
+     by PhoneTabBar from a ResizeObserver, the way TripBoardScreen publishes
+     `--rack-height`, and the measured value is the one that finally applies:
+     JS writes it as an inline style on `:root`, which outranks the rule
+     below.
+
+     The rule below is what covers the window BEFORE that effect runs. It
+     used to be a bare `0px` fallback, on the reasoning that the bar measures
+     zero at >=768px anyway so no breakpoint was needed. That is true after
+     hydration and wrong before it: server-rendered and first-paint HTML on a
+     phone got a 0px reservation while the bar was already painted at its
+     full height, so the page's last row sat *under* it until React caught
+     up. On the trip board that row is the assistant launcher (§13.5 keeps it
+     in flow rather than floating), and `m16-mobile-assistant` failed on
+     exactly that: "`nav.phone-tab-bar` subtree intercepts pointer events".
+     A slow phone is the same story without a test to catch it.
+
+     So the fallback is now the bar's real height, at the bar's own
+     breakpoint. The three literals restate the element's own Tailwind
+     classes — `pt-2`, the tabs' `min-h-11`, `border-t` — which is a
+     duplication worth naming, but a self-healing one in the direction that
+     matters: it only ever applies before the measurement lands, and the
+     measurement overwrites it. A wrapped label or a larger OS text size
+     makes this an under-estimate for one paint, never a permanent one. */
+  .phone-tab-bar {
+    padding-bottom: max(30px, env(safe-area-inset-bottom));
+  }
+  /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
+     number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
+     so a utility class rather than `h-[26px] w-[46px]`, which the colour wall
+     rejects as an arbitrary value and which no inline style can express more
+     honestly. Same pattern as `.hero-grid` above: design-fixed geometry with no
+     token equivalent gets a real CSS rule, once. */
+  .phone-tab-pill {
+    width: 46px;
+    height: 26px;
+  }
+  /* A 44px tap target around a control that must stay visually small.
+     §13.1's floor is about what a thumb can hit, not about how big a thing
+     looks, and the design draws the phone header's avatar at 28px — so the
+     box grows and the circle does not. `inset: -7px` on the 30px avatar is
+     exactly 44.
+
+     This exists for the account avatar, which §22 turned into the only
+     account-scope control on a phone: scoping the tab bar removed Trips and
+     Playbooks from inside a trip, and the header's own links are hidden below
+     768px, so the avatar is the sole route to account settings and sign-out.
+     It was 30×30. Raised by Copilot on PR #143.
+
+     A pseudo-element rather than padding: padding would move the avatar within
+     the header row and change a desktop layout this has no business touching.
+     Phone-only for the same reason. */
+  @media (max-width: 767px) {
+    .phone-hit-44 {
+      position: relative;
+    }
+    .phone-hit-44::after {
+      content: "";
+      position: absolute;
+      inset: -7px;
+    }
+  }
+  @media (max-width: 767px) {
+    :root {
+      --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));
+    }
+  }
+  .phone-tab-bar-inset {
+    padding-bottom: var(--phone-tab-bar-height, 0px);
+  }
+
   /* MapLibre puts its attribution in the canvas's bottom-right corner (which
      is why MapLegend sits top-right instead — see that file). The assistant
      launcher is a `position: fixed` pill in the *viewport's* bottom-right,
@@ -221,7 +305,23 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    /* NOT `0`: below 768px the phone tab bar is also `position: fixed;
+       bottom: 0` at `z-index: 20`, and it is the later sibling (mounted after
+       `children` in `(app)/layout.tsx`), so it won the tie and painted over the
+       rack completely. Measured at 412×924 on `?lens=Board`: the rack's box was
+       885–924, the bar's 841–924, and `elementFromPoint` at the rack's own
+       centre returned the bar — the rack was unreachable. Raised by Copilot on
+       PR #143.
+
+       `?lens=Board` is reachable on a phone at all because `usePhoneTwoViews`
+       rewrites only the DEFAULT lens (SPEC §10), so an explicit link is
+       honoured — which is exactly when this bites.
+
+       Lifting rather than restacking: under the bar the rack is hidden, over it
+       the rack covers navigation. Both are bottom-anchored and the bar owns the
+       bottom, so the rack takes the space above it. The variable is 0px at
+       >=768px, where the bar is not rendered, so desktop is unchanged. */
+    bottom: var(--phone-tab-bar-height, 0px);
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }
   /* Both forms, because the rack is mounted inside a wrapper <div> (it needs

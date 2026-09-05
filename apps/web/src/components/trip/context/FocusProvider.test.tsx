@@ -133,6 +133,13 @@ function SyncProbe({ container, target }: { container: DayContainer; target?: El
       <button onClick={() => sync.reportScrolled(3)}>report 3</button>
       <button onClick={() => sync.reportScrolled(4)}>report 4</button>
       <button onClick={() => sync.jumpTo(target)}>jump</button>
+      {/* The same jump, marked as one the day was PICKED in this container.
+          Only this one keeps the lock when nothing moved — see `jumpTo`, and
+          the two "already in view" tests below, which differ in exactly this
+          and in nothing else. */}
+      <button onClick={() => sync.jumpTo(target, undefined, { keepLockIfUnmoved: true })}>
+        jump after picking here
+      </button>
     </div>
   );
 }
@@ -252,6 +259,36 @@ describe("FocusProvider — the jump lock", () => {
     fireEvent.click(screen.getByRole("button", { name: "report 3" }));
     expect(screen.getByText(/day:3 origin:scroll source:chips/)).not.toBeNull();
   });
+
+  // The other cause of "nothing moved", and the one that is not benign: the
+  // container was already clamped at a scroll end and could not do what it was
+  // asked. A centre reading line cannot name the first or last day once more
+  // than about two day columns fit, so at 800px the columns sit at
+  // `scrollLeft: 0` reporting day 2 while day 1 is explicitly selected
+  // (measured in a browser: reading line 400, column centres 158 / 438 / 718).
+  // Releasing the lock there hands the container's own spy the next scroll
+  // event it sees, and it answers honestly with a day that contradicts the
+  // pick — clicking "Day 1" selected day 1 and then snapped to day 2 on its
+  // own, at every desktop width.
+  //
+  // This test and the one above differ ONLY in `keepLockIfUnmoved`, which is
+  // the whole of the fix: the same unmoved jump RELEASES its lock for an
+  // ordinary follow (above), and KEEPS it when the day was picked in this
+  // container (here).
+  it("keeps the lock when the day was picked HERE — clamped, not already right", () => {
+    const { element } = scrollTarget({ moves: false });
+    render(
+      <FocusProvider>
+        <SyncProbe container="chips" target={element} />
+      </FocusProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "jump after picking here" }));
+    fireEvent.click(screen.getByRole("button", { name: "report 3" }));
+    // Still null: the spy's contradicting report was swallowed, so the explicit
+    // selection survives rather than being overwritten by the clamped
+    // container's honest-but-wrong answer.
+    expect(screen.getByText(/day:null/)).not.toBeNull();
+  });
 });
 
 function FollowProbe({
@@ -267,10 +304,70 @@ function FollowProbe({
   return null;
 }
 
+/**
+ * The whole path, wired the way the app wires it: a real provider, a real
+ * `useDaySync`, and `useFollowFocusedDay` driving the jump — so `pickedIn`
+ * travels from `setFocusedDay(i, "chips")` through `pickedHere` into
+ * `jumpTo`'s `keepLockIfUnmoved` without a test passing that flag by hand.
+ */
+function WiredProbe({ target }: { target: Element }) {
+  const { focusedDay, setFocusedDay } = useFocus();
+  const sync = useDaySync("chips");
+  useFollowFocusedDay(sync, focusedDay, 5, () => target);
+  return (
+    <div>
+      <output>day:{String(focusedDay)}</output>
+      <button onClick={() => setFocusedDay(2, "chips")}>pick 2 in chips</button>
+      <button onClick={() => setFocusedDay(2)}>pick 2 from elsewhere</button>
+      <button onClick={() => sync.reportScrolled(3)}>report 3</button>
+    </div>
+  );
+}
+
+// CodeRabbit, PR #143: the two lock tests above call `jumpTo` directly with
+// `keepLockIfUnmoved`, so they prove what `jumpTo` does with the flag and
+// nothing about how the flag is arrived at. `pickedIn` -> `pickedHere` ->
+// `keepLockIfUnmoved` was the untested half, and it is the half that carries
+// the actual fix: a wrong container name anywhere along it fails open, quietly,
+// and the day columns go back to overwriting a pick nobody can see them
+// overwrite.
+describe("FocusProvider — a pick made in this container", () => {
+  it("keeps the lock through the real setFocusedDay -> follow path", () => {
+    const { element } = scrollTarget({ moves: false });
+    render(
+      <FocusProvider>
+        <WiredProbe target={element} />
+      </FocusProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "pick 2 in chips" }));
+    fireEvent.click(screen.getByRole("button", { name: "report 3" }));
+    expect(screen.getByText(/day:2/)).not.toBeNull();
+  });
+
+  // The other side of the same wire, and the reason this cannot simply always
+  // hold: the identical unmoved jump must RELEASE when the day came from
+  // somewhere else, or the phone map strip's next flick is swallowed
+  // (`e2e/m10-growth.spec.ts`, "scrolling the phone map's day strip").
+  it("releases it when the same day was picked somewhere else", () => {
+    const { element } = scrollTarget({ moves: false });
+    render(
+      <FocusProvider>
+        <WiredProbe target={element} />
+      </FocusProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "pick 2 from elsewhere" }));
+    fireEvent.click(screen.getByRole("button", { name: "report 3" }));
+    expect(screen.getByText(/day:3/)).not.toBeNull();
+  });
+});
+
 describe("useFollowFocusedDay", () => {
   function stubSync(shouldFollow: boolean, jumps: number[]): DaySync {
     return {
       shouldFollow,
+      pickedHere: false,
       isOwnScroll: () => false,
       reportScrolled: () => {},
       jumpTo: () => {

@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 // The app chrome belongs to authenticated surfaces, not to every route. The
@@ -18,7 +20,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <PreferencesProvider>
       <AppHeader />
-      {children}
+      {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
+          of the fixed tab bar below, and is 0px at >=768px where the bar is
+          not rendered. The wrapper exists only to own that padding: the bar
+          and `children` are siblings, so there is nowhere else to hang a
+          reservation that applies to the content and not to the bar itself. */}
+      <div className="phone-tab-bar-inset">{children}</div>
+      {/* The bar spans exactly the authenticated routes, which is what this
+          layout wraps — so this is the mount point, and mounting it here rather
+          than per-page is also what stops it remounting (and losing nothing,
+          since it holds no state) as you move between them. Below 768px only;
+          it hides itself with `md:hidden`.
+
+          What it RENDERS is scoped, not fixed: SPEC §22 gives the trip's three
+          views inside a trip and the account pair everywhere else. See
+          `tabsForScope`. Do not assume a stable five-slot bar here — that was
+          the earlier §16 shape and it is gone.
+
+          The Suspense boundary is Next's requirement, not a loading state:
+          the bar reads `useSearchParams()` (the `?lens=` half of "which tab
+          is this"), and an unwrapped `useSearchParams` in a *layout* opts
+          every route under it out of static rendering — including the two
+          that have no dynamic API of their own (`/playbooks`,
+          `/playbooks/board`). The boundary keeps that cost on the bar.
+
+          The fallback is a REAL bar, not `null`. Next satisfies the bailout by
+          rendering this fallback on the server and the component on the
+          client, so `null` left the bar out of first-paint HTML entirely while
+          `.phone-tab-bar-inset` above was already reserving its height — an
+          83px gap with no navigation in it, on exactly the surface that has
+          nowhere else to navigate from. `PhoneTabBarFallback` renders the same
+          five tabs from `usePathname()` alone, which triggers no bailout.
+          Copilot caught this on PR #143. */}
+      <Suspense fallback={<PhoneTabBarFallback />}>
+        <PhoneTabBar />
+      </Suspense>
     </PreferencesProvider>
   );
 }

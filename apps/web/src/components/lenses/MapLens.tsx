@@ -497,11 +497,28 @@ export function MapLens({
             // (responsive.spec.ts, "Map lens on a phone"). It is 0px at
             // >=768px, where the launcher is out of flow and reserves
             // nothing, so the desktop canvas is unchanged.
+            //
+            // `--phone-tab-bar-height` is the third of exactly the same
+            // subtraction, and it is here for exactly the same measured
+            // symptom. PhoneTabBar is `position: fixed` across the bottom of
+            // every authenticated route below 768px, and `(app)/layout.tsx`
+            // reserves its height as flow padding around `children`
+            // (`.phone-tab-bar-inset`, globals.css) so a page's last row is
+            // not underneath it. Every other lens is normal flow and that
+            // reservation is all it needs; this canvas is the one element
+            // sized from `100dvh` rather than from its parent, so without the
+            // matching subtraction it claimed a full viewport *plus* the
+            // reservation and the map page scrolled by exactly the bar's
+            // height — 927px of document in an 844px viewport, measured at
+            // 390x844 — with MapLibre's attribution sitting under the bar.
+            // It is 0px at >=768px (the bar is `md:hidden`, so its measured
+            // height is genuinely zero), so the desktop canvas is again
+            // unchanged.
             minHeight: 320,
             height:
               canvasTop === null
                 ? "70vh"
-                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px) - var(--launcher-height, 0px))`,
+                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px) - var(--launcher-height, 0px) - var(--phone-tab-bar-height, 0px))`,
           }}
         >
           <div ref={containerRef} className="h-full w-full" />
@@ -515,7 +532,16 @@ export function MapLens({
               by CSS because the rail runs real scroll machinery — see
               useIsPhone for why. */}
           {isPhone ? (
-            <MapDayStrip days={days} focusedDay={focusedDay} onFocus={setFocusedDay} sync={stripSync} />
+            <MapDayStrip
+              days={days}
+              focusedDay={focusedDay}
+              // A chip tapped in the strip is picked HERE. The lens's own
+              // default focus above (`setFocusedDay(0)`) deliberately does NOT
+              // name the strip: that one is handed to it, so the strip stays a
+              // plain follower and its next flick is not swallowed.
+              onFocus={(index) => setFocusedDay(index, "map-strip")}
+              sync={stripSync}
+            />
           ) : (
             <>
               <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />

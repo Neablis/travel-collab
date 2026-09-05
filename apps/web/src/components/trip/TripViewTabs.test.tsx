@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setViewportMatches } from "../../../vitest.setup";
 import type { Lens, ScheduleView } from "./context/LensRouter";
 
 // M10 redesign-feedback follow-up: TripViewTabs went from 3 primary tabs + a
@@ -18,11 +19,30 @@ vi.mock("./context/LensRouter", async (importOriginal) => ({
   useLens: () => useLensMock(),
 }));
 
+// `usePhoneTwoViews` reads the RAW `?lens=` param, because "no lens param"
+// and "?lens=Board" are the same `lens` value once LensRouter has applied its
+// Board fallback — and only the first of those may be rewritten. There is no
+// app-router context in jsdom, so `useSearchParams` is stubbed rather than
+// mounted; `searchParams` below is what each test sets.
+let searchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => searchParams,
+}));
+
 // Import after the mock so TripViewTabs picks it up.
 import { LENSES, SCHEDULE_VIEWS } from "./context/LensRouter";
 import { TripViewTabs } from "./TripViewTabs";
 
-afterEach(cleanup);
+// `useIsPhone` reads `(max-width: 767px)`; default every test to a desktop
+// viewport, so the phone-only tests below have to ask for a phone explicitly
+// and no existing test starts silently normalising its URL.
+const PHONE_QUERY = "(max-width: 767px)";
+
+afterEach(() => {
+  cleanup();
+  setViewportMatches({});
+  searchParams = new URLSearchParams();
+});
 
 function renderTabs(
   overrides: Partial<{
@@ -120,5 +140,83 @@ describe("TripViewTabs", () => {
     // Last, and only as documentation of what KI-20 retired — the two
     // assertions above are the ones that actually bite.
     expect([...LENSES]).toEqual(["Board", "Map", "Schedule"]);
+  });
+
+  // ── SPEC §10, "Two views, not four" ────────────────────────────────────────
+  // The failure mode: if this normalisation is dropped, a phone that opens a
+  // bookmarked `?lens=Board` — or simply `/trips/<id>`, which LensRouter
+  // resolves to Board — is left on a horizontally-scrolling day-column grid
+  // with no way out, because the strip that could change it is hidden below
+  // 768px (TripBoardScreen). If it fires too eagerly, a desktop user's
+  // Calendar URL is silently rewritten out from under them. Both directions
+  // are asserted; the desktop one is the load-bearing half, because
+  // `useIsPhone` starting `false` is the only thing that makes it safe.
+  describe("on a phone", () => {
+    // The only case that rewrites: no `?lens=` at all, which LensRouter
+    // resolves to Board. This is the path every phone user actually takes —
+    // tapping a trip on the trips list goes to a bare `/trips/<id>`.
+    it("sends a bare trip URL to Timeline, because its Board is a default nobody chose", () => {
+      setViewportMatches({ [PHONE_QUERY]: true });
+      const setLensAndView = vi.fn();
+      renderTabs({ lens: "Board", view: "Timeline", setLensAndView });
+
+      expect(setLensAndView).toHaveBeenCalledWith("Schedule", "Timeline");
+    });
+
+    // The boundary this hook is built around. `lens` is "Board" in BOTH this
+    // test and the one above — the mocked `useLens` returns the same value —
+    // so the only thing that can tell them apart is the raw param, which is
+    // the point. An explicit lens is a URL a person is holding.
+    it("obeys an explicit ?lens=Board rather than rewriting it out from under the reader", () => {
+      setViewportMatches({ [PHONE_QUERY]: true });
+      searchParams = new URLSearchParams("lens=Board");
+      const setLensAndView = vi.fn();
+      renderTabs({ lens: "Board", view: "Timeline", setLensAndView });
+
+      expect(setLensAndView).not.toHaveBeenCalled();
+    });
+
+    it("obeys an explicit ?lens=Schedule&view=Calendar", () => {
+      setViewportMatches({ [PHONE_QUERY]: true });
+      searchParams = new URLSearchParams("lens=Schedule&view=Calendar");
+      const setLensAndView = vi.fn();
+      renderTabs({ lens: "Schedule", view: "Calendar", setLensAndView });
+
+      expect(setLensAndView).not.toHaveBeenCalled();
+    });
+
+    // Map is a phone tab in its own right (PhoneTabBar), not one of the two
+    // views §10 removes — normalising it away would make the Map tab a
+    // round trip back to Plan.
+    it("leaves the Map lens alone", () => {
+      setViewportMatches({ [PHONE_QUERY]: true });
+      searchParams = new URLSearchParams("lens=Map");
+      const setLensAndView = vi.fn();
+      renderTabs({ lens: "Map", view: "Timeline", setLensAndView });
+
+      expect(setLensAndView).not.toHaveBeenCalled();
+    });
+
+    // The write it performs ADDS `?lens=`, so this same guard is what stops a
+    // second pass. Asserting it as its own case rather than trusting the
+    // reasoning: a thrashing `router.replace` loop is not a subtle bug to
+    // ship.
+    it("cannot fire twice, because its own write adds the param it checks", () => {
+      setViewportMatches({ [PHONE_QUERY]: true });
+      searchParams = new URLSearchParams("lens=Schedule&view=Timeline");
+      const setLensAndView = vi.fn();
+      renderTabs({ lens: "Schedule", view: "Timeline", setLensAndView });
+
+      expect(setLensAndView).not.toHaveBeenCalled();
+    });
+  });
+
+  it("never rewrites a desktop URL, even the bare one it would rewrite on a phone", () => {
+    // No phone match — which is also what `useIsPhone` reports on the server
+    // and for the first client paint, so this covers that window too.
+    const setLensAndView = vi.fn();
+    renderTabs({ lens: "Board", view: "Timeline", setLensAndView });
+
+    expect(setLensAndView).not.toHaveBeenCalled();
   });
 });

@@ -997,7 +997,12 @@ describe("MapLens on a phone", () => {
     // focusedDay is what moves the camera.
     const onFocus = useFocusMock.mock.results.at(-1)!.value.setFocusedDay as ReturnType<typeof vi.fn>;
     await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
-    expect(onFocus).toHaveBeenCalledWith(1);
+    // `"map-strip"` names where the pick happened, which is what stops the
+    // strip's own scroll spy talking the reader out of a day it cannot centre
+    // (`FocusProvider`'s `jumpTo`). Asserted rather than ignored with
+    // `expect.anything()`: the lens's own default focus deliberately passes NO
+    // container here, and the two must not drift into each other.
+    expect(onFocus).toHaveBeenCalledWith(1, "map-strip");
 
     renderMap(detailWithTwoDays(), { focusedDay: 1 });
     await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());

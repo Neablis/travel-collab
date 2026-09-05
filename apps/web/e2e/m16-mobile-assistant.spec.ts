@@ -118,6 +118,15 @@ test.describe("mobile assistant (phone viewport)", () => {
     await hide.click();
     await expect(rail).toBeHidden();
     // The plan is reachable again — not a modal that leaves something stuck.
-    await expect(page.getByRole("tab", { name: "Day columns", selected: true })).toBeVisible();
+    //
+    // This used to assert the "Day columns" tab was selected. Two things in
+    // SPEC §10/§16 retired that: the phone has two views, not four, so a bare
+    // `/trips/<id>` is normalised off Board onto Timeline, and the lens strip
+    // is hidden on a phone at all. The assertion's PURPOSE — the plan is not
+    // left stuck behind a dismissed overlay — is kept, and is now made against
+    // the controls a phone actually has: the day rail (§13.4, "the day rail
+    // never collapses") and the tab bar, with Plan current.
+    await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Plan/ })).toHaveAttribute("aria-current", "page");
   });
 });

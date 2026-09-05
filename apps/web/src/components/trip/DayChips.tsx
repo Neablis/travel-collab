@@ -151,6 +151,20 @@ export type DayChipsProps = {
    */
   onSelect: (index: number | null) => void;
   /**
+   * Drops the focused chip's `×`. Not the selecting itself — deselecting a day
+   * is a read, and a viewer may do it; the chip stays a working toggle either
+   * way, because the whole chip IS the toggle and the `×` is only its visible
+   * half.
+   *
+   * Mitchell, on the PR #143 preview from a Pixel 10: *"Remove the 'Remove day'
+   * button on the demo trip (or any read only trip)"*. There is no remove-day
+   * button on that screen — `Board.tsx` already gates the real one — and that is
+   * the point: an `×` sitting beside a day, on a trip you cannot edit, reads as
+   * "delete this day" whatever it actually does. The affordance was lying about
+   * its own consequence, which is a worse bug than a stray control.
+   */
+  readOnly?: boolean;
+  /**
    * This row's half of the day-sync contract (`FocusProvider`'s header):
    * scrolling the row moves the selection, and a selection made anywhere else
    * scrolls the matching chip back into view here.
@@ -194,7 +208,7 @@ export type DayChipsProps = {
 // day scope for the session. `aria-pressed` already tells assistive tech this
 // is a toggle; the × on the focused chip is what tells everyone else, since a
 // toggle nobody can see is a toggle nobody uses.
-export function DayChips({ days, focusedDay, onSelect, sync }: DayChipsProps) {
+export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
   // each day resolving blind to every other one.
@@ -320,10 +334,14 @@ export function DayChips({ days, focusedDay, onSelect, sync }: DayChipsProps) {
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
-              {isFocused && (
+              {isFocused && !readOnly && (
                 // Not a nested <button>: the whole chip already IS the toggle,
                 // and a button inside a button is invalid HTML. This is the
                 // visible half of `aria-pressed`.
+                //
+                // `!readOnly` because on a trip you cannot edit it reads as
+                // "delete this day" — see `readOnly` in the props above. The
+                // chip still deselects on a second tap; only the glyph goes.
                 <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", INK_TEXT[accent.ink])}>
                   ×
                 </span>

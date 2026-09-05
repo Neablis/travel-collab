@@ -134,6 +134,12 @@ export type DaySync = {
    * through `useFollowFocusedDay`, which also covers clause 3.
    */
   shouldFollow: boolean;
+  /**
+   * True when the current day was picked IN this container — a chip, a column
+   * header, a strip chip — rather than handed to it to follow. See
+   * `setFocusedDay`'s `from` and `jumpTo`'s lock release.
+   */
+  pickedHere: boolean;
   /** True while this container's own scrolling is ours rather than the user's. */
   isOwnScroll: () => boolean;
   /** Clause 1: the day on this container's reading line. A no-op while `isOwnScroll()`. */
@@ -143,13 +149,29 @@ export type DaySync = {
    * back as the user's. Returns whether there was an element to scroll — which
    * a day already in view still counts as, since the container is then already
    * showing what the contract asks it to show.
+   *
+   * `keepLockIfUnmoved` suppresses the early lock release for a jump that
+   * moved nothing. Set it when this container is the one the day was picked
+   * IN, where "nothing moved" means "clamped and could not", not "already
+   * showing it". See `jumpTo`.
    */
-  jumpTo: (element: Element | null | undefined, options?: ScrollIntoViewOptions) => boolean;
+  jumpTo: (
+    element: Element | null | undefined,
+    options?: ScrollIntoViewOptions,
+    intent?: { keepLockIfUnmoved?: boolean },
+  ) => boolean;
 };
 
 type FocusCtx = {
   focusedDay: number | null;
-  setFocusedDay: (i: number | null) => void;
+  /**
+   * Picks a day. `from` names the container the pick happened IN, when there
+   * is one — a day chip, a day column's header, a map-strip chip. It is not
+   * the same as `focusSource` (which stays null for every pick); it exists so
+   * that container can tell "the reader chose this here" from "I am following
+   * somebody else's choice". See `jumpTo`'s lock release.
+   */
+  setFocusedDay: (i: number | null, from?: DayContainer) => void;
   /**
    * The reading position, as scrolling or arrowing reports it.
    *
@@ -177,6 +199,8 @@ type FocusCtx = {
   focusOrigin: FocusOrigin;
   /** Which container's scrolling set `focusedDay`, or null when it was picked. */
   focusSource: DayContainer | null;
+  /** Which container `focusedDay` was picked in, or null. See `setFocusedDay`. */
+  pickedIn: DayContainer | null;
   /** Starts `container`'s jump lock. See the contract above; use `useDaySync`. */
   beginDayJump: (container: DayContainer) => void;
   /** Drops `container`'s jump lock now rather than at its deadline. */
@@ -210,12 +234,20 @@ export function useFocus(): FocusCtx {
 }
 
 export function FocusProvider({ children }: { children: React.ReactNode }) {
-  const [day, setDay] = useState<{ index: number | null; source: DayContainer | null }>({
-    index: null,
-    source: null,
-  });
+  // `pickedIn` is which container the day was PICKED in, and it is not the
+  // same question as `source`. `source` is "whose scrolling set this" and is
+  // null for every explicit pick; `pickedIn` says which surface that pick
+  // happened on, so a container can tell "the reader chose this here" from
+  // "something else chose this and I am following". Only `jumpTo`'s lock
+  // release reads it — see there for the bug that needs the distinction.
+  const [day, setDay] = useState<{
+    index: number | null;
+    source: DayContainer | null;
+    pickedIn: DayContainer | null;
+  }>({ index: null, source: null, pickedIn: null });
   const focusedDay = day.index;
   const focusSource = day.source;
+  const pickedIn = day.pickedIn;
   const focusOrigin: FocusOrigin = focusSource === null ? "explicit" : "scroll";
   const [focusedTag, setFocusedTag] = useState<ActivityTag | null>(null);
 
@@ -234,8 +266,8 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const setFocusedDay = useCallback((index: number | null) => {
-    setDay({ index, source: null });
+  const setFocusedDay = useCallback((index: number | null, from?: DayContainer) => {
+    setDay({ index, source: null, pickedIn: from ?? null });
   }, []);
 
   // Functional, and the bail-out is inside it: a scroll spy fires on every
@@ -245,7 +277,12 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   // handler was registered with.
   const setScrolledDay = useCallback((index: number, from: DayContainer) => {
     setDay((current) =>
-      current.index === index && current.source === from ? current : { index, source: from },
+      current.index === index && current.source === from
+        ? current
+        : // A scroll is not a pick, so it clears `pickedIn` — otherwise a day
+          // picked in this container would keep its lock exemption alive
+          // across every later scroll that moved off it.
+          { index, source: from, pickedIn: null },
     );
   }, []);
 
@@ -266,6 +303,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       setScrolledDay,
       focusOrigin,
       focusSource,
+      pickedIn,
       beginDayJump,
       endDayJump,
       isDayJumping,
@@ -279,6 +317,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       setScrolledDay,
       focusOrigin,
       focusSource,
+      pickedIn,
       beginDayJump,
       endDayJump,
       isDayJumping,
@@ -318,7 +357,7 @@ function scrollOffsets(element: Element): number[] {
 }
 
 export function useDaySync(container: DayContainer): DaySync {
-  const { focusSource, setScrolledDay, beginDayJump, endDayJump, isDayJumping } = useFocus();
+  const { focusSource, pickedIn, setScrolledDay, beginDayJump, endDayJump, isDayJumping } = useFocus();
 
   const isOwnScroll = useCallback(() => isDayJumping(container), [isDayJumping, container]);
 
@@ -335,7 +374,11 @@ export function useDaySync(container: DayContainer): DaySync {
   );
 
   const jumpTo = useCallback(
-    (element: Element | null | undefined, options?: ScrollIntoViewOptions) => {
+    (
+      element: Element | null | undefined,
+      options?: ScrollIntoViewOptions,
+      intent?: { keepLockIfUnmoved?: boolean },
+    ) => {
       // Feature-detected: jsdom implements no `scrollIntoView` at all, and the
       // jsdom lane has no layout for it to act on anyway. Throwing here would
       // take a whole lens down in tests for the sake of a scroll position.
@@ -356,25 +399,52 @@ export function useDaySync(container: DayContainer): DaySync {
         inline: "center",
         ...options,
       });
-      // Nothing moved — the day was already in view — so there is no scroll
-      // event coming and the lock has nothing to swallow but the user's own
-      // next gesture. Dropped immediately rather than left to lapse, because
-      // the commonest case of a jump that moves nothing is a container's
-      // first-run follow on arrival (clause 3), and holding a dead lock there
-      // would discard the first 300ms of the very flick Mitchell filed this
-      // about. Safe to compare synchronously: `behavior: "auto"` scrolls before
-      // this line runs, which is the other half of why the jumps are instant.
-      if (scrollOffsets(element).every((offset, i) => offset === before[i])) endDayJump(container);
+      // Nothing moved, on a container that has just arrived — the day was
+      // already in view — so there is no scroll event coming and the lock has
+      // nothing to swallow but the user's own next gesture. Dropped
+      // immediately rather than left to lapse, because the commonest case of a
+      // jump that moves nothing is a container's first-run follow on arrival
+      // (clause 3), and holding a dead lock there would discard the first
+      // 300ms of the very flick Mitchell filed this about. Safe to compare
+      // synchronously: `behavior: "auto"` scrolls before this line runs, which
+      // is the other half of why the jumps are instant.
+      //
+      // `keepLockIfUnmoved` is the exception, and it is a bug fix. "Nothing
+      // moved" has a second cause that is not benign at all: **the container
+      // was already clamped at a scroll end and could not do what it was
+      // asked.** A centre reading line cannot name the first or last day once
+      // more than about two columns fit, so at 800px the day columns sit at
+      // `scrollLeft: 0` reporting day 2 while day 1 is selected — measured in a
+      // browser: reading line 400, column centres 158 / 438 / 718. Releasing
+      // the lock there hands the container's own spy the next scroll event it
+      // sees, and it answers honestly with a day that contradicts the pick.
+      // Clicking "Day 1" selected day 1 and then snapped to day 2 on its own,
+      // at every desktop width; `e2e/m10-growth.spec.ts` missed it only because
+      // it ran at 411px, where day 1 IS the central day.
+      //
+      // Why the caller decides rather than this function: BOTH causes look
+      // identical from here, and the harmful one is not "clamped" either — the
+      // phone map strip is equally clamped when MapLens focuses day 1 on
+      // arrival, and there the lock MUST be released or the reader's next flick
+      // is swallowed (`e2e/m10-growth.spec.ts`, "scrolling the phone map's day
+      // strip"). What separates them is whose selection it is: a day picked IN
+      // this container is one the reader just chose here, so this container's
+      // own spy is exactly the thing that must not talk them out of it. A day
+      // handed to it by anything else — another container, or a lens's default
+      // focus — leaves it a plain follower, and followers release.
+      const unmoved = scrollOffsets(element).every((offset, i) => offset === before[i]);
+      if (unmoved && intent?.keepLockIfUnmoved !== true) endDayJump(container);
       return true;
     },
     [beginDayJump, endDayJump, container],
   );
 
   const shouldFollow = focusSource !== container;
+  const pickedHere = pickedIn === container;
 
   return useMemo(
-    () => ({ shouldFollow, isOwnScroll, reportScrolled, jumpTo }),
-    [shouldFollow, isOwnScroll, reportScrolled, jumpTo],
+    () => ({ shouldFollow, pickedHere, isOwnScroll, reportScrolled, jumpTo }),
+    [shouldFollow, pickedHere, isOwnScroll, reportScrolled, jumpTo],
   );
 }
 
@@ -419,6 +489,7 @@ export function useFollowFocusedDay(
   const mounted = useRef(false);
 
   const shouldFollow = sync?.shouldFollow ?? false;
+  const pickedHere = sync?.pickedHere ?? false;
   const jumpTo = sync?.jumpTo;
 
   useEffect(() => {
@@ -428,8 +499,11 @@ export function useFollowFocusedDay(
     mounted.current = true;
     if (focusedDay === null || jumpTo === undefined) return;
     if (!first && !shouldFollow) return;
-    jumpTo(resolveRef.current(focusedDay), optionsRef.current);
-  }, [focusedDay, dayCount, shouldFollow, jumpTo]);
+    // A day picked in THIS container is the one case where a jump that moves
+    // nothing means "clamped and could not" rather than "already showing it",
+    // so it is the one case that keeps its lock. See `jumpTo`.
+    jumpTo(resolveRef.current(focusedDay), optionsRef.current, { keepLockIfUnmoved: pickedHere });
+  }, [focusedDay, dayCount, shouldFollow, pickedHere, jumpTo]);
 }
 
 /**
