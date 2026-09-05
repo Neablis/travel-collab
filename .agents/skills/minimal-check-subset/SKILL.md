@@ -70,14 +70,30 @@ pnpm lint && pnpm test` across every workspace package).
        cannot be mistaken for a pass — but it is why the flag is not
        optional.
      - Integration tests (`*.int.test.ts`), or any change integration tests
-       exercise: run the full `pnpm --filter web test:int` instead. The
-       integration suite shares one real Postgres instance and doesn't scope
-       cleanly file-by-file — don't try to narrow further than "run the
-       whole integration suite."
+       exercise: scope with the DB wrapper, which supplies `DATABASE_URL` —
+       `vitest` alone is not on PATH and the run dies with `spawn vitest
+       ENOENT`:
+
+       `pnpm --filter web exec node scripts/with-test-db.mjs vitest run <file>`
+
+       Measured 2026-09-05 on `ask/route.int.test.ts`: **60 tests in 3.8s**
+       against 450 in 37s for the whole lane. This entry previously said the
+       suite "doesn't scope cleanly file-by-file"; it scopes fine per file.
+       The caution it was protecting is still real but narrower — the suite
+       shares one Postgres instance, so **if your change touches schema,
+       migrations, or a projection several suites rebuild, run the full
+       `pnpm --filter web test:int`**, where cross-file state is the point.
      - For non-web packages (`@tc/contracts`, `@tc/domain`, `@tc/factories`,
-       `@tc/fixtures`, `@tc/pages`), there's no file-level scoping option —
-       run `pnpm --filter <pkg> test` (whole package suite) if the package
-       defines a `test` script. `@tc/predict` currently has none.
+       `@tc/fixtures`, `@tc/pages`), scope the same way — these have one
+       vitest config, so no `-c` flag is needed:
+
+       `pnpm --filter <pkg> exec vitest run <file>`
+
+       Measured 2026-09-05 on `@tc/factories`: 6 tests in 0.5s against 360 in
+       2.4s. (This entry previously said there was "no file-level scoping
+       option" for these packages. There is.) Fall back to
+       `pnpm --filter <pkg> test` for the whole suite when the change is
+       package-wide. `@tc/predict` defines no `test` script.
 
 5. **Multiple packages affected (and none is contracts):** run each
    affected package's narrowed check separately. Do not escalate to the
