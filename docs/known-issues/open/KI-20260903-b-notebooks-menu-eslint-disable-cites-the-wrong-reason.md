@@ -37,3 +37,10 @@
   comment), `.design-sync/handoff/SPEC.md` §11.
 - **First noted:** 2026-09-03, while briefing M14's builder half — flagged as an open
   question in the session handoff rather than settled inside an unrelated PR.
+- **2026-09-05 overnight review ([F-E09](../../reviews/2026-09-05-overnight-review/findings/F-E09-design-wall-backlog-lives-in-128-disables.md)):**
+  stream E counted the population this entry is one member of — 128
+  `eslint-disable-next-line no-restricted-syntax` directives in `apps/web/src`,
+  71 of them excusing geometry — and names this entry as the evidence that
+  hand-written reasons drift. Teaching the rule the geometric class would make
+  `reportUnusedDisableDirectives: "error"` delete most of them, this one
+  included. Filed as KI-2026-09-05-v.

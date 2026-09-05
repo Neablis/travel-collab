@@ -317,6 +317,16 @@ point: they describe the change, not the ceremony around it.
   tag chips shipped against a preview whose data had zero tags. Add it to
   `@tc/fixtures` and to the expectations, then run `pnpm seed:verify`.
   `docs/guidelines/fixtures-and-seed-data.md` is the procedure.
+- **What the change delivers is reachable by clicking, or the PR body says what
+  it is not yet reviewable as.** A slice can be coherent to the architecture and
+  invisible to a person — PR #141 opened as "the primitives, not in the picker",
+  which was a defensible boundary and produced *"how am i spose to test any of
+  this if they arent in the picker? … this is another milestone thats not
+  functionally reviewable"*. Rebuilding the boundary mid-PR cost more than
+  drawing it there first. The test is one question asked before you start: **on
+  the preview, what does a person click to see this?** "Nothing yet, and here is
+  the walk that will exist when link N lands" is a fine answer written down and
+  a bad one discovered in review.
 - No invariant weakened. If one blocked you, that is a finding to report to
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible

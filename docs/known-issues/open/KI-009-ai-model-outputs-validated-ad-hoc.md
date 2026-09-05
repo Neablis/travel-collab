@@ -5,3 +5,12 @@
 - **Deferred fix (agreed 2026-07-24, Mitchell):** introduce a single typed gateway wrapper around `generateText`/`generateObject` that *requires* an output schema and returns a `Result<T, GatewayError>`, so no model call can be consumed un-parsed; use `generateObject`/`experimental_output` where the final free-text answer itself should be schema-constrained. Keep the two invariants that already do the work (executors typed `input: unknown` to force the parse; the exhaustive `decideTripCommand` switch with no `default:`) and document them as such. This is the generalized, type-enforced version of the per-field KI-8 fixes; scoped out of the KI-8 PR deliberately to keep it small.
 - **First noted:** 2026-07-24 (raised while fixing KI-8).
 - **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: cleanup, no known reachable bug. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".
+- **2026-09-05 overnight review — this entry is the hub of ~15 of the 40 open KIs ([F-E07](../../reviews/2026-09-05-overnight-review/findings/F-E07-ask-handler-is-one-455-line-function.md)):**
+  stream E's census found 14–17 open entries citing `server/ai`, and KI-9, 22,
+  80, 82, 93/94/97 are all consequences of model output crossing into the
+  system at many places with no single typed boundary. The wrapper agreed here
+  in July — a gateway call that *requires* an output schema — would make a new
+  un-parsed consumer a type error. The net-new finding beside it is that
+  `handleAskRequest()` is one 455-line function whose seams are already named
+  in its own code; that is filed separately as KI-2026-09-05-t so this entry
+  stays the record of the validation boundary alone.

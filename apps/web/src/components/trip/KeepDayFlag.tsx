@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Flag } from "lucide-react";
 import type { SavedStop } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ const INK_TEXT: Record<AccentFamily, string> = {
   danger: "text-danger-ink",
   neutral: "text-slate",
 };
+
+// The length of the celebration, and the `om-flag-label` keyframe's own
+// duration in globals.css. The two have to agree: the class drives the
+// motion, this drives how long the label stays in the DOM.
+const CELEBRATION_MS = 2600;
 
 // Handoff README "Keep this day": an icon-only pennant, 30px circle,
 // `--color-surface` background, glyph tinted in the day's ink color.
@@ -62,7 +67,41 @@ export function KeepDayFlag({
   // Removing the class on `animationend` is what makes it re-triggerable — a
   // class left behind is an animation that plays exactly once per mount.
   const [waving, setWaving] = useState(false);
+  // The design's `celebrate()` (`dc.html:4871`), which the build shipped
+  // without — KeepDayDialog.tsx used to say so in as many words: "the save is
+  // real; the confetti is not".
+  //
+  // Driven by a TIMER rather than `animationend`, which is where this departs
+  // from `waving` above. The wave's class drives nothing but an animation, so
+  // an `animationend` that never fires under `prefers-reduced-motion` costs
+  // nothing. This class also gates the "Kept" label — an event that never
+  // fires would leave the pennant claiming "Kept" for the life of the page.
+  // 2600ms is the label keyframe's own duration in globals.css.
+  //
+  // A RUN NUMBER rather than a boolean, because a second save inside the 2.6s
+  // window has to start its own run (CodeRabbit, PR 142). With a boolean,
+  // `setCelebrating(true)` was a no-op while one was already in flight, and the
+  // first run's timer then cut the second one short at the first deadline.
+  // Bumping the number re-runs the effect below, so the old timer is cleared
+  // and the new run gets its own full length.
+  const [run, setRun] = useState(0);
+  const runs = useRef(0);
+  const celebrating = run > 0;
   const empty = stops.length === 0;
+
+  useEffect(() => {
+    if (run === 0) return;
+    const timer = window.setTimeout(() => setRun(0), CELEBRATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [run]);
+
+  // Both halves of the outcome: the toast names what was kept and is what a
+  // screen reader hears; the pennant shows it, decoratively.
+  const onSaved = useCallback((name: string) => {
+    setSaved(name);
+    runs.current += 1;
+    setRun(runs.current);
+  }, []);
 
   // Two things on one click, and the order matters only in that the wave must
   // not wait for the dialog: the dialog opens over the flag, and an animation
@@ -74,31 +113,79 @@ export function KeepDayFlag({
 
   return (
     <>
-      <Button
-        variant="secondary"
-        aria-label={`Keep day ${dayIndex + 1}`}
-        disabled={empty}
-        title={empty ? "Add a stop to this day first" : "Keep this day"}
-        onClick={keep}
-        className={cn(
-          "shrink-0 rounded-full border-transparent bg-surface p-0 hover:bg-surface",
-          INK_TEXT[accent],
-        )}
-        // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-        style={{ height: "30px", width: "30px" }}
-      >
-        {/* The glyph waves, not the button: the design animates the `svg`
-            inside the control, so the 30px circle and its focus ring stay put
-            while the pennant tips. `onAnimationEnd` is on the same element the
-            class is, so it cannot be fired by some other animation bubbling up
-            from a child — a bare `<svg>` has none. */}
-        <span
-          className={cn("inline-flex", waving && "flag-wave")}
-          onAnimationEnd={() => setWaving(false)}
+      {/* Positioned so the ring and sparks can be drawn outside the button
+          without the button having to clip or contain them. */}
+      <span className="relative inline-flex shrink-0">
+        <Button
+          variant="secondary"
+          aria-label={`Keep day ${dayIndex + 1}`}
+          disabled={empty}
+          title={empty ? "Add a stop to this day first" : "Keep this day"}
+          onClick={keep}
+          className={cn(
+            // `gap-0`: the design's only flank between glyph and label is the
+            // label's own animated 6px margin, and Button's default `gap-1.5`
+            // would silently double it to 12px.
+            "shrink-0 gap-0 rounded-full border-transparent bg-surface hover:bg-surface",
+            INK_TEXT[accent],
+            celebrating && "flag-celebrate",
+          )}
+          // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle and the design's 7px flank have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+          style={{ height: "30px", minWidth: "30px", paddingInline: "7px" }}
         >
-          <Flag className="h-4 w-4" aria-hidden />
-        </span>
-      </Button>
+          {/* The glyph waves, not the button: the design animates the `svg`
+              inside the control, so the 30px circle and its focus ring stay put
+              while the pennant tips. `onAnimationEnd` is on the same element the
+              class is, so it cannot be fired by some other animation bubbling up
+              from a child — a bare `<svg>` has none. */}
+          <span
+            className={cn("inline-flex", waving && "flag-wave")}
+            onAnimationEnd={() => setWaving(false)}
+          >
+            <Flag className="h-4 w-4" aria-hidden />
+          </span>
+          {/* Rendered only while celebrating, and `aria-hidden` while it is.
+              The design parks this permanently in the DOM at `max-width: 0` —
+              clipped to the eye, but still read out, so every un-kept day would
+              announce "Kept". And the button's `aria-label` wins over its own
+              text for the accessible name, so text inside it cannot be the
+              announcement anyway: the toast below is. */}
+          {celebrating && (
+            /* `text-xs font-semibold` is the design's 12px/600; Button's `md`
+               size would otherwise render this label at 16px/500. */
+            <span
+              key={run}
+              className="flag-celebrate-label text-xs font-semibold"
+              aria-hidden
+            >
+              Kept
+            </span>
+          )}
+        </Button>
+        {/* Keyed on the run so a second save inside the window replays the
+            decoration instead of sitting inert under a class that is already
+            applied. Only these three remount, never the Button: Radix restores
+            focus to the element that opened the dialog, and remounting that
+            element would drop the focus return on every save. The button's own
+            pop does not replay, which reads correctly anyway — it is already
+            brand-filled, and stays so until the new run's later deadline. */}
+        {celebrating && (
+          <div key={run} className="contents">
+            <span className="flag-celebrate-ring" aria-hidden />
+            {/* Four sparks on the design's four paths. Their offsets, sizes and
+                delays are `nth-child` rules in globals.css, so this stays a list
+                of four identical spans and the geometry stays with the motion —
+                which is also why they need their own box: as siblings of the
+                button and the ring, `nth-child(1)` would name the button. */}
+            <span className="flag-celebrate-sparks" aria-hidden>
+              <span className="flag-celebrate-spark" />
+              <span className="flag-celebrate-spark" />
+              <span className="flag-celebrate-spark" />
+              <span className="flag-celebrate-spark" />
+            </span>
+          </div>
+        )}
+      </span>
       <KeepDayDialog
         open={open}
         onOpenChange={setOpen}
@@ -107,7 +194,7 @@ export function KeepDayFlag({
         dayIndex={dayIndex}
         tripName={tripName}
         stops={stops}
-        onSaved={setSaved}
+        onSaved={onSaved}
       />
       {saved !== null && (
         <Toast message={`Kept "${saved}"`} onDismiss={() => setSaved(null)} />

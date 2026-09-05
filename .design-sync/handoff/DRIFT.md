@@ -2,9 +2,9 @@
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run).
 Build: `Neablis/travel-collab@main`, read from the attached working tree, 2026-08-26.
-Design side refreshed 2026-09-03 (§2f the phone Notebook; §2c billing surfaces; §2d the
-shared-day map and the phone Playbooks tab; §2e Notebook widgets — pages no longer have a
-scope).
+Design side refreshed 2026-09-05 (§2h the phone tab bar is scoped; §2g the notebook widget
+framework; §2f the phone Notebook; §2c billing surfaces; §2d the shared-day map and the phone
+Playbooks tab; §2e Notebook widgets — pages no longer have a scope).
 
 This is a **current-state** document. It replaces the append-only log that ran
 2026-08-22 → 08-26; everything already closed is condensed into §5 rather than kept
@@ -211,7 +211,68 @@ What it needs instead — and this is the part to cost:
 
 **It changes the shape of the §4 Notebook blocker rather than clearing it.** See §4.
 
-## 2f. New this turn — the phone Notebook expresses the widget model
+## 2h. New this turn — the phone tab bar is scoped, and no tab is ever disabled
+
+`SPEC.md` §22. Small, but it changes a component's contract rather than its styling, so it
+is drift and not a cosmetic.
+
+The design's phone tab bar is no longer a fixed five-item list. **Its items are a function of
+the route**: inside a trip it is Plan · Map · Notebook; everywhere else it is Trips ·
+Playbooks. Any build that renders a constant `TABS` array — or renders five with two disabled
+— now disagrees with the design.
+
+What a build owes:
+
+- **The tab list is derived, not constant.** One predicate — "is a trip open" — picks between
+  two arrays. Do not implement a `disabled` prop on the tab item to get here; there is no
+  disabled tab in the design, and adding one invites the next person to use it.
+- **The phone Notebook index needs its own `‹ Trips` back link.** With Trips gone from the
+  in-trip bar, that header is the only exit. It is in the design file now. A build that ships
+  the scoped bar **without** this link strands the user on that screen.
+- **The active tab is a `--color-brand-tint` pill behind the glyph** (46×26, fully rounded),
+  not a colour swap alone. Existing token, no new colour. If the build's tab item only takes
+  an `active` boolean that maps to text colour, it needs the pill too.
+
+**Not checked against code.** The build's phone shell was not re-read this turn, so whether
+its tab bar is a constant array is unknown — treat this as "verify", not "fix". It is on the
+§6 build-check list.
+
+## 2g. Previously — the widget framework is three components, and one rule needs a call
+
+`specs/notebook-widget-framework.md`, `SPEC.md` §21. ADR-037 says a widget is a module whose
+`render` returns typed data and must be total. It does not say what the output *looks like*,
+so twenty widgets can satisfy it and still disagree on borders, empty copy and what an
+unbound widget shows. The framework closes that: **three components, one per shape**, and a
+widget author supplies content only — never spacing, borders, ghost glyphs or empty copy.
+
+What the build gains, and it maps onto ADR-037 directly:
+
+- **`Rendered`'s three arms get one renderer each.** `inline` → `NotebookInline`,
+  `block` → `NotebookBlock`, `rows` → `NotebookRepeat`. The repeat's rows **are** inline
+  mounts, so there is no second chip renderer to drift — which is the same reason ADR-037
+  deletes `MacroView`'s `switch (name)`.
+- **Four states per shape**: `ok`, `ghost`, `empty`, `stale`. This is the concrete form of
+  decision 6's "renders in every state", and it splits `empty` from `ghost` — one says the
+  answer is legitimately nothing, the other says point it somewhere.
+- **`unbound` must name its input, per part.** Decision 6c already owes
+  `needs: WidgetInput["type"]` instead of the day-shaped literal. The ghost needs it at part
+  granularity: a two-input widget shows the day's parts resolved and the tag's parts ghosted
+  in the same sentence.
+- **A value kind per part** — money, count, date, time, duration, city, text. `format.ts`
+  already has `formatMoney` / `formatDate`; this is the same closed set ADR-037 open
+  question 4 calls "how to serialize them", used for ghost glyphs as well as formatting.
+- **`stale` needs no new resolver state** — it is `unbound` plus the label of what was lost,
+  which the resolver knows when a `DayRef` fails to resolve.
+
+**One decision is owed and it is not the design's to take: ghosts are editing-only.** In
+reading mode a widget with an unbound input prints nothing, and only someone with edit
+rights sees a quiet "2 widgets aren't set up" line. The design's reason is that a reader is a
+traveller and `$XXX` is worse than silence. It **refines** decision 6 rather than
+contradicting it — the widget still renders in every state; in reading mode it renders as
+nothing — but it changes what a resolver's output does downstream, so the build should
+accept or reject it explicitly.
+
+## 2f. Previously — the phone Notebook expresses the widget model
 
 `SPEC.md` §19. The previous bundle listed the phone Notebook as one hardwired widget and an
 open design pass; that pass is done, and the §8 item is removed.
@@ -313,6 +374,11 @@ Carried forward because each one is a bug the design already hit:
    overwrite the phone's day selection from a still-mounted desktop timeline.
 4. **The tab is the route.** The phone client must not hold tab state independent of
    the router; "am I in a trip" belongs to the route alone.
+4b. **The phone tab bar's item list is derived from the route, not a constant.** Inside a
+   trip: Plan · Map · Notebook. Outside: Trips · Playbooks. If the build renders a fixed
+   five-item array, or adds a `disabled` prop to reach the same effect, it disagrees with
+   the design (§2h, `SPEC.md` §22). Check the Notebook index keeps its `‹ Trips` link —
+   without Trips in the bar, that link is the only exit from that screen.
 5. **Maps inside conditional markup need a container-identity guard** — remount leaves
    the instance bound to a detached node and the style load aborts silently.
 6. **Gesture handlers go on the element, not `document` with `capture: true`.**

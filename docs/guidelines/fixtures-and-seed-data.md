@@ -25,6 +25,26 @@ preview, and no screenshot.** The tag chips shipped in M18 against a preview
 deployment whose data had zero tags. That is the failure this file exists to
 prevent, and `pnpm seed:verify` is what now catches it.
 
+## A hand-built `TripDetail` must not lie about its money
+
+`AGENTS.md` says never a hand-built rollup. Until 2026-09-05 that rule had no
+instrument outside the server: `rollupCosts` lives in `@tc/domain`, and the
+module map lets only `apps/web/src/server/**` import it — so a component test
+had the rule and no way to follow it, and `MacroView.test.tsx` carried two
+fixtures whose totals contradicted their own stops (PR #141, one per review
+round; both found by a reviewer, neither by a test).
+
+- Need *a* costed trip, shape unimportant → **`costedTripDetailFixture()`**,
+  which already derives its own totals.
+- Need a *particular* arrangement of days and stops → hand-build it and pass it
+  through **`withCostRollups(detail)`** from `@tc/factories`, which recomputes
+  every day's `costSubtotal`, the `unscheduledCostSubtotal`, `tripCostTotal`
+  and `budgetRemaining` by delegating to the domain's own `rollupCosts`.
+
+Never type a total. A fixture that disagrees with its stops fails in the one
+direction nobody checks — it passes.
+
+
 ## Adding a field to an activity, a day, or a trip
 
 1. **Land the contract change first.** Its own reviewed step (AGENTS.md
