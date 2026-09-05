@@ -167,6 +167,21 @@ describe("insertPreset", () => {
 });
 
 describe("presetCatalog", () => {
+  it("gives every primitive declaring `day` the `dates` dimension too", () => {
+    // The property the UI's one-control collapse rests on, asserted over the
+    // registry rather than the matrix: `widgetBind` drops the `day` input when
+    // a `dates` one is present, so a primitive declaring `day` alone would lose
+    // its only day control with nothing failing.
+    let checked = 0;
+    for (const preset of PRESETS) {
+      const filters = getMacro(preset.widget)!.selection!.filters;
+      if (!filters.includes("day")) continue;
+      expect(filters, `${preset.widget} declares day but not dates`).toContain("dates");
+      checked += 1;
+    }
+    expect(checked, "no primitive declares a day filter").toBeGreaterThan(0);
+  });
+
   it("offers a control for every dimension the preset has not already answered", () => {
     // A preset that fixes `kind: "booked"` is "a line for every booking";
     // offering a kind select beside it invites the author to turn it into

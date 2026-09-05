@@ -229,4 +229,39 @@ covered: *how many stops are booked*, *everything on a day booked only*, plus `c
   meal` does not yet insert `cost{day: 3, tag: meal}` — a space still ends the query.
 - **`person` has no control and never filters** (decision 7), which is its finished
   behaviour until `TripMember` carries a display name and a stop carries a person.
+
+### One control for "which days", and what it stores
+
+Mitchell, on the PR 141 preview: *"I dont think we need the date pickers, and the dropdown
+for all days/specific day, and the range. Combine them into one experience. Im picturing a
+calendar where you pick a range, it defaults to all days of trip, and you can select the
+days."*
+
+So the chrome row's `day` select and its two date inputs are **one control**: a button
+showing the current selection, opening a grid of the trip's own days. Click one for a
+single day, click a second to reach a range, "All days" to clear. It lists the trip's days
+rather than a month, because a month grid needs navigation and a concept of "outside the
+trip" for a filter that is only ever over these.
+
+**It always writes `dates`, never `day`** — Mitchell's call when the two were put to him.
+One control writing two different dimensions depending on how many cells you touched is a
+rule nobody can predict from outside. `day` and `dates` remain two dimensions in the AST
+because they are not interchangeable; the UI simply only produces one of them.
+
+Three consequences, all deliberate:
+
+- **A stored `day` is still read, shown and clearable.** Documents migrated from `cost.day`
+  and friends carry one, and a binding the UI can no longer write must still be one the UI
+  can undo — otherwise the migration would strand every dated page ever written. Clearing
+  removes both keys.
+- **A trip with no dates cannot be filtered by day at all.** A date range resolves against
+  real dates, so on an undated trip there is nothing to select; the popover says so rather
+  than offering cells that would store a range matching nothing, and All days stays
+  reachable so it is never a dead end. **This is a real cost on a common path** — "Create
+  empty" leaves a trip undated — and `m14-notebook-widgets.spec.ts` pins it with a walk of
+  its own so it cannot become a surprise. The one-line reversal, if it turns out to bite,
+  is to let a single click on an undated day write `day` instead.
+- **Every primitive declaring `day` must also declare `dates`**, or it would silently lose
+  its only day control. Asserted in `filters.test.ts` (over the matrix) and
+  `presets.test.ts` (over the registry) rather than assumed in the component.
 - **`sample`** and ghost rendering (§7).

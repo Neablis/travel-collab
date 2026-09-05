@@ -38,6 +38,20 @@ describe("the legality matrix (ADR-039 decision 3)", () => {
     expect(LEGAL_FILTERS.account).toEqual([]);
   });
 
+  it("gives every entity that takes `day` the `dates` dimension too", () => {
+    // **The UI collapses `day` and `dates` into one control** (Mitchell, on the
+    // PR 141 preview: *"combine them into one experience"*), and it keeps the
+    // `dates` one — so a primitive that declared `day` WITHOUT `dates` would
+    // silently lose its only day control. Pinned here rather than assumed in
+    // `widgetBind`, because the assumption lives in the matrix.
+    for (const entity of ENTITIES) {
+      if (!LEGAL_FILTERS[entity].includes("day")) continue;
+      expect(LEGAL_FILTERS[entity], `${entity} takes day but not dates`).toContain("dates");
+    }
+    // Non-vacuous: at least one entity actually takes `day`.
+    expect(ENTITIES.filter((e) => LEGAL_FILTERS[e].includes("day")).length).toBeGreaterThan(0);
+  });
+
   it("refuses `person` on days and cities", () => {
     // A day has no person and cannot acquire one: `person` arrives on the STOP
     // (M13 `add-stop-who` / M19 link 3), and "which days someone is on" is a

@@ -63,26 +63,30 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // sheet (project rule 3, restated by §19 as "one sheet deep, ever"). One
     // dialog on screen is the assertion that says so.
     await expect(page.getByRole("dialog")).toHaveCount(1);
-    // The DAY control by name: a primitive declares up to five (ADR-039
-    // decision 1), so "the combobox in the sheet" is no longer one thing.
-    const day = sheet.getByRole("combobox", { name: "Day" });
-    await expect(day).toBeVisible();
+    // The DAYS control by name: a primitive declares several (ADR-039 decision
+    // 1), so "the control in the sheet" is no longer one thing.
+    const days = sheet.getByRole("button", { name: /dates/i });
+    await expect(days).toBeVisible();
     // §13 rule 1's 44px floor, on the control the whole step exists for.
-    expect((await day.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-    await day.selectOption("1");
+    expect((await days.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await days.click();
+    await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
+    await page.keyboard.press("Escape");
 
     await waitForPageSaved(page, () => sheet.getByRole("button", { name: "Insert it" }).click());
     await expect(sheet).toBeHidden();
 
     // Narrowed on arrival. A phone insert that landed wide would mean the bind
     // step decided nothing — the failure this walk exists to catch.
-    await expect(page.getByRole("button", { name: /Showing Day 2/ })).toBeVisible();
+    const bound = page.getByRole("button", { name: /^Showing/ });
+    await expect(bound).toBeVisible();
+    await expect(bound).not.toHaveText(/everything/);
 
     // And it survives the round trip, which is the thing no unit test sees.
     await page.reload();
     await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
     await page.getByRole("button", { name: "Edit page" }).click();
-    await expect(page.getByRole("button", { name: /Showing Day 2/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Showing/ })).not.toHaveText(/everything/);
   });
 
   test("rebinding is a sheet, and the inline select row is gone", async ({ page }) => {
@@ -113,11 +117,15 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // The sentence §19 asks for, because the page-scope model is recent enough
     // that someone may still expect one control to move every widget.
     await expect(bindSheet).toContainText("This widget only");
-    await waitForPageSaved(page, () => bindSheet.getByRole("combobox", { name: "Day" }).selectOption("2"));
+    await bindSheet.getByRole("button", { name: /dates/i }).click();
+    await waitForPageSaved(page, () =>
+      page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 3/ }).click(),
+    );
+    await page.keyboard.press("Escape");
     await bindSheet.getByRole("button", { name: "Close" }).click();
 
     // The button follows the document rather than being a label written once.
-    await expect(page.getByRole("button", { name: /Showing Day 3/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Showing/ })).not.toHaveText(/everything/);
   });
 
   test("Reading is the default, and it takes the phone's authoring surface away too", async ({ page }) => {

@@ -63,6 +63,24 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   await expect(page.getByTestId("day-column")).toHaveCount(1);
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
+
+  // **A start date, because the days filter writes a DATE range.** Mitchell's
+  // call on the PR 141 preview: one control for "which days", and it stores
+  // `dates` — so a day only becomes selectable once the trip has dates for its
+  // days to derive. "Create empty" leaves a trip undated, which is the state
+  // `an undated trip cannot be filtered by day` below pins deliberately; every
+  // other walk here is about binding, so it gets a dated trip to bind against.
+  // `TripDateControl` lives in the Settings sheet (#15), reached through the
+  // header's gear, and the sheet is a full-height overlay that has to be closed
+  // again before anything behind it is clickable — same dance `m3` documents.
+  await page.getByRole("button", { name: "Trip settings" }).click();
+  await page.getByRole("button", { name: "Dates" }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok()),
+    page.getByLabel("Trip start date").fill("2027-06-01"),
+  ]);
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   return tripName;
 }
 
@@ -125,11 +143,17 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // also select All at the top, and it gives you a sum."* The old walk asserted
   // "no day set" here; a widget that still said that would be waiting for a
   // choice it does not need.
-  const daySelect = page.getByRole("combobox", { name: /What it costs: day/ });
-  await expect(daySelect).toHaveValue("");
-  await expect(daySelect.locator("option").first()).toHaveText("All days");
+  // ONE control for "which days" — Mitchell, on the preview: *"I dont think we
+  // need the date pickers, and the dropdown for all days/specific day, and the
+  // range. Combine them into one experience."*
+  const days = page.getByRole("button", { name: /What it costs: dates/ });
+  await expect(days).toHaveText("All days");
   await expect(page.getByText("no day set")).toHaveCount(0);
-  await waitForPageSaved(page, () => daySelect.selectOption("1"));
+  await days.click();
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
+  );
+  await page.keyboard.press("Escape");
 
   // The whole point: reload and the binding is still there. The unit tests
   // assert the PATCH body; only this asserts the round trip.
@@ -139,7 +163,7 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // which is the point of Reading. The BINDING is what survived; the control
   // that shows it is an authoring affordance.
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("combobox", { name: /What it costs: day/ })).toHaveValue("1");
+  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
 });
 
 test("two widgets on one page read two different days", async ({ page }) => {
@@ -156,16 +180,26 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // Each widget's OWN day select, found by the widget's name rather than by
   // position: a primitive declares up to five controls now (ADR-039 decision
   // 1), so "the first two comboboxes on the page" are both the first widget's.
-  const costDay = page.getByRole("combobox", { name: /What it costs: day/ });
-  const detailDay = page.getByRole("combobox", { name: /The days in detail: day/ });
-  await waitForPageSaved(page, () => costDay.selectOption("0"));
-  await waitForPageSaved(page, () => detailDay.selectOption("1"));
+  const pickDay = async (widget: RegExp, day: RegExp) => {
+    await page.getByRole("button", { name: widget }).click();
+    await waitForPageSaved(page, () =>
+      page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
+    );
+    await page.keyboard.press("Escape");
+  };
+  await pickDay(/What it costs: dates/, /Day 1/);
+  await pickDay(/The days in detail: dates/, /Day 2/);
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("combobox", { name: /What it costs: day/ })).toHaveValue("0");
-  await expect(page.getByRole("combobox", { name: /The days in detail: day/ })).toHaveValue("1");
+  // Each widget kept ITS OWN binding, which is the assertion an aggregated
+  // page-level control would break.
+  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
+  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).not.toHaveText("All days");
+  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText(
+    await page.getByRole("button", { name: /The days in detail: dates/ }).innerText(),
+  );
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -244,17 +278,18 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   await insertFromList(page, /A line for every stop/, "every stop");
 
   // Two controls, one per declared input.
-  const day = page.getByRole("combobox", { name: /A line for every stop: day/i });
+  const days = page.getByRole("button", { name: /A line for every stop: dates/i });
   const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
-  await expect(day).toBeVisible();
+  await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
-  // And the three ADR-039 added, which is the other half of the model being
-  // real: `stop.rows` is entity `stop`, and the matrix gives that entity every
-  // dimension. `person` is the one with no control, and deliberately so — no
-  // stop carries a person (decision 7).
+  // `stop.rows` is entity `stop`, and the matrix gives that entity every
+  // dimension — reaching the row as FOUR controls, because `day` and `dates`
+  // are one. `person` is the one with no control, and deliberately so: no stop
+  // carries a person (decision 7).
   await expect(page.getByRole("combobox", { name: /A line for every stop: city/i })).toBeVisible();
   await expect(page.getByRole("combobox", { name: /A line for every stop: kind/i })).toBeVisible();
   await expect(page.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveCount(0);
 
   // A tag input reads "every stop, or one" (§18), so unset is a real answer
   // rather than an unfilled blank.
@@ -266,17 +301,52 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // was written to catch would have passed it. Both reviewers said so on PR 139
   // and both were right: a test that never exercises the second input cannot
   // witness the second input clobbering the first.
-  await waitForPageSaved(page, () => day.selectOption("1"));
-  await expect(day).toHaveValue("1");
+  await days.click();
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
+  );
+  await page.keyboard.press("Escape");
+  await expect(days).not.toHaveText("All days");
   await waitForPageSaved(page, () => tags.selectOption("meal"));
   await expect(tags).toHaveValue("meal");
-  // The day is still bound AFTER the tag was set. This is the assertion the
-  // whole widget exists to make possible.
-  await expect(day).toHaveValue("1");
+  // The days binding is still there AFTER the tag was set. This is the
+  // assertion the whole widget exists to make possible.
+  await expect(days).not.toHaveText("All days");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveValue("1");
+  await expect(page.getByRole("button", { name: /A line for every stop: dates/i })).not.toHaveText("All days");
   await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
+});
+
+// **The stated cost of storing a date range, pinned so it cannot become a
+// surprise.** The days filter writes `dates` (Mitchell's call when the two
+// options were put to him), and a date range resolves against real dates — so
+// on a trip created with "Create empty", which leaves it undated, there is
+// nothing to select. The popover says so rather than offering cells that would
+// store a range matching nothing, and All days stays reachable so an undated
+// trip is never a dead end.
+//
+// This walk exists because the regression is easy to hide: every other walk
+// here now gives its trip a start date, and without this one the suite would go
+// green while a freshly created trip could not filter a widget at all.
+test("an undated trip says it has no days to filter by, and is not a dead end", async ({ page }) => {
+  const tripName = e2eTripName("Undated");
+  await page.goto("/");
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
+  await page.getByRole("link", { name: tripName }).click();
+  await page.waitForURL(/\/trips\/[^/]+$/);
+  await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
+
+  await openTripOverview(page);
+  await insertFromList(page, /What it costs/, "costs");
+
+  await page.getByRole("button", { name: /What it costs: dates/ }).click();
+  await expect(page.getByText(/no dates yet/i)).toBeVisible();
+  await expect(page.getByRole("group", { name: "Trip days" })).toHaveCount(0);
+  // The way out is still there.
+  await expect(page.getByRole("button", { name: "All days" })).toBeVisible();
 });

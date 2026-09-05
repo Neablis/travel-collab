@@ -87,6 +87,15 @@ the top, and it gives you a sum"* literally. Search matches every word of a quer
 title, description, id, keywords and the RETIRED names, so `/booking` and `cost.day` both
 still find something (§6).
 
+**The chrome row has ONE control for "which days".** Mitchell, on the preview: *"I dont
+think we need the date pickers, and the dropdown for all days/specific day, and the range.
+Combine them into one experience."* A button opening a grid of the trip's own days
+replaced the day select and the two date inputs. **It always writes `dates`** — his call
+when the alternative was put to him — which costs one thing worth knowing: a trip created
+with "Create empty" has no dates, so its widgets cannot be filtered by day until someone
+sets a start date. The popover says so, All days stays reachable, and an e2e walk pins it
+so it cannot become a surprise. Spec §8 records the one-line reversal if it bites.
+
 **What is still owed, and it is written into the spec's §8 rather than only here:** §5's
 slash ARGUMENT grammar (`/cost 3 meal` — a space still ends the query), and §7's `sample`
 status with its ghost rendering. `person` is declared, has no control, and renders "needs

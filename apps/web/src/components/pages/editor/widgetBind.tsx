@@ -3,8 +3,8 @@ import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { DaysFilter, daysSummary } from "./DaysFilter";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -39,7 +39,30 @@ import { NativeSelect } from "@/components/ui/native-select";
 // so the shape is settled; the control arrives with M13 `add-stop-who` / M19
 // link 3.
 export function bindableInputs(name: string): readonly WidgetInput[] {
-  return (getMacro(name)?.inputs ?? []).filter((i) => i.type !== "person");
+  return collapseDays((getMacro(name)?.inputs ?? []).filter((i) => i.type !== "person"));
+}
+
+/**
+ * **`day` and `dates` become ONE control.**
+ *
+ * Mitchell, on the PR 141 preview: *"I dont think we need the date pickers, and
+ * the dropdown for all days/specific day, and the range. Combine them into one
+ * experience."* Three controls for one question — which days is this about — is
+ * two too many, and the two raw date boxes were the worst of them.
+ *
+ * The `dates` input is the one that survives, because `DaysFilter` writes that
+ * dimension (Mitchell's call: one control writing two different dimensions
+ * depending on how many cells you touched is a rule nobody can predict from
+ * outside). The `day` input drops out of the row and its stored value is still
+ * read, shown and clearable by the same control.
+ *
+ * Every primitive declaring `day` also declares `dates` — asserted in
+ * `filters.test.ts`, because this collapse silently loses a control the day one
+ * does not.
+ */
+function collapseDays(inputs: readonly WidgetInput[]): readonly WidgetInput[] {
+  const hasDates = inputs.some((input) => input.type === "dates");
+  return hasDates ? inputs.filter((input) => input.type !== "day") : inputs;
 }
 
 /**
@@ -74,20 +97,6 @@ export function presetBindableInputs(id: string): readonly WidgetInput[] {
 //
 // A `dayId` matching no day reads as unset, the same answer the resolvers give
 // it: a stale binding is silently no binding, never a guessed one.
-/**
- * The value a day select shows for a binding aimed at a day that is gone.
- *
- * **Not `""`, and that was a dead end.** A stale ref read back as "All days",
- * so the control already displayed the option that would fix it — and choosing
- * it fired no change event, leaving the widget stuck on "that day was removed"
- * with no way out but editing the document by hand (Copilot, PR 141). A
- * distinct value gives the select something to move AWAY from.
- *
- * It is never written: `withBinding` treats it as a no-op, so the only thing a
- * reader can do from here is pick a real day or All.
- */
-export const STALE_DAY_VALUE = "__stale-day";
-
 export function valueOf(
   input: WidgetInput,
   params: Record<string, unknown>,
@@ -97,28 +106,16 @@ export function valueOf(
   if (input.type === "day") {
     const ref = raw as { kind?: string; index?: number; dayId?: string } | undefined;
     if (ref?.kind === "index" && typeof ref.index === "number") {
-      return ref.index < detail.days.length ? String(ref.index) : STALE_DAY_VALUE;
+      return ref.index < detail.days.length ? String(ref.index) : "";
     }
     if (ref?.kind === "dayId" && typeof ref.dayId === "string") {
       const idx = detail.days.findIndex((d) => d.dayId === ref.dayId);
-      return idx === -1 ? STALE_DAY_VALUE : String(idx);
+      return idx === -1 ? "" : String(idx);
     }
     // No ref at all is the real "All days", and the one that means every day.
     return "";
   }
   return typeof raw === "string" ? raw : "";
-}
-
-/** A bound date range, or two empty strings. Both ends are separate controls. */
-export function dateRangeOf(
-  input: WidgetInput,
-  params: Record<string, unknown>,
-): { from: string; through: string } {
-  const raw = params[input.name] as { from?: unknown; through?: unknown } | undefined;
-  return {
-    from: typeof raw?.from === "string" ? raw.from : "",
-    through: typeof raw?.through === "string" ? raw.through : "",
-  };
 }
 
 // A stale binding stays visible and clearable rather than silently reading as
@@ -148,21 +145,19 @@ export function optionsFor(
 ): readonly { value: string; label: string }[] {
   const bound = params[input.name];
   switch (input.type) {
-    case "day": {
-      const days = [
+    // Reachable only for a primitive that declares `day` WITHOUT `dates`, which
+    // none does today — `collapseDays` hands the whole question to `DaysFilter`
+    // otherwise. Kept because `filters.test.ts` pins the every-day-primitive-
+    // also-declares-dates property rather than assuming it, and this is the
+    // honest fallback if that ever stops being true.
+    case "day":
+      return [
         { value: "", label: "All days" },
         ...detail.days.map((day, index) => ({
           value: String(index),
           label: day.date ? `Day ${index + 1} · ${day.date}` : `Day ${index + 1}`,
         })),
       ];
-      // A binding aimed at a deleted day gets its own option, selected, so the
-      // control tells the same story the widget does ("that day was removed")
-      // and picking All is a change the select actually reports.
-      return valueOf(input, params, detail) === STALE_DAY_VALUE
-        ? [...days, { value: STALE_DAY_VALUE, label: "The day this pointed at (removed)" }]
-        : days;
-    }
     case "city":
       return [
         { value: "", label: "All cities" },
@@ -203,9 +198,6 @@ export function withBinding(
   next: string,
 ): Record<string, unknown> {
   const merged = { ...params };
-  // Re-picking the stale option changes nothing, so it writes nothing. It is
-  // there to be moved away from, not chosen.
-  if (next === STALE_DAY_VALUE) return merged;
   if (next === "") {
     // Clearing goes back to ALL rather than to a default (ADR-039 decision 2).
     // Deleting the key rather than writing a null keeps `{}` the one spelling
@@ -215,52 +207,6 @@ export function withBinding(
   } else {
     merged[input.name] = input.type === "day" ? { kind: "index", index: Number(next) } : next;
   }
-  return merged;
-}
-
-/**
- * Write one end of a date range.
- *
- * A range needs both ends before it is a range, so a half-filled control leaves
- * the filter ABSENT — which is "all dates", the honest reading of "the author
- * has not finished choosing". Writing `{ from, through: "" }` would be a
- * `DateRangeRef` the contract refuses, and the widget would render bad-params
- * mid-typing.
- *
- * A single date is `from === through`, which is what the spec's *"All · a single
- * date · a range"* means with one control shape instead of two: type the same
- * date twice, or set one end and the range collapses to it.
- */
-export function withDateRange(
-  params: Record<string, unknown>,
-  input: WidgetInput,
-  end: "from" | "through",
-  next: string,
-): Record<string, unknown> {
-  const merged = { ...params };
-  const current = dateRangeOf(input, params);
-
-  // **Clearing either end clears the filter.** A range with one end is not a
-  // range, and the completion rule below would otherwise refill the box the
-  // reader just emptied from the box they left alone — so a date filter, once
-  // set, could never be taken off again except by editing the document. That is
-  // the same dead end the stale day select had, in the other control.
-  if (next === "") {
-    delete merged[input.name];
-    return merged;
-  }
-
-  const from = end === "from" ? next : current.from;
-  const through = end === "through" ? next : current.through;
-  // **One end typed means that single date; two ends typed mean exactly what
-  // was typed.** Completing an EMPTY other end is not the same as
-  // reinterpreting a filled one, and this used to `.sort()` both — so setting
-  // `from` to a date after `through` silently rewrote the author's input into
-  // the range they did not ask for (Copilot, PR 141). A genuinely reversed pair
-  // is written as given and refused by `DateRangeRef`, which is the contract's
-  // own stated intent: *"a reversed range is a mistake somebody made, and
-  // quietly reinterpreting it is how a widget shows a confident wrong answer."*
-  merged[input.name] = { from: from || through, through: through || from };
   return merged;
 }
 
@@ -289,9 +235,10 @@ export function bindSummary(
   const bound = inputs
     .map((input) => {
       if (input.type === "dates") {
-        const { from, through } = dateRangeOf(input, params);
-        if (from === "") return null;
-        return from === through ? from : `${from} – ${through}`;
+        // One entry for the whole "which days" question, reading a stored `day`
+        // as well as a range — `DaysFilter` owns both.
+        const summary = daysSummary(params, detail);
+        return summary === "All days" ? null : summary;
       }
       const value = valueOf(input, params, detail);
       if (value === "") return null;
@@ -346,9 +293,9 @@ export function WidgetBindControls({
       {inputs.map((input) => {
         const control =
           input.type === "dates" ? (
-            <DateRangeControl
-              input={input}
+            <DaysFilter
               params={params}
+              detail={detail}
               onChange={onChange}
               layout={layout}
               id={`${idPrefix}-${input.name}`}
@@ -377,58 +324,5 @@ export function WidgetBindControls({
         );
       })}
     </>
-  );
-}
-
-// The one dimension that is not a select. Two native date inputs, because a
-// range is two dates and the platform already has a date picker that works on a
-// phone — a custom calendar would be a new widget to maintain for a filter
-// nothing in the preset table uses yet.
-//
-// Both ends carry their own accessible name: "Dates: from" and "Dates: through"
-// read as two controls, which is what they are, where a shared label would leave
-// a screen-reader user with two identically-named boxes.
-function DateRangeControl({
-  input,
-  params,
-  onChange,
-  layout,
-  id,
-  label,
-}: {
-  input: WidgetInput;
-  params: Record<string, unknown>;
-  onChange: (params: Record<string, unknown>) => void;
-  layout: "inline" | "stacked";
-  id: string;
-  label: string;
-}) {
-  const { from, through } = dateRangeOf(input, params);
-  const size = layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full";
-  // A range typed back-to-front is written as given and refused by
-  // `DateRangeRef`, so the widget beside this renders its bad-params state.
-  // Saying which control is wrong is the other half of not silently fixing it:
-  // a refusal the reader cannot locate is barely better than a rewrite.
-  const reversed = from !== "" && through !== "" && from > through;
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Input
-        id={id}
-        type="date"
-        aria-label={`${label} from`}
-        aria-invalid={reversed || undefined}
-        className={size}
-        value={from}
-        onChange={(e) => onChange(withDateRange(params, input, "from", e.target.value))}
-      />
-      <Input
-        type="date"
-        aria-label={`${label} through`}
-        aria-invalid={reversed || undefined}
-        className={size}
-        value={through}
-        onChange={(e) => onChange(withDateRange(params, input, "through", e.target.value))}
-      />
-    </span>
   );
 }
