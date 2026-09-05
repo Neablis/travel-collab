@@ -231,20 +231,45 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // A callback ref for the same reason as the rack's: the wrapper mounts
   // below the `status === "loading"` early return, so an effect would run
   // once against a null ref and never re-run.
-  const launcherObserverRef = useRef<ResizeObserver | null>(null);
+  // Measured SYNCHRONOUSLY on attach, and only then observed. Both halves are
+  // load-bearing, and the first one is a bug fix:
+  //
+  // A ResizeObserver's first notification is delivered asynchronously, at the
+  // end of the frame. Disconnect the observer before then and that pending
+  // notification is dropped — silently, with no callback ever running. The
+  // previous version of this ref relied on that first notification for the
+  // whole measurement, and kept one shared `launcherObserverRef` slot that any
+  // later invocation would `disconnect()`. React invokes this ref more than
+  // once per mount, so the observer built by one invocation was torn down by
+  // the next inside the same frame, and `launcherHeight` never left 0.
+  //
+  // Measured in a real browser at 390x844 on the seeded Japan trip: the
+  // `.flow-root` wrapper was 56px, two ResizeObservers had been constructed
+  // and both had `observe()`d it, `--launcher-height` published `0px`, and
+  // forcing a genuine 30px size change on the element fired *no* callback at
+  // all — nothing was watching it. The Map lens subtracts this variable from
+  // `100dvh`, so its canvas was 56px too tall and the document scrolled by
+  // exactly that: `scrollHeight - innerHeight === 56`.
+  //
+  // The cleanup-returning form (React 19) is what makes this ordering-proof.
+  // React scopes the returned cleanup to the node it was created for and runs
+  // it before re-attaching, so an invocation for one node can no longer tear
+  // down the observer belonging to another — and React never calls a
+  // cleanup-returning ref with `null`, which is why `node` is non-nullable
+  // here and why the old `useRef` slot and its unmount effect are both gone.
   const [launcherHeight, setLauncherHeight] = useState(0);
-  const launcherWrapperRef = useCallback((node: HTMLDivElement | null) => {
-    launcherObserverRef.current?.disconnect();
-    launcherObserverRef.current = null;
-    if (!node) {
-      setLauncherHeight(0);
-      return;
-    }
-    const observer = new ResizeObserver(() => setLauncherHeight(node.getBoundingClientRect().height));
+  const launcherWrapperRef = useCallback((node: HTMLDivElement) => {
+    const measure = () => setLauncherHeight(node.getBoundingClientRect().height);
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(node);
-    launcherObserverRef.current = observer;
+    return () => {
+      observer.disconnect();
+      // The launcher is genuinely gone (the assistant opened, or the board
+      // unmounted), so the flow space it cost is genuinely zero.
+      setLauncherHeight(0);
+    };
   }, []);
-  useEffect(() => () => launcherObserverRef.current?.disconnect(), []);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -678,6 +703,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             go below. */}
         <div
           className={cn("trip-board-content min-w-0 flex-1", isFullLens && "full-bleed")}
+          // Named so a test can read the two measured custom properties below
+          // off the element that publishes them. The lint wall rejects
+          // `container.querySelector` (check-lint-wall.mjs), and this element
+          // carries no role or accessible name to reach it by — it is a
+          // styling seam, which is exactly the case `data-testid` is for here.
+          data-testid="trip-board-content"
           // The rack is `position: fixed`, so it is outside normal flow and
           // reserves no space: the day columns' own 24px bottom padding was
           // measured against the viewport, not against the bar sitting on
@@ -715,7 +746,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   primitive with no className seam, and under `nowrap` an
                   unpinned child squeezes instead of scrolling — which is the
                   failure mode this row is being changed to avoid. */}
-              <div className="shrink-0">
+              {/* `hidden md:block` — SPEC §10's "two views, not four" on the
+                  phone. Below 768px Plan and Map are PhoneTabBar's tabs, and
+                  the two views this strip adds (Day columns, Calendar) are the
+                  two §10 removes, so the whole strip is a duplicate of the tab
+                  bar plus two entries that must not be reachable. It was also
+                  actively breaking this row: four 26px tabs overflow a 390px
+                  screen far enough that the "Notebooks" pill beside them sat
+                  106px past the right edge.
+
+                  `display: none` on the wrapper, not `return null` inside
+                  TripViewTabs: the component still mounts, which is what keeps
+                  `usePhoneTwoViews` (its URL normalisation — see that hook)
+                  running on exactly the screens that need it. */}
+              <div className="hidden shrink-0 md:block">
                 <TripViewTabs />
               </div>
               {/* Deliberately NOT wrapped in a `shrink-0` div the way the tabs
@@ -741,8 +785,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   every notebook route behind it is a trip to /signin. A control
                   that only leads to a sign-in wall still says "there is
                   something here for you", and there is not. */}
+              {/* `hidden md:block`: on a phone the bottom tab bar carries
+                  Notebook (SPEC §16), and its destination is this pill's own —
+                  the notebook index, which lists exactly what the pill's menu
+                  lists. Two controls for one route in one screen is RULES.md
+                  rule 4, the same reason `AccountMenu`'s Trips/Playbooks links
+                  step aside below 768px. It also removes a real defect rather
+                  than only a duplicate: this pill is the last item in a
+                  horizontally scrolling row, and at 390px it rendered 106px
+                  PAST the right edge with no scroll affordance, so the phone's
+                  only route to the Notebook was one nobody could see. */}
               {!isDemo && (
-                <div className="shrink-0">
+                <div className="hidden shrink-0 md:block">
                   <NotebooksMenu tripId={tripId} readOnly={readOnly} />
                 </div>
               )}
@@ -754,7 +808,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               <DayChips
                 days={chipModel(activeTrip)}
                 focusedDay={focusedDay}
-                onSelect={setFocusedDay}
+                // Named so the chips row knows a day was picked HERE rather
+                // than handed to it — which is what lets its own scroll spy be
+                // held off a pick it cannot centre. See `jumpTo`.
+                onSelect={(index) => setFocusedDay(index, "chips")}
                 sync={chipsSync}
               />
             )}
@@ -813,7 +870,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // contract in `FocusProvider`.
                     sync={columnsSync}
                     callbacks={{
-                      onSelectDay: setFocusedDay,
+                      // "columns", for the same reason the chips row names
+                      // itself above: at any width where more than about two
+                      // columns fit, the first and last day can never sit on
+                      // this row's centre reading line, so clicking their
+                      // header must not be undone by this row's own spy.
+                      onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
                       onMove: moveActivity,
                       onUnschedule: unscheduleActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),

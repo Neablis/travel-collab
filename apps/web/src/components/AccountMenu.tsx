@@ -219,7 +219,22 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 
   return (
     <>
-      <nav className="flex items-center gap-1 pl-2">
+      {/* Hidden below 768px: PhoneTabBar carries "Trips" and "Playbooks" as
+          two of its five tabs, and RULES.md 4 ("avoid showing the same
+          information twice on one page") makes a second, smaller, less
+          reachable copy of them in the top bar a thing to remove rather than
+          to keep. The avatar below deliberately stays at every width —
+          RULES.md 1 puts account scope in the top bar, and the tab bar does
+          not carry it.
+
+          A CSS breakpoint, not `useIsPhone()`: that hook starts `false` on
+          the server and for the first client paint by design, so a JS gate
+          would render both navigations for one paint on every phone load —
+          exactly the duplication this removes. Same reason
+          `AssistantBubble.tsx:38` uses `max-md:`. `hidden md:flex` rather
+          than `md:hidden` inverted, because this element's shown state is
+          `flex`. */}
+      <nav className="hidden items-center gap-1 pl-2 md:flex">
         <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
           Trips
         </Link>

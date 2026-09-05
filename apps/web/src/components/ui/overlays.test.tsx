@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Button } from "./button";
 import { Dialog } from "./dialog";
 import { Popover } from "./popover";
@@ -15,6 +15,15 @@ function SheetHarness() {
         <p>sheet body</p>
       </Sheet>
     </>
+  );
+}
+
+function ActionSheetHarness({ onSave, onCancel }: { onSave: () => void; onCancel?: () => void }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <Sheet open={open} onOpenChange={setOpen} title="Add a stop" actions={{ onSave, onCancel }}>
+      <p>sheet body</p>
+    </Sheet>
   );
 }
 
@@ -119,5 +128,96 @@ describe("a dialog longer than the viewport", () => {
     const body = screen.getByText("body").parentElement!;
     expect(body.className).toContain("-mx-1");
     expect(body.className).toContain("px-1");
+  });
+});
+
+// SPEC §13.6 — "Sheets, not pages ... The sheet carries its own Cancel / title /
+// Save header, because mobile has no top bar to hang actions on." The header is
+// opt-in, so the first thing to hold is that a caller which does not ask for it
+// still gets the desktop header it has always had.
+describe("the Sheet's optional Cancel / Save header", () => {
+  it("leaves the header alone when no actions are passed", () => {
+    render(
+      <Sheet title="Trip settings" open onOpenChange={() => {}}>
+        <p>body</p>
+      </Sheet>,
+    );
+    // The exact inventory, not merely "Close is present": the regression this
+    // guards is the actions branch leaking into the default, and a Cancel
+    // appearing beside the ✕ would satisfy a looser assertion.
+    const dialog = screen.getByRole("dialog", { name: "Trip settings" });
+    expect(within(dialog).getAllByRole("button")).toHaveLength(1);
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeTruthy();
+  });
+
+  it("swaps the ✕ for Cancel and Save when actions are passed, and still names the dialog", () => {
+    render(
+      <Sheet title="Add a stop" open onOpenChange={() => {}} actions={{ onSave: () => {} }}>
+        <p>body</p>
+      </Sheet>,
+    );
+    // Naming the dialog is `Dialog.Title` still wrapping the heading — the a11y
+    // wiring the second header must not drop.
+    const dialog = screen.getByRole("dialog", { name: "Add a stop" });
+    expect(within(dialog).getAllByRole("button")).toHaveLength(2);
+    expect(within(dialog).queryByRole("button", { name: "Close" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
+    // The 44px floor comes from the shared `touch` size, not from a hand-written
+    // override here (SPEC §13.1).
+    expect(within(dialog).getByRole("button", { name: "Save" }).className).toContain("min-h-11");
+  });
+
+  it("takes both labels and the disabled state from the caller", () => {
+    render(
+      <Sheet
+        title="Add to a trip"
+        open
+        onOpenChange={() => {}}
+        actions={{ onSave: () => {}, saveLabel: "Add", cancelLabel: "Back", saveDisabled: true }}
+      >
+        <p>body</p>
+      </Sheet>,
+    );
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("closes on Cancel, and deliberately does not close on Save", () => {
+    // Save leaving the sheet open is the half worth pinning: a save that fails
+    // validation has to be able to report into a sheet that is still on screen,
+    // and wrapping Save in a `Dialog.Close` — the obvious symmetry — throws that
+    // away.
+    const onSave = vi.fn();
+    const onCancel = vi.fn();
+    render(<ActionSheetHarness onSave={onSave} onCancel={onCancel} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("still closes on Escape once the ✕ is gone", () => {
+    render(<ActionSheetHarness onSave={() => {}} />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the actions out of the scrolling body, which is the point of §13.6", () => {
+    render(
+      <Sheet title="Add a stop" open onOpenChange={() => {}} actions={{ onSave: () => {} }}>
+        <p>body</p>
+      </Sheet>,
+    );
+    // A Save rendered inside this element sits below the fold at some scroll
+    // position on a 390px screen — which is the bottom-of-the-body placement
+    // every caller uses today and that §13.6 exists to replace.
+    const scrollport = screen.getByTestId("sheet-scrollport");
+    expect(scrollport.className).toContain("overflow-y-auto");
+    expect(within(scrollport).queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
   });
 });

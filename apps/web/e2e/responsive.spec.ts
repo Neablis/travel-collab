@@ -378,6 +378,48 @@ test.describe("responsive (Map lens on a phone)", () => {
       () => document.documentElement.scrollHeight - window.innerHeight,
     );
     expect(overflow).toBeLessThanOrEqual(1);
+
+    // …and the reason it does not scroll, asserted separately, because the
+    // line above did NOT catch the bug it looks like it would. The canvas is
+    // `calc(100dvh - … - var(--launcher-height))`, and that variable published
+    // `0px` for months while the in-flow assistant launcher really occupied
+    // 56px — the seeded Japan trip overflowed by exactly 56 on this screen.
+    // This spec stayed green throughout, because its own three-day trip is
+    // short enough to absorb the error.
+    //
+    // So assert the ARITHMETIC, not just its result: the published height has
+    // to equal the launcher wrapper's real flow footprint.
+    //
+    // Stated honestly, because it was measured rather than assumed: this pair
+    // of assertions still does NOT reproduce the original bug. Reverting the
+    // fix (dropping the synchronous measure in TripBoardScreen's
+    // `launcherWrapperRef`) leaves this spec green at 3 days and at 14, while
+    // the same build serves `0px` on the seeded Japan trip — 14 days and 68
+    // stops — on a cold server's first load. The trigger is how many times
+    // React invokes the ref while a heavy board settles, and this spec's
+    // synthetic trip is too light to get there.
+    //
+    // It is kept anyway for what it does do: it pins the relationship, so a
+    // change that publishes a wrong non-zero number is caught here, and it
+    // documents the arithmetic the canvas depends on. **The regression guard
+    // is the unit test** — TripBoardScreen.test.tsx, "publishes the launcher's
+    // flow height on attach, without waiting for a resize notification" —
+    // which does fail without the fix, because vitest.setup.ts's polyfill
+    // never delivers a notification unless a test asks for one.
+    const launcher = await page.evaluate(() => {
+      const content = document.querySelector(".trip-board-content");
+      const wrapper = document.querySelector(".flow-root");
+      if (!content || !wrapper) return null;
+      return {
+        published: getComputedStyle(content).getPropertyValue("--launcher-height").trim(),
+        measured: `${Math.round(wrapper.getBoundingClientRect().height)}px`,
+      };
+    });
+    expect(launcher).not.toBeNull();
+    expect(Number.parseFloat(launcher!.measured)).toBeGreaterThan(0);
+    expect(Math.round(Number.parseFloat(launcher!.published))).toBe(
+      Number.parseFloat(launcher!.measured),
+    );
   });
 
   test("keeps the rail and legend at desktop width", async ({ page }) => {
@@ -431,7 +473,19 @@ test.describe("responsive (trip header on a phone)", () => {
     // chips are the phone's primary navigation.
     await expect(page.getByRole("button", { name: "Add stop" })).toBeVisible();
     await expect(page.getByRole("button", { name: "History", exact: true })).toBeVisible();
-    await expect(page.getByRole("tablist", { name: "Trip view" })).toBeVisible();
+    // The lens strip is no longer "the phone's primary navigation" — SPEC §16's
+    // bottom tab bar is, and §10 keeps Day columns and Calendar off the phone
+    // entirely, so a four-tab strip here has nothing left to offer. It is
+    // hidden rather than removed (`hidden md:block`), which is why this is
+    // `toBeHidden` and not a count.
+    //
+    // The replacement assertion is deliberately the STRONGER one: the point of
+    // this spec is that navigation survives the phone, so it now names what
+    // actually navigates. Asserting only the disappearance would be satisfied
+    // by a build that shed the strip and shipped nothing in its place.
+    await expect(page.getByRole("tablist", { name: "Trip view" })).toBeHidden();
+    await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Plan/ })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
 
     // "Crowded" has a measurable form at this width: a header wider than the

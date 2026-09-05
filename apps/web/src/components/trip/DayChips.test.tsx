@@ -507,6 +507,7 @@ describe("DayChips day-sync", () => {
       jumped,
       sync: {
         shouldFollow,
+        pickedHere: false,
         isOwnScroll: () => false,
         reportScrolled: vi.fn(),
         jumpTo: (element) => {

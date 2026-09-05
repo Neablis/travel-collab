@@ -167,10 +167,28 @@ test("the header's selected day follows the timeline's scroll and the columns' a
 test("every day container follows the selection, and any of them can move it", async ({ page }) => {
   test.setTimeout(90_000);
   const tripName = e2eTripName("DaySync");
-  // Ten days: enough that at 411px most of them are off-screen in every
+  // Ten days: enough that at this width most of them are off-screen in every
   // container, so "scrolled into view" cannot pass by accident.
+  //
+  // 800px, not the 411px this used to use. Two reasons, and the second is the
+  // one that matters:
+  //
+  // 1. SPEC §10 ("two views, not four") keeps Day columns off the phone, so a
+  //    Day-columns test below 768px is a combination the product no longer has
+  //    — the lens strip clause 3 drives is hidden there.
+  // 2. **411px was hiding a real defect.** A centre reading line
+  //    (`centralDay.ts`, `READING_LINE.horizontal`) cannot name the first or
+  //    last day once more than about two 268px columns fit. Measured at 800px:
+  //    the line sits at 400 and the first three column centres are 158 / 438 /
+  //    718, so with the row scrolled fully left the spy honestly reports day 2
+  //    — and it used to overwrite an explicit pick of day 1 the moment the
+  //    jump lock was released. At 411px only ~1.5 columns fit, day 1 IS the
+  //    central day, and the whole class of bug was invisible. Clicking "Day 1"
+  //    and watching it snap to "Day 2" is what a reader saw at every desktop
+  //    width; the fix is in `FocusProvider`'s `jumpTo` (a jump that could not
+  //    move because it was clamped keeps its lock instead of releasing it).
   const tripId = await createMappedTrip(page, tripName, 10);
-  await page.setViewportSize({ width: 411, height: 760 });
+  await page.setViewportSize({ width: 800, height: 760 });
   await page.goto(`/trips/${tripId}?lens=Board`);
 
   // The chips row and the day columns are both `role="group"`, told apart by
@@ -213,6 +231,19 @@ test("every day container follows the selection, and any of them can move it", a
   // ── Clause 3 ──────────────────────────────────────────────────────────────
   // "Changing the tab jumps to the selected day." Selected from a column, then
   // read in two lenses that were not even mounted when the choice was made.
+  //
+  // Widened to a desktop viewport first, because this clause — alone in this
+  // test — drives the LENS STRIP, and SPEC §10 ("two views, not four") hides
+  // that strip below 768px: Timeline and Map are bottom-nav tabs on a phone
+  // and Calendar does not exist there at all. Without this the clicks below
+  // time out waiting for a tab that is `display: none`.
+  //
+  // Clauses 1 and 2 stay at 411px on purpose. They are about the chips row and
+  // the day columns syncing to each other, which needs most of the ten days
+  // off-screen in both — that is what the narrow width buys, and it is still
+  // reachable on a phone because `?lens=Board` above is an EXPLICIT lens and
+  // `usePhoneTwoViews` only rewrites the default.
+  await page.setViewportSize({ width: 1000, height: 760 });
   await columns.last().getByRole("button", { name: /^Day 10/ }).click();
   await expect(selectedChip()).toHaveAttribute("data-day-index", "9");
 

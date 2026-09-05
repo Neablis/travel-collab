@@ -43,6 +43,36 @@ describe("ui primitives", () => {
     expect(new Set([secondary, primary, destructive]).size).toBe(3);
   });
 
+  // SPEC §13.1: "44px targets, always ... Chips grow by `min-height`, never by
+  // font size — the type scale is shared with desktop." Both halves are the
+  // assertion. A `touch` built as a fixed `h-11` satisfies the first reading and
+  // clips a wrapped two-line phone label; one built by bumping the font
+  // satisfies neither.
+  it("Button's touch size is a 44px floor in both axes, at md's type scale", () => {
+    const classesForSize = (size: "md" | "touch"): string => {
+      const { unmount } = render(<Button size={size}>Save</Button>);
+      const cls = screen.getByRole("button", { name: "Save" }).className;
+      unmount();
+      return cls;
+    };
+    const touch = classesForSize("touch");
+    const md = classesForSize("md");
+
+    expect(touch).toContain("min-h-11");
+    expect(touch).toContain("min-w-11");
+    // No fixed height at all: `min-h-11` is only a floor if nothing pins the
+    // box, and every hand-rolled 44px call site today has to write `h-auto`
+    // first to undo exactly this.
+    expect(touch.split(" ").filter((c) => /^h-/.test(c))).toEqual([]);
+
+    // Compared against `md` rather than pinned to a literal, so it survives a
+    // retoken and still catches the divergence — the control grows, the font
+    // does not.
+    const typeScale = (cls: string) => cls.split(" ").find((c) => /^text-(xs|sm|base|md|lg|xl|2xl)$/.test(c));
+    expect(typeScale(md)).toBeDefined();
+    expect(typeScale(touch)).toBe(typeScale(md));
+  });
+
   it("Badge maps semantic variants to tint + ink pairs (conflicts are warning)", () => {
     render(<Badge variant="warning">2 conflicts</Badge>);
     const b = screen.getByText("2 conflicts");

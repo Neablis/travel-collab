@@ -1055,6 +1055,47 @@ describe("TripBoardScreen", () => {
 
     await waitFor(() => expect(launcher.style.bottom).toBe("80px"));
   });
+
+  // The phone Map lens overflowed its viewport by exactly 56px, and this is
+  // the measurement that was missing. `MapLens` sizes its canvas from
+  // `calc(100dvh - … - var(--launcher-height))` because below 768px the
+  // launcher is an in-flow button at the end of the plan (SPEC §13.5 allows no
+  // phone FAB), so it costs real flow space that the canvas has to give back.
+  // `--launcher-height` published `0px` while the launcher's `.flow-root`
+  // wrapper was really 56px, so the canvas kept the whole viewport and the
+  // document scrolled past it.
+  //
+  // The cause was relying on ResizeObserver's FIRST notification, which is
+  // delivered at end-of-frame and is dropped outright if the observer is
+  // disconnected before then — which it was, because the ref built one
+  // observer per invocation into a single shared slot and React invokes it
+  // more than once per mount. Verified in a real browser: two observers
+  // constructed, both `observe()`ing a 56px element, zero callbacks ever
+  // delivered, and a forced 30px resize of that element fired nothing at all.
+  //
+  // So this test deliberately NEVER calls `triggerResize()`. That is the whole
+  // assertion: the height must be published on attach. `vitest.setup.ts`'s
+  // polyfill fires only on an explicit `triggerResize`, which models the real
+  // browser's dropped first notification exactly — a version of this component
+  // that waits for the observer reads 0px here, which is what the browser did.
+  it("publishes the launcher's flow height on attach, without waiting for a resize notification", async () => {
+    // Stubbed on the prototype, not on the node: the ref measures during
+    // React's commit, so a spy installed after render would be too late to
+    // see the call that matters.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const height = this.classList?.contains("flow-root") ? 56 : 0;
+      return { height, width: 0, top: 0, left: 0, right: 0, bottom: height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    const content = screen.getByTestId("trip-board-content");
+    await waitFor(() => expect(content.style.getPropertyValue("--launcher-height")).toBe("56px"));
+  });
 });
 
 describe("map view hides the day-chips row", () => {
