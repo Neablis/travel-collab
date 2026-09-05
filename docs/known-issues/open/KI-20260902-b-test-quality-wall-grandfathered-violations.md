@@ -15,3 +15,11 @@
 - **Fix path:** file at a time, largest first (`Sparkline.test.tsx` 15, `PageEditor.test.tsx` 9, `SaveLight.test.tsx` 8, `board.test.tsx` 8, `NextTripHero.test.tsx` 8). For each: replace the DOM traversal with a role/label/value assertion, delete the directive, run that file's tests. A file with no directives left is done. Good ki-sweep material — the files are independent of each other and of the milestone chain.
 - **Cross-reference:** `docs/plans/test-overhaul/phase-7-guidelines.md` Task 7.1 (which specified this wall), KI-2026-08-30-b (resolved by the same PR — `eslint src` never saw `e2e/`), `docs/guidelines/testing.md`.
 - **First noted:** 2026-09-02, when the wall was added.
+- **2026-09-05 overnight review — a second, differently-shaped backlog next door ([F-E09](../../reviews/2026-09-05-overnight-review/findings/F-E09-design-wall-backlog-lives-in-128-disables.md)):**
+  the *element* wall (`eslint.config.mjs:253`, `JSXAttribute[name.name='style']`)
+  carries 128 line-level `no-restricted-syntax` disables across `apps/web/src`,
+  30 of them citing **this** entry's grandfathering reason and 71 of them
+  immediately preceding a `style={{` that is pure geometry the rule cannot
+  express. `scripts/design-wall-pending.json` is `[]` while the real backlog
+  lives in comments. Unlike this entry's backlog, that one shrinks by teaching
+  the rule the class rather than by rewriting tests. Filed as KI-2026-09-05-v.

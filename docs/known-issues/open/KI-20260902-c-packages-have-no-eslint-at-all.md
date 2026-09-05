@@ -8,3 +8,12 @@
 - **Fix path:** a shared flat config at the repo root that every package extends, plus a `lint` script per package and a root `pnpm -r lint`. That is a structural change to six packages and belongs in its own PR; doing it inside the wall's own PR would have hidden it. Check what it turns up before assuming it is clean — `apps/web`'s first pass found 228 findings in a suite everyone believed was tidy.
 - **Cross-reference:** KI-2026-09-02-b (the grandfathered backlog inside `apps/web`), KI-2026-08-30-b (resolved), KI-51 (resolved), `docs/plans/test-overhaul/phase-7-guidelines.md` Task 7.1.
 - **First noted:** 2026-09-02, while landing the test-quality wall.
+- **2026-09-05 overnight review — re-confirmed, and paired with the other half of its class ([F-E06](../../reviews/2026-09-05-overnight-review/findings/F-E06-two-walls-have-no-self-test-packages-unlinted.md)):**
+  `ls packages/*/eslint.config.*` still returns nothing. Stream E puts this
+  beside the remaining places the same species can recur: `check-lint-wall.mjs`
+  and `check-case-collisions.mjs` are both in root `pnpm lint` and neither has
+  a test in `scripts/__tests__/`, where five sibling walls do. (The finding's
+  first draft also counted `check-auth-proxy.mjs`; the verifier corrected that
+  — it is a manual deployment probe, not a wall.) The untested-walls half is
+  filed as KI-2026-09-05-s; this entry stays the record for the unlinted
+  packages.

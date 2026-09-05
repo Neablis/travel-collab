@@ -27,3 +27,10 @@
   than six fields, and the payloads inside two of them are already contract
   types.
 - **Milestone:** **M9, carried (assigned 2026-09-01)** — owned by M9, not a gate box: `AGENTS.md` reserves a contracts change as its own reviewed PR, so it cannot sit inside another milestone's gate. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".
+- **2026-09-05 overnight review ([F-E07](../../reviews/2026-09-05-overnight-review/findings/F-E07-ask-handler-is-one-455-line-function.md), [F-E03](../../reviews/2026-09-05-overnight-review/findings/F-E03-api-client-is-35-hand-mirrored-wrappers.md)):**
+  still open, and stream E places it in a larger pattern — the client side of
+  the same wire is 35 hand-mirrored fetch wrappers plus a second client
+  (`pagesClient.ts`) plus three raw fetches, with MSW mocks that two guidelines
+  call "generated from contracts" and which are hand-written. Moving the stream
+  envelope into `packages/contracts` is one of the three steps in F-E07's
+  suggested fix; the client-side half is KI-2026-09-05-q.

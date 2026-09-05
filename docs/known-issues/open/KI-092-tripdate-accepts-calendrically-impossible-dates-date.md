@@ -10,3 +10,12 @@
 
 
 - **Numbering:** filed as 77 on 2026-08-29, when several sibling branches each filed a different KI-77 the same night. Renumbered to 92 on merge. Nothing outside this file references it.
+- **2026-09-05 overnight review — the same "500 where a 400 belongs" on the other input surface ([F-G01](../../reviews/2026-09-05-overnight-review/findings/F-G01-non-uuid-route-params-500.md)):**
+  this entry covers a malformed value in a request *body*; stream G measured
+  the *path* half live. No route parameter is validated as a UUID anywhere, so
+  a mistyped id reaches a Postgres uuid column and raises `22P02` — ~12 routes
+  500 instead of 404, each one a Sentry server-fault event, and
+  `/trips/not-a-uuid` renders the literal text "Internal Server Error" in a
+  `role="alert"`. Reproduced three times by two agents. Both halves want the
+  same answer (validate at the seam, 400/404, not at the driver). Filed as
+  KI-2026-09-05-x.

@@ -56,3 +56,13 @@
   | A unit queued after a KI-42 retention previewing over a base that skips the retained work | **Open — KI-55**, and no work is lost: the preview is wrong, the queue is not. |
 - **What is left of the original framing:** two open triggers (this one and KI-70) plus one preview-only inaccuracy (KI-55). Everything else on the list above is closed, so "the optimistic queue loses work on N different triggers" is no longer an accurate summary of the register — it is now one persistence gap and one same-tick race.
 - **First noted:** 2026-07-20 (M6, post-merge CI investigation).
+- **2026-09-05 overnight review — the guard this family has never had ([F-E02](../../reviews/2026-09-05-overnight-review/findings/F-E02-optimistic-queue-needs-interleaving-property.md)):**
+  KI-5, 36, 42, 55, 70, 90 and the 2026-08-28 review's §1.1/§1.4 are one
+  sentence — "an accepted unit vanished with no failure record" — and every one
+  was fixed as a line, with the next window opening beside it.
+  `optimistic.test.ts` uses `fast-check` zero times while ten other test
+  files do. A single interleaving property would have caught KI-42, 55, 70 and
+  90 at once. Filed as KI-2026-09-05-p. This entry's own trigger (abrupt
+  navigation) is still the one the property cannot reach — it needs a
+  `pagehide`/`keepalive` mitigation, which the review confirms does not exist
+  anywhere in `apps/web/src`.
