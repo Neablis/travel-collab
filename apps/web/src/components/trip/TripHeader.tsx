@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
 import { Toast } from "@/components/ui/toast";
@@ -17,9 +18,10 @@ import { cn } from "@/lib/cn";
 import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
+import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
 import { ShareButton } from "./ShareButton";
-import { TripMetaPill, tripCounts } from "./TripMetaPill";
+import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
@@ -34,7 +36,31 @@ import { BudgetChip } from "./BudgetChip";
 // are all gone (Mitchell, preview feedback on PR #55). Undo/redo moved into
 // the History popover in the same pass, keeping its ⌘Z binding out here where
 // it stays mounted.
-export function TripHeader({ tripId, children }: { tripId: string; children?: React.ReactNode }) {
+export function TripHeader({
+  tripId,
+  assistantOpen = false,
+  onOpenAssistant,
+  children,
+}: {
+  tripId: string;
+  /**
+   * Whether the assistant is on screen, for the phone Ask pill's
+   * `aria-expanded`. Passed in rather than held here: `TripBoardScreen` owns
+   * the assistant's visibility (`useAssistantVisibility`), the rail it opens is
+   * that screen's child, and a second copy of the flag up here would be free to
+   * disagree with the one the rail is actually rendered from.
+   */
+  assistantOpen?: boolean;
+  /**
+   * Opens the assistant, or `undefined` where there is no assistant to open —
+   * which is what withholds the pill entirely rather than rendering a control
+   * with nothing behind it. `/demo` is that case today: `/api/trips/:id/ask`
+   * refuses the demo trip outright (KI-79), so the demo board passes nothing
+   * here for the same reason it renders no launcher.
+   */
+  onOpenAssistant?: () => void;
+  children?: React.ReactNode;
+}) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
   // pending queue (the same value TripBoardScreen/ActivityEditorSheet already
@@ -117,7 +143,16 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
+        {/* `flex-auto` — `flex: 1 1 auto` — so this column absorbs the row's
+            free space and the nav below can be a real full-width row with
+            `‹ Trips` at one end and Ask at the other (SPEC §23). Deliberately
+            NOT `flex-1`, which is `flex: 1 1 0%`: a zero flex-basis takes this
+            column's content out of the wrap calculation entirely, so on a
+            phone the title would be squeezed beside "Add stop"/History instead
+            of the action cluster dropping to its own line as it does now.
+            `auto` keeps the content-sized basis, so where the row wrapped
+            before it still wraps. */}
+        <div className="flex flex-auto flex-col gap-1">
           {/* Both links go to `(app)` routes behind middleware, so on the
               demo board (`/demo`, ADR-031) — whose visitor has no session —
               each one is a trip to /signin. The whole nav row drops rather
@@ -127,7 +162,7 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
               header above this one, which is where a signed-out reader's way
               onward belongs. */}
           {!isDemoTripId(tripId) && (
-            <nav className="flex items-center gap-3">
+            <nav className="flex w-full items-center justify-between gap-3">
               {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                   this link load-bearing on a phone. Scoping the tab bar removed
                   the Trips tab from inside a trip, so this is now the ONLY way
@@ -148,6 +183,26 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                   subtree rather than a lens (design spec decision 11, refined
                   2026-07-20) — that part did not change; only the affordance
                   did. */}
+              {/* SPEC §23: the phone's entry point to the assistant, LAST in
+                  this row — "same pill, same label, same position, so it never
+                  moves as you change tabs". The row's `justify-between` is what
+                  pins it to the far end, so it stays there whatever the link
+                  beside it is called.
+
+                  §23 also moves the sync dot and avatar down to the title row,
+                  and that half is deliberately not built: in this app neither
+                  is in this row to begin with — the avatar lives in the global
+                  `AppHeader`, a separate sticky bar this header sits under —
+                  so honouring it would mean the phone dropping `AppHeader`
+                  entirely, which is a change to every `(app)` route rather than
+                  to this file. The row was already clear, so the pill just
+                  goes in.
+
+                  Phone-only by `md:hidden` inside `AskPill` itself, not by a
+                  branch here: the desktop entry point is `TripBoardScreen`'s
+                  own fixed launcher and the two must never both be on screen.
+                  See that component for why the breakpoint is CSS. */}
+              {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
             </nav>
           )}
           {/* The title IS the way into Trip settings, and the only way:
@@ -222,6 +277,28 @@ export function TripHeader({ tripId, children }: { tripId: string; children?: Re
                 Access unknown
               </Badge>
             )}
+          </div>
+
+          {/* SPEC §23's date meta line: "the date range only. Stops and cities
+              came out — the day rail and the trip below it already carry both."
+
+              ADDITIVE here, not a trim, and Mitchell has seen and approved it
+              as such. §23 is describing a meta line this build does not have on
+              a phone: `trip-meta-row` below is `hidden … md:flex`, cut whole on
+              his own report that the header was "really crowded and ugly on
+              mobile" (see that row's comment). So the range is not being
+              stripped of its counts — it is coming back on its own, which is
+              exactly the shape §23 arrives at from the other direction.
+
+              The date range and nothing else: no counts, no budget. Both are
+              still a tap away in Trip settings, where hiding the pill put them.
+
+              `tripDateRange` is the pill's own function, not a second one —
+              `SettingsSheet`'s `datesLabel` is already a second copy of these
+              rules and a third is where the header starts disagreeing with the
+              sheet about the same trip. */}
+          <div data-testid="trip-date-line" className="md:hidden">
+            <DataText size="xs">{tripDateRange(activeTrip)}</DataText>
           </div>
         </div>
 

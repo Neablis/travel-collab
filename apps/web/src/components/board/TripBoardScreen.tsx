@@ -9,6 +9,7 @@ import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { ScheduleLens } from "@/components/lenses/ScheduleLens";
+import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
 import {
   AI_NOT_ENTITLED_CODE,
@@ -95,6 +97,93 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
+  // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
+  // is emphatic that the caller must not reach for `useIsPhone()` — it returns
+  // `false` on the server and on the first client paint, so a JS-gated swap
+  // paints the docked rail for a frame before correcting. That flash is real
+  // wherever the panel can be on screen at first paint. It is not reachable
+  // here, and the reason is `useAssistantVisibility` directly above:
+  // `useState(false)`, with no restore from storage, no URL parameter and no
+  // server prop, so `assistant.open` is false on EVERY first paint. The rail is
+  // unmounted then. The only thing that opens it is a click, which cannot be
+  // handled before hydration — and `useIsPhone`'s effect has run by then. So
+  // the swap is decided strictly after the correction, never across it.
+  //
+  // A CSS breakpoint is what the rail's own docstring asks for and it is not
+  // available at this seam anyway: `presentation` picks a geometry CLASS, so
+  // choosing between two with media queries would mean mounting two rails —
+  // two composers, two transcripts in the accessibility tree, and a
+  // conversation whose draft depends on which copy you typed into.
+  //
+  // The hook also keeps this correct across a resize, which a
+  // which-button-did-you-press flag would not: rotating a 411x852 phone into
+  // landscape crosses 768px with the panel already open.
+  const isPhone = useIsPhone();
+
+  /**
+   * Arriving at the phone's plan with nothing selected picks the first day.
+   *
+   * SPEC §23's sheet inherits the surface's scope, and on arrival there was no
+   * scope to inherit. Measured at 412×855 on the seeded 14-day trip
+   * (2026-09-05): the day rail rendered fourteen chips with none of them
+   * current, so `focusedDay` was null and the first tap of `Ask` opened on
+   * "Asking about [Seed] Japan: Tokyo → Kyoto → Osaka" with "Ask about this
+   * trip…" — the trip-wide default a tab was rejected for (`phoneAskContext`'s
+   * header). Tapping any chip already produced the right thing, so the
+   * derivation was never wrong; only the arrival default was.
+   *
+   * **Day 1, always.** Mitchell chose the fully predictable rule over "today's
+   * day if the trip is in progress", so there is deliberately no date
+   * arithmetic here: a trip you are on day 6 of still opens on day 1.
+   *
+   * Phone only, and the gate is the load-bearing part. Above the breakpoint
+   * the timeline's scroll spy owns `focusedDay` and a null start is right
+   * there — nobody has chosen a day, and the rail says so until they scroll
+   * past one. Defaulting inside `FocusProvider` would have applied this to
+   * every surface at every width (the demo board, the notebook, the desktop
+   * timeline) for a rule that is about one screen.
+   *
+   * Explicit, and named to no container — the same shape as `MapLens`'s own
+   * arrival default. *Explicit* is the honest origin (nobody scrolled) and is
+   * what makes a lens switch land on this day; *no container* leaves every day
+   * container a plain follower, so `jumpTo` releases its lock on a jump that
+   * moves nothing and the reader's first flick is not swallowed
+   * (`keepLockIfUnmoved` in `useDaySync` names this exact case).
+   *
+   * It does not carry the reader down their plan, which would be worse than the
+   * bug it fixes: the timeline follows with `block: "center"`, so a default
+   * aimed anywhere but the top lands you mid-trip — measured on the seeded
+   * three-day trip, defaulting to day 3 settles at `scrollY` 1002 of a 2348px
+   * document. Day 1's header is above the centre line, so that jump clamps.
+   * Not literally motionless, though, and the honest number is worth keeping:
+   * the focused day draws a suggestion card and the page settles 42px down.
+   * That 42px belongs to focusing day 1 rather than to doing it on arrival —
+   * with no default at all a reader tapping that chip lands on the same
+   * 42/2348, identically under both `FocusOrigin`s, which is why the origin
+   * above was chosen on its merits and not to buy a scroll back.
+   * `e2e/m16-mobile-assistant.spec.ts` pins the property, not the pixel.
+   *
+   * Once per mount. Re-tapping the focused chip clears the focus (`DayChips` —
+   * the whole chip is the toggle), and that is the phone's only way back to
+   * trip scope; a latch is what keeps this effect from immediately undoing it.
+   *
+   * `useIsPhone` is false on the server and on the first client paint, so this
+   * lands one tick later — no ring, then day 1. Harmless, and not a hydration
+   * mismatch: the pre-correction state is not a *wrong* state, it is the state
+   * this screen shipped with, and the server and first client render agree on
+   * it. Nothing can observe the gap either, for the same reason the
+   * `presentation` swap below cannot — the scope is read when the pill is
+   * clicked, and a click cannot be handled before hydration, by which time
+   * `useIsPhone`'s effect has run.
+   */
+  const defaultedPhoneDay = useRef(false);
+  useEffect(() => {
+    if (!isPhone || defaultedPhoneDay.current) return;
+    if (focusedDay !== null || activeTrip === null || activeTrip.days.length === 0) return;
+    defaultedPhoneDay.current = true;
+    setFocusedDay(0);
+  }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
+
   // The demo board (`/demo`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
   // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
@@ -200,76 +289,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     rackObserverRef.current = observer;
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
-
-  // The launcher's twin of the above, and for the same class of reason: below
-  // 768px the assistant launcher is an in-flow button at the end of the plan
-  // column (see its own comment further below, and KI-2026-08-30 / SPEC §13.5),
-  // so unlike the `position: fixed` rack it *does* occupy real flow space —
-  // and the Map lens sizes its canvas to `100dvh - canvasTop - rack`, i.e. to
-  // exactly the whole viewport. The launcher therefore lands 56px *past* the
-  // bottom of a canvas that had already used the last pixel, and the document
-  // scrolls: `scrollHeight - innerHeight` was 56 at 411x760, failing
-  // responsive.spec.ts's "the canvas still owns the viewport" assertion.
-  //
-  // Measured, not the constant 56 (`mt-3` 12px + `min-h-11` 44px): both are
-  // rem-derived, so the real footprint grows with the user's text size and a
-  // hard-coded number would under-reserve at larger type — the same argument
-  // that made the rack a measurement.
-  //
-  // The wrapper is `flow-root` and the observed element, rather than the
-  // Button itself, for two reasons that both have to hold:
-  //   1. `mt-3` is the launcher's separation from the plan and is part of the
-  //      space it costs, but a child's top margin collapses out through
-  //      PageContainer (horizontal padding only) and would escape a plain
-  //      wrapper too — the wrapper would measure 44px, not 56px. A BFC stops
-  //      the collapse, so the box measures the whole flow footprint.
-  //   2. At >=768px the Button is `md:fixed` and `md:mt-0`, so it is out of
-  //      flow and the wrapper's height is genuinely 0 — which is exactly the
-  //      value desktop must publish. That is not a coincidence to be paired
-  //      with a breakpoint check here; "flow space the launcher occupies" IS
-  //      the quantity, and above the breakpoint it is zero by definition.
-  // A callback ref for the same reason as the rack's: the wrapper mounts
-  // below the `status === "loading"` early return, so an effect would run
-  // once against a null ref and never re-run.
-  // Measured SYNCHRONOUSLY on attach, and only then observed. Both halves are
-  // load-bearing, and the first one is a bug fix:
-  //
-  // A ResizeObserver's first notification is delivered asynchronously, at the
-  // end of the frame. Disconnect the observer before then and that pending
-  // notification is dropped — silently, with no callback ever running. The
-  // previous version of this ref relied on that first notification for the
-  // whole measurement, and kept one shared `launcherObserverRef` slot that any
-  // later invocation would `disconnect()`. React invokes this ref more than
-  // once per mount, so the observer built by one invocation was torn down by
-  // the next inside the same frame, and `launcherHeight` never left 0.
-  //
-  // Measured in a real browser at 390x844 on the seeded Japan trip: the
-  // `.flow-root` wrapper was 56px, two ResizeObservers had been constructed
-  // and both had `observe()`d it, `--launcher-height` published `0px`, and
-  // forcing a genuine 30px size change on the element fired *no* callback at
-  // all — nothing was watching it. The Map lens subtracts this variable from
-  // `100dvh`, so its canvas was 56px too tall and the document scrolled by
-  // exactly that: `scrollHeight - innerHeight === 56`.
-  //
-  // The cleanup-returning form (React 19) is what makes this ordering-proof.
-  // React scopes the returned cleanup to the node it was created for and runs
-  // it before re-attaching, so an invocation for one node can no longer tear
-  // down the observer belonging to another — and React never calls a
-  // cleanup-returning ref with `null`, which is why `node` is non-nullable
-  // here and why the old `useRef` slot and its unmount effect are both gone.
-  const [launcherHeight, setLauncherHeight] = useState(0);
-  const launcherWrapperRef = useCallback((node: HTMLDivElement) => {
-    const measure = () => setLauncherHeight(node.getBoundingClientRect().height);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      // The launcher is genuinely gone (the assistant opened, or the board
-      // unmounted), so the flow space it cost is genuinely zero.
-      setLauncherHeight(0);
-    };
-  }, []);
 
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
@@ -654,6 +673,25 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // offered in one scope and asked in another.
   const assistantSuggestions = suggestedQuestions(activeTrip, scopedDay);
 
+  // The same three things again, derived for the PHONE sheet (SPEC §23). Not a
+  // second set of rules: `phoneAskContext` is where "which phone tab, and is a
+  // page open" becomes a scope, and this screen is two of its four surfaces —
+  // Plan and Map, which §23 treats as one because they show the same day.
+  //
+  // Fed `scopedDay`, the clamped index `askScope` is built from, so the sheet's
+  // first line and the scope actually posted cannot disagree — the bug the
+  // "says so in the same words" test below pins. `phoneAskContext` clamps a
+  // stale index the same way, so with a clamped one in hand the two agree by
+  // construction and `askScope` stays the single value on the wire.
+  //
+  // What actually changes below the breakpoint is the CONTEXT LINE, and that is
+  // §23's point rather than an incidental: "Looking at Day 2" names a position
+  // in an array, while "Asking about Fri 26 · Kyoto" names the day the reader
+  // can see, in the day rail's own words (`chipModel`). The quick asks are
+  // literally `suggestedQuestions` either way, which is deliberate — see that
+  // function's note in `phoneAskContext`.
+  const phoneAsk = phoneAskContext(activeTrip, scopedDay, { tab: lens === "Map" ? "map" : "plan" });
+
   // How many more questions this thread has room for.
   //
   // `runAsk` posts the whole thread plus the new question, and the server
@@ -719,22 +757,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // and it tracks the rack opening, closing and changing item count
           // for free — the same measurement the assistant launcher's `bottom`
           // offset reads.
-          // `--launcher-height` is the same idea for the in-flow phone
-          // launcher below (see launcherWrapperRef above): 0px wherever the
-          // launcher is out of flow or absent, its measured flow footprint
-          // where it is not. Published here rather than on the launcher
-          // itself so MapLens's canvas — a *sibling* subtree, not a
-          // descendant of the launcher — inherits it, exactly as it already
-          // inherits `--rack-height`.
+          // There WAS a second property here, `--launcher-height`, measured
+          // the same way and spent by MapLens's canvas. It is gone with the
+          // thing it measured: the assistant's phone entry point is now the
+          // header's Ask pill (SPEC §23), so the launcher below is a
+          // `position: fixed` desktop pill and nothing else — flow footprint
+          // zero at every width, by construction rather than by measurement.
+          // A variable that can only ever publish `0px` is not a smaller
+          // version of this one; it is a reader-facing claim that something is
+          // still being measured.
           // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
-          style={
-            {
-              "--rack-height": `${rackHeight}px`,
-              "--launcher-height": `${launcherHeight}px`,
-            } as React.CSSProperties
-          }
+          style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
         >
-          <TripHeader tripId={tripId}>
+          {/* The phone's Ask pill lives in this header's top row (SPEC §23),
+              but the assistant's visibility belongs here — the rail is this
+              screen's child and the thread is this screen's state. So the flag
+              and the opener are passed down rather than the state moving up.
+              `undefined` on /demo withholds the pill outright, the same
+              condition that renders no launcher below: `/api/trips/:id/ask`
+              refuses the demo trip (KI-79), so there is nothing for it to
+              open. */}
+          <TripHeader
+            tripId={tripId}
+            assistantOpen={assistant.open}
+            onOpenAssistant={isDemo ? undefined : assistant.show}
+          >
             {/* "Beside the view tabs" (SPEC §11), so one row — and the design
                 keeps it one row at every width by SCROLLING it
                 (`flex-wrap: nowrap; overflow-x: auto`), not by wrapping. The
@@ -939,12 +986,26 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             )}
           </div>
           {!isDemo && !assistant.open && (
-            // The closed-rail launcher. Two presentations, and the breakpoint
-            // is the SAME 768px the rail itself already turns on
-            // (`.assistant-rail`, globals.css; `useIsPhone`'s
-            // PHONE_MAX_WIDTH_PX; TripHeader's `hidden md:block` Share).
+            // The closed-rail launcher — DESKTOP ONLY as of SPEC §23. It used
+            // to have two presentations, split at the same 768px the rail
+            // itself turns on; the phone half is gone, because §23 gives the
+            // phone a permanent entry point instead of a launcher that only
+            // exists while the assistant is closed: the `Ask` pill in the trip
+            // header's top row (`AskPill`, mounted by `TripHeader` above).
             //
-            // >=768px (`md:`) is unchanged: the design's minimized launcher
+            // What the phone half WAS, and why deleting it is not a regression
+            // against the issue that produced it: KI-2026-08-30 moved this
+            // control out of the viewport's bottom-right and into normal flow
+            // as a full-width button at the end of the plan column, because
+            // SPEC §13.5 is categorical — "Nothing floats over data. No
+            // floating action button." — and this pill had been sitting on top
+            // of right-aligned stop costs at 402x874. The header pill honours
+            // §13.5 harder than the in-flow button did: it is in the header's
+            // own normal flow, above the data rather than after it, and it does
+            // not disappear the moment the assistant opens. Two entry points to
+            // the same panel on one 411px screen is what §23 removes.
+            //
+            // >=768px is unchanged: the design's minimized launcher
             // (`Trip Planner Redesign.dc.html:1058-1063`), a filled-brand pill
             // pinned bottom-right by `position: fixed`, not the edge-tab
             // treatment this used to have (variant="secondary",
@@ -953,63 +1014,32 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // this pill. Icon mirrors AssistantRail's own open-state mark
             // glyph (◎, same component's header).
             //
-            // Below 768px it stops floating (KI-2026-08-30). SPEC §13.5 is
-            // categorical about the phone — "Nothing floats over data. No
-            // floating action button." — and gives the reason this element hit
-            // first-hand: "a control hovering over a scrolling list will cover
-            // a value at some scroll position, and costs are right-aligned."
-            // The pill is bottom-RIGHT and a stop card's cost is
-            // right-aligned, so at 402x874 it sat on top of the day columns;
-            // the same fact already forced a 158px canvas reservation on the
-            // Map lens so it would stop covering MapLibre's attribution
-            // (`.assistant-launcher` in globals.css). §13.5's own remedy for a
-            // FAB is to put the control in normal flow at the end of the
-            // content ("Adding sits at the end of the day, as on desktop"), so
-            // that is what this is: a full-width, 44px-floor (§13.1) button in
-            // flow, as the last thing in the plan column.
+            // `hidden md:inline-flex` on the Button itself, and the `flow-root`
+            // wrapper, the `PageContainer` and the measured `--launcher-height`
+            // that went with them are all gone. They existed for the in-flow
+            // presentation only: the wrapper was a block formatting context so
+            // the button's own top margin could be MEASURED as flow footprint,
+            // and the measurement was published for MapLens to subtract from a
+            // canvas sized to the whole viewport. A `position: fixed` element
+            // costs no flow space, so with the phone half removed that whole
+            // chain measures a constant zero and is deleted rather than left
+            // publishing one.
             //
-            // Mounted HERE, inside `.trip-board-content`, rather than as a
-            // sibling of the flex row above, for one concrete reason: that
-            // div's `padding-bottom: calc(24px + var(--rack-height))`
-            // (globals.css) is the app's existing reservation against the
-            // `position: fixed` unscheduled rack. An in-flow launcher placed
-            // after the row would land *below* that reservation, i.e. under
-            // the rack's bar; inside it, the reservation does for the launcher
-            // exactly the job it already does for the day columns. Nothing
-            // changes for the docked (>=768px) presentation, which is out of
-            // flow either way — a `position: fixed` element's containing block
-            // is the viewport, and no ancestor here establishes a new one.
-            // Deliberately outside the `inert` wrapper above (as before):
+            // Still deliberately outside the `inert` wrapper above (as before):
             // asking a question about a previewed history state is a read, not
             // a write, so it stays available while the board is inert.
-            //
-            // The `flow-root` wrapper exists only to be measured — it is the
-            // box whose height is "flow space the launcher costs", which the
-            // Map lens has to subtract from its canvas or the document
-            // scrolls past a canvas that already owns the viewport. See
-            // launcherWrapperRef above for why the BFC and why not the
-            // Button itself.
-            <div ref={launcherWrapperRef} className="flow-root">
-              <PageContainer width={boardUsesFullWidth || isFullLens ? "full" : "content"}>
-                <Button
-                  variant="primary"
-                  onClick={assistant.show}
-                  // `md:min-h-0` releases the phone's 44px floor above the
-                  // breakpoint so the docked pill keeps the exact 40.3px height
-                  // it has always had — this fix is not licensed to resize a
-                  // desktop control.
-                  className="mt-3 h-auto min-h-11 w-full gap-2 rounded-full px-4 py-2.5 text-base font-semibold md:fixed md:right-6 md:z-40 md:mt-0 md:min-h-0 md:w-auto md:shadow-overlay"
-                  // Only read while the pill is `position: fixed` (>=768px); a
-                  // static element ignores `bottom`, which is why the in-flow
-                  // phone presentation needs no counterpart here.
-                  // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-                  style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-                >
-                  <span aria-hidden>◎</span>
-                  Assistant
-                </Button>
-              </PageContainer>
-            </div>
+            <Button
+              variant="primary"
+              onClick={assistant.show}
+              className="fixed right-6 z-40 hidden h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay md:inline-flex"
+              // Only read while the pill is `position: fixed`, which is now the
+              // only way it is ever rendered.
+              // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
+              style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
+            >
+              <span aria-hidden>◎</span>
+              Assistant
+            </Button>
           )}
         </div>
         {/* The assistant rail — a real streaming conversation against
@@ -1019,13 +1049,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             own comment above) rather than a fixed-position overlay. Unmounted
             entirely (not just visually hidden) when the user hides it, so it
             costs the row nothing when closed — the thread lives in this
-            component, so hiding the rail does not end the conversation. */}
+            component, so hiding the rail does not end the conversation.
+
+            Below 768px it is not a rail at all but SPEC §23's bottom SHEET,
+            which brings its own scrim and takes itself out of this row with
+            `position: fixed` (`.assistant-sheet`, globals.css). The scrim has
+            to paint over the phone tab bar — DRIFT.md build-check 4c, because
+            switching tabs behind an open sheet changes its scope halfway
+            through the conversation — and it can, from here: this row, the
+            `.trip-board-content` wrapper, `PageContainer` and
+            `.phone-tab-bar-inset` are all plain static boxes with no
+            `transform`, `filter`, `contain`, `will-change` or positioned
+            z-index between them and <body>, so nothing traps a fixed
+            descendant in a stacking or containing block of its own. Checked
+            deliberately rather than assumed, and pinned by the
+            "tabs are not tappable behind an open sheet" e2e test. */}
         {!isDemo && assistant.open && (
           <AssistantRail
-            contextLine={assistantContextLine}
+            presentation={isPhone ? "sheet" : "docked"}
+            contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}
-            suggestions={assistantSuggestions}
+            suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
+            // Undefined on the desktop, which leaves the rail's own trip-wide
+            // sentence — §23 changes the phone and nothing above 768px.
+            emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
             asksRemaining={ask.asksRemaining}
             restoreDraft={ask.restoredDraft}
             onNewConversation={ask.startNewConversation}

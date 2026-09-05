@@ -48,6 +48,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // TripProvider (apiClient mocked, per TripProvider.test.tsx's pattern) rather
 // than a mocked context — this exercises the real dispatch -> sendTripCommand
 // path, matching how the header's SetTripName dispatch actually resolves.
+import { fetchTripDetail } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 // Task 9: TripHeader's new "Add stop" button calls useEditor().openCreate(),
 // so it now needs an EditorHost ancestor (the real app tree provides one —
@@ -81,7 +82,15 @@ beforeEach(() => {
   });
 });
 
-async function renderHeader(children?: React.ReactNode) {
+// `assistant` is the SPEC §23 pair TripBoardScreen passes down (the Ask pill's
+// open flag and its opener). Omitted by default so the pre-existing tests below
+// keep rendering the header they were written against, and so the "no opener,
+// no pill" case — /demo, where `/api/trips/:id/ask` refuses the trip — is the
+// default rather than something a test has to construct.
+async function renderHeader(
+  children?: React.ReactNode,
+  assistant?: { open: boolean; onOpen: () => void },
+) {
   let editorState: ReturnType<typeof useEditor>["state"] | undefined;
   function EditorStateSpy() {
     editorState = useEditor().state;
@@ -91,7 +100,9 @@ async function renderHeader(children?: React.ReactNode) {
     <TripProvider tripId="x">
       <EditorHost>
         <EditorStateSpy />
-        <TripHeader tripId="x">{children}</TripHeader>
+        <TripHeader tripId="x" assistantOpen={assistant?.open} onOpenAssistant={assistant?.onOpen}>
+          {children}
+        </TripHeader>
       </EditorHost>
       <TripStatusProbe />
     </TripProvider>,
@@ -415,5 +426,95 @@ describe("TripHeader on a phone", () => {
     // Budget was already fully editable in the sheet before this change; the
     // chip is a shortcut to it, not the only way in.
     expect(within(sheet).getByLabelText("Total for the trip")).toBeTruthy();
+  });
+});
+
+// SPEC §23. Two additions, and they are a pair: the pill is the phone's only
+// route to the assistant now (TripBoardScreen's launcher went `hidden
+// md:inline-flex` in the same change), and the date line is the meta row's one
+// survivor coming back on its own.
+//
+// Same jsdom caveat as the block above — no stylesheet, so `md:hidden` is inert
+// and these assert the class. What is actually on screen at 411px is pinned in
+// a browser by e2e/m16-mobile-assistant.spec.ts.
+describe("TripHeader — the phone Ask pill (SPEC §23)", () => {
+  it("puts the pill last in the top row, phone-only, and reports its open state", async () => {
+    const onOpen = vi.fn();
+    await renderHeader(undefined, { open: false, onOpen });
+
+    const nav = screen.getByRole("navigation");
+    const pill = within(nav).getByRole("button", { name: "Ask" });
+    // LAST in the row — "same pill, same label, same position, so it never
+    // moves as you change tabs" only holds if it is pinned to one end, and
+    // `‹ Trips` … `Ask` is the order §23 draws. Reached by element position
+    // because ordering within a row is exactly what no role query can express.
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(nav.lastElementChild).toBe(pill);
+    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(nav.firstElementChild).toBe(within(nav).getByRole("link"));
+    // Phone-only, and by CSS: the desktop entry point is the board's own fixed
+    // launcher, and both on screen at once is what §23 removes.
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(pill.className).toMatch(/(^| )md:hidden( |$)/);
+
+    expect(pill.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.click(pill);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the assistant is open when it is", async () => {
+    await renderHeader(undefined, { open: true, onOpen: vi.fn() });
+    expect(screen.getByRole("button", { name: "Ask" }).getAttribute("aria-expanded")).toBe("true");
+  });
+
+  // The header does not decide whether there is an assistant — the board does,
+  // and on /demo there is none (`/api/trips/:id/ask` refuses the demo trip,
+  // KI-79). No opener, no pill: a control whose only outcome is an error is
+  // worse than no control.
+  it("renders no pill when there is no assistant to open", async () => {
+    await renderHeader();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+  });
+});
+
+describe("TripHeader — the phone date line (SPEC §23)", () => {
+  it("shows the trip's date range under the title, phone-only, and nothing else from the meta row", async () => {
+    await renderHeader();
+
+    const line = screen.getByTestId("trip-date-line");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(line.className).toMatch(/(^| )md:hidden( |$)/);
+
+    // The same string the meta pill states, from the same `tripDateRange` —
+    // asserted against the pill's own rendering rather than a literal, so the
+    // fixture can change without this going stale. That is the point of the
+    // shared function: the header below 768px and the pill above it cannot
+    // disagree about the same trip.
+    const pillDate = within(screen.getByTestId("trip-meta-row")).getByText(line.textContent!);
+    expect(pillDate).toBeTruthy();
+
+    // "Stops and cities came out." The counts the pill carries beside the range
+    // are the whole of what §23 trims, so their absence is the assertion.
+    expect(line.textContent).not.toMatch(/days|stops|cities/);
+  });
+
+  it("states a real range when the trip has one", async () => {
+    vi.mocked(fetchTripDetail).mockResolvedValueOnce({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: "x",
+        name: "Japan",
+        startDate: "2027-10-09",
+        days: [
+          { dayId: "d1", activityIds: [], date: "2027-10-09", costSubtotal: 0 },
+          { dayId: "d2", activityIds: [], date: "2027-10-11", costSubtotal: 0 },
+        ],
+      }),
+    });
+    await renderHeader();
+
+    // First day to last day, en dash, and no year — `formatTripDate`'s shape,
+    // reached through the pill's function rather than restated here.
+    expect(screen.getByTestId("trip-date-line").textContent).toBe("Sat, Oct 9 – Mon, Oct 11");
   });
 });

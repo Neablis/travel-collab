@@ -28,7 +28,25 @@ import { join } from "node:path";
 // Numeric ids are zero-padded in the filename and unpadded in the heading
 // (`KI-095-…md` → `### KI-95`); the README freezes those numbers because they
 // are cited from source comments and dozens of docs.
-const FILENAME = /^(KI|D)-(\d{3}|\d{8})(?:-([a-z]))?-(.+)\.md$/;
+//
+// THE DISCRIMINATOR IS ONE LETTER ON A NUMERIC ID AND ONE OR TWO ON A DATE ID,
+// and the asymmetry is forced rather than tidy. A date id gets a discriminator
+// per entry filed that day, and on 2026-09-05 the register filed **all of
+// a–z** and then needed three more — the first time the convention hit its own
+// 26-a-day ceiling. Two letters is the smallest fix.
+//
+// It cannot be extended to numeric ids, and that is measured, not assumed:
+// seventeen existing entries have slugs whose first word is exactly two letters
+// (`KI-009-ai-model-outputs-…`, `KI-035-no-true-area-field-…`,
+// `KI-044-tc-page-editor-…`, `KI-068-db-reset-mjs-…`), and a two-letter
+// discriminator on that form reads `ai`, `no`, `tc`, `db` as the discriminator
+// and every one of them breaches. Date-form entries have no such collision
+// today. The remaining exposure is a FUTURE date entry whose slug opens with a
+// one- or two-letter word and carries no discriminator; that fails loudly here
+// with a heading/filename mismatch rather than silently, and the fix is to
+// reword the slug.
+const FILENAME =
+  /^(?<prefix>KI|D)-(?:(?<num>\d{3})(?:-(?<numDisc>[a-z]))?|(?<date>\d{8})(?:-(?<dateDisc>[a-z]{1,2}))?)-(?<slug>.+)\.md$/;
 const HEADING = /^### (KI|D)-(\S+?) —/;
 
 // Six entries whose HEADING drifted before this wall existed, in both
@@ -73,7 +91,9 @@ function scan(dir, file) {
   }
   if (GRANDFATHERED.has(file)) return null;
 
-  const [, prefix, digits, discriminator] = name;
+  const { prefix, num, numDisc, date, dateDisc } = name.groups;
+  const digits = num ?? date;
+  const discriminator = numDisc ?? dateDisc;
   const first = readFileSync(join(dir, file), "utf8").split("\n", 1)[0] ?? "";
   const heading = HEADING.exec(first);
   if (!heading) {
@@ -110,6 +130,8 @@ if (violations.length > 0) {
     `\nKI FILENAME WALL BREACHED: ${violations.length} entr(y|ies) whose name and heading disagree.\n` +
       "The convention is two shapes for one id, and each has a job:\n" +
       "  filename  KI-20260905-c-<slug>.md   dashless, so `ls open/` sorts by date\n" +
+      "                                       (a date id may take two letters,\n" +
+      "                                        -aa onward, once a-z are used)\n" +
       "  heading   ### KI-2026-09-05-c — …   dashed, because that is what prose cites\n" +
       "docs/known-issues/README.md has the rest.",
   );

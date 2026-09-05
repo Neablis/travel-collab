@@ -297,6 +297,31 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
   });
 
+  // SPEC §23 gave the phone a sheet and changed nothing above 768px. Worth its
+  // own assertion because the two presentations now share one call site and
+  // one `phoneAskContext` import: a branch written the wrong way round would
+  // put the phone's scrim and the phone's context line on every desktop, and
+  // every desktop test above this line would still pass.
+  it("leaves the desktop panel floating, with the panel's own words and no scrim", async () => {
+    const trip = tripDetailFixture({ days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("Notes");
+
+    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+
+    expect(screen.getByText("Looking at Trip Overview")).toBeTruthy();
+    expect(screen.queryByTestId("assistant-scrim")).toBeNull();
+    // The hint is the same shape of branch as the context line above it, and
+    // the same way round — a call site that passed the phone's hint
+    // unconditionally would leave the phone test green and reword the desktop.
+    expect(screen.getByText("Ask about this trip and the conversation stays here.")).toBeTruthy();
+  });
+
   it("lists widgets by the name a person calls them, not by their stored id", async () => {
     await openPage();
     // `title`, not `name`: "cost" is a stored identifier a document keeps
@@ -431,21 +456,73 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       Reflect.deleteProperty(window, "matchMedia");
     });
 
+    // **Two controls on this screen are called "Ask", and that is the sheet's
+    // doing, not the pill's**: `AskPill`'s label is §23's, and `AssistantRail`
+    // has always labelled its composer's submit button "Ask" too. Once the
+    // sheet is open both are on screen, so a bare name query is ambiguous.
+    // `aria-expanded` is the honest discriminator — the pill carries it
+    // because it is a disclosure and the submit button is not one — and it
+    // reads as what it is rather than as a nth-match index. (The collision is
+    // real for a voice-control user as well; `AssistantRail` is where it would
+    // be fixed, and that is outside this change.)
+    const askPill = () => screen.getByRole("button", { name: "Ask", expanded: false });
+
     // SPEC §13.5, unchanged by §19: *"Nothing floats over data. No floating
     // action button."* So the bubble the desktop gained is desktop-only, and
     // the phone opens the same panel from a control in the page header — which
     // stays put while the panel is open, because a header control is not a
     // thing the panel grows out of.
+    //
+    // The control is `Ask` now, not `◎ Assistant`: SPEC §23 makes it one pill
+    // in one position on all four in-trip screens, and this screen's own
+    // button was one of the three different entry points it collapses.
     it("opens the assistant from the page header, since nothing floats over data here", async () => {
       setPhone(true);
       await openPage({ reachInsert: false });
 
-      const control = screen.getByRole("button", { name: /Assistant/ });
-      await userEvent.click(control);
+      await userEvent.click(askPill());
       expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
-      // Still there. On the desktop the bubble is replaced by the panel it
-      // becomes; here there is no bubble to replace.
-      expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
+      // Still there, and now expanded. On the desktop the bubble is replaced by
+      // the panel it becomes; here there is no bubble to replace.
+      expect(screen.getByRole("button", { name: "Ask", expanded: true })).toBeTruthy();
+    });
+
+    // **§23's sheet, not KI-84's full-screen takeover — a reversal Mitchell
+    // took on the record (2026-09-05).** The scrim is what tells the two
+    // apart: `docked` below 768px is a surface with nothing behind it and no
+    // scrim at all, and the sheet has one *because* DRIFT build-check 4c
+    // requires the phone tab bar to be covered — switching tabs under an open
+    // sheet would change its scope mid-conversation, which is the single thing
+    // §23 exists to prevent.
+    it("opens as a sheet with a scrim over the tab bar, not as a full-screen takeover", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+
+      await userEvent.click(askPill());
+
+      expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+    });
+
+    // The sheet's line comes from the surface (§23: *"scope is stated, never
+    // inferred by the user"*), and it is worded differently from the desktop
+    // panel's on purpose — the floating panel says "Looking at", the sheet says
+    // what it is *asking* about, because the sheet is the one whose scope a
+    // user cannot otherwise see.
+    it("names the open page in the sheet, in the sheet's own words", async () => {
+      setPhone(true);
+      await openPage({ reachInsert: false });
+
+      await userEvent.click(askPill());
+
+      expect(screen.getByText("Asking about “Trip Overview”")).toBeTruthy();
+      expect(screen.queryByText(/Looking at/)).toBeNull();
+
+      // §2i: the context line is not the only derived copy — the empty-state
+      // hint is too. The rail's default says the conversation is about "this
+      // trip", which on a page-scoped sheet describes something the sheet
+      // cannot reach.
+      expect(screen.getByText(/It reads the page you have open/)).toBeTruthy();
+      expect(screen.queryByText(/the conversation stays here/)).toBeNull();
     });
 
     // §19: "Insert is the desktop sheet, full height… two steps inside it."
@@ -603,10 +680,13 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withRepeat);
     await screen.findByRole("status");
-    // Not only the rail — its launcher. This branch never mounts an editor at
-    // all (that is the whole of decision 4), so an assistant offered here would
-    // be a control with nowhere to put its answer.
+    // Not only the rail — its launcher, in BOTH of its shapes. This branch
+    // never mounts an editor at all (that is the whole of decision 4), so an
+    // assistant offered here would be a control with nowhere to put its
+    // answer. The `Ask` pill is named too because SPEC §23 moved the phone's
+    // way in and the locked branch must not have quietly regrown one.
     expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });
 
