@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import type { EventEnvelope, Origin } from "@tc/contracts";
 import type { Db } from "./db/client";
 import { events } from "./db/schema";
+import { isUuid } from "./ids";
 
 export type DomainEvent = { type: string; version: number; payload: unknown };
 
@@ -73,6 +74,13 @@ export async function appendToStream(
 }
 
 export async function readStream(q: Queryable, streamId: string): Promise<EventEnvelope[]> {
+  // `stream_id` is a uuid column (KI-2026-09-05-x). An empty stream is already
+  // this function's answer for a trip that has no events, and it is the honest
+  // one for an id that could never have been a stream — a `22P02` from the
+  // driver is not. Reachable only behind the access seam today, which is why
+  // the KI called it the second instance; it is guarded anyway so that the
+  // next caller added in front of the seam inherits the right answer.
+  if (!isUuid(streamId)) return [];
   const rows = await q
     .select()
     .from(events)

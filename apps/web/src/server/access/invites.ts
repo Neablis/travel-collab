@@ -10,6 +10,7 @@ import type {
 } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripInvites, users } from "../db/schema";
+import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
 import { grantMembership, grantedMembers, mergeMembers, revokeMembership } from "./members";
 
@@ -121,6 +122,15 @@ export async function revokeInvite(
   inviteId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<TripInvite>> {
+  // `trip_invites.id` is a uuid column, so an `inviteId` that is not one made
+  // the UPDATE below fail with `22P02` and the route 500 instead of 404
+  // (KI-2026-09-05-x). "This invite does not exist" is already this function's
+  // answer for an id naming nothing, and it is the same answer for an id that
+  // could never have named anything — the route turns it into the 404 it
+  // always meant.
+  if (!isUuid(inviteId)) {
+    return { ok: false, error: { code: "not-found", message: "This invite does not exist." } };
+  }
   return db.transaction(async (tx): Promise<AccessResult<TripInvite>> => {
     const claimed = await tx
       .update(tripInvites)

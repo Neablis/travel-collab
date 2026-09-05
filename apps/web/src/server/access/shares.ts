@@ -4,6 +4,7 @@ import type { SharedTripView, TripDetail, TripShare } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripShares } from "../db/schema";
 import { getTripDetailAtWithHead } from "../history";
+import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
 import { readStream } from "../eventStore";
 import { effectiveMembers } from "./members";
@@ -86,6 +87,12 @@ export async function revokeShare(
   shareId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<TripShare>> {
+  // `trip_shares.id` is a uuid column, so a `shareId` that is not one made the
+  // SELECT below fail with `22P02` and the route 500 instead of 404
+  // (KI-2026-09-05-x). Same answer as an id that names no row of this trip's.
+  if (!isUuid(shareId)) {
+    return { ok: false, error: { code: "not-found", message: "This link does not exist." } };
+  }
   const rows = await db
     .select()
     .from(tripShares)
