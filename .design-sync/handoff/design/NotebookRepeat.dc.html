@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <script src="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.js"></script>
+</helmet>
+
+<div style="border-left: 2px dashed {{ railColor }}; padding-left: 16px; display: flex; flex-direction: column; gap: 11px;">
+  <sc-if value="{{ showRail }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+      <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: {{ railInk }};">{{ railLabel }}</span>
+      <sc-if value="{{ canEditWording }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ editWording }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Edit the wording</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-for list="{{ lines }}" as="r" hint-placeholder-count="3">
+    <div style="display: grid; grid-template-columns: {{ leadCol }}; gap: 14px; align-items: baseline;">
+      <sc-if value="{{ hasLead }}" hint-placeholder-val="{{ false }}">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ r.leadInk }};">{{ r.lead }}</span>
+      </sc-if>
+      <span style="min-width: 0;">
+        <dc-import name="NotebookInline" parts="{{ r.parts }}" widget-name="{{ widgetName }}" hint-size="100%,24px"></dc-import>
+      </span>
+    </div>
+  </sc-for>
+
+  <sc-if value="{{ hasNote }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; align-items: flex-start; gap: 9px; background: {{ noteBg }}; border-radius: 8px; padding: 9px 11px;">
+      <span style="font-size: 12px; line-height: 1.3; color: {{ noteInk }};">{{ noteMark }}</span>
+      <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; color: {{ noteInk }}; text-wrap: pretty;">{{ note }}</span>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:620,&quot;height&quot;:260},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ok&quot;,&quot;ghost&quot;,&quot;empty&quot;,&quot;stale&quot;],&quot;default&quot;:&quot;ghost&quot;,&quot;tsType&quot;:&quot;RepeatState&quot;},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;edit&quot;,&quot;read&quot;],&quot;default&quot;:&quot;edit&quot;,&quot;tsType&quot;:&quot;Mode&quot;},&quot;overLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;stop&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;needsLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;a day&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;template&quot;:{&quot;editor&quot;:null,&quot;default&quot;:[{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot;We were at &quot;},{&quot;kind&quot;:&quot;text_value&quot;,&quot;of&quot;:&quot;stop.title&quot;},{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot; in &quot;},{&quot;kind&quot;:&quot;city&quot;,&quot;of&quot;:&quot;stop.area&quot;},{&quot;kind&quot;:&quot;text&quot;,&quot;text&quot;:&quot;.&quot;}],&quot;tsType&quot;:&quot;Part[]&quot;},&quot;items&quot;:{&quot;editor&quot;:null,&quot;default&quot;:[],&quot;tsType&quot;:&quot;Item[]&quot;},&quot;hasLead&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+// A repeat is ONE authored sentence printed once per item. The author's wording is
+// document content, not a setting, and the per-item values are a render-time
+// argument that is never stored — so moving a day cannot leave a stale row behind.
+//
+// Its rows are `NotebookInline`, so a repeated line and a hand-written line resolve
+// their chips and their ghosts through exactly the same component.
+//
+// The rail is chrome: it names what the widget prints over and how many, and it is
+// visible in editing only. In reading mode the rows stand alone as prose.
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const state = p.state || 'ok';
+    const editing = p.mode !== 'read';
+    const template = p.template || [];
+    // A ghost repeat prints the template ONCE, all ghosts: one line is enough to
+    // show the sentence you will get, and a stack of three would imply a count
+    // nobody has chosen yet.
+    const real = (p.items || []).map(it => ({ lead: it.lead || '', leadInk: 'var(--color-slate)', parts: it.parts || [] }));
+    // The authored sentence survives an empty collection (ADR-035 d4): whenever
+    // editing has no lines to print — ghost, empty or stale — the template itself
+    // is shown, ghosted. The empty case is exactly when an author is writing it.
+    const lines = real.length ? real : (editing
+      ? [{ lead: p.hasLead ? '--:--' : '', leadInk: 'var(--color-slate)', parts: template.map(t => (t.kind === 'text' ? t : Object.assign({}, t, { value: undefined }))) }]
+      : []);
+    const over = p.overLabel || 'item';
+    const notes = {
+      ghost: 'Not set up \u2014 point it at ' + (p.needsLabel || 'an input') + ' and this sentence prints once per ' + over + '.',
+      empty: 'Nothing matches, so this prints nothing. The sentence stays here \u2014 tag a stop and the lines appear.',
+      stale: (p.lostLabel ? p.lostLabel + ' no longer exists' : 'What this pointed at no longer exists') + ' \u2014 point it somewhere and the lines come back.',
+      ok: ''
+    };
+    return {
+      railColor: state === 'ok' ? (p.accent || 'var(--color-border-strong)') : 'var(--color-border-strong)',
+      railInk: state === 'ok' ? 'var(--color-slate)' : 'var(--color-warning-ink)',
+      showRail: editing,
+      railLabel: state === 'ghost' ? 'Prints one line per ' + over
+        : state === 'ok' ? 'Prints ' + (p.items || []).length + ' \u00b7 one line per ' + over
+        : 'One line per ' + over,
+      // Only offered when someone can actually act on it: a handler exists AND
+      // there is wording on screen to edit.
+      canEditWording: editing && state !== 'ghost' && !!p.onEditWording && !!lines.length,
+      editWording: p.onEditWording || (() => {}),
+      widgetName: p.name || 'A line for every ' + over,
+      hasLead: !!p.hasLead,
+      leadCol: p.hasLead ? '64px minmax(0, 1fr)' : 'minmax(0, 1fr)',
+      lines: lines,
+      hasNote: editing && !!notes[state],
+      note: notes[state],
+      noteMark: state === 'ghost' ? '\u25c7' : state === 'stale' ? '\u26a0' : '\u00b7',
+      noteBg: state === 'empty' ? 'var(--color-paper)' : 'var(--color-warning-tint)',
+      noteInk: state === 'empty' ? 'var(--color-slate)' : 'var(--color-warning-ink)'
+    };
+  }
+}
+
+</script>
+</body>
+</html>

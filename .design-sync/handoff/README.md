@@ -4,8 +4,16 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-03 (the phone Notebook; Notebook widgets — pages no longer
-have a scope; billing surfaces for M20 / M21)
+Last substantive pass: 2026-09-04 (the notebook widget framework and its three components;
+Save this day as a Playbook; the phone Notebook)
+
+**Building notebook widgets? Read these three, in this order:**
+1. `specs/notebook-widget-framework.md` — the three shape components, the four states, the
+   ghost rule. **This is the file to reference when implementing any widget.**
+2. `SPEC.md` §18–§19 — the model underneath it (a widget is a function of declared inputs,
+   bound per instance; the phone).
+3. `design/Notebook Widget Framework.dc.html` — open it in a browser: every shape in every
+   state, with the rules printed beside them.
 
 **Commit this folder into the repo at `.design-sync/handoff/`**, replacing the previous
 bundle. It supersedes the 2026-08-30 bundle.
@@ -17,6 +25,19 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
+- **The notebook widget framework — three reusable components, not just prose.**
+  `specs/notebook-widget-framework.md` (`SPEC.md` §21), the gallery at
+  `design/Notebook Widget Framework.dc.html`, and the components themselves:
+  `NotebookInline`, `NotebookBlock`, `NotebookRepeat`. All inline widgets, all blocks and
+  all repeats now behave identically because one component draws each class. Includes the
+  **ghost**: a dropped-in widget renders as the shape of its value (`$XXX`, `NN rows`, its
+  real sentence) and fills in per part as inputs bind. One rule needs a build decision —
+  ghosts are editing-only.
+- **`specs/save-a-day-as-a-playbook.md` — a flow that was built and never written down.**
+  `SPEC.md` §20 points at it. Entry point, dialog, save action, the exact animation
+  (elements, durations, easings, spark offsets), where a kept day surfaces afterwards, what
+  a build owes, and five open questions. A build asking "how does a day become a Playbook"
+  had no answer before this; §15 only described the library it lands in.
 - **The phone Notebook is the whole widget model.** `SPEC.md` §19, `DRIFT.md` §2f. It was one
   repeater hardwired to the focused day; it is now index → page, with per-widget binds and the
   full insert registry. **It adds no API surface** — the same resolvers §18 already asks for —
@@ -60,15 +81,21 @@ what may exist on a page — read `RULES.md` first.
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
+| **`specs/notebook-widget-framework.md`** | **The notebook widget framework** — three shape components, four states per shape, the ghost. `SPEC.md` §21 summarises it; this file is the contract |
+| `design/NotebookInline.dc.html` | Component — an inline widget: a segment list of your text, its values, and ghosts |
+| `design/NotebookBlock.dc.html` | Component — a block widget: declared columns, rows, caption, total, one note line per state |
+| `design/NotebookRepeat.dc.html` | Component — a repeat widget: one authored sentence per item; its rows **are** `NotebookInline` mounts |
+| `design/Notebook Widget Framework.dc.html` | The framework gallery — every shape × every state, live, with its rules |
+| `specs/save-a-day-as-a-playbook.md` | The Save-a-day-as-a-Playbook flow: entry point, dialog, save action, the exact animation, five open questions |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 
 ## How to read the design file
 
 It is a **design reference written in HTML**, not production code. Do not copy its markup.
-It uses a small template runtime — `<sc-for>`, `<sc-if>`, `{{ value }}` holes, and
+The four notebook components in `design/` are the exception: they are the framework itself, and their **props and state names are the contract** — read their logic comments. Everything else in the folder uses a small template runtime — `<sc-for>`, `<sc-if>`, `{{ value }}` holes, and
 `<x-import component-from-global-scope="TravelCollabUI.X">`. Read it as intent: layout,
 spacing, tokens, copy, component choice, interaction behaviour. `TravelCollabUI.*` mounts
 map 1:1 to the real design-system package components.
