@@ -72,14 +72,14 @@ Updated live. Times are PT.
 | Briefs written for A–G | done 22:55 | `briefs/` |
 | Wake scheduled 00:30 | done 22:56 | send_later → 07:30 UTC |
 | Streams A–G dispatched | 00:31 | seven general-purpose agents, parallel |
-| A Security | running 00:31 | |
-| B Notebook / widget AST | running 00:31 | |
+| A Security | done 00:41 | 7 findings (6 CONFIRMED), 37-route authz table, 08-28 items: 7 fixed, 2 still open |
+| B Notebook / widget AST | done 00:41 | 9 findings (8 CONFIRMED), 3 recipes, 12 proposed rules |
 | C Versioning / migration | done 00:40 | 7 findings (6 CONFIRMED), pivot-cost analysis, 13 verified-sound |
 | D Infra / DB / Vercel / review loop | running 00:31 | |
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | running 00:31 | |
 | G Broken functionality (lanes + hunt) | running 00:31 | |
-| Verification wave | pending | |
+| Verification wave | running 00:42 | C, E verifiers launched 00:41; A, B launched 00:43 |
 | Findings written | pending | |
 | Executive summary | pending | |
 | Committed + pushed | pending | |
