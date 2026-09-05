@@ -79,8 +79,8 @@ once at save time. The flag then reads:
 | meaning | look |
 |---|---|
 | no Playbook came from this day | neutral circle |
-| a Playbook came from this day, and it still matches | the design's `data-kept="1"` |
-| a Playbook came from this day, and the day has moved on since | kept, marked as drifted |
+| the canonical Playbook from this day still matches it | the design's `data-kept="1"` |
+| the day has moved on since that snapshot | kept, marked as drifted |
 
 The third state is the one that earns the digest. Without it the flag has to
 choose between two lies: claim freshness it cannot check, or drop the resting
@@ -89,7 +89,9 @@ the difference in words — "In your Playbooks — edit or share" against someth
 like "In your Playbooks, from an earlier version of this day".
 
 The digest is over the same jsonb value that is already copied whole, so this
-adds no querying into `stops` and does not weaken ADR-029's boundary.
+adds no querying into `stops` and does not weaken ADR-029's boundary. Which
+snapshot it is compared against, when a day has produced more than one, is
+settled in Decision 3.
 
 **Cheaper fallback, if the third state is judged not worth a column:** two
 states, where the resting flag means only *"a Playbook came from this day"* and
@@ -105,6 +107,23 @@ When a day already has a Playbook, the keep dialog's primary action becomes
 **Update "<name>"**, with **Save as new** demoted to a secondary. Saving a
 second Playbook from one day stays possible; it stops being the path of least
 resistance.
+
+**Which Playbook, when a day has several.** "Save as new" means `source_day_id`
+can match more than one row, so both the update target and the flag's state
+would otherwise be undefined (Copilot, PR 142). The rule: **the most recently
+created Playbook from that day is the canonical one.** It is what Decision 2's
+digest is compared against, it is what **Update "<name>"** targets, and taking
+"Save as new" makes the new row canonical from that moment.
+
+Most-recent rather than, say, "any matching snapshot wins" because the flag has
+to name one thing in its tooltip and offer one default action, and because the
+alternative has a bad failure mode: a stale Playbook that happens to match a
+day the person has since reverted would show green while the copy they actually
+work from sits drifted and unmentioned. Deterministic and boring beats clever
+here. It does mean the flag can read "drifted" while an older Playbook from the
+same day still matches exactly — an acceptable trade, and a reason the
+Playbooks surface (not the flag) should be where all of a day's snapshots are
+visible.
 
 **Why updating in place is safe today, specifically.** ADR-029 Decision 1 says
 an insert copies the value *out* whole. Someone who already added this Playbook

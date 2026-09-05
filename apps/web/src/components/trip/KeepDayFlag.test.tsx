@@ -196,4 +196,42 @@ describe("the keep-day celebration", () => {
       vi.useRealTimers();
     }
   });
+  // CodeRabbit, PR 142: with a boolean `celebrating`, a second save inside the
+  // window was a no-op and the FIRST run's timer then cleared the label at the
+  // first deadline -- the second celebration was cut short by however long the
+  // two saves were apart. A run number gives each save its own full length.
+  it("gives a second save inside the window its own full run", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderFlag();
+      const flag = screen.getByRole("button", { name: "Keep day 1" });
+
+      await user.click(flag);
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+      expect(await screen.findByText("Kept")).toBeTruthy();
+
+      // Halfway through the first run, save again.
+      await act(async () => {
+        vi.advanceTimersByTime(1300);
+      });
+      await user.click(flag);
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+
+      // The first run's deadline passes. If its timer were still the one in
+      // charge, the label would vanish here.
+      await act(async () => {
+        vi.advanceTimersByTime(1300);
+      });
+      expect(screen.getByText("Kept")).toBeTruthy();
+
+      // The second run's own deadline.
+      await act(async () => {
+        vi.advanceTimersByTime(1300);
+      });
+      expect(screen.queryByText("Kept")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

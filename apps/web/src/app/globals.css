@@ -509,11 +509,20 @@
   @keyframes om-flag-keep {
     0% {
       background-color: var(--color-surface);
+      animation-timing-function: ease-out;
     }
-    12%,
-    88% {
+    /* 280ms of 2600ms. The design fills in over 280ms `ease-out` and then
+       holds with `fill: 'forwards'`; the hold here is the flat middle, and the
+       return is the design's frame run backwards at the same length. */
+    10.77% {
       background-color: var(--color-brand);
       color: var(--color-surface);
+      animation-timing-function: linear;
+    }
+    89.23% {
+      background-color: var(--color-brand);
+      color: var(--color-surface);
+      animation-timing-function: ease-in;
     }
     100% {
       background-color: var(--color-surface);
@@ -522,10 +531,17 @@
   @keyframes om-flag-fill {
     0% {
       fill: transparent;
+      animation-timing-function: ease-out;
     }
-    12%,
-    88% {
-      fill: currentColor;
+    /* 320ms of 2600ms — the design's own pennant-fill duration, which is
+       deliberately a touch slower than the 280ms background behind it. */
+    12.31% {
+      fill: currentcolor;
+      animation-timing-function: linear;
+    }
+    87.69% {
+      fill: currentcolor;
+      animation-timing-function: ease-in;
     }
     100% {
       fill: transparent;
@@ -576,13 +592,13 @@
   .flag-celebrate {
     animation:
       om-flag-pop 540ms ease-out,
-      om-flag-keep 2600ms cubic-bezier(0.2, 1, 0.3, 1);
+      om-flag-keep 2600ms linear;
   }
   /* lucide's `Flag` is one `path` (the pennant) plus one `line` (the staff),
      so `svg path` is exactly the half that fills. The presentational
      `fill="none"` on the svg root loses to a CSS `fill` on the path. */
   .flag-celebrate svg path {
-    animation: om-flag-fill 2600ms cubic-bezier(0.2, 1, 0.3, 1);
+    animation: om-flag-fill 2600ms linear;
   }
   .flag-celebrate-label {
     display: inline-block;

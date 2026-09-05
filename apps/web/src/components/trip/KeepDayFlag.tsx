@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Flag } from "lucide-react";
 import type { SavedStop } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -77,20 +77,30 @@ export function KeepDayFlag({
   // nothing. This class also gates the "Kept" label — an event that never
   // fires would leave the pennant claiming "Kept" for the life of the page.
   // 2600ms is the label keyframe's own duration in globals.css.
-  const [celebrating, setCelebrating] = useState(false);
+  //
+  // A RUN NUMBER rather than a boolean, because a second save inside the 2.6s
+  // window has to start its own run (CodeRabbit, PR 142). With a boolean,
+  // `setCelebrating(true)` was a no-op while one was already in flight, and the
+  // first run's timer then cut the second one short at the first deadline.
+  // Bumping the number re-runs the effect below, so the old timer is cleared
+  // and the new run gets its own full length.
+  const [run, setRun] = useState(0);
+  const runs = useRef(0);
+  const celebrating = run > 0;
   const empty = stops.length === 0;
 
   useEffect(() => {
-    if (!celebrating) return;
-    const timer = window.setTimeout(() => setCelebrating(false), CELEBRATION_MS);
+    if (run === 0) return;
+    const timer = window.setTimeout(() => setRun(0), CELEBRATION_MS);
     return () => window.clearTimeout(timer);
-  }, [celebrating]);
+  }, [run]);
 
   // Both halves of the outcome: the toast names what was kept and is what a
   // screen reader hears; the pennant shows it, decoratively.
   const onSaved = useCallback((name: string) => {
     setSaved(name);
-    setCelebrating(true);
+    runs.current += 1;
+    setRun(runs.current);
   }, []);
 
   // Two things on one click, and the order matters only in that the wave must
@@ -113,7 +123,10 @@ export function KeepDayFlag({
           title={empty ? "Add a stop to this day first" : "Keep this day"}
           onClick={keep}
           className={cn(
-            "shrink-0 rounded-full border-transparent bg-surface hover:bg-surface",
+            // `gap-0`: the design's only flank between glyph and label is the
+            // label's own animated 6px margin, and Button's default `gap-1.5`
+            // would silently double it to 12px.
+            "shrink-0 gap-0 rounded-full border-transparent bg-surface hover:bg-surface",
             INK_TEXT[accent],
             celebrating && "flag-celebrate",
           )}
@@ -138,13 +151,26 @@ export function KeepDayFlag({
               text for the accessible name, so text inside it cannot be the
               announcement anyway: the toast below is. */}
           {celebrating && (
-            <span className="flag-celebrate-label" aria-hidden>
+            /* `text-xs font-semibold` is the design's 12px/600; Button's `md`
+               size would otherwise render this label at 16px/500. */
+            <span
+              key={run}
+              className="flag-celebrate-label text-xs font-semibold"
+              aria-hidden
+            >
               Kept
             </span>
           )}
         </Button>
+        {/* Keyed on the run so a second save inside the window replays the
+            decoration instead of sitting inert under a class that is already
+            applied. Only these three remount, never the Button: Radix restores
+            focus to the element that opened the dialog, and remounting that
+            element would drop the focus return on every save. The button's own
+            pop does not replay, which reads correctly anyway — it is already
+            brand-filled, and stays so until the new run's later deadline. */}
         {celebrating && (
-          <>
+          <div key={run} className="contents">
             <span className="flag-celebrate-ring" aria-hidden />
             {/* Four sparks on the design's four paths. Their offsets, sizes and
                 delays are `nth-child` rules in globals.css, so this stays a list
@@ -157,7 +183,7 @@ export function KeepDayFlag({
               <span className="flag-celebrate-spark" />
               <span className="flag-celebrate-spark" />
             </span>
-          </>
+          </div>
         )}
       </span>
       <KeepDayDialog
