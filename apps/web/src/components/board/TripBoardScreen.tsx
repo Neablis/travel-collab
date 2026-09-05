@@ -119,6 +119,71 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // which-button-did-you-press flag would not: rotating a 411x852 phone into
   // landscape crosses 768px with the panel already open.
   const isPhone = useIsPhone();
+
+  /**
+   * Arriving at the phone's plan with nothing selected picks the first day.
+   *
+   * SPEC §23's sheet inherits the surface's scope, and on arrival there was no
+   * scope to inherit. Measured at 412×855 on the seeded 14-day trip
+   * (2026-09-05): the day rail rendered fourteen chips with none of them
+   * current, so `focusedDay` was null and the first tap of `Ask` opened on
+   * "Asking about [Seed] Japan: Tokyo → Kyoto → Osaka" with "Ask about this
+   * trip…" — the trip-wide default a tab was rejected for (`phoneAskContext`'s
+   * header). Tapping any chip already produced the right thing, so the
+   * derivation was never wrong; only the arrival default was.
+   *
+   * **Day 1, always.** Mitchell chose the fully predictable rule over "today's
+   * day if the trip is in progress", so there is deliberately no date
+   * arithmetic here: a trip you are on day 6 of still opens on day 1.
+   *
+   * Phone only, and the gate is the load-bearing part. Above the breakpoint
+   * the timeline's scroll spy owns `focusedDay` and a null start is right
+   * there — nobody has chosen a day, and the rail says so until they scroll
+   * past one. Defaulting inside `FocusProvider` would have applied this to
+   * every surface at every width (the demo board, the notebook, the desktop
+   * timeline) for a rule that is about one screen.
+   *
+   * Explicit, and named to no container — the same shape as `MapLens`'s own
+   * arrival default. *Explicit* is the honest origin (nobody scrolled) and is
+   * what makes a lens switch land on this day; *no container* leaves every day
+   * container a plain follower, so `jumpTo` releases its lock on a jump that
+   * moves nothing and the reader's first flick is not swallowed
+   * (`keepLockIfUnmoved` in `useDaySync` names this exact case).
+   *
+   * It does not carry the reader down their plan, which would be worse than the
+   * bug it fixes: the timeline follows with `block: "center"`, so a default
+   * aimed anywhere but the top lands you mid-trip — measured on the seeded
+   * three-day trip, defaulting to day 3 settles at `scrollY` 1002 of a 2348px
+   * document. Day 1's header is above the centre line, so that jump clamps.
+   * Not literally motionless, though, and the honest number is worth keeping:
+   * the focused day draws a suggestion card and the page settles 42px down.
+   * That 42px belongs to focusing day 1 rather than to doing it on arrival —
+   * with no default at all a reader tapping that chip lands on the same
+   * 42/2348, identically under both `FocusOrigin`s, which is why the origin
+   * above was chosen on its merits and not to buy a scroll back.
+   * `e2e/m16-mobile-assistant.spec.ts` pins the property, not the pixel.
+   *
+   * Once per mount. Re-tapping the focused chip clears the focus (`DayChips` —
+   * the whole chip is the toggle), and that is the phone's only way back to
+   * trip scope; a latch is what keeps this effect from immediately undoing it.
+   *
+   * `useIsPhone` is false on the server and on the first client paint, so this
+   * lands one tick later — no ring, then day 1. Harmless, and not a hydration
+   * mismatch: the pre-correction state is not a *wrong* state, it is the state
+   * this screen shipped with, and the server and first client render agree on
+   * it. Nothing can observe the gap either, for the same reason the
+   * `presentation` swap below cannot — the scope is read when the pill is
+   * clicked, and a click cannot be handled before hydration, by which time
+   * `useIsPhone`'s effect has run.
+   */
+  const defaultedPhoneDay = useRef(false);
+  useEffect(() => {
+    if (!isPhone || defaultedPhoneDay.current) return;
+    if (focusedDay !== null || activeTrip === null || activeTrip.days.length === 0) return;
+    defaultedPhoneDay.current = true;
+    setFocusedDay(0);
+  }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
+
   // The demo board (`/demo`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
   // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403

@@ -1148,8 +1148,10 @@ describe("TripBoardScreen", () => {
     // the phone tab bar untappable behind an open sheet.
     expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
 
-    // No day is focused on load, so the sheet is trip-scoped and says the
-    // trip's name — `phoneAskContext`'s wording, not the rail's "Looking at".
+    // This fixture has NO days, so there is no day 1 for the arrival default
+    // below to focus and the sheet is trip-scoped — saying the trip's name in
+    // `phoneAskContext`'s wording, not the rail's "Looking at". A trip with
+    // days opens on day 1; that is the next test.
     expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
 
     // DRIFT §2i wants the sheet's copy derived from the surface, and the
@@ -1158,6 +1160,61 @@ describe("TripBoardScreen", () => {
     // does not keep. The hint says what the sheet actually reads.
     expect(within(panel).getByText(/It reads the day you have open/)).toBeTruthy();
     expect(within(panel).queryByText(/the conversation stays here/)).toBeNull();
+  });
+
+  // The arrival default, and the symptom it was reported as. §23's sheet
+  // "inherits the surface's scope" — but at 412×855 on the seeded 14-day trip
+  // the rail rendered fourteen chips with none of them pressed, so `focusedDay`
+  // was null and the FIRST tap of Ask opened on the whole trip. That is the
+  // trip-wide default a fourth tab was rejected for, arrived at by another
+  // route. Tapping a chip was already correct, so what is pinned here is the
+  // arrival, not the derivation.
+  //
+  // Day 1 always — no "today's day if the trip is in progress", which is why
+  // this fixture's days carry no dates and the test still knows the answer.
+  it("focuses day 1 on arrival on a phone, so the sheet is day-scoped from the first tap", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    // The rail's own half of the symptom: a chip is pressed without anybody
+    // having tapped one. `useIsPhone` corrects in an effect, so the ring
+    // arrives a tick after the first paint — hence `waitFor` rather than a
+    // bare read.
+    const dayOne = screen.getByRole("button", { name: "Day 1, 0 stops" });
+    await waitFor(() => expect(dayOne.getAttribute("aria-pressed")).toBe("true"));
+
+    fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" }));
+    const panel = assistantPanel();
+    expect(within(panel).getByText("Asking about Day 1")).toBeTruthy();
+    expect(within(panel).queryByText("Asking about Rome 2027")).toBeNull();
+
+    // The line and the wire are built from one index, so the sheet naming a
+    // day while asking about the trip is not reachable — the same claim the
+    // desktop's "says so in the same words" test makes, at the arrival the
+    // phone now has and the desktop deliberately does not.
+    fireEvent.change(within(panel).getByPlaceholderText(/ask about this (?:day|trip)/i), {
+      target: { value: "What's here?" },
+    });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "day", dayIndex: 0 });
+
+    // And it is a default, not a floor: re-tapping the chip clears the focus
+    // and the effect does not put it straight back. On a phone this toggle is
+    // the ONLY route to trip scope, so a default that re-armed would take it
+    // away entirely.
+    fireEvent.click(dayOne);
+    expect(dayOne.getAttribute("aria-pressed")).toBe("false");
+    expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
   });
 
   it("stays a docked rail above the breakpoint", async () => {

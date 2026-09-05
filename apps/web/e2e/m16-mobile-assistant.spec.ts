@@ -44,14 +44,13 @@ test.describe("mobile assistant (phone viewport)", () => {
     page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true });
 
   async function seedTrip(page: import("@playwright/test").Page) {
-    const { tripId } = await page.request
-      .post("/api/trips", { data: { name: e2eTripName("MobileRail") } })
-      .then((r) => r.json());
+    const name = e2eTripName("MobileRail");
+    const { tripId } = await page.request.post("/api/trips", { data: { name } }).then((r) => r.json());
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
     await page.goto(`/trips/${tripId}`);
-    return tripId;
+    return { tripId, name };
   }
 
   // The launcher half of KI-2026-08-30, re-aimed. SPEC §13.5 is categorical —
@@ -86,6 +85,69 @@ test.describe("mobile assistant (phone viewport)", () => {
     // §13.5 by being inert satisfies nothing.
     await pill.click();
     await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+  });
+
+  // §23's load-bearing claim, at the one moment it was not true: the sheet
+  // "inherits the surface's scope", and on arrival the surface had no scope to
+  // inherit. Measured in a browser at 412×855 on the seeded 14-day trip — the
+  // rail drew fourteen chips with every one of them `aria-pressed="false"`, so
+  // the FIRST tap of Ask opened on "Asking about [Seed] Japan: Tokyo → Kyoto →
+  // Osaka". That is the trip-wide default a fourth tab was rejected for,
+  // reached by another route.
+  //
+  // It is an e2e test and not only a unit one because that is how it was
+  // found. The unit test asserts the same property under a fake `matchMedia`;
+  // this one asserts it at a real 411px viewport, through the real Next
+  // render, which is the only lane that could have caught it in the first
+  // place.
+  test("arriving at a trip focuses day 1, so the sheet is day-scoped before any chip is tapped", async ({ page }) => {
+    const { name } = await seedTrip(page);
+
+    // The rail's own half of the symptom, and the one that was directly
+    // measured: a chip is pressed without anybody having tapped one. By index
+    // rather than by label — the seeded trip's dates are relative to today.
+    await expect(page.locator('[data-day-index="0"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-day-index="1"]')).toHaveAttribute("aria-pressed", "false");
+
+    // And it does not carry the reader down their own plan, which is the risk
+    // a default focus runs: the timeline follows a focus change by scrolling
+    // that day's header to the middle of the window (`block: "center"`), so a
+    // default aimed anywhere but the top lands you mid-trip on arrival.
+    // Measured on this fixture, defaulting to day 3 instead of day 1:
+    // `window.scrollY` 1002 of a 2348px document. That is the bug being
+    // excluded, and it is worse than the one being fixed.
+    //
+    // Stated as the property rather than as `scrollY === 0`, because 0 is not
+    // what happens and asserting it would have been a lie with a passing test
+    // in front of it. Focusing day 1 grows the plan — the focused day draws a
+    // suggestion card — and the page settles 42px down, at 2348px against a
+    // 2137px document with nothing focused. That 42px is not this default's:
+    // on a build with NO default at all, a reader tapping day 1's own chip
+    // settles at exactly 42/2348 too (measured 2026-09-05, and identically
+    // under both `FocusOrigin`s). It is what focusing day 1 has always cost
+    // here, not something the arrival introduces.
+    //
+    // Neither line can go vacuous. If the plan ever fit the viewport, day 2
+    // would be on screen and the second fails; if the arrival ever scrolled,
+    // day 1 leaves the screen and the first does.
+    await expect(page.getByRole("heading", { name: "Day 1", exact: true })).toBeInViewport();
+    await expect(page.getByRole("heading", { name: "Day 2", exact: true })).not.toBeInViewport();
+
+    await askPill(page).click();
+    const sheet = page.getByRole("complementary", { name: "Assistant" });
+    await expect(sheet).toBeVisible();
+
+    // The user-visible property: the first line names a DAY, in the day rail's
+    // own words, and not the trip. Matched as a shape rather than a literal
+    // because the seeded dates move with the calendar.
+    const contextLine = sheet.getByText(/^Asking about /);
+    await expect(contextLine).toHaveText(/^Asking about (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2}\b/);
+    await expect(contextLine).not.toContainText(name);
+
+    // The composer agrees. The two used to disagree on exactly this surface —
+    // "Asking about <trip>" over a box reading "Ask about this trip…" was the
+    // reported state; the pair is what §23 asks for.
+    await expect(page.getByPlaceholder("Ask about this day…")).toBeVisible();
   });
 
   // The direct replacement for "the rail is full-screen, not crushed beside
