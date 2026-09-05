@@ -469,6 +469,43 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **The assistant asks to change the app's own state, and you approve it
+  (raised by Mitchell on the PR 141 preview, 2026-09-04).** His words: *"The AI
+  assistant needs a tool to toggle the trip overview page to editing, it would
+  be really cool if the AI assistant had to access for sensitive access (Like
+  turning on edit mode) and we had a approve/deny button in the assistant to
+  take that action."* **The approve/deny half already exists** — a planning
+  turn's write tools do not execute, they collect, and the turn ends with a
+  resolved proposal that only commits when a human clicks Approve
+  (`buildProposal` / `commitProposal` in `server/ai/writeTools.ts`, ADR-022 §4,
+  ADR-033 decision 5). So this is not new machinery; it is the machinery the
+  trip board's assistant already runs on.
+
+  **What is genuinely new is the proposal's contents.** Today a proposal is a
+  list of domain commands, and "turn on edit mode" is not one — it changes
+  client state, not the trip. A UI-action proposal is a different class: it
+  cannot be replayed from the event log, it has no `actor_id`, and it is not
+  undoable. That is an ADR before it is a feature, and it is the reason this is
+  parked rather than built. It is also where *"sensitive access"* wants
+  defining: today the guard is role-based (`minimumRoleFor`), and a per-action
+  approval tier is a different axis from a role. Generalises well past edit
+  mode, which is the argument for doing it properly once. Vercel toolbar thread
+  `ULm7F9Ys7Cyx`.
+
+- **Start a new trip from a saved day (raised by Mitchell on the PR 141
+  preview, 2026-09-04).** On the playbooks day page: *"There should also be a
+  option to create a new trip, and initialize it with this day as the first
+  day."* An addition to a **shipped** surface — M11b's gate closed 2026-08-31 —
+  so it has no owner, the same position as the shared-day map below.
+
+  Not free, and the cost is one question: initialising a trip with a saved day
+  means replaying that day's stops as `AddActivity` commands against a fresh
+  trip, which is close to what **fork** already does. So the real decision is
+  whether it reuses the fork path or gets its own, and that is worth settling
+  before anyone writes it — two implementations of "materialise stops into a new
+  trip" is exactly the shape of duplication `citiesOfDay` and `rollupCosts` exist
+  to prevent elsewhere. Vercel toolbar thread `pkAYS2-v8FTr`.
+
 - **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
   section plus a `#pricing` nav anchor on M15's existing landing route — three
   plan cards, each enumerating its own contents in full. **Parked here by
