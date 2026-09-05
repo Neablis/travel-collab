@@ -315,5 +315,13 @@ export const sharedSentryOptions = {
   // attached to whatever error happens next.
   beforeSend: scrubSentryPayload,
   beforeSendTransaction: scrubSentryPayload,
+  // The third door, and it does NOT go through `beforeSend` (KI-2026-09-05-e's
+  // follow-up). `enableLogs` above gives structured logs their own pipeline
+  // with their own hook; without this, a log line carrying a share or invite
+  // URL would reach Sentry unscrubbed while the event and transaction paths
+  // next door were clean — the failure mode of scrubbing per-pipeline instead
+  // of per-payload. Nothing writes such a line today; this is so nothing has
+  // to remember not to.
+  beforeSendLog: scrubSentryPayload,
   beforeBreadcrumb: scrubSentryPayload,
 } as const;

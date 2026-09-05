@@ -47,9 +47,17 @@ Red-first (any PR adding a test): <!-- For each new test: the source edit that
      control; three written in one session on 2026-09-02 asserted nothing and
      passed. See docs/guidelines/testing.md §3. -->
 
-- [ ] `pnpm check` green locally (typecheck + lint + unit)
-- [ ] `pnpm --filter web test:int` green (needs Postgres)
-- [ ] `pnpm --filter web test:e2e:ci-like` green (production build + full e2e)
+<!-- TIER THESE AGAINST AGENTS.md "Definition of Done". They are NOT all
+     required of every PR, and treating them as a flat list is the exact defect
+     KI-2026-09-05-u closed in quality-enforcement.md. Tier 1 (prose-only
+     BRANCH) runs NOTHING. Tier 2 (scoped code) runs the minimal-check-subset
+     skill's output and nothing more. Tier 3 (final review) runs the lot. Tick
+     what the tier actually required and strike the rest. -->
+
+- [ ] Tier for this PR (1 prose / 2 scoped / 3 final review): <!-- state it -->
+- [ ] `pnpm check` green locally (typecheck + lint + unit) — Tier 3
+- [ ] `pnpm --filter web test:int` green (needs Postgres) — Tier 3
+- [ ] `pnpm --filter web test:e2e:ci-like` green (production build + full e2e) — Tier 3
 - [ ] Manual browser walk of the changed flow
 
 Preview URL walked: <!-- https://travel-collab-git-<branch>-neablis-projects.vercel.app -->

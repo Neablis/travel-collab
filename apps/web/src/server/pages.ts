@@ -6,6 +6,7 @@ import { instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { isUuid } from "@/server/ids";
 
 function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
@@ -104,11 +105,21 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
 }
 
 export async function getPage(id: string): Promise<Page | null> {
+  // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
+  // Unreachable through a route today — both callers validate — but this is the
+  // one place that fix guarded from IN FRONT of the query rather than inside
+  // it, so a future caller added here would inherit the old 500.
+  if (!isUuid(id)) return null;
   const [row] = await db.select().from(pages).where(eq(pages.id, id));
   return row ? toPage(row) : null;
 }
 
 export async function updatePage(id: string, input: UpdatePageInput): Promise<Page | null> {
+  // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
+  // Unreachable through a route today — both callers validate — but this is the
+  // one place that fix guarded from IN FRONT of the query rather than inside
+  // it, so a future caller added here would inherit the old 500.
+  if (!isUuid(id)) return null;
   const patch: Partial<typeof pages.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (input.title !== undefined) patch.title = input.title;
   if (input.context !== undefined) patch.context = input.context;
@@ -118,6 +129,11 @@ export async function updatePage(id: string, input: UpdatePageInput): Promise<Pa
 }
 
 export async function deletePage(id: string): Promise<boolean> {
+  // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
+  // Unreachable through a route today — both callers validate — but this is the
+  // one place that fix guarded from IN FRONT of the query rather than inside
+  // it, so a future caller added here would inherit the old 500.
+  if (!isUuid(id)) return false;
   const rows = await db.delete(pages).where(eq(pages.id, id)).returning({ id: pages.id });
   return rows.length > 0;
 }

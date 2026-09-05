@@ -479,7 +479,13 @@ is the law it expands: invariants only, each one paid for.
   `toHaveClass` outside `src/components/ui/**` fails lint, as does reaching past
   the query layer into nodes.
 - **No test may sleep** (`scripts/check-sleep-wall.mjs`), and **data comes from
-  `@tc/factories`**, never a hand-built rollup.
+  `@tc/factories`**, never a hand-built rollup — **except in `packages/domain`,
+  where it cannot.** `packages/factories` depends on `@tc/domain`, and the
+  dependency map above scopes `packages/domain` to contracts only, so importing
+  factories into a domain test is both an import cycle and an invariant breach.
+  Domain tests use that package's own `test/support/` builders and the real
+  command path instead. Recorded 2026-09-05: this rule was stated blanket, and
+  a KI-fixer correctly could not obey it.
 - **Unit** (`packages/domain`): fast, exhaustive; property-based tests
   (fast-check) for reducers and the conflict engine. `fast-check` is also
   available in `@tc/pages` and `apps/web` — a claim of the form "for ALL
