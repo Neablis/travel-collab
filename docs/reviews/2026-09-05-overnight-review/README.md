@@ -1,6 +1,6 @@
 # Overnight project review — 2026-09-05
 
-**Status: COMPLETE 08:45 PT 2026-09-05 (stream G's verifier pass still closing; its six findings are marked CONFIRMED by the finder's own live probes).** This file is
+**Status: COMPLETE 09:00 PT 2026-09-05.** Every finding independently verified. This file is
 the plan and the live tracker; it is updated as each stream finishes. The
 findings it produces live one-per-file under `findings/`, written so a fixer
 agent can act on one without re-deriving it.
@@ -79,7 +79,7 @@ Updated live. Times are PT.
 | E Maintainability / patterns | done 00:39 | 9 findings (7 CONFIRMED), 7 recurrence classes, 12 verified-sound |
 | F Simplifiable | done 00:44 | 12 findings (all CONFIRMED), /ask flow map, 13 deliberately-not |
 | G Broken functionality (lanes + hunt) | done 08:40 | ALL LANES GREEN: typecheck, lint, unit, int 450/450, seed:verify 18/18, e2e ci-like 89/89, drizzle check. First agent killed by session limit during the browser walk |
-| Verification wave | A–F done 08:05 | Session limit hit ~00:50 PT killed four verifiers + stream G mid-run; resumed 07:31 PT. Every stream had 1–4 cites pointing at wrong lines; all corrected in findings/. One escalation (F-B09), four downgrades, one drop (F09 truncators) |
+| Verification wave | A–G done 09:00 | Session limit hit ~00:50 PT killed four verifiers + stream G mid-run; resumed 07:31 PT. Every stream had 1–4 cites pointing at wrong lines; all corrected in findings/. One escalation (F-B09), four downgrades, one drop (F09 truncators) |
 | Findings written | done 08:45 — 56 files | |
 | Executive summary | done 08:45 | |
 | Committed + pushed | continuous; final at 08:45 | |
@@ -102,7 +102,7 @@ Fifty-six finding files under `findings/`, one per issue, each carrying severity
 | [F-C03](findings/F-C03-undispatched-production-migration-undetectable.md) | MEDIUM | CONFIRMED | Merged-but-undispatched production migration is undetectable; PR template has no migration line (merged with D01) | S |
 | [F-C04](findings/F-C04-savedstop-has-no-version-or-defaults.md) | MEDIUM | CONFIRMED | Kept days carry no version and `SavedStop` has no defaults; first required field hides every Playbook | S |
 | [F-D03](findings/F-D03-drizzle-migrator-skips-older-migrations.md) | MEDIUM | CONFIRMED | Drizzle applies only migrations newer than the last applied; two PRs in flight can silently skip one — in production too | S |
-| [F-G01](findings/F-G01-non-uuid-route-params-500.md) | MEDIUM | CONFIRMED (live) | Any non-UUID route param reaches Postgres; ~12 routes 500 instead of 404 and the board renders "Internal Server Error" | S |
+| [F-G01](findings/F-G01-non-uuid-route-params-500.md) | LOW-MED | CONFIRMED (live ×3) | Any non-UUID route param reaches Postgres; ~12 routes 500 instead of 404 and the board renders "Internal Server Error" | S |
 | [F-G02](findings/F-G02-live-geocode-accepts-wrong-venue-in-right-box.md) | MEDIUM | CONFIRMED | Live geocode enrichment accepts a wrong venue inside the right box, renames the stop and marks it `verified`; the check for this exists and is unused | S |
 | [F-E01](findings/F-E01-activity-fields-hand-enumerated.md) | MEDIUM | CONFIRMED | Activity fields hand-enumerated in ~21 files; the 2026-08-28 descriptor fix was scheduled, never built, never filed (= F01) | M |
 | [F-E02](findings/F-E02-optimistic-queue-needs-interleaving-property.md) | MEDIUM | CONFIRMED | Six KIs of silent loss on the optimistic queue fixed as lines; no interleaving property test | M |
@@ -144,8 +144,8 @@ Fifty-six finding files under `findings/`, one per issue, each carrying severity
 | [F-F11](findings/F-F11-accountmenufromsession-dead-and-comments-stale.md) | LOW | CONFIRMED | `AccountMenuFromSession` dead; three comments stale | XS |
 | [F-F12](findings/F-F12-geocodenamematch-lives-in-ai-but-only-seed-uses-it.md) | LOW | CONFIRMED | `geocodeNameMatch` under `server/ai` but only the seed uses it (see G for whether it *should* be used live) | XS |
 | [F-G03](findings/F-G03-home-page-load-has-no-failure-path.md) | LOW | CONFIRMED | Home page `load()` handles only 401; a 500 leaves the page silently empty | XS |
-| [F-G04](findings/F-G04-adr-008-says-whole-yen-code-uses-hundredths.md) | LOW | CONFIRMED | ADR-008 says whole yen; code uses hundredths; board and notebook disagree on JPY decimals | XS |
-| [F-G05](findings/F-G05-profile-route-200-for-nonexistent-user.md) | LOW | CONFIRMED (live) | Profile route returns a plausible 200 for a nonexistent user | XS |
+| [F-G04](findings/F-G04-adr-008-says-whole-yen-code-uses-hundredths.md) | LOW | CONFIRMED (partly in ADR-008:74-78) | ADR-008 says whole yen; code uses hundredths; board and notebook disagree on JPY decimals | XS |
+| [F-G05](findings/F-G05-profile-route-200-for-nonexistent-user.md) | LOW | DOWNGRADED | Profile 200 for unknown user is documented intent; dead branch + fabricated-looking name remain | XS |
 | [F-G06](findings/F-G06-analytics-mount-unconditionally-off-vercel.md) | LOW | CONFIRMED (walk) | Analytics/SpeedInsights mount off-Vercel → 2 console errors on every page; hides real errors | XS |
 | [F-C05](findings/F-C05-superseded-by-F-B09.md) | — | superseded | Folded into F-B09 | — |
 | F-F01 | — | = F-E01 | Same finding from the simplification angle | — |
@@ -155,7 +155,7 @@ Fix size: XS < 30 lines · S one PR, one afternoon · M own PR with a contracts 
 
 ## Executive summary — the ten things to act on first
 
-Verification notes: every one of these was traced by the finding agent and re-traced by an independent verifier. Every stream had between one and four cites pointing at wrong lines in its first draft; all are corrected in `findings/`. Nothing in this list is a guess.
+Verification notes: every one of these was traced by the finding agent and re-traced by an independent verifier (F-G01 was reproduced live by both). Every stream had between one and four cites pointing at wrong lines in its first draft; all are corrected in `findings/`. Nothing in this list is a guess.
 
 1. **Notebook writes bypass the AST's own safety rules (F-B09, F-B01).** The pages routes store the *parsed* document, so a node from a newer client is permanently reclassified as `unknown` — the rolling-deploy case ADR-038 decision 3 was designed for, defeated on the server. The same write path accepts any widget name and params, so the `attribute` allow-list is a browser convention. One insertion point fixes both: parse → registry check → `serializePageDoc(migratePageDoc(...))` → store. Half a day.
 2. **Bearer tokens land in Sentry on every request (F-A07).** Share and invite tokens are the whole secret (ADR-026/027). The Referer side is hardened; the telemetry side has no `beforeSend` at all, and tracing samples at 100%. One `scrubUrl` in `sentry.shared.ts`.
@@ -213,7 +213,7 @@ The `/ask` request flow is mapped step by step in the stream report (13 steps, o
 
 ### G — Broken functionality (lanes + hunt)
 
-**Every lane is green** on this tree: `pnpm typecheck`, `pnpm lint` (all five walls), `pnpm test` (fail 0), `pnpm test:int` (40 files, 450 tests), `pnpm seed:verify` (18), `pnpm --filter web test:e2e:ci-like` (89 passed, 2.1 min, teardown 63/63), `drizzle-kit check`. A 17-path browser walk against a local production build (desktop and phone; notebook editing with a `/cost` slash insert, invite accept, share view, playbooks) produced no `pageerror` and no app-originated console error. The only console noise was F-G06's two 404s per page and a `POST /monitoring` 403 that is the sandbox proxy refusing the Sentry tunnel host, not the app. The hunt then went where the lanes do not: **F-G01** is a live, stable 500 on any mistyped id in ~12 routes (no route param is ever validated as a UUID before it hits a uuid column); **F-G02** is the seed pipeline's wrong-venue fix never having been applied to the request path. **Verified sound:** every route awaits `params` under Next 16; `history/[seq]` range-guards; domain reducers are exhaustive by return type and never mutate input; `packages/pages` resolvers handle empty trip, no dates, deleted day, stale tag/kind as designed; no local/UTC date mixing found; money formatting is sign- and zero-aware; no `onClick` on non-interactive elements and every icon button carries a label; list keys are stable where state exists. **One lead worth a KI:** `MaxListenersExceededWarning: 11 close listeners added to [ServerResponse]` appears 299 times in the green e2e lane's server output and reproduces only under browser page loads (suspect Sentry 10 + Next 16 request instrumentation); no stack captured yet.
+**Every lane is green** on this tree: `pnpm typecheck`, `pnpm lint` (all five walls), `pnpm test` (fail 0), `pnpm test:int` (40 files, 450 tests), `pnpm seed:verify` (18), `pnpm --filter web test:e2e:ci-like` (89 passed, 2.1 min, teardown 63/63), `drizzle-kit check`. A 17-path browser walk against a local production build (desktop and phone; notebook editing with a `/cost` slash insert, invite accept, share view, playbooks) produced no `pageerror` and no app-originated console error. The only console noise was F-G06's two 404s per page and a `POST /monitoring` 403 that is the sandbox proxy refusing the Sentry tunnel host, not the app. The hunt then went where the lanes do not: **F-G01** is a live, stable 500 on any mistyped id in ~12 routes (no route param is ever validated as a UUID before it hits a uuid column — reproduced three times by two agents); **F-G02** is the seed pipeline's wrong-venue predicate never having been wired into the request path (KI-015's fix path). The verifier downgraded G04 (ADR-008 already concedes the 2-decimal display), G05 (the 200 for an unknown user is documented anti-enumeration intent) and G06 (noise only). **Verified sound:** every route awaits `params` under Next 16; `history/[seq]` range-guards; domain reducers are exhaustive by return type and never mutate input; `packages/pages` resolvers handle empty trip, no dates, deleted day, stale tag/kind as designed; no local/UTC date mixing found; money formatting is sign- and zero-aware; no `onClick` on non-interactive elements and every icon button carries a label; list keys are stable where state exists. **One lead worth a KI:** `MaxListenersExceededWarning: 11 close listeners added to [ServerResponse]` appears 299 times in the green e2e lane's server output and reproduces only under browser page loads (suspect Sentry 10 + Next 16 request instrumentation); no stack captured yet.
 
 ## Leads for a human with platform access
 
