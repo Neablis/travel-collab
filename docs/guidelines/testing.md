@@ -62,8 +62,28 @@ the floor, never guess it** — set it near half the observed minimum. A guessed
 floor either flaps or is too low to catch anything; both have happened here.
 
 There is no `witness` for an example-based test. Red-first is its equivalent,
-and it is manual. When the logic branches too many ways for "delete the fix" to
-mean one thing, reach for `pnpm mutate <paths>` instead.
+and `pnpm redfirst` runs the drill as one command:
+
+```
+pnpm redfirst --file packages/pages/src/select.ts \
+  --replace 'filters.day === undefined' --with 'false' \
+  --test 'pnpm --filter @tc/pages exec vitest run src/select.test.ts'
+```
+
+It runs the command green first (a mutation "proven" against an already-red
+test proves nothing), applies exactly one replacement, runs it again, and
+restores the file in a `finally` plus signal handlers — the step that gets
+skipped by hand, leaving a mutated tree. Exit 0 means the test bit, and it
+prints the failure text the PR template asks you to paste. Exit 1 is SURVIVED.
+
+**A survived mutant is more often badly aimed than a weak test.** On PR #141,
+three of four survivors were pointed at the wrong constant — widening
+`LEGAL_FILTERS.day` left an assertion green because the primitive declares its
+own filter list and the matrix is only its ceiling. Re-aim before concluding.
+
+When the logic branches too many ways for "delete the fix" to mean one thing,
+reach for `pnpm mutate <paths>` instead — that is Stryker, exhaustive over a
+file, and answers a different question.
 
 ## 4. What the walls already enforce
 
