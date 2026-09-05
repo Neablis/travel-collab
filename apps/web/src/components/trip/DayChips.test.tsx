@@ -281,6 +281,27 @@ describe("DayChips", () => {
     expect(first!.textContent).not.toContain("×");
   });
 
+  // Mitchell, on the PR #143 preview from a Pixel 10: "Remove the 'Remove day'
+  // button on the demo trip (or any read only trip)". There is no remove-day
+  // button on that screen — this × is what he was looking at, and on a trip you
+  // cannot edit it reads as "delete this day" whatever it actually does.
+  //
+  // Both halves asserted, because dropping the affordance must not drop the
+  // FUNCTION: the whole chip is the toggle, so a viewer can still deselect. A
+  // fix that hid the × by disabling the chip would satisfy the first assertion
+  // and break the second.
+  it("drops the clear × on a read-only trip, but still lets a viewer deselect", async () => {
+    const onSelect = vi.fn();
+    render(<DayChips days={days} focusedDay={1} onSelect={onSelect} readOnly />);
+
+    const [, second] = screen.getAllByRole("button");
+    expect(second!.getAttribute("aria-pressed")).toBe("true");
+    expect(second!.textContent).not.toContain("×");
+
+    await userEvent.click(second!);
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
   it("always renders the transition slot element, even when there is no transition", () => {
     render(<DayChips days={days} focusedDay={null} onSelect={() => {}} />);
     const slots = screen.getAllByTestId("day-chip-transition");

@@ -812,6 +812,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 // than handed to it — which is what lets its own scroll spy be
                 // held off a pick it cannot centre. See `jumpTo`.
                 onSelect={(index) => setFocusedDay(index, "chips")}
+                readOnly={readOnly}
                 sync={chipsSync}
               />
             )}
