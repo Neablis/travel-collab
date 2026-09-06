@@ -195,13 +195,78 @@ class Transient(Exception):
     pass
 
 
+class KeyRing:
+    """The API keys available, used ONE AT A TIME until each is spent.
+
+    **Sequential failover, not round-robin, and the difference is the point.**
+    Spreading requests across keys to exceed a provider's per-second rate limit
+    is circumventing it; using your second key after the first has hit its DAILY
+    cap is just using what you have. So this hands out one key, keeps using it,
+    and only moves on when that key reports it is done for the day. The interval
+    between requests never changes, whatever number of keys is loaded.
+
+    Reads `LOCATIONIQ_API_KEY` and then `LOCATIONIQ_API_KEY_1`, `_2`, ... in
+    order, so adding one is an env var and no code.
+
+    For the record: at 1,344 places against LocationIQ's free tier (5,000/day,
+    2/second) a SINGLE key finishes the whole queue in about eleven minutes with
+    3,600 requests to spare. This exists for the day the content grows, or for
+    somebody holding a personal key and a paid one — not because the job needs it.
+    """
+
+    def __init__(self, keys: list[str]):
+        self.keys = [k for k in keys if k]
+        self.i = 0
+        self.spent: set[int] = set()
+        self.used: dict[int, int] = {}
+
+    def __bool__(self) -> bool:
+        return bool(self.keys)
+
+    @property
+    def current(self) -> str | None:
+        if not self.keys or len(self.spent) >= len(self.keys):
+            return None
+        while self.i in self.spent:
+            self.i = (self.i + 1) % len(self.keys)
+        return self.keys[self.i]
+
+    def count(self) -> None:
+        self.used[self.i] = self.used.get(self.i, 0) + 1
+
+    def retire(self, why: str) -> bool:
+        """This key is done for the day. Returns True if another is available."""
+        self.spent.add(self.i)
+        left = len(self.keys) - len(self.spent)
+        print(f"  · key {self.i + 1}/{len(self.keys)} retired ({why}) — "
+              f"{left} key(s) left", flush=True)
+        if not left:
+            return False
+        self.i = (self.i + 1) % len(self.keys)
+        return True
+
+    def summary(self) -> str:
+        if not self.keys:
+            return "no key"
+        parts = [f"key {i + 1}: {self.used.get(i, 0)}" for i in range(len(self.keys))]
+        return " · ".join(parts)
+
+
+class DailyCapReached(Exception):
+    """The provider says this key is out of requests for the day."""
+
+
 @dataclass
 class Provider:
     name: str
     url: str
-    key: str | None
+    keys: "KeyRing"
     min_interval: float
     user_agent: str
+
+    @property
+    def key(self) -> str | None:
+        return self.keys.current
 
     def request_url(self, query: str) -> str:
         params = {
@@ -213,8 +278,9 @@ class Provider:
             # is how a place is SPELLED IN STORAGE, not how one reader sees it.
             "accept-language": "en",
         }
-        if self.key:
-            params["key"] = self.key
+        key = self.key
+        if key:
+            params["key"] = key
         return f"{self.url}?{urllib.parse.urlencode(params)}"
 
     def lookup(self, query: str) -> dict | None:
@@ -225,8 +291,20 @@ class Provider:
         try:
             with urllib.request.urlopen(req, timeout=30) as res:
                 rows = json.loads(res.read().decode("utf-8"))
+            self.keys.count()
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
+                # LocationIQ answers 429 for BOTH "too fast" and "out for the
+                # day", and they need opposite responses: back off, or switch
+                # keys. The body is what tells them apart — "Rate Limited Second"
+                # versus a daily/minute quota message.
+                body = ""
+                try:
+                    body = exc.read().decode("utf-8", "replace")[:300].lower()
+                except Exception:
+                    pass
+                if "day" in body or "quota" in body or "exceeded your daily" in body:
+                    raise DailyCapReached(body.strip() or "daily quota")
                 retry_after = exc.headers.get("Retry-After")
                 raise RateLimited(float(retry_after) if retry_after and retry_after.isdigit() else None)
             if exc.code == 404:
@@ -248,8 +326,20 @@ class Provider:
         return rows[0]
 
 
+def api_keys(args) -> KeyRing:
+    """`--key`, then LOCATIONIQ_API_KEY, then LOCATIONIQ_API_KEY_1, _2, ... ."""
+    keys: list[str] = []
+    if args.key:
+        keys.append(args.key.strip())
+    for name in ["LOCATIONIQ_API_KEY"] + [f"LOCATIONIQ_API_KEY_{n}" for n in range(1, 10)]:
+        value = (os.environ.get(name) or "").strip()
+        if value and value not in keys:
+            keys.append(value)
+    return KeyRing(keys)
+
+
 def build_provider(args) -> Provider:
-    key = args.key or os.environ.get("LOCATIONIQ_API_KEY") or ""
+    ring = api_keys(args)
     if args.url:
         # A self-hosted Nominatim, which is the honest answer for 1,300+ places:
         # no rate limit you have to respect out of courtesy, no daily cap, and
@@ -258,15 +348,15 @@ def build_provider(args) -> Provider:
         return Provider(
             name="custom",
             url=args.url,
-            key=key or None,
+            keys=ring,
             min_interval=args.interval if args.interval is not None else 0.0,
             user_agent="travel-collab-content-geocoder/1.0",
         )
-    if key:
+    if ring:
         return Provider(
-            name="locationiq",
+            name=f"locationiq ({len(ring.keys)} key{'s' if len(ring.keys) > 1 else ''})",
             url="https://us1.locationiq.com/v1/search",
-            key=key,
+            keys=ring,
             # The free tier is 2 requests/second and 5,000/day. One per second
             # leaves headroom and is what the Japan pass used.
             min_interval=args.interval if args.interval is not None else 1.0,
@@ -275,7 +365,7 @@ def build_provider(args) -> Provider:
     return Provider(
         name="nominatim",
         url="https://nominatim.openstreetmap.org/search",
-        key=None,
+        keys=ring,
         # Nominatim's usage policy is an ABSOLUTE maximum of 1 request/second
         # and a real User-Agent identifying the application. Going faster gets
         # the IP blocked, not throttled. Do not lower this.
@@ -397,6 +487,9 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     done_all = db.execute("select count(*) from places where status not in ('pending','failed')").fetchone()[0]
     grand = db.execute("select count(*) from places").fetchone()[0]
     print(f"  provider {provider.name} at {provider.min_interval:.2f}s between requests")
+    if len(provider.keys.keys) > 1:
+        print("  keys are used one at a time, in order — a second key is a second DAY's "
+              "quota, never a faster rate")
     print(f"  {len(todo)} this run · {total_remaining} outstanding · {grand} places total\n")
 
     started = time.monotonic()
@@ -423,6 +516,15 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
                     status, lat, lng = "ok", float(row["lat"]), float(row["lon"])
                 else:
                     status, err = "rejected", reason
+        except DailyCapReached as exc:
+            # Not a backoff: waiting will not help until midnight. Move to the
+            # next key if there is one, and otherwise stop cleanly so the next
+            # run picks up here tomorrow.
+            if not provider.keys.retire(str(exc)[:60]):
+                print("\n  every key is out of requests for the day. "
+                      "Re-run tomorrow — the queue resumes where it stopped.")
+                break
+            continue
         except RateLimited as exc:
             wait = exc.retry_after or min(backoff * 2, args.max_backoff)
             backoff = min(max(wait, provider.min_interval * 2), args.max_backoff)
@@ -468,6 +570,8 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
         # else is hitting the same endpoint.
         time.sleep(backoff + random.uniform(0, 0.25))
 
+    if len(provider.keys.keys) > 1:
+        print(f"  requests per key — {provider.keys.summary()}")
     print()
     report(db)
 
@@ -578,7 +682,9 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="with --apply, report without writing")
     ap.add_argument("--retry-failed", action="store_true", help="reset failed rows so the next run retries them")
     ap.add_argument("--redo", action="store_true", help="reset EVERYTHING, including answers already paid for")
-    ap.add_argument("--key", help="LocationIQ API key (else $LOCATIONIQ_API_KEY, else Nominatim)")
+    ap.add_argument("--key", help="a LocationIQ key; also reads $LOCATIONIQ_API_KEY and "
+                                  "$LOCATIONIQ_API_KEY_1..9, used one at a time as each "
+                                  "hits its daily cap")
     ap.add_argument("--url", help="search endpoint to use instead (e.g. a self-hosted Nominatim)")
     ap.add_argument("--interval", type=float, help="seconds between requests (default: per provider)")
     ap.add_argument("--max-requests", type=int, help="stop after this many lookups this run")

@@ -7,35 +7,40 @@
     "origin": "ai",
     "generatedAt": "2026-09-06",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening seasons, closure days, booking and permit rules, shuttle schedules) were checked against the official sources listed below for 8 of 8 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
       "https://parks.ny.gov/visit/state-parks/watkins-glen-state-park",
       "https://www.explorewatkinsglen.com/watkins-glen-state-park/",
-      "https://syr-area.com/watkins-glen-state-park-guide.html",
       "https://parks.ny.gov/visit/state-parks/taughannock-falls-state-park",
       "https://parks.ny.gov/visit/state-parks/buttermilk-falls-state-park",
-      "https://www.gofingerlakes.org/locations/cascadilla-gorge-trail/",
+      "https://ithacatrails.org/experience/cascadilla-gorge-trail/",
       "https://ithacamarket.com/",
-      "https://www.moosewoodrestaurant.com/",
-      "https://senecalakewine.com/",
-      "https://senecalakewine.com/explore-our-wineries/main-street-drivers/slwt-associate-advertiser/",
-      "https://www.fingerlakesdesignateddrivers.com/",
-      "https://www.forgecellars.com/tastings",
+      "https://www.moosewoodrestaurant.com/reservations",
+      "https://www.forgecellars.com/visit",
       "https://www.forgecellars.com/salon",
-      "https://www.drfrankwines.com/visit-us/",
+      "https://boundarybreaks.com/tasting-room/",
+      "https://www.drfrankwines.com/finger-lakes-winery-tasting/",
+      "https://glennhcurtissmuseum.org/visit/",
+      "https://www.midlakesnavigation.com/",
+      "https://www.opentable.com/krebs-1899",
       "https://www.fingerlakesciderhouse.com/pages/hours",
-      "https://www.fingerlakescidertrail.com/pages/cideries",
-      "https://www.visitithaca.com/food-drink/cideries/",
+      "https://www.southhillcider.com/hours-and-information",
+      "https://www.blackdiamondcider.com/taste-and-visit/",
       "https://ithacabeer.com/",
-      "https://twogoatsbrewing.com/",
-      "https://www.midlakesnavigation.com/sightseeing",
-      "https://sailtruelove.com/public-day-sailing/",
+      "https://www.wiemer.com/visit-us/",
+      "https://www.exploretock.com/wiemer",
+      "https://sailtruelove.com/",
       "https://flxtable.com/",
-      "https://www.lakeplacid.com/hiking/cascade-mountain",
+      "https://www.exploretock.com/flxtable/",
       "https://www.lakeplacid.com/notice-to-hikers",
+      "https://www.adirondackexplorer.org/recreation/cascade-trailhead-closed-shuttle-information/",
+      "https://northelba.villageoflakeplacid.ny.gov/departments/park_/tobaggan_chute.php",
+      "https://lakeplacidolympiccenter.com/skating/",
+      "https://www.diaart.org/visit/visit-our-locations-sites/dia-beacon-beacon-united-states",
       "https://diaart.org/visit/tickets",
-      "https://stormking.org/plan-your-visit/",
-      "https://www.fingerlakes.org/blog/forecasting-fall-foliage-peak-reliable-sources",
-      "https://parks.ny.gov/visit/state-parks/letchworth-state-park"
+      "https://stormking.org/visit/",
+      "https://stormking.org/tickets/",
+      "https://beaconny.gov/index.php/departments/public-transportation/",
+      "https://destinationdutchess.com/listingsv/city-of-beacon-free-loop-bus"
     ]
   },
   "trips": [],
@@ -157,7 +162,7 @@
             "area": "Seneca Lake"
           },
           "kind": "planned",
-          "notes": "East side, Route 414: this is the side with the dry Rieslings and the serious Pinot Noir, and it faces the afternoon sun across the water. The Salon flight is five wines for $23 with no reservation, which is why it fits an afternoon. The $40 guided version — six wines, the cellar, an hour and a half on glacial geology — only runs Thursday, Friday and Saturday at 11:00, so if you want that one, this day starts with wine and ends with the gorge instead.",
+          "notes": "East side, Route 414: this is the side with the dry Rieslings and the serious Pinot Noir, and it faces the afternoon sun across the water. The Salon flight is five wines for $23 with no reservation, which is why it fits an afternoon. The deeper guided tasting is a separate thing in the Summer House and is reservation-only, so if you want that one, book it and start the day with wine and end with the gorge instead. Verified 2026-09-06 (forgecellars.com/visit, /salon, /tastings): open Friday and Saturday 11:30–18:30 and Sunday 12:00–17:00, closed Monday through Thursday — so this entire Route 414 afternoon only exists on a Friday, Saturday or Sunday. The Salon needs no reservation; the Summer House tastings do (twelve seats, arranged by email). Tasting prices were not re-verified.",
           "cost": {
             "amountMinor": 2300,
             "currency": "USD"
@@ -174,8 +179,8 @@
             "city": "Lodi",
             "area": "Seneca Lake"
           },
-          "kind": "booked",
-          "notes": "A house that makes Riesling in a dozen dryness levels and almost nothing else, which makes it the one tasting where you actually learn something instead of drifting through six varieties. Ask them to pour the dry #239 against a late-harvest so you can feel the range. Reserve if you are six or more — the deck is small and groups get turned away on foliage weekends. Tasting fees around Seneca are typically waived on a bottle purchase of roughly $30 or more; ask before you pay.",
+          "kind": "planned",
+          "notes": "A house that makes Riesling in a dozen dryness levels and almost nothing else, which makes it the one tasting where you actually learn something instead of drifting through six varieties. Ask them to pour the dry #239 against a late-harvest so you can feel the range. Verified 2026-09-06 (boundarybreaks.com/tasting-room): open seven days a week year-round 11:00–17:00, closing only New Year’s Day, Thanksgiving and Christmas — and they take no reservations at all. Tastings are first come, first served, with a maximum party size of six, so a group of seven or more cannot be booked around; split it or go elsewhere. This stop’s kind was changed from booked to planned on that basis. Tasting fees around Seneca are typically waived on a bottle purchase of roughly $30 or more; ask before you pay.",
           "cost": {
             "amountMinor": 2000,
             "currency": "USD"
@@ -256,7 +261,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "The gorge trail is three quarters of a mile, flat, and ends at a 215-foot plunge with 400-foot walls around it — taller than Niagara and nobody is there at 08:30. That flatness is the point: it is the one waterfall in the region a stroller or a bad knee can reach. If you want a walk rather than a look, the North and South Rim trails loop about three miles and cross above the falls. The $10 is per vehicle and only collected in season; the overlook lot further up Route 89 is free and gives you the postcard in thirty seconds if that is all you came for.",
+          "notes": "The gorge trail is three quarters of a mile, flat, and ends at a 215-foot plunge with 400-foot walls around it — taller than Niagara and nobody is there at 08:30. That flatness is the point: it is the one waterfall in the region a stroller or a bad knee can reach. If you want a walk rather than a look, the North and South Rim trails loop about three miles and cross above the falls. The $10 is per vehicle and only collected in season; the overlook lot further up Route 89 is free and gives you the postcard in thirty seconds if that is all you came for. Verified 2026-09-06: parks.ny.gov and local reporting have the park’s trails open for the 2026 season — the gorge trail closed only 2–5 June 2026 for maintenance — but it still shuts on short notice for ice and rockfall, so ring the park the morning you go rather than trusting this line.",
           "cost": {
             "amountMinor": 1000,
             "currency": "USD"
@@ -291,7 +296,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Weekends only, and people get this wrong constantly: Saturdays 09:00–15:00 April through December, Sundays 10:00–15:00 May through November, nothing midweek at this site. Build the day around it or miss it entirely. Eat here rather than downtown — the pavilion is a food court of a dozen cuisines over the water. And seven cider producers rotate under the pavilion every weekend May to December, including Redbyrd Orchard, which has no tasting room of its own anywhere, so this is the only place to drink it. Lot fills by 10:30; the free TCAT route from downtown is easier.",
+          "notes": "Weekends, and people get this wrong constantly. Verified 2026-09-06 (ithacamarket.com): Saturdays 09:00–15:00 April through October, then 10:00–14:00 on Saturdays in November and December; Sundays 10:00–15:00 May through October and 10:00–14:00 in November. The 2026 season opened Saturday 4 April. Nothing midweek at this site — the old note’s “April through December” Saturday hours were an hour long at each end in the winter months. Build the day around it or miss it entirely. Eat here rather than downtown — the pavilion is a food court of a dozen cuisines over the water. And seven cider producers rotate under the pavilion every weekend May to December, including Redbyrd Orchard, which has no tasting room of its own anywhere, so this is the only place to drink it. Lot fills by 10:30; the free TCAT route from downtown is easier.",
           "cost": {
             "amountMinor": 2200,
             "currency": "USD"
@@ -312,7 +317,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Ten cascades in about three quarters of a mile of climbing, then the rim trail back down as a loop. Hold rather than planned because the swimming hole at the base is closed whenever the water-quality test comes back wrong, which is several weeks a summer, and the gorge trail itself shuts in winter. Second $10 vehicle fee of the day — an Empire Pass is $80 and pays for itself in eight park days, which this region hands you in one long weekend.",
+          "notes": "Ten cascades in about three quarters of a mile of climbing, then the rim trail back down as a loop. Hold rather than planned because the swimming hole at the base is closed whenever the water-quality test comes back wrong, which is several weeks a summer, and the gorge trail itself shuts in winter. Second $10 vehicle fee of the day — an Empire Pass is $80 and pays for itself in eight park days, which this region hands you in one long weekend. Verified 2026-09-06 (parks.ny.gov): the gorge trail is open early May to early November and closed November through April, and the vehicle fee is collected April through November. The 2026 swim season opened 3 July, Friday to Monday 11:00–19:00 when lifeguard staffing allowed, and has since been closed for the year on water-quality results — treat the swimming hole as gone for 2026, not as a maybe.",
           "cost": {
             "amountMinor": 1000,
             "currency": "USD"
@@ -329,11 +334,11 @@
             "city": "Ithaca",
             "area": "Cornell and Collegetown"
           },
-          "kind": "planned",
+          "kind": "hold",
           "tags": [
             "outdoors"
           ],
-          "notes": "Free, and the best half hour in the city: it climbs 400 feet through six waterfalls from downtown to the back of Cornell's Schwartz Center, so you arrive on campus instead of parking on it. Closed every winter, and sections close for repair for a year at a time — check it is open before you plan the walk up rather than the drive.",
+          "notes": "Free, and the best half hour in the city: it climbs 400 feet through six waterfalls from downtown to the back of Cornell's Schwartz Center, so you arrive on campus instead of parking on it. Closed every winter, and sections close for repair for a year at a time — check it is open before you plan the walk up rather than the drive. Verified 2026-09-06: the trail’s posted status has the upper section between Stewart Avenue and College Avenue closed for construction with reopening announced for spring 2026, while Linn Street up to the Stewart Avenue bridge is open. That upper stretch is exactly the part that delivers you to the Schwartz Center, so this is now a hold rather than a plan: confirm the full trail is open, or treat it as an out-and-back from Treman Triangle and reach campus another way.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -395,7 +400,7 @@
         {
           "title": "Dr. Konstantin Frank, on the west bluff",
           "timeWindow": {
-            "start": "09:45",
+            "start": "10:00",
             "end": "11:00"
           },
           "location": {
@@ -404,7 +409,7 @@
             "area": "Keuka Lake"
           },
           "kind": "booked",
-          "notes": "Start here and start early — this is where Frank proved in the 1960s that European vinifera would survive an upstate winter, and every dry Riesling in this file descends from that argument. The standard tasting is $25; reservations are recommended and genuinely needed after noon, though a 09:45 walk-in is usually fine. From June to October the 1886 Food and Wine Experience is $35 on the terrace and buys you the best view on the lake with your wine, which is the version to take. Ask for the Rkatsiteli — nobody else in the country grows it seriously.",
+          "notes": "Start here and start early — this is where Frank proved in the 1960s that European vinifera would survive an upstate winter, and every dry Riesling in this file descends from that argument. Verified 2026-09-06 (drfrankwines.com): open daily 10:00–17:00 with the last tasting at 16:00 — the 09:45 start this day used to carry was before the doors opened, so the stop now begins at 10:00. Reservations are recommended and genuinely needed after noon; standard parties are capped at six and groups of twelve or more must reserve. The $25 tasting price was not re-verified. From June to October the 1886 Food and Wine Experience is $35 on the terrace and buys you the best view on the lake with your wine, which is the version to take. Ask for the Rkatsiteli — nobody else in the country grows it seriously. The June-to-October 1886 Food and Wine Experience and its $35 price could not be confirmed on the winery’s current pages this pass — check it still exists before building the terrace hour around it.",
           "cost": {
             "amountMinor": 2500,
             "currency": "USD"
@@ -422,7 +427,7 @@
             "area": "Keuka Lake"
           },
           "kind": "idea",
-          "notes": "Hammondsport built the first American aircraft sold commercially, and the museum has the motorcycles and flying boats to prove it. Forty-five minutes is honest; two hours if anyone in the car likes engines. Skip it without guilt if the weather is good — the lake is the reason you came.",
+          "notes": "Hammondsport built the first American aircraft sold commercially, and the museum has the motorcycles and flying boats to prove it. Forty-five minutes is honest; two hours if anyone in the car likes engines. Skip it without guilt if the weather is good — the lake is the reason you came. Verified 2026-09-06 (glennhcurtissmuseum.org/visit): open seven days a week, 09:00–17:00 from 1 May to 31 October and 10:00–16:00 from 1 November to 30 April — no closure day to work around.",
           "cost": {
             "amountMinor": 1350,
             "currency": "USD"
@@ -663,7 +668,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "The Barbara S. Wiles is one of the last boats in the country still delivering actual US Mail, to camps with no road access, and the delivery is the entertainment — a teenager hangs off the rail and hands mail across a moving gap forty times. It runs July 1 to the Tuesday after Labor Day only, so this day does not exist in June. Three hours; if that is too much boat, the one-hour sightseeing cruise is $27 adult and $17 child. Sit port side outbound for the shade and the shoreline. Book ahead in August.",
+          "notes": "The Barbara S. Wiles is one of the last boats in the country still delivering actual US Mail, to camps with no road access, and the delivery is the entertainment — a teenager hangs off the rail and hands mail across a moving gap forty times. It runs July 1 to the Tuesday after Labor Day only, so this day does not exist in June. Three hours; if that is too much boat, the one-hour sightseeing cruise is $27 adult and $17 child. Sit port side outbound for the shade and the shoreline. Book ahead in August. Verified 2026-09-06 (midlakesnavigation.com, Visit Syracuse): mail delivery runs 1 July to the Tuesday after Labor Day, and the wider cruise season is roughly mid-May through Columbus Day, so the June warning holds. The 13:30 departure in this day is NOT verified — Mid-Lakes sets sailing times per season, so confirm the time when you book on 315-685-8500 and expect the rest of the afternoon to move with it.",
           "cost": {
             "amountMinor": 3900,
             "currency": "USD"
@@ -716,7 +721,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Open since 1899 and the most expensive thing in this day by a factor of three — worth it once, and the reason this day still lands under $150. Reserve; the upstairs bar takes walk-ins and does a shorter menu if you did not.",
+          "notes": "Open since 1899 and the most expensive thing in this day by a factor of three — worth it once, and the reason this day still lands under $150. Reserve; the upstairs bar takes walk-ins and does a shorter menu if you did not. Verified 2026-09-06: the Krebs runs a season from late May to about 1 November and serves dinner Wednesday to Saturday 17:00–22:00 only — Sunday is an 11:00–15:00 brunch with no dinner service, and it is shut Monday and Tuesday. Since the mailboat only delivers 1 July to the Tuesday after Labor Day, the version of this day with both in it is a Wednesday, Thursday, Friday or Saturday in July or August; on a Sunday or Monday dinner has to move somewhere else in the village.",
           "cost": {
             "amountMinor": 6500,
             "currency": "USD"
@@ -800,7 +805,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "The single best introduction to New York cider, because it pours other people's as well as its own. The catch that ruins people's Tuesdays: in January and February it is Friday to Monday only — seven days a week the rest of the year, but not now. Get a flight and lunch together; the kitchen is farm-to-table off the land outside the window and the pairing is the point. The Funkhouse is the one to try first.",
+          "notes": "The single best introduction to New York cider, because it pours other people's as well as its own. The catch that ruins people's Tuesdays: in January and February it is Friday to Monday only — seven days a week the rest of the year, but not now. Get a flight and lunch together; the kitchen is farm-to-table off the land outside the window and the pairing is the point. The Funkhouse is the one to try first. Verified 2026-09-06 (fingerlakesciderhouse.com/pages/hours): seven days a week March through December, Friday to Monday only in January and February, with flights and pours 11:00–16:45. Taken together with the two stops below, the deep-winter version of this day only works on a Friday or a Saturday.",
           "cost": {
             "amountMinor": 3200,
             "currency": "USD"
@@ -832,7 +837,7 @@
             "area": "South Hill"
           },
           "kind": "planned",
-          "notes": "Steve Selin makes cider from wild and abandoned apple trees he found around the county, and if you ask he will tell you which roadside the fruit came from. Open Thursday, Friday, Saturday and Monday 12:00–21:00 and Sunday 12:00–19:00 — closed Tuesday and Wednesday, which catches out everyone who assumes a tasting room keeps normal hours.",
+          "notes": "Steve Selin makes cider from wild and abandoned apple trees he found around the county, and if you ask he will tell you which roadside the fruit came from. Verified 2026-09-06 (southhillcider.com/hours-and-information): open Thursday through Monday and closed Tuesday and Wednesday — roughly midday to 19:00, with later closes on Friday and Saturday, not the 21:00 four-day week this note used to claim. Check the exact close before you make this a late stop.",
           "cost": {
             "amountMinor": 1800,
             "currency": "USD"
@@ -845,12 +850,12 @@
             "end": "16:30"
           },
           "location": {
-            "name": "Black Diamond Cider, 2477 Trumbulls Corners Rd",
-            "city": "Newfield",
+            "name": "Black Diamond Farm & Cider, 4675 Seneca Rd",
+            "city": "Trumansburg",
             "area": "Cayuga Lake"
           },
           "kind": "idea",
-          "notes": "Ian Merwin spent a career on tree fruit at Cornell before planting this orchard, so the cider is an argument about varieties. Wednesday to Sunday 13:00–17:00 and by appointment — a short window and a twenty-minute drive out of town, so this is the stop to drop if the afternoon slipped. Growler fills if you liked it.",
+          "notes": "Ian Merwin spent a career on tree fruit at Cornell before planting this orchard, so the cider is an argument about varieties. Verified 2026-09-06 (blackdiamondcider.com/taste-and-visit): the cider shack is at 4675 Seneca Road in Trumansburg, about twenty minutes north of Ithaca — not the Newfield address this stop used to carry — and it opens seasonally May through November, Wednesday to Sunday 13:00–17:00, with appointments needed for groups of six or more. That means it is shut for the deep-winter framing of this day: in January or February drop it and give the hour back to the Cider House or to the taproom below. Come May to November and it is worth the detour; growler fills if you liked it.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
@@ -871,7 +876,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "End on beer rather than a fourth cider — Flower Power has been the region's IPA since 1997 and the kitchen is considerably better than a brewery kitchen needs to be. Winter hours are shorter than the website's summer ones suggest, so check before driving out; the beer garden that makes this place in July is a field of snow in February and the taproom is where everyone is.",
+          "notes": "End on beer rather than a fourth cider — Flower Power has been the region's IPA since 1997 and the kitchen is considerably better than a brewery kitchen needs to be. Winter hours are shorter than the website's summer ones suggest, so check before driving out; the beer garden that makes this place in July is a field of snow in February and the taproom is where everyone is. Verified 2026-09-06 (ithacabeer.com): the taproom is closed Monday and Tuesday and opens Wednesday and Thursday 16:00–21:00, Friday and Saturday 12:00–21:00 and Sunday 12:00–18:00 — so this stop only runs its full hour and a quarter Wednesday to Saturday, and on a Sunday you are out at 18:00.",
           "cost": {
             "amountMinor": 2400,
             "currency": "USD"
@@ -907,8 +912,8 @@
         {
           "title": "Private vineyard walk and barrel tasting at Hermann J. Wiemer",
           "timeWindow": {
-            "start": "09:30",
-            "end": "11:30"
+            "start": "10:30",
+            "end": "12:00"
           },
           "location": {
             "name": "Hermann J. Wiemer Vineyard, 3962 Route 14",
@@ -916,7 +921,7 @@
             "area": "Seneca Lake"
           },
           "kind": "booked",
-          "notes": "West side, Route 14: the older estates, the deep-water bank that keeps the vines alive in January, and the Rieslings that get compared to the Mosel without embarrassment. The seated tasting is $15–25 and you can more or less walk in; this is the other thing — into the blocks with somebody who farms them, then thief samples out of barrel and tank. It has to be arranged weeks ahead, it costs about $125 a head, and during harvest they may simply refuse because everyone is on a picking line. Ask in August for an October date and take whatever morning they offer.",
+          "notes": "West side, Route 14: the older estates, the deep-water bank that keeps the vines alive in January, and the Rieslings that get compared to the Mosel without embarrassment. The seated tasting is $15–25 and you can more or less walk in; this is the other thing — into the blocks with somebody who farms them, then thief samples out of barrel and tank. It has to be arranged weeks ahead, it costs about $125 a head, and during harvest they may simply refuse because everyone is on a picking line. Ask in August for an October date and take whatever morning they offer. Verified 2026-09-06 (wiemer.com/visit-us, exploretock.com/wiemer): the tasting room opens 10:30 Monday to Saturday and 11:00 on Sunday and closes at 17:00, with the last guided tasting at 15:30 and preset flights until 16:30 — the 09:30 start this day used to carry was before opening, so it now begins at 10:30 and the rest of the morning shifts with it. Reservations run through Tock and are strongly recommended; walk-ins are taken when they are not full. The private vineyard-and-barrel walk and its ~$125 price could NOT be confirmed on those pages — ask for it by email rather than assuming it is a bookable product.",
           "cost": {
             "amountMinor": 12500,
             "currency": "USD"
@@ -925,8 +930,8 @@
         {
           "title": "Route 14 south to Watkins Glen",
           "timeWindow": {
-            "start": "11:45",
-            "end": "12:20"
+            "start": "12:05",
+            "end": "12:40"
           },
           "location": {
             "name": "Route 14 south",
@@ -939,7 +944,7 @@
         {
           "title": "Lunch at Graft before the boat",
           "timeWindow": {
-            "start": "12:30",
+            "start": "12:45",
             "end": "13:45"
           },
           "location": {
@@ -973,7 +978,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "A 1926 John Alden schooner that was in High Society, chartering out of the harbour. A private two-hour sail is $999–$1,199 for up to 22 people — which is ridiculous for a couple and about $50 a head for a group, so this is the stop that decides whether you bring people. If it is just two of you, take a public sail at roughly $75 each instead and spend the difference on dinner. Harvest weekends are gone by August. Bring more layers than you think; the wind on the water is a different day from the wind on shore.",
+          "notes": "A 1926 John Alden schooner that was in High Society, chartering out of the harbour. A private two-hour sail is $999–$1,199 for up to 22 people — which is ridiculous for a couple and about $50 a head for a group, so this is the stop that decides whether you bring people. If it is just two of you, take a public sail at roughly $75 each instead and spend the difference on dinner. Harvest weekends are gone by August. Bring more layers than you think; the wind on the water is a different day from the wind on shore. Verified 2026-09-06 (sailtruelove.com): the schooner sails from Memorial Day weekend to Columbus Day only, up to three departures a day. That kills the sail on the late-October peak-foliage day this is written as — either pull the trip forward to the first week of October, when there is colour and the boat is still running, or drop the sail entirely. Neither the charter nor the public-sail price was re-verified.",
           "cost": {
             "amountMinor": 99900,
             "currency": "USD"
@@ -996,8 +1001,8 @@
         {
           "title": "Check in at Geneva On The Lake",
           "timeWindow": {
-            "start": "17:20",
-            "end": "18:00"
+            "start": "17:15",
+            "end": "17:40"
           },
           "location": {
             "name": "Geneva On The Lake, 1001 Lochland Rd",
@@ -1008,7 +1013,7 @@
           "tags": [
             "lodging"
           ],
-          "notes": "A 1911 villa on ten acres with a formal garden running down toward the water. Mid-September to mid-October is the single peak of the year here — foliage and harvest land on the same weekends — and a room that is $220 in April is $400-plus now, usually with a two-night minimum. Book it in June. Walk the garden before dinner while there is still light; it is the whole reason to stay here rather than at a chain in town.",
+          "notes": "A 1911 villa on ten acres with a formal garden running down toward the water. Mid-September to mid-October is the single peak of the year here — foliage and harvest land on the same weekends — and a room that is $220 in April is $400-plus now, usually with a two-night minimum. Book it in June. Walk the garden before dinner while there is still light; it is the whole reason to stay here rather than at a chain in town. Verified 2026-09-06: none of the room rates here were re-checked. What changed is dinner — F.L.X. Table’s first seating is 17:45, so this is now a bag-drop, and the garden walk moves to after dinner while the bar is still pouring.",
           "cost": {
             "amountMinor": 42000,
             "currency": "USD"
@@ -1017,8 +1022,8 @@
         {
           "title": "F.L.X. Table — one table, one menu",
           "timeWindow": {
-            "start": "18:30",
-            "end": "21:30"
+            "start": "17:45",
+            "end": "20:00"
           },
           "location": {
             "name": "F.L.X. Table, 22 Linden St",
@@ -1030,17 +1035,17 @@
             "meal",
             "ticketed"
           ],
-          "notes": "Christopher Bates is a Master Sommelier who cooks, and the room is one long table of twelve — you will eat next to strangers, and that is the format, not an accident. Set menu, $85–$125 depending on the night, with pairings tiered from about +$49 zero-proof to +$179 for the rare-wine flight. Reservations open online and weekends go two to four weeks out; October goes further. Tell them about allergies when you book, because there is no second menu to fall back on.",
+          "notes": "Christopher Bates is a Master Sommelier who cooks, and the room is one long table — you will eat next to strangers, and that is the format, not an accident. Verified 2026-09-06 (flxtable.com, exploretock.com/flxtable): reservation-only and prepaid through Tock, fourteen seats at a single table, two seatings a night at 17:45 and 20:15, open Monday and Thursday to Sunday and closed Tuesday and Wednesday. Bookings are released two months ahead (June 2026 went on sale 1 April), and the price now starts around $250 a head for parties of two to six — not the $85–$125 this note used to claim, and the cost on this stop has been raised to match. This day takes the 17:45 seating, which is why check-in above moved earlier. Tell them about allergies when you book, because there is no second menu to fall back on.",
           "cost": {
-            "amountMinor": 12500,
+            "amountMinor": 25000,
             "currency": "USD"
           }
         },
         {
           "title": "The lawn at the villa, afterwards",
           "timeWindow": {
-            "start": "21:45",
-            "end": "22:30"
+            "start": "20:15",
+            "end": "21:15"
           },
           "location": {
             "name": "Geneva On The Lake garden lawn, 1001 Lochland Rd",
@@ -1105,7 +1110,7 @@
             "area": "Adirondack High Peaks"
           },
           "kind": "transit",
-          "notes": "Roadside parking on 73 at the trailhead has been squeezed hard — use the Cascade Welcome Center lot and walk or shuttle in rather than inventing a shoulder spot, which gets ticketed. Separately, and often confused with this: the Adirondack Mountain Reserve trailheads at St. Huberts need a free advance reservation from May 1 to October 31 through hikeamr.org. That is a different trailhead and does not apply here."
+          "notes": "Roadside parking on 73 at the trailhead has been squeezed hard. Verified 2026-09-06 (DEC notices via lakeplacid.com/notice-to-hikers and Adirondack Explorer): on peak periods DEC closes the Cascade trailhead parking on Route 73 outright — for 2026 that included 4–8 October — and hikers park at the Olympic Sports Complex at Mount Van Hoevenberg and ride a shuttle that runs on the half hour from 07:00, last ride up 15:00, last ride down 19:00, no dogs, and no other vehicle allowed into the trailhead. That is the Olympic Sports Complex, not the “Cascade Welcome Center” this note used to send you to. Whether the shuttle runs in January was NOT verified, so check which lot is open before you drive to either. Separately, and often confused with this: the Adirondack Mountain Reserve trailheads at St. Huberts need a free advance reservation from May 1 to October 31 through hikeamr.org. That is a different trailhead and does not apply here. The hikeamr.org reservation rule for the Adirondack Mountain Reserve at St. Huberts was not re-verified this pass."
         },
         {
           "title": "Cascade Mountain, up and back",
@@ -1150,10 +1155,28 @@
           }
         },
         {
+          "title": "The toboggan chute onto Mirror Lake",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Lake Placid Toboggan Chute, Parkside Dr",
+            "city": "Lake Placid",
+            "area": "Mirror Lake"
+          },
+          "kind": "hold",
+          "notes": "A wooden chute that fires you off a pier and out across the frozen lake. Verified 2026-09-06 (North Elba parks department, Lake Placid News): the 2026 season ran 17 January to 6 March, and the sessions are Friday 19:00–21:00, Saturday 12:00–16:00 and 19:00–21:00, and Sunday 12:00–15:00 — there is no weekday session and no late-afternoon one, so the 16:00–16:50 dusk run this day used to promise did not exist. It now takes the Saturday afternoon session; the Friday or Saturday evening session is the alternative if you want it in the dark, but that collides with dinner. It is $20 adult and $10 student for unlimited rides in a session, not a few dollars a run, and it only opens once the ice reaches twelve inches — some winters it never does, so this stays a hold.",
+          "cost": {
+            "amountMinor": 2000,
+            "currency": "USD"
+          }
+        },
+        {
           "title": "Public skate on the Olympic Speedskating Oval",
           "timeWindow": {
-            "start": "14:45",
-            "end": "15:45"
+            "start": "15:45",
+            "end": "16:45"
           },
           "location": {
             "name": "James C. Sheffield Olympic Speedskating Oval, 2634 Main St",
@@ -1164,27 +1187,9 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Eric Heiden won five gold medals on this outdoor ice in 1980 and you can skate the same 400 metres for about ten dollars including rentals. Check the session board first — hockey and speed-skating clubs take it often, and public sessions are shorter than you would guess. Outdoor ice, so it is weather-dependent in a thaw.",
+          "notes": "Eric Heiden won five gold medals on this outdoor ice in 1980 and you can skate the same 400 metres for about ten dollars including rentals. Check the session board first — hockey and speed-skating clubs take it often, and public sessions are shorter than you would guess. Outdoor ice, so it is weather-dependent in a thaw. Verified 2026-09-06 (lakeplacidolympiccenter.com): after a refrigeration rebuild the outdoor oval ran most days through 2 March 2026, but public sessions still share the ice with clubs, so the session board is the thing to check. The ten-dollar rental price was not re-verified.",
           "cost": {
             "amountMinor": 1000,
-            "currency": "USD"
-          }
-        },
-        {
-          "title": "The toboggan chute onto Mirror Lake",
-          "timeWindow": {
-            "start": "16:00",
-            "end": "16:50"
-          },
-          "location": {
-            "name": "Lake Placid Toboggan Chute, Parkside Dr",
-            "city": "Lake Placid",
-            "area": "Mirror Lake"
-          },
-          "kind": "hold",
-          "notes": "A wooden chute that fires you off a pier and out across the frozen lake, for a few dollars a run. It only opens when the ice is thick enough and generally only on weekends and holiday weeks, so treat it as a bonus rather than a plan — some Januaries it never opens at all. Dusk is the run to take; the whole village is lit behind you.",
-          "cost": {
-            "amountMinor": 500,
             "currency": "USD"
           }
         },
@@ -1260,7 +1265,7 @@
             "area": "Hudson Valley"
           },
           "kind": "transit",
-          "notes": "About 85 minutes and roughly $16 off-peak against $25 peak, so leave after 09:00 if you can stomach the later start. Sit on the left going north — the track runs on the riverbank almost the whole way and the right side is a wall of rock. Beacon station is an eight-minute walk from Dia, and the free Beacon Loop bus does the same trip Monday to Saturday.",
+          "notes": "About 85 minutes and roughly $16 off-peak against $25 peak, so leave after 09:00 if you can stomach the later start. Sit on the left going north — the track runs on the riverbank almost the whole way and the right side is a wall of rock. Beacon station is an eight-minute walk from Dia, and the free Beacon Loop bus does the same trip Monday to Saturday. Verified 2026-09-06 (beaconny.gov, destinationdutchess.com): the Beacon Free Loop is free and runs Monday to Saturday, roughly 06:00–21:00, from the Metro-North station past Dia, Main Street and Mount Beacon — there is no Sunday service, so a Sunday version of this day walks. The off-peak and peak fares quoted here were not re-verified.",
           "cost": {
             "amountMinor": 2000,
             "currency": "USD"
@@ -1277,11 +1282,11 @@
             "city": "Beacon",
             "area": "Hudson Valley"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
-          "notes": "Timed tickets only and nothing is sold at the door — they release the following month on the 15th at 09:00 ET, and summer weekends do go. $25 adult, $12 student. Morning matters more here than at any other museum: the galleries in the old Nabisco box-printing plant are lit by daylight through sawtooth roofs, so a late-afternoon visit in winter is genuinely dim. Three hours is right; Serra's torqued ellipses and the Walter De Maria floor take an hour of that between them.",
+          "notes": "Verified 2026-09-06 (diaart.org): Dia:Beacon is open Friday to Monday 10:00–17:00 and closed Tuesday, Wednesday and Thursday, with admission closing at 16:30 — and advance tickets are suggested, not required: same-day and walk-up tickets are sold at the door, which is the opposite of the “timed tickets only, nothing at the door, released the month before on the 15th” this note used to claim, so the stop is no longer marked booked. Buy online anyway to skip the line on a summer weekend. Morning still matters more here than at any other museum: the galleries in the old Nabisco box-printing plant are lit by daylight through sawtooth roofs, so a late-afternoon visit in winter is genuinely dim. Three hours is right; Serra’s torqued ellipses and the Walter De Maria floor take an hour of that between them. Dia is Friday to Monday and Storm King is closed Tuesdays, so this whole day only exists on a Friday, Saturday, Sunday or Monday. The $25 and $12 prices were not re-verified.",
           "cost": {
             "amountMinor": 2500,
             "currency": "USD"
@@ -1330,7 +1335,7 @@
           "title": "Storm King Art Center — take the bike",
           "timeWindow": {
             "start": "15:35",
-            "end": "18:20"
+            "end": "18:00"
           },
           "location": {
             "name": "Storm King Art Center, 1 Museum Rd",
@@ -1342,7 +1347,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "Five hundred acres. On foot you will see a third of it and mostly the third nearest the car park. Rent a bike at the visitor centre or ride the tram, and go to the far south fields first while you have legs — Maya Lin's Wavefield is the corner everyone runs out of time for. Wednesday to Monday 10:00–18:00, closed Tuesdays, last entry 17:00; parking is included in admission and pre-purchased tickets are effectively required. Peak fall pricing applies on late-September and October weekends, which is also when it is at its best.",
+          "notes": "Five hundred acres. On foot you will see a third of it and mostly the third nearest the car park. Rent a bike at the visitor centre or ride the tram, and go to the far south fields first while you have legs — Maya Lin's Wavefield is the corner everyone runs out of time for. Verified 2026-09-06 (stormking.org/visit, /tickets): Wednesday to Monday 10:00–18:00, closed Tuesdays, final entry 17:00, with Saturdays open to 20:00 in summer, and the season reopens 1 April — there is no winter version of this day. Pre-purchased tickets are required to guarantee admission and parking, and each month goes on sale midway through the month before (October 2026 was released 15 September). Peak fall pricing applies to Saturdays and Sundays from 26 September to 8 November 2026, which is also when it is at its best. This stop used to run to 18:20, half an hour past closing; it now ends at 18:00.",
           "cost": {
             "amountMinor": 3200,
             "currency": "USD"
