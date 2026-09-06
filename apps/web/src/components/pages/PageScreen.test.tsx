@@ -109,6 +109,63 @@ describe("PageScreen", () => {
     expect(screen.getByRole("heading", { name: "Renamed Page", level: 1 })).toBeTruthy();
   });
 
+  // Two renames in flight at once, finishing out of order. CodeRabbit on #149:
+  // *"Line 295 restores `previousTitle` even when a newer rename has already
+  // succeeded."* A slow first PATCH that fails after a fast second one
+  // succeeded used to put the ORIGINAL title back over the name the user can
+  // see — the screen would then disagree with the server about what the
+  // notebook is called, and only a reload would settle it.
+  it("does not let a stale rename roll back a newer one", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    // The first PATCH is held open until the test releases it; nothing about
+    // the ordering is a matter of timing luck.
+    let releaseFirst: (() => void) | null = null;
+    const firstSent = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let seen = 0;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const patch = (await request.json()) as { title?: string };
+        seen += 1;
+        if (seen === 1) {
+          await firstSent;
+          return HttpResponse.json({ error: "boom" }, { status: 500 });
+        }
+        return HttpResponse.json({
+          page: { ...page, title: patch.title ?? page.title, updatedAt: new Date().toISOString() },
+        });
+      }),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+
+    const rename = async (title: string) => {
+      heading.textContent = title;
+      await act(async () => {
+        heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      });
+    };
+
+    await rename("First name");
+    await rename("Second name");
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name"));
+
+    // Now the first rename fails, long after the second one landed.
+    await act(async () => {
+      releaseFirst?.();
+      await firstSent;
+    });
+
+    await waitFor(() => expect(seen).toBe(2));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name");
+  });
+
   it("resolves a day macro's own params against the loaded TripDetail", async () => {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({

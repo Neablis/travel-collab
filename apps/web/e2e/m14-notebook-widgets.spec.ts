@@ -518,6 +518,133 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   }
 });
 
+// Adds a stop straight through the command API, because this is the one walk
+// that needs a SCHEDULED stop and dragging one onto a day column is a whole
+// board interaction to prove a table's geometry. Everything the walk is about
+// happens after the trip is loaded, so how the stop got there is incidental.
+async function addStopViaApi(
+  page: Page,
+  tripId: string,
+  title: string,
+  extra: { dayId?: string; timeWindow?: { start: string; end: string } } = {},
+): Promise<void> {
+  const response = await page.request.post(`/api/trips/${tripId}/commands`, {
+    data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title, ...extra },
+  });
+  expect(response.ok()).toBe(true);
+}
+
+// Runs in the page: how far the widget's popover spills past the nearest
+// ancestor that clips it. Module-level so the walk below keeps no conditional
+// in its own body, and so the "nothing clips this" case is a thrown error
+// rather than a silent pass.
+function spillPastClipper(el: Element): { below: number; right: number; height: number } {
+  const box = el.getBoundingClientRect();
+  for (let node = el.parentElement; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).overflow === "visible") continue;
+    const clip = node.getBoundingClientRect();
+    return { below: box.bottom - clip.bottom, right: box.right - clip.right, height: box.height };
+  }
+  throw new Error("nothing clips this popover, so this walk proves nothing");
+}
+
+test("the bindings of the last widget in a page are not clipped by the card", async ({ page }) => {
+  // CodeRabbit, PR 149: `PageScreen` puts the editor inside a `Card` with
+  // `overflow-hidden`, and `WidgetChrome`'s popover is `absolute top-full` —
+  // so a widget at the very bottom of the document could open its controls
+  // into a strip the card cuts off, with nothing in the roles to show it.
+  //
+  // Geometry against the CLIPPING ANCESTOR, not `toBeVisible` and not a hit
+  // test after `scrollIntoViewIfNeeded`. Both of those pass on a clipped
+  // popover: an element cut off by `overflow: hidden` still has a box and is
+  // still `visible` to Playwright, and `scrollIntoViewIfNeeded` will scroll an
+  // `overflow: hidden` container — which a person with no scrollbar and no
+  // wheel cannot — and bring the hidden strip into view itself. The first cut
+  // of this walk did exactly that and passed with the popover pushed 900px
+  // down.
+  //
+  // 1100px because that is inside the band the finding named (768–1179px),
+  // where the editor is at its widest with no sidebar beside it.
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  // The END of the document, not after the first heading: `insertFromList`
+  // inserts under the `h2`, which leaves the whole rest of the page below the
+  // widget and no card edge anywhere near it.
+  await page.locator(".tc-page-editor").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Insert a widget" }).click();
+  const list = page.getByRole("dialog");
+  await expect(list).toBeVisible();
+  await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
+  await expect(list).toBeHidden();
+
+  const widget = page.locator('[data-macro-name="day.detail"]');
+  const chrome = widget.getByTestId("widget-chrome");
+  await widget.click();
+  await expect(chrome).toBeVisible();
+
+  const spill = await chrome.evaluate(spillPastClipper);
+  expect(spill.height).toBeGreaterThan(0);
+  expect(spill.below).toBeLessThanOrEqual(0);
+  expect(spill.right).toBeLessThanOrEqual(0);
+});
+
+test("a group header in a repeat table is as wide as the table", async ({ page }) => {
+  // `stop.rows` groups under day headers as soon as the selection spans more
+  // than one day (`rows.ts`: *"a header is due whenever the day changes"*), and
+  // nothing walked that path before this — every other repeat walk here uses
+  // unscheduled stops, which are one group and get no headers at all.
+  //
+  // Geometry again, and for the same reason as the walk above: a header row's
+  // single cell is a lone cell in a two-column layout, and where it stops is
+  // invisible to the roles. It used to stop at the label column's edge, because
+  // `display: table` has no way to span columns without an HTML `colspan` and a
+  // span cannot carry one — so a group label longer than the stop titles under
+  // it wrapped inside a column instead of using the row it has to itself.
+  // CodeRabbit found that on PR 149; the layout is subgrid now, and the lone
+  // cell spans `1 / -1`.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  expect(detail.ok()).toBe(true);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  const dayId = trip.days[0]!.dayId;
+
+  // A time on the scheduled stop, so the VALUE column has a width. Without one
+  // both columns' content is a title and an empty values array, the value
+  // column collapses to nothing, and a lead cell reaching the table's right
+  // edge would prove nothing about spanning.
+  await addStopViaApi(page, tripId, "Breakfast at the market", {
+    dayId,
+    timeWindow: { start: "09:00", end: "10:00" },
+  });
+  await addStopViaApi(page, tripId, "Someday: the tram museum");
+
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every stop/, "every stop");
+
+  const table = page.getByRole("table").first();
+  // Day 1 and Unscheduled: two groups, so two headers.
+  const header = table.getByRole("rowheader").filter({ hasText: "Day 1" }).first();
+  const stopLead = table.getByRole("rowheader").filter({ hasText: "Breakfast at the market" }).first();
+  await expect(header).toBeVisible();
+  await expect(stopLead).toBeVisible();
+
+  const tableBox = await boxOf(table);
+  const headerBox = await boxOf(header);
+  const leadBox = await boxOf(stopLead);
+
+  // `px-3` on every cell, so a cell filling the row ends 12px inside the
+  // table's border — the same tolerance the walk above uses.
+  expect(Math.abs(tableBox.x + tableBox.width - (headerBox.x + headerBox.width))).toBeLessThan(16);
+  // …and an ordinary lead stops well short of it, because the time is over
+  // there. This is the half that fails if the columns silently collapse.
+  expect(tableBox.x + tableBox.width - (leadBox.x + leadBox.width)).toBeGreaterThan(40);
+});
+
 test("a selected block widget shows its bindings with the pointer nowhere near it", async ({ page }) => {
   // The third reveal path, and the one the other two walks cannot see.
   // `WidgetChrome` reveals its popover on hover, on focus, OR when the caret is

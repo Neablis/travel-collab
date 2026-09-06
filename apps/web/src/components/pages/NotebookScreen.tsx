@@ -355,7 +355,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         {pages.length === 0 ? (
           <EmptyState
             title="No notebooks yet"
-            body="Start from a template above, or create a blank one and write your own."
+            body="Start from a template below, or create a blank one and write your own."
           />
         ) : (
           <ul className="mt-3 flex flex-col gap-2">

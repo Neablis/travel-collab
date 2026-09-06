@@ -254,19 +254,24 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
                 // The total keeps its own tint and wins the cascade over the
                 // stripe outright: `bg-moss` is a utility, the stripe is a
                 // component-layer rule, and Tailwind v4 orders utilities last.
-                // (That ordering is also what broke `display: table` here on
-                // 2026-09-06; same rule, working in our favour this time.)
+                // (That ordering is also what broke this widget's layout on
+                // 2026-09-06, when a `block` utility on the container beat the
+                // display type; same rule, working in our favour this time.)
                 row.kind === "total" && "bg-moss font-semibold text-ink",
               )}
             >
-              <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left align-baseline">
+              <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left">
                 <Segs segs={row.lead} accents={accents} plain />
               </span>
-              {/* A header row names a group and has no value of its own; it
-                  spans both columns rather than leaving an empty cell that
-                  reads as a missing number. */}
+              {/* A header row names a group and has no value of its own, so
+                  it renders one cell rather than an empty second one that
+                  reads as a missing number. That lone cell is what
+                  `.tc-widget-row > .tc-widget-cell:only-child` widens to the
+                  full row — under the `display: table` this started as there
+                  was no way to widen it at all, and a long group label was
+                  penned into the label column. */}
               {row.kind === "header" ? null : (
-                <span role="cell" className="tc-widget-cell px-3 py-2 text-right align-baseline">
+                <span role="cell" className="tc-widget-cell px-3 py-2 text-right">
                   <Segs segs={row.values} accents={accents} plain />
                 </span>
               )}

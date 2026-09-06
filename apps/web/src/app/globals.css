@@ -260,24 +260,34 @@
   }
   /* A repeat widget's table (MacroView's `rows` case, 2026-09-06).
 
-     `display: table` on spans rather than a real `<table>`, and that is a
-     constraint rather than a preference: a widget node is an inline atom
-     inside a `<p>`, and the HTML parser closes the paragraph at any block
-     element — `<table>` included — so the server's DOM and the client's would
-     disagree and hydration would fail. `MacroView`'s own comment records the
-     same problem being measured with `<div>`. The display types give the
-     column alignment that makes a table a table, with no block element.
+     Laid out on spans rather than a real `<table>`, and that is a constraint
+     rather than a preference: a widget node is an inline atom inside a `<p>`,
+     and the HTML parser closes the paragraph at any block element — `<table>`
+     included — so the server's DOM and the client's would disagree and
+     hydration would fail. `MacroView`'s own comment records the same problem
+     being measured with `<div>`.
 
-     `table-layout: auto` (the default) on purpose: the label column should
-     size to its content and the value column take the rest, which is what the
-     design's rows do. `width: 100%` so the card fills the paragraph. */
+     Grid rather than the `display: table` this started as, and the reason is
+     the group header below: CSS tables have no way to span columns without
+     HTML `colspan`, which spans cannot carry. Subgrid keeps the columns shared
+     across rows — each row is its own grid box, so it can hold the stripe and
+     the total's tint, while its cells still line up with every other row's.
+
+     `minmax(0, 1fr) auto` is what `table-layout: auto` was giving: the value
+     column sizes to its content and the label column takes the rest, which is
+     what the design's rows do. `width: 100%` so the card fills the paragraph. */
   .tc-widget-table {
-    display: table;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
-    table-layout: auto;
   }
   .tc-widget-row {
-    display: table-row;
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    /* What `vertical-align: baseline` did for the table cells: a lead that
+       wraps to two lines keeps its first line level with the value. */
+    align-items: baseline;
   }
   /* Zebra striping, 2026-09-06: *"all tables should have row stripping"*. On
      `--color-surface` (white) the alternate row is `--color-paper`, which is
@@ -288,11 +298,15 @@
     background-color: var(--color-paper);
   }
   .tc-widget-cell {
-    display: table-cell;
+    min-width: 0;
   }
   /* A group header spans both columns — it names the rows under it and has no
-     value of its own, so a second cell would read as a missing number. */
+     value of its own, so a second cell would read as a missing number. Under
+     `display: table` this rule only set the alignment and the claim above it
+     was false: a lone cell sat in the first column and the header was as narrow
+     as the leads under it. CodeRabbit caught the gap on #149. */
   .tc-widget-row > .tc-widget-cell:only-child {
+    grid-column: 1 / -1;
     text-align: left;
   }
 

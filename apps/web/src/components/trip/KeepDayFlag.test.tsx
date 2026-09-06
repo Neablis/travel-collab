@@ -256,12 +256,20 @@ describe("the pennant keeps one size", () => {
       renderFlag();
       const flag = screen.getByRole("button", { name: /Keep day/ });
       expect(flag.textContent).toBe("");
+      // The size the button is given, not the size it computes: jsdom has no
+      // layout, so this reads the inline style the component sets. A square is
+      // the whole claim — nothing about the celebration may make it oblong.
+      const size = { width: flag.style.width, height: flag.style.height };
+      expect(size.width).not.toBe("");
+      expect(size.height).toBe(size.width);
 
       await user.click(flag);
       await user.click(await screen.findByRole("button", { name: "Save" }));
       expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       expect(flag.textContent).toBe("");
+      expect(flag.style.width).toBe(size.width);
+      expect(flag.style.height).toBe(size.height);
     } finally {
       vi.useRealTimers();
     }

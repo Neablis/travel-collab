@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 18:05: twenty-eight threads — twenty-three fixed, two answered,
+**Status, as of 18:35: twenty-eight threads — twenty-three fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -863,3 +863,51 @@ someone" was never in the list. `indexOf` returned `-1`, every index beat it,
 and the assertion passed with Share put straight back on the heading row. It
 reads the sheet's text order now, against the position the mock actually
 renders. Seen red: `expected 296 to be greater than 301`.
+
+
+## Review round, 18:04 — five findings on the code the threads above produced
+
+CodeRabbit's pass over `2583662…51a917a`. None of these came from the toolbar;
+they are about the fixes, not the reports. Four were real and one was not, and
+the one that was not is the reason the walk proving it exists.
+
+**The stale rename could roll back the newer one** (`PageScreen.tsx`). Two
+renames in flight at once finish in whatever order the network gives them, and
+the older one's completion still ran: its failure put the *original* title back
+over the name the user could see, and its success would have written the older
+title over the newer. A counter in a ref settles it — a completion whose
+sequence number is no longer the current one returns without touching state.
+Seen red with the guard deleted: `expected 'Trip Overview' to be 'Second name'`.
+
+**A group header did not span the table** (`MacroView.tsx`, `globals.css`).
+`stop.rows` groups its lines under day headers as soon as the selection spans
+more than one day, and a header row renders one cell rather than an empty
+second one. The comment above it claimed that cell spanned both columns. It did
+not: CSS tables have no way to span columns without an HTML `colspan`, and
+these are spans, so a lone cell sat in the label column and a group label
+longer than the stop titles under it wrapped inside that column. The layout is
+grid + subgrid now — each row is still its own box, so the stripe and the
+total's tint survive, and the lone cell spans `1 / -1`. Seen red with the span
+removed: the header stopped **115px short** of the table's right edge.
+
+Nothing walked the grouped path at all before this; every other repeat walk
+here uses unscheduled stops, which are one group and get no headers.
+
+**"Start from a template above"** (`NotebookScreen.tsx`) — the empty state still
+pointed up at a gallery thread 27 moved down. One word.
+
+**The celebration test asserted only that the button had no text**
+(`KeepDayFlag.test.tsx`). It holds the square now: equal, non-empty dimensions
+before, unchanged after. Seen red with the width forced to 88px.
+
+**The popover is not clipped by the card** — the one finding that was wrong,
+and it took two walks to say so honestly. `PageScreen` does put the editor in a
+`Card` with `overflow-hidden`, so the reasoning was sound; what is below the
+last widget (the insert affordance and 40px of document margin) is enough that
+the popover lands inside. The first walk written to check it **passed with the
+popover pushed 900px down**, which is worth more than the finding: an element
+clipped by `overflow: hidden` still has a box and is still `visible` to
+Playwright, and `scrollIntoViewIfNeeded` scrolls an `overflow: hidden`
+container itself — bringing into view a strip a person with no scrollbar and no
+wheel can never reach. It measures the popover against its clipping ancestor
+now, and fails by 804px when the popover is pushed out.

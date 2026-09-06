@@ -179,6 +179,8 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // `page-inserts` guard below.
   const editingRef = useRef(editing);
   editingRef.current = editing;
+  // Which rename is the current one. See `handleRename`.
+  const renameSeq = useRef(0);
 
   // **The notebook's AI surface is the assistant rail, not a prompt box.**
   // Mitchell, walking the preview (2026-09-04): *"This should be the same style
@@ -284,8 +286,17 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // once, on blur or Enter, rather than on every keystroke.
   const handleRename = (title: string) => {
     const previousTitle = page?.title ?? null;
+    // A rename says nothing about the title once a later one has been sent.
+    // Two edits in quick succession finish in whatever order the network gives
+    // them, and without this counter the FIRST one's completion still runs:
+    // its failure puts `previousTitle` back over the second name the user can
+    // see, and its success writes the older title back over the newer one.
+    // CodeRabbit found the failure half on #149; the success half is the same
+    // race and is fixed by the same guard.
+    const seq = ++renameSeq.current;
     setPage((prev) => (prev === null ? prev : { ...prev, title }));
     void updatePage(tripId, pageId, { title }).then((result) => {
+      if (seq !== renameSeq.current) return;
       if (!result.ok) {
         // Put the old name back rather than leaving the screen showing a name
         // the server never took. `setError`/`setStatus("error")` — the pair
