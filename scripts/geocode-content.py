@@ -50,6 +50,7 @@ import collections
 import json
 import os
 import random
+import re
 import signal
 import sqlite3
 import statistics
@@ -230,7 +231,7 @@ def connect() -> sqlite3.Connection:
 # Bump when the QUESTION changes, not when the code does. A place recorded as
 # not_found was asked a question this version no longer asks, so its answer is
 # not evidence about the new one and the row is re-queued automatically.
-STRATEGY = "4-folded-city-test"
+STRATEGY = "5-word-set-city-test"
 
 
 def apply_strategy(db: sqlite3.Connection) -> int:
@@ -568,6 +569,36 @@ _LETTER_FOLD = str.maketrans({
 })
 
 
+# Greek and Cyrillic, romanised. Nominatim honours `accept-language` for
+# display_name only when a localised name exists; where it does not, the answer
+# comes back in the local script and no amount of accent-stripping will match it
+# against a bundle written in English.
+_SCRIPT_FOLD = str.maketrans({
+    "α":"a","β":"v","γ":"g","δ":"d","ε":"e","ζ":"z","η":"i","θ":"th","ι":"i",
+    "κ":"k","λ":"l","μ":"m","ν":"n","ξ":"x","ο":"o","π":"p","ρ":"r","σ":"s",
+    "ς":"s","τ":"t","υ":"y","φ":"f","χ":"ch","ψ":"ps","ω":"o",
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ж":"zh","з":"z","и":"i",
+    "й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s",
+    "т":"t","у":"u","ф":"f","х":"kh","ц":"ts","ч":"ch","ш":"sh","щ":"shch",
+    "ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya",
+})
+
+
+def words(text: str) -> set[str]:
+    """The folded word-set of a place name, for comparing identity not spelling."""
+    return {w for w in re.split(r"[^a-z0-9]+", fold(text)) if w}
+
+
+def squash(text: str) -> str:
+    """`fold`, then drop everything that is not a letter or digit.
+
+    `Hanoi` and `Hà Nội` are the same city; folding alone leaves `hanoi` against
+    `ha noi`, and the space is the whole difference. Spacing and punctuation
+    carry no information here — the city test's job is identity, not formatting.
+    """
+    return "".join(c for c in fold(text) if c.isalnum())
+
+
 def fold(text: str) -> str:
     """Casefold and strip accents, so `Reykjavík` matches `Reykjavik`.
 
@@ -583,9 +614,14 @@ def fold(text: str) -> str:
     leaves alone (ð, ø, ı, ł and friends), which are not decomposable because
     they are distinct letters rather than decorated ones.
     """
-    lowered = text.casefold().translate(_LETTER_FOLD)
-    return "".join(c for c in unicodedata.normalize("NFKD", lowered)
+    # Order matters: strip the combining marks FIRST, so Greek `ό` becomes `ο`
+    # and reaches the transliteration table. Doing it the other way round leaves
+    # every accented Greek vowel untranslated, which is how `Φιλότι` survived an
+    # earlier version of this function still looking like Greek.
+    lowered = text.casefold()
+    bare = "".join(c for c in unicodedata.normalize("NFKD", lowered)
                    if not unicodedata.combining(c))
+    return bare.translate(_LETTER_FOLD).translate(_SCRIPT_FOLD)
 
 
 def judge(place: Place, row: dict) -> tuple[bool, str]:
@@ -610,11 +646,27 @@ def judge(place: Place, row: dict) -> tuple[bool, str]:
     # one thing about a place we are certain of, so a result that landed in a
     # different city is wrong however plausible it looks.
     if place.city:
-        wanted = fold(place.city)
-        returned = [fold(str(address.get(k, ""))) for k in SETTLEMENT_KEYS]
-        if wanted not in fold(display) and not any(
-            wanted == r or wanted in r for r in returned if r
-        ):
+        # Compare WORD SETS, not substrings. Raw containment accepted `Oia`
+        # against `Oiartzun` — a different town in a different country — because
+        # one name happens to begin with the other, and it rejected
+        # `Vík í Mýrdal` against `Vik` because containment only ran one way.
+        # Word sets get both right: one name's words being a subset of the
+        # other's is real agreement, while a shared prefix is not.
+        wanted_sq, wanted_w = squash(place.city), words(place.city)
+        candidates = [str(address.get(k, "")) for k in SETTLEMENT_KEYS]
+        candidates += [part for part in str(display).split(",")]
+
+        def agrees(cand: str) -> bool:
+            if not cand.strip():
+                return False
+            if squash(cand) == wanted_sq:      # Hanoi == Hà Nội, Filoti == Φιλότι
+                return True
+            cw = words(cand)
+            if not cw or not wanted_w:
+                return False
+            return cw <= wanted_w or wanted_w <= cw
+
+        if not any(agrees(c) for c in candidates):
             return False, f"result is not in {place.city} (got: {row.get('display_name', '?')[:90]})"
 
     return True, "ok"
