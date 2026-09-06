@@ -47,6 +47,7 @@ const saved: SavedDay = {
   // dialog reads none of them yet — Discover and the publish control are PR3.
   cities: ["Tokyo"],
   visibility: "private",
+  authorKind: "human",
   adds: 0,
   sourceTripId: "11111111-1111-4111-8111-111111111111",
   sourceTripName: "Kyoto",

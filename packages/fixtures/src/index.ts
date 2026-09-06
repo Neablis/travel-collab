@@ -78,3 +78,53 @@ export {
 // light. The tests and `pnpm seed:verify` import them by path instead, which is
 // why @tc/domain is a devDependency here and not a dependency.
 export { REFERENCE_START_DATE } from "./japan/trip.ts";
+
+// `travel-collab/content-bundle/v1` (2026-09-06) — the JSON format content is
+// authored in, and the pure converters that turn it into commands, saved-day
+// rows and notebook inputs.
+//
+// On the public surface on the same terms as everything above it: zod plus
+// `@tc/contracts` types, no `@tc/domain`, no generator — `apps/web`'s importer
+// and its dev-gated seed route both reach for it, and the second of those is a
+// real bundled route.
+export {
+  BundleAdd,
+  BundleDay,
+  BundleMeta,
+  BundleNotebook,
+  BundlePlaybook,
+  BundleStop,
+  BundleTrip,
+  ContentBundleV1,
+  parseBundle,
+} from "./bundle/schema.ts";
+export { bundleId } from "./bundle/ids.ts";
+export {
+  addDays as addCalendarDays,
+  bundleActivityCommands,
+  bundleTripCommandGroups,
+  bundleTripCommands,
+  tripIdFor,
+  tripStartDate,
+  type TripCommandOptions,
+} from "./bundle/toCommands.ts";
+export {
+  playbookIdFor,
+  resolvePlaybook,
+  toSavedStop,
+  type ResolvedPlaybook,
+} from "./bundle/toPlaybooks.ts";
+export { instantiateBundleNotebook } from "./bundle/toNotebooks.ts";
+export {
+  BAND_NAMES,
+  bandOf,
+  lintBundle,
+  seasonOf,
+  summarise,
+  totalMinor,
+  type BandName,
+  type ContentSummary,
+  type Finding,
+  type Season,
+  type Severity,
+} from "./bundle/lint.ts";

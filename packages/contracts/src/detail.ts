@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { Conflict } from "./conflict";
-import { TripLineage, TripMember, TripStatus } from "./trip";
-import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity";
-import { Money } from "./money";
+import { Conflict } from "./conflict.ts";
+import { TripLineage, TripMember, TripStatus } from "./trip.ts";
+import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
   activityId: z.string().uuid(),

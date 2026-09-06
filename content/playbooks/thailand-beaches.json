@@ -1,0 +1,661 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "thailand-beaches",
+    "name": "Thailand: beach and island days",
+    "description": "Eight cloneable days from the Andaman and the Gulf — longtails, sandbars, dive boats and one very expensive charter.",
+    "origin": "ai",
+    "sources": [
+      "https://www.cktravels.com/krabi-ao-nang-to-railay-beach-longtail-boat/",
+      "https://outthailand.com/guide/railay-beach/",
+      "https://www.weseektravel.com/how-to-get-to-railay-beach/",
+      "https://www.travelfish.org/eatandmeet/thailand/southern_thailand/krabi/railay_beach/eat",
+      "https://northabroad.com/koh-lanta-travel-guide/",
+      "https://amazinglanta.com/best-restaurants-and-cafes-in-klong-nin-koh-lanta/",
+      "https://amazinglanta.com/best-places-to-eat-in-koh-lanta-old-town/",
+      "https://www.blackturtledive.com/koh-tao/viewpoints/",
+      "https://www.kohtaocompleteguide.com/activities/sea-adventures/koh-tao-snorkeling/",
+      "https://thailandmagazine.com/koh-tao/see-do/john-suwan-viewpoint/",
+      "https://www.weseektravel.com/best-restaurants-koh-tao/",
+      "https://sea-bees.com/shop/khao-lak-daytrips/similan-daytrip-2-dives/",
+      "https://www.seadragondivecenter.com/diving-day-trips/similan-day-trips/",
+      "https://www.idcphuket.com/scuba-diving/donald-duck-bay-island-8/",
+      "https://www.lovephukettours.com/maya-bay-travel-tips.html",
+      "https://www.visitthailandtoday.com/guides/koh-phi-phi-guide",
+      "https://routinelynomadic.com/koh-yao-noi-thailand/",
+      "https://theroamingcompass.com/thailand/ultimate-koh-yao-noi-travel-guide/",
+      "https://thailandboattickets.com/en/guides/bang-rong-pier-phuket-guide",
+      "https://thailandtrain.org/guide/bangkok-samui-train",
+      "https://www.visitthailandtoday.com/guides/bangkok-to-koh-samui",
+      "https://shathailand.com/surat-thani-to-koh-samui-ferry/",
+      "https://www.insidesamui.com/visit/ang-thong-marine-park-tour/",
+      "https://www.samuiislandexplorer.com/tours/angthong-marine-park-private-speedboat-tour/",
+      "https://www.tablecheck.com/en/six-senses-samui-dining-on-the-rocks/reserve",
+      "https://wanderluxe.theluxenomad.com/koh-samui-fishermans-village-restaurants-and-cafes/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "playbooks": [
+    {
+      "key": "railay-limestone-and-sunset",
+      "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+      "summary": "A peninsula with no roads, done as a day trip from Ao Nang — cave beach at opening light, the rope climb, deep water solo, and the last boat home.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2026-02-14T09:00:00.000Z",
+      "sourceTrip": { "name": "Andaman, twelve days and one bag" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-tomas" }
+      ],
+      "stops": [
+        {
+          "title": "Longtail from Ao Nang beach to Railay West",
+          "timeWindow": { "start": "08:15", "end": "08:50" },
+          "location": { "name": "Ao Nang Beach longtail ticket booth", "city": "Krabi", "area": "Ao Nang" },
+          "kind": "transit",
+          "cost": { "amountMinor": 300, "currency": "USD" },
+          "notes": "There is no timetable. The boat leaves when eight or nine people have paid, so an 08:15 crossing means being at the booth on the sand by 07:55. 100B each way, 150B after 18:00. You wade out and climb over the bow — anything that must stay dry goes in a dry bag before you queue, not after."
+        },
+        {
+          "title": "Phra Nang Cave Beach and the fertility shrine",
+          "timeWindow": { "start": "09:00", "end": "10:20" },
+          "location": { "name": "Phra Nang Cave Beach", "city": "Krabi", "area": "Railay" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Ten minutes on the path south past Rayavadee and you are on it before the day-trip boats land at 10:30 — that one hour is the entire reason to go early. The cave at the far end is a working shrine: the carved wooden phalluses are offerings to the sea princess, not a photo prop. Free to walk on; bring cash, because the boat vendors are the only thing to buy from."
+        },
+        {
+          "title": "Railay viewpoint, and the lagoon if it has not rained",
+          "timeWindow": { "start": "10:35", "end": "12:10" },
+          "location": { "name": "Railay Viewpoint and Lagoon trail", "city": "Krabi", "area": "Railay" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The trailhead is unmarked, on the path between Railay East and Phra Nang. It is not a hike — it is a rope-assisted haul up red clay with both hands. Viewpoint in about 20 minutes; the lagoon is another vertical 15 and turns into a slide after rain, so skip it outright if it rained overnight. Shoes with grip, nothing carried in your hands."
+        },
+        {
+          "title": "Lunch at Mama Chicken, on the Tonsai trail",
+          "timeWindow": { "start": "12:40", "end": "13:40" },
+          "location": { "name": "Mama Chicken", "city": "Krabi", "area": "Tonsai" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 600, "currency": "USD" },
+          "notes": "The climbers' canteen behind Tonsai. Get there on the jungle path from Railay West in 15 minutes, or over the headland rocks in 20 if the tide is out — do not try the rocks on a rising tide. Massaman and grilled chicken, 100–150B, cash only."
+        },
+        {
+          "title": "Deep water solo, afternoon session out of Railay East",
+          "timeWindow": { "start": "14:15", "end": "17:00" },
+          "location": { "name": "Railay East climbing school jetty", "city": "Krabi", "area": "Railay" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "cost": { "amountMinor": 3000, "currency": "USD" },
+          "notes": "Book in person at a shop on Railay East the day before rather than online — the session gets pulled on a big swell and you want to be able to walk in and ask a human. About 1,000B for the boat, the guide and the falling. No climbing experience needed; the only requirement is being genuinely happy to drop 6m into the sea."
+        },
+        {
+          "title": "Sundowner on the mats at Flame Tree",
+          "timeWindow": { "start": "17:15", "end": "18:30" },
+          "location": { "name": "Flame Tree Restaurant", "city": "Krabi", "area": "Railay West" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 1200, "currency": "USD" },
+          "notes": "Railay West faces due west and Flame Tree puts Thai mats straight onto the sand in front of Walking Street. You pay roughly double the Railay East price for a beer here. Worth it exactly once, for the twenty minutes when the karst goes orange."
+        },
+        {
+          "title": "Dinner at The Last Bar, Railay East",
+          "timeWindow": { "start": "19:00", "end": "20:35" },
+          "location": { "name": "The Last Bar", "city": "Krabi", "area": "Railay East" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 900, "currency": "USD" },
+          "notes": "Cross the peninsula in six minutes and dinner costs a third less. Railay East is mangrove and mudflat, nobody swims there, and that is precisely why the food is honest — 150–350B before drinks. Open until 02:00 if the day is not finished."
+        },
+        {
+          "title": "Last boat back to Ao Nang",
+          "timeWindow": { "start": "20:50", "end": "21:25" },
+          "location": { "name": "Railay East pier", "city": "Krabi", "area": "Railay East" },
+          "kind": "transit",
+          "cost": { "amountMinor": 450, "currency": "USD" },
+          "notes": "After dark the crossing leaves from Railay East, not West, and costs 150B with the night surcharge. Boatmen stop gathering passengers around 22:00 — after that it is a 1,500B private charter or a bungalow you had not planned to pay for."
+        }
+      ]
+    },
+    {
+      "key": "koh-lanta-slow-beach-day",
+      "name": "Koh Lanta at half speed: one scooter, three beaches, no boat",
+      "summary": "The day Lanta is actually for — a west-coast crawl from Klong Dao down to Old Town and back to Klong Nin in time for the sun to go into open sea.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-11-08T10:20:00.000Z",
+      "sourceTrip": { "name": "Two weeks, no ferries booked" },
+      "addedBy": [{ "addedBy": "dev-sofia" }, { "addedBy": "dev-bob" }],
+      "stops": [
+        {
+          "title": "Breakfast and a first swim at Klong Dao",
+          "timeWindow": { "start": "08:15", "end": "09:30" },
+          "location": { "name": "Klong Dao Beach", "city": "Ko Lanta", "area": "Klong Dao" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 500, "currency": "USD" },
+          "notes": "Klong Dao stays wide even at high tide, which is why it is the one beach on the island you can swim at any hour of the day. The sea is glass before 10:00; by early afternoon the wind is up along the whole west coast and it turns choppy and brown at the edges."
+        },
+        {
+          "title": "Scooter for the day from a Saladan shop",
+          "timeWindow": { "start": "09:45", "end": "10:15" },
+          "location": { "name": "Saladan village scooter rental", "city": "Ko Lanta", "area": "Saladan" },
+          "kind": "booked",
+          "cost": { "amountMinor": 750, "currency": "USD" },
+          "notes": "Reserve one the night before in high season; the Saladan shops are out of automatics by 09:00 and you end up on a semi-auto you did not want. 250B a day, 300B in high season, and they will ask to keep your passport — offer a photocopy and a 2,000B cash deposit instead, and most shops take it. Photograph every existing scratch before you ride off. The single west-coast road is easy; the east-coast hills past Old Town are steep and greasy in the wet."
+        },
+        {
+          "title": "Klong Nin: the long lie-down",
+          "timeWindow": { "start": "10:40", "end": "13:00" },
+          "location": { "name": "Klong Nin Beach", "city": "Ko Lanta", "area": "Klong Nin" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "cost": { "amountMinor": 300, "currency": "USD" },
+          "notes": "Half an hour south of Saladan and a different island — no jet skis, no touts. A sunbed from one of the beach restaurants is 100B and comes off your bill if you eat there, so pick the restaurant first and the bed second. There is a real rip at the north end on a mid-tide; swim in front of the bars where everyone else is."
+        },
+        {
+          "title": "Late lunch at Jai Dee, feet in the sand",
+          "timeWindow": { "start": "13:15", "end": "14:30" },
+          "location": { "name": "Jai Dee Restaurant", "city": "Ko Lanta", "area": "Klong Nin" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 900, "currency": "USD" },
+          "notes": "Jai Dee and Richey Bar are next door to each other facing the beach and do the same job to the same standard — pick by which has the shadier table free. Order southern-style fish curry rather than the pad thai; the pad thai here is for people who have been travelling for six weeks."
+        },
+        {
+          "title": "Lanta Old Town and a coffee at Mango House",
+          "timeWindow": { "start": "15:00", "end": "16:40" },
+          "location": { "name": "Mango House, Lanta Old Town", "city": "Ko Lanta", "area": "Lanta Old Town" },
+          "kind": "idea",
+          "cost": { "amountMinor": 400, "currency": "USD" },
+          "notes": "Forty minutes east across the island and a completely different Lanta: Chinese-Thai shophouses on stilts over the water, sea gypsy history, almost nobody. Left as an idea on purpose — if the beach day is going well, do not get on the scooter."
+        },
+        {
+          "title": "Sunset drink at Big Bang Bar",
+          "timeWindow": { "start": "17:30", "end": "18:50" },
+          "location": { "name": "Big Bang Bar", "city": "Ko Lanta", "area": "Klong Nin" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 500, "currency": "USD" },
+          "notes": "Back on the west coast for the thing Lanta does better than anywhere else in Krabi: the sun drops into open water, not behind an island. Local craft beer, tables on the sand, fire show around 20:00 if you stay for it."
+        },
+        {
+          "title": "Dinner up on the road at Cook Kai",
+          "timeWindow": { "start": "19:20", "end": "20:50" },
+          "location": { "name": "Cook Kai Restaurant", "city": "Ko Lanta", "area": "Klong Nin" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 800, "currency": "USD" },
+          "notes": "Family-run, on the road rather than the sand, and about half the beachfront price for better cooking. Ask for it Thai-spicy and mean it, or you will get the tourist dial-down by default."
+        }
+      ]
+    },
+    {
+      "key": "koh-tao-snorkel-and-viewpoint",
+      "name": "Koh Tao without a dive course: viewpoint at dawn, the 10:00 snorkel boat, duck for dinner",
+      "summary": "The island's whole coastline in one day for under sixty dollars, built around the slow boat that beats the speedboats to Mango Bay.",
+      "ownerId": "dev-kenji",
+      "visibility": "public",
+      "keptOn": "2025-05-20T08:00:00.000Z",
+      "sourceTrip": { "name": "Gulf coast, shoulder season, cheap" },
+      "addedBy": [{ "addedBy": "dev-alice" }],
+      "stops": [
+        {
+          "title": "Sunrise swim at Sairee",
+          "timeWindow": { "start": "06:40", "end": "07:40" },
+          "location": { "name": "Sairee Beach", "city": "Ko Tao", "area": "Sairee" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "1.85km of sand that is empty at 06:40 and hard to walk down by 11:00. The reef starts about 40m out straight off the north end — mask on from the beach, no boat and no fee. Sairee faces west, so this is the swim, not the sunset."
+        },
+        {
+          "title": "John-Suwan viewpoint before the heat",
+          "timeWindow": { "start": "08:10", "end": "09:30" },
+          "location": { "name": "John-Suwan Viewpoint", "city": "Ko Tao", "area": "Chalok Baan Kao" },
+          "kind": "planned",
+          "tags": ["outdoors", "ticketed"],
+          "cost": { "amountMinor": 150, "currency": "USD" },
+          "notes": "50B at the gate, and the same ticket covers Freedom Beach, Taa Toh Lagoon and a sunbed on the way back down — pay once, use all three. Fifteen minutes of granite scramble rather than a path. There is no shade at the top, so after about 10:00 it is a bad trade."
+        },
+        {
+          "title": "Full-day snorkel boat: Nang Yuan, Mango Bay, Hin Wong, Shark Bay",
+          "timeWindow": { "start": "10:00", "end": "17:00" },
+          "location": { "name": "Mae Haad Pier snorkel boat", "city": "Ko Tao", "area": "Mae Haad" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "cost": { "amountMinor": 2500, "currency": "USD" },
+          "notes": "About 850B including mask, life jacket, lunch, fruit and hotel pickup. The 250B Koh Nang Yuan landing fee is NOT included and is cash only at the jetty — carry it in small notes. Take the big slow boat over the speedboat: it reaches Mango Bay ahead of the speedboat fleet and you get it nearly to yourself. Shark Bay at the end is blacktip reef sharks in a metre of water, which is exactly as harmless as it sounds."
+        },
+        {
+          "title": "Beer and the sunset back on Sairee",
+          "timeWindow": { "start": "17:30", "end": "18:45" },
+          "location": { "name": "Sairee Beach", "city": "Ko Tao", "area": "Sairee" },
+          "kind": "planned",
+          "cost": { "amountMinor": 400, "currency": "USD" },
+          "notes": "West-facing, so there is a sunset here every night of the year and no viewpoint to hike for it. Every bar on the strip puts cushions out at 17:30 and none of them mind which one you sat at earlier."
+        },
+        {
+          "title": "Dinner at 995 Duck",
+          "timeWindow": { "start": "19:15", "end": "20:30" },
+          "location": { "name": "995 Duck", "city": "Ko Tao", "area": "Sairee" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 800, "currency": "USD" },
+          "notes": "A roast duck noodle shop on Sairee Beach Road that has outlasted every fusion place that opened around it. Order the dry noodles with the broth on the side. Before 20:00 you walk straight in; after, you queue in the road."
+        },
+        {
+          "title": "Nightcap on the roof at Barracuda",
+          "timeWindow": { "start": "21:00", "end": "22:15" },
+          "location": { "name": "Barracuda Restaurant & Bar", "city": "Ko Tao", "area": "Sairee" },
+          "kind": "idea",
+          "cost": { "amountMinor": 1200, "currency": "USD" },
+          "notes": "The rooftop at the quiet end of Sairee, for the night you want the island to feel like a proper dinner instead of a hostel. The tapas and happy-hour nights are the value; the full seafood platter is not."
+        }
+      ]
+    },
+    {
+      "key": "similan-two-dive-day",
+      "name": "Similans in a day: the 06:15 pickup, Elephant Head, and Sail Rock at four",
+      "summary": "The best diving in Thailand you can do without a liveaboard — and the reason the park's mid-October to mid-May window ends up shaping the whole trip.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2026-01-22T07:30:00.000Z",
+      "sourceTrip": { "name": "Andaman, twelve days and one bag" },
+      "addedBy": [{ "addedBy": "dev-maeve" }, { "addedBy": "dev-tomas" }, { "addedBy": "dev-sofia" }],
+      "stops": [
+        {
+          "title": "Hotel pickup on the Khao Lak beach road",
+          "timeWindow": { "start": "06:15", "end": "06:45" },
+          "location": { "name": "Khao Lak beach road hotel pickup", "city": "Khao Lak", "area": "Nang Thong" },
+          "kind": "transit",
+          "notes": "The minibus loops the beach road and you are first or last depending on where you sleep — staying at Nang Thong buys you an extra twenty minutes in bed. Nothing is open for breakfast at that hour anywhere in Khao Lak; the boat feeds you at 08:30, so do not go hunting."
+        },
+        {
+          "title": "Check in and kit up at Thap Lamu Pier",
+          "timeWindow": { "start": "07:00", "end": "07:50" },
+          "location": { "name": "Thap Lamu Pier", "city": "Khao Lak", "area": "Thap Lamu" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "cost": { "amountMinor": 18000, "currency": "USD" },
+          "notes": "Roughly 4,900–6,100B for the two-dive day trip with gear, lunch and transfers, and some centres price the midweek departures lower. Bring the physical certification card — a couple of shops still refuse a photo of it. Give your wetsuit and fin size at booking, not at the pier: the common sizes are gone by 07:20."
+        },
+        {
+          "title": "Speedboat out to Mu Ko Similan",
+          "timeWindow": { "start": "08:00", "end": "09:15" },
+          "location": { "name": "Mu Ko Similan National Park", "city": "Similan Islands", "area": "Mu Ko Similan" },
+          "kind": "transit",
+          "cost": { "amountMinor": 2100, "currency": "USD" },
+          "notes": "700B national park fee, cash, collected on the boat — nobody mentions it when you book and there is no ATM at Thap Lamu. Sit at the back if you get seasick; with any swell it is an hour of slamming, and the crossing is the worst part of an otherwise perfect day."
+        },
+        {
+          "title": "Dive one: Elephant Head Rock",
+          "timeWindow": { "start": "09:45", "end": "10:50" },
+          "location": { "name": "Elephant Head Rock (Hin Pousar)", "city": "Similan Islands", "area": "Island 8" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Granite boulders the size of houses stacked into swim-throughs and chimneys. Current runs here, so it is a follow-the-guide dive rather than a wander — stay off the rock, let it push you through the gaps, and keep the guide's fins in sight through the narrow bits."
+        },
+        {
+          "title": "Thai buffet lunch on the boat",
+          "timeWindow": { "start": "11:15", "end": "12:15" },
+          "location": { "name": "Dive boat, Mu Ko Similan", "city": "Similan Islands", "area": "Mu Ko Similan" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Cooked on board and included in the trip price. Eat the rice even if you feel queasy — the surface interval is 90 minutes and the second dive is the deeper one of the day."
+        },
+        {
+          "title": "Dive two: Christmas Point, Island 9",
+          "timeWindow": { "start": "13:00", "end": "14:00" },
+          "location": { "name": "Christmas Point, Island 9", "city": "Similan Islands", "area": "Island 9" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Bigger boulders, more open blue, and the day's best chance of leopard sharks lying on the sand at the reef edge. It runs deeper than the morning dive, so hold gas back rather than chasing the first thing you see."
+        },
+        {
+          "title": "Donald Duck Bay and the climb to Sail Rock",
+          "timeWindow": { "start": "14:30", "end": "15:45" },
+          "location": { "name": "Donald Duck Bay, Island 8", "city": "Similan Islands", "area": "Island 8" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Fifteen sweaty minutes of boardwalk and boulder to Sail Rock, which is the view the Similans are on postcards for. Landing rules change every season and Island 8 closes with no notice when visitor caps bite — ask the guide on the boat that morning, not a blog from last year."
+        },
+        {
+          "title": "Back at Thap Lamu, dinner within walking distance",
+          "timeWindow": { "start": "18:15", "end": "19:45" },
+          "location": { "name": "Nang Thong beach road seafood", "city": "Khao Lak", "area": "Nang Thong" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 1400, "currency": "USD" },
+          "notes": "You will be salt-crusted, sunburnt and asleep by 21:00. Choose somewhere you can walk to from the room rather than somewhere good — this is not the night to plan a taxi."
+        }
+      ]
+    },
+    {
+      "key": "phi-phi-private-longtail",
+      "name": "Phi Phi on your own boat: viewpoint at six, Pileh before the fleet, Bamboo after it",
+      "summary": "Charter a longtail for the day and the island flips — you arrive at every stop an hour before or after the Phuket speedboats.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-07-12T09:15:00.000Z",
+      "sourceTrip": { "name": "Andaman, twelve days and one bag" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-maeve" }
+      ],
+      "stops": [
+        {
+          "title": "Viewpoint 1, 2 and 3 before sunrise",
+          "timeWindow": { "start": "06:15", "end": "07:20" },
+          "location": { "name": "Phi Phi Viewpoint 1, 2 and 3", "city": "Ko Phi Phi", "area": "Tonsai" },
+          "kind": "planned",
+          "tags": ["outdoors", "ticketed"],
+          "cost": { "amountMinor": 150, "currency": "USD" },
+          "notes": "30–50B at the gate. It is 20–30 minutes of concrete stairs out of Tonsai village and it is genuinely steep. Go at 06:15 with a phone torch and you get the twin-bay sandbar in cool air with nobody on it; by 09:00 it is a slow-moving queue in full sun."
+        },
+        {
+          "title": "Breakfast in Tonsai village",
+          "timeWindow": { "start": "07:35", "end": "08:30" },
+          "location": { "name": "Tonsai Village", "city": "Ko Phi Phi", "area": "Tonsai" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 800, "currency": "USD" },
+          "notes": "Eat properly before you board. Nothing on a longtail charter includes food or water, and the boatman will cheerfully go until 15:00 without raising the subject. Buy a bag of ice and water in the village too — there is no shop at Pileh."
+        },
+        {
+          "title": "Private longtail leaves Tonsai Bay",
+          "timeWindow": { "start": "08:45", "end": "09:20" },
+          "location": { "name": "Tonsai Bay beachfront", "city": "Ko Phi Phi", "area": "Tonsai" },
+          "kind": "booked",
+          "cost": { "amountMinor": 14800, "currency": "USD" },
+          "notes": "Arrange it the evening before, directly with a boatman on the beach rather than through a hotel desk: 2,500–3,500B for the half-day Phi Phi Leh circuit, about 5,000B for a full day that includes Bamboo Island. Say the stops AND the return time out loud, agree them, and pay at the end. A longtail is slow, which is exactly the point — you leave before the speedboats and stay after them."
+        },
+        {
+          "title": "Pileh Lagoon while it is still empty",
+          "timeWindow": { "start": "09:35", "end": "10:20" },
+          "location": { "name": "Pileh Lagoon, Koh Phi Phi Leh", "city": "Ko Phi Phi", "area": "Phi Phi Leh" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Ten minutes around the headland. Between 09:30 and 10:15 you can have a walled emerald bay to yourselves; at 10:30 the Phuket boats come in forty at a time and it becomes a floating car park. This single stop is what the early charter buys."
+        },
+        {
+          "title": "Maya Bay from the Loh Samah boardwalk",
+          "timeWindow": { "start": "10:35", "end": "11:35" },
+          "location": { "name": "Maya Bay, Koh Phi Phi Leh", "city": "Ko Phi Phi", "area": "Phi Phi Leh" },
+          "kind": "planned",
+          "tags": ["ticketed", "outdoors"],
+          "cost": { "amountMinor": 1200, "currency": "USD" },
+          "notes": "400B per adult and essentially never included in a boat price, whatever the ticket seller implies. You land at Loh Samah on the back side and walk the boardwalk in — no boat has touched the beach since it reopened, and swimming in the bay itself is not permitted. It closes for reef recovery every year (1 Aug–30 Sep in 2026), so confirm before you build a day around it."
+        },
+        {
+          "title": "Bamboo Island: the swim you actually came for",
+          "timeWindow": { "start": "11:50", "end": "13:20" },
+          "location": { "name": "Bamboo Island (Koh Mai Phai)", "city": "Ko Phi Phi", "area": "Koh Mai Phai" },
+          "kind": "planned",
+          "tags": ["ticketed", "outdoors"],
+          "cost": { "amountMinor": 1200, "currency": "USD" },
+          "notes": "Another 400B park fee, collected on the sand. White beach, shallow reef straight off it, and shade only at the tree line — a rash vest beats reapplying sunscreen. Group tours give this place 40 minutes; you have 90, and that is the difference between a photo stop and a swim."
+        },
+        {
+          "title": "Late lunch dropped at Long Beach",
+          "timeWindow": { "start": "13:50", "end": "15:00" },
+          "location": { "name": "Hat Yao (Long Beach)", "city": "Ko Phi Phi", "area": "Long Beach" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 1000, "currency": "USD" },
+          "notes": "Have the boatman finish at Long Beach instead of Tonsai. You get the better sand for the rest of the afternoon and you can walk or water-taxi back into the village whenever you feel like it."
+        },
+        {
+          "title": "Dinner on the sand at Long Beach",
+          "timeWindow": { "start": "18:00", "end": "19:45" },
+          "location": { "name": "Hat Yao (Long Beach) beachfront", "city": "Ko Phi Phi", "area": "Long Beach" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 2200, "currency": "USD" },
+          "notes": "Long Beach faces the sunset and sits 25 minutes' walk from Tonsai's buckets and fire shows — close enough to go, far enough not to hear it at 02:00. The last water taxi back to the village runs around 22:00 and costs roughly double after dark."
+        }
+      ]
+    },
+    {
+      "key": "koh-yao-noi-bicycle-and-sandbar",
+      "name": "Koh Yao Noi by bicycle: rice paddies, the Laem Haad sandbar, dinner over the fields",
+      "summary": "Twenty minutes from Phuket and forty years away — a flat island you ride around, planned entirely around a tide table.",
+      "ownerId": "dev-kenji",
+      "visibility": "public",
+      "keptOn": "2025-03-30T11:00:00.000Z",
+      "sourceTrip": { "name": "Phang Nga Bay, the quiet side" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Speedboat from Bang Rong Pier",
+          "timeWindow": { "start": "08:00", "end": "08:45" },
+          "location": { "name": "Bang Rong Pier", "city": "Phuket", "area": "Bang Rong" },
+          "kind": "transit",
+          "cost": { "amountMinor": 600, "currency": "USD" },
+          "notes": "Speedboats run through the day, about 30 minutes for 200B; the longtail is half the money and 70 minutes, and worth doing once for the way the karsts come out of the haze. Bang Rong is on Phuket's north-east coast — 45 minutes from the airport, an hour from Patong, and easy to underestimate."
+        },
+        {
+          "title": "Bicycle from a shop in Tha Khao",
+          "timeWindow": { "start": "09:15", "end": "09:45" },
+          "location": { "name": "Tha Khao village", "city": "Ko Yao Noi", "area": "Tha Khao" },
+          "kind": "planned",
+          "cost": { "amountMinor": 300, "currency": "USD" },
+          "notes": "100B for the day. Take the bicycle rather than the scooter: the island is flat, the whole loop is about 25km, and half the reason to be here is going slowly enough that people wave at you."
+        },
+        {
+          "title": "The inland loop: paddies, buffalo, rubber",
+          "timeWindow": { "start": "10:00", "end": "12:00" },
+          "location": { "name": "Koh Yao Noi inland road loop", "city": "Ko Yao Noi", "area": "Ban Tha Khao" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Go inland rather than around the coast road. Rice paddies, water buffalo, rubber trees still being tapped in the morning, and the call to prayer over all of it — this is a Muslim island, so cover shoulders away from the beaches and do not expect to buy a beer outside a resort."
+        },
+        {
+          "title": "Lunch and a swim at Pasai Beach",
+          "timeWindow": { "start": "12:15", "end": "13:45" },
+          "location": { "name": "Pasai Beach", "city": "Ko Yao Noi", "area": "Pasai" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 550, "currency": "USD" },
+          "notes": "The island's most swimmable sand, and only near high tide — at low water the whole west shore goes out to mudflat for a few hundred metres and swimming is not an option. Check the tide before deciding whether this stop is a swim or just lunch."
+        },
+        {
+          "title": "Laem Haad sandbar, around low tide",
+          "timeWindow": { "start": "14:30", "end": "16:30" },
+          "location": { "name": "Laem Haad Beach sandbar", "city": "Ko Yao Noi", "area": "Laem Haad" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "cost": { "amountMinor": 300, "currency": "USD" },
+          "notes": "This is the one stop that cannot be moved. The sandbar exists for roughly two hours either side of low tide and is open sea the rest of the day, so look up the Phang Nga tide table and build the day outward from it. A longtail across from the north shore is about 100B, or you can walk in on the resort track and wade."
+        },
+        {
+          "title": "Sunset dinner at Rice Paddy Viewpoint Restaurant",
+          "timeWindow": { "start": "17:45", "end": "19:45" },
+          "location": { "name": "Rice Paddy Viewpoint Restaurant", "city": "Ko Yao Noi", "area": "Ban Tha Khao" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 900, "currency": "USD" },
+          "notes": "Open-sided, up above the fields, with the sun going down behind the karsts at the far end. Message ahead in high season — there are maybe a dozen tables. Ride there before dark: there is no street lighting on the inland roads, and an unlit bicycle on Koh Yao Noi at 20:00 is a genuinely bad idea."
+        },
+        {
+          "title": "Hold a bungalow instead of chasing the last boat",
+          "timeWindow": { "start": "20:00", "end": "20:30" },
+          "location": { "name": "Koh Yao Noi beach bungalow", "city": "Ko Yao Noi", "area": "Pasai" },
+          "kind": "hold",
+          "tags": ["lodging"],
+          "cost": { "amountMinor": 4500, "currency": "USD" },
+          "notes": "The last speedboat back to Phuket leaves mid-afternoon, which quietly makes the sunset dinner impossible as a day trip. Hold one night — 1,000–1,800B for a fan bungalow near Pasai — and release it at lunchtime if the tide has ruined the plan."
+        }
+      ]
+    },
+    {
+      "key": "bangkok-to-samui-night-train",
+      "name": "Bangkok to the Gulf overland: train 85, the 08:00 van, and lunch on Samui",
+      "summary": "The land-and-sea way to the islands — half the price of flying, and you wake up in coconut plantations instead of a departure gate.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2024-11-16T06:45:00.000Z",
+      "sourceTrip": { "name": "Overland to the Gulf" },
+      "addedBy": [{ "addedBy": "dev-tomas" }],
+      "stops": [
+        {
+          "title": "Train 85 pulls into Surat Thani",
+          "timeWindow": { "start": "06:23", "end": "07:00" },
+          "location": { "name": "Surat Thani (Phun Phin) railway station", "city": "Surat Thani", "area": "Phun Phin" },
+          "kind": "transit",
+          "cost": { "amountMinor": 3000, "currency": "USD" },
+          "notes": "Boarded at Krung Thep Aphiwat at 19:50 the night before. A second-class air-con lower berth is about 1,000B and is worth the difference — the upper berth has no window and no room to sit up. The train runs late more often than not, which matters only if you did not buy the joint train+bus+ferry ticket: that van waits for the train, a separately booked one leaves without you."
+        },
+        {
+          "title": "Breakfast on the platform while the vans sort themselves out",
+          "timeWindow": { "start": "07:05", "end": "07:50" },
+          "location": { "name": "Phun Phin station food stalls", "city": "Surat Thani", "area": "Phun Phin" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 250, "currency": "USD" },
+          "notes": "Roti, coffee in a plastic bag and khao tom for under 80B on the platform side. The men on the forecourt will sell you the ferry ticket you are already holding, for double — walk past them to whoever is holding the operator's board."
+        },
+        {
+          "title": "Van across the isthmus to Don Sak Pier",
+          "timeWindow": { "start": "08:00", "end": "09:40" },
+          "location": { "name": "Don Sak Pier", "city": "Surat Thani", "area": "Don Sak" },
+          "kind": "transit",
+          "notes": "Ninety minutes east, included in the joint ticket, and there is no stop on the way. Use the toilet at the pier before boarding rather than the one on the boat."
+        },
+        {
+          "title": "Ferry across to Koh Samui",
+          "timeWindow": { "start": "10:00", "end": "11:30" },
+          "location": { "name": "Seatran Ferry, Don Sak to Nathon", "city": "Ko Samui", "area": "Nathon" },
+          "kind": "transit",
+          "cost": { "amountMinor": 900, "currency": "USD" },
+          "notes": "Seatran takes about 90 minutes for roughly 300B; Lomprayah's catamaran covers the same water in 45 minutes for about double, and runs four times a day in high season, two or three in low. Sit on the top deck at the bow — the approach past the coconut hills is the best quarter hour of the whole journey."
+        },
+        {
+          "title": "Songthaew from Nathon over to Bophut",
+          "timeWindow": { "start": "11:45", "end": "12:35" },
+          "location": { "name": "Nathon Pier songthaew stand", "city": "Ko Samui", "area": "Nathon" },
+          "kind": "transit",
+          "cost": { "amountMinor": 500, "currency": "USD" },
+          "notes": "Agree the fare before you get in. 150–200B a head across to Bophut is fair; 500B is the number they will open with. It is a shared truck that fills and goes, not a taxi, so being second in is better than being first."
+        },
+        {
+          "title": "First lunch on the island, Fisherman's Village",
+          "timeWindow": { "start": "13:00", "end": "14:15" },
+          "location": { "name": "Fisherman's Village, Bophut", "city": "Ko Samui", "area": "Bophut" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 900, "currency": "USD" },
+          "notes": "Old teak shophouses on one street facing a calm, swimmable bay. Eat on the beach side, not the road side — same kitchens, different afternoon."
+        },
+        {
+          "title": "Check in and sleep the train off",
+          "timeWindow": { "start": "14:30", "end": "16:30" },
+          "location": { "name": "Bophut beachfront guesthouse", "city": "Ko Samui", "area": "Bophut" },
+          "kind": "hold",
+          "tags": ["lodging"],
+          "notes": "You have been conscious since 06:00 inside a moving object. Two flat hours now is the difference between a good first evening on Samui and a wasted one — do not try to power through it with coffee."
+        },
+        {
+          "title": "Sunset and a swing seat at CoCo Tam's",
+          "timeWindow": { "start": "17:45", "end": "19:30" },
+          "location": { "name": "CoCo Tam's", "city": "Ko Samui", "area": "Bophut" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 1200, "currency": "USD" },
+          "notes": "Beanbags and rope swings straight onto Bophut sand, fire show at 21:30. If it is a Friday, the Fisherman's Village walking street starts around 18:00 fifty metres away and dinner should be 60B skewers from that instead — come here for the drink only."
+        }
+      ]
+    },
+    {
+      "key": "samui-private-charter-and-dining-on-the-rocks",
+      "name": "Samui at full tilt: a private boat to Ang Thong and dinner on the rocks",
+      "summary": "One honestly expensive day for two — your own speedboat to the Emerald Lake, seafood cooked on board, and a tasting menu bolted to a cliff over the Gulf.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2025-06-28T12:00:00.000Z",
+      "sourceTrip": { "name": "Ten years married, Gulf of Thailand" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-sofia" }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast at Fisherman's Village before the pier",
+          "timeWindow": { "start": "07:45", "end": "08:40" },
+          "location": { "name": "Fisherman's Village, Bophut", "city": "Ko Samui", "area": "Bophut" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 1800, "currency": "USD" },
+          "notes": "Every price on this day is for two people — read it that way before it frightens you. Eat properly now: the boat lunch is not until 13:00 and the crossing out is 90 minutes of open water."
+        },
+        {
+          "title": "Board the private speedboat at Bang Rak Pier",
+          "timeWindow": { "start": "08:55", "end": "09:30" },
+          "location": { "name": "Bang Rak Pier", "city": "Ko Samui", "area": "Bang Rak" },
+          "kind": "booked",
+          "cost": { "amountMinor": 96500, "currency": "USD" },
+          "notes": "A private speedboat to Ang Thong runs roughly 30,000–35,000B for the boat, not per head — obscene for two, entirely sane for eight, so this is the day to find another couple at your hotel. What the money buys is the timetable: you leave at 09:00 instead of 08:00 with two hundred people, and you choose when to leave each island. Book a fortnight ahead in high season and check the captain has enough English to renegotiate the day at sea."
+        },
+        {
+          "title": "Crossing to Mu Ko Ang Thong",
+          "timeWindow": { "start": "09:35", "end": "11:00" },
+          "location": { "name": "Mu Ko Ang Thong National Marine Park", "city": "Ang Thong", "area": "Mu Ko Ang Thong" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "cost": { "amountMinor": 1800, "currency": "USD" },
+          "notes": "300B a head national park fee, cash, taken at the ranger station on Koh Wua Talap. Forty-two islands and a 90-minute run each way, which is why the day starts early — and why it is a poor bet in the late-year monsoon, when the park closes at short notice and charters are not refundable."
+        },
+        {
+          "title": "The Emerald Lake and the stairs above it",
+          "timeWindow": { "start": "11:15", "end": "12:45" },
+          "location": { "name": "Talay Nai (Emerald Lake), Koh Mae Ko", "city": "Ang Thong", "area": "Koh Mae Ko" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "A saltwater lagoon sealed inside a collapsed limestone crater. You cannot swim in it — you climb wooden stairs to look down into it, fifteen minutes up and brutal in the middle of the day. The private boat's real advantage is arriving at 11:15, after the group boats have gone to lunch and before the afternoon ones land."
+        },
+        {
+          "title": "Seafood lunch cooked on board",
+          "timeWindow": { "start": "13:00", "end": "14:00" },
+          "location": { "name": "At anchor, Mu Ko Ang Thong", "city": "Ang Thong", "area": "Mu Ko Ang Thong" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 3000, "currency": "USD" },
+          "notes": "Order the seafood set when you book rather than the standard Thai one: about 500B a head for crab, prawns, whole fish and tom yum against 300B for fried rice and noodles. It is the cheapest upgrade of the entire day by a long way, and it has to be requested in advance."
+        },
+        {
+          "title": "Kayak the lagoons off Koh Wua Talap",
+          "timeWindow": { "start": "14:20", "end": "16:15" },
+          "location": { "name": "Koh Wua Talap", "city": "Ang Thong", "area": "Koh Wua Talap" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Kayaks come with the charter, so nobody offers them — ask. Go left out of the beach into the mangrove channels; the caves at the far end are only enterable near low water and the captain will know today's answer, which no schedule can."
+        },
+        {
+          "title": "Back at Bang Rak, and an hour to become presentable",
+          "timeWindow": { "start": "17:45", "end": "19:00" },
+          "location": { "name": "Bang Rak Pier", "city": "Ko Samui", "area": "Bang Rak" },
+          "kind": "transit",
+          "notes": "Dining on the Rocks has a smart-casual line and after nine hours on a boat you are nowhere near it. Build the hour in deliberately: the drive north-east from Bophut to Six Senses is about 30 minutes, and the last stretch is a steep private road."
+        },
+        {
+          "title": "Dinner at Dining on the Rocks, Six Senses Samui",
+          "timeWindow": { "start": "19:30", "end": "22:15" },
+          "location": { "name": "Dining on the Rocks, Six Senses Samui", "city": "Ko Samui", "area": "Choeng Mon" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "cost": { "amountMinor": 35300, "currency": "USD" },
+          "notes": "Terraced timber decks bolted to the cliff at the island's north-east corner, 270 degrees of Gulf underneath you. Book weeks ahead and expect a 500B-per-head deposit to hold it. The 18:30 sunset slot goes first; 19:30 gets you the same food under stars with the sea invisible, which is the other good answer. Ask for deck one at the outer rail — anywhere else and it is only a very good dinner. Tasting menu plus wine lands around 12,000B for two."
+        }
+      ]
+    }
+  ]
+}

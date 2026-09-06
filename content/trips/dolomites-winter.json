@@ -1,0 +1,445 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "dolomites-winter",
+    "name": "Dolomites in winter: Cortina and Alta Badia",
+    "description": "A week on the Dolomiti Superski pass — the Hidden Valley, the Sellaronda in a day, and long lunches in huts.",
+    "origin": "ai",
+    "sources": [
+      "https://www.moonhoneytravel.com/skiing-the-sella-ronda/",
+      "https://www.moonhoneytravel.com/hidden-valley-dolomites-armentarola-piste/",
+      "https://www.moonhoneytravel.com/cortina-d-ampezzo-ski-resort/",
+      "https://www.altabadia.org/en/sellaronda-skiing-alta-badia/ski-touring-dolomites",
+      "https://www.dolomiti.it/en/itineraries/alpine-skiing/ski-tour-sellaronda",
+      "https://www.rifugioaverau.it/en/5-torri-giau-pass/winter-activities/",
+      "https://lagazuoi.it/EN/Experience-Winter-page7-Lagazuoi-Ski-Area",
+      "https://www.altabadia.org/en/info-service/wellness-centres-spa-alta-badia",
+      "https://www.rome2rio.com/s/Venice-Airport-VCE/Cortina-d-Ampezzo"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [
+    {
+      "key": "dolomites-winter",
+      "name": "Dolomites: Cortina, Alta Badia and the Sellaronda",
+      "summary": "Seven days, two valleys, one 40 km loop, and lunch above 2,000 m every day.",
+      "currency": "USD",
+      "budget": { "amountMinor": 820000, "currency": "USD" },
+      "startsInDays": 95,
+      "days": [
+        {
+          "label": "Venice, and the bus up the Boite valley",
+          "stops": [
+            {
+              "title": "Flight into Venice Marco Polo",
+              "timeWindow": { "start": "09:40", "end": "12:05" },
+              "location": { "name": "Venice Marco Polo Airport (VCE)", "city": "Venice", "area": "Tessera" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Outbound leg only; the return is priced on day seven. Fly into VCE rather than Treviso — the mountain buses leave from Marco Polo and the Treviso alternative is a train, a bus and two hours more.",
+              "cost": { "amountMinor": 31000, "currency": "USD" }
+            },
+            {
+              "title": "Sandwich in the arrivals hall before the bus",
+              "timeWindow": { "start": "12:30", "end": "13:15" },
+              "location": { "name": "Marco Polo arrivals hall", "city": "Venice", "area": "Tessera" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "The Cortina bus has no stop and no toilet for two hours. Eat here even if nobody is hungry.",
+              "cost": { "amountMinor": 2600, "currency": "USD" }
+            },
+            {
+              "title": "Cortina Express bus to Piazza Roma",
+              "timeWindow": { "start": "13:35", "end": "15:50" },
+              "location": { "name": "Cortina Express, Venice airport to Cortina Piazza Roma", "city": "Cortina d'Ampezzo", "area": "Piazza Roma" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Three departures a day in winter and they sell out on Saturdays, which is changeover day for the whole valley — book the seat when you book the flight. Skis and boot bags travel free in the hold but are not guaranteed a space if you turn up without a ticket.",
+              "cost": { "amountMinor": 5000, "currency": "USD" }
+            },
+            {
+              "title": "Check in at Hotel Ambra",
+              "timeWindow": { "start": "16:15", "end": "17:00" },
+              "location": { "name": "Hotel Ambra, Via XXIX Maggio", "city": "Cortina d'Ampezzo", "area": "Centro" },
+              "kind": "booked",
+              "tags": ["lodging"],
+              "notes": "Two nights, thirty seconds off Corso Italia. Cortina's lifts are not walkable from anywhere in town — the free ski bus is the plan, so being central beats being near one lift base.",
+              "cost": { "amountMinor": 132000, "currency": "USD" }
+            },
+            {
+              "title": "Boot fitting at the Corso Italia rental shops",
+              "timeWindow": { "start": "17:15", "end": "18:20" },
+              "location": { "name": "Ski rental shops, Corso Italia", "city": "Cortina d'Ampezzo", "area": "Centro" },
+              "kind": "hold",
+              "tags": [],
+              "notes": "Six days of skis and boots for two, reserved online but not paid. Do the fitting this evening, not at 08:30 tomorrow: the shop is empty at five and forty deep at nine, and a boot fitted in a hurry ruins a whole week.",
+              "cost": { "amountMinor": 34000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Al Camin",
+              "timeWindow": { "start": "19:45", "end": "21:45" },
+              "location": { "name": "Ristorante Al Camin, Località Alverà", "city": "Cortina d'Ampezzo", "area": "Alverà" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "Two kilometres out of town on the Alverà road, so it is a taxi both ways — call for the table and the taxi in the same breath. Casunziei and game; the wine list is deeper than the room suggests.",
+              "cost": { "amountMinor": 12000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Tofana: finding your legs on the Cortina side",
+          "stops": [
+            {
+              "title": "Coffee and strudel at Pasticceria Alverà",
+              "timeWindow": { "start": "08:15", "end": "08:45" },
+              "location": { "name": "Pasticceria Alverà, Corso Italia", "city": "Cortina d'Ampezzo", "area": "Centro" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 1400, "currency": "USD" }
+            },
+            {
+              "title": "Collect the six-day Dolomiti Superski pass",
+              "timeWindow": { "start": "09:00", "end": "09:25" },
+              "location": { "name": "Freccia nel Cielo ticket office", "city": "Cortina d'Ampezzo", "area": "Tofana base" },
+              "kind": "booked",
+              "tags": ["ticketed"],
+              "notes": "Buy the full Dolomiti Superski, not the Cortina-only pass. The Sellaronda, the Lagazuoi runs and Alta Badia are all on the big one, and the difference across six days is less than a single day ticket. Bought online, so this is a machine and a QR code, not a queue.",
+              "cost": { "amountMinor": 84000, "currency": "USD" }
+            },
+            {
+              "title": "Tofana: Freccia nel Cielo to Ra Valles",
+              "timeWindow": { "start": "09:35", "end": "12:30" },
+              "location": { "name": "Ra Valles, Tofana di Mezzo", "city": "Cortina d'Ampezzo", "area": "Tofana" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Ra Valles is 2,500 m and holds cold snow when everything lower is spring mush, so ski it first and low later — most people do exactly the reverse. The top stage to 3,244 m is a viewpoint, not a ski run worth the extra queue on day one."
+            },
+            {
+              "title": "Lunch at Rifugio Duca d'Aosta",
+              "timeWindow": { "start": "12:45", "end": "14:00" },
+              "location": { "name": "Rifugio Duca d'Aosta, Pomedes", "city": "Cortina d'Ampezzo", "area": "Tofana" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Phone from the lift queue at eleven — the terrace tables go first and the inside room is dark and loud. Two courses and a glass, not the full menu: there are three hours of skiing left and the Pomedes red is not a run to take on half a litre of Lagrein.",
+              "cost": { "amountMinor": 9000, "currency": "USD" }
+            },
+            {
+              "title": "Socrepes and Pocol, skiing back into town",
+              "timeWindow": { "start": "14:15", "end": "16:15" },
+              "location": { "name": "Socrepes and Pocol pistes", "city": "Cortina d'Ampezzo", "area": "Pocol" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Wide blue cruisers and the right place to remember how a ski works. The run to the valley floor is only open when the low snow holds — if it is shut, the Socrepes gondola down is not an admission of defeat."
+            },
+            {
+              "title": "Aperitivo at Enoteca Cortina",
+              "timeWindow": { "start": "17:00", "end": "18:00" },
+              "location": { "name": "Enoteca Cortina, Via del Mercato", "city": "Cortina d'Ampezzo", "area": "Centro" },
+              "kind": "idea",
+              "tags": [],
+              "notes": "Unclaimed by anyone in the party. Standing room only after six and no bookings; the point is the Alto Adige whites by the glass, not the plate of speck.",
+              "cost": { "amountMinor": 4000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Baita Fraina",
+              "timeWindow": { "start": "20:00", "end": "22:00" },
+              "location": { "name": "Baita Fraina, Località Fraina", "city": "Cortina d'Ampezzo", "area": "Fraina" },
+              "kind": "booked",
+              "tags": ["meal"],
+              "notes": "Booked three weeks out; they hold a shuttle for guests if you ask when you reserve, which saves a taxi up the hill in the dark. Ask for the cellar tour before you sit down — it is one of the best lists in the Veneto and they like showing it.",
+              "cost": { "amountMinor": 14000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Cinque Torri, Lagazuoi, and the Hidden Valley into Alta Badia",
+          "stops": [
+            {
+              "title": "Breakfast, check out, and the bags into a taxi for Corvara",
+              "timeWindow": { "start": "07:30", "end": "08:15" },
+              "location": { "name": "Hotel Ambra, Via XXIX Maggio", "city": "Cortina d'Ampezzo", "area": "Centro" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Send the luggage round by taxi for about €110. Today's route ends at Armentarola on the far side of the Falzarego pass and there is no way to ski it with a suitcase — people try to solve this with buses and lose the whole afternoon.",
+              "cost": { "amountMinor": 12000, "currency": "USD" }
+            },
+            {
+              "title": "Ski bus to Passo Falzarego",
+              "timeWindow": { "start": "08:35", "end": "09:05" },
+              "location": { "name": "Passo Falzarego bus stop", "city": "Cortina d'Ampezzo", "area": "Falzarego" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Free with the lift pass and it beats the Falzarego cable-car queue by twenty minutes, because it drops you at the Cinque Torri chair rather than at the cable car everyone rides first."
+            },
+            {
+              "title": "Cinque Torri and the Super8 loop",
+              "timeWindow": { "start": "09:15", "end": "11:45" },
+              "location": { "name": "Cinque Torri and Forcella Nuvolau", "city": "Cortina d'Ampezzo", "area": "Cinque Torri" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Small area, five lifts, and the best snow in Cortina because everything faces north. The open-air Great War museum between the towers is on skis and takes ten minutes — it is the trenches, not a hut with a sign."
+            },
+            {
+              "title": "Lunch at Rifugio Averau",
+              "timeWindow": { "start": "12:00", "end": "13:20" },
+              "location": { "name": "Rifugio Averau, Forcella Nuvolau", "city": "Cortina d'Ampezzo", "area": "Cinque Torri" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "Averau takes bookings and needs them — held, not confirmed, so ring at nine. Ask for the casunziei all'ampezzana. If it is full, Rifugio Scoiattoli two lifts below never is and the view is the same rocks from lower down.",
+              "cost": { "amountMinor": 11000, "currency": "USD" }
+            },
+            {
+              "title": "Lagazuoi cable car, and the Hidden Valley to Armentarola",
+              "timeWindow": { "start": "13:45", "end": "15:45" },
+              "location": { "name": "Armentarola piste (Hidden Valley), Rifugio Lagazuoi to San Cassiano", "city": "San Cassiano", "area": "Armentarola" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Ski it after 14:00 once the guided groups have cleared — the run is 8 km through a frozen canyon with a waterfall halfway and it is a procession at eleven. Keep €10 in cash: the last flat kilometre is a rope tow pulled by two horses, and the drivers do not take cards.",
+              "cost": { "amountMinor": 1100, "currency": "USD" }
+            },
+            {
+              "title": "Check in at Hotel La Perla, Corvara",
+              "timeWindow": { "start": "16:30", "end": "17:20" },
+              "location": { "name": "Hotel La Perla, Strada Col Alt", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "booked",
+              "tags": ["lodging"],
+              "notes": "Four nights, and it sits two minutes from the Boè gondola — which matters on Sellaronda morning more than any other feature of any hotel in the valley.",
+              "cost": { "amountMinor": 210000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Maso Runch",
+              "timeWindow": { "start": "19:30", "end": "21:45" },
+              "location": { "name": "Maso Runch Hof, Runch", "city": "Badia", "area": "Alta Badia" },
+              "kind": "booked",
+              "tags": ["meal"],
+              "notes": "One fixed Ladin menu, six courses, no choices and no à la carte — say when you book if anyone does not eat pork, because otherwise there is nothing for them. Twenty minutes by taxi from Corvara and worth arranging the return before you sit down.",
+              "cost": { "amountMinor": 11000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "The Sellaronda, clockwise, in one day",
+          "stops": [
+            {
+              "title": "First lift: the Boè gondola out of Corvara",
+              "timeWindow": { "start": "08:10", "end": "08:30" },
+              "location": { "name": "Boè gondola base station", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Be on the first cabin. The loop is 40 km of piste plus a dozen lifts, the last connecting lift closes at 16:00, and missing it means a €90 taxi the long way round the massif. Go clockwise — the orange route — from Corvara: it puts the two slow, sunny valleys behind you before lunch."
+            },
+            {
+              "title": "Campolongo, Arabba and up to Passo Pordoi",
+              "timeWindow": { "start": "08:30", "end": "12:00" },
+              "location": { "name": "Passo Campolongo, Arabba and Porta Vescovo", "city": "Arabba", "area": "Passo Pordoi" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "The Arabba side is the steepest part of the whole circuit and the only stretch that is genuinely red rather than a red on paper. If anyone in the party is going to struggle, it happens here at ten in the morning — which is the right time to find out, because you can still turn round."
+            },
+            {
+              "title": "Lunch at Rifugio Fredarola",
+              "timeWindow": { "start": "12:15", "end": "13:05" },
+              "location": { "name": "Rifugio Fredarola, Belvedere", "city": "Canazei", "area": "Val di Fassa" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Fifty minutes for lunch is the price of the loop. Sit down at noon here or you will be racing the last lift at Gardena at four — every group that takes two hours over lunch finishes in a taxi.",
+              "cost": { "amountMinor": 9500, "currency": "USD" }
+            },
+            {
+              "title": "Sella pass into Val Gardena, coffee at Rifugio Emilio Comici",
+              "timeWindow": { "start": "13:15", "end": "15:00" },
+              "location": { "name": "Rifugio Emilio Comici, Piz Sella", "city": "Selva di Val Gardena", "area": "Val Gardena" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "Comici sits under the Sassolungo and is the one hut on the circuit worth stopping at twice — a coffee standing up costs nothing and the Sassolungo from its terrace is the picture people think they are taking all day.",
+              "cost": { "amountMinor": 4400, "currency": "USD" }
+            },
+            {
+              "title": "Gardena pass, the Vallon home, and a beer at the base",
+              "timeWindow": { "start": "15:15", "end": "17:00" },
+              "location": { "name": "Passo Gardena and the Boè base bar", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "The last leg over Passo Gardena is flat and cold and everyone is tired — this is where people fall over. Take the Vallon chair for the final run into Corvara rather than the skiweg, which by five is scraped to ice.",
+              "cost": { "amountMinor": 1800, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at La Stüa de Michil",
+              "timeWindow": { "start": "20:00", "end": "22:15" },
+              "location": { "name": "La Stüa de Michil, Hotel La Perla", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "booked",
+              "tags": ["meal"],
+              "notes": "One Michelin star, inside the hotel, so the day ends with a lift and not a taxi — which is why it is booked for Sellaronda night and not for an easier one. The cellar visit before dinner is free; ask at breakfast and they will do it at 19:15.",
+              "cost": { "amountMinor": 42000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "The light day: Pralongià, a long lunch, and the spa",
+          "stops": [
+            {
+              "title": "Pralongià: the easy cruisers above Corvara",
+              "timeWindow": { "start": "09:30", "end": "12:15" },
+              "location": { "name": "Pralongià plateau", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Nothing steep, nothing linked, nothing to catch. Two lifts and the same three blues over and over, with the Marmolada in front of you the whole way down — the day after the Sellaronda, this is all the legs will take and all anyone wants."
+            },
+            {
+              "title": "Two hours over lunch at Rifugio Bioch",
+              "timeWindow": { "start": "12:30", "end": "14:30" },
+              "location": { "name": "Rifugio Bioch, Pralongià", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "Bioch is on the Sciare con Gusto list — a Michelin chef designs one dish a season for the hut and it costs about €22 on a mountain menu. Held for two on the terrace; ring to confirm, and take the two hours. This is the point of the day, not an interruption to it.",
+              "cost": { "amountMinor": 13000, "currency": "USD" }
+            },
+            {
+              "title": "Spa afternoon at the hotel wellness centre",
+              "timeWindow": { "start": "15:30", "end": "18:00" },
+              "location": { "name": "Hotel La Perla spa, Strada Col Alt", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "Book the two massage slots at breakfast — the hotel's own guests fill them by ten and day rates are only sold if there is room left. Sauna is textile-free in the Austrian manner; nobody warns British guests about this and they should.",
+              "cost": { "amountMinor": 9000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Alta Badia's own: the Gran Risa and the San Cassiano side",
+          "stops": [
+            {
+              "title": "Ski bus to La Villa",
+              "timeWindow": { "start": "08:20", "end": "08:50" },
+              "location": { "name": "Piz La Ila gondola base, La Villa", "city": "La Villa", "area": "Alta Badia" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Free with the pass and it runs every twenty minutes from Corvara. Starting at La Villa rather than skiing over means the Gran Risa is under you at nine instead of eleven, which is the whole plan for today."
+            },
+            {
+              "title": "The Gran Risa, before it scrapes off",
+              "timeWindow": { "start": "09:00", "end": "12:15" },
+              "location": { "name": "Gran Risa piste, Piz La Ila", "city": "La Villa", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "The World Cup giant slalom slope, and it is a real black: pitched, narrow at the top, and boilerplate ice by eleven once the morning traffic has taken the snow off. First hour or don't bother — the Bamby blue runs alongside it and is a perfectly good day out."
+            },
+            {
+              "title": "Lunch at Rifugio Las Vegas",
+              "timeWindow": { "start": "12:45", "end": "14:15" },
+              "location": { "name": "Rifugio Las Vegas, Piz La Ila", "city": "La Villa", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Cheerful, family-run and no bookings, so arrive at 12:30 or at 14:00 and never at one. Order the barley soup and the tagliata; skip the pizza, which exists for the school groups.",
+              "cost": { "amountMinor": 9000, "currency": "USD" }
+            },
+            {
+              "title": "Piz Sorega down to San Cassiano, then the toboggan run",
+              "timeWindow": { "start": "15:00", "end": "16:45" },
+              "location": { "name": "Piz Sorega toboggan run", "city": "San Cassiano", "area": "Alta Badia" },
+              "kind": "hold",
+              "tags": ["outdoors"],
+              "notes": "Sledges are hired at the top station and the run is floodlit until 21:00 on some evenings — check the board at the base, because the schedule changes weekly. Held two sledges; you pay when you collect them.",
+              "cost": { "amountMinor": 3600, "currency": "USD" }
+            },
+            {
+              "title": "Aperitivo at the Rosa Alpina bar",
+              "timeWindow": { "start": "17:15", "end": "18:20" },
+              "location": { "name": "Hotel Rosa Alpina bar, Strada Micurá de Rü", "city": "San Cassiano", "area": "Alta Badia" },
+              "kind": "idea",
+              "tags": [],
+              "notes": "Floated, not agreed. It is the hotel that St. Hubertus sits inside, so if the dinner below comes off this is the waiting room; if it does not, this is a very expensive negroni in ski socks.",
+              "cost": { "amountMinor": 5000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at St. Hubertus",
+              "timeWindow": { "start": "19:30", "end": "22:15" },
+              "location": { "name": "St. Hubertus, Hotel Rosa Alpina", "city": "San Cassiano", "area": "Alta Badia" },
+              "kind": "idea",
+              "tags": ["meal"],
+              "notes": "Three stars and a waiting list months deep — this is on the list without a table, which is honest. Put a name down the day the flights are booked. If nothing comes free, Ristorante Fana Ladina in Pedraces is the Ladin dinner people actually remember and costs a fifth of it.",
+              "cost": { "amountMinor": 62000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Two last runs, and the bus down to Venice",
+          "stops": [
+            {
+              "title": "Two last runs off Col Alt, bags at the desk",
+              "timeWindow": { "start": "08:40", "end": "11:00" },
+              "location": { "name": "Col Alt piste, above Corvara", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Col Alt goes straight from the village and comes straight back to it — the only run in the valley you can do twice with a bus to catch. Everything else needs a lift chain you cannot afford this morning."
+            },
+            {
+              "title": "Return the hire skis in Corvara",
+              "timeWindow": { "start": "11:10", "end": "11:35" },
+              "location": { "name": "Ski rental, Strada Col Alt", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "The Cortina shop and the Corvara shop are the same chain, which is why the kit could be dropped at the other end of the week — check that was actually written on the ticket on day one, not just agreed out loud."
+            },
+            {
+              "title": "Lunch in Corvara before the bus",
+              "timeWindow": { "start": "11:50", "end": "12:45" },
+              "location": { "name": "Corvara village centre", "city": "Corvara", "area": "Alta Badia" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 5000, "currency": "USD" }
+            },
+            {
+              "title": "Cortina Express bus, Corvara to Venice airport",
+              "timeWindow": { "start": "13:00", "end": "16:35" },
+              "location": { "name": "Venice Marco Polo Airport (VCE)", "city": "Venice", "area": "Tessera" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "One direct Corvara–Venice airport service a day in winter. The alternative is three regional buses via Brunico and five hours, so if this one is full the answer is a taxi to Cortina and the Cortina bus, not a clever route.",
+              "cost": { "amountMinor": 5400, "currency": "USD" }
+            },
+            {
+              "title": "Flight home from Venice",
+              "timeWindow": { "start": "18:55", "end": "20:40" },
+              "location": { "name": "Venice Marco Polo Airport (VCE), departures", "city": "Venice", "area": "Tessera" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Two hours between the bus and the gate is the minimum that survives a snowy Falzarego pass — the bus is the leg that runs late, never the plane.",
+              "cost": { "amountMinor": 31000, "currency": "USD" }
+            }
+          ]
+        }
+      ],
+      "backlog": [
+        {
+          "title": "Night sledging on the Armentarola toboggan run",
+          "location": { "name": "Armentarola toboggan run", "city": "San Cassiano", "area": "Armentarola" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Only floodlit on certain evenings and the schedule is posted weekly at the lift base — nobody can book this in advance, which is why it is parked."
+        },
+        {
+          "title": "The Great War tunnels inside Lagazuoi, on foot with a headlamp",
+          "location": { "name": "Galleria del Lagazuoi", "city": "Cortina d'Ampezzo", "area": "Falzarego" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The tunnels are open in winter with a torch and a helmet, but it takes a whole morning and it is a walk, not a ski — it would cost one of the two Cortina days."
+        },
+        {
+          "title": "Half-day ski touring up the Vallon with a guide",
+          "location": { "name": "Vallon, Sella group", "city": "Corvara", "area": "Alta Badia" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Skins and a transceiver hired locally. Needs a guide booked a fortnight out and a settled avalanche forecast, so it can only be decided in the week."
+        },
+        {
+          "title": "Ice climbing taster in the Sottoguda gorge",
+          "location": { "name": "Serrai di Sottoguda", "city": "Rocca Pietore", "area": "Sottoguda" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "An hour's drive from Corvara and only in condition in a cold January. Parked as a wet-weather substitute rather than a plan."
+        }
+      ]
+    }
+  ]
+}

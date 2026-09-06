@@ -16,7 +16,8 @@
     "mutate": "node scripts/mutate.mjs",
     "redfirst": "node scripts/redfirst.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int:if-db",
-    "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test"
+    "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test",
+    "content:verify": "pnpm --filter web content:verify"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",

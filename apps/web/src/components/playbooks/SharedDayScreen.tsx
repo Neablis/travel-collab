@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
+import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -236,6 +237,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             <div className="flex flex-wrap items-center gap-2">
               <Heading level={1}>{day.name}</Heading>
               {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+              {/* Beside "Private" rather than in the author strip below: this is
+                  the screen somebody reads before deciding to take the day into
+                  their own trip, and "who wrote it" belongs with the title they
+                  are deciding on, not three paragraphs down beside the
+                  leaderboard numbers. */}
+              <AuthorKindBadge authorKind={day.authorKind} />
             </div>
             <Text variant="secondary" className="mt-1">
               Kept out of {day.sourceTripName}. Order and gaps kept, no dates — drop it into any

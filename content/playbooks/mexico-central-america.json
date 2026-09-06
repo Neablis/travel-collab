@@ -1,0 +1,700 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "mexico-central-america",
+    "name": "Mexico and Central America: day-shaped playbooks",
+    "description": "Eight reusable days from Oaxaca, the Yucatán, Mexico City, Baja California Sur, Costa Rica and Guatemala. Real markets, ruins, cenotes, operators and dinner tables, with the arrival times and cash rules that decide whether the day works.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "https://chichenitzamexico.org/entrance-fee/",
+      "https://chichenitzamexico.org/hours/",
+      "https://montealbanoaxaca.com/inah-2026-entrance-fee-increases-for-monte-alban-mitla-and-other-oaxaca-archaeological-sites-updates-and-visitor-guide/",
+      "https://www.mexicotravelandleisure.com/blog/hierve-el-agua-oaxaca/",
+      "https://oaxaca.substack.com/p/how-to-eat-at-oaxacas-smoke-hall",
+      "https://www.mezcalistas.com/mezcal-in-oaxaca/",
+      "https://www.letstraveltomexico.com/valladolid-cenotes/",
+      "https://www.mexicotravelandleisure.com/blog/cenote-dos-ojos-tulum/",
+      "https://www.mexicotravelandleisure.com/blog/tulum-ruins-guide/",
+      "https://www.scubatulum.mx/cenotes/casa-cenote/",
+      "https://www.milenio.com/comunidad/trajineras-en-xochimilco-cdmx-como-rentarlas-y-precios",
+      "https://www.casagoliana.com/blog/xochimilco-trajineras-guide/",
+      "https://en.wikipedia.org/wiki/Contramar",
+      "https://en.wikipedia.org/wiki/Licorer%C3%ADa_Limantour",
+      "https://mexicotraveladventure.com/en/whale-shark-season-la-paz-complete-guide/",
+      "https://randomtrip.net/swim-with-whale-shark-guide-la-paz-bcs-mexico/",
+      "https://www.jazamango.mx/",
+      "https://misticopark.com/frequently-asked-questions/",
+      "https://toorizta.com/monteverde-cloud-forest-reserve-guide",
+      "https://www.twoweeksincostarica.com/monteverde-cloud-forest-reserve/",
+      "https://oxexpeditions.com/tour-category/acatenango-volcano/",
+      "https://thespunkycurl.com/acatenango-and-fuego-volcanoes-hike/",
+      "https://www.nomadasaurus.com/things-to-do-in-antigua-guatemala/"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "oaxaca-markets-mole-and-mezcal",
+      "name": "Oaxaca on foot: cacao at seven, the smoke hall at one, mezcal until late",
+      "summary": "A centro day built around two markets and two bars. Eat before the tour groups wake up, sit down in the Pasillo de Humo when the grills are hottest, and finish where the mezcal is poured by people who wrote books about it.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-11-09T09:00:00.000Z",
+      "sourceTrip": { "name": "Oaxaca, slowly, in the rain" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-elena" },
+        { "addedBy": "dev-ruth" }
+      ],
+      "stops": [
+        {
+          "title": "Cacao, pan de yema and a bowl of atole at Mercado Benito Juárez",
+          "timeWindow": { "start": "07:30", "end": "08:30" },
+          "location": { "name": "Mercado Benito Juárez", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The market is working from about 07:00 and this is the only hour it belongs to the neighbourhood rather than to tourism. The chocolate grinders are clustered at the Las Casas end — ask for chocolate de agua, not de leche, and buy a kilo of ground cacao if you want the trip to follow you home. Everything here is cash, and nobody has change for a 500-peso note before nine.",
+          "cost": { "amountMinor": 400, "currency": "USD" }
+        },
+        {
+          "title": "Santo Domingo, then the Jardín Etnobotánico on a guided pass",
+          "timeWindow": { "start": "08:45", "end": "10:15" },
+          "location": { "name": "Templo y Jardín Etnobotánico de Santo Domingo de Guzmán", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "The church is free and empty early; the garden cannot be walked alone at all — entry is only on a guided tour, Spanish several times daily and English on a shorter fixed schedule. Turn up twenty minutes before the slot, because the group is capped and they close the gate on time. The whole garden is plants that end up in Oaxacan food, dye and mezcal, which makes it the best possible briefing for the rest of the day.",
+          "cost": { "amountMinor": 600, "currency": "USD" }
+        },
+        {
+          "title": "Museo Textil de Oaxaca, if the weaving has hooked you",
+          "timeWindow": { "start": "10:30", "end": "11:30" },
+          "location": { "name": "Museo Textil de Oaxaca", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "idea",
+          "notes": "Free, air-conditioned, and small enough to do properly in an hour. Worth it mostly as preparation: after this you can tell a cochineal red from an aniline one at a hundred paces, which changes what you buy in Teotitlán del Valle.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Pasillo de Humo: pick your meat, they grill it at the stall",
+          "timeWindow": { "start": "12:30", "end": "14:00" },
+          "location": { "name": "Mercado 20 de Noviembre", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The smoke corridor runs roughly 10:00 to 17:00 and is thickest between one and three. The system confuses people: you buy tasajo or cecina enchilada by weight from one of the grill stalls, and separately buy tortillas, salsa, spring onions and guacamole from the women walking the aisle — two transactions, both cash, neither of them a menu. Sit at the communal bench, order less than you think, go back for more.",
+          "cost": { "amountMinor": 900, "currency": "USD" }
+        },
+        {
+          "title": "Nieve de leche quemada at the Llano",
+          "timeWindow": { "start": "14:20", "end": "15:00" },
+          "location": { "name": "Parque Paseo Juárez El Llano", "city": "Oaxaca", "area": "El Llano" },
+          "kind": "idea",
+          "notes": "Twenty minutes uphill from the market and worth it purely because you need to walk after that lunch. Leche quemada con tuna is the local order; the sorbet carts are on the Berriozábal side.",
+          "cost": { "amountMinor": 250, "currency": "USD" }
+        },
+        {
+          "title": "A flight of three at In Situ",
+          "timeWindow": { "start": "17:00", "end": "18:30" },
+          "location": { "name": "In Situ Mezcalería", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "planned",
+          "notes": "Ulises Torrentera's bar on Guerrero, and probably the deepest mezcal list in Mexico. It keeps early hours — open from midday and shut long before a normal bar would start — and it is closed Sundays, so this is a pre-dinner stop, not a nightcap. Do not order by name. Say what you liked about the last thing you drank and let them pour; a flight of three wild agaves runs about twenty dollars and is the whole education.",
+          "cost": { "amountMinor": 2200, "currency": "USD" }
+        },
+        {
+          "title": "Mole negro at Las Quince Letras",
+          "timeWindow": { "start": "19:00", "end": "20:45" },
+          "location": { "name": "Las Quince Letras", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "An old-guard dining room on Abasolo that has been doing the seven moles since long before Oaxaca was a food destination. Book — it is small. If you only eat one mole in the state, make it the negro here rather than a tasting plate of seven thimbles somewhere prettier.",
+          "cost": { "amountMinor": 2800, "currency": "USD" }
+        },
+        {
+          "title": "Last one at Sabina Sabe",
+          "timeWindow": { "start": "21:15", "end": "22:45" },
+          "location": { "name": "Sabina Sabe", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "idea",
+          "notes": "5 de Mayo 209 — mezcal cocktails rather than a tasting bar, and a room that stays lively past the point where the rest of the centro has rolled up. Balancing In Situ's seriousness with something long and cold is the reason this day ends well.",
+          "cost": { "amountMinor": 1600, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "oaxaca-valleys-monte-alban-to-hierve-el-agua",
+      "name": "The Valles Centrales in one hired car: Monte Albán, a loom, the falls that never fall",
+      "summary": "The four-stop Oaxaca valley circuit done with a certified guide and a driver, which is what makes it a day rather than a race. Monte Albán at opening, cochineal in Teotitlán, comida at Tlamanalli, and Hierve el Agua when the tour vans have gone.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-04-12T08:30:00.000Z",
+      "sourceTrip": { "name": "Oaxaca and the Sierra Norte" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Pickup in the centro: private guide and driver, nine hours",
+          "timeWindow": { "start": "07:45", "end": "08:05" },
+          "location": { "name": "Zócalo de Oaxaca", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "booked",
+          "notes": "This is the whole reason the day works. A group van does Monte Albán at 11:00 with two hundred other people and reaches Hierve el Agua at the hottest, fullest hour. A private car with an INAH-accredited guide costs roughly what four seats on the van cost, and buys you the ordering of the day. Book direct with a local operator — Zapotrek and Coyote Aventuras both run Zapotec guides — and agree the route the night before, not in the car.",
+          "cost": { "amountMinor": 23000, "currency": "USD" }
+        },
+        {
+          "title": "Monte Albán the minute the gate opens",
+          "timeWindow": { "start": "08:20", "end": "10:45" },
+          "location": { "name": "Zona Arqueológica de Monte Albán", "city": "Oaxaca", "area": "Monte Albán" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "Gates at 08:00, last entry 16:00. INAH raised the foreign-visitor fee to 210 pesos in January 2026 and it now includes the site museum, so do not let anyone sell you a separate museum ticket. The coaches from the city land about 10:30; before that the Gran Plaza is 300 metres of empty limestone with the whole valley below it. Take a hat — there is no shade anywhere on the platform — and cash, because the booth's card reader is decorative.",
+          "cost": { "amountMinor": 1100, "currency": "USD" }
+        },
+        {
+          "title": "Cochineal and a backstrap loom in Teotitlán del Valle",
+          "timeWindow": { "start": "11:20", "end": "12:30" },
+          "location": { "name": "Family weaving workshop, Av. Juárez", "city": "Teotitlán del Valle", "area": "Valles Centrales" },
+          "kind": "planned",
+          "notes": "The demonstration — crushing cochineal off a nopal paddle, then shifting the red to purple with lime juice in front of you — is free, and ends in a sales room. That is the honest bargain, so go in knowing it. A metre-square rug in genuine natural dye is 150 to 300 dollars and takes weeks; anything at 40 dollars is aniline, which is fine, but ask which it is. Avoid the workshops with coach parking on the main road.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Comida at Tlamanalli",
+          "timeWindow": { "start": "12:45", "end": "14:00" },
+          "location": { "name": "Tlamanalli", "city": "Teotitlán del Valle", "area": "Av. Juárez" },
+          "kind": "hold",
+          "tags": ["meal"],
+          "notes": "The Mendoza sisters' dining room, and one of the reasons anyone outside Oaxaca knows the word Zapotec cooking. Lunch service only, cash only, and it does not open every day of the week — this stays a hold until your guide has actually phoned. Fallback five minutes away is any comedor doing higaditos on the plaza; the day survives either way.",
+          "cost": { "amountMinor": 2400, "currency": "USD" }
+        },
+        {
+          "title": "Hierve el Agua: the mirador trail, not just the pools",
+          "timeWindow": { "start": "14:45", "end": "16:30" },
+          "location": { "name": "Hierve el Agua", "city": "San Lorenzo Albarradas", "area": "Valles Centrales" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Two things to get right. First, the site is co-managed by communities that have shut it with no warning during land disputes, most often between June and October — have the driver call San Lorenzo Albarradas the morning of, and keep a fallback. Second, almost everyone photographs the infinity pools and leaves; the mineral cascade only reads as a frozen waterfall from the trail that drops below it, which is 40 minutes down and 50 back up in full sun. Entry is about 50 pesos plus a 20-peso community fee, cash, and there is a daily visitor cap. Open 07:00 to 17:00; the last eight kilometres are rough dirt.",
+          "cost": { "amountMinor": 350, "currency": "USD" }
+        },
+        {
+          "title": "A family palenque in Santiago Matatlán",
+          "timeWindow": { "start": "17:00", "end": "18:00" },
+          "location": { "name": "Palenque on the Mitla road", "city": "Santiago Matatlán", "area": "Valles Centrales" },
+          "kind": "planned",
+          "notes": "Matatlán calls itself the world capital of mezcal and the highway through it is lined with places built for buses. Ask the driver for a family palenque still cooking espadín in an earth pit and distilling in clay — the difference is audible in the room, never mind the glass. Tastings are free or nearly; buy by the litre from the barrel and they will fill a bottle for you. Cash, pesos, and eat something first.",
+          "cost": { "amountMinor": 1500, "currency": "USD" }
+        },
+        {
+          "title": "Back into the city",
+          "timeWindow": { "start": "18:15", "end": "19:15" },
+          "location": { "name": "Carretera Federal 190", "city": "Oaxaca", "area": "Centro Histórico" },
+          "kind": "transit",
+          "notes": "An hour on the 190 with the light going. Ask to be dropped at the Llano rather than the zócalo if you want dinner without a taxi.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "chichen-itza-at-opening-then-a-cenote-route",
+      "name": "Chichén Itzá before the buses, then the cenotes nobody queues for",
+      "summary": "Based in Valladolid instead of Cancún, which turns Chichén Itzá from a four-hour coach ordeal into a 50-minute colectivo ride and gives you El Castillo almost alone. Then a community cenote instead of the famous one, and Oxman after the day-trippers leave.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-01-18T07:00:00.000Z",
+      "sourceTrip": { "name": "Yucatán by colectivo" },
+      "addedBy": [
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-elena" },
+        { "addedBy": "dev-ruth" }
+      ],
+      "stops": [
+        {
+          "title": "First colectivo of the day to Pisté",
+          "timeWindow": { "start": "06:45", "end": "07:45" },
+          "location": { "name": "Colectivo stand, Calle 46", "city": "Valladolid", "area": "Centro" },
+          "kind": "transit",
+          "notes": "Shared vans to Pisté leave from Calle 46 a block off the plaza from about 06:00 for around 50 pesos. There is no timetable — they go when the seats fill, which before 07:00 takes a few minutes because it is mostly people going to work at the site. Ask to be let out at the ruins entrance rather than in Pisté village, or you add a hot 2 km.",
+          "cost": { "amountMinor": 300, "currency": "USD" }
+        },
+        {
+          "title": "Chichén Itzá at 08:00, when the plaza is silent",
+          "timeWindow": { "start": "08:00", "end": "10:30" },
+          "location": { "name": "Zona Arqueológica de Chichén Itzá", "city": "Chichén Itzá", "area": "Zona Arqueológica" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "The single most useful fact about this site: you pay twice, at two different windows, before one turnstile — about 105 pesos to INAH and about 592 to Cultur, roughly 700 pesos total. Bring it in cash pesos; the card terminals fail constantly and the queue behind you will not be kind. Gates open 08:00, last entry 16:00. The Cancún and Riviera Maya coaches arrive from about 10:30 and the vendors finish setting up their tables along the avenues around 09:00, so the first ninety minutes are a different site entirely. Do the Great Ball Court and the Osario early and leave the Sacred Cenote for last as the crowd builds.",
+          "cost": { "amountMinor": 4000, "currency": "USD" }
+        },
+        {
+          "title": "Cenote Yokdzonot instead of Ik Kil",
+          "timeWindow": { "start": "11:00", "end": "13:00" },
+          "location": { "name": "Cenote Yokdzonot", "city": "Yokdzonot", "area": "Carretera Libre 180" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Ik Kil is three kilometres from the ruins, which is exactly why every coach stops there and why the water is a soup of lifejackets by 11:00. Yokdzonot is twenty minutes west on the free road, run by a women's cooperative since 2005, and on a weekday morning you can have a 40-metre open well to yourself. Entry is around 150 pesos, cash, life jacket included and compulsory. Their restaurant does a proper sopa de lima and it is the best food in a fifteen-kilometre radius.",
+          "cost": { "amountMinor": 800, "currency": "USD" }
+        },
+        {
+          "title": "Colectivo back into Valladolid",
+          "timeWindow": { "start": "13:15", "end": "14:00" },
+          "location": { "name": "Carretera Libre 180", "city": "Valladolid", "area": "Centro" },
+          "kind": "transit",
+          "notes": "Flag it from the roadside outside the cenote gate; anything heading east is going to Valladolid. Have small notes — nobody breaks a 200.",
+          "cost": { "amountMinor": 300, "currency": "USD" }
+        },
+        {
+          "title": "Lomitos de Valladolid at El Amigo Casiano",
+          "timeWindow": { "start": "14:15", "end": "15:15" },
+          "location": { "name": "Lonchería El Amigo Casiano", "city": "Valladolid", "area": "Centro" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Lomitos — pork stewed down in tomato with a hard-boiled egg on top — is the town's own dish and this is the plain-tiled place that does it properly. Cash, no menu worth reading, and they close when the pot is empty, which on a good day is early afternoon.",
+          "cost": { "amountMinor": 700, "currency": "USD" }
+        },
+        {
+          "title": "Cenote Oxman at the quiet hour",
+          "timeWindow": { "start": "16:00", "end": "17:30" },
+          "location": { "name": "Cenote San Lorenzo Oxman", "city": "Valladolid", "area": "Hacienda San Lorenzo" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Three kilometres from the plaza — 60 pesos in a taxi each way, or rent a bike. The 250-peso ticket includes the hacienda pool and a food-and-drink credit you should actually use. Come after 16:00: the Cancún day trips leave around three and the queue for the rope swing goes from twenty minutes to nothing. Roots hang the full 25 metres to the water and the afternoon light comes straight down the shaft.",
+          "cost": { "amountMinor": 1250, "currency": "USD" }
+        },
+        {
+          "title": "Calzada de los Frailes at dusk",
+          "timeWindow": { "start": "18:15", "end": "19:15" },
+          "location": { "name": "Calzada de los Frailes and Convento de San Bernardino", "city": "Valladolid", "area": "Sisal" },
+          "kind": "idea",
+          "notes": "The pastel street everyone photographs at noon is empty and much better at dusk. Walk it to the convent at the end; the free light-and-sound projection on its facade runs at 21:00 and takes about 25 minutes if you want to come back after dinner.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at IX CAT IK",
+          "timeWindow": { "start": "19:45", "end": "21:15" },
+          "location": { "name": "IX CAT IK", "city": "Valladolid", "area": "Centro" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Yucatec Maya cooking done seriously rather than as a costume — recado negro, chaya, pibil out of a proper pit. Small room, so book in the afternoon. Cheaper and better than anything on the plaza.",
+          "cost": { "amountMinor": 1800, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "tulum-ruins-at-eight-then-two-cenote-dives",
+      "name": "Tulum: the ruins at eight, then two cenote dives on the same tank of daylight",
+      "summary": "The cliff-top ruins in the ninety minutes before the Cozumel coaches, then an afternoon underground — Dos Ojos for the cavern lines and Casa Cenote for the halocline and the crocodile. Certification card required and actually checked.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-07-22T10:00:00.000Z",
+      "sourceTrip": { "name": "Quintana Roo, underwater" },
+      "addedBy": [
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Colectivo up the 307 to the ruins gate",
+          "timeWindow": { "start": "07:35", "end": "07:55" },
+          "location": { "name": "Colectivo stop by the 7-Eleven, Carretera Federal 307", "city": "Tulum", "area": "Tulum Pueblo" },
+          "kind": "transit",
+          "notes": "Twenty pesos, running from about 06:00, and they pass every few minutes — there is no reason to pay a taxi for this. From the drop-off it is 800 metres of unshaded car park to the ticket booth, or a few pesos on the trolley if the heat has already won.",
+          "cost": { "amountMinor": 100, "currency": "USD" }
+        },
+        {
+          "title": "Tulum ruins at opening, before the cruise groups",
+          "timeWindow": { "start": "08:00", "end": "09:45" },
+          "location": { "name": "Zona Arqueológica de Tulum", "city": "Tulum", "area": "Parque del Jaguar" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "Since Parque del Jaguar took over the access, entry is three separate charges stacked together — the INAH site fee, a CONANP national-park bracelet and the park ticket — landing around 500 pesos a head. Carry it in cash; the readers at the gate are unreliable. Gate 08:00, last admission mid-afternoon. The Cozumel day groups arrive from about 10:00 and the ledge above the beach becomes a single-file queue, so shoot El Castillo from the south path first and walk the perimeter wall last.",
+          "cost": { "amountMinor": 2900, "currency": "USD" }
+        },
+        {
+          "title": "Gear check and cavern briefing at the dive shop",
+          "timeWindow": { "start": "10:45", "end": "11:15" },
+          "location": { "name": "Dive centre on Avenida Tulum", "city": "Tulum", "area": "Tulum Pueblo" },
+          "kind": "booked",
+          "notes": "Cenote diving is guided-only, and the shop should ask for the physical certification card and a logbook before it takes your money — one that does not is one to walk out of. Cavern rules mean a continuous guideline, daylight always in sight, and no more than four divers to a guide. Two-tank guided cenote days with full gear run about 160 dollars; book the day before and take the later slot so the ruins morning fits in front of it.",
+          "cost": { "amountMinor": 16000, "currency": "USD" }
+        },
+        {
+          "title": "Dive one: Dos Ojos, the Barbie Line",
+          "timeWindow": { "start": "11:30", "end": "13:30" },
+          "location": { "name": "Cenote Dos Ojos", "city": "Tulum", "area": "Jacinto Pat" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "The catch nobody warns you about: the ejido charges its own cenote entrance of about 400 pesos per diver, in cash, at the gate on the 307, and it is not inside the price the shop quoted you. The Barbie Line is the shallower, brighter of the two circuits — 10 metres, big decorated rooms, and a halocline that makes the water look like it needs cleaning. Bring a torch even in daylight.",
+          "cost": { "amountMinor": 2200, "currency": "USD" }
+        },
+        {
+          "title": "Surface interval at the Dos Ojos palapa",
+          "timeWindow": { "start": "13:45", "end": "15:15" },
+          "location": { "name": "Dos Ojos palapa comedor", "city": "Tulum", "area": "Jacinto Pat" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "An hour minimum between dives and the shop will hold you to it. Food is basic — tortas, agua de jamaica — and there is nowhere better within twenty minutes, so eat here rather than making the guide drive.",
+          "cost": { "amountMinor": 800, "currency": "USD" }
+        },
+        {
+          "title": "Dive two: Casa Cenote's mangrove channel",
+          "timeWindow": { "start": "15:30", "end": "17:00" },
+          "location": { "name": "Casa Cenote", "city": "Tulum", "area": "Tankah" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "Open water rather than cavern, eight metres at most, and the best halocline on this coast — you swim through the shimmer where the freshwater lens sits on salt. Entrance is about 200 pesos, cash, separate again. There is a resident crocodile called Panchito who keeps to the mangrove edge; the guides know exactly where he is and it is the calmest wildlife encounter of the trip. Best light is between three and four.",
+          "cost": { "amountMinor": 1100, "currency": "USD" }
+        },
+        {
+          "title": "Seafood at El Camello Jr",
+          "timeWindow": { "start": "19:00", "end": "20:30" },
+          "location": { "name": "El Camello Jr", "city": "Tulum", "area": "Tulum Pueblo" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The pueblo-side place where people who work in Tulum eat, not the beach-road version of Tulum. Ceviche, pescado tikin xin, plastic chairs, cash only, closed Wednesdays. Get there by 19:00 or queue on the pavement.",
+          "cost": { "amountMinor": 1500, "currency": "USD" }
+        },
+        {
+          "title": "One mezcal at Batey before the day catches up",
+          "timeWindow": { "start": "21:00", "end": "22:15" },
+          "location": { "name": "Batey Mojito & Guarapo Bar", "city": "Tulum", "area": "Tulum Pueblo" },
+          "kind": "idea",
+          "notes": "They press sugarcane through a mill built into a VW Beetle in the doorway, which is exactly as gimmicky and as good as that sounds. One drink — you have been up since half six and under water twice.",
+          "cost": { "amountMinor": 900, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "xochimilco-morning-then-roma-and-condesa",
+      "name": "Mexico City: chinampas at nine, Roma and Condesa from three until late",
+      "summary": "The far south in the morning while the canals still belong to the growers, then the long ride back for the city's best lunch table and a slow crawl through Roma Norte and Condesa. No Coyoacán, no Centro, no queue at the Anthropology Museum.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2024-10-20T09:00:00.000Z",
+      "sourceTrip": { "name": "CDMX, third time lucky" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-ruth" }
+      ],
+      "stops": [
+        {
+          "title": "Metro to Tasqueña, Tren Ligero to Embarcadero Cuemanco",
+          "timeWindow": { "start": "08:15", "end": "09:15" },
+          "location": { "name": "Tren Ligero to Xochimilco", "city": "Mexico City", "area": "Xochimilco" },
+          "kind": "transit",
+          "notes": "Line 2 south to Tasqueña, then the light rail to Xochimilco — the whole run from Roma is about an hour and costs under twelve pesos, which is less than the tip on the boat. Cuemanco is the working pier next to the ecological park; Nativitas is the party pier with the beer boats and the mariachi. Pick deliberately.",
+          "cost": { "amountMinor": 100, "currency": "USD" }
+        },
+        {
+          "title": "Two hours on a trajinera through the chinampas",
+          "timeWindow": { "start": "09:30", "end": "11:45" },
+          "location": { "name": "Embarcadero Cuemanco", "city": "Mexico City", "area": "Xochimilco" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The official tariff is posted on a board at the pier — around 750 pesos per hour for the entire boat, which seats a dozen or more. It is not per person, and anyone quoting you a per-head price is working you. Agree the number of hours before you push off, pay the boatman at the end, cash. Go early: before noon the canals are herons, farmers poling seedlings between plots, and the smell of wet earth; by two it is amplified banda. If you would rather eat than float, Arca Tierra runs breakfasts on a working chinampa from this same pier, booked a week out.",
+          "cost": { "amountMinor": 8000, "currency": "USD" }
+        },
+        {
+          "title": "Quesadillas de huitlacoche at the pier stalls",
+          "timeWindow": { "start": "12:00", "end": "12:45" },
+          "location": { "name": "Food stalls, Embarcadero Cuemanco", "city": "Mexico City", "area": "Xochimilco" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Blue corn, comal, huitlacoche and flor de calabaza, thirty pesos each. This is a holding action — lunch is three hours away and Contramar does not reward arriving hungry-and-early.",
+          "cost": { "amountMinor": 500, "currency": "USD" }
+        },
+        {
+          "title": "The long ride back north to Roma Norte",
+          "timeWindow": { "start": "13:15", "end": "14:30" },
+          "location": { "name": "Tren Ligero and Metro Línea 2", "city": "Mexico City", "area": "Roma Norte" },
+          "kind": "transit",
+          "notes": "An hour and a quarter, and worth budgeting the full time — Tasqueña at lunchtime is not a place to make a tight connection. Change into something you would eat lunch in; Contramar is not formal but it is not damp-from-a-boat either.",
+          "cost": { "amountMinor": 100, "currency": "USD" }
+        },
+        {
+          "title": "The long lunch at Contramar",
+          "timeWindow": { "start": "15:00", "end": "16:45" },
+          "location": { "name": "Contramar", "city": "Mexico City", "area": "Roma Norte" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Lunch only — it never opens for dinner — and the 15:00 sitting is the one the city itself books, weeks out, the day the calendar opens. Two orders decide the meal: tuna tostadas to start and the pescado a la talla, split half red adobo and half green parsley. Do not skip the tarta de fresa. If you cannot get a table, the same kitchen runs Entremar in Polanco with far better availability.",
+          "cost": { "amountMinor": 5500, "currency": "USD" }
+        },
+        {
+          "title": "A guava roll at Panadería Rosetta",
+          "timeWindow": { "start": "17:15", "end": "18:00" },
+          "location": { "name": "Panadería Rosetta", "city": "Mexico City", "area": "Roma Norte" },
+          "kind": "idea",
+          "notes": "The Colima branch has seats and a manageable queue; the original on Havre in Juárez has a line down the street by nine in the morning. The rol de guayaba is the thing, and they do sell out — late afternoon is a gamble you take knowingly.",
+          "cost": { "amountMinor": 350, "currency": "USD" }
+        },
+        {
+          "title": "Walk Avenida Amsterdam around Parque México",
+          "timeWindow": { "start": "18:15", "end": "19:30" },
+          "location": { "name": "Avenida Amsterdam and Parque México", "city": "Mexico City", "area": "Condesa" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Amsterdam is an oval because it was laid over a horse-racing track, and the 1.6 km loop is the most pleasant walk in the city at dusk — art deco doorways, dog walkers, jacarandas if you are here in March. Cut through Parque México for the Foro Lindbergh bandshell.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Cocktails at Licorería Limantour",
+          "timeWindow": { "start": "20:30", "end": "22:30" },
+          "location": { "name": "Licorería Limantour", "city": "Mexico City", "area": "Roma Norte" },
+          "kind": "planned",
+          "notes": "Álvaro Obregón 106, and consistently on the world's-best lists without behaving like it. The Roma bar takes no reservations — leave your name and number, walk two blocks for a beer, they text. Ask for the Mr Pink, and if the room is full upstairs is quieter.",
+          "cost": { "amountMinor": 3600, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "la-paz-private-whale-shark-charter-and-todos-santos",
+      "name": "Baja, the whole boat to yourself: whale sharks, sea lions, and dinner in Todos Santos",
+      "summary": "The expensive way to do the Sea of Cortez, priced honestly. Chartering the panga privately buys the one thing a shared tour cannot — time, and a captain who can wait for a feeding shark instead of racing eight boats to the first fin. Then over the sierra for a chef's table under the fig trees.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2026-02-21T08:00:00.000Z",
+      "sourceTrip": { "name": "Baja California Sur, off-season no more" },
+      "addedBy": [
+        { "addedBy": "dev-elena" }
+      ],
+      "stops": [
+        {
+          "title": "Malecón pickup and the operator's briefing",
+          "timeWindow": { "start": "07:15", "end": "07:45" },
+          "location": { "name": "Marina de La Paz", "city": "La Paz", "area": "Malecón" },
+          "kind": "transit",
+          "notes": "Season first: whale sharks are in the bay roughly mid-October to mid-April, but it does not open on a date — CONANP opens it at half capacity only once six animals have been logged three days running, and full capacity at ten. Check the week before, and do not book flights around a guarantee. Inside the sanctuary every boat gets a two-hour window, maximum five swimmers in the water at a time, snorkel only, three metres of distance, no touching, no fins over the tail.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Sanctuary bracelets at the CONANP kiosk",
+          "timeWindow": { "start": "07:50", "end": "08:10" },
+          "location": { "name": "CONANP permit kiosk, Marina de La Paz", "city": "La Paz", "area": "Malecón" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "A paper wristband, about 150 pesos per person per day, cash pesos, sold at the kiosk and not by the operator. No bracelet, no water — the inspectors do check on the boats. Buy it for the number of people actually swimming, not the number on board.",
+          "cost": { "amountMinor": 750, "currency": "USD" }
+        },
+        {
+          "title": "Private panga in the whale-shark zone",
+          "timeWindow": { "start": "08:30", "end": "10:30" },
+          "location": { "name": "Área de refugio del tiburón ballena", "city": "La Paz", "area": "Bahía de La Paz" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "This line is where the money goes and it is the whole point of the day. On a shared boat you take your turn among ten strangers and get maybe four short entries. Chartering the panga means the captain can sit off the aggregation, read which animal is vertical-feeding rather than cruising, and put two of you in front of it repeatedly for the entire window. Wear the wetsuit even in February — the bay runs about 21°C and you will be in and out for two hours. Leave the GoPro pole at home; the observers will make you stow it.",
+          "cost": { "amountMinor": 98000, "currency": "USD" }
+        },
+        {
+          "title": "Sea lion colony at Los Islotes, Espíritu Santo",
+          "timeWindow": { "start": "11:00", "end": "13:00" },
+          "location": { "name": "Los Islotes, Isla Espíritu Santo", "city": "La Paz", "area": "Isla Espíritu Santo" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "Forty minutes north once the whale-shark window closes, and a separate national-park bracelet again — buy both in the morning. The colony closes to swimmers for roughly June to August while the pups are born, so this pairs naturally with whale-shark season. Outside that, the juveniles come to you and chew on fins; the bulls stay on the rock and you stay off it.",
+          "cost": { "amountMinor": 1200, "currency": "USD" }
+        },
+        {
+          "title": "Beach lunch at Ensenada Grande",
+          "timeWindow": { "start": "13:15", "end": "14:30" },
+          "location": { "name": "Playa Ensenada Grande", "city": "La Paz", "area": "Isla Espíritu Santo" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Ceviche and cold beer off the back of the boat on a beach with nothing on it. There is no shade and no water on the island — this is why the crew brought a tarp and four extra litres.",
+          "cost": { "amountMinor": 2500, "currency": "USD" }
+        },
+        {
+          "title": "Over the sierra to Todos Santos",
+          "timeWindow": { "start": "16:00", "end": "17:15" },
+          "location": { "name": "Carretera Federal 19", "city": "Todos Santos", "area": "Centro" },
+          "kind": "transit",
+          "notes": "Seventy-five minutes on Highway 19, down the Pacific side. Leave La Paz by four to be on the coast for sunset. There is no Uber in Todos Santos and taxis dry up after ten, so arrange the return with the same driver before you get out.",
+          "cost": { "amountMinor": 12000, "currency": "USD" }
+        },
+        {
+          "title": "Sunset at Playa Los Cerritos",
+          "timeWindow": { "start": "17:30", "end": "18:45" },
+          "location": { "name": "Playa Los Cerritos", "city": "Todos Santos", "area": "El Pescadero" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The one genuinely swimmable beach on this stretch — the coast north of town has a rip that drowns people every year, and the beaches by the Hotel California are for looking at, not entering. Beginner surf lessons run about 50 dollars for a group hour and boards rent for 20 at the shacks behind the point. Sunset here is the reason people move to Todos Santos.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Jazamango",
+          "timeWindow": { "start": "19:30", "end": "22:00" },
+          "location": { "name": "Jazamango", "city": "Todos Santos", "area": "Camino a la Huerta" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Javier Plascencia's garden restaurant: wood-fired oven, adobe walls, and a menu built mostly from what came out of the huerta that morning. Book weeks ahead between December and April. It is a ten-minute drive out of the centre on a dirt road with no lighting — this is the taxi you arranged earlier. Sit outside; the whole design is for it.",
+          "cost": { "amountMinor": 14000, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "arenal-to-monteverde-jeep-boat-jeep",
+      "name": "Arenal to Monteverde the only sane way, and a cloud forest after dark",
+      "summary": "The jeep-boat-jeep across Lake Arenal turns a four-hour pothole loop into a three-hour crossing with a volcano behind you. Land in Santa Elena by lunch, take a timed circuit in the reserve in the afternoon, and go back into the forest at night when it is actually awake.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-05-17T09:00:00.000Z",
+      "sourceTrip": { "name": "Costa Rica, north to south, no rental car" },
+      "addedBy": [
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Jeep-boat-jeep pickup in La Fortuna",
+          "timeWindow": { "start": "07:45", "end": "08:00" },
+          "location": { "name": "Hotel pickup, La Fortuna centro", "city": "La Fortuna", "area": "Centro" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Around 35 dollars, bookable at any hotel desk the day before, and it is not really jeeps — a minibus, a launch, a second minibus. Two departures each way, roughly 08:00 and mid-afternoon. Taking the morning one costs you Mistico's hanging bridges and Arenal 1968, so do those the day before; taking the afternoon one costs you the reserve. Luggage travels with you the whole way, which is the other reason this beats a shuttle round the lake.",
+          "cost": { "amountMinor": 3500, "currency": "USD" }
+        },
+        {
+          "title": "Across Lake Arenal by launch",
+          "timeWindow": { "start": "08:15", "end": "11:00" },
+          "location": { "name": "Lake Arenal crossing", "city": "La Fortuna", "area": "Lago Arenal" },
+          "kind": "transit",
+          "notes": "The middle leg is a thirty-minute boat and the only part worth staying awake for — sit on the stern side, because the cone behind you is the last clear view of Arenal you will get. Monteverde is under cloud most afternoons by design. The road up from the far shore is gravel switchbacks; if you get carsick, take something in La Fortuna, not at the dock.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Casado and a coffee in Santa Elena",
+          "timeWindow": { "start": "11:30", "end": "12:30" },
+          "location": { "name": "Soda in Santa Elena village", "city": "Monteverde", "area": "Santa Elena" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "A soda — the small family comedores, not the tourist places on the main junction — does a casado of rice, beans, plantain and a protein for under ten dollars. Eat properly now: the reserve has a café at the gate and nothing else, and you are about to spend three hours walking wet trails.",
+          "cost": { "amountMinor": 1200, "currency": "USD" }
+        },
+        {
+          "title": "Monteverde reserve: a timed circuit on the Sendero Bosque Nuboso",
+          "timeWindow": { "start": "13:30", "end": "16:00" },
+          "location": { "name": "Reserva Biológica Bosque Nuboso Monteverde", "city": "Monteverde", "area": "Reserva Bosque Nuboso" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "The ticketing changed at the end of 2025 — there is no open day pass any more, you buy a timed ticket to one specific trail circuit and each circuit has a cap, so book online rather than turning up. Adult entry is around 25 dollars. Reserve hours are 07:00 to 16:00. Afternoons are quieter and wetter; if a resplendent quetzal is the reason you came, that is a 07:00 visit with a guide and a scope, not this slot. Bring a rain jacket regardless — 'cloud forest' is a weather forecast, not a name.",
+          "cost": { "amountMinor": 2500, "currency": "USD" }
+        },
+        {
+          "title": "Hummingbirds at the gallery by the gate",
+          "timeWindow": { "start": "16:05", "end": "16:45" },
+          "location": { "name": "Hummingbird Gallery, reserve entrance", "city": "Monteverde", "area": "Reserva Bosque Nuboso" },
+          "kind": "idea",
+          "notes": "Free, thirty feeders, and a dozen species including violet sabrewings hovering at arm's length. Ten minutes here gets better photographs than three hours on the trails, which is either delightful or annoying depending on your temperament.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Early dinner before the night walk",
+          "timeWindow": { "start": "17:15", "end": "18:30" },
+          "location": { "name": "Restaurant in Santa Elena village", "city": "Monteverde", "area": "Santa Elena" },
+          "kind": "hold",
+          "tags": ["meal"],
+          "notes": "Eat before, not after — the walk finishes near nine and half of Santa Elena has shut by then. Keep this loose until you know which night tour you got.",
+          "cost": { "amountMinor": 1500, "currency": "USD" }
+        },
+        {
+          "title": "Guided night walk",
+          "timeWindow": { "start": "19:00", "end": "21:00" },
+          "location": { "name": "Night walk trailhead, Santa Elena", "city": "Monteverde", "area": "Santa Elena" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "Around 35 dollars, reservation only, and the single best two hours in Monteverde — roughly seventy percent of the cloud forest's animals are nocturnal and the daytime trails are largely a walk through green. The guide carries the torch and you deliberately do not: your eyes stay adjusted, and that is why the group sees the sloth, the side-striped palm pit viper and the tarantula in its burrow rather than a bouncing circle of light. Closed shoes, long trousers, and expect drizzle.",
+          "cost": { "amountMinor": 3500, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "antigua-to-acatenango-overnight",
+      "name": "Antigua to Acatenango: 1,200 metres up, and Fuego erupting all night",
+      "summary": "The classic Guatemalan overnight, from the kit check on a cobbled street in Antigua to a tent at 3,600 metres watching a live volcano throw lava across the saddle every fifteen minutes. Day one only — the 03:45 summit push belongs to tomorrow.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-06-28T07:00:00.000Z",
+      "sourceTrip": { "name": "Guatemala highlands loop" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Kit check and pack-out at the operator's office",
+          "timeWindow": { "start": "06:30", "end": "07:30" },
+          "location": { "name": "Tour operator office, Antigua centro", "city": "Antigua Guatemala", "area": "Centro Histórico" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "A reputable small-group overnight — OX Expeditions and Wicho & Charlie's are the two most people use — runs about 140 to 160 dollars including tent, sleeping bag, both meals and two guides on the mountain. They will weigh your pack and repack it in front of you, which feels patronising until hour four. Take four litres of water, gloves, and a layer you would happily wear at 3°C; camp gets close to freezing and the summit is below it. Rent the jacket here for a few dollars instead of buying one — every hostel on the street rents them.",
+          "cost": { "amountMinor": 15000, "currency": "USD" }
+        },
+        {
+          "title": "Desayuno chapín before the shuttle",
+          "timeWindow": { "start": "07:35", "end": "08:10" },
+          "location": { "name": "Rincón Típico", "city": "Antigua Guatemala", "area": "Centro Histórico" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Eggs, black beans, fried plantain, cream and a stack of tortillas for about five dollars, open from seven, cash in quetzales. This is the last real food until whatever comes out of a camp stove at 3,600 metres, so eat like it.",
+          "cost": { "amountMinor": 500, "currency": "USD" }
+        },
+        {
+          "title": "Shuttle to the La Soledad trailhead",
+          "timeWindow": { "start": "08:30", "end": "09:45" },
+          "location": { "name": "La Soledad trailhead", "city": "La Soledad", "area": "Acatenango" },
+          "kind": "transit",
+          "notes": "About an hour and a quarter of switchbacks to a village already at 2,400 metres, which is why the altitude starts working on you before you take a step. At the trailhead women sell walking sticks for five quetzales — take one — and porters offer to carry your bag to camp for around 200. If your pack is over eight kilos, hire the porter and stop pretending. Cash quetzales only, and bring small notes.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Park entrance fee at the gate",
+          "timeWindow": { "start": "09:50", "end": "10:05" },
+          "location": { "name": "Acatenango park gate", "city": "La Soledad", "area": "Acatenango" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Roughly 100 quetzales per person, collected at the gate, cash only, and it is not included in any tour price you were quoted no matter what the booking page implied. The gate does not make change for a Q200 note. Everyone in the group who forgot this holds up everyone who did not.",
+          "cost": { "amountMinor": 1300, "currency": "USD" }
+        },
+        {
+          "title": "The climb: farmland, cloud forest, then alpine",
+          "timeWindow": { "start": "10:10", "end": "15:30" },
+          "location": { "name": "Acatenango south ridge", "city": "La Soledad", "area": "Volcán de Acatenango" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Five to six hours and 1,200 metres of gain. The first sixty to ninety minutes are the worst of the whole trek — loose volcanic sand at a gradient that takes half a step back for every one forward — and people who quit, quit there. After that it firms up and you climb through three distinct ecosystems in an afternoon. What breaks people is altitude, not fitness: walk slower than feels dignified, drink more than feels necessary, and eat something every hour even if you do not want it.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Base camp at 3,600 m, and Fuego's first bang",
+          "timeWindow": { "start": "15:40", "end": "16:20" },
+          "location": { "name": "Base camp, Acatenango", "city": "La Soledad", "area": "Volcán de Acatenango" },
+          "kind": "planned",
+          "notes": "Camp faces Fuego straight across the saddle, close enough that the eruptions arrive as a physical thump before the ash column resolves. It goes roughly every fifteen to twenty minutes. Get into dry clothes immediately — you have sweated through everything and the temperature falls off a cliff at four o'clock.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Optional Fuego ridge add-on — decide at camp",
+          "timeWindow": { "start": "16:30", "end": "19:00" },
+          "location": { "name": "Fuego saddle ridge", "city": "La Soledad", "area": "Volcán de Fuego" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "Three hours out and back across the saddle to stand a few hundred metres from an active vent, paid in cash to the guide on the mountain, usually 200 to 250 quetzales. Genuinely spectacular and genuinely optional: if the altitude has given you a headache, or you are already cold, skip it — you have a 03:45 alarm and the view from camp is 90 percent of the same show. Leave this a hold until you see how the climb went.",
+          "cost": { "amountMinor": 3000, "currency": "USD" }
+        },
+        {
+          "title": "Camp dinner, then Fuego after dark",
+          "timeWindow": { "start": "19:15", "end": "22:30" },
+          "location": { "name": "Base camp, Acatenango", "city": "La Soledad", "area": "Volcán de Acatenango" },
+          "kind": "planned",
+          "tags": ["meal", "outdoors"],
+          "notes": "Pasta and hot chocolate around a fire, then the reason you came: the lava only reads orange once it is properly dark, so the show starts near half seven and the best of it runs from nine onward. Sleep is what you trade for it, and everyone trades. Alarm at 03:45 for the summit — that push is another ninety minutes to 3,976 metres in the dark at about minus two, and it belongs to the next day's plan, not this one.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        }
+      ]
+    }
+  ]
+}

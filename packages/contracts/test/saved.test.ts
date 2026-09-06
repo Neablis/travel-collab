@@ -28,6 +28,7 @@ const savedDay = {
   stops: [stop],
   cities: ["Kyoto"],
   visibility: "private",
+  authorKind: "human",
   adds: 0,
   sourceTripId: tripId,
   sourceTripName: "Kyoto",
@@ -58,6 +59,17 @@ describe("SavedStop", () => {
 describe("SavedDay", () => {
   it("round-trips", () => {
     expect(SavedDay.parse(savedDay)).toEqual(savedDay);
+  });
+
+  // The default is the guarantee, not a convention every writer has to
+  // remember: every row that existed before this column did was written by a
+  // person, and so is every row `POST /api/saved-days` writes now. Only the
+  // content importer says otherwise, and it says so explicitly.
+  it("defaults authorKind to human, and takes ai when a producer says so", () => {
+    const { authorKind: _omitted, ...withoutAuthor } = savedDay;
+    expect(SavedDay.parse(withoutAuthor).authorKind).toBe("human");
+    expect(SavedDay.parse({ ...savedDay, authorKind: "ai" }).authorKind).toBe("ai");
+    expect(SavedDay.safeParse({ ...savedDay, authorKind: "robot" }).success).toBe(false);
   });
 
   it("accepts a day with no stops in the DTO — the API is what refuses to create one", () => {

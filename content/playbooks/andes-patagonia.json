@@ -1,0 +1,1362 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "andes-patagonia",
+    "name": "Peru, Chile and Argentina: the Andes and Patagonia",
+    "description": "Eight day-shaped playbooks from the high Andes to the Patagonian ice — Machu Picchu on the first bus, the Sacred Valley's salt and terraces, Lima eaten properly, Base Torres, the Atacama at 4,000 m, Fitz Roy, Perito Moreno from on top of it, and a Buenos Aires Sunday.",
+    "origin": "ai",
+    "sources": [
+      "https://www.perurail.com/tickets-to-machu-picchu/",
+      "https://howtoperu.com/answers/machu-picchu-entry-rules-circuits-entry-windows-guide-rules-common-mistakes/",
+      "https://www.theonlyperuguide.com/peru-guide/machu-picchu/shuttle-buses/",
+      "https://www.comeseeperutours.com/travel-information/machu-picchu-ticket-prices",
+      "https://www.salkantaytrekking.com/blog/cusco-tourist-ticket-what-is-it-and-whats-it-for/",
+      "https://www.theinfatuation.com/lima/reviews/canta-rana",
+      "https://torresdelpaine.com/en/torres-del-paine-2/useful-tips/entrance-fees/",
+      "https://theworldtravelguy.com/las-torres-day-hike/",
+      "https://torreshike.com/en/faq/how-to-get-there/how-do-i-get-from-laguna-amarga-to-torres-central-norte",
+      "https://sanpedroatacama.com/en/destination/entrance-fees-to-attractions/",
+      "https://www.getyourguide.com/san-pedro-de-atacama-l1862/san-pedro-de-atacama-sunrise-balloon-flight-t858712/",
+      "https://trekkingelchalten.com/en/trail-access-fees-in-el-chalten/",
+      "https://elchalten.com/v4/en/laguna-de-los-tres-trek-el-chalten.php",
+      "https://calafate.tours/en/blog/tarifas",
+      "https://worldlyadventurer.com/perito-moreno-glacier-argentina/",
+      "https://landingpadba.com/fera-san-telmo/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "machu-picchu-first-bus-huayna-picchu",
+      "name": "Machu Picchu done properly: the 04:20 queue and Huayna Picchu",
+      "summary": "The dark queue on Hermanos Ayar, the first bus up, Circuit 3 through the royal sector, then the ladders of Huayna Picchu before the 09:00 crowd lands.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-06-18T21:40:00.000Z",
+      "sourceTrip": {
+        "name": "Peru: Cusco, the valley, and the mountain"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Get in the bus queue on Avenida Hermanos Ayar",
+          "timeWindow": {
+            "start": "04:20",
+            "end": "05:25"
+          },
+          "location": {
+            "name": "Avenida Hermanos Ayar",
+            "city": "Aguas Calientes",
+            "area": "Machupicchu Pueblo"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The queue does not form at the bus stop — it forms along Hermanos Ayar, the road parallel to the river, and by 04:45 in high season it is several hundred people. 04:20 puts you in the first four or five buses. Buy the bus ticket the night before at the Consettur office on Avenida Pachacutec so you are queueing, not transacting. Headlamp, poncho, and the passport you booked the entry with."
+        },
+        {
+          "title": "First bus up the Hiram Bingham switchbacks",
+          "timeWindow": {
+            "start": "05:30",
+            "end": "06:05"
+          },
+          "location": {
+            "name": "Consettur bus, Carretera Hiram Bingham",
+            "city": "Aguas Calientes",
+            "area": "Machupicchu Pueblo"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Buses start at 05:30 and run every five to ten minutes; 25 minutes and 13 switchbacks up. Price is the round trip — keep the return half, it is a separate coupon and they will not reissue it. Sit on the right going up.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hire a licensed guide at the control gate",
+          "timeWindow": {
+            "start": "06:05",
+            "end": "06:15"
+          },
+          "location": {
+            "name": "Machu Picchu control gate",
+            "city": "Machu Picchu",
+            "area": "Santuario Histórico"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "A guide is required for a first entry and they wait at the gate in official vests with a laminated licence — this is the honest, cheap way to do it: join a group of eight to ten forming for your circuit and split it. Say up front you have a 07:00 Huayna Picchu slot so the guide paces the royal sector and lets you go at 06:55.",
+          "cost": {
+            "amountMinor": 2500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Circuit 3-A: the lower royal sector",
+          "timeWindow": {
+            "start": "06:15",
+            "end": "07:00"
+          },
+          "location": {
+            "name": "Circuito 3 Realeza",
+            "city": "Machu Picchu",
+            "area": "Santuario Histórico"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Buy route 3-A specifically — it is the ONLY ticket that includes Huayna Picchu, and it is Circuit 3 (Realeza), not the postcard Circuit 2. Sold on the government portal tuboleto.cultura.pe, 400 places a day, and it goes 30-plus days out for peak dates. Ordinary circuits get a 30-minute grace period; mountain routes get none — the printed hour is the hour. Circuit 3 walks the lower town: the Water Mirrors, the House of the Inka, the Temple of the Condor. The classic postcard framing is Circuit 2's, so accept you are trading it for the climb.",
+          "cost": {
+            "amountMinor": 5400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Huayna Picchu and the Gran Caverna loop",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Huayna Picchu",
+            "city": "Machu Picchu",
+            "area": "Santuario Histórico"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
+          "notes": "Sign the register at the Huayna Picchu gate — they check you back out and they do come looking. Roughly an hour of wet stone stairs up, cables on the last section, and a squeeze through the tunnel below the summit. If you have any hesitation about exposure, the Huchuy Picchu option on the same circuit is 45 minutes and almost the same view of the citadel. Add the Gran Caverna / Templo de la Luna descent on the far side if your legs are good: two extra hours, and you will have it to yourselves."
+        },
+        {
+          "title": "Bus back down to Aguas Calientes",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Machu Picchu bus stop",
+            "city": "Machu Picchu",
+            "area": "Santuario Histórico"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The downhill queue at 10:45 is ten minutes; at 13:00 it is forty. Re-entry is not allowed, so eat and drink before you leave the site — there is nothing inside beyond the gate cafe."
+        },
+        {
+          "title": "Lunch at Indio Feliz",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Indio Feliz",
+            "city": "Aguas Calientes",
+            "area": "Calle Lloque Yupanqui"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Aguas Calientes food is mostly a tout with a laminated menu; this French-Peruvian place off the main drag has been the exception for twenty years. Uncommitted because if the mountain took longer than planned you skip it and go straight to the station — the trout at the station cafe is fine.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Vistadome back to Ollantaytambo",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:20"
+          },
+          "location": {
+            "name": "Estación Machupicchu",
+            "city": "Aguas Calientes",
+            "area": "Riverside station"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Board 30 minutes early — the platform is a single file past a ticket check and it backs up. Sit on the left going down for the Urubamba. Book the return before the entry ticket if you are tight on dates: afternoon trains sell out before Machu Picchu circuits do. The Expedition service is $30-40 cheaper for the same track and the same time.",
+          "cost": {
+            "amountMinor": 11000,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sacred-valley-moray-maras-pisac",
+      "name": "Sacred Valley by hired taxi: Moray, the salt pans, and Pisac before the buses",
+      "summary": "One driver for the day beats the tour bus by two hours everywhere. Moray at opening, the Maras salineras in side light, lunch in Urubamba, and Pisac market after the coach groups have gone.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2025-05-14T18:05:00.000Z",
+      "sourceTrip": {
+        "name": "Peru: Cusco, the valley, and the mountain"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Hired taxi from Cusco over the Chinchero pass",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "08:25"
+          },
+          "location": {
+            "name": "Plaza San Francisco taxi rank",
+            "city": "Cusco",
+            "area": "Centro Histórico"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Negotiate a whole-day driver the evening before — S/200-250 for the Moray-Maras-Urubamba-Pisac loop with waiting time, agreed as a route, not per hour. This is the entire trick of the day: the group tours all leave Cusco at 08:30 and hit Moray at 10:00, so a 07:15 start buys you an empty site. Ask him to stop at the Chinchero mirador for the Urubamba range.",
+          "cost": {
+            "amountMinor": 6000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Moray terraces at opening",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Moray",
+            "city": "Maras",
+            "area": "Valle Sagrado"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Covered by the Boleto Turístico Parcial Circuito III (S/70, valid two days, buy it here at the gate in cash) — the full S/130 boleto is only worth it if you are also doing Sacsayhuamán and the Cusco museums. Walk the rim clockwise and go down into the second, smaller depression that nobody photographs; the temperature difference between the top and bottom rings is real and you can feel it on your arms.",
+          "cost": {
+            "amountMinor": 1900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Salineras de Maras",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Salineras de Maras",
+            "city": "Maras",
+            "area": "Quebrada de Qaqawiñay"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "NOT on the boleto — a separate S/20 collected by the Maras community at the gate, cash. Walking between the pans has been banned since 2019; you get the upper walkway, which is where the photograph is anyway. Come before noon: after that the sun is overhead and the pans go flat white instead of pink. Buy the pink salt and the salt-and-chilli from the community stall at the exit, not in Cusco.",
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch in Urubamba",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Huacatay",
+            "city": "Urubamba",
+            "area": "Calle Arica"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Urubamba, not Ollantaytambo — halfway, and the food is for locals rather than for coach schedules. Huacatay does an alpaca and a trout worth the stop. If you want the famous version, Mil at Moray is four courses of high-altitude tasting menu at roughly ten times this and needs booking weeks out; Pachamanca at El Huacatay's garden tables is the version you can decide on this morning.",
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Pisac market after the coaches leave",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Mercado de Pisac",
+            "city": "Pisac",
+            "area": "Plaza Constitución"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "Sunday is the big market and also the one where every stall is aimed at a bus; Tuesday and Thursday are smaller and better. The produce and the herb sellers are on the plaza's north side and are the actual market — the textiles ring is largely Ayacucho factory work, so pinch the weave: real handspun alpaca is uneven. Find the clay bread oven behind the church and buy the empanada and the chuta bread straight off the paddle."
+        },
+        {
+          "title": "Drive up to the Pisac ruins and walk down",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Parque Arqueológico de Pisac",
+            "city": "Pisac",
+            "area": "Valle Sagrado"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Already on the boleto parcial you bought at Moray. Have the driver take you to the UPPER gate and walk down through Q'allaqasa and the terraces to town — an hour downhill instead of two hours climbing, and the cemetery cliff with its thousand looted tombs is on that side. Last entry 16:00 in low season, so check the hour at the gate before you commit."
+        },
+        {
+          "title": "Back to Cusco in the dusk",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "19:10"
+          },
+          "location": {
+            "name": "Vía Pisac–Cusco",
+            "city": "Cusco",
+            "area": "Valle Sagrado"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Included in the day rate. Sleeping in the valley (2,800 m) rather than Cusco (3,400 m) is the single best acclimatisation move if you have arrived in the last 48 hours — if you have any headache at all, ask the driver to drop you in Urubamba instead and come up tomorrow."
+        }
+      ]
+    },
+    {
+      "key": "lima-barranco-cebiche-to-central",
+      "name": "Lima in one day: Surquillo market, a real cebichería, and Central at night",
+      "summary": "The cheap end and the top end of the same city on the same street. Market at nine, a 35-year-old huarique for cebiche at noon, Barranco on foot in the afternoon, and the tasting menu that made Lima a destination, three blocks away.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2026-02-11T23:15:00.000Z",
+      "sourceTrip": {
+        "name": "Peru: Cusco, the valley, and the mountain"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Mercado N.º 1 de Surquillo",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Mercado N.º 1 de Surquillo",
+            "city": "Lima",
+            "area": "Surquillo"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "Cross the footbridge from Miraflores at the end of Avenida Ricardo Palma. This is where the Barranco kitchens buy: the ají stall (amarillo, panca, limo, rocoto — buy the paste, it flies home), forty potato varieties, and the cebicheros' counters at the back doing a S/20 plate at nine in the morning that beats most restaurants. Go before 10:30 and bring small notes; nobody breaks a hundred sol bill.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Bajada de Baños and the Puente de los Suspiros",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:50"
+          },
+          "location": {
+            "name": "Puente de los Suspiros",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "Walk the bridge, then go DOWN the Bajada de Baños ravine to the sea rather than standing on the bridge with everyone else — the old bathing path comes out at the pier with the whole coastline in view. Ermita church at the top, the murals of Jade Rivera on the side streets. Barranco is safe and walkable by day; keep the phone away on the malecón after dark."
+        },
+        {
+          "title": "Cebiche at Canta Rana",
+          "timeWindow": {
+            "start": "12:10",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Canta Rana",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A 35-year-old huarique on Génova, walls covered in football pennants, and a cebiche mixto that is the reference point. Cash preferred, no dinner service — lunch only, and it fills by 12:30, so be there at 12:10 or expect to wait. Order the cebiche and ONE hot dish (chupe de camarones or arroz con conchas) between two; portions are absurd. If it is shut, La Mar on Avenida La Mar in Miraflores is Gastón Acurio's version, no reservations, queue from 11:45.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Museo Pedro de Osma",
+          "timeWindow": {
+            "start": "14:15",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Museo Pedro de Osma",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A Belle Époque mansion of colonial Cusco School painting and Andean silver, two minutes from where you are eating tonight, and almost always empty. Closed Mondays. The garden is the right place to sit out the heaviest part of the afternoon.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Chilcano at Juanito de Barranco",
+          "timeWindow": {
+            "start": "16:00",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Juanito de Barranco",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "The bodega on the plaza, a bar since 1937, wooden shelves and a ham slicer. A pisco chilcano and a sandwich de jamón del país. Uncommitted — if lunch ran long, skip it, because you do not want to arrive at tonight's booking full.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sunset from the Barranco malecón",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Malecón Paul Harris",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Lima spends half the year under the garúa and you will not see a sunset at all between June and November — take it if the sky is open. The paragliders launch from Miraflores further north, so this is the quiet stretch."
+        },
+        {
+          "title": "Dinner at Central",
+          "timeWindow": {
+            "start": "19:45",
+            "end": "23:00"
+          },
+          "location": {
+            "name": "Central, Av. Pedro de Osma 301",
+            "city": "Lima",
+            "area": "Barranco"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The whole reason to give Barranco a day. Reservations open on their site roughly three months ahead and the first week goes in a morning; a two-top at 19:45 or 21:45 is far easier than 20:30. The Mundo Mater menu walks altitudes from the sea floor to 4,200 m — around S/1,100, plus a juice or wine pairing at roughly S/600, and the juice pairing is the more interesting of the two. Budget three hours and do not plan an early flight. The cheaper honest alternatives on the same night: Isolina, a taberna two streets away with shareable criollo cooking for a tenth of this, or Kjolle, Pía León's restaurant in the same building.",
+          "cost": {
+            "amountMinor": 45500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "torres-del-paine-base-torres",
+      "name": "Base Torres in a day from Puerto Natales, guided",
+      "summary": "The 06:30 bus, the Laguna Amarga scan, the shuttle, and nine hours up the Ascencio to the three towers — with the wind rule that decides whether the last hour happens at all.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-12-09T22:30:00.000Z",
+      "sourceTrip": {
+        "name": "Patagonia end to end"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "First bus, Puerto Natales to Laguna Amarga",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "08:45"
+          },
+          "location": {
+            "name": "Terminal Rodoviario",
+            "city": "Puerto Natales",
+            "area": "Av. España"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Buses Gómez, Bus Sur and María José all run the 06:45; buy the round trip the day before at the terminal and TELL THEM you are returning from Laguna Amarga the same evening, because the return seat is assigned. Two hours, sit on the left for the first sight of the massif across Lago Sarmiento. The last return bus from Laguna Amarga is 20:15 and it does not wait.",
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Park pass check at the Laguna Amarga portería",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "09:10"
+          },
+          "location": {
+            "name": "Portería Laguna Amarga",
+            "city": "Torres del Paine",
+            "area": "Parque Nacional Torres del Paine"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Buy the day pass on pasesparques.cl at least 24 hours before — the gate no longer sells them reliably and the whole bus is turned into a queue when someone tries. High-season foreign adult is the top rate; low season (April to October) is roughly half. They scan a QR and check the name against a passport, so screenshot the pass: there is no signal at the portería. A short CONAF briefing follows and it is compulsory.",
+          "cost": {
+            "amountMinor": 4900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Shuttle to the Welcome Center",
+          "timeWindow": {
+            "start": "09:15",
+            "end": "09:35"
+          },
+          "location": {
+            "name": "Las Torres Welcome Center",
+            "city": "Torres del Paine",
+            "area": "Reserva Las Torres"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Seven kilometres of gravel that you do not want to walk twice. CLP 4,500 each way, CASH IN PESOS, no card and no dollars — carry the exact fare for both directions before you leave Natales. It cannot be reserved for a time; it simply meets the buses. Coming back, the last one leaves the Welcome Center at 19:00 and that is the hard deadline for the whole day.",
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Guided climb up the Ascencio to Refugio Chileno",
+          "timeWindow": {
+            "start": "09:40",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Valle Ascencio",
+            "city": "Torres del Paine",
+            "area": "Parque Nacional Torres del Paine"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "A certified guide out of Puerto Natales (Antares, Big Foot, Erratic Rock's people) for a shared group of six to eight — worth it here less for route-finding than for the turnaround call. The first 45 minutes up the Windy Pass earn the name: it funnels straight down the valley and gusts to 100 km/h are ordinary. Poles, and put anything loose inside the pack — hats go to Argentina.",
+          "cost": {
+            "amountMinor": 13500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Refugio Chileno: last water, hot lunch",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "12:50"
+          },
+          "location": {
+            "name": "Refugio Chileno",
+            "city": "Torres del Paine",
+            "area": "Valle Ascencio"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Order the box lunch when you book the guide; the refugio also sells sandwiches, hot water and a very good soup to non-guests, but the kitchen is for its own half-board first. Fill both bottles from the stream here — it is the last reliable water before the moraine, and the drinking water above the refugio is snowmelt you should filter.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The moraine boulder field to the Mirador Base Torres",
+          "timeWindow": {
+            "start": "12:50",
+            "end": "15:10"
+          },
+          "location": {
+            "name": "Mirador Base Las Torres",
+            "city": "Torres del Paine",
+            "area": "Parque Nacional Torres del Paine"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "A hold, not a plan: the last 45 minutes are an exposed scramble up house-sized blocks with painted markers, and in a whiteout there is nothing at the top but grey. Guides turn groups back here regularly and it is the right call. If you are not on the moraine by 14:30, do not start it — the descent to the last 19:00 shuttle needs three full hours. Wind typically builds through the afternoon and drops again after 18:00, which is why the sunrise version of this hike exists."
+        },
+        {
+          "title": "Descend to the Welcome Center for the last shuttle",
+          "timeWindow": {
+            "start": "15:10",
+            "end": "18:40"
+          },
+          "location": {
+            "name": "Las Torres Welcome Center",
+            "city": "Torres del Paine",
+            "area": "Reserva Las Torres"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Knees, not lungs, on the way down — the moraine and the Chileno descent are where people get hurt. There is a bar at the Welcome Center if you land early; a Austral Calafate while the guanacos work the field in front of the hotel is the correct end to this."
+        },
+        {
+          "title": "Bus back to Puerto Natales",
+          "timeWindow": {
+            "start": "19:20",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Portería Laguna Amarga",
+            "city": "Puerto Natales",
+            "area": "Ruta Y-150"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Return half of the morning ticket. Two hours in the dark; eat in Natales after — Base Camp at Erratic Rock or La Mesita Grande's pizza both serve past 22:00 and are full of people who did the same hike."
+        }
+      ]
+    },
+    {
+      "key": "atacama-balloon-moon-valley-stars",
+      "name": "Atacama in one full day: sunrise balloon, Moon Valley, then the sky",
+      "summary": "Up at 05:00 for a balloon over the Cordillera de la Sal, an easy middle, Valle de la Luna at sunset, and a telescope at midnight — the desert's three best hours are all at the edges of the day.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2024-10-22T20:00:00.000Z",
+      "sourceTrip": {
+        "name": "Chile north to south"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-elena"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Pickup on Caracoles for the balloon",
+          "timeWindow": {
+            "start": "05:15",
+            "end": "05:45"
+          },
+          "location": {
+            "name": "Calle Caracoles",
+            "city": "San Pedro de Atacama",
+            "area": "Centro"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "They collect from accommodation inside the village only; if you are staying out on the Ayllu roads, arrange to wait in town. It is 4 °C at 05:15 and 25 °C by eleven — the layer you shed at nine is the one you want again at ten tonight."
+        },
+        {
+          "title": "Sunrise balloon over the Cordillera de la Sal",
+          "timeWindow": {
+            "start": "05:45",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Balloons Over Atacama launch site",
+            "city": "San Pedro de Atacama",
+            "area": "Cordillera de la Sal"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Roughly CLP 280,000, an hour in the air, six to a basket and a minimum of four to fly. Book direct rather than through a reseller and book it for your FIRST possible morning, because wind cancels flights and the rebooking is onto the next clear day — if that is your departure day you simply lose it. Cancellation for weather is refunded in full. The pilot lands wherever the wind puts them and the chase truck brings sparkling wine; you are back in the village before the day tours have left.",
+          "cost": {
+            "amountMinor": 29000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Breakfast at Franchuteria",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Franchuteria",
+            "city": "San Pedro de Atacama",
+            "area": "Calle Gustavo Le Paige"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A genuine French bakery in a mud-brick village at 2,400 m. Croissants gone by eleven. Drink more water than you want to — dehydration here reads exactly like altitude sickness and most people who feel awful on day one are simply dry.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Pukará de Quitor and a long siesta",
+          "timeWindow": {
+            "start": "11:00",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Pukará de Quitor",
+            "city": "San Pedro de Atacama",
+            "area": "Valle de Catarpe"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A 12th-century Atacameño fortress 3 km out of the village, entry collected by the Quitor community, walkable or a ten-minute bike. Climb to the cross for the whole oasis laid out along the river. Then do nothing until four: San Pedro between one and four in the afternoon is unusable, and every good thing here happens at either end of the day.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Valle de la Luna for sunset",
+          "timeWindow": {
+            "start": "16:00",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Valle de la Luna, Reserva Nacional Los Flamencos",
+            "city": "San Pedro de Atacama",
+            "area": "Cordillera de la Sal"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Reserve entry is collected in cash pesos at the CONAF gate and independent entry now needs a booked time slot, which is the main argument for just taking the guided sunset trip — it includes the fee and gets you a spot at the Piedra del Coyote before the road fills. The Gran Duna is closed to climbing; the Tres Marías and the salt caverns are the walk. Everyone watches the sun set; TURN AROUND instead and watch the Licancabur go pink. Take a head torch, the walk back to the vans is after dark.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Baltinache",
+          "timeWindow": {
+            "start": "20:15",
+            "end": "21:45"
+          },
+          "location": {
+            "name": "Baltinache",
+            "city": "San Pedro de Atacama",
+            "area": "Calle Domingo Atienza"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A small tasting menu of Atacameño ingredients — quinoa, chañar, rica-rica, llama — in a courtyard, and the one place in the village worth booking. Ckelar and Adobe are the walk-in fallbacks on Caracoles. Eat early: you have a telescope at ten and the astronomy vans leave from the plaza.",
+          "cost": {
+            "amountMinor": 3800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Astronomy tour under a new moon",
+          "timeWindow": {
+            "start": "22:15",
+            "end": "23:45"
+          },
+          "location": {
+            "name": "Observatorio turístico, camino a Toconao",
+            "city": "San Pedro de Atacama",
+            "area": "Ayllu de Solcor"
+          },
+          "kind": "hold",
+          "tags": [],
+          "notes": "A hold because it only runs on the nights either side of a new moon — check the lunar calendar BEFORE you fix your San Pedro dates, since a full moon washes out the entire reason people come here. Roughly CLP 45,000 for two hours with telescopes, a laser tour of the southern sky and hot chocolate; ask whether the guide is an astronomer or a driver. Free alternative: walk fifteen minutes out of the village down the Catarpe road and lie on your back. ALMA runs free Saturday and Sunday morning visits to the operations base, booked around 60 days ahead on their site.",
+          "cost": {
+            "amountMinor": 4500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "el-chalten-laguna-de-los-tres",
+      "name": "El Chaltén: Laguna de los Tres, and the hour that decides it",
+      "summary": "Twenty-four kilometres from the end of the main street to the foot of Fitz Roy, all of it free to walk except the day pass — and one 400-metre headwall that the wind closes without notice.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2026-01-21T21:20:00.000Z",
+      "sourceTrip": {
+        "name": "Patagonia end to end"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Portal Senda al Fitz Roy at the top of San Martín",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "06:50"
+          },
+          "location": {
+            "name": "Portal Senda al Fitz Roy",
+            "city": "El Chaltén",
+            "area": "Parque Nacional Los Glaciares, Zona Norte"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Since late 2024 the El Chaltén trails are behind three access portals and a paid day pass. Buy it the night before on ventaweb.apn.gob.ar — the town's signal is poor and the portal has none, so SCREENSHOT the QR. One pass covers every trail in the northern zone for the day, and the 3-day Flexipass is barely more than two singles. The trailhead is at the north end of Avenida San Martín by the old Puesto Amarillo, not at the visitor centre.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Climb to the Mirador Fitz Roy",
+          "timeWindow": {
+            "start": "06:50",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Mirador Fitz Roy",
+            "city": "El Chaltén",
+            "area": "Senda Río Blanco"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The steepest sustained part of the day is in the first hour, which nobody warns you about. First light hits Fitz Roy around 06:30 in January and the alpenglow lasts ten minutes — if the sky is clear when you wake, leave at 04:30 instead and take this mirador in the dark, it is only 90 minutes up and the tower goes red from here."
+        },
+        {
+          "title": "Laguna Capri and the lenga forest to Poincenot",
+          "timeWindow": {
+            "start": "08:20",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Campamento Poincenot",
+            "city": "El Chaltén",
+            "area": "Senda Río Blanco"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Almost flat, and the Capri turnoff costs ten minutes for the best water view of the massif — take it, because the summit is often clouded by eleven. Poincenot is a free camp with a stream and a long-drop; fill up here, it is the last water before the climb."
+        },
+        {
+          "title": "The Río Blanco headwall: 400 m in an hour",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:20"
+          },
+          "location": {
+            "name": "Subida al Río Blanco",
+            "city": "El Chaltén",
+            "area": "Parque Nacional Los Glaciares, Zona Norte"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "This is the hold. Cross the Río Blanco at the puesto and go straight up scree and switchbacks — an hour of relentless climbing, fully exposed, and the rangers close it in high wind or snow, sometimes at nine in the morning on a day that started blue. Check the board at the portal and the forecast at windguru or meteo Chaltén before you leave town. If it is shut, the Laguna Torre trail (also from town, 20 km, no headwall) is the day's answer and is nearly as good."
+        },
+        {
+          "title": "Laguna de los Tres, then five minutes further",
+          "timeWindow": {
+            "start": "11:20",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Laguna de los Tres",
+            "city": "El Chaltén",
+            "area": "Parque Nacional Los Glaciares, Zona Norte"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Everyone stops at the lip of the lake. Walk five minutes RIGHT along the moraine to the drop over Laguna Sucia — a 300 m cliff, a milk-green lake, and the Glaciar Río Blanco falling into it, and there is usually nobody there. The wind over the moraine is ferocious even on a calm day; sit down to eat.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Descend the same way",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Senda Río Blanco",
+            "city": "El Chaltén",
+            "area": "Parque Nacional Los Glaciares, Zona Norte"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Poles for the headwall descent; it is loose. If a car or a transfer is an option, the alternative finish is to start at El Pilar (17 km north, a shared transfer leaves town around 08:00) and walk out through the Piedras Blancas glacier viewpoint to town — same distance, no repeated ground, and one more glacier."
+        },
+        {
+          "title": "La Cervecería Chaltén",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "La Cervecería Chaltén",
+            "city": "El Chaltén",
+            "area": "Av. San Martín"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Locro and a home-brewed bock at a shared table, and the room is entirely people who came off the same trail. No reservations, so arriving at five rather than seven is the difference between a table and the pavement.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Check tomorrow's wind on the ranger board",
+          "timeWindow": {
+            "start": "18:45",
+            "end": "19:15"
+          },
+          "location": {
+            "name": "Centro de Visitantes Ceferino Fonzo",
+            "city": "El Chaltén",
+            "area": "Av. M. M. de Güemes"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "The rangers post the next day's wind and trail closures here every evening, and it is more reliable than any app. El Chaltén has almost no mobile coverage and patchy wifi — plan the next day from this board, not from your phone."
+        }
+      ]
+    },
+    {
+      "key": "perito-moreno-big-ice",
+      "name": "Perito Moreno from on top: Big Ice, the balconies, and a Calafate table",
+      "summary": "The expensive day, priced as it actually is — a private transfer, the park fee, three and a half hours roped onto the glacier with Hielo y Aventura, the north face by boat, and dinner that earns the day.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-11-06T19:45:00.000Z",
+      "sourceTrip": {
+        "name": "Patagonia end to end"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Private transfer from Avenida Libertador",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "08:10"
+          },
+          "location": {
+            "name": "Av. del Libertador",
+            "city": "El Calafate",
+            "area": "Centro"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Eighty kilometres of RP11. A private car for the day costs roughly four times the shuttle and buys the two things that matter: the Curva de los Suspiros stop where the glacier first appears, and not being on the group bus's clock at the balconies afterwards. Book a driver, not a tour — the Big Ice operator runs its own transfer for about $80 a head if you would rather not.",
+          "cost": {
+            "amountMinor": 22000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Portal Perito Moreno park entry",
+          "timeWindow": {
+            "start": "08:10",
+            "end": "08:25"
+          },
+          "location": {
+            "name": "Portada Los Glaciares",
+            "city": "El Calafate",
+            "area": "Parque Nacional Los Glaciares, Zona Sur"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Pay online in advance on ventaweb.apn.gob.ar; the gate stopped taking cards reliably and the queue at 09:30 when four buses arrive together is twenty minutes. Foreign-resident rate, per person, valid for the day (a second consecutive day is half price if you register the first ticket at the gate). NOT included in the Big Ice price.",
+          "cost": {
+            "amountMinor": 6000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Bajo las Sombras: boat across and crampons on",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Puerto Bajo las Sombras",
+            "city": "El Calafate",
+            "area": "Brazo Rico"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The crossing to the south wall and the walk along the lateral moraine to the crampon point are inside the Big Ice price. They provide crampons and harness; you bring rigid boots (or rent them in town the night before), gloves, sunglasses and a hat — there is no shade on ice and no backpack over 10 kg is allowed onto it."
+        },
+        {
+          "title": "Big Ice with Hielo y Aventura",
+          "timeWindow": {
+            "start": "09:20",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Glaciar Perito Moreno",
+            "city": "El Calafate",
+            "area": "Parque Nacional Los Glaciares, Zona Sur"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
+          "notes": "Hielo y Aventura is the only concessionaire permitted on the ice; there is no competitor and no bargaining. Around $590 without pickup, roughly 3.5 hours actually walking on the glacier, and it goes deep enough to reach the blue sinkholes and lagoons the Minitrekking never sees. Hard limits: 18 to 50 years old, reasonable fitness, and it sells out weeks ahead in January — book direct at their Libertador office or on their site rather than through an OTA and save the markup. Minitrekking (no age cap, 1.5 hours on ice, about half the price) is the alternative if the age rule or the price rules you out. Whisky on glacier ice at the end is the tradition.",
+          "cost": {
+            "amountMinor": 59000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Safari Náutico along the north face",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "16:35"
+          },
+          "location": {
+            "name": "Puerto Bajo las Sombras",
+            "city": "El Calafate",
+            "area": "Canal de los Témpanos"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "An hour on the water a few hundred metres off a 70 m wall, which is the only way to understand the scale. Uncommitted because after six hours on ice some people are done — buy it at the pier on the day rather than in advance. Stand at the BOW on the left side going out.",
+          "cost": {
+            "amountMinor": 5000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The pasarelas, north balconies",
+          "timeWindow": {
+            "start": "16:50",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Pasarelas del Perito Moreno",
+            "city": "El Calafate",
+            "area": "Península de Magallanes"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Five kilometres of walkways on four levels. Go DOWN to the lowest circuit at the waterline and stay put — calving is announced by a crack like artillery a second before anything moves, and standing still for twenty minutes is how you actually see one. The buses leave at 16:00 and 17:00, so from five o'clock the balconies empty out; this is exactly what the private car bought you."
+        },
+        {
+          "title": "Glaciarium and the ice bar",
+          "timeWindow": {
+            "start": "19:15",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "Glaciarium",
+            "city": "El Calafate",
+            "area": "RP11 km 6"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Six kilometres out of town on the way back, a genuinely good museum of Patagonian ice and how the Campo de Hielo Sur works, with a bar built of glacier ice in the basement. Skip it if you are cold and tired — it will still be there tomorrow and it runs a free shuttle from Libertador.",
+          "cost": {
+            "amountMinor": 2500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at La Zaina",
+          "timeWindow": {
+            "start": "21:00",
+            "end": "23:15"
+          },
+          "location": {
+            "name": "La Zaina",
+            "city": "El Calafate",
+            "area": "Calle Gobernador Moyano"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Small, seasonal, Patagonian lamb done properly, and a short Patagonian wine list — reserve at least two days out, the room is about ten tables. Argentines eat at 22:00 and a 21:00 booking is the easy one to get. Mi Rancho and Casimiro Biguá on Libertador are the fallbacks; the parrilla-for-two at Don Pichón with the lake below it is the cheaper classic.",
+          "cost": {
+            "amountMinor": 9500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "buenos-aires-san-telmo-sunday-asado",
+      "name": "A Buenos Aires Sunday: San Telmo feria, a long asado, and the milonga on the cobbles",
+      "summary": "The one day of the week the city is built for — thirteen blocks of Defensa closed to traffic, a parrilla lunch that runs to four o'clock, and tango danced by locals on Plaza Dorrego after dark.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2026-04-19T23:50:00.000Z",
+      "sourceTrip": {
+        "name": "Argentina: the city and the ice"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee at El Federal before the crowd",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:20"
+          },
+          "location": {
+            "name": "Bar El Federal",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A protected bar notable from 1864 on the corner of Perú and Carlos Calvo — carved bar back, tiled floor, café con leche and three medialunas. At 09:30 it is neighbours reading the paper; at 11:30 it is a queue. Get pesos before today: Sunday casas de cambio are shut, and the cuevas on Florida give a far better rate than any ATM, which caps withdrawals low and charges brutally.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Feria de San Telmo down Defensa",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Feria de San Telmo, Calle Defensa",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "Sundays only, roughly 10:00 to 17:00, thirteen blocks of Defensa from Plaza Dorrego up to Plaza de Mayo, closed to cars. The actual antiques — soda siphons, silver mates, 1940s Gardel pressings — are the stalls ON Plaza Dorrego; almost everything strung along Defensa is new production. Walk it downhill from Plaza de Mayo so you finish at the plaza. Cash, small notes, and a zipped bag: the crowd is dense and the pickpocketing is skilled rather than violent."
+        },
+        {
+          "title": "Mercado de San Telmo",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Mercado de San Telmo, Defensa 963",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "An 1897 wrought-iron market hall that is half greengrocers and half food counters. Empanadas salteñas, a choripán, an espresso at Coffee Town. Treat it as a snack, not lunch — you have a parrilla booked in half an hour and the Argentine portion size is not a joke.",
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Asado at La Brigada",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "La Brigada, Estados Unidos 465",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Football shirts to the ceiling and a waiter who cuts the bife de chorizo with a SPOON to prove the point. Reserve by phone — Sunday lunch fills. Order one cut between two plus provoleta and a rúcula salad, ask for jugoso unless you want it grey, and drink the house Malbec by the pitcher. The famous Palermo alternative is Don Julio, which takes bookings 90 days ahead on Meitre and opens a walk-in list at 18:00 — plan on standing outside with a free glass of sparkling for two hours if you try it cold.",
+          "cost": {
+            "amountMinor": 5500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "El Zanjón de Granados",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "El Zanjón de Granados, Defensa 755",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A private excavation under a 19th-century house: the tunnelled stream and cisterns the city was built over, and the best hour of history in Buenos Aires. Guided only, English tours on the hour, and Sunday runs a shorter schedule — book on their site, they cap the group at fifteen.",
+          "cost": {
+            "amountMinor": 2000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Vermut at Doppelgänger",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Doppelgänger, Av. Juan de Garay 500",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "A green-walled corner bar that takes vermouth seriously, five minutes from Dorrego. The Argentine hour: nothing happens between six and nine, so this is how you bridge it without going back to the hotel and losing the evening.",
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Milonga on Plaza Dorrego",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Plaza Dorrego",
+            "city": "Buenos Aires",
+            "area": "San Telmo"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "After the stalls come down the square becomes an open-air milonga: a sound system, a chalk circle, and porteños of every age dancing on cobbles, free, with a hat passed round. This is the opposite of the dinner-show at El Viejo Almacén and it is the real thing. It starts later and runs longer in summer. If you want to dance rather than watch, La Catedral in Almagro takes beginners at a class before the milonga most nights."
+        }
+      ]
+    }
+  ]
+}

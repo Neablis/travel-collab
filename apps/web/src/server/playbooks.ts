@@ -1,5 +1,5 @@
 import { sql, type SQL } from "drizzle-orm";
-import { SavedDayVisibility, SavedStop } from "@tc/contracts";
+import { SavedDayAuthorKind, SavedDayVisibility, SavedStop } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
@@ -98,6 +98,7 @@ type DiscoverRow = {
   stops: unknown;
   cities: string[];
   visibility: string;
+  author_kind: string;
   adds: number;
   source_trip_name: string;
   created_at: unknown;
@@ -265,6 +266,11 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     totalCost: facts.totalCost,
     adds: row.adds,
     visibility: visibility.data,
+    // Falls back rather than dropping the card, for the reason `fromRow` in
+    // `savedDays.ts` gives at length: this decides a label, not what the reader
+    // is allowed to see, and only "ai" is ever rendered — so an unreadable
+    // value says nothing about the author, which is the truth.
+    authorKind: SavedDayAuthorKind.safeParse(row.author_kind).data ?? SavedDayAuthorKind.enum.human,
     sourceTripName: row.source_trip_name,
     // `createdAt` is `notNull` in the schema, so a null here means the row
     // shape is not what this query selected — not a day without a date.
@@ -369,7 +375,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   const rows = await db.execute<DiscoverRow>(sql`
     select
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds,
-      d.source_trip_name, d.created_at, d.published_at,
+      d.author_kind, d.source_trip_name, d.created_at, d.published_at,
       cardinality(array(
         select unnest(d.cities) intersect select unnest(${cities})
       ))::int as matched_count

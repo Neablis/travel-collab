@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { DEFAULT_TEMPLATES, type TemplateSeed } from "@tc/pages";
+import { TEMPLATE_LIBRARY, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages, updatePage } from "@/lib/pagesClient";
@@ -25,12 +25,13 @@ import { useIsPhone } from "@/components/lenses/useIsPhone";
 
 type Status = "loading" | "ready" | "error";
 
-// A starter offered by the "Start from a template" gallery. The first two are
-// `@tc/pages`'s existing seeds — the same `trip-overview` / `day-sheet` that
-// `instantiateDefaults` already plants in every new trip — so the gallery is a
-// second way to reach content that exists rather than a second definition of
+// A starter offered by the "Start from a template" gallery. All but the last
+// are `@tc/pages`'s `TEMPLATE_LIBRARY` — which OPENS with the two
+// `instantiateDefaults` already plants in every new trip, so a returning reader
+// recognises the first two cards from their own trips — meaning the gallery is
+// a second way to reach content that exists rather than a second definition of
 // it. "Blank page" is `handleCreate` as it already behaved, given a name and a
-// description so it reads as a peer of the other two instead of as a button
+// description so it reads as a peer of the others instead of as a button
 // wearing a different shape in a different corner.
 interface Starter {
   key: string;
@@ -41,16 +42,16 @@ interface Starter {
 
 const BLANK_TITLE = "Untitled notebook";
 
-const STARTER_DESCRIPTIONS: Record<string, string> = {
-  "trip-overview": "The whole trip in one place — the why, the shape, the money.",
-  "day-sheet": "One day, close up. Times, reservations, notes for the group.",
-};
-
+// The description comes off the SEED now, not out of a map keyed here by
+// template key. That map returned `""` for a key it had not heard of, so adding
+// a template to `@tc/pages` shipped a card with a title and a blank line under
+// it and nothing failed — `TemplateSeed.description` is required, so the same
+// mistake no longer compiles.
 function starterFrom(seed: TemplateSeed): Starter {
   return {
     key: seed.key,
     title: seed.title,
-    description: STARTER_DESCRIPTIONS[seed.key] ?? "",
+    description: seed.description,
     build: (tripId) => ({ title: seed.title, context: seed.buildContext(tripId), content: seed.content }),
   };
 }
@@ -63,11 +64,13 @@ function starterFrom(seed: TemplateSeed): Starter {
 // defect §11 created. Applying §11 here and leaving §7's literal string in the
 // other two cards would be the same inconsistency one level down.
 //
-// The two template cards below take their names from the seeds themselves
-// rather than from §7's "Trip overview" / "One day", so that what you click and
-// what you get agree, and so that a trip seeded before today does not list a
-// "Trip Overview" under a gallery card called something else. Renaming the
-// seeds is `templates.ts`'s to do, which is M14 link 6's file.
+// The template cards below take their names from the seeds themselves rather
+// than from §7's "Trip overview" / "One day", so that what you click and what
+// you get agree, and so that a trip seeded before today does not list a "Trip
+// Overview" under a gallery card called something else. Renaming a seed is
+// `templates.ts`'s to do, which is M14 link 6's file — and it did rename one
+// on 2026-09-06: "Day Sheet" is "Day overview" there now, and this card follows
+// it without an edit here, which is the whole point of reading the seed.
 const BLANK_STARTER: Starter = {
   key: "blank",
   title: "Blank notebook",
@@ -75,7 +78,7 @@ const BLANK_STARTER: Starter = {
   build: (tripId) => ({ title: BLANK_TITLE, context: { tripId }, content: newPageDoc() }),
 };
 
-const STARTERS: Starter[] = [...DEFAULT_TEMPLATES.map(starterFrom), BLANK_STARTER];
+const STARTERS: Starter[] = [...TEMPLATE_LIBRARY.map(starterFrom), BLANK_STARTER];
 
 // What the assistant says when a turn opened from this surface came back with
 // a proposal.
@@ -380,7 +383,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                 onClick={() => handleCreate(starter)}
                 disabled={creating}
                 // The starter's own title is in the accessible name because
-                // three buttons all labelled "Use this" is three buttons a
+                // seven buttons all labelled "Use this" is seven buttons a
                 // screen-reader user cannot tell apart, and because the e2e
                 // suite has to be able to name the one it means.
                 aria-label={`Start from ${starter.title}`}

@@ -1,6 +1,18 @@
 import { expect, type Page, test } from "@playwright/test";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { openHistory } from "./helpers";
 import { e2eTripName } from "./tripNames";
+
+// The two seeds a new trip is planted with, read from `@tc/pages` rather than
+// typed here. Renaming one ("Day Sheet" → "Day overview", 2026-09-06) failed
+// three integration assertions for a reason that was not a defect; this spec is
+// about the notebooks EXISTING and RENDERING, not about the words on them.
+// `!` rather than a fallback: a seed that has stopped existing is a real
+// failure and should crash the spec loudly at load, not quietly assert nothing.
+const [TRIP_OVERVIEW, DAY_OVERVIEW] = DEFAULT_TEMPLATES as [
+  (typeof DEFAULT_TEMPLATES)[number],
+  (typeof DEFAULT_TEMPLATES)[number],
+];
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -43,16 +55,25 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // text. See docs/milestones/M7-solo-delight.md's exit gate.
 //
 // Rewritten post-Wave-B (M8, commit 5f8683a): macro *authoring* left the
-// primary editing surface — no more `{{` autocomplete, and no other manual
-// insertion path exists at all now (AI compose is the sole remaining
-// author, and it's off-limits for e2e per the note below) — and the seeded
-// Trip Overview/Day Sheet templates are now plain starter text with no
-// macro nodes. Every assertion this spec used to make about macro
-// resolution/reactivity/autocomplete against those default pages is no
-// longer reachable through the UI at all; that coverage now lives at the
-// unit/int level (packages/pages, PageEditor.test.tsx) — the same
-// dormant-but-tested-elsewhere pattern D-1 used for anchors. Macro
-// authoring returns in M14; this spec should regain that coverage then.
+// primary editing surface, and the seeded templates became plain starter text
+// with no macro nodes. Every assertion this spec used to make about macro
+// resolution against those default pages stopped being reachable through the
+// UI, and that note ended *"macro authoring returns in M14; this spec should
+// regain that coverage then."*
+//
+// **It has, and deliberately not here (2026-09-06, ADR-041).** Widgets came
+// back to `templates.ts` — but to the templates you CHOOSE, not the two every
+// trip is seeded with. A widget-bearing Trip Overview opens a brand-new trip's
+// notebook as five grey "no dates set" chips, and it stops that page being the
+// blank sheet `m14-notebook-widgets.spec.ts` and `m14-mobile-notebook.spec.ts`
+// both open when they need one — three of them broke on the run that proved it.
+// So the seeded pair stays prose, widget coverage stays in the M14 specs, and
+// this one still asserts what it always did: the two notebooks exist and render
+// their starter text.
+//
+// What DID change here: the titles are read from `DEFAULT_TEMPLATES` rather than
+// typed, so renaming a seed ("Day Sheet" → "Day overview") is not three failing
+// assertions about a word.
 //
 // AI: the exit gate's "AI demo" step (prompt → composed page / atomic batch)
 // deliberately has NO e2e coverage here. Playwright drives a real running
@@ -82,14 +103,14 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
   // text link that used to sit in the trip header's nav row.
   await openNotebookIndex(page);
-  const overviewLink = page.getByRole("link", { name: /Trip Overview/ });
-  const daySheetLink = page.getByRole("link", { name: /Day Sheet/ });
+  const overviewLink = page.getByRole("link", { name: new RegExp(TRIP_OVERVIEW.title) });
+  const dayLink = page.getByRole("link", { name: new RegExp(DAY_OVERVIEW.title) });
   await expect(overviewLink).toBeVisible();
-  await expect(daySheetLink).toBeVisible();
+  await expect(dayLink).toBeVisible();
 
-  // -- Trip Overview: renders its plain-starter-text template (Task B3) --
+  // -- Trip Overview: renders its plain-starter-text template --
   await overviewLink.click();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
@@ -120,21 +141,21 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await page.getByRole("button", { name: /hide/i }).click();
 
-  // -- Day Sheet: its own starter text --
+  // -- Day overview: its own starter text --
   // The day-binding control this used to drive went with SPEC §18: a page has
   // no scope, and a day is a widget's own input (M14 link 2). The binding UI
   // returns as the chrome row on a widget, which is M14 link 4's to cover.
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
-  await daySheetLink.click();
-  await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
+  await dayLink.click();
+  await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
+  await expect(page.getByText(/who is picking up the car/i)).toBeVisible();
 });
 
 // Exit-gate line "Open a fresh empty trip's Notebook → default pages render
-// as a legible skeleton". Rewritten per the note above: a brand-new trip's
-// default pages no longer carry macros to have an empty/unbound state at
-// all — they render plain starter text unconditionally — so this checks
+// as a legible skeleton". The seeded pair is plain starter text — see the
+// header on why widgets went to the gallery templates instead — so this checks
 // that skeleton renders rather than erroring or rendering blank.
 test("fresh trip: Notebook default pages render their starter text", async ({ page }) => {
   const tripName = e2eTripName("Lagos");
@@ -147,16 +168,16 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openNotebookIndex(page);
-  await page.getByRole("link", { name: /Trip Overview/ }).click();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(TRIP_OVERVIEW.title) }).click();
+  await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
-  await page.getByRole("link", { name: /Day Sheet/ }).click();
-  await expect(page.getByRole("heading", { name: "Day Sheet" })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(DAY_OVERVIEW.title) }).click();
+  await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
 });
 

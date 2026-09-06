@@ -14,6 +14,8 @@ Quick orientation:
 - Contract change log: `docs/contracts/CHANGELOG.md`
 - Known issues & tech debt (unfixed-but-known): `docs/known-issues/` (one file per entry; `open/` is the list)
 - How to write a test worth its cost: `docs/guidelines/testing.md`
+- Adding trips, playbook days or notebook templates as JSON (and the importer
+  for them): `docs/guidelines/content-bundles.md` (ADR-041)
 - What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 

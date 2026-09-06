@@ -1,0 +1,1426 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "us-national-parks",
+    "name": "US national parks: eight days worth stealing",
+    "description": "Day-shaped playbooks from the American parks, built around the things that actually gate them — the Angels Landing lottery, the Cadillac sunrise reservation, the tide at Rialto, the hour Grand Prismatic stops steaming. Permit and reservation rules current for the 2026 season.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "https://www.nps.gov/zion/learn/news/2026-02-11-angels-landing.htm",
+      "https://www.recreation.gov/permits/4675324",
+      "https://www.nps.gov/zion/learn/news/2026-02-06-shuttle-schedule.htm",
+      "https://www.zionadventures.com/narrows.html",
+      "https://yosemite.org/know-before-you-go-yosemite-in-2026/",
+      "https://www.nps.gov/yose/planyourvisit/reservations.htm",
+      "https://www.nps.gov/yose/planyourvisit/glacierpointroad.htm",
+      "https://www.nps.gov/grca/planyourvisit/trail-distances.htm",
+      "https://www.nps.gov/places/000/bright-angel-trailhead.htm",
+      "https://www.papillon.com/grand-canyon-national-park/helicopter-air-tours/north-canyon-tour/",
+      "https://www.nps.gov/acad/planyourvisit/vehicle_reservations.htm",
+      "https://www.recreation.gov/timed-entry/400000",
+      "https://jordanpondhouse.com/transportation/",
+      "https://exploreacadia.com/",
+      "https://www.nps.gov/olym/planyourvisit/visiting-the-hoh-rain-forest.htm",
+      "https://tidesandcurrents.noaa.gov/stationhome.html?id=9442396",
+      "https://www.nps.gov/yell/planyourvisit/exploreoldfaithful.htm",
+      "https://www.nps.gov/arch/learn/news/news02182026.htm",
+      "https://www.nps.gov/places/mesa-arch.htm",
+      "https://www.nps.gov/grsm/planyourvisit/cades-cove-vehicle-free-days.htm",
+      "https://www.nps.gov/grsm/learn/news/kuwohi-name-restored-to-the-highest-peak-in-the-smokies.htm",
+      "https://smokieslife.org/product/annual-parking-tag/",
+      "https://www.nps.gov/aboutus/nonresident-fees.htm"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "zion-angels-landing-and-the-narrows",
+      "name": "Zion in one enormous day: the chains at 08:00, the Narrows by afternoon",
+      "summary": "Angels Landing on the first shuttle, lunch at the Lodge, then upstream into the Narrows in a rented dry suit. Both of Zion's headline hikes in a single day, which only works in this order.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2026-04-12T18:40:00.000Z",
+      "sourceTrip": {
+        "name": "Southwest loop: Zion, Bryce, Moab"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee and a breakfast burrito in Springdale before anything opens",
+          "timeWindow": {
+            "start": "06:15",
+            "end": "06:50"
+          },
+          "location": {
+            "name": "Deep Creek Coffee Co.",
+            "city": "Springdale",
+            "area": "Zion Park Boulevard"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Open at 06:00, and the only reliable caffeine before the park gate. Eat here — Zion Canyon has exactly one food service (the Lodge) and it does not open early.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Springdale line shuttle to the pedestrian entrance",
+          "timeWindow": {
+            "start": "06:50",
+            "end": "07:15"
+          },
+          "location": {
+            "name": "Springdale shuttle stop 5 (Bit & Spur)",
+            "city": "Springdale",
+            "area": "Zion Park Boulevard"
+          },
+          "kind": "transit",
+          "notes": "Do not drive to the visitor center — the lot is full by 07:30 in spring and the whole plan dies there. The town line is free and drops you at the footbridge; walk through the entrance station and you are at Zion Canyon shuttle stop 1. The cost here is the $35 vehicle entrance pass, seven days, bought once for the trip. Non-US visitors 16+ now pay a $100 per-person surcharge on top at Zion.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "First Zion Canyon shuttle to The Grotto (stop 6)",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "Zion Canyon Visitor Center shuttle stop 1",
+            "city": "Zion National Park",
+            "area": "Zion Canyon"
+          },
+          "kind": "transit",
+          "notes": "In spring the first shuttle out of the visitor center is 07:00 — this is the whole trick of the day. Be in that line by 06:50 and you reach the chains before the switchback traffic. The Grotto is stop 6, seven stops and about 25 minutes up canyon."
+        },
+        {
+          "title": "Angels Landing: West Rim Trail, Walter's Wiggles, the chains",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Angels Landing via the West Rim Trail",
+            "city": "Zion National Park",
+            "area": "The Grotto, Zion Canyon"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "You cannot do this without a permit. Two lotteries on Recreation.gov: the seasonal one (spring hikes open 13 Feb, close 25 Feb, awarded 26 Feb — the other seasons open 1 Apr, 1 Jul, 1 Oct) and the day-before lottery, which takes applications from 00:01 until 15:00 Mountain the day before and notifies by 16:00. $6 per application, non-refundable whether you win or not, plus $3 per person if you do. One application per person, up to six names. Cost here is one application plus two permits. Print or screenshot the permit — there is no cell signal at the chains and a ranger does check at Scout Lookout.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch on the lawn at Zion Lodge (stop 5)",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Castle Dome Cafe, Zion Lodge",
+            "city": "Zion National Park",
+            "area": "Zion Canyon"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "One stop back down from The Grotto. Order at the window, eat under the cottonwoods, refill both bottles here — it is the last potable water before the river.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Shuttle up to Temple of Sinawava (stop 9)",
+          "timeWindow": {
+            "start": "13:00",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Temple of Sinawava shuttle stop 9",
+            "city": "Zion National Park",
+            "area": "Zion Canyon"
+          },
+          "kind": "transit",
+          "notes": "End of the road. Change into the dry suit at the trailhead restrooms, not in the parking lot in Springdale — you will cook on the shuttle otherwise."
+        },
+        {
+          "title": "The Narrows bottom-up: Riverside Walk to Wall Street",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "The Narrows, Virgin River",
+            "city": "Zion National Park",
+            "area": "Temple of Sinawava"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Held, not booked, because the river decides. The park closes the Narrows above 150 cfs and after any flash flood watch — check the flow on the visitor center board that morning before you commit to the rental. No permit needed from the bottom; go up as far as Wall Street (about 2.5 miles past the end of the paved Riverside Walk) and turn around, which is four hours of walking in water. Cost is two Narrows dry-suit packages from Zion Adventure Company in Springdale at $75 each — suit, canyoneering boots, neoprene socks and a stick. Pick the gear up the evening before; the morning queue eats the shuttle you need. In April the water is around 50°F and the suit is not optional.",
+          "cost": {
+            "amountMinor": 15000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Bit & Spur, and the legs finally stop",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:00"
+          },
+          "location": {
+            "name": "Bit & Spur Restaurant & Saloon",
+            "city": "Springdale",
+            "area": "Zion Park Boulevard"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Walkable from most Springdale motels, which matters after this day. No reservations for two most nights — put your name in and drink something on the patio.",
+          "cost": {
+            "amountMinor": 6800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "yosemite-valley-dawn-mist-trail-glacier-point",
+      "name": "Yosemite Valley from the floor at dawn to Glacier Point at sunset",
+      "summary": "Tunnel View before the tour buses, the Mist Trail to Nevada Fall, then an hour of driving to watch Half Dome burn from Glacier Point. No entry reservation needed in 2026.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2025-06-22T16:05:00.000Z",
+      "sourceTrip": {
+        "name": "Sierra summer: Yosemite and the eastside"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-bob"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Tunnel View at first light",
+          "timeWindow": {
+            "start": "05:15",
+            "end": "06:00"
+          },
+          "location": {
+            "name": "Tunnel View overlook, Wawona Road",
+            "city": "Yosemite Valley",
+            "area": "Highway 41 / Wawona Road"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "There is no peak-hours entry reservation in 2026 — the system that ran through 2025 was dropped, so the only thing rationing the valley now is parking, and that is settled before 08:00. In late June sunrise is about 05:40 and the light lands on El Capitan's face first while Bridalveil is still blue. Cost here is the $35 seven-day vehicle pass. Non-US visitors 16+ pay a $100 per-person surcharge at Yosemite from 2026.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Valley View and a loop through Cook's Meadow",
+          "timeWindow": {
+            "start": "06:10",
+            "end": "07:00"
+          },
+          "location": {
+            "name": "Valley View, Northside Drive",
+            "city": "Yosemite Valley",
+            "area": "Merced River, valley floor"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Valley View is a pullout, not a parking lot, and it is the reflection everyone else drives past. Cook's Meadow at 06:40 gives you Half Dome with mist on the grass and nobody in it — the same view is a scrum by 10:00."
+        },
+        {
+          "title": "Breakfast at Base Camp Eatery",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Base Camp Eatery, Yosemite Valley Lodge",
+            "city": "Yosemite Valley",
+            "area": "Yosemite Valley Lodge"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Touchscreen ordering, open 07:00, and the fastest calories in the valley. Park at the Lodge or Yosemite Village and leave the car there all morning — the free valley shuttle takes you the rest of the way.",
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Mist Trail from Happy Isles: Vernal Fall, then Nevada Fall",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Mist Trail, Happy Isles shuttle stop 16",
+            "city": "Yosemite Valley",
+            "area": "Happy Isles / Merced River canyon"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Check the day of the week before you plan this. Through October 2026 the Mist Trail between the Vernal Fall footbridge and the top of Vernal Fall is closed Monday to Thursday, 07:00 to 15:30, for rockfall work — it is open Friday, Saturday, Sunday and holidays, and reopens after 15:30 on weekdays. On a closed weekday go up the John Muir Trail instead and take the whole loop clockwise. Vernal Fall top is 1.5 miles from Happy Isles, Nevada Fall 2.7. In June you get genuinely soaked on the granite stairs; the rain shell is worth carrying and the stone is slick going down."
+        },
+        {
+          "title": "Late lunch at Degnan's Kitchen",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Degnan's Kitchen, Yosemite Village",
+            "city": "Yosemite Valley",
+            "area": "Yosemite Village"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Sandwiches to go. Buy a second one for Glacier Point — there is nothing but a small gift shop up there.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive up Glacier Point Road",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Glacier Point Road",
+            "city": "Yosemite Valley",
+            "area": "Chinquapin junction to Glacier Point"
+          },
+          "kind": "transit",
+          "notes": "An hour each way from the valley floor — 16 miles of road after a 30-minute climb to Chinquapin, and people routinely under-budget it. The road opened 9 May in 2026 and closes with the first real snow; before that it is a ski route, not a drive. Hazard-tree crews held traffic about 15 minutes at a time from 21 July into August, so pad it."
+        },
+        {
+          "title": "Glacier Point until the light leaves Half Dome",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "Glacier Point",
+            "city": "Yosemite Valley",
+            "area": "Glacier Point Road"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Sunset is around 20:20 in late June and the last twenty minutes are the entire reason to be here — Half Dome goes orange, then pink, then flat grey in about four minutes. Walk the extra ten minutes out to Washburn Point on the way in for the Nevada Fall angle. Bring a headlamp for the walk back to the car and drive the descent slowly; deer own that road after dark."
+        },
+        {
+          "title": "Very late dinner at the Mountain Room",
+          "timeWindow": {
+            "start": "21:30",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Mountain Room Restaurant, Yosemite Valley Lodge",
+            "city": "Yosemite Valley",
+            "area": "Yosemite Valley Lodge"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Last seating is usually 21:00, so book it at 20:45 before you leave for Glacier Point and tell them you are coming down the hill. If you miss it the Mountain Room Lounge serves later and the bar food is fine after a day like this.",
+          "cost": {
+            "amountMinor": 7800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "grand-canyon-rim-sunrise-bright-angel-and-a-flight",
+      "name": "Grand Canyon, the whole budget: rim sunrise, Bright Angel, and 45 minutes in the air",
+      "summary": "Sunrise at Mather Point, down Bright Angel to Three-Mile Resthouse and back, an afternoon helicopter over the North Rim, then a night and dinner at El Tovar. The expensive version, priced honestly.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2024-10-27T15:30:00.000Z",
+      "sourceTrip": {
+        "name": "Arizona, ten days, one big splurge"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Mather Point for sunrise",
+          "timeWindow": {
+            "start": "05:40",
+            "end": "06:20"
+          },
+          "location": {
+            "name": "Mather Point, Grand Canyon Visitor Center",
+            "city": "Grand Canyon Village",
+            "area": "South Rim"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Park at the visitor center lot — it is empty at 05:30 and full by 09:00 — and walk five minutes. Sunrise fills the canyon from the east, so the first colour is on the buttes below you, not the sky; give it twenty minutes after the sun clears the horizon before you leave. Cost is the $35 seven-day vehicle pass; from 2026 non-US visitors 16+ also pay $100 each here.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Breakfast at Bright Angel Bicycles & Cafe",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:15"
+          },
+          "location": {
+            "name": "Bright Angel Bicycles & Cafe",
+            "city": "Grand Canyon Village",
+            "area": "Grand Canyon Visitor Center plaza"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Right at the visitor center, opens early, and does a proper coffee. Fill four litres of water here before you go down — the resthouse taps are seasonal.",
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Bright Angel Trail down to Three-Mile Resthouse and back",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Bright Angel Trailhead",
+            "city": "Grand Canyon Village",
+            "area": "South Rim, Village Historic District"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The trailhead is beside Kolb Studio in the village, on the Village (Blue) shuttle route — not at the visitor center. Mile-and-a-Half Resthouse is 1.5 miles down, Three-Mile Resthouse 3.0, Havasupai Gardens 4.5. Pre-treated water runs at the two resthouses only from about early May to early October; Havasupai Gardens is year-round. Turning at Three-Mile is 6 miles round trip and roughly 2,100 feet of climbing on the way out, which takes twice as long as the descent — budget two hours down, three up, and be back on the rim before the afternoon heat. In summer the rule is simple: no day hiking between 10:00 and 16:00 below the rim. Check the trail status page before you go, since the river corridor closes after flooding."
+        },
+        {
+          "title": "Lunch at Maswik Food Court",
+          "timeWindow": {
+            "start": "12:45",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Maswik Food Court, Maswik Lodge",
+            "city": "Grand Canyon Village",
+            "area": "Village Historic District"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Fast, salty and five minutes from the trailhead. Salt is the point after a Bright Angel climb-out. Uncommitted — the Yavapai Tavern deck is the better version if you have the time, and you do not.",
+          "cost": {
+            "amountMinor": 4600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive down to Tusayan for check-in",
+          "timeWindow": {
+            "start": "13:35",
+            "end": "14:10"
+          },
+          "location": {
+            "name": "Highway 64 south to Grand Canyon National Park Airport",
+            "city": "Tusayan",
+            "area": "South of the park's south entrance"
+          },
+          "kind": "transit",
+          "notes": "Twenty minutes from the village on a clear road, forty if the entrance station has backed up northbound — the queue at the gate blocks the southbound lane too. Check in an hour before the flight; they weigh everyone and will give your seat away."
+        },
+        {
+          "title": "Papillon North Canyon helicopter flight from Tusayan",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Papillon terminal, Grand Canyon National Park Airport",
+            "city": "Tusayan",
+            "area": "Highway 64, seven miles south of the rim"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "$354 a seat for the 45-minute North Canyon tour, two seats here — and 45 minutes is the total, of which 25 to 30 is airborne. Book weeks out for an afternoon slot; the light across the Dragon Corridor is far better after 14:00 than at 09:00. They weigh every passenger at check-in and seat by weight, so arrive an hour early and do not expect to choose your side. Flights are grounded for wind more often than anyone admits — nothing else in this day depends on it.",
+          "cost": {
+            "amountMinor": 70800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Check into El Tovar and sit on the rim porch",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "El Tovar Hotel",
+            "city": "Grand Canyon Village",
+            "area": "South Rim, Village Historic District"
+          },
+          "kind": "booked",
+          "tags": [
+            "lodging"
+          ],
+          "notes": "1905, twenty feet from the edge, and the reason to pay this instead of driving back to Tusayan. Rooms open 13 months ahead and the rim-side ones go the day they release. A standard queen with tax lands near $379 in shoulder season.",
+          "cost": {
+            "amountMinor": 37900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner in the El Tovar Dining Room",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "21:00"
+          },
+          "location": {
+            "name": "El Tovar Dining Room",
+            "city": "Grand Canyon Village",
+            "area": "South Rim, Village Historic District"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Reserve as soon as you have the room — hotel guests can book 6 months out, everyone else 30 days, and it fills. Ask for a window table and eat at sunset; the canyon does the work. Two courses and a bottle for two runs about $195.",
+          "cost": {
+            "amountMinor": 19500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "acadia-cadillac-sunrise-jordan-pond",
+      "name": "Acadia: Cadillac at sunrise, the Beehive rungs, popovers at Jordan Pond",
+      "summary": "The reserved summit sunrise, an iron-rung scramble over Sand Beach, and popovers on the lawn — with the two-days-ahead reservation drop that makes the first stop possible at all.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2025-08-19T13:20:00.000Z",
+      "sourceTrip": {
+        "name": "Down East: Portland to Bar Harbor"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-bob"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Drive up Cadillac Summit Road in the dark",
+          "timeWindow": {
+            "start": "04:05",
+            "end": "04:40"
+          },
+          "location": {
+            "name": "Cadillac Summit Road gate, Park Loop Road",
+            "city": "Bar Harbor",
+            "area": "Cadillac Mountain"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A vehicle reservation is required 20 May to 25 October, $6, sold only in advance on Recreation.gov — you cannot buy one at the gate. About 30% of slots release 90 days ahead and the other 70% at 10:00 Eastern exactly two days before; set an alarm for that, because sunrise slots are limited to one per vehicle per seven days and they are gone in minutes. The sunrise ticket gives you a two-hour entry window. You also need the $35 park pass on the windshield — the $6 reservation is not an entrance fee. Cost here is both.",
+          "cost": {
+            "amountMinor": 4100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sunrise from the Cadillac summit",
+          "timeWindow": {
+            "start": "04:45",
+            "end": "06:15"
+          },
+          "location": {
+            "name": "Cadillac Mountain summit",
+            "city": "Bar Harbor",
+            "area": "Cadillac Mountain, 1,530 ft"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Late June sunrise is about 04:50 and mid-August closer to 05:45 — check the date, the two are an hour apart. Walk five minutes down the Summit Loop path away from the parking lot for the eastward view over the Porcupine Islands without a hundred phones in it. Cadillac is the first place in the US to see sunrise only from about 7 October to 6 March; in summer that title belongs to Mars Hill. It is 15°F colder and much windier up here than in town.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Breakfast at 2 Cats in Bar Harbor",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "2 Cats Bar Harbor",
+            "city": "Bar Harbor",
+            "area": "Cottage Street"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Opens at 07:00 and the line is out the door by 08:15 — coming down off the summit puts you first. Get the wild blueberry pancakes.",
+          "cost": {
+            "amountMinor": 3400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Beehive loop from Sand Beach",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Beehive Trailhead, opposite Sand Beach",
+            "city": "Bar Harbor",
+            "area": "Park Loop Road, Sand Beach"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Iron rungs and ladders bolted to a cliff for about 500 vertical feet — not exposed for long, but there is no way to turn around once you are on it, and it is one-way up. Go early: after 10:00 you queue on the rungs behind people who did not expect them. Down the back side to The Bowl and out to Gorham Mountain if you want another hour. Skip it entirely in rain; the granite is glassy."
+        },
+        {
+          "title": "Jordan Pond path and popovers on the lawn",
+          "timeWindow": {
+            "start": "11:15",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Jordan Pond House",
+            "city": "Seal Harbor",
+            "area": "Jordan Pond, Park Loop Road"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "Walk the flat north end of the Jordan Pond path first for the Bubbles reflection, then eat. Popovers with strawberry jam on the lawn since the 1890s; the tables are mostly walk-up and the crush is 11:30 to 16:00, so land at 11:15 or after 15:00. The free Island Explorer Route 5 stops here every 30 minutes from 23 June to 31 August, which is the civilised way to avoid the parking lot.",
+          "cost": {
+            "amountMinor": 4600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Ocean Path to Thunder Hole on a falling tide",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Ocean Path, Otter Cliff to Thunder Hole",
+            "city": "Bar Harbor",
+            "area": "Park Loop Road"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Thunder Hole only thunders on a rising tide with swell behind it — an hour or two before high tide, ideally after a storm offshore. On a flat calm day it is a wet hole in the rock and you should keep walking to Otter Cliff instead."
+        },
+        {
+          "title": "Lobster in the rough at Thurston's",
+          "timeWindow": {
+            "start": "17:30",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Thurston's Lobster Pound",
+            "city": "Bernard",
+            "area": "Bass Harbor, quiet side of Mount Desert Island"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Forty minutes from Bar Harbor on the quiet side and worth every one of them — pick your lobster, eat it on a deck over the working harbour. Bass Harbor Head Light is ten minutes further if you want sunset after; the viewing platform is small, so go straight there from dinner.",
+          "cost": {
+            "amountMinor": 6800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "olympic-hoh-rainforest-and-rialto-beach",
+      "name": "Olympic in one day: the Hoh at opening light, Rialto Beach on the ebb",
+      "summary": "Rainforest in the morning while the fog still hangs in the moss, then out to the coast timed to a falling tide so Hole-in-the-Wall is actually reachable. Forks in the middle, because that is where the food is.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2025-11-02T20:10:00.000Z",
+      "sourceTrip": {
+        "name": "Washington coast and the Olympic loop"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Breakfast at the Forks Coffee Shop",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:15"
+          },
+          "location": {
+            "name": "Forks Coffee Shop",
+            "city": "Forks",
+            "area": "Highway 101 through town"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Opens at 06:00, feeds loggers, and is the last real breakfast before an hour of forest road. Fill the tank in Forks too — there is no fuel up the Hoh valley.",
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive the Upper Hoh Road",
+          "timeWindow": {
+            "start": "07:20",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Upper Hoh Road, off Highway 101",
+            "city": "Forks",
+            "area": "Hoh River valley"
+          },
+          "kind": "transit",
+          "notes": "About an hour: 13 miles south on 101, then 18 miles up the Upper Hoh Road, the last stretch slow and pot-holed. The road has washed out and closed the rainforest for months at a time in recent winters — check the park's road status page the night before, not the morning of, since there is no signal past the turn. Cost is the $30 seven-day Olympic vehicle pass. The visitor center lot fills by about 10:00 in summer and there is no overflow.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hall of Mosses while the fog is still in it",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Hall of Mosses Trail, Hoh Rain Forest Visitor Center",
+            "city": "Forks",
+            "area": "Hoh Rain Forest"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Three quarters of a mile, flat, and the whole reason to be here early — low side light through the club moss at 08:30 is the shot, and by noon the canopy goes flat and grey. The maple grove about 200 yards up the loop is where the moss curtains are deepest."
+        },
+        {
+          "title": "Spruce Nature Trail out to the river gravel",
+          "timeWindow": {
+            "start": "09:40",
+            "end": "11:10"
+          },
+          "location": {
+            "name": "Spruce Nature Trail",
+            "city": "Forks",
+            "area": "Hoh Rain Forest"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "1.2 miles from the same trailhead and far quieter than the Hall of Mosses; it drops you onto the Hoh River gravel bar with the glacier-fed braid in front of you. Elk use the flats here at both ends of the day. If you have another hour, walk the first mile of the Hoh River Trail instead and turn round at the second footbridge."
+        },
+        {
+          "title": "Back to Forks for lunch and supplies",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Forks Outfitters / In Place Restaurant",
+            "city": "Forks",
+            "area": "Highway 101"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Forks Outfitters is the town's grocery, hardware and everything else; build a beach lunch there rather than eating at Rialto, where there is nothing at all. Buy the tide table here if you have not printed one.",
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive out Mora Road to Rialto Beach",
+          "timeWindow": {
+            "start": "13:20",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Mora Road, La Push turnoff",
+            "city": "Forks",
+            "area": "Quillayute valley to the coast"
+          },
+          "kind": "transit",
+          "notes": "Half an hour and a hard left at the La Push junction — Rialto is on the north side of the river mouth, First and Second Beach are on the south. People book a hotel expecting one and drive to the other."
+        },
+        {
+          "title": "Rialto Beach to Hole-in-the-Wall on the ebb",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Rialto Beach, Hole-in-the-Wall",
+            "city": "Forks",
+            "area": "Olympic wilderness coast, Mora district"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Held because the tide, not you, decides whether this happens. Hole-in-the-Wall is 1.5 miles north up cobble and driftwood; you want to be walking out on a falling tide and through the arch below about +3 feet, checked against the NOAA La Push table for the exact day. Ellen Creek, half a mile up, is the point of no return — it and the headland both flood, and people get pinned. Two hours before low is the safe window. The tide pools on the far side at low water are the best on this coast.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Creekside, Kalaloch Lodge",
+          "timeWindow": {
+            "start": "18:15",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Creekside Restaurant, Kalaloch Lodge",
+            "city": "Forks",
+            "area": "Kalaloch, Highway 101 coast strip"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Forty minutes south of Forks on 101 and the only sit-down dinner with an ocean in the window. Reserve, or eat early. The Tree of Life — the spruce holding itself over an eroded gully on its roots — is a two-minute walk from the Kalaloch Campground bluff and best in the last light.",
+          "cost": {
+            "amountMinor": 5400,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "teton-dawn-yellowstone-by-noon",
+      "name": "Teton dawn, Yellowstone by noon: Mormon Row to the Old Faithful Inn",
+      "summary": "The barn at first light, Oxbow Bend before the wind, then north through the South Entrance to hit Grand Prismatic when the steam finally thins. Ends with a night in the Old Faithful Inn.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2026-07-19T14:45:00.000Z",
+      "sourceTrip": {
+        "name": "Wyoming: two parks, one long week"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Mormon Row: the T.A. Moulton barn at sunrise",
+          "timeWindow": {
+            "start": "04:45",
+            "end": "06:15"
+          },
+          "location": {
+            "name": "T.A. Moulton Barn, Mormon Row",
+            "city": "Moose",
+            "area": "Antelope Flats, Grand Teton"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Off Antelope Flats Road, and you want to be standing on the north side of the barn before 05:15 in July — the tripods are three deep by sunrise at 05:55. The barn catches light a good ten minutes before the Tetons behind it do, so shoot twice. Bison walk this road; do not get out and approach them for a photo. Cost is the $35 seven-day Grand Teton vehicle pass, which does not cover Yellowstone.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Oxbow Bend while the water is still glass",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:15"
+          },
+          "location": {
+            "name": "Oxbow Bend turnout, Highway 89",
+            "city": "Moran",
+            "area": "Snake River, Grand Teton"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Mount Moran reflected in the slack water — only before about 08:00, when the valley wind starts and the mirror is gone for the day. Moose feed in the willows on the near bank and otters work the far side; glass it for five minutes before deciding nothing is there."
+        },
+        {
+          "title": "Breakfast at the Pioneer Grill",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:15"
+          },
+          "location": {
+            "name": "Pioneer Grill, Jackson Lake Lodge",
+            "city": "Moran",
+            "area": "Jackson Lake Lodge"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A 1950s soda-fountain counter, quick, and it is directly on the drive north. Walk up to the lodge's picture windows with your coffee first — the Willow Flats view is free and it is the best thing in the building.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive north through the South Entrance to West Thumb",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Yellowstone South Entrance, Highway 89/191",
+            "city": "Yellowstone National Park",
+            "area": "John D. Rockefeller Jr. Memorial Parkway to West Thumb"
+          },
+          "kind": "transit",
+          "notes": "About 90 minutes from Jackson Lake Lodge to West Thumb if nothing stops you, which something always does — construction on the South Entrance road and a bison jam are both routine, so leave slack. Yellowstone is a separate $35 vehicle fee; your Teton pass does not work here and the annual pass covers both. Non-US visitors 16+ now pay the $100 surcharge at each of these parks.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "West Thumb Geyser Basin boardwalk",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "West Thumb Geyser Basin",
+            "city": "Yellowstone National Park",
+            "area": "Yellowstone Lake, West Thumb"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Half a mile of boardwalk with hot springs draining straight into Yellowstone Lake — the most underrated basin in the park because everyone drives past it to Old Faithful. Twenty minutes if you rush, an hour if you take the lower loop."
+        },
+        {
+          "title": "Old Faithful and the Upper Geyser Basin, lunch at the Inn",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Upper Geyser Basin, Old Faithful",
+            "city": "Yellowstone National Park",
+            "area": "Old Faithful complex"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "Get the eruption predictions at the visitor center desk or in the NPS app the moment you arrive — they post Castle, Grand, Daisy and Riverside too, and any one of those beats Old Faithful. Do not spend an hour on the bench: walk the boardwalk loop past Morning Glory and time your return to the prediction window. Eat at the Bear Paw deli in the Inn rather than the dining room, which you are booked into tonight.",
+          "cost": {
+            "amountMinor": 4200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Grand Prismatic Overlook from the Fairy Falls trailhead",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Grand Prismatic Overlook, Fairy Falls Trailhead",
+            "city": "Yellowstone National Park",
+            "area": "Midway Geyser Basin"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "This is why the day runs south to north. In the morning the spring is under its own steam and you see nothing; by early afternoon it has thinned and the sun is high enough behind the overlook to bring the rings out. Park at the Fairy Falls lot a mile south of the Midway boardwalk — the overlook spur is 1.2 miles with one short climb, and a polariser cuts the glare. The Midway boardwalk itself is worth doing after, at ground level.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner and the night at the Old Faithful Inn",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:30"
+          },
+          "location": {
+            "name": "Old Faithful Inn Dining Room",
+            "city": "Yellowstone National Park",
+            "area": "Old Faithful complex"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal",
+            "lodging"
+          ],
+          "notes": "The 1904 log lobby is worth the price on its own, and staying inside the park means you watch the 21:00 eruption in the dark with almost nobody there. Rooms release 13 months ahead through Yellowstone National Park Lodges and the old-house rooms with shared baths are both cheaper and more interesting. Dining room dinner needs a reservation, and there is no cell service — arrange the morning plan tonight. About $420 for the room and $130 for two at dinner.",
+          "cost": {
+            "amountMinor": 55000,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "mesa-arch-sunrise-delicate-arch-sunset",
+      "name": "Moab double: Mesa Arch at sunrise, Delicate Arch in the afternoon",
+      "summary": "Both Moab parks in one day, in the only order that works — Island in the Sky for the underglow at dawn, brunch in town, then the slickrock up to Delicate Arch. No timed entry needed in 2026.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2025-02-16T19:15:00.000Z",
+      "sourceTrip": {
+        "name": "Utah in winter: red rock, no crowds"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Drive out to Island in the Sky in the dark",
+          "timeWindow": {
+            "start": "05:45",
+            "end": "06:45"
+          },
+          "location": {
+            "name": "Grand View Point Road, Island in the Sky",
+            "city": "Moab",
+            "area": "Canyonlands National Park"
+          },
+          "kind": "transit",
+          "notes": "About 45 minutes from Moab: north on 191, then Highway 313 up onto the mesa. In February the road ices on the switchbacks and there is no gas, no food and no signal past the turn. Cost is the $30 seven-day Canyonlands vehicle pass — a separate fee from Arches this afternoon.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Mesa Arch for the underglow",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Mesa Arch",
+            "city": "Moab",
+            "area": "Island in the Sky, Canyonlands"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Held because it needs a clear eastern horizon — under cloud the famous orange underside simply does not happen and you have got up at 05:00 for a nice view. The trail is a half-mile loop from the lot. In February sunrise is about 07:20; be at the arch by 06:45 for a front-row spot, and in summer that means arriving two hours early because the tripods interlock. The sunstar is at the instant the sun clears the rim, and the whole show lasts about ten minutes. Grand View Point is another 20 minutes down the road if you want the canyon without anybody in it.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Green River Overlook and the drive back down",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Green River Overlook",
+            "city": "Moab",
+            "area": "Island in the Sky, Canyonlands"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Five minutes off the main road and the best cheap view in the district — you look down two levels of canyon onto the White Rim. Uncommitted: skip it if the light has gone flat and get to breakfast."
+        },
+        {
+          "title": "Brunch at Love Muffin Café",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Love Muffin Café",
+            "city": "Moab",
+            "area": "North Main Street"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Breakfast burritos and proper coffee on Main. Fill water bottles here — Arches has drinking water only at the visitor center and Devils Garden.",
+          "cost": {
+            "amountMinor": 2900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Into Arches, up to Wolfe Ranch",
+          "timeWindow": {
+            "start": "11:40",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Wolfe Ranch trailhead, Delicate Arch Road",
+            "city": "Moab",
+            "area": "Arches National Park"
+          },
+          "kind": "transit",
+          "notes": "Arches dropped its timed-entry reservation for 2026 — announced 18 February, nothing to book, no $2 fee. What did not change is the entrance queue: between May and October the line at the booth can run 30 minutes from about 09:00 to 11:00, and the Wolfe Ranch lot fills. Winter has neither problem. $30 per vehicle, seven days.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Delicate Arch by the slickrock route",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Delicate Arch Trail",
+            "city": "Moab",
+            "area": "Arches National Park"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Three miles round trip and about 480 feet, most of it one unshaded slickrock slab with cairns instead of a trail — allow two to three hours. Stop at the Wolfe Ranch cabin and take the 100-yard spur to the Ute petroglyph panel; almost everyone walks past it. The last 200 yards is a ledge cut into the cliff that ices over in winter, so carry microspikes between December and March. Late afternoon is when the arch glows, but that is also when fifty people are queuing under it for a photo; midday in winter you may have it to yourself."
+        },
+        {
+          "title": "The Windows and Double Arch on the way out",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "The Windows Section",
+            "city": "Moab",
+            "area": "Arches National Park"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Big arches, tiny walk — a mile of sand gets you North Window, South Window and Turret Arch, and Double Arch is a five-minute stroll opposite. Take the primitive loop behind the Windows for the back side of North Window with nobody in it."
+        },
+        {
+          "title": "Dinner at the Moab Brewery",
+          "timeWindow": {
+            "start": "18:15",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Moab Brewery",
+            "city": "Moab",
+            "area": "South Main Street"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Loud, quick and it feeds everyone who has been on rock all day. If you want the good meal instead, Desert Bistro is four blocks north and needs a reservation days out in season.",
+          "cost": {
+            "amountMinor": 7600,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "smokies-cades-cove-dawn-alum-cave",
+      "name": "Smokies: Cades Cove at first light, Alum Cave in the afternoon",
+      "summary": "The eleven-mile loop before the traffic that ruins it, Abrams Falls off the middle of it, then the Alum Cave arch and Newfound Gap at last light. No entrance fee here — but you do need a parking tag.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2025-12-29T17:05:00.000Z",
+      "sourceTrip": {
+        "name": "Blue Ridge and the Smokies at Christmas"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Gatlinburg to Cades Cove before the gate opens",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "Little River Road to Laurel Creek Road",
+            "city": "Gatlinburg",
+            "area": "Great Smoky Mountains National Park"
+          },
+          "kind": "transit",
+          "notes": "An hour, and it is a slow, beautiful hour beside the Little River — do not believe the map's 45 minutes. There is no entrance fee in the Smokies, but Park It Forward means any vehicle parked over 15 minutes needs a tag: $5 daily, $15 weekly, $40 annual, bought on Recreation.gov, at visitor centers or from the machines at trailheads. Buy it on your phone before you leave town; the machine at Cades Cove has a queue at 08:00 and no signal to help you.",
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "First half of the Cades Cove Loop at dawn",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Cades Cove Loop Road",
+            "city": "Townsend",
+            "area": "Cades Cove, Great Smoky Mountains"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Eleven miles, one way, sunrise to sunset, and the difference between 07:45 and 10:00 is the difference between deer and bear in the meadows and two hours in a stationary car. Winter is the cheat code — bare trees, no queue, and the bears at the tree line are visible. From 6 May to 30 September 2026 the loop is closed to cars every Wednesday: bring a bike and it becomes the best day in the park. Pull fully into the turnouts; stopping in the lane is what creates the jam everyone complains about."
+        },
+        {
+          "title": "Abrams Falls out and back",
+          "timeWindow": {
+            "start": "09:20",
+            "end": "12:00"
+          },
+          "location": {
+            "name": "Abrams Falls Trailhead",
+            "city": "Townsend",
+            "area": "Cades Cove, Great Smoky Mountains"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Signed off the middle of the loop, five miles round trip with rolling ridges — the falls are short but push an enormous volume of water into a pool people drown in every few years. Do not swim; the undertow behind the falls is the killer. It is muddy any time of year and the roots are slick."
+        },
+        {
+          "title": "Finish the loop and drive back out",
+          "timeWindow": {
+            "start": "12:10",
+            "end": "13:20"
+          },
+          "location": {
+            "name": "Cades Cove Loop Road, east half",
+            "city": "Townsend",
+            "area": "Cades Cove, Great Smoky Mountains"
+          },
+          "kind": "transit",
+          "notes": "The back half has the Primitive Baptist Church and the John Oliver cabin, both worth the ten minutes. If the loop has gridlocked, both cut-across roads — Sparks Lane and Hyatt Lane — let you bail to the exit."
+        },
+        {
+          "title": "Late lunch in Gatlinburg",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "14:20"
+          },
+          "location": {
+            "name": "Crockett's Breakfast Camp / Parkway",
+            "city": "Gatlinburg",
+            "area": "Parkway"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "There is no food anywhere in Cades Cove beyond the campground store's snacks, so the day has to come back through town. Park once in a Parkway garage and walk.",
+          "cost": {
+            "amountMinor": 3400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Alum Cave Trail to Arch Rock",
+          "timeWindow": {
+            "start": "14:50",
+            "end": "16:50"
+          },
+          "location": {
+            "name": "Alum Cave Trailhead, Newfound Gap Road",
+            "city": "Gatlinburg",
+            "area": "Mount LeConte, Great Smoky Mountains"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "About 20 minutes up Newfound Gap Road from Gatlinburg. Arch Rock is 1.4 miles in — a staircase cut through a natural tunnel — and Alum Cave Bluffs 2.3 miles, which is a five-mile round trip and too much for this hour in December. In winter the section above Arch Rock ices hard and the cables are the only handhold; microspikes or turn around. The two trailhead lots fill by 09:00 in summer, which is the other reason to come here in the afternoon."
+        },
+        {
+          "title": "Newfound Gap at last light",
+          "timeWindow": {
+            "start": "17:05",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Newfound Gap overlook, Rockefeller Memorial",
+            "city": "Gatlinburg",
+            "area": "Tennessee / North Carolina state line, 5,046 ft"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The state line runs through the parking lot and the Appalachian Trail crosses it here — walk five minutes south on the AT for the ridge view. This is as high as you can drive in winter: Kuwohi Road, to the peak the Board on Geographic Names restored from Clingmans Dome in 2024, closes 1 December to 31 March. Expect 10 to 15°F colder than Gatlinburg and ice on the road down after dark."
+        },
+        {
+          "title": "Dinner at the Peddler Steakhouse",
+          "timeWindow": {
+            "start": "18:45",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "The Peddler Steakhouse",
+            "city": "Gatlinburg",
+            "area": "River Road, on the Little Pigeon"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "They cut the steak in front of you and the dining room hangs over the river. No reservations — put your name in on the way to Newfound Gap and the wait is roughly your drive back.",
+          "cost": {
+            "amountMinor": 7200,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -21,7 +21,9 @@
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
     "db:backfill-cities": "node --env-file-if-exists=.env.local scripts/backfill-saved-day-cities.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
-    "db:reseed": "pnpm db:reset --yes && pnpm db:seed"
+    "db:reseed": "pnpm db:reset --yes && pnpm db:seed && pnpm content:import",
+    "content:import": "node --env-file-if-exists=.env.local scripts/import-content.ts",
+    "content:verify": "node scripts/import-content.ts --dry-run"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.68",

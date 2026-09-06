@@ -159,6 +159,16 @@ container with no local infra.
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
 worktree audit).
 
+**Content check** (`pnpm content:verify`): parses every bundle under `content/`
+against `travel-collab/content-bundle/v1`, runs the content rules a schema
+cannot state (a `keptOn` in the future, an author in their own adds ledger, a
+day written out of chronological order), and prints what the whole set looks
+like — including the season and budget-band occupancy Discover filters on.
+Needs no server and no database; it is `import-content.ts --dry-run`, the same
+code path as the import with the writes off. The same lint runs inside
+`pnpm test` via `packages/fixtures/src/bundle/content.test.ts`. See ADR-041 and
+`docs/guidelines/content-bundles.md`.
+
 **Fixture check** (`pnpm seed:verify`): folds the canonical Japan demo trip
 through the real domain and reports counts, kind/tag coverage, coordinates,
 rollups and conflicts against a recorded baseline. Runs inside `pnpm check`

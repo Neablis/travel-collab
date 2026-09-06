@@ -22,6 +22,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     visibility: "public",
+    authorKind: "human",
     sourceTripName: "Japan",
     createdAt: "2026-08-01T00:00:00.000Z",
     publishedAt: "2026-08-02T00:00:00.000Z",

@@ -22,6 +22,98 @@ general setup.
 
 ## Where the work is right now
 
+**THE LIBRARY GOT ITS CONTENT, 2026-09-06.** Branch
+`claude/serialize-and-seed-data-66f8tb`, off `dee0c67`. Mitchell asked for a JSON format for
+notebooks, activities and trips, an importer for it, and *"a large amount of seed data … the
+main goal is to generate a lot of believable playbooks."* All three are built and **ADR-041**
+records the decisions.
+
+**`travel-collab/content-bundle/v1`** (`packages/fixtures/src/bundle/`) is one file carrying
+`trips`, `playbooks` and `notebooks`. It **composes the contracts' own schemas** rather than
+restating them — a stop is `AddActivity` minus the ids the importer mints, a notebook's body
+is `PageDoc` — so a bundle cannot describe something the command API would refuse, and a
+fifth `ActivityTag` reaches the format with no edit. **Ids are derived from human-readable
+keys**, so a content author never sees a uuid and a re-import updates rather than duplicates.
+
+**`pnpm --filter web content:import`** walks `content/`, validates everything BEFORE writing
+anything, and goes through the real write paths: trips through `POST /api/trips` and the
+batch command endpoint (one batch per day, so History stays readable), playbooks through a
+dev-gated route that writes via `newSavedDayRow`/`recordAdd` so `cities` and `adds` are still
+derived server-side. `pnpm content:verify` is the same script with the writes off.
+
+**`saved_days.author_kind`** (`"human"` | `"ai"`, migration `0017`) is Mitchell's *"indicate
+in the database when its a human playbook or a AI seed data"*. Not called `origin` —
+`events.origin` already means something else. **Only `"ai"` renders** (`AuthorKindBadge`, on
+the Discover card and the shared-day screen): "human" is the absence of a claim, which is
+also why an unreadable value falls back to it instead of dropping the row.
+
+**The content: 148 playbook days over twenty regions** — Thailand beaches, the Italian Alps and
+Italian cities, Spain on foot, France, the Greek islands, Iceland and Norway, Mexico and Central
+America, the US parks, **San Francisco / Napa / the Monterey Bay coast**, **the Finger Lakes and
+upstate New York**, Vietnam and Indonesia, the summer Alps, the Andes and Patagonia, the medinas
+and deserts, Turkey and the Balkans, Britain and Ireland, Australia and New Zealand, Korea and
+Taiwan — plus **four demo trips** (Thailand, the Dolomites, northern Spain, Iceland). 1,375 stops,
+327 cities, twelve authors. **It closes a gap `starterDays.ts` flagged and could not fix at its own
+size:** Discover's budget filter now has occupants in all four bands (`under200` 80, `200to500` 39,
+`500to1000` 12, `over1000` 17) where three of the four had none anywhere in the seed, and all four
+seasons are filled.
+
+**The second wave was written without live web access, and has since been verified — the gating
+facts, not the prices.** A pass over all 60 of those days (~150 live searches, official sources)
+checked opening days, hours, seasonal operation, closures, and permit and booking rules. It found
+**at least fourteen days that were impossible as written**, and every single failure was
+*staleness* rather than invention: two venues that no longer exist (Edinburgh's Gardener's
+Cottage, the National Slate Museum), three headline stops no longer deliverable (Etna's summit
+under a post-eruption cap, Beitou's pool closed for renovation, Big Sur's parks still shut after
+Highway 1 reopened), a day on the wrong reef, four departures that do not exist, six days starting
+before their venue opened, and several day-of-week constraints nobody had noticed. Two corrections
+ran the other way, which is the half worth having: the Louvre does **not** allow re-entry, and
+Halles de Lyon is **not** closed Mondays.
+
+**Prices are still unverified**, deliberately — only the ~20 that an authoritative page happened
+to state while a gating fact was being checked. Each file's `bundle.sources` opens with a
+`PARTIALLY VERIFIED 2026-09-06` line naming what was and was not checked, and lists its own
+remaining worklist. **`KI-2026-09-06-d`** carries the narrowed scope. `pnpm content:verify` cannot
+catch any of it — it checks structure, not whether a price is true.
+
+**Notebook templates are a library again.** `@tc/pages` splits `DEFAULT_TEMPLATES` (what a new
+trip is seeded with — still two) from `TEMPLATE_LIBRARY` (what "Start from a template" offers
+— seven: Trip Overview, Day overview, A day in detail, Full trip breakdown, Dinner tracker,
+Bookings, Before you go), and **the gallery templates plant widgets again**: the M8-era note
+forbidding it was written in the window between macro authoring leaving the editing surface
+and M14 putting it back. `content/notebooks/built-in-notebooks.json` is a serialised copy,
+kept honest by `templates.test.ts`.
+
+**The seeded pair stays prose, and that line was learned the hard way on this branch.**
+*A template planted before there is a plan prompts writing; a template you choose once you
+have one builds itself.* Widgets went onto Trip Overview first and the e2e lane refused it in
+three places: `m14-notebook-widgets` and `m14-mobile-notebook` both open Trip Overview when
+they need **a page with nothing on it**, and started counting the template's own widgets
+alongside the inserted ones. The product argument agrees — a brand-new trip has no dates and
+no stops, so that page would open as five grey "no dates set" chips. `templates.test.ts`
+asserts the split in both directions now.
+
+**Evidence.** Ran end to end against local Postgres and a real dev server: 88 playbook days +
+245 ledger rows imported, re-import proved idempotent, `cities` derived server-side,
+`author_kind` correct in the rows. Browser walk at 1400px: 24 Discover cards, 22 carrying the
+"AI starter" badge, the badge present on the shared-day screen, and the "Full trip breakdown"
+template rendering live widgets — dates, counts, a city table, day-by-day and a cost
+breakdown — against the imported Dolomites trip, with no console errors.
+
+**One consequence is filed rather than hidden: `KI-2026-09-06-c`.** Imported stops carry no
+coordinates, deliberately — a confidently wrong pin is worse than none, and this repo has
+measured that failure once already (KI-39, six wrong venues inside the right city). The four
+demo trips therefore read "N stops have no place yet" on the Map lens until somebody runs an
+offline geocoding pass. The playbook days, which are the point, are unaffected: Discover
+matches on `location.city`, and all 905 stops carry one.
+
+**One enabling change worth knowing about:** `packages/contracts` now spells its own relative
+imports with `.ts`. That is what makes the package loadable by a plain Node process, which
+the importer is; `@tc/fixtures` already spelled its imports that way. Mechanical, no semantic
+content, and the Next build was re-run to prove it.
+
+## Before this
+
 **THE ASSISTANT REACHED THE PHONE, 2026-09-05.** Branch
 `claude/caesura-phone-mobile-design-dcb4b9`, off `f7d2122`. **SPEC §23 is built**: an `Ask`
 pill last in the top row of all four in-trip phone screens, opening a bottom sheet

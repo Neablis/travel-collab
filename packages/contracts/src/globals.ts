@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ActivityTag } from "./activity";
-import { described, type ValueKind } from "./valueKind";
+import { ActivityTag } from "./activity.ts";
+import { described, type ValueKind } from "./valueKind.ts";
 
 // The trip's addressable collections — ADR-037 open question 4's "trip globals",
 // and the prerequisite that makes half the widget catalogue cheap.

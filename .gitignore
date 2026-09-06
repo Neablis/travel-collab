@@ -56,3 +56,9 @@ package-lock.json
 # the case it cannot: a killed process, a container reclaimed mid-run.
 .stryker-tmp/
 stryker.tmp.json
+
+# `scripts/geocode-content.py`'s working state: the resume cache (SQLite, one
+# row per place, committed after every request) and the review file it writes
+# beside it. Local progress, not content — a second machine starts its own.
+content/.geocode-cache.sqlite*
+content/.geocode-review.json

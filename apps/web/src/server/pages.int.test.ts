@@ -4,7 +4,20 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { listPages, getPage, createPage, updatePage, deletePage } from "./pages";
+
+// The seeded titles, read from the templates rather than typed here.
+//
+// They were hardcoded as `["Day Sheet", "Trip Overview"]`, and renaming one seed
+// ("Day Sheet" → "Day overview", 2026-09-06) failed three tests for a reason
+// that was not a defect. What these tests are about is the SEEDING — that it
+// happens once, survives a race, and comes back in a fixed order — and none of
+// that is a claim about the words. The count still is, and stays asserted
+// below: a template added to the seeded set changes what every new trip gets,
+// which is a decision, not a rename.
+const SEEDED_TITLES = DEFAULT_TEMPLATES.map((t) => t.title);
+const SEEDED_TITLES_SORTED = [...SEEDED_TITLES].sort();
 
 async function seedTrip() {
   const tripId = randomUUID();
@@ -21,7 +34,8 @@ describe("pages repository", () => {
   it("lazily instantiates the two default pages on first list", async () => {
     const { tripId } = await seedTrip();
     const first = await listPages(tripId);
-    expect(first.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
+    expect(first.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
+    expect(first).toHaveLength(2);
     const second = await listPages(tripId); // idempotent — no duplicate instantiation
     expect(second).toHaveLength(2);
   });
@@ -37,17 +51,18 @@ describe("pages repository", () => {
   // happens. Pre-opening the connections removes that handicap. Verified: on
   // the pre-fix code this test reports 4 pages ("Trip Overview", "Trip
   // Overview", "Day Sheet", "Day Sheet"); without the warm-up it passed even
-  // unfixed.
+  // unfixed. ("Day Sheet" is what that seed was called then; it is "Day
+  // overview" now — the observation is quoted as it was recorded.)
   it("does not duplicate default pages when two first visits race", async () => {
     const { tripId } = await seedTrip();
     await Promise.all([0, 1, 2, 3].map(() => db.execute(sql`select 1`)));
 
     const [a, b] = await Promise.all([listPages(tripId), listPages(tripId)]);
 
-    expect(a.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
-    expect(b.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
+    expect(a.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
+    expect(b.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
     const after = await listPages(tripId);
-    expect(after.map((p) => p.title).sort()).toEqual(["Day Sheet", "Trip Overview"]);
+    expect(after.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
   });
 
   // Found by walking the Notebook index in a browser on 2026-09-03, not by a
@@ -72,7 +87,7 @@ describe("pages repository", () => {
       const seeded = await listPages(tripId);
       // The prebuilt pair comes back in `instantiateDefaults` order, which is
       // the order SPEC §7 names them in — not whichever the database felt like.
-      expect(seeded.map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet"]);
+      expect(seeded.map((p) => p.title)).toEqual(SEEDED_TITLES);
 
       // Created on the very millisecond the seeding ran. This is the case that
       // broke CI: seeds stamped forward from `startedAt` tied with it, and the
@@ -82,14 +97,14 @@ describe("pages repository", () => {
         { title: "Packing", context: { tripId }, content: newPageDoc() },
         "user-1",
       );
-      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
 
       // Edit the first row, then the last. Neither may move — this is the half
       // that catches the physical-order reshuffle, since an UPDATE writes a new
       // row version.
       await updatePage(seeded[0]!.id, { title: "Trip Overview" });
       await updatePage(mine.id, { title: "Packing" });
-      expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Trip Overview", "Day Sheet", "Packing"]);
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
     } finally {
       vi.useRealTimers();
     }

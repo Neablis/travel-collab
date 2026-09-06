@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, TimeWindow } from "@tc/contracts";
+import { Money, SavedDayAuthorKind, TimeWindow } from "@tc/contracts";
 import { CityMatch } from "@/lib/cities";
 
 // The wire shapes of the public library's three read endpoints (M11b PR3):
@@ -229,6 +229,14 @@ export const DiscoverDay = z.object({
   totalCost: Money.nullable(),
   adds: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
+  /**
+   * Who wrote the day — what the card's "AI starter" mark reads (see
+   * `SavedDayAuthorKind` in `@tc/contracts`). On the CARD and not only on the
+   * shared-day screen because Discover is where somebody decides which of
+   * thirty days to open, and "a person kept this out of their own trip" is part
+   * of that decision.
+   */
+  authorKind: SavedDayAuthorKind,
   sourceTripName: z.string().min(1),
   createdAt: z.string(),
   publishedAt: z.string().nullable(),

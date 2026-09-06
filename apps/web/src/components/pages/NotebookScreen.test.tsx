@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
-import { DEFAULT_TEMPLATES } from "@tc/pages";
+import { TEMPLATE_LIBRARY } from "@tc/pages";
 import { makePagesHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
@@ -186,13 +186,26 @@ describe("NotebookScreen", () => {
     expect(await screen.findByText(/edited 3 hours ago/)).toBeTruthy();
   });
 
-  it("offers the two template seeds and a blank, and creates from the seed's own content", async () => {
+  it("offers every template in the library plus a blank, and creates from the seed's own content", async () => {
     const onCreate = vi.fn();
     server.use(...makePagesHandlers([], { onCreate }));
-    const dayTemplate = DEFAULT_TEMPLATES.find((t) => t.key === "day-sheet")!;
+    // Not `DEFAULT_TEMPLATES`: the gallery offers the whole LIBRARY, of which
+    // the seeded pair is the leading subset (2026-09-06). A test reading the
+    // seeded list would still pass while the four gallery-only templates went
+    // missing, which is precisely the regression worth catching.
+    const dayTemplate = TEMPLATE_LIBRARY.find((t) => t.key === "day-overview")!;
+    // A template that is offered but NOT seeded — the half of the split a test
+    // over the seeded list cannot see at all.
+    const galleryOnly = TEMPLATE_LIBRARY.find((t) => t.key === "dinner-tracker")!;
 
     render(<NotebookScreen tripId={TRIP_ID} />);
     await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+
+    for (const template of TEMPLATE_LIBRARY) {
+      expect(screen.getByRole("button", { name: `Start from ${template.title}` })).toBeTruthy();
+    }
+    expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
+    expect(screen.getByText(galleryOnly.description)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: `Start from ${dayTemplate.title}` }));
 

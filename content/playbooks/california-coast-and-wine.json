@@ -1,0 +1,1489 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "california-coast-and-wine",
+    "name": "San Francisco, wine country and the Monterey Bay coast: eight days worth stealing",
+    "description": "Day-shaped playbooks from the three places a Northern California trip actually lives — the city, the Napa and Russian River valleys, and Highway 1 from Capitola to Big Sur. Built around the things that gate them: the Saturday market, the Alcatraz release window, appointment-only tastings you cannot drive yourself between, the Aquarium's first forty minutes, and the few winter weeks the Pfeiffer keyhole lights. Opening days, booking rules and Highway 1 and Big Sur park closures checked 2026-09-06; prices were not systematically verified and are model estimates.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening days, closures, booking and permit rules, Highway 1 status) were checked against the official sources listed below for 6 of 8 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
+      "NOT RE-CHECKED IN THIS PASS: the Russian River day and the Capitola/Santa Cruz day. Both were researched on 2026-09-06 in the earlier pass and neither sits near an active closure, so they were left alone rather than given a second look. The Big Sur day IS materially changed — Highway 1 reopened on 3 September 2026 but every Big Sur state park on it is still shut.",
+      "https://alcatrazcitycruises.com/",
+      "https://alcatrazcitycruises.com/plan-your-visit/schedule",
+      "https://balmyalley.org/",
+      "https://beachboardwalk.com/rides/giant-dipper/",
+      "https://burkescanoetrips.com/",
+      "https://californiawinetours.com/how-much-do-napa-valley-wine-tours-cost/",
+      "https://elfarolitosf.com/locations/",
+      "https://foodwise.org/markets/ferry-plaza-farmers-market/",
+      "https://foodwise.org/markets/ferry-plaza-farmers-market/visitor-info/",
+      "https://guide.michelin.com/us/en/california/carmel-by-the-sea/restaurant/aubergine",
+      "https://ironhorsevineyards.com/visit-iron-horse/",
+      "https://merryedwards.com/visit/",
+      "https://missionlocal.org/2026/07/muralists-grant-balmy-alley-restoration-art/",
+      "https://postranchinn.com/dining/",
+      "https://postranchinn.com/stay/",
+      "https://quickmap.dot.ca.gov/",
+      "https://roads.dot.ca.gov/roadscell.php?roadnumber=1",
+      "https://sfrecpark.org/facilities/facility/details/Coit-Tower-290",
+      "https://shadowbrook-capitola.com/",
+      "https://thewinetrip.com/blog/how-much-does-a-wine-trip-to-napa-cost",
+      "https://www.countyofmonterey.gov/Home/Components/News/News/12347/18",
+      "https://www.detaileddrivers.com/blog/wine-tour-transportation-complete-guide",
+      "https://www.exploretock.com/auberginecarmel",
+      "https://www.famsf.org/visit/free-reduced-admission",
+      "https://www.famsf.org/visit/legion-of-honor",
+      "https://www.famsf.org/visit/legion-tickets-hours",
+      "https://www.ferrybuildingmarketplace.com/farmers-market/",
+      "https://www.fire.ca.gov/incidents/2026/8/26/plaskett-fire",
+      "https://www.fire.ca.gov/incidents/2026/8/8/timber-fire",
+      "https://www.frogsleap.com/reservation/",
+      "https://www.frogsleap.com/vineyard-house-back-porch-tasting/",
+      "https://www.frogsleap.com/visit-us/",
+      "https://www.fs.usda.gov/r05/lospadres/alerts/timber-fire-area-road-and-trail-closure",
+      "https://www.fs.usda.gov/r05/lospadres/conditions",
+      "https://www.fs.usda.gov/r05/lospadres/recreation/pfeiffer-beach-day-use",
+      "https://www.fs.usda.gov/sites/nfs/files/r05/lospadres/publication/alerts/Order%2005%2007%2051%2026%2010%20Monterey%20Ranger%20District%20Emergency%20Closure%20except%20Pfeiffer%20Beach%20and%20Sycamore%20Canyon%20Road.pdf",
+      "https://www.gov.ca.gov/2026/01/14/governor-newsom-announces-early-reopening-of-highway-1-through-big-sur/",
+      "https://www.hartfordwines.com/tasting-room-winery",
+      "https://www.missiondolores.org/old-mission",
+      "https://www.montereybayaquarium.org/visit/admission-tickets",
+      "https://www.montereybayaquarium.org/visit/hours-schedule/tours",
+      "https://www.montereybayaquarium.org/visit/schedule",
+      "https://www.montereybayaquarium.org/visit/tickets",
+      "https://www.nps.gov/alca/planyourvisit/hours.htm",
+      "https://www.nps.gov/alca/planyourvisit/index.htm",
+      "https://www.nps.gov/fopo/planyourvisit/hours.htm",
+      "https://www.nps.gov/goga/planyourvisit/fort-point.htm",
+      "https://www.nps.gov/places/000/lands-end-trailhead.htm",
+      "https://www.opentable.com/sierra-mar-post-ranch-inn",
+      "https://www.oursausalito.com/alcatraz/alcatraz-ticket-prices.html",
+      "https://www.parks.ca.gov/?page_id=29841",
+      "https://www.parks.ca.gov/?page_id=570",
+      "https://www.parks.ca.gov/?page_id=578",
+      "https://www.parks.ca.gov/pointlobos/",
+      "https://www.parks.ca.gov/post/127",
+      "https://www.parksconservancy.org/parks/lands-end",
+      "https://www.pebblebeach.com/17-mile-drive/",
+      "https://www.precitaeyes.org/og-classic-mural-tour.html",
+      "https://www.precitaeyes.org/tours.html",
+      "https://www.presidio.gov/places/presidio-tunnel-tops",
+      "https://www.pressdemocrat.com/2026/09/03/highway-1-reopens-in-big-sur-in-time-for-labor-day-weekend-as-crews-make-progress-on-timber-fire/",
+      "https://www.santacruz.org/blog/a-stroll-through-capitola-village/",
+      "https://www.schramsberg.com/visit-schramsberg/",
+      "https://www.schramsberg.com/visit/visitor-center/",
+      "https://www.sfchronicle.com/california-wildfires/article/highway-1-big-sur-reopening-timber-plaskett-fire-22415285.php",
+      "https://www.shadowbrook-capitola.com/home/cable-car/",
+      "https://www.stagsleapwinecellars.com/visit-us/",
+      "https://www.stagsleapwinecellars.com/visit-us/experiences/",
+      "https://www.surf-forecast.com/breaks/Capitola-Jetty/seatemp",
+      "https://www.travelcaffeine.com/keyhole-arch-pfeiffer-beach-big-sur/",
+      "https://www.wineroad.com/explore/russian-river-valley/"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "activities": [],
+  "playbooks": [
+    {
+      "key": "sf-ferry-plaza-market-and-alcatraz",
+      "name": "San Francisco: Ferry Plaza on a Saturday, the 11:00 boat to Alcatraz, crab in Chinatown",
+      "summary": "The market before the tour groups, a flat walk up the Embarcadero to Pier 33, the island in the middle of the day, and North Beach downhill into Chinatown for dinner. The whole shape of it hangs on one ticket bought three months ago.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2025-10-11T17:20:00.000Z",
+      "sourceTrip": {
+        "name": "Bay Area, the long weekend that became a week"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-bob"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Ferry Plaza Farmers Market, back plaza first",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Ferry Plaza Farmers Market",
+            "city": "San Francisco",
+            "area": "Embarcadero"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "Saturday 08:00-14:00 is the big market — 100-plus vendors wrapping the whole building. Tuesday and Thursday are 10:00-14:00 and only in front, along the Embarcadero, which is the prepared-food half. So on a Saturday walk straight through the building to the BACK plaza over the water: that is where the actual farmers are. The front is where the tour groups queue. Get there before 09:00 or the Roli Roti porchetta line is 25 minutes on its own. Verified 2026-09-06 against Foodwise: the market runs Saturday, Tuesday and Thursday year round; Saturday is 08:00-14:00 with more than 100 vendors around the whole building, Tuesday is 10:00-14:00 with 20-plus farms, Thursday is 10:00-14:00 with only 10 to 15 vendors and is mostly street-food lunch. This day only works on a Saturday.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Inside the Ferry Building for coffee and things to carry",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Ferry Building Marketplace",
+            "city": "San Francisco",
+            "area": "Embarcadero"
+          },
+          "kind": "idea",
+          "notes": "Acme bread and Cowgirl Creamery are the two counters worth carrying something out of. Do not eat a proper lunch here — you want to be hungry in North Beach at 14:45, and Hog Island at noon is a 40-minute wait for the same oysters you can get at 11:00 on a weekday.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Walk the Embarcadero north to Pier 33",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "10:35"
+          },
+          "location": {
+            "name": "The Embarcadero",
+            "city": "San Francisco",
+            "area": "Embarcadero"
+          },
+          "kind": "transit",
+          "notes": "1.4 flat miles past Pier 7 and the historic F-line. Do not drive: Pier 33 parking is $40-plus for the day and the streetcar takes as long as walking because it shares the road. Boarding closes 15 minutes before departure and they genuinely do not hold the boat — a missed sailing is a forfeited ticket."
+        },
+        {
+          "title": "Alcatraz Day Tour, Pier 33",
+          "timeWindow": {
+            "start": "11:00",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Alcatraz Island",
+            "city": "San Francisco",
+            "area": "San Francisco Bay"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "$47.95 adult on the day tour. The only rule that matters: tickets release 90 days ahead on alcatrazcitycruises.com and you buy them the morning they drop. Summer sailings are gone four to six weeks out; night tours go faster still. Alcatraz City Cruises is the only operator the Park Service authorises, so every third-party Alcatraz package is either the same ticket with a markup or a boat that circles the island and never lands. On the rock: the cellhouse audio tour is 45 minutes and is the best thing on the island, then the agave trail and the gardens. Two and a half hours is right; take the 13:50 back. Bring a real layer — mid-bay is ten degrees colder than the Embarcadero and windier than you have planned for. Verified 2026-09-06: the 90-day release window is right, and Alcatraz City Cruises (trading as City Experiences) is still the only NPS-authorised operator from Pier 33. NOT verified: the exact sailing grid. I could not open the operator's schedule page, so treat the 11:00 out and 13:50 back as the shape of the day rather than real departure times — take the actual times off alcatrazcitycruises.com/plan-your-visit/schedule when you book, and hang the rest of the day off whatever sailing you get.",
+          "cost": {
+            "amountMinor": 4795,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Late lunch at Tony's Pizza Napoletana",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "15:45"
+          },
+          "location": {
+            "name": "Tony's Pizza Napoletana",
+            "city": "San Francisco",
+            "area": "North Beach"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Twelve pizza styles on one menu, but only 73 Margherita pizzas a day — that one comes out of the 900-degree wood oven and they stop when the dough runs out, usually early evening. Coming off the 13:50 boat and eating at 14:45 is the whole trick: no reservations for parties under six, and the 18:30 wait is 90 minutes on the sidewalk.",
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "City Lights, then a drink at Vesuvio across the alley",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "16:20"
+          },
+          "location": {
+            "name": "City Lights Booksellers",
+            "city": "San Francisco",
+            "area": "North Beach"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "The Poetry Room is upstairs and the window bench is the point of the visit. Vesuvio is directly across Jack Kerouac Alley, has been pouring since 1948, and serves no food — which is why you ate first. Caffe Trieste two blocks up if you would rather have coffee than a drink.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Filbert Steps up to Coit Tower",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Filbert Street Steps",
+            "city": "San Francisco",
+            "area": "Telegraph Hill"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Climb the wooden Filbert Steps from Sansome — cottage gardens, the wild parrots, and no parking problem, because the Coit Tower lot is a 40-minute crawl that people sit in rather than walk ten minutes. The 1934 WPA murals in the base are free to look at; the fee is only the elevator to the observation deck, and the view from the terrace outside costs nothing and is almost the same. CORRECTED 2026-09-06: this stop used to start at 17:00, which misses the elevator in every month of the year. Coit Tower opens at 10:00 and closes at 18:00 April-October and 17:00 November-March, and the last elevator ticket sells one hour before closing — so the cutoff is 17:00 in summer and 16:00 in winter. Moved to 16:30 so the summer window works; if you are here between November and March you need to be at the door by 15:45. Elevator is $11 non-resident, $8 San Francisco resident (was listed here as $15). Closed Thanksgiving, Christmas and New Year's Day.",
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Salt-and-pepper crab at R&G Lounge",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "R&G Lounge",
+            "city": "San Francisco",
+            "area": "Chinatown"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Book the upstairs room; the ground floor is walk-in chaos with a queue on Kearny. Order the salt-and-pepper crab — market price, usually $50-60 for a whole one, and it is the dish the entire restaurant is built around — plus greens and rice, and stop there. Ten minutes downhill from Coit Tower through the Chinatown alleys, which is the right way to arrive.",
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sf-mission-murals-and-the-burrito-argument",
+      "name": "The Mission: Tartine at nine, Balmy Alley with a muralist, and settling the burrito argument",
+      "summary": "The warmest, sunniest neighbourhood in San Francisco done on foot in the order that beats its queues — bakery before the line, the 1776 adobe before the tour buses, murals with somebody who paints them, and two taquerias two blocks apart that people will fight about.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2026-04-18T16:10:00.000Z",
+      "sourceTrip": {
+        "name": "California, two weeks, no freeway if we can help it"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-carlos"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Morning bun at Tartine, before the line exists",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Tartine Bakery",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "At 08:45 the queue at 18th and Guerrero is five minutes; by 09:30 it is twenty and by 11:00 it is forty-five. Order the morning bun and a hot croissant and skip the bread — the country loaf comes out of the oven around 16:30 and you are not carrying it around all day. Tartine Manufactory on Alabama has tables and no line and is not the same thing.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Mission Dolores — the adobe, not the basilica",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Mission San Francisco de Asis (Mission Dolores)",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "$10 suggested donation. The small adobe chapel on the left is 1776 and the oldest intact building in San Francisco; the enormous basilica beside it is 1918 and you can walk past it. Look up in the chapel — the ceiling is original Ohlone painted work, not a restoration. Twenty minutes is enough, and the cemetery behind it is the one from Vertigo. CORRECTED 2026-09-06: this stop started at 09:45 and the Mission does not open until 10:00 — moved. Visiting hours are 10:00-16:00 Tuesday to Sunday and it is CLOSED MONDAYS, so this whole day has to be a Tuesday-to-Sunday day (and the mural tour below pins it to a weekend). Suggested donation confirmed at $10 adult, $5 student. Guided tours are suspended until further notice; self-guided entry needs no reservation.",
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dolores Park, north-west slope",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Mission Dolores Park",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The slope facing downtown catches sun an hour before the rest of the park and is the corner locals sit on. More usefully: if the Sunset and the Richmond are socked in, the Mission is often clear — it sits in the city's rain and fog shadow and is reliably its warmest neighbourhood. That, not the murals, is the reason to schedule a walking day here rather than in Golden Gate Park."
+        },
+        {
+          "title": "The burrito argument: La Taqueria versus El Farolito",
+          "timeWindow": {
+            "start": "11:45",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "La Taqueria",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "They are two blocks apart on Mission Street and the argument is genuine. La Taqueria at 2889 makes it with no rice — dorado, griddled until the tortilla crisps — and the absence of rice is the position, not an oversight. El Farolito at 2779 is the super burrito: cash only, foil the length of a forearm, open until 02:00, and the one the after-hours crowd votes for. If there are two of you, buy one of each and split them. Do not walk in and ask for a Mission burrito; it is a category, not a menu item, and nobody behind the counter will know what you mean. MOVED 2026-09-06 from 13:45 to before the mural walk, because the walk actually leaves at 13:30 — eat first, and you are also eating La Taqueria before its afternoon line rather than in it.",
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Precita Eyes classic mural walk",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Precita Eyes Mural Arts Center",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "$25 general, $15 seniors 65+, $10 under 18 — all three confirmed 2026-09-06. This is the rare guided walk worth paying for: a working muralist covers 60 to 70 murals inside six blocks and tells you which walls are being repainted, by whom, and over what. TWO CORRECTIONS. The Classic Mural Tour runs Saturday and Sunday at 13:30 and takes about ninety minutes — this stop was scheduled at 11:30, which is a different tour entirely (11:00 Saturday is the Mission Trail Mural Walk, 11:00 Sunday is the Precita Park Tour), so the window has moved and the rest of the day moved with it. And it is not a booked stop: Precita Eyes sells tickets at the door on the day, reservations are not necessary and they say no one is turned away, so this is now marked planned rather than booked. Only private and group tours need an appointment, and those can run any day of the week. Meets at 2981 24th Street near Harrison. Weekend-only, which together with the Mission's Monday closure fixes this day to a Saturday or Sunday.",
+          "cost": {
+            "amountMinor": 2500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Balmy Alley again, slowly, with nobody talking",
+          "timeWindow": {
+            "start": "15:00",
+            "end": "15:40"
+          },
+          "location": {
+            "name": "Balmy Alley",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Walk it a second time on your own after the tour. It is the oldest continuous mural site in the city — the first panels went up in 1971 and the dense 1980s Central America wall is the heart of it. Several of those are being restored by the original artists on a 2026 grant, so what is on the wall now is not what is in the guidebook photograph. It is a working alley with garages and residents; go quietly and do not shoot into windows."
+        },
+        {
+          "title": "Dandelion Chocolate on Valencia",
+          "timeWindow": {
+            "start": "15:50",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Dandelion Chocolate",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "A bean-to-bar factory with a cafe bolted to the front of it; the hot chocolate flight is three small cups from three origins and is far more interesting than buying a bar. If you would rather read than eat, Adobe Books and Alley Cat Books are both within three blocks and both host readings most weeknights.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner in the courtyard at Foreign Cinema",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:30"
+          },
+          "location": {
+            "name": "Foreign Cinema",
+            "city": "San Francisco",
+            "area": "Mission District"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Ask for the courtyard when you book, not the dining room — a film runs on the back wall through service and the heaters make April work. Two weeks out for a Friday or Saturday. The brunch here is more famous and much harder to get; dinner is the easier and better meal.",
+          "cost": {
+            "amountMinor": 5500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sf-lands-end-sutro-baths-and-fort-point",
+      "name": "Lands End to Fort Point: ruins at low tide, the Coastal Trail, and standing under the bridge",
+      "summary": "The free day. Sutro Baths before the lot fills, the cypress trail along the cliff, across to the Presidio for lunch over the tunnels, and Fort Point in the afternoon — a Civil War brick fort the Golden Gate Bridge was re-engineered to spare. Under $100 and the best walking in the city.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-06-21T15:45:00.000Z",
+      "sourceTrip": {
+        "name": "Pacific edge: San Francisco to San Diego"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Sutro Baths ruins, at low water",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Sutro Baths",
+            "city": "San Francisco",
+            "area": "Lands End"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Free, and the lot above the ruins holds about 75 cars and is full by 10:00 on any clear day — 08:15 is the entire trick, and the overflow is a half-mile of El Camino del Mar. Check a tide table before you commit: at low water you can walk the concrete tanks and into the cave on the north side; at high water the cave floods, the surge comes over the sill and people get hurt in it every year. June mornings here are fogged in until 11:00 and the ruins are better for it."
+        },
+        {
+          "title": "Lands End Coastal Trail to Eagle's Point",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Lands End Coastal Trail",
+            "city": "San Francisco",
+            "area": "Lands End"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "3.4 miles out and back on the bed of an old railway, so it is flatter than the cliff makes it look. Two detours are the reason to walk it rather than drive to the viewpoint: the steps down from Mile Rock Overlook to the stone labyrinth on the headland, and the shipwreck view at low tide below Painted Rock. Paved and wheelchair-accessible as far as Mile Rock; stairs beyond that."
+        },
+        {
+          "title": "Legion of Honor, if the fog holds",
+          "timeWindow": {
+            "start": "11:00",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Legion of Honor",
+            "city": "San Francisco",
+            "area": "Lincoln Park"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "$25 adult, free to residents of the nine Bay Area counties every Saturday and to everyone on the first Tuesday of the month — both free offers cover the permanent collection only, and special exhibitions are still full price. Worth it for the Rodin court and the building itself, which sits on a golf-course bluff with the bridge behind it. Marked as an idea on purpose: if the marine layer has burned off by 11:00, skip it without a second thought — the rest of this day is outside and the museum will still be there in fog. CORRECTED 2026-09-06 from FAMSF: adult admission is $25, not $20 ($22 seniors, $10 students, under 18 free). The gating fact this entry was missing — the Legion is CLOSED MONDAYS, open Tuesday to Sunday 09:30-17:15, and also shut on MLK Day, Labor Day, Indigenous Peoples' Day, Thanksgiving and Christmas. From 16:30 the permanent collection is free to everyone with no ticket, which is a different day than this one.",
+          "cost": {
+            "amountMinor": 2500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The 29 bus across to the Presidio",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "12:50"
+          },
+          "location": {
+            "name": "Presidio of San Francisco",
+            "city": "San Francisco",
+            "area": "Presidio"
+          },
+          "kind": "transit",
+          "notes": "The 29 Sunset runs from Lands End into the Presidio without a transfer, about 35 minutes. The free PresidiGo shuttle is only useful once you are already inside the park, and it does not come out to the ocean. Driving works too, but then you give up the parking space you queued for at 08:15."
+        },
+        {
+          "title": "Lunch on the Tunnel Tops",
+          "timeWindow": {
+            "start": "12:50",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Presidio Tunnel Tops",
+            "city": "San Francisco",
+            "area": "Presidio"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "Fourteen acres of new parkland laid directly over the Doyle Drive tunnels, with the bridge straight ahead. The Tunnel Tops themselves sell nothing — buy food at the Transit Center picnic area below or on the Main Post and carry it up, which is the mistake everyone makes once. The Field Station tables at the west end are the ones with the view.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Battery Bluff, then down to Crissy Field",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "15:15"
+          },
+          "location": {
+            "name": "Battery Bluff",
+            "city": "San Francisco",
+            "area": "Presidio"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The newest piece of the Presidio and almost always empty: four restored coastal gun batteries on a bluff that most of the city drives underneath without knowing. From there it is a mile downhill past the marsh to Crissy Field and the Warming Hut, which is the last coffee before the fort."
+        },
+        {
+          "title": "Fort Point, under the south anchorage",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Fort Point National Historic Site",
+            "city": "San Francisco",
+            "area": "Presidio"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Free — and open Friday to Sunday only, 10:00 to 17:00. Turning up on a Tuesday is by a distance the most common way this day fails, so check the NPS page the week you go. It is a Civil War brick casemate fort that Joseph Strauss threw a steel arch over rather than demolish, which is why the bridge has that arch at all. Go to the third-floor gallery and then the roof: you stand directly beneath the span with the deck humming above you. The wind funnelling through the Gate here is genuinely punishing — this is the layer you have been carrying since Sutro. Verified 2026-09-06 against the NPS operating-hours page for Fort Point: still Friday, Saturday and Sunday only, 10:00-17:00, still free, and the 15:30-16:45 window fits inside it. This pins the day to a Friday, Saturday or Sunday — which is compatible with the Legion of Honor above, since that is the stop that rules out Monday."
+        },
+        {
+          "title": "Burmese on Clement Street",
+          "timeWindow": {
+            "start": "18:15",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Burma Superstar",
+            "city": "San Francisco",
+            "area": "Inner Richmond"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "No reservations, ever — put your name on the list, walk two blocks for a beer, come back when they text. Tea leaf salad tossed at the table and the coconut rice is the order. If the wait is over an hour, Good Luck Dim Sum three blocks up is cash only, about $3 a plate, and shuts at 18:30 — so decide fast. Clement Street is the reason the Inner Richmond is called the second Chinatown and it is a better dinner street than anywhere near the bridge.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "napa-three-tastings-and-a-driver",
+      "name": "Napa done properly: Schramsberg caves, Frog's Leap, Stag's Leap — and somebody else driving",
+      "summary": "Three appointment-only tastings north to south with a real sit-down lunch wedged in the middle and a hired car for the day, because you cannot legally or safely do this valley on your own. About $480 a head and that is the honest number, not the padded one.",
+      "ownerId": "dev-alice",
+      "visibility": "public",
+      "keptOn": "2025-11-08T19:30:00.000Z",
+      "sourceTrip": {
+        "name": "Wine country, the year we finally booked ahead"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee downtown before the car comes",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Napa Valley Coffee Roasting Company",
+            "city": "Napa",
+            "area": "Downtown Napa"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Eat something solid now. Three tastings is roughly fifteen pours, the first one is at 10:00, and lunch is not until 12:15 — the people who skip this are the people who are finished by the third appointment.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Car and driver for the day",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Napa Valley Tours & Transportation",
+            "city": "Napa",
+            "area": "Napa Valley"
+          },
+          "kind": "transit",
+          "notes": "This is not a luxury, it is the thing that makes the day possible. Three appointments are spread over 25 miles of Highway 29 and the Silverado Trail, and Napa County polices that exact road on that exact day extremely hard. A full-day private car runs $650-$1,500 per group — typically $85-$200 an hour with a five- or six-hour minimum, plus 18-20% gratuity — and the figure here is one seat of four in a $780 day including tip. Book two to three weeks ahead in harvest season. A driver also knows which tasting rooms will hold a case for you until the end of the day and which will not, which matters more than it sounds.",
+          "cost": {
+            "amountMinor": 17500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Schramsberg: two miles of 1870s caves",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Schramsberg Vineyards",
+            "city": "Calistoga",
+            "area": "Napa Valley"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Appointment only, and it books weeks out — this is not a place you walk into, and neither are the other two. Start here because it is the northern end of the valley and because the tunnels sit at about 55F, which is the coldest thing you will do today: take a jacket in with you. Hand-dug by Chinese labourers in the 1870s and stacked floor to ceiling with riddled bottles. Sparkling first is also the right order for your palate. CORRECTED 2026-09-06 from Schramsberg's own visit pages: the public tour and tasting is $65 a head, not $75 (the Cave Tour with Classic Tasting is $100, the Reserve Wine & Cheese pairing $150). It runs seven days a week, appointment only as stated, the first tour of the day starts at 09:30 and the last at 14:30, and the appointment is one hour fifteen minutes — so this stop now ends at 11:15 rather than 11:30, which is what makes the corrected lunch and Frog's Leap slots below fit.",
+          "cost": {
+            "amountMinor": 6500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A real lunch at Farmstead",
+          "timeWindow": {
+            "start": "11:45",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Farmstead at Long Meadow Ranch",
+            "city": "St. Helena",
+            "area": "Napa Valley"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Ninety minutes, sitting down, with actual food. This is the stop people cut to fit a fourth winery in and then regret at 16:00. Book it — the old nursery barn fills at weekends. Gott's Roadside is directly across Highway 29 and is the $20 version if you would rather put the money in the glass. MOVED 2026-09-06 from 12:15-13:45 to 11:45-13:15, because Frog's Leap's afternoon appointment is at 13:30 and the old lunch ran straight through it. Farmstead's own hours were NOT verified in this pass — confirm they seat at 11:45 when you book.",
+          "cost": {
+            "amountMinor": 4500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Frog's Leap, in the garden if they will have you",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Frog's Leap Winery",
+            "city": "Rutherford",
+            "area": "Napa Valley"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "By reservation, in a red barn surrounded by an organic kitchen garden. Dry-farmed and certified organic since decades before either became a marketing line, and they will genuinely talk you through why the vines get no irrigation and what that does to the fruit. Deliberately the middle appointment — it is the most relaxed hour of the day and you want it between the caves and the cabernet. THREE CORRECTIONS, 2026-09-06, from Frog's Leap's own reservation and experience pages. The time: the Vineyard House Tour & Tasting runs at 10:30 and 13:30, so a 14:00 arrival matches nothing — moved to 13:30. The day: it runs Thursday through Monday, so this day cannot be a Tuesday or a Wednesday. And the advice to 'ask for the garden tasting' is wrong for an afternoon stop — the family-friendly Garden Tasting is a morning slot only (Friday from 10:00, Saturday and Sunday at 10:30), so if you want the garden you have to rebuild the day around it rather than request it at 13:30. Prices corrected too: the Vineyard House Back Porch Tasting is $60 a head plus a $5 Tock booking fee, and the 120-minute Rooted in Rutherford tour and tasting is $100 — the old $40-55 range is stale.",
+          "cost": {
+            "amountMinor": 6000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Stag's Leap Wine Cellars on the Silverado Trail",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Stag's Leap Wine Cellars",
+            "city": "Napa",
+            "area": "Stags Leap District"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Book an estate flight and taste the FAY and S.L.V. blocks side by side, which is the actual reason to come — this is the cabernet that won the 1976 Paris tasting. Last of the three on purpose: it is the biggest wine and the southern end of the valley, so the run back to town is fifteen minutes. Do not try to add a fourth. Three appointments plus a proper lunch is the honest ceiling for one day and everyone who has tried four has told the same story about it afterwards. CORRECTED 2026-09-06 — this was the stop that broke the day. Stag's Leap Wine Cellars is open 10:00-16:00 daily with the LAST TASTING APPOINTMENT AT 15:30, so the old 16:00 arrival was after the last slot of the day and would simply have been refused. Moved to the 15:30 appointment, which is the last one available, and everything upstream moved with it. Reservations are required for every experience — the Estate Experience wants 48 hours' notice and the Collector's Experience up to 72 — and all guests must be 21 or over. NOT verified: the $75-125 price range, which the winery's public pages did not state; treat the cost here as an estimate.",
+          "cost": {
+            "amountMinor": 12500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Oxbow Public Market before it shuts",
+          "timeWindow": {
+            "start": "17:45",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Oxbow Public Market",
+            "city": "Napa",
+            "area": "Downtown Napa"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Oysters at Hog Island, a Model Bakery English muffin to take back for the morning, and something salty to finish on after a day of tannin. Most stalls close at 19:00, so this only works if the last tasting ran to time.",
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "russian-river-the-cheaper-better-wine-day",
+      "name": "The Russian River instead: two great pinots, a picnic, and half the money",
+      "summary": "The wine day Napa's neighbours do better — appointment-only pinot, a sandwich from a grocery, and nobody in a queue.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2026-01-31T09:00:00.000Z",
+      "sourceTrip": {
+        "name": "California, two weeks, no freeway if we can help it"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee on the Healdsburg plaza",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Flying Goat Coffee, Healdsburg Plaza",
+            "city": "Healdsburg",
+            "area": "Healdsburg Plaza"
+          },
+          "tags": [
+            "meal"
+          ],
+          "notes": "Park on the plaza once and leave the car there until you pick up the driver. Healdsburg's free two-hour spots are enforced and the lots behind the plaza are not obvious from the square.",
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Driver picks up — Westside Road",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Healdsburg Plaza pickup",
+            "city": "Healdsburg",
+            "area": "Westside Road"
+          },
+          "kind": "transit",
+          "notes": "The same rule as Napa and for the same reason, but a third of the cost: Russian River tasting rooms are 15 minutes apart instead of 25, so a four-hour booking covers the day. Split four ways this is $60 a head. If you are two people, the honest alternative is one taster and one driver, which nobody enjoys.",
+          "cost": {
+            "amountMinor": 6000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Rochioli, on the terrace",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "J. Rochioli Vineyards & Winery",
+            "city": "Healdsburg",
+            "area": "Westside Road"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Continuously family-run since the 1930s, and the 1985 estate pinot is the wine that told America the Russian River could do this. The tasting room is small and the terrace looks straight down the vineyard rows — go here first, while your palate is clean and the room is empty.",
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Merry Edwards, the pinot flight",
+          "timeWindow": {
+            "start": "11:45",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Merry Edwards Winery",
+            "city": "Sebastopol",
+            "area": "Russian River Valley"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "$75 for the seated flight, and the fee is waived against a three-bottle purchase — which is worth knowing before you decide it is expensive. Book it; walk-ins are not a thing here.",
+          "cost": {
+            "amountMinor": 7500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch out of a grocery store",
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Big John's Market",
+            "city": "Healdsburg",
+            "area": "Healdsburg"
+          },
+          "tags": [
+            "meal"
+          ],
+          "notes": "The move nobody tells you: Sonoma's best wine lunch is a sandwich and a peach from a proper grocery, eaten at a picnic table at the next winery. It costs a fifth of a vineyard restaurant and it is the reason this day is half the price of the Napa one.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dry Creek Vineyard, in the shade",
+          "timeWindow": {
+            "start": "14:15",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Dry Creek Vineyard",
+            "city": "Healdsburg",
+            "area": "Dry Creek Valley"
+          },
+          "kind": "hold",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A third tasting is where a wine day usually goes wrong. This one works because it is a different valley and a different grape — old-vine zinfandel after two pinots — so your palate has something to do.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back to the plaza, and a swim in the river if it is warm",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Memorial Beach, Russian River",
+            "city": "Healdsburg",
+            "area": "Russian River"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Between June and September the dam turns this stretch into a swimming beach with a lifeguard. In January it is a gravel bar and a heron, which is also fine."
+        },
+        {
+          "title": "Dinner at the Matheson, upstairs",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:30"
+          },
+          "location": {
+            "name": "The Matheson",
+            "city": "Healdsburg",
+            "area": "Healdsburg Plaza"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The wine wall upstairs pours 88 Sonoma wines by the glass in three sizes, which is the correct end to a day when you have already had three tastings and do not want a bottle.",
+          "cost": {
+            "amountMinor": 7000,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "capitola-and-santa-cruz-a-beach-town-day",
+      "name": "Capitola in the morning, West Cliff at sunset, and the cable car down to dinner",
+      "summary": "The Monterey Bay's other side — a pastel village, a warm-water swim, and the surfers at Steamer Lane.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-08-16T09:00:00.000Z",
+      "sourceTrip": {
+        "name": "Bay Area, the long weekend that became a week"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast at Gayle's, ordered at the back",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Gayle's Bakery & Rosticceria",
+            "city": "Capitola",
+            "area": "Capitola Village"
+          },
+          "tags": [
+            "meal"
+          ],
+          "notes": "Two queues and everybody joins the wrong one. Pastries and coffee are the front counter; the hot case at the back is where the actual breakfast is, and it moves faster.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Capitola Village and the wharf",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Capitola Wharf",
+            "city": "Capitola",
+            "area": "Capitola Village"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The wharf reopened after a long rebuild — the storm that took the middle out of it in 2023 is why the timber is two colours. Walk to the end for the only view that puts the pastel Venetian cottages and the cliffs in one frame."
+        },
+        {
+          "title": "Swim at Capitola Beach",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Capitola Beach",
+            "city": "Capitola",
+            "area": "Capitola Village"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The genuinely useful fact about this coast: Capitola sits in a south-facing pocket, so the water is several degrees warmer and the wind is far softer than anywhere on the open coast. This is the swim that is actually pleasant without a wetsuit."
+        },
+        {
+          "title": "Lunch on the sand at Zelda's",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Zelda's on the Beach",
+            "city": "Capitola",
+            "area": "Capitola Village"
+          },
+          "tags": [
+            "meal"
+          ],
+          "notes": "Right on the sand and priced for it. If the wait is over twenty minutes, walk two doors to Pete's and eat sooner for less.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive West Cliff, park at Lighthouse Point",
+          "timeWindow": {
+            "start": "14:15",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "West Cliff Drive",
+            "city": "Santa Cruz",
+            "area": "West Cliff"
+          },
+          "kind": "transit",
+          "notes": "Ten minutes up the coast. Do the drive rather than the Boardwalk unless you have children with you — West Cliff is the reason people live here and the Boardwalk is a car park with a rollercoaster attached."
+        },
+        {
+          "title": "Steamer Lane from the cliff",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Steamer Lane, Lighthouse Field State Beach",
+            "city": "Santa Cruz",
+            "area": "West Cliff"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "You watch this one from above, which is rare and is what makes it worth the stop — the cliff at Lighthouse Point puts you directly over the takeoff. The Surfing Museum in the lighthouse itself is one room and twenty minutes."
+        },
+        {
+          "title": "Natural Bridges at golden hour",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Natural Bridges State Beach",
+            "city": "Santa Cruz",
+            "area": "Westside"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "$10 a vehicle. Between October and January the eucalyptus grove behind the beach holds an overwintering monarch colony, which is a completely different reason to come and is signposted from the car park.",
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Shadowbrook, down the cable car",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "21:00"
+          },
+          "location": {
+            "name": "Shadowbrook Restaurant",
+            "city": "Capitola",
+            "area": "Capitola Village"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Open since 1947, and you descend to it in a hillside funicular through a garden — which sounds like a gimmick and is the best twenty seconds of the evening. Book the cable-car level rather than the Rock Room. If you are staying within three miles they will send a 1966 Checker cab for you.",
+          "cost": {
+            "amountMinor": 6500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "monterey-aquarium-17-mile-drive-and-carmel",
+      "name": "The Aquarium's first forty minutes, the Lone Cypress, and a long dinner in Carmel",
+      "summary": "One coast road, three things it is famous for, and the ticket rule that makes the toll disappear.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2026-03-07T09:00:00.000Z",
+      "sourceTrip": {
+        "name": "California, two weeks, no freeway if we can help it"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee, then park at the Aquarium end of Cannery Row",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Cannery Row garages, Monterey",
+            "city": "Monterey",
+            "area": "Cannery Row"
+          },
+          "kind": "transit",
+          "notes": "The Aquarium does not sell tickets at the door — they are online only, and the 10:00 slot is the one to hold. Park in a Cannery Row garage rather than circling: the street spots near the Aquarium are two-hour and this is a three-hour visit.",
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Monterey Bay Aquarium, at opening",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Monterey Bay Aquarium",
+            "city": "Monterey",
+            "area": "Cannery Row"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "$65, open 10:00-17:00 daily. The first forty minutes are the whole trick — go straight past the entrance exhibits to the Kelp Forest and the Open Sea while everybody else is still in the lobby, then work backwards. By 11:30 those two rooms are three deep. Spot-checked 2026-09-06: the Aquarium still states that tickets are sold only through montereybayaquarium.org and that it partners with no third-party reseller, so every 'discount Monterey Bay Aquarium ticket' site is either a markup or a fake. Its September calendar is also not uniform — 8-20 September is a Monterey County resident free-admission window, 12:00-16:00 by reservation — so check the hours-and-schedule page for your date rather than assuming 10:00-17:00.",
+          "cost": {
+            "amountMinor": 6500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The 17-Mile Drive gate",
+          "timeWindow": {
+            "start": "13:00",
+            "end": "13:25"
+          },
+          "location": {
+            "name": "Pacific Grove gate, 17-Mile Drive",
+            "city": "Pebble Beach",
+            "area": "17-Mile Drive"
+          },
+          "kind": "transit",
+          "notes": "$12.25 per vehicle, cash or card at the gate. Enter at Pacific Grove rather than Carmel and you drive the coast section with the ocean on your right and the pull-outs on your side of the road.",
+          "cost": {
+            "amountMinor": 1225,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at the Bench, inside the gate",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "The Bench, The Lodge at Pebble Beach",
+            "city": "Pebble Beach",
+            "area": "17-Mile Drive"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "This is the stop that pays for itself. The 17-Mile Drive gate is $12.25 a vehicle and the fee is refunded against a $35-or-more bill at any Pebble Beach Resorts restaurant — but NOT the market, so a sandwich at the deli does not count. Keep the gate receipt and hand it over with the bill.",
+          "cost": {
+            "amountMinor": 3800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Bird Rock, the Lone Cypress, Ghost Trees",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Lone Cypress, 17-Mile Drive",
+            "city": "Pebble Beach",
+            "area": "17-Mile Drive"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Three pull-outs are worth stopping at and the other fourteen are not. Bird Rock for the noise, the Lone Cypress because you came for it, and the bleached Ghost Trees at Pescadero Point, which nobody photographs and should."
+        },
+        {
+          "title": "Carmel-by-the-Sea on foot",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Ocean Avenue and the courtyards",
+            "city": "Carmel-by-the-Sea",
+            "area": "Carmel Village"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The town has no street numbers, so every address is a corner and a courtyard — 'Dolores between 5th and 6th' is a real address, not somebody being vague. The galleries and passageways off Ocean Avenue are the point; the beach at the bottom of the hill is the sunset."
+        },
+        {
+          "title": "Carmel Beach for sunset",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "18:45"
+          },
+          "location": {
+            "name": "Carmel Beach",
+            "city": "Carmel-by-the-Sea",
+            "area": "Carmel Beach"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "White sand, cypress, and dogs off-lead everywhere — this is one of the few California beaches where that is the rule rather than an infraction. Fires are allowed south of 10th Avenue only."
+        },
+        {
+          "title": "Dinner at Aubergine",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Aubergine, L'Auberge Carmel",
+            "city": "Carmel-by-the-Sea",
+            "area": "Carmel Village"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The tasting menu, and the reason this day costs what it does. Book it a month out; it is a small room and there is one seating. The wine pairing is the honest half of the bill and worth taking.",
+          "cost": {
+            "amountMinor": 22500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "big-sur-the-keyhole-and-a-night-on-the-cliff",
+      "name": "Big Sur in December: Bixby at first light, the keyhole at four, and a room on the cliff",
+      "summary": "The one time of year the Pfeiffer keyhole lights — and the day built around getting there for it. AS OF 2026-09-06 THIS DAY IS HALF-CLOSED: Highway 1 is open again from Carmel through the Big Sur valley, but every state park on it — Point Sur, Andrew Molera, Pfeiffer Big Sur, Julia Pfeiffer Burns, Limekiln — is shut until further notice after the Timber Fire, so the redwood morning and McWay Falls are gone. Bixby, Pfeiffer Beach, Nepenthe and Post Ranch are open.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-12-14T09:00:00.000Z",
+      "sourceTrip": {
+        "name": "California, two weeks, no freeway if we can help it"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Check Highway 1 before you turn the key",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "07:20"
+          },
+          "location": {
+            "name": "Caltrans QuickMap, from Carmel",
+            "city": "Carmel-by-the-Sea",
+            "area": "Highway 1"
+          },
+          "kind": "transit",
+          "notes": "Not optional, and not a formality. Highway 1 reopened through Big Sur in January 2026 after years of slip closures, and by that August the Timber Fire had shut it again. WHERE THE LINE IS NOW, verified 2026-09-06: the northern closure that ran from mile marker 56 (south of the Little Sur River) down to mile marker 45 (just south of the Big Sur post office) was LIFTED IN ITS ENTIRETY at 06:00 on Thursday 3 September 2026, reopening roughly forty miles of coastal Monterey County for the Labor Day weekend. So the stretch this day uses — Bixby, the Big Sur valley, Nepenthe, Pfeiffer Beach, and south as far as McWay — is OPEN. What is still closed is the southern segment: CHP is holding a hard closure from MM 16.0 at Pacific Valley down to MM 0.0 at the Monterey/San Luis Obispo county line for the Plaskett Fire, with no reopening date. That means this day works as an out-and-back from Carmel and NOT as a through-drive to Cambria or San Simeon — if your plan was to carry on south to Hearst Castle, it does not exist today and the detour is inland via US 101. The road being open is not the same as the parks being open; see the next stops. Ten minutes on QuickMap before you turn the key still decides whether today is this day or a different one."
+        },
+        {
+          "title": "Bixby Creek Bridge before the light is up",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Bixby Creek Bridge",
+            "city": "Big Sur",
+            "area": "Highway 1"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Fifteen miles south of Carmel and the reason to leave in the dark. Park in the pull-out on the north side and walk back onto Old Coast Road for the angle everybody recognises. By ten there are forty cars and a queue for it. Verified 2026-09-06: Bixby is a Caltrans pull-out, not a state park, it sits north of the burn, and this stretch of Highway 1 reopened on 3 September — so this stop stands while most of the rest of the day's did not."
+        },
+        {
+          "title": "Point Sur Light Station from the road",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Point Sur State Historic Park",
+            "city": "Big Sur",
+            "area": "Highway 1"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The lighthouse itself only opens for guided walks on set days, so treat it as a viewpoint unless you have booked one. The volcanic rock it sits on is the best-looking thing on this stretch and costs nothing to look at. CORRECTED 2026-09-06: Point Sur State Historic Park is CLOSED until further notice after the Timber Fire, so there are no guided walks to book at all right now — the 'unless you have booked one' half of this note is currently dead. The rock is still there from the road, which is all this stop was ever really for."
+        },
+        {
+          "title": "Pfeiffer Big Sur is CLOSED — the morning you get instead",
+          "timeWindow": {
+            "start": "09:15",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Pfeiffer Big Sur State Park",
+            "city": "Big Sur",
+            "area": "Big Sur Valley"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "REWRITTEN 2026-09-06. This stop used to read '$10 a vehicle, the Valley View and Buzzard's Roost trails, the only place on the coast with shade, water and a lavatory'. California State Parks has Pfeiffer Big Sur CLOSED UNTIL FURTHER NOTICE after the Timber Fire, along with Point Sur, Andrew Molera, Julia Pfeiffer Burns and Limekiln — the road reopened on 3 September but the parks did not, and there is no announced reopening date. Do not drive to the entrance station expecting to pay ten dollars and walk into redwoods. The honest replacement, given the day still needs somewhere to put six hours before the light is right at the beach: do Point Lobos State Natural Reserve BEFORE you leave the Carmel end in the morning — it sits well north of the burn and was not on the closure list, though I did not confirm its status, so check parks.ca.gov the morning you go. Failing that, the Big Sur valley's own businesses reopened with the highway on 3 September, so the bakery, the Henry Miller library end of the valley and a long lunch absorb the morning without needing a park gate. Check the Big Sur area alerts page on parks.ca.gov before you build a morning around any of this; these closures are being lifted piecemeal."
+        },
+        {
+          "title": "Lunch at Nepenthe, on the terrace",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Nepenthe",
+            "city": "Big Sur",
+            "area": "Highway 1"
+          },
+          "tags": [
+            "meal"
+          ],
+          "notes": "Open since 1949 and still the best 800 feet of view you can buy with a hamburger. No reservations — put your name in and wait at the fire pit, which is the intended experience rather than a failure of one. The Phoenix shop below it is where the queue actually goes.",
+          "cost": {
+            "amountMinor": 4200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "McWay Falls is CLOSED — turn round at Nepenthe instead",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "McWay Falls Overlook Trail",
+            "city": "Big Sur",
+            "area": "Julia Pfeiffer Burns State Park"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "REWRITTEN 2026-09-06. The falls are an eighty-foot drop onto a beach you are not allowed to walk on, seen from a quarter-mile paved trail through a tunnel under the highway — and the overlook trail, the tunnel and the parking lot are all inside Julia Pfeiffer Burns State Park, which is CLOSED UNTIL FURTHER NOTICE after the Timber Fire. Highway 1 itself is open past the park, which is exactly the trap: you can drive to the gate and find it shut, and the old advice in this entry to 'park in the lot rather than the highway shoulder' now points at a locked lot, leaving the shoulder — which is a genuine hazard and is ticketed — as the only place to stop. Do not do it. The honest version of this afternoon is to turn round at Nepenthe, which reopened with the highway on 3 September, and take the extra hour at Pfeiffer Beach below. If you are reading this after the parks reopen, the old stop was right and the $10 vehicle fee applied — check the Big Sur alerts page on parks.ca.gov."
+        },
+        {
+          "title": "Pfeiffer Beach, for the keyhole",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Pfeiffer Beach, Sycamore Canyon Road",
+            "city": "Big Sur",
+            "area": "Sycamore Canyon"
+          },
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The whole reason this day is dated in December. Sunset light only passes through Keyhole Rock for a few weeks either side of the solstice, when the sun sets far enough south — come in July and you get a nice beach and no beam. Sycamore Canyon Road is two miles of single track with no sign on Highway 1 (it is the only paved left turn between the Big Sur post office and Nepenthe), a gate that shuts at sunset, and a cash kiosk. The purple sand is real; it is manganese garnet washing out of the cliff. Verified 2026-09-06, and this is the stop that saves the day: Los Padres National Forest is under a Timber Fire emergency closure (Monterey Ranger District order 05-07-51-26-10, effective 29 August 2026) that shuts the roads and trails of the fire area — but the order is written 'except Pfeiffer Beach and Sycamore Canyon Road', so this specific stop is explicitly carved out and OPEN while the state parks around it are not. One new restriction that comes with the carve-out: on Sycamore Canyon Road you must stay INSIDE A MOTOR VEHICLE for the whole two and a half miles from Highway 1 to the day-use area, so parking short and walking in — which people do when the small lot fills — is now prohibited. The $15 cash-only vehicle fee is right; an America the Beautiful or Forest Adventure Pass is accepted instead, and there is a self-registration station when the kiosk is unstaffed. Gate hours were reported to me as 09:00-20:00 daily but I could not confirm that against the Forest Service, so treat the closing time as unverified and do not be the car still inside at dusk.",
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A room at Post Ranch, and dinner at Sierra Mar",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Post Ranch Inn",
+            "city": "Big Sur",
+            "area": "Highway 1"
+          },
+          "kind": "booked",
+          "tags": [
+            "lodging"
+          ],
+          "notes": "The honest number: rooms start around $2,175 a night and January weeknights average more, so this is roughly $1,090 a head for two and it is the single most expensive stop in this whole library. What you are buying is a cliff-edge room with no television and the Sierra Mar dining room, which is open to non-guests by reservation only if you would rather have the dinner and sleep in Carmel — that version of this day costs a tenth as much and loses only the morning. Spot-checked 2026-09-06: Post Ranch Inn and Nepenthe were both evacuated during the Timber Fire in August, CAL FIRE reported no structure damage, and Big Sur's hotels and restaurants began reopening on 21 August with the rest following the highway reopening on 3 September. So this stop stands. The $2,175 starting rate was NOT re-verified in this pass and post-fire pricing may have moved — confirm on postranchinn.com when you book, and confirm Sierra Mar is seating non-guests again before you plan the cheaper sleep-in-Carmel version.",
+          "cost": {
+            "amountMinor": 108800,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

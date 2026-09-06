@@ -1,0 +1,655 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "thailand-andaman",
+    "name": "Thailand: Bangkok, Krabi and Koh Lanta",
+    "description": "Ten days from a Bangkok arrival to a slow Andaman beach, moving by plane, longtail and ferry.",
+    "origin": "ai",
+    "sources": [
+      "https://www.travelfish.org/transport/thailand/southern_thailand/krabi/ko_lanta/all",
+      "https://www.kolanta.net/ko-lanta-ferry-schedule/",
+      "https://www.diveandrelax.com/koh-lanta-island-guide/how-to-get-to-koh-lanta/",
+      "https://www.thefinestthai.com/2026/04/16/yaowarat-the-ultimate-guide-to-bangkoks-chinatown-street-food/",
+      "https://www.bangkok-travel-guide.com/food/what-to-eat-at-yaowarat/",
+      "https://www.cktravels.com/things-to-do-railay-beach-phra-nang-cave-krabi/",
+      "https://www.weseektravel.com/things-to-do-railay-beach/",
+      "https://amazinglanta.com/best-places-to-eat-in-koh-lanta-old-town/",
+      "https://northabroad.com/koh-lanta-travel-guide/",
+      "https://www.travelfish.org/eatandmeet/thailand/southern_thailand/krabi/ko_lanta/eat"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [
+    {
+      "key": "thailand-andaman",
+      "name": "Thailand: Bangkok → Krabi → Koh Lanta",
+      "summary": "Two nights of city, three of limestone, four of doing very little.",
+      "currency": "USD",
+      "budget": { "amountMinor": 600000, "currency": "USD" },
+      "startsInDays": 24,
+      "days": [
+        {
+          "label": "Landing at Suvarnabhumi, and Yaowarat after dark",
+          "stops": [
+            {
+              "title": "Long-haul lands at Suvarnabhumi",
+              "timeWindow": { "start": "06:10", "end": "07:15" },
+              "location": { "name": "Suvarnabhumi Airport, Terminal 1 arrivals", "city": "Bangkok", "area": "Bang Phli" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Round-trip airfare for two is priced here, not split across the two legs. Immigration is the slow part: an early-morning bank of arrivals can be an hour, and the e-gates only work if you registered the Thailand Digital Arrival Card online in the 72 hours before landing.",
+              "cost": { "amountMinor": 94500, "currency": "USD" }
+            },
+            {
+              "title": "Airport Rail Link into town",
+              "timeWindow": { "start": "08:00", "end": "08:45" },
+              "location": { "name": "Airport Rail Link, Suvarnabhumi to Phaya Thai", "city": "Bangkok", "area": "Phaya Thai" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "45 baht and 26 minutes versus an hour and a half in a taxi at that time of morning. Change to the BTS at Phaya Thai; there is no lift on the connecting bridge, so this is the wrong choice with three suitcases.",
+              "cost": { "amountMinor": 300, "currency": "USD" }
+            },
+            {
+              "title": "Drop bags at Riva Surya Bangkok",
+              "timeWindow": { "start": "09:15", "end": "09:50" },
+              "location": { "name": "Riva Surya Bangkok, Phra Athit Road", "city": "Bangkok", "area": "Banglamphu" },
+              "kind": "booked",
+              "tags": ["lodging"],
+              "notes": "Two nights, riverside in the old city rather than in Sukhumvit — everything on days one and two is walkable or one express boat away. Rooms are not ready before 14:00 but they will hold bags and let you use the pool showers.",
+              "cost": { "amountMinor": 42000, "currency": "USD" }
+            },
+            {
+              "title": "First real meal: lunch at Krua Apsorn",
+              "timeWindow": { "start": "11:30", "end": "12:40" },
+              "location": { "name": "Krua Apsorn, Dinso Road", "city": "Bangkok", "area": "Phra Nakhon" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Order the crab meat fried in yellow chilli and the omelette with crab. Closed Sundays, and they stop seating at 18:00 — this is a lunch place that people keep trying to make into a dinner place.",
+              "cost": { "amountMinor": 2400, "currency": "USD" }
+            },
+            {
+              "title": "Wat Pho and the reclining Buddha",
+              "timeWindow": { "start": "14:00", "end": "16:00" },
+              "location": { "name": "Wat Pho (Wat Phra Chetuphon)", "city": "Bangkok", "area": "Phra Nakhon" },
+              "kind": "planned",
+              "tags": ["ticketed"],
+              "notes": "300 baht each, and worth doing on arrival day because it needs nothing of you. The traditional massage school inside the compound takes walk-ins for an hour at about 480 baht, which is the correct use of a body that has been on a plane for twelve hours.",
+              "cost": { "amountMinor": 1700, "currency": "USD" }
+            },
+            {
+              "title": "Yaowarat after dark, on foot",
+              "timeWindow": { "start": "18:30", "end": "21:15" },
+              "location": { "name": "Yaowarat Road and Soi Texas", "city": "Bangkok", "area": "Chinatown" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Arrive at 17:30, not 19:00 — the Michelin-listed stalls have queues by seven. Start with guay jub at Nai Ek Roll Noodles at 442 Yaowarat, then eat small at three more places rather than sitting down anywhere. Cash only, most of the street.",
+              "cost": { "amountMinor": 3000, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "The old city on foot, and the river home",
+          "stops": [
+            {
+              "title": "Breakfast at Sarnies, Charoen Krung",
+              "timeWindow": { "start": "08:00", "end": "08:50" },
+              "location": { "name": "Sarnies Bangkok, Charoen Krung Soi 44", "city": "Bangkok", "area": "Bang Rak" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Charoen Krung wakes up late; this is one of the few places doing a real breakfast before nine. Sit upstairs in the old shophouse, not in the ground-floor coffee queue.",
+              "cost": { "amountMinor": 1600, "currency": "USD" }
+            },
+            {
+              "title": "Orange-flag express boat up the Chao Phraya",
+              "timeWindow": { "start": "09:15", "end": "09:45" },
+              "location": { "name": "Chao Phraya Express Boat, Si Phraya pier to Tha Chang", "city": "Bangkok", "area": "Chao Phraya river" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Take the orange flag, 16 baht, pay the conductor on board. Ignore the blue-flag tourist boat at four times the price on the same water — the only difference is a commentary and a guaranteed seat.",
+              "cost": { "amountMinor": 120, "currency": "USD" }
+            },
+            {
+              "title": "Grand Palace and Wat Phra Kaew",
+              "timeWindow": { "start": "09:50", "end": "12:00" },
+              "location": { "name": "The Grand Palace", "city": "Bangkok", "area": "Phra Nakhon" },
+              "kind": "booked",
+              "tags": ["ticketed"],
+              "notes": "500 baht each, bought online to skip the ticket window. Gates open at 08:30 and the Emerald Buddha hall is a shuffling queue by 10:30. Shoulders and knees covered or you buy a cover-up at the gate at a tourist price.",
+              "cost": { "amountMinor": 3400, "currency": "USD" }
+            },
+            {
+              "title": "Lunch at Err Urban Rustic Thai",
+              "timeWindow": { "start": "12:30", "end": "13:40" },
+              "location": { "name": "Err Urban Rustic Thai, Maha Rat Road", "city": "Bangkok", "area": "Tha Tien" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Down an alley behind Wat Pho and much cooler than anything on the palace side. The pork and the pickles are the point; the som tam is fierce even by local standards, so say 'phet nit noi' unless you mean it.",
+              "cost": { "amountMinor": 3200, "currency": "USD" }
+            },
+            {
+              "title": "Cross to Wat Arun",
+              "timeWindow": { "start": "14:10", "end": "15:40" },
+              "location": { "name": "Wat Arun Ratchawararam", "city": "Bangkok", "area": "Thonburi" },
+              "kind": "planned",
+              "tags": ["ticketed"],
+              "notes": "The cross-river ferry from Tha Tien is 5 baht and leaves every few minutes; the queue for it is always shorter than the queue for a taxi round by the bridge. The steep upper terrace of the prang has been closed on and off — the porcelain detail is at eye level anyway.",
+              "cost": { "amountMinor": 700, "currency": "USD" }
+            },
+            {
+              "title": "Sunset drink at Sala Rattanakosin",
+              "timeWindow": { "start": "17:00", "end": "18:15" },
+              "location": { "name": "Sala Rattanakosin rooftop bar, Maha Rat Road", "city": "Bangkok", "area": "Tha Tien" },
+              "kind": "idea",
+              "tags": [],
+              "notes": "Nobody has committed to this. It is a small roof directly opposite Wat Arun and it takes no bookings, so it is either empty at five or impossible at six-thirty. If it is full, the Amorosa roof at Arun Residence next door is the same view.",
+              "cost": { "amountMinor": 2200, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Supanniga Eating Room",
+              "timeWindow": { "start": "19:30", "end": "21:30" },
+              "location": { "name": "Supanniga Eating Room, Tha Tien", "city": "Bangkok", "area": "Tha Tien" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "Held two seats on the river terrace; they confirm 48 hours out and release the table if nobody replies. Trat-province home cooking rather than hotel Thai — the moo cha muang and the crab curry are what to order.",
+              "cost": { "amountMinor": 5500, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "South to Krabi, and the longtail to Railay",
+          "stops": [
+            {
+              "title": "Breakfast on the Riva Surya terrace, then check out",
+              "timeWindow": { "start": "08:30", "end": "09:20" },
+              "location": { "name": "Riva Surya Bangkok, Phra Athit Road", "city": "Bangkok", "area": "Banglamphu" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Repack for the islands before you go down — the ferry on day six has a 20 kg limit that nobody weighs and a boat deck that soaks anything soft.",
+              "cost": { "amountMinor": 1400, "currency": "USD" }
+            },
+            {
+              "title": "Taxi to Don Mueang",
+              "timeWindow": { "start": "10:00", "end": "11:05" },
+              "location": { "name": "Don Mueang International Airport, Terminal 2", "city": "Bangkok", "area": "Don Mueang" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "The airport is DMK, not BKK. The low-cost Krabi flights go from Don Mueang and the two airports are 50 km apart — this is the single most expensive mistake available on this trip. Meter plus 50 baht airport surcharge plus tolls.",
+              "cost": { "amountMinor": 1400, "currency": "USD" }
+            },
+            {
+              "title": "Flight Bangkok to Krabi (DMK–KBV)",
+              "timeWindow": { "start": "12:55", "end": "14:20" },
+              "location": { "name": "Krabi International Airport", "city": "Krabi", "area": "Nuea Khlong" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "85 minutes. Pay for the checked bag when you book, not at the desk — the airport rate is roughly triple, and hand baggage is genuinely weighed at the gate.",
+              "cost": { "amountMinor": 15600, "currency": "USD" }
+            },
+            {
+              "title": "Airport minivan to Ao Nang",
+              "timeWindow": { "start": "15:00", "end": "15:55" },
+              "location": { "name": "Krabi airport shuttle to Ao Nang beach road", "city": "Krabi", "area": "Ao Nang" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "150 baht a head at the desk in arrivals. It drops on the beach road about 200 m from the longtail ticket hut — walk toward the water, not toward the taxi touts.",
+              "cost": { "amountMinor": 1200, "currency": "USD" }
+            },
+            {
+              "title": "Longtail from Ao Nang to Railay West",
+              "timeWindow": { "start": "16:20", "end": "16:50" },
+              "location": { "name": "Ao Nang longtail pier", "city": "Krabi", "area": "Ao Nang" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Boats leave when eight people show up, not on a timetable — pay at the hut, take a numbered ticket, and expect to wait up to half an hour. The last boat is around 18:00 in low season and you land in the surf, so bags go on heads and shoes come off.",
+              "cost": { "amountMinor": 900, "currency": "USD" }
+            },
+            {
+              "title": "Check in at Railay Bay Resort",
+              "timeWindow": { "start": "17:00", "end": "17:45" },
+              "location": { "name": "Railay Bay Resort & Spa", "city": "Krabi", "area": "Railay" },
+              "kind": "booked",
+              "tags": ["lodging"],
+              "notes": "Three nights, and it runs the width of the peninsula so you can walk to either beach in two minutes. Railay has no road access: anything you forgot is a boat ride away, and the two shops here sell sunscreen at four times the Ao Nang price.",
+              "cost": { "amountMinor": 84000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at the Last Bar, East Railay",
+              "timeWindow": { "start": "19:00", "end": "20:45" },
+              "location": { "name": "The Last Bar, East Railay walking street", "city": "Krabi", "area": "Railay" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "Nothing booked; it is a deck over the mangrove tide and the tables at the end go first. East Railay is the mangrove side and smells like it at low tide — that is normal and the food is better here than on the resort beach.",
+              "cost": { "amountMinor": 2400, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Railay: Phra Nang, a rope, and a viewpoint",
+          "stops": [
+            {
+              "title": "Phra Nang Cave Beach before the boats",
+              "timeWindow": { "start": "07:00", "end": "08:05" },
+              "location": { "name": "Phra Nang Cave Beach", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Ten minutes on the paved path from East Railay, and completely empty until about 08:30 when the first Ao Nang day boats land. The shrine at the north end is a working one — the carvings are offerings, not a joke, and photographing them is fine but posing with them is not."
+            },
+            {
+              "title": "Breakfast at Mama's Chicken",
+              "timeWindow": { "start": "08:15", "end": "09:00" },
+              "location": { "name": "Mama's Chicken, East Railay walking street", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Roti and coffee for about a fifth of the resort breakfast price, and it opens at seven.",
+              "cost": { "amountMinor": 800, "currency": "USD" }
+            },
+            {
+              "title": "Half-day climbing course with King Climbers",
+              "timeWindow": { "start": "09:30", "end": "12:30" },
+              "location": { "name": "King Climbers, East Railay", "city": "Krabi", "area": "Railay" },
+              "kind": "booked",
+              "tags": ["outdoors"],
+              "notes": "Booked the morning session deliberately — the limestone at Muay Thai wall is in shade until about one, and the afternoon course cooks. Shoes and harness are included; bring a litre of water each because there is no shop at the crag.",
+              "cost": { "amountMinor": 7000, "currency": "USD" }
+            },
+            {
+              "title": "Lunch back on East Railay",
+              "timeWindow": { "start": "12:45", "end": "13:45" },
+              "location": { "name": "Walking street food stalls, East Railay", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 1500, "currency": "USD" }
+            },
+            {
+              "title": "Railay viewpoint, and as far up the lagoon trail as it is worth",
+              "timeWindow": { "start": "14:30", "end": "16:10" },
+              "location": { "name": "Railay viewpoint and lagoon trail", "city": "Krabi", "area": "Railay" },
+              "kind": "idea",
+              "tags": ["outdoors"],
+              "notes": "Nobody has committed to the lagoon half. The viewpoint is fifteen minutes of steep rope-assisted mud; the lagoon is another forty down the far side and is a brown puddle unless the tide is high. Do the viewpoint, look at the state of the ropes, then decide."
+            },
+            {
+              "title": "Beer on West Railay for the sunset",
+              "timeWindow": { "start": "17:45", "end": "18:45" },
+              "location": { "name": "West Railay beach", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "The sun goes down behind the islands off West Railay, which is the only beach here facing the right way. Buy the beer at the 7-Eleven equivalent on the walking street; the beach bars charge triple for the same bottle and the same sand.",
+              "cost": { "amountMinor": 600, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Flame Tree Restaurant",
+              "timeWindow": { "start": "19:30", "end": "21:00" },
+              "location": { "name": "Flame Tree Restaurant, West Railay beach", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Tables on the sand, and one of the few kitchens here that will cook a whole fish properly. Ask the price by weight before they take it away.",
+              "cost": { "amountMinor": 2600, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Four islands by longtail",
+          "stops": [
+            {
+              "title": "Early breakfast at Mama's Chicken",
+              "timeWindow": { "start": "07:50", "end": "08:30" },
+              "location": { "name": "Mama's Chicken, East Railay walking street", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 800, "currency": "USD" }
+            },
+            {
+              "title": "Private longtail charter leaves West Railay",
+              "timeWindow": { "start": "09:00", "end": "09:25" },
+              "location": { "name": "West Railay beach, longtail moorings", "city": "Krabi", "area": "Railay" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "3,000 baht for the boat for the day, arranged at the beach hut yesterday. A private longtail costs about twice a seat on a joined tour and buys the one thing that matters: leaving Poda while the speedboat groups are still eating lunch.",
+              "cost": { "amountMinor": 7200, "currency": "USD" }
+            },
+            {
+              "title": "National park fee at the Tup Island ranger post",
+              "timeWindow": { "start": "09:35", "end": "09:50" },
+              "location": { "name": "Hat Noppharat Thara–Mu Ko Phi Phi National Park ranger post, Koh Tup", "city": "Krabi", "area": "Koh Tup" },
+              "kind": "booked",
+              "tags": ["ticketed"],
+              "notes": "400 baht a head, cash, and it is not included in any tour price you were quoted — every operator lets you find that out at the ranger boat. Keep the ticket: it covers all four islands for the day.",
+              "cost": { "amountMinor": 2300, "currency": "USD" }
+            },
+            {
+              "title": "The Tup–Mor sandbar at low tide",
+              "timeWindow": { "start": "09:50", "end": "11:15" },
+              "location": { "name": "Koh Tup and Koh Mor sandbar", "city": "Krabi", "area": "Koh Tup" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "The sand strip joining the two islands only exists either side of low water — check the Krabi tide table the night before and tell the boatman the window you want. Two hours later it is chest-deep and there is nothing to see."
+            },
+            {
+              "title": "Snorkelling and boat lunch off Koh Poda",
+              "timeWindow": { "start": "11:30", "end": "13:00" },
+              "location": { "name": "Koh Poda", "city": "Krabi", "area": "Koh Poda" },
+              "kind": "planned",
+              "tags": ["meal", "outdoors"],
+              "notes": "The reef is at the north tip, not off the main beach where everyone swims. Lunch is whatever the boatman's family packed, eaten on the sand — worth the 300 baht a head extra and better than the tour buffets landing at the same time.",
+              "cost": { "amountMinor": 1400, "currency": "USD" }
+            },
+            {
+              "title": "Longtail back to Railay",
+              "timeWindow": { "start": "14:30", "end": "15:15" },
+              "location": { "name": "West Railay beach", "city": "Krabi", "area": "Railay" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Included in the charter. The afternoon chop on this crossing is real — sit at the back, and put anything that must stay dry inside a bag inside a bag."
+            },
+            {
+              "title": "Dinner at the East Railay night stalls",
+              "timeWindow": { "start": "19:00", "end": "20:30" },
+              "location": { "name": "Night food stalls behind the walking street, East Railay", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Six or seven carts set up behind the bars from about six. Pad see ew and grilled squid for a third of the resort price, and it is the only place on the peninsula that feels like the mainland.",
+              "cost": { "amountMinor": 2200, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Ferry to Koh Lanta, and the first swim at Klong Nin",
+          "stops": [
+            {
+              "title": "Breakfast, and check out of Railay Bay",
+              "timeWindow": { "start": "08:00", "end": "08:50" },
+              "location": { "name": "Railay Bay Resort & Spa", "city": "Krabi", "area": "Railay" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 900, "currency": "USD" }
+            },
+            {
+              "title": "Longtail to Nopparat Thara pier",
+              "timeWindow": { "start": "09:20", "end": "09:50" },
+              "location": { "name": "Nopparat Thara pier", "city": "Krabi", "area": "Ao Nang" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Only needed if the ferry office would not sell the Railay pickup — the 11:00 Ao Nang Princess calls at Railay at about 11:15, so ask when you buy and skip this leg entirely.",
+              "cost": { "amountMinor": 900, "currency": "USD" }
+            },
+            {
+              "title": "Ao Nang Princess ferry to Saladan",
+              "timeWindow": { "start": "11:00", "end": "12:50" },
+              "location": { "name": "Saladan pier, Koh Lanta Yai", "city": "Koh Lanta", "area": "Saladan" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "High season only, one sailing a day, calling at Koh Jum on the way. In the June–September low season this boat does not run and the alternative is the minivan-and-car-ferry via Krabi town, which takes the same time and is much less pleasant. Sit on the upper deck at the stern; the cabin is freezing and has no windows worth having.",
+              "cost": { "amountMinor": 2800, "currency": "USD" }
+            },
+            {
+              "title": "Songthaew south to Klong Nin",
+              "timeWindow": { "start": "13:05", "end": "13:45" },
+              "location": { "name": "Saladan to Klong Nin beach road", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "The pickups meet the ferry and charge per person by beach — about 150 baht to Klong Nin. Agree the price before the bags go in, and do not let them take you to a resort you did not name.",
+              "cost": { "amountMinor": 1000, "currency": "USD" }
+            },
+            {
+              "title": "Check in at Sri Lanta Resort",
+              "timeWindow": { "start": "14:00", "end": "14:50" },
+              "location": { "name": "Sri Lanta Resort, Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "booked",
+              "tags": ["lodging"],
+              "notes": "Four nights at the quiet south end of Klong Nin. Klong Nin over Phra Ae on purpose: it is halfway down the island, so Old Town and the national park are both under half an hour, and the swimming is better than anywhere north of it.",
+              "cost": { "amountMinor": 118000, "currency": "USD" }
+            },
+            {
+              "title": "First swim at Klong Nin",
+              "timeWindow": { "start": "16:00", "end": "17:30" },
+              "location": { "name": "Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "Sandy and shelving, with no rocks at the south end — the one beach on Lanta you can swim at any tide."
+            },
+            {
+              "title": "Dinner at Cook Kai",
+              "timeWindow": { "start": "18:30", "end": "20:00" },
+              "location": { "name": "Cook Kai Restaurant, Klong Nin beach road", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Across the road from the beach, family-run, and the massaman is the one to get. They will make things properly spicy if you insist twice.",
+              "cost": { "amountMinor": 2200, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Old Town, the east coast, and the mangroves",
+          "stops": [
+            {
+              "title": "Breakfast at Sri Lanta",
+              "timeWindow": { "start": "08:30", "end": "09:15" },
+              "location": { "name": "Sri Lanta Resort, Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 900, "currency": "USD" }
+            },
+            {
+              "title": "Hire a scooter on the beach road",
+              "timeWindow": { "start": "09:45", "end": "10:15" },
+              "location": { "name": "Klong Nin beach road rental shops", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "250 baht a day. They will ask for a passport as deposit — offer a photocopy and 2,000 baht cash instead, and photograph every existing scratch before you ride off. Check your travel insurance actually covers you without a Thai licence; most do not.",
+              "cost": { "amountMinor": 1200, "currency": "USD" }
+            },
+            {
+              "title": "Lanta Old Town on the east coast",
+              "timeWindow": { "start": "10:45", "end": "12:20" },
+              "location": { "name": "Lanta Old Town (Ban Si Raya)", "city": "Koh Lanta", "area": "Old Town" },
+              "kind": "planned",
+              "tags": [],
+              "notes": "One street of stilt houses over the water, and the island's original port before the beaches existed. There is no beach here, which is exactly why it still looks like this."
+            },
+            {
+              "title": "Lunch at Beautiful Restaurant",
+              "timeWindow": { "start": "12:30", "end": "13:50" },
+              "location": { "name": "Beautiful Restaurant, Lanta Old Town", "city": "Koh Lanta", "area": "Old Town" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Tables on the pier deck out over the channel; ask for the far end. Whole fish and squid by weight — confirm the number before it is cooked.",
+              "cost": { "amountMinor": 1800, "currency": "USD" }
+            },
+            {
+              "title": "Koh Lanta Community Museum",
+              "timeWindow": { "start": "14:15", "end": "15:10" },
+              "location": { "name": "Koh Lanta Old Town Community Museum", "city": "Koh Lanta", "area": "Old Town" },
+              "kind": "idea",
+              "tags": ["ticketed"],
+              "notes": "Not committed — twenty minutes if the sea-gypsy and Chinese-trader rooms grab you, five if they do not. In the old district office at the north end of the street; ask if the caretaker will open the upstairs.",
+              "cost": { "amountMinor": 200, "currency": "USD" }
+            },
+            {
+              "title": "Mangrove kayaking at Tung Yee Peng",
+              "timeWindow": { "start": "16:00", "end": "17:40" },
+              "location": { "name": "Tung Yee Peng community mangrove project", "city": "Koh Lanta", "area": "Tung Yee Peng" },
+              "kind": "hold",
+              "tags": ["outdoors"],
+              "notes": "Held the 16:00 slot rather than a morning one on purpose: the mangrove tunnels only have water either side of high tide, and the village checks the tide table and moves you if it is wrong. Community-run, so the money stays on the east coast.",
+              "cost": { "amountMinor": 4000, "currency": "USD" }
+            },
+            {
+              "title": "Dinner at Same Same But Different",
+              "timeWindow": { "start": "19:30", "end": "21:10" },
+              "location": { "name": "Same Same But Different, Kantiang Bay", "city": "Koh Lanta", "area": "Kantiang Bay" },
+              "kind": "hold",
+              "tags": ["meal"],
+              "notes": "No booking that sticks — turn up at 18:30, put your name on the board and have a drink on the rocks until they call it. Twenty minutes further south than it looks on the map, and the last stretch of road is unlit, so take the torch.",
+              "cost": { "amountMinor": 3400, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Out to Koh Rok, and a kitchen in the evening",
+          "stops": [
+            {
+              "title": "Early breakfast at the resort",
+              "timeWindow": { "start": "07:00", "end": "07:35" },
+              "location": { "name": "Sri Lanta Resort, Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Ask the night before for a 07:00 breakfast; the kitchen will do it but does not open that early by default.",
+              "cost": { "amountMinor": 700, "currency": "USD" }
+            },
+            {
+              "title": "Speedboat from Saladan to Koh Rok",
+              "timeWindow": { "start": "08:30", "end": "09:50" },
+              "location": { "name": "Saladan pier", "city": "Koh Lanta", "area": "Saladan" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Price includes hotel pickup, the national park fee and lunch — confirm all three are in it, because the park fee is the one operators leave out. Koh Rok over Koh Phi Phi: same crossing time, a fifth of the boats.",
+              "cost": { "amountMinor": 13000, "currency": "USD" }
+            },
+            {
+              "title": "Snorkelling the Koh Rok reefs",
+              "timeWindow": { "start": "10:00", "end": "12:00" },
+              "location": { "name": "Koh Rok Nai and Koh Rok Nok", "city": "Koh Lanta", "area": "Koh Rok" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "The channel between the two islands is the good bit and the boats sit in it at slack water. Bring your own mask if you have one — the tour masks leak and the guide has no small sizes."
+            },
+            {
+              "title": "Lunch on Koh Rok Nok beach",
+              "timeWindow": { "start": "12:15", "end": "13:15" },
+              "location": { "name": "Koh Rok Nok beach", "city": "Koh Lanta", "area": "Koh Rok" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 1200, "currency": "USD" }
+            },
+            {
+              "title": "Speedboat back to Saladan",
+              "timeWindow": { "start": "15:30", "end": "16:45" },
+              "location": { "name": "Saladan pier", "city": "Koh Lanta", "area": "Saladan" },
+              "kind": "transit",
+              "tags": [],
+              "notes": "Included. The afternoon return is against the swell and it slams — if anyone gets seasick, sit them mid-boat and out in the air, not in the bow."
+            },
+            {
+              "title": "Cooking class and dinner at Time for Lime",
+              "timeWindow": { "start": "17:15", "end": "21:15" },
+              "location": { "name": "Time for Lime, Klong Dao beach", "city": "Koh Lanta", "area": "Klong Dao" },
+              "kind": "booked",
+              "tags": ["meal"],
+              "notes": "Four hours, four dishes, and you eat what you cooked on the beach with a drink. Profits fund the Lanta Animal Welfare shelter next door. Book at least three days ahead in high season and say now if anyone is vegetarian — the curry pastes are made with shrimp otherwise.",
+              "cost": { "amountMinor": 5600, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "The slow day — nothing booked, on purpose",
+          "stops": [
+            {
+              "title": "Late breakfast at the Sri Lanta beach kitchen",
+              "timeWindow": { "start": "09:30", "end": "10:30" },
+              "location": { "name": "Sri Lanta Resort beach kitchen, Klong Nin", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 1100, "currency": "USD" }
+            },
+            {
+              "title": "Klong Nin beach, and nothing else",
+              "timeWindow": { "start": "11:00", "end": "16:30" },
+              "location": { "name": "Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["outdoors"],
+              "notes": "This is the day the trip needs and the one that gets eaten first — do not let anything be booked into it. The beach bars will run a tab and rent a mat for 100 baht; the south end past the rocks is empty even in February."
+            },
+            {
+              "title": "Sunset and dinner at Ozone Bar",
+              "timeWindow": { "start": "18:00", "end": "20:30" },
+              "location": { "name": "Ozone Bar, Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Beanbags on the sand and a grill. Go at six for the sun and stay for the food rather than the other way round — the kitchen slows right down after eight.",
+              "cost": { "amountMinor": 2600, "currency": "USD" }
+            }
+          ]
+        },
+        {
+          "label": "Saladan to Bangkok, and the long way home",
+          "stops": [
+            {
+              "title": "Last breakfast, and check out",
+              "timeWindow": { "start": "08:00", "end": "08:50" },
+              "location": { "name": "Sri Lanta Resort, Klong Nin beach", "city": "Koh Lanta", "area": "Klong Nin" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "cost": { "amountMinor": 900, "currency": "USD" }
+            },
+            {
+              "title": "Minivan transfer, Koh Lanta to Krabi airport",
+              "timeWindow": { "start": "09:30", "end": "12:00" },
+              "location": { "name": "Krabi International Airport", "city": "Krabi", "area": "Nuea Khlong" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Allow two and a half hours, not the ninety minutes the ticket claims: the first bridge is a bridge now but the second crossing at Ban Hua Hin is still a car ferry that waits to fill. Book the 09:30 for an early-afternoon flight and no earlier one for a later flight — there is nothing to do at Krabi airport.",
+              "cost": { "amountMinor": 3000, "currency": "USD" }
+            },
+            {
+              "title": "Flight Krabi to Bangkok (KBV–BKK)",
+              "timeWindow": { "start": "13:20", "end": "14:45" },
+              "location": { "name": "Suvarnabhumi Airport", "city": "Bangkok", "area": "Bang Phli" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Booked into Suvarnabhumi rather than Don Mueang so the long-haul is a walk, not a 50 km taxi with bags. Six hours of connection is deliberate — a missed domestic leg on a separate ticket is a missed flight home.",
+              "cost": { "amountMinor": 16800, "currency": "USD" }
+            },
+            {
+              "title": "Last plate at Magic Food Point",
+              "timeWindow": { "start": "16:00", "end": "17:15" },
+              "location": { "name": "Magic Food Point, Suvarnabhumi Level 1", "city": "Bangkok", "area": "Bang Phli" },
+              "kind": "planned",
+              "tags": ["meal"],
+              "notes": "Level 1, landside, before security — the airport staff canteen. Sixty-baht plates and the only honest food in the building. You buy a card at the counter and get the balance back on the way out.",
+              "cost": { "amountMinor": 800, "currency": "USD" }
+            },
+            {
+              "title": "Long-haul home departs Suvarnabhumi",
+              "timeWindow": { "start": "20:40", "end": "21:50" },
+              "location": { "name": "Suvarnabhumi Airport, Concourse D", "city": "Bangkok", "area": "Bang Phli" },
+              "kind": "booked",
+              "tags": [],
+              "notes": "Return leg of the fare priced on day one. Suvarnabhumi's gates are a genuine fifteen-minute walk from security — the boarding time on the screen is when you should already be moving.",
+              "cost": { "amountMinor": 94500, "currency": "USD" }
+            }
+          ]
+        }
+      ],
+      "backlog": [
+        {
+          "title": "Ayutthaya as a day trip on the slow train from Krung Thep Aphiwat",
+          "location": { "name": "Ayutthaya Historical Park", "city": "Ayutthaya", "area": "Old city island" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Third-class is about 20 baht and takes 90 minutes. Would need a whole day back in Bangkok that this itinerary does not have — parked unless the Krabi flight slips."
+        },
+        {
+          "title": "Dive Koh Haa from Koh Lanta",
+          "location": { "name": "Koh Haa dive sites", "city": "Koh Lanta", "area": "Koh Haa" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The Cathedral chamber is the reason people rate this over Phi Phi. Two tanks, a full day, and it clashes head-on with the Koh Rok trip — one or the other, not both."
+        },
+        {
+          "title": "Koh Phi Phi, but as an overnight rather than a day trip",
+          "location": { "name": "Tonsai village, Koh Phi Phi Don", "city": "Krabi", "area": "Koh Phi Phi" },
+          "kind": "idea",
+          "notes": "Everyone who does it as a day trip regrets it and everyone who stays a night says Maya Bay at seven in the morning is a different place. Would cost a Lanta night."
+        },
+        {
+          "title": "Jim Thompson House on the last Bangkok morning",
+          "location": { "name": "Jim Thompson House Museum, Soi Kasemsan 2", "city": "Bangkok", "area": "Pathum Wan" },
+          "kind": "idea",
+          "tags": ["ticketed"],
+          "notes": "Guided-tour only and the last tour is at 17:00. Fits the day-ten layover only if the Krabi flight is on time, which is why it is parked here rather than in the day."
+        }
+      ]
+    }
+  ]
+}
