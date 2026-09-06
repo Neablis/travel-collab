@@ -2,33 +2,19 @@
   "$schema": "travel-collab/content-bundle/v1",
   "bundle": {
     "id": "korea-taiwan-hongkong",
-    "name": "Korea, Taiwan and Hong Kong: eight days worth cloning",
-    "description": "Palace mornings and market crawls in Seoul, a Busan day that ends on the sand, a Taipei day that starts in a hot spring, the two Taiwanese days that need a driver and a 4am train, and Hong Kong twice — once for six dollars, once for two thousand.",
+    "name": "Korea and Taiwan: four days worth cloning",
+    "description": "Two Seoul days — palace mornings in hanbok, and a Gwangjang food crawl that ends in a 24-hour bathhouse — plus a Busan day from the fish market to the sand, and a Taipei day of hot springs, Yongkang Street and a night market. FOUR days, not eight: this bundle was truncated when the process writing it was killed, and the four that survived are complete and were kept rather than padded out. The Taroko, Alishan and Hong Kong days it was meant to carry do not exist — they are the obvious additions if this bundle is ever extended.",
     "origin": "ai",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
-      "https://www.royalpalace.go.kr/",
-      "https://english.visitkorea.or.kr/",
-      "https://english.visitseoul.net/",
-      "https://www.visitbusan.net/en/",
-      "https://english.seoul.go.kr/",
-      "https://www.letskorail.com/",
-      "https://www.travel.taipei/en",
-      "https://www.taroko.gov.tw/en",
-      "https://recreation.forest.gov.tw/en",
-      "https://afrch.forest.gov.tw/EN",
-      "https://www.railway.gov.tw/tra-tip-web/tip",
-      "https://en.thsrc.com.tw/",
-      "https://www.dintaifung.com.tw/en/",
-      "https://www.discoverhongkong.com/eng/index.html",
-      "https://www.starferry.com.hk/en/",
-      "https://www.thepeak.com.hk/en",
-      "https://www.octopus.com.hk/en/consumer/index.html",
-      "https://www.mtr.com.hk/en/customer/main/",
-      "https://www.lcsd.gov.hk/en/parks/",
-      "https://guide.michelin.com/en/kr/seoul-capital-area/seoul/restaurants",
-      "https://guide.michelin.com/en/hong-kong-region/hong-kong/restaurants",
-      "https://www.fourseasons.com/hongkong/dining/restaurants/caprice/"
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (palace closure days, opening and last-admission times, market hours, hanbok entry rules) were checked against the official sources listed below for 4 of 4 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
+      "STILL UNVERIFIED at 2026-09-06: Bukchon managed-zone visiting hours; Ikseon-dong and Euljiro nogari alley hours; Mosu Seoul and Zest booking rules; Seomyeon gukbap alley opening; BIFF Square, Huinnyeoul, Millak and Gwangalli hours; the Din Tai Fung Xinyi closure and Yongkang alternatives; Smoothie House mango season; Chiang Kai-shek Memorial Hall hours and honour-guard timing. Leeum, Dragon Hill Spa, Jagalchi, Gamcheon and Raohe hours were confirmed by search but from aggregator pages, not a first-party site.",
+      "https://english.visitseoul.net/attractions/Gyeongbokgung/ENP000072",
+      "https://english.visitkorea.or.kr/svc/contents/contentsView.do?vcontsId=87740",
+      "https://english.visitseoul.net/attractions/2024-cdggarden/ENPl8f5md",
+      "https://english.visitseoul.net/PalaceArea/A-journey-through-time-in-Tongin-Market_/33192",
+      "https://english.visitseoul.net/shopping/Gwangjang-Market/ENP000286",
+      "https://www.travel.taipei/en/attraction/details/713",
+      "https://www.travel.taipei/en/media/audio-guide/details/64"
     ],
     "generatedAt": "2026-09-06"
   },
@@ -75,7 +61,7 @@
             "amountMinor": 2250,
             "currency": "USD"
           },
-          "notes": "Take the full-day rate (about 30,000 won), not the four-hour one — four hours runs out somewhere between the two palaces, and the hanbok is the thing that makes both gates free. Pick a proper full-length outfit; the novelty 'fusion' dresses get turned away at the ticket window as not counting. Most shops store your bag and pin your hair for a few thousand won more, which is worth it because you cannot carry a daypack in this."
+          "notes": "Take the full-day rate (about 30,000 won), not the four-hour one — four hours runs out somewhere between the two palaces, and the hanbok is the thing that makes both gates free. Pick a proper full-length outfit; the novelty 'fusion' dresses get turned away at the ticket window as not counting. Most shops store your bag and pin your hair for a few thousand won more, which is worth it because you cannot carry a daypack in this. Verified 2026-09-06: the hanbok free-entry rule still stands — visitors wearing hanbok enter Gyeongbokgung free (adult ticket otherwise 3,000 won). It covers the palace grounds only; it does NOT cover the separately ticketed Huwon tour at Changdeokgung."
         },
         {
           "title": "Gyeongbokgung from the 09:00 opening, then the guard change",
@@ -96,7 +82,7 @@
             "amountMinor": 0,
             "currency": "USD"
           },
-          "notes": "Closed Tuesdays, and that one fact breaks the entire day — check the weekday before you plan anything else. Entry is 3,000 won, or free in hanbok, which is the whole reason the rental comes first. At the opening bell walk hard LEFT to Gyeonghoeru and the Hyangwonjeong pond: every tour group turns right for the throne hall, and the water sits empty for twenty minutes. Then come back out to Gwanghwamun for the Sumunjang changing of the guard at 10:00 — it repeats at 14:00, and does not run on Tuesdays either."
+          "notes": "Closed Tuesdays, and that one fact breaks the entire day — check the weekday before you plan anything else. Entry is 3,000 won, or free in hanbok, which is the whole reason the rental comes first. At the opening bell walk hard LEFT to Gyeonghoeru and the Hyangwonjeong pond: every tour group turns right for the throne hall, and the water sits empty for twenty minutes. Then come back out to Gwanghwamun for the Sumunjang changing of the guard at 10:00 — it repeats at 14:00, and does not run on Tuesdays either. Verified 2026-09-06: closed Tuesdays (if a Tuesday is a public holiday it closes the next business day instead). Opens 09:00 year-round; closing is seasonal — Jan–Feb 17:00, Mar–May 18:00, Jun–Aug 18:30, Sep–Oct 18:00, Nov–Dec 17:00 — with last admission one hour before closing. Adult 3,000 won, free in hanbok. Sumunjang changing of the guard 10:00 and 14:00, Wednesday to Monday."
         },
         {
           "title": "Bukchon, but the lanes nobody polices",
@@ -136,7 +122,7 @@
             "amountMinor": 750,
             "currency": "USD"
           },
-          "notes": "Upstairs at the info counter you buy an empty brass lunch tin and ten brass yeopjeon coins for 5,000 won, then walk the aisle filling it a coin at a time — tteokbokki, jeon, fried things — and eat at the communal tables. The coin cafe is closed Mondays. Rice and soup are cash, not coins, which is the bit that trips everyone up at the first stall."
+          "notes": "Upstairs at the info counter you buy an empty brass lunch tin and ten brass yeopjeon coins for 5,000 won, then walk the aisle filling it a coin at a time — tteokbokki, jeon, fried things — and eat at the communal tables. The coin cafe is closed Mondays. Rice and soup are cash, not coins, which is the bit that trips everyone up at the first stall. Verified 2026-09-06: the market itself runs about 07:00–21:00, but the dosirak coin cafe on the second floor only serves roughly 11:00–16:00 and the coin exchange window closes earlier still (about 14:30), so the 11:55 slot works and a late lunch does not. Closed Mondays; some listings also give the third Sunday of the month. One correction: the tray is plastic, only the yeopjeon coins are brass."
         },
         {
           "title": "Changdeokgung, and the Secret Garden ticket you must have already bought",
@@ -157,7 +143,7 @@
             "amountMinor": 500,
             "currency": "USD"
           },
-          "notes": "Closed Mondays — which, with Gyeongbokgung shut on Tuesdays, means this day only works Wednesday to Sunday. Hanbok gets you into the palace free but NOT into Huwon: the Secret Garden is a separate 5,000 won timed, guided, capped ticket, and the English-language slots go first. Book it on the palace website up to six days ahead; the small same-day allocation at the gate is gone before 10:00."
+          "notes": "Closed Mondays — which, with Gyeongbokgung shut on Tuesdays, means this day only works Wednesday to Sunday. Hanbok gets you into the palace free but NOT into Huwon: the Secret Garden is a separate 5,000 won timed, guided, capped ticket, and the English-language slots go first. Book it on the palace website up to six days ahead; the small same-day allocation at the gate is gone before 10:00. Verified 2026-09-06: closed Mondays (opening instead on a holiday Monday and closing the next non-holiday day), so the Wednesday-to-Sunday rule above holds. Palace 09:00 to 18:00 Sep–Oct (18:30 Jun–Aug, 17:30 Nov–Jan), last admission an hour before. Huwon is guided-only and capped at 100 per session — 50 sold online from 10:00 exactly six days ahead, 50 at the gate on the day — 5,000 won on top of the palace ticket, and hanbok does not cover it."
         },
         {
           "title": "Ikseon-dong, one turn off the main strip",
@@ -267,7 +253,7 @@
             "amountMinor": 1870,
             "currency": "USD"
           },
-          "notes": "Jongno 5-ga exit 8, on a weekday before noon — many stalls take Sunday off and the whole place is unusable after 18:00. The central aisle nearest the exit is the tourist gauntlet; the yukhoe alley on the north side is where Seoul actually eats, and raw beef with a raw egg yolk and sesame oil at 11am is better than it sounds. Ask the price and check the posted board before you sit: the market got publicly hammered in 2024 for short-weighing tourists, and prices are now displayed precisely so you can point at them. One mung bean pancake feeds two. Cash or a Korean transfer."
+          "notes": "Jongno 5-ga exit 8, on a weekday before noon — many food stalls take Sunday or Monday off. The central aisle nearest the exit is the tourist gauntlet; the yukhoe alley on the north side is where Seoul actually eats, and raw beef with a raw egg yolk and sesame oil at 11am is better than it sounds. Ask the price and check the posted board before you sit: the market got publicly hammered in 2024 for short-weighing tourists, and prices are now displayed precisely so you can point at them. One mung bean pancake feeds two. Cash or a Korean transfer. Verified 2026-09-06: the dry-goods and textile halls run about 08:30–18:00 and the fabric and hanbok vendors close Sundays, while the food alley itself is open daily until roughly 23:00 — so the evening is not shut, it is simply a drinking crowd rather than an eating one. The 10:15 weekday slot is still the right one for the yukhoe and bindaetteok stalls."
         },
         {
           "title": "Line 1 down to Yongsan",
@@ -305,7 +291,7 @@
             "amountMinor": 1270,
             "currency": "USD"
           },
-          "notes": "Out of Yongsan station, cross the plaza, it is the enormous pagoda-looking thing — open 24 hours, about 17,000 won for a day pass. The wristband they give you is your locker key and your tab: everything inside is charged to it and you settle on the way out. Rules that matter: shower and scrub thoroughly before you get into any tub, the bathing floors are nude and single-sex, the cotton shorts and tee are the uniform for the mixed floors upstairs, and no swimsuits anywhere. Baked eggs and a cold sikhye in the salt room is the canonical order. Tattoos are not an issue here, which is not true of every jjimjilbang."
+          "notes": "Out of Yongsan station, cross the plaza, it is the enormous pagoda-looking thing — open 24 hours, about 12,000 won for a day pass before 20:00 and 14,000 won at night, weekends and holidays. The wristband they give you is your locker key and your tab: everything inside is charged to it and you settle on the way out. Rules that matter: shower and scrub thoroughly before you get into any tub, the bathing floors are nude and single-sex, the cotton shorts and tee are the uniform for the mixed floors upstairs, and no swimsuits anywhere. Baked eggs and a cold sikhye in the salt room is the canonical order. Tattoos are not an issue here, which is not true of every jjimjilbang. Verified 2026-09-06: open 24/7, so the 12:30 arrival needs no booking; entry 12,000 won daytime (05:00–20:00) and 14,000 won 20:00–05:00 and at weekends. The cost on this stop is the pass plus what you charge to the wristband inside, not the pass alone."
         },
         {
           "title": "Leeum, because the permanent collection is free",
@@ -324,7 +310,7 @@
             "amountMinor": 0,
             "currency": "USD"
           },
-          "notes": "Closed Mondays. The permanent collection — the celadon and the Joseon painting in the Mario Botta rotunda — has been free since 2021, but you still need to reserve a timed slot on their site, and evening slots go last so book that morning. It is a genuinely steep ten minutes uphill from Hangang-jin exit 1, and it puts you a five-minute walk from dinner."
+          "notes": "Closed Mondays. The permanent collection — the celadon and the Joseon painting in the Mario Botta rotunda — has been free since 2021, but you still need to reserve a timed slot on their site, and evening slots go last so book that morning. It is a genuinely steep ten minutes uphill from Hangang-jin exit 1, and it puts you a five-minute walk from dinner. Verified 2026-09-06: closed Mondays and on Seollal, Chuseok and New Year's Day; open 10:00–18:00 with LAST ENTRY 17:30. The 16:20 arrival is fine, but anything later than 17:30 is not, so this stop cannot slip. The permanent collection is still free with a reserved timed slot."
         },
         {
           "title": "The counter at Mosu Seoul",
@@ -446,7 +432,7 @@
             "amountMinor": 150,
             "currency": "USD"
           },
-          "notes": "Buy the 2,000 won stamp map at the information centre at the top — it is the only way to make sense of the lanes, and the stamps get you a printed photo at the end. Do the Little Prince statue first: the queue for that bench is over half an hour by 11:00 and non-existent at 09:45. Then abandon the marked route and walk the back lanes downhill. This is a real neighbourhood built by refugees in the 1950s; the alleys shaded red on the map are private front doors, not a shortcut."
+          "notes": "Buy the 2,000 won stamp map at the information centre at the top — it is the only way to make sense of the lanes, and a completed set of stamps gets you two postcards at the end. Do the Little Prince statue first: the queue for that bench is over half an hour by 11:00 and non-existent at 09:45. Then abandon the marked route and walk the back lanes downhill. This is a real neighbourhood built by refugees in the 1950s; the alleys shaded red on the map are private front doors, not a shortcut. Verified 2026-09-06: the village is free to enter and has no gate, but the marked route and the information centre that sells the 2,000 won stamp map run 09:00–18:00 March–October and 09:00–17:00 November–February. The 09:45 start is right at opening, which is the point — but in winter it means the map counter shuts at 17:00."
         },
         {
           "title": "Pick it downstairs, eat it upstairs at Jagalchi",
@@ -467,7 +453,7 @@
             "amountMinor": 3360,
             "currency": "USD"
           },
-          "notes": "Closed the first and third Tuesday of the month — the single thing that ruins this day. The system: choose your fish from a tank on the ground floor, agree the price BEFORE it comes out of the water, then carry it upstairs where a restaurant charges a per-person cooking fee (around 10,000 won) for the banchan, the sesame leaves and the maeuntang they make from the frame afterwards. Every upstairs room charges roughly the same, so pick the one with locals in it. Flatfish and abalone are the safe order; the live octopus is a texture decision, not a flavour one."
+          "notes": "Closed the first and third Tuesday of the month — the single thing that ruins this day. The system: choose your fish from a tank on the ground floor, agree the price BEFORE it comes out of the water, then carry it upstairs where a restaurant charges a per-person cooking fee (around 10,000 won) for the banchan, the sesame leaves and the maeuntang they make from the frame afterwards. Every upstairs room charges roughly the same, so pick the one with locals in it. Flatfish and abalone are the safe order; the live octopus is a texture decision, not a flavour one. Verified 2026-09-06: the closure is real — first and third Tuesday of every month. On any other day the market runs roughly 05:00–22:00, so the 12:15 lunch slot is safe."
         },
         {
           "title": "Seed-stuffed hotteok at BIFF Square",
@@ -557,8 +543,8 @@
     },
     {
       "key": "taipei-beitou-yongkang-elephant-raohe",
-      "name": "Taipei: a Beitou soak, Yongkang lunch, Elephant Mountain at dusk, Raohe at night",
-      "summary": "Sulphur at nine, soup dumplings at noon, the skyline at golden hour from a staircase, and a pepper bun straight out of a clay oven — one MRT card, about thirty-five dollars.",
+      "name": "Taipei: Beitou sulphur, Yongkang lunch, Elephant Mountain at dusk, Raohe at night",
+      "summary": "Sulphur at nine — the free public pool is shut for renovation, so the soak has to be a paid indoor bath — soup dumplings at noon, the skyline at golden hour from a staircase, and a pepper bun straight out of a clay oven.",
       "ownerId": "dev-kenji",
       "visibility": "public",
       "keptOn": "2025-11-08T09:00:00.000Z",
@@ -594,28 +580,28 @@
             "amountMinor": 110,
             "currency": "USD"
           },
-          "notes": "Xinbeitou is not on the main red line — get off at Beitou and cross the platform to the little two-car shuttle that runs one stop up the valley; one of its carriages is fitted out as a hot-spring themed train. Buy an EasyCard at any MTR customer service window for NT$100 and top it up at any 7-Eleven: it pays for the metro, buses, the gondola, lockers and most convenience stores, and it gives you a fare discount over single tickets."
+          "notes": "Xinbeitou is not on the main red line — get off at Beitou and cross the platform to the little two-car shuttle that runs one stop up the valley; one of its carriages is fitted out as a hot-spring themed train. Buy an EasyCard at any Taipei MRT customer service window for NT$100 and top it up at any 7-Eleven: it pays for the metro, buses, the gondola, lockers and most convenience stores, and it gives you a fare discount over single tickets."
         },
         {
-          "title": "The Millennium public hot spring",
+          "title": "The Millennium public pool is CLOSED — soak indoors or skip the soak",
           "timeWindow": {
             "start": "09:10",
             "end": "10:40"
           },
           "location": {
-            "name": "Beitou Millennium Hot Spring",
+            "name": "Beitou Park hot spring area and Beitou Hot Spring Museum",
             "city": "Taipei",
             "area": "Beitou"
           },
-          "kind": "planned",
+          "kind": "booked",
           "tags": [
             "outdoors"
           ],
           "cost": {
-            "amountMinor": 190,
+            "amountMinor": 1500,
             "currency": "USD"
           },
-          "notes": "About NT$60 and it is a public bath, not a private onsen: swimsuit AND swim cap are compulsory, and they sell neither cheaply at the door, so bring both. It runs in timed sessions with the pools cleared and refilled between them, so arrive at the start of one rather than halfway through. The terraces step downhill from hottest to coldest — start at the bottom, because the top pool is genuinely 42-45C and people misjudge it. Lockers take coins."
+          "notes": "THIS STOP DOES NOT WORK AS ORIGINALLY WRITTEN. Verified 2026-09-06: the Beitou Park Outdoor Hot Spring Bathing Pool — the NT$60 \"Millennium\" public bath this day was built around — has been closed for renovation since 24 January 2025. It was first due back in February 2026; the Taipei Parks and Street Lights Office moved completion to 26 September 2026 and says the reopening date will be announced separately, so it is shut on any trip planned from today and you should re-check travel.taipei before assuming otherwise. Two ways to keep the morning: (a) book a paid indoor bath — a private hot spring room at one of the Beitou bathhouses or hotels, or one of the old public indoor tubs — which now needs arranging ahead rather than walking up with NT$60 and a swim cap; or (b) drop the soak and spend the slot on the Beitou Hot Spring Museum, the restored 1913 Japanese bathhouse five minutes from Xinbeitou station, free, closed Mondays, open roughly 09:00-17:00 (some listings say 10:00-18:00, so check on the day). The USD figure on this stop is a model estimate for a paid indoor bath, NOT a verified price — the only verified price here, NT$60, belongs to a pool you cannot use. If you do find a public pool open, the old rules applied: swimsuit and swim cap compulsory and not cheaply sold at the door, timed sessions with the pools cleared between them, terraces stepping downhill from about 42-45C, coin lockers."
         },
         {
           "title": "Ten minutes at the Thermal Valley",
@@ -634,7 +620,7 @@
             "amountMinor": 0,
             "currency": "USD"
           },
-          "notes": "Free, closed Mondays, and honestly ten minutes long — a jade-green sulphur lake steaming at about 90C, which is why nobody bathes in it and why the bathhouses downhill have water at all. Worth the detour only because it is four minutes' walk from the baths you have just left."
+          "notes": "Free, closed Mondays, and honestly ten minutes long — a jade-green sulphur lake steaming at about 90C, which is why nobody bathes in it and why the bathhouses downhill have water at all. Worth the detour only because it is four minutes' walk from the baths you have just left. Verified 2026-09-06: free, closed Mondays for cleaning (unless the Monday is a public holiday), open 09:00–17:00, extended to 18:00 from 15 May to 14 September. The 10:50 slot sits inside that window all year. With the public bath shut this is the main free thing left in Beitou, so it is no longer optional filler."
         },
         {
           "title": "Xiaolongbao on Yongkang Street, the sensible way",
@@ -737,7 +723,7 @@
             "amountMinor": 1250,
             "currency": "USD"
           },
-          "notes": "Songshan station exit 5 puts you at the Ciyou Temple gate, which is the end you want: the black pepper bun stall is the first thing on the right and the queue moves fast because they come out of a clay tandoor in batches. Wait five minutes before biting one — the pork and spring onion inside is molten. Then walk the middle third for the medicinal spare rib soup and the taro balls, ignore the games and the phone cases, and turn round at the far gate rather than doubling the length. One straight street, no branches, so nobody gets lost."
+          "notes": "Songshan station exit 5 puts you at the Ciyou Temple gate, which is the end you want: the black pepper bun stall is the first thing on the right and the queue moves fast because they come out of a clay tandoor in batches. Wait five minutes before biting one — the pork and spring onion inside is molten. Then walk the middle third for the medicinal spare rib soup and the taro balls, ignore the games and the phone cases, and turn round at the far gate rather than doubling the length. One straight street, no branches, so nobody gets lost. Verified 2026-09-06: the market runs about 17:00–23:00, with some stalls to midnight — but only around half of them are up at 17:00, so the 18:40 arrival is the right one, not a compromise. Individual stalls take their own days off."
         }
       ]
     }
