@@ -448,6 +448,71 @@ def flag_outliers(db: sqlite3.Connection, km: float = 60.0) -> list[tuple[str, s
 # The run loop
 # ---------------------------------------------------------------------------
 
+class Progress:
+    """A live status line, so a long run never looks hung.
+
+    **On a terminal this rewrites ONE line on every single request**, naming the
+    place currently in flight — because the silence between updates is the thing
+    that makes somebody kill a working job. At Nominatim's courteous 1.1s that
+    silence was 27 seconds with the old every-25-requests reporting, which is
+    well past the point where a reasonable person assumes it has hung.
+
+    **Piped to a file it degrades to periodic newlines instead**, because a log
+    full of carriage returns is unreadable and `tail -f` on it is worse. So
+    `python3 scripts/geocode-content.py | tee run.log` still produces something
+    you can read afterwards.
+    """
+
+    def __init__(self, total_run: int, outstanding: int, grand: int, every: int):
+        self.total_run = total_run
+        self.outstanding = outstanding
+        self.grand = grand
+        self.every = max(1, every)
+        self.started = time.monotonic()
+        self.tty = sys.stdout.isatty()
+        self.width = 0
+
+    def line(self, done_all: int, processed: int, label: str) -> str:
+        head = (f"  {done_all}/{self.grand} settled · "
+                f"{processed}/{self.total_run} this run")
+        # A rate computed from one or two samples is nonsense — the first tick
+        # divides by a near-zero elapsed and claims thousands per minute, which
+        # reads as a bug rather than as a warm-up. Say nothing until the average
+        # means something.
+        elapsed = time.monotonic() - self.started
+        if processed >= 3 and elapsed > 0:
+            rate = processed / elapsed
+            eta = max(self.outstanding - processed, 0) / rate
+            eta_s = f"{eta / 60:.0f}m" if eta < 5400 else f"{eta / 3600:.1f}h"
+            head += f" · {rate * 60:.0f}/min · ~{eta_s} left"
+        return f"{head} · {label}"
+
+    def tick(self, done_all: int, processed: int, label: str) -> None:
+        text = self.line(done_all, processed, label)
+        if self.tty:
+            # Pad to erase the previous, longer line rather than leaving its tail
+            # behind — a half-overwritten place name reads as corruption.
+            padded = text[:150].ljust(self.width)
+            self.width = max(len(text[:150]), 0)
+            sys.stdout.write("\r" + padded)
+            sys.stdout.flush()
+        elif processed % self.every == 0 or processed == self.total_run:
+            print(text, flush=True)
+
+    def interrupt(self, message: str) -> None:
+        """Print something that must survive, without the status line eating it."""
+        if self.tty:
+            sys.stdout.write("\r" + " " * self.width + "\r")
+            self.width = 0
+        print(message, flush=True)
+
+    def done(self) -> None:
+        if self.tty and self.width:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            self.width = 0
+
+
 class Stopping:
     """SIGINT/SIGTERM sets a flag; the loop finishes its current write and exits.
 
@@ -492,7 +557,7 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
               "quota, never a faster rate")
     print(f"  {len(todo)} this run · {total_remaining} outstanding · {grand} places total\n")
 
-    started = time.monotonic()
+    progress = Progress(len(todo), total_remaining, grand, args.progress_every)
     backoff = provider.min_interval
     processed = 0
 
@@ -520,15 +585,16 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
             # Not a backoff: waiting will not help until midnight. Move to the
             # next key if there is one, and otherwise stop cleanly so the next
             # run picks up here tomorrow.
+            progress.done()
             if not provider.keys.retire(str(exc)[:60]):
-                print("\n  every key is out of requests for the day. "
+                print("  every key is out of requests for the day. "
                       "Re-run tomorrow — the queue resumes where it stopped.")
                 break
             continue
         except RateLimited as exc:
             wait = exc.retry_after or min(backoff * 2, args.max_backoff)
             backoff = min(max(wait, provider.min_interval * 2), args.max_backoff)
-            print(f"  · rate limited — sleeping {wait:.0f}s ({query[:50]})", flush=True)
+            progress.interrupt(f"  · rate limited — sleeping {wait:.0f}s ({query[:50]})")
             db.execute(
                 "update places set attempts=attempts+1, last_error=?, updated_at=? where key=?",
                 ("rate limited", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), key),
@@ -555,21 +621,16 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
 
         processed += 1
         done_all += 1 if status != "failed" else 0
-        if processed % args.progress_every == 0 or processed == len(todo):
-            elapsed = time.monotonic() - started
-            rate = processed / elapsed if elapsed else 0
-            left = total_remaining - processed
-            eta = left / rate if rate else 0
-            print(
-                f"  {done_all}/{grand} settled · {processed} this run · "
-                f"{rate * 60:.0f}/min · ~{eta / 60:.0f} min left",
-                flush=True,
-            )
+        # Every request, not every 25th: see `Progress`. The label is the place
+        # that just resolved, so the line moves visibly even when the counters
+        # do not.
+        progress.tick(done_all, processed, f"{status:9s} {query[:52]}")
 
         # Jitter, so a restarted run does not march in lockstep with whatever
         # else is hitting the same endpoint.
         time.sleep(backoff + random.uniform(0, 0.25))
 
+    progress.done()
     if len(provider.keys.keys) > 1:
         print(f"  requests per key — {provider.keys.summary()}")
     print()
@@ -690,7 +751,9 @@ def main() -> None:
     ap.add_argument("--max-requests", type=int, help="stop after this many lookups this run")
     ap.add_argument("--max-attempts", type=int, default=4, help="give up on a place after this many tries")
     ap.add_argument("--max-backoff", type=float, default=300.0, help="longest sleep after a 429")
-    ap.add_argument("--progress-every", type=int, default=25, help="print a progress line every N lookups")
+    ap.add_argument("--progress-every", type=int, default=10,
+                    help="when output is piped to a file, print a line every N lookups "
+                         "(on a terminal the status line updates every request regardless)")
     args = ap.parse_args()
 
     db = connect()
