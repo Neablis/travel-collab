@@ -185,11 +185,49 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     // a renderer that put both leads in one row still satisfies (CodeRabbit,
     // PR 139); asserting the container's classes instead is what the
     // test-quality wall forbids. The roles make row cardinality a real query.
+    // A repeat is a TABLE: a label column and a value column, in a bordered
+    // card, with the total row set apart. Mitchell, 2026-09-06: *"These were
+    // always meant to be tables with columns, and styled … just build it, no
+    // need for a ADR."*
+    //
+    // **`display: table` on spans, not `<table>`.** The reason is the one two
+    // paragraphs up: a widget node is inline and lives inside a `<p>`, so a
+    // `<table>` would be closed out of the paragraph by the parser exactly as a
+    // `<div>` is, and hydration would disagree with the server. The CSS display
+    // types give real column alignment — which is the whole point of a table
+    // here — with no block element anywhere. `.tc-widget-table` and its two
+    // children carry them (globals.css).
+    //
+    // The ARIA roles do the same job they did as a list: the tags cannot carry
+    // the semantics, so the roles do. `role="rowheader"` on the lead is what
+    // says which cell names the row.
     case "rows":
       return (
-        <span role="list" className="flex flex-col gap-0.5">
-          {rendered.rows.map((segs, i) => (
-            <span role="listitem" key={i} className="flex flex-wrap items-baseline gap-x-2"><Segs segs={segs} accents={accents} /></span>
+        <span role="table" className="tc-widget-table my-1 block overflow-hidden rounded-md border border-hairline bg-surface">
+          {rendered.rows.map((row, i) => (
+            <span
+              role="row"
+              key={i}
+              className={cn(
+                "tc-widget-row",
+                // Separators between rows, never above the first: a rule under
+                // the last row would double with the card's own border.
+                i > 0 && "border-t border-hairline",
+                row.kind === "total" && "bg-moss font-semibold text-ink",
+              )}
+            >
+              <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left align-baseline">
+                <Segs segs={row.lead} accents={accents} />
+              </span>
+              {/* A header row names a group and has no value of its own; it
+                  spans both columns rather than leaving an empty cell that
+                  reads as a missing number. */}
+              {row.kind === "header" ? null : (
+                <span role="cell" className="tc-widget-cell px-3 py-2 text-right align-baseline">
+                  <Segs segs={row.values} accents={accents} />
+                </span>
+              )}
+            </span>
           ))}
         </span>
       );

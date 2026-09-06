@@ -17,8 +17,18 @@ import { formatMoney, formatDate } from "../../format";
 // `city.rows` the lead IS the resolved value, and `RepeatValue` is what lets one
 // renderer say so.
 const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.name, v.text));
+// Cells, not one flattened line. `RepeatRow` has always carried `{ lead,
+// values }` and this seam used to throw the boundary away — which is why a
+// table looked like it needed a new cell model when it only needed the one
+// already upstream. See `RenderedRow`.
 const renderRows = (payload: RepeatPayload) =>
-  rowsOf(payload.rows.map((row) => [segOf(row.lead), ...row.values.map(segOf)]));
+  rowsOf(
+    payload.rows.map((row) => ({
+      lead: [segOf(row.lead)],
+      values: row.values.map(segOf),
+      ...(row.kind === undefined ? {} : { kind: row.kind }),
+    })),
+  );
 
 const DAY_ROWS_FILTERS = ["day", "city", "dates"] as const satisfies readonly FilterDimension[];
 const DayRowsParams = filterParams(DAY_ROWS_FILTERS);
@@ -124,12 +134,17 @@ type StopRowsParams = z.infer<typeof StopRowsParams>;
 // The header a group of stops sits under: a row whose lead is a label and whose
 // values are empty, which `renderRows` turns into a single text segment.
 //
-// A header is a row rather than a field on `RepeatRow` because `Rendered.rows`
-// is `Seg[][]` — a repeat renders N lines and `MacroView` maps them to
-// `role="listitem"` spans. Giving `RepeatRow` a `kind` would push a grouping
-// concept through the render seam and into `apps/web` for one widget's benefit;
-// a label-only line is the same thing said with what already exists.
-const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), values: [] });
+// A header is a row AND carries `kind: "header"`, as of 2026-09-06.
+//
+// This comment used to argue the opposite — that giving `RepeatRow` a `kind`
+// "would push a grouping concept through the render seam and into `apps/web`
+// for one widget's benefit", and that a label-only line said the same thing
+// with what already existed. That held while a repeat rendered as a list of
+// lines. It stopped holding when Mitchell asked for the table these were
+// always meant to be: a renderer that must not put a group header in the
+// value column has to know which rows are headers, and "its values array is
+// empty" is the guess that reasoning was avoiding, not an answer.
+const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), values: [], kind: "header" });
 
 /**
  * `stop.rows` — one line per stop: when it is, and what it cost.
@@ -245,7 +260,11 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
     if (unscheduled !== 0) {
       rows.push({ lead: rowLabel("Unscheduled"), values: [rowValue(formatMoney(unscheduled, trip.currency))] });
     }
-    rows.push({ lead: rowLabel("Total"), values: [rowValue(formatMoney(total, trip.currency))] });
+    rows.push({
+      lead: rowLabel("Total"),
+      values: [rowValue(formatMoney(total, trip.currency))],
+      kind: "total",
+    });
     return ok({ kind: "repeat-rows", rows });
   },
   render: renderRows,

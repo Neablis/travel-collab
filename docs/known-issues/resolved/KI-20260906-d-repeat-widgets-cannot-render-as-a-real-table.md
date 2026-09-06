@@ -1,4 +1,37 @@
-### KI-2026-09-06-d — a repeat widget cannot render as a real table: it is an inline node, and its rows have no columns
+### KI-2026-09-06-d — RESOLVED 2026-09-06 — repeat widgets render as tables
+
+**Resolved by Mitchell's decision, same day:** *"These were always meant to be
+tables with columns, and styled, attaching design, just build it, no need for a
+ADR."*
+
+Both blockers below turned out to be answerable without the ADR this entry
+asked for, and the second one was **wrong**:
+
+1. **The inline-node blocker is real and was routed around, not removed.** A
+   `<table>` inside a `<p>` still breaks hydration exactly as `<div>` does. The
+   table is built from `display: table` / `table-row` / `table-cell` on spans
+   (`.tc-widget-table`, globals.css) with `role="table"/"row"/"rowheader"/"cell"`
+   carrying the semantics the tags cannot. Real column alignment, no block
+   element.
+2. **The "no cell model" blocker was a mistake in this entry.** The cell model
+   already existed: `RepeatRow` has always been `{ lead, values }`. It was the
+   RENDER SEAM that threw the boundary away — `renderRows` flattened it to
+   `Seg[]` — so the columns looked absent when they were only discarded one
+   step before use. Preserving the split (`RenderedRow`) was a change to one
+   shared function, not a new concept in the document.
+
+`RepeatRow.kind` was added for `"header" | "total"`, which `rows.ts`'s own
+comment had argued against; that comment is corrected in place. The argument
+held while a repeat was a list of lines and stopped holding the moment a
+renderer had to keep a group header out of the value column.
+
+The original entry follows, including the reasoning that was wrong, because the
+mistake is the useful part: *a missing model and a discarded one look identical
+from the far side of a seam.*
+
+---
+
+### (original) a repeat widget cannot render as a real table: it is an inline node, and its rows have no columns
 
 - **Severity:** design gap. The rows render correctly; they do not render as the design's table.
 - **Area:** `apps/web/src/components/pages/MacroView.tsx:188-195` (the `rows` case); `packages/pages/src/macros/primitives/rows.ts:124-133` (`Rendered.rows` as `Seg[][]`, and the recorded refusal to widen it).

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
@@ -171,11 +171,38 @@ describe("MacroView", () => {
       // that both labels appear somewhere passes for a renderer that duplicates
       // a row or puts both leads in one (CodeRabbit, PR 139) — which is exactly
       // the bug "one line per day" is the claim about.
-      const rows = screen.getAllByRole("listitem");
+      // `row`, not `listitem`, since 2026-09-06 — a repeat renders as a table
+      // now. The claim is unchanged: one row per day, each carrying its own
+      // lead.
+      const rows = screen.getAllByRole("row");
       expect(rows).toHaveLength(2);
       expect(rows[0]!.textContent).toContain("Day 1");
       expect(rows[1]!.textContent).toContain("Day 2");
       expect(rows[0]!.textContent).not.toContain("Day 2");
+    });
+
+    // Mitchell, 2026-09-06: "These were always meant to be tables with columns,
+    // and styled ... just build it, no need for a ADR."
+    it("puts the lead in its own column and the values in another", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="cost.rows" params={{}} />);
+
+      const table = screen.getByRole("table");
+      expect(table).toBeTruthy();
+      // A row header names the row; the value cell carries the money. Flattened
+      // into one line — which is what this used to be — neither exists.
+      const leads = screen.getAllByRole("rowheader");
+      expect(leads.length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("cell").length).toBeGreaterThan(0);
+    });
+
+    it("ends on a total row, and says so structurally", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="cost.rows" params={{}} />);
+      const rows = screen.getAllByRole("row");
+      // `cost.rows` always appends a total. It is the last row, and it is a
+      // real row with both columns rather than a line of prose.
+      const last = rows[rows.length - 1]!;
+      expect(last.textContent).toContain("Total");
+      expect(within(last).getByRole("cell").textContent).not.toBe("");
     });
   });
 

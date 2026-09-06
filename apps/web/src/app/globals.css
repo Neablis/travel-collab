@@ -245,6 +245,36 @@
       --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));
     }
   }
+  /* A repeat widget's table (MacroView's `rows` case, 2026-09-06).
+
+     `display: table` on spans rather than a real `<table>`, and that is a
+     constraint rather than a preference: a widget node is an inline atom
+     inside a `<p>`, and the HTML parser closes the paragraph at any block
+     element — `<table>` included — so the server's DOM and the client's would
+     disagree and hydration would fail. `MacroView`'s own comment records the
+     same problem being measured with `<div>`. The display types give the
+     column alignment that makes a table a table, with no block element.
+
+     `table-layout: auto` (the default) on purpose: the label column should
+     size to its content and the value column take the rest, which is what the
+     design's rows do. `width: 100%` so the card fills the paragraph. */
+  .tc-widget-table {
+    display: table;
+    width: 100%;
+    table-layout: auto;
+  }
+  .tc-widget-row {
+    display: table-row;
+  }
+  .tc-widget-cell {
+    display: table-cell;
+  }
+  /* A group header spans both columns — it names the rows under it and has no
+     value of its own, so a second cell would read as a missing number. */
+  .tc-widget-row > .tc-widget-cell:only-child {
+    text-align: left;
+  }
+
   .phone-tab-bar-inset {
     padding-bottom: var(--phone-tab-bar-height, 0px);
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
-import type { Seg, WidgetContext } from "../../registry-types";
+import type { Seg, WidgetContext, RenderedRow } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
 import { formatMoney } from "../../format";
 
@@ -21,7 +21,16 @@ function lines(ctx: WidgetContext, name: string, params: Record<string, unknown>
   if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") {
     throw new Error(`${name} did not render rows: ${outcome.status}`);
   }
-  return outcome.rendered.rows.map((segs: Seg[]) => segs.map((s) => s.text).join(" ").trim());
+  // Cells joined back into one string: these tests are about row CARDINALITY
+  // and content, not about which column a value landed in — `MacroView`'s own
+  // tests own the table shape. Reading them through the flattened text keeps
+  // them saying what they always said across the 2026-09-06 cell change.
+  return outcome.rendered.rows.map((row: RenderedRow) =>
+    [...row.lead, ...row.values]
+      .map((s) => s.text)
+      .join(" ")
+      .trim(),
+  );
 }
 
 describe("day.rows", () => {

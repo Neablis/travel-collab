@@ -234,7 +234,10 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     for (const entry of presetCatalog()) {
       const outcome = presetOutcome(entry);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
-      const segs = outcome.rendered.kind === "inline" ? outcome.rendered.segs : outcome.rendered.rows.flat();
+      const segs =
+        outcome.rendered.kind === "inline"
+          ? outcome.rendered.segs
+          : outcome.rendered.rows.flatMap((row) => [...row.lead, ...row.values]);
       inspected += segs.length;
       for (const seg of segs) expect(["text", "chip"]).toContain(seg.kind);
     }
