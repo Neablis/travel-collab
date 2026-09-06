@@ -1,9 +1,13 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status: eight fixed, two answered, two filed.** This file exists so Mitchell has a preview
-deployment to comment on and a place for those comments to land. Findings 1, 2,
-3 and 7 are fixed on this branch; 4, 5 and 6 are open and each needs a decision
-before anyone starts it — see their entries for why.
+**Status, as of 10:30: seventeen threads — fourteen fixed, two answered, one
+filed.** This file exists so Mitchell has a preview deployment to comment on
+and a place for those comments to land.
+
+The sections below are in the order they were written and each one's totals
+were true when it was written; the running total above is the one to read.
+Copilot caught the drift between them on PR 149. **Reconciliation** at the
+bottom of this file has the whole tally and what moved.
 
 ## Why this PR exists
 
@@ -560,3 +564,45 @@ protected still holds for the axis that still has one.
 `ghostRouteColor()` went with the behaviour it served: the neutral tone existed
 so a faint line would not still read as its day's colour, and nothing is faint
 any more.
+
+
+## Reconciliation, 10:30 — the running tally, and what moved after it was written
+
+Copilot, reviewing PR 149: *"These totals are stale relative to this diff …
+findings 5, 6, and 14 are now resolved, and thread 17 was added."* Correct, and
+15 has moved since as well. The sections above are a log and stay as written;
+this is the tally.
+
+| Outcome | Threads | Count |
+| ------- | ------- | ----- |
+| Fixed | 1 · 2 · 3 · 4 (+ the 06:55 correction) · 5 · 6 · 7 · 8 + 9 · 12 · 13 · 14 · 15 · 16 | 14 |
+| Answered, no code | 10 `timeline-ghost` (M9) · 11 `cost-estimate-state` (M19) | 2 |
+| Filed, still open | 17 → `KI-2026-09-06-g` | 1 |
+
+**Four of those fixed were filed first, and all four were unblocked by an
+answer rather than by effort.**
+
+- **5** (widget chrome inline) — `KI-2026-09-06-c`, resolved. Blocked on a
+  collision with ADR-037 open question 1, settled by Mitchell: *"I dont care
+  about always visible, people editing the one they are focusing on. Reveal on
+  hover/focus."*
+- **6** (repeat widgets as tables) — `KI-2026-09-06-d`, resolved. *"These were
+  always meant to be tables with columns … just build it, no need for a ADR."*
+  One of its two blockers turned out to be my own mistake: the cell model was
+  never missing, only discarded at the render seam.
+- **14** (keep-day pennant width) — `KI-2026-09-06-f`, resolved. *"Reserve the
+  width permanently."*
+- **15** (assistant sheet scroll-through) — `KI-2026-09-06-e`, resolved, and
+  the entry is worth reading rather than summarising: it records a claimed
+  reproduction that was wrong, and then a claimed NON-reproduction that was
+  also wrong. CI reproduced the defect on `2bcc8a4` after I had written that it
+  could not be reproduced.
+
+**Two of the review bots' findings on this PR were defects I had shipped in the
+course of fixing these**, and both are recorded where they happened rather than
+only here: the widget popover was hidden with `visibility: hidden`, which took
+its own controls out of the tab order and made the *focus* half of "reveal on
+hover/focus" unreachable; and the repeat table carried a Tailwind `block`
+utility that beat `.tc-widget-table`'s `display: table` in the cascade, so the
+table it was supposed to be was a shrink-to-fit box floating inside a
+full-width card. Both now have a walk that fails without the fix.

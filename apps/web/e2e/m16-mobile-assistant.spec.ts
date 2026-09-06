@@ -274,10 +274,35 @@ test.describe("mobile assistant (phone viewport)", () => {
   // one that runs off the end of the transcript, must not move the page behind.
   test("an open sheet does not let the plan behind it scroll", async ({ page }) => {
     await seedTrip(page);
+
+    // **The witness comes first, and the page is put back where it can move.**
+    // "The page did not move" is trivially true of a page that could not have
+    // moved, and this walk had TWO ways to be that: a fixture with no scroll
+    // range, and — the one that actually bit — a page already wheeled to its
+    // maximum by the probe meant to prove it scrolls. Locally the plan is only
+    // a few hundred pixels tall, so one 400px wheel pinned it at the bottom and
+    // the assertion below could not have failed however broken the lock was.
+    // CI, with a taller fixture, had room left and caught the real defect: 42
+    // to 442 with the sheet open. CodeRabbit flagged the vacuity on PR 149
+    // before CI proved it.
+    const scrollTop = () => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
+    const scrollRoom = () =>
+      page.evaluate(() => {
+        const el = document.scrollingElement;
+        return el === null ? 0 : el.scrollHeight - el.clientHeight;
+      });
+    // The gesture, at these coordinates, does move the plan.
+    await page.mouse.move(206, 120);
+    await page.mouse.wheel(0, 400);
+    await expect.poll(scrollTop, { message: "the plan does not scroll at all — this walk proves nothing" }).toBeGreaterThan(0);
+    // And there is somewhere left for it to go.
+    expect(await scrollRoom()).toBeGreaterThan(200);
+    await page.mouse.wheel(0, -4000);
+    await expect.poll(scrollTop).toBe(0);
+
     await askPill(page).click();
     await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
-    const scrollTop = () => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
     const before = await scrollTop();
 
     // A real wheel gesture, NOT `scrollingElement.scrollBy`. `overflow: hidden`

@@ -176,7 +176,14 @@ export function WidgetChrome({
               // `bg-surface` and a border because an overlay over text has to
               // be opaque to be readable — the "blocking the existing
               // elements" half of the request.
-              "absolute left-0 top-full z-20 mt-1 flex w-max max-w-full flex-wrap items-center gap-1 rounded-md border border-hairline bg-surface p-1 shadow-raised transition-opacity",
+              // **No `mt-1`.** A margin here is a gap that hit-tests as
+              // neither the widget nor the popover, so a pointer travelling
+              // from one to the other crosses dead space, `group-hover` drops,
+              // and the panel vanishes exactly as it is being reached. Copilot
+              // caught it on PR 149. The popover sits flush against the
+              // widget's bottom edge instead; its own border and shadow are
+              // what separate it.
+              "absolute left-0 top-full z-20 flex w-max max-w-full flex-wrap items-center gap-1 rounded-md border border-hairline bg-surface p-1 shadow-raised transition-opacity",
               // Revealed by hover or focus of the whole widget (`group` on
               // `MacroNodeView`'s wrapper), and kept open while the caret is in
               // it — otherwise picking a value from a select would dismiss the

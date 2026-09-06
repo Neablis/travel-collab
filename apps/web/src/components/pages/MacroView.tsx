@@ -209,9 +209,17 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     // The ARIA roles do the same job they did as a list: the tags cannot carry
     // the semantics, so the roles do. `role="rowheader"` on the lead is what
     // says which cell names the row.
+    // And NO `block` utility on the container. Tailwind v4 orders `utilities`
+    // after `components`, and `.tc-widget-table` lives in `@layer components`,
+    // so a `block` class beat its `display: table` outright: the rows then
+    // formed their own shrink-to-fit anonymous table inside a full-width card
+    // — same roles, same text, and the value column floating in the middle of
+    // the card instead of at its right edge. Both review bots caught it on PR
+    // 149; the geometry walk in `m14-notebook-widgets.spec.ts` is what would
+    // have.
     case "rows":
       return (
-        <span role="table" className="tc-widget-table my-1 block overflow-hidden rounded-md border border-hairline bg-surface">
+        <span role="table" className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface">
           {rendered.rows.map((row, i) => (
             <span
               role="row"

@@ -190,9 +190,15 @@ describe("MacroView", () => {
       expect(table).toBeTruthy();
       // A row header names the row; the value cell carries the money. Flattened
       // into one line — which is what this used to be — neither exists.
-      const leads = screen.getAllByRole("rowheader");
-      expect(leads.length).toBeGreaterThan(0);
-      expect(screen.getAllByRole("cell").length).toBeGreaterThan(0);
+      // Scoped to each row, not counted across the table: "some row has a lead
+      // and some other row has a value" is exactly what a flattened renderer
+      // would also satisfy. CodeRabbit's finding on PR 149.
+      const valueRows = screen.getAllByRole("row").filter((row) => within(row).queryByRole("cell") !== null);
+      expect(valueRows.length).toBeGreaterThan(0);
+      for (const row of valueRows) {
+        expect(within(row).getByRole("rowheader")).toBeTruthy();
+        expect(within(row).getByRole("cell")).toBeTruthy();
+      }
     });
 
     it("ends on a total row, and says so structurally", () => {

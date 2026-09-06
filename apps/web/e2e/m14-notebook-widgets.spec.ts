@@ -200,21 +200,36 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
 });
 
 /**
- * Bring a block widget's chrome within reach, the way a person does.
+ * Walk the pointer to a block widget's bind control, the way a person does.
  *
- * Since 2026-09-06 a block widget's bind controls are a popover revealed on
- * hover or focus of the widget — Mitchell: *"I dont care about always visible,
- * people editing the one they are focusing on. Reveal on hover/focus."* Until
- * then they are `opacity-0 pointer-events-none`, so a click on one waits out
- * its actionability check. Hovering the widget that CONTAINS the control is
- * the user's own route to it, and it keeps this a walk rather than a poke at
- * the DOM.
+ * Since 2026-09-06 a block widget's controls are a popover revealed on hover or
+ * focus of the widget — Mitchell: *"I dont care about always visible, people
+ * editing the one they are focusing on. Reveal on hover/focus."* Until then
+ * they are `opacity-0 pointer-events-none`, so a click on one waits out its
+ * actionability check.
  *
- * A `single` widget's chrome is still inline and always visible, so hovering
- * is harmless there too — no caller needs to know which shape it has.
+ * **The stepped move is the point, not a flourish.** Playwright's own `hover()`
+ * and `click()` teleport the pointer, so they would cross any dead space
+ * between the widget and its popover without ever landing in it. A person's
+ * pointer cannot. The first cut of this popover had `mt-1` — a 4px band that
+ * hit-tests as neither element — so travelling to the control dropped
+ * `group-hover` and the panel vanished as it was being reached; Copilot caught
+ * it by reading, and a teleporting test never would. Moving in steps makes
+ * every walk below a regression test for that gap.
+ *
+ * A `single` widget's chrome is still inline and always visible, so this is
+ * harmless there too — no caller needs to know which shape it has.
  */
-async function revealChrome(page: Page, control: Locator) {
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error("expected an on-screen element, got one with no box");
+  return box;
+}
+
+async function reachChrome(page: Page, control: Locator) {
   await page.locator("[data-macro-name]").filter({ has: control }).first().hover();
+  const box = await boxOf(control);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 });
 }
 
 test("two widgets on one page read two different days", async ({ page }) => {
@@ -233,7 +248,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // 1), so "the first two comboboxes on the page" are both the first widget's.
   const pickDay = async (widget: RegExp, day: RegExp) => {
     const control = page.getByRole("button", { name: widget });
-    await revealChrome(page, control);
+    await reachChrome(page, control);
     await control.click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
@@ -365,7 +380,7 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   const days = page.getByRole("button", { name: /A line for every stop: dates/i });
   const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
   // `stop.rows` is a block widget, so its chrome is the hover popover.
-  await revealChrome(page, days);
+  await reachChrome(page, days);
   await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
   // `stop.rows` is entity `stop`, and the matrix gives that entity every
@@ -460,4 +475,69 @@ test("an undated trip says it has no days to filter by, and is not a dead end", 
   await expect(page.getByRole("group", { name: "Trip days" })).toHaveCount(0);
   // The way out is still there.
   await expect(page.getByRole("button", { name: "All days" })).toBeVisible();
+});
+
+test("a block widget's bindings are reachable by keyboard, not only by hover", async ({ page }) => {
+  // The regression this exists for shipped and was caught by review, not by a
+  // test: the popover was hidden with `visibility: hidden`, which drops a
+  // subtree out of the accessibility tree AND out of the tab order. So the
+  // focus half of "reveal on hover/focus" could never fire — there was nothing
+  // focusable to fire it. Every other walk in this file reaches the chrome by
+  // pointer, which is exactly why none of them noticed.
+  //
+  // The pointer never goes near the widget here. That is the whole test.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The days, in detail/);
+
+  const days = page.getByRole("button", { name: /The days in detail: dates/ });
+  await days.focus();
+  await days.press("Enter");
+  // The day list itself is a portalled dialog, not part of the popover, so
+  // clicking in it says nothing about the reveal either way.
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
+  );
+  await page.keyboard.press("Escape");
+  await expect(days).toHaveText("2027-06-02");
+});
+
+test("a repeat widget is one table as wide as the card it sits in", async ({ page }) => {
+  // Geometry, because the roles cannot see this. `MacroView` builds a repeat's
+  // table out of `display: table` / `table-row` / `table-cell` on spans — a
+  // real `<table>` would be closed out of the paragraph by the parser — and a
+  // Tailwind `block` utility on the container silently beat
+  // `.tc-widget-table`'s `display: table`, because v4 orders `utilities` after
+  // `components`. The rows then formed their own shrink-to-fit anonymous table
+  // inside a full-width card: same roles, same text, same passing suite, and a
+  // value column floating 369px short of the card's right edge.
+  //
+  // `stop.rows` rather than a `day.detail`: only the `rows` render kind goes
+  // through this path. The block widgets next to it (`ItineraryTripBlock` and
+  // friends) carry the same roles over their own flex layout and are untouched
+  // by any of this.
+  await tripWithTwoDays(page);
+  await addTaggedStop(page, "Ramen", "Meal");
+  await addStopInCity(page, "Kinkaku-ji", "Kyoto");
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every stop/, "every stop");
+
+  const table = page.getByRole("table").first();
+  const tableBox = await boxOf(table);
+
+  // `px-3` on the cells, so a cell that fills its column ends 12px inside the
+  // card's border. Anything narrower means the table is not the card's width.
+  const cells = await Promise.all((await table.getByRole("cell").all()).map(boxOf));
+  expect(cells.length).toBeGreaterThan(0);
+  for (const cell of cells) {
+    expect(Math.abs(tableBox.x + tableBox.width - (cell.x + cell.width))).toBeLessThan(16);
+  }
+
+  // And the lead column is one column: same left edge, same width, every row.
+  const leads = await Promise.all((await table.getByRole("rowheader").all()).map(boxOf));
+  expect(leads.length).toBeGreaterThan(1);
+  const [firstLead, ...otherLeads] = leads;
+  for (const lead of otherLeads) {
+    expect(lead.x).toBe(firstLead?.x);
+  }
 });

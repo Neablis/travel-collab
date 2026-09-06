@@ -33,6 +33,18 @@ function lines(ctx: WidgetContext, name: string, params: Record<string, unknown>
   );
 }
 
+// The row KINDS, in order. `lines()` flattens a row's cells into text and
+// throws its `kind` away, so a renderer that dropped "header" or "total" on the
+// way through would leave every assertion in this file passing while the table
+// lost the two rows it styles differently. CodeRabbit's finding on PR 149.
+function kinds(ctx: WidgetContext, name: string, params: Record<string, unknown> = {}): (string | undefined)[] {
+  const outcome = renderMacro(ctx, name, params);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") {
+    throw new Error(`${name} did not render rows: ${outcome.status}`);
+  }
+  return outcome.rendered.rows.map((row: RenderedRow) => row.kind);
+}
+
 describe("day.rows", () => {
   it("is a line per day, dated, placed and priced — what `day.line` drew", () => {
     const fixture = selectionTrip();
@@ -135,6 +147,15 @@ describe("stop.rows", () => {
       "Unscheduled", "Souvenirs",
     ]);
     expect(rows.filter((r) => /^(Day \d|Unscheduled)$/.test(r))).toEqual(["Day 1", "Day 2", "Day 3", "Unscheduled"]);
+    // And each heading is a `header` row all the way through the renderer, not
+    // a stop line that happens to read like one — that is what makes it span
+    // both columns instead of leaving an empty cell where a number should be.
+    expect(kinds(ctx, "stop.rows")).toEqual([
+      "header", undefined, undefined,
+      "header", undefined, undefined,
+      "header", undefined, undefined,
+      "header", undefined,
+    ]);
   });
 
   it("uses no headings when the selection is one day", () => {
@@ -160,6 +181,9 @@ describe("cost.rows", () => {
       `Unscheduled ${formatMoney(fixture.trip.unscheduledCostSubtotal, "USD")}`,
       `Total ${formatMoney(fixture.trip.tripCostTotal, "USD")}`,
     ]);
+    // The total row survives as a `total` all the way to the renderer, which is
+    // what earns it the tinted, semibold treatment in the design.
+    expect(kinds(ctx, "cost.rows")).toEqual([undefined, undefined, undefined, undefined, "total"]);
   });
 
   it("re-sums the days when a content filter is set, since a subtotal cannot answer that", () => {

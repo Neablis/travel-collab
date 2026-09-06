@@ -72,7 +72,11 @@ function refusalCopy(reason: AdmissionRefusal): string[] {
 /** Every paragraph of a refusal's copy is on the screen. */
 async function expectRefusalCopy(page: Page, reason: AdmissionRefusal): Promise<void> {
   for (const paragraph of refusalCopy(reason)) {
-    await expect(page.getByText(paragraph)).toBeVisible();
+    // `exact`, because the default is substring: if the split ever regressed
+    // and both paragraphs rendered inside one element, every lookup here would
+    // still match that element and this helper would pass while asserting the
+    // opposite of what it documents. CodeRabbit's finding on PR 149.
+    await expect(page.getByText(paragraph, { exact: true })).toBeVisible();
   }
 }
 

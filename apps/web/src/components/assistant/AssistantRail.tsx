@@ -267,19 +267,39 @@ export function AssistantRail({
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
 
-  // NOTE on scroll-through, 2026-09-06. Mitchell, on an Android phone: *"when
+  // **The sheet locks the DOCUMENT ELEMENT while it is open, and that is not
+  // redundant with Radix's modal lock.** Mitchell, on an Android phone: *"when
   // the assistant overlay is open, you are still scrolling the background
-  // rather than the assistant chat"*. A document-level lock was written here
-  // and REMOVED again, because it could not be shown to do anything: with it
-  // deleted, the wheel test below still passes, so `RadixDialog.Root`'s modal
-  // `react-remove-scroll` is already refusing wheel over the plan behind.
+  // rather than the assistant chat"*.
   //
-  // What the first probe "reproduced" was an artefact — it drove
-  // `document.scrollingElement.scrollBy`, and programmatic scrolling works
-  // through `overflow: hidden` by design, so it moved the page with or without
-  // a lock. The real report is a TOUCH drag on a physical device, which this
-  // harness has no way to reproduce. See KI-2026-09-06-e; the `overscroll-contain`
-  // below is the one part of the hypothesis that stands on its own.
+  // I removed a lock from here once, on the reasoning that the wheel walk in
+  // `m16-mobile-assistant.spec.ts` passed without it, so `react-remove-scroll`
+  // must already be refusing wheel. CI then failed that same walk on 2bcc8a4 —
+  // the plan behind the open sheet went from 42 to 442, on the first attempt
+  // and again on the retry. The walk had been passing locally for a reason
+  // that had nothing to do with the lock: it wheeled the page to its maximum
+  // first, and this app's plan is short enough on a 412px viewport that there
+  // was nowhere left to scroll (that vacuity is fixed there now).
+  //
+  // The gap is which element gets locked. `document.scrollingElement` is
+  // `<html>` in standards mode, and `react-remove-scroll`'s scrollbar lock
+  // sets `overflow: hidden` on `<body>` — which does not stop the viewport
+  // scroller when that scroller is the root element. Its wheel handler is a
+  // second, event-level defence that evidently holds in one Chromium and not
+  // in another. Locking the root removes the class outright rather than
+  // relying on either.
+  //
+  // Not reproducible in this container; CI reproduces it deterministically,
+  // and is the proof. See KI-2026-09-06-e.
+  useEffect(() => {
+    if (!isSheet) return;
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, [isSheet]);
 
   // Where focus goes when the sheet closes. Radix's FocusScope already
   // captures this, but `DialogContentModal` overrides `onCloseAutoFocus` to

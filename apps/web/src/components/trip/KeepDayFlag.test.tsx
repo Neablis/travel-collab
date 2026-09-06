@@ -241,10 +241,30 @@ describe("the pennant reserves its celebrating width", () => {
   // button is clicked". The label animates max-width 0 -> 52px with a 6px
   // margin, so the button could grow by 58px inside a flex-wrap row with no
   // slack. The width is now reserved up front and never changes.
-  it("is already as wide as its widest state before anything is clicked", () => {
-    renderFlag();
-    const button = screen.getByRole("button", { name: /Keep day/ });
-    // 30px circle + the keyframe's own 6px margin and 52px cap.
-    expect(button.style.minWidth).toBe("88px");
+  // Copilot, PR 149: the first cut of this asserted `minWidth === "88px"`, a
+  // literal presentation value that would fail for any equivalent CSS and
+  // would pass while the row still wrapped. The claim worth making is the one
+  // Mitchell reported — the button does not change size when it celebrates —
+  // and that is a comparison, not a number. jsdom lays nothing out, so the
+  // reserved width itself is all there is to compare; `m1-board.spec.ts` is
+  // where a real browser could measure the row.
+  it("does not change width when it starts celebrating", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderFlag();
+      const flag = screen.getByRole("button", { name: /Keep day/ });
+      const atRest = flag.style.minWidth;
+      // A width is actually reserved, rather than both states being unset.
+      expect(atRest).not.toBe("");
+
+      await user.click(flag);
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+      expect(await screen.findByText("Kept")).toBeTruthy();
+
+      expect(flag.style.minWidth).toBe(atRest);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

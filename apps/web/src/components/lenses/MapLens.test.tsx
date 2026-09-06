@@ -513,11 +513,14 @@ describe("MapLens", () => {
     // 2026-09-06 preview feedback: "Lets try the UI in the designs. Remove the
     // travel lines from all days that are not currently selected."
     //
-    // Only the TRAVEL variant goes. A `rest` leg is local to one city and stays
-    // inside its own day's cluster; a `travel` leg spans the distance between
-    // cities, so on a long trip the unfocused ones rake across the whole map
-    // and cross the pins of the day you are actually reading. Ghosting lowers
-    // their contrast without lowering the number of lines drawn over that day.
+    // **The whole day goes, both route variants and the pins with them.** My
+    // first reading of that was narrower — travel legs only, on the reasoning
+    // that a `rest` leg stays inside its own city's cluster while a `travel`
+    // leg rakes across the map. Mitchell corrected it the same day: *"what
+    // happened to on map view removing stops on the days you arent looking at.
+    // I asked for that chnage"*. This comment described the superseded reading
+    // while the assertions below already enforced the corrected one; Copilot
+    // and CodeRabbit both caught the mismatch on PR 149.
     it("takes a non-focused day off the map entirely — both route variants", async () => {
       setPaintPropertyMock.mockClear();
       renderMap(detailWithTravelOnSecondDay(), { focusedDay: 0 });
@@ -582,6 +585,12 @@ describe("MapLens", () => {
       // went with the behaviour it served.
       const focusedColor = lastCall("route-rest-d1", "line-color");
       expect(focusedColor[2]).toBe("TEST-DANGER");
+      // The hidden day too, which is the half that actually protects the
+      // deletion: `ghostRouteColor()` only ever ran on the NON-focused branch,
+      // so a test that reads colours off the focused day alone would pass with
+      // the neutral ghost tone put straight back.
+      const hiddenColor = lastCall("route-rest-d2", "line-color");
+      expect(hiddenColor[2]).toBe("TEST-SUCCESS");
     });
 
     it("restores a day's own accent colour and full opacity once it becomes the focused day", async () => {
