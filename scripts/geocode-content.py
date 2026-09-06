@@ -736,7 +736,19 @@ def audit_anchors(db: sqlite3.Connection, km: float = 50.0) -> dict[str, tuple]:
         mlng = statistics.median(p[1] for p in pins)
         d = distance_km(alat, alng, mlat, mlng)
         if d > km:
-            out[city] = (round(d, 1), len(pins), (alat, alng), (round(mlat, 4), round(mlng, 4)))
+            # Carry the PINS, not just the verdict. Excluding these cities from
+            # the outlier list (so correct venues stop being reported as
+            # outliers) also removed the only place their matches were shown —
+            # so the report could say "these six disagree" and give a reader
+            # nothing to decide WHICH half is wrong with. The whole point is
+            # that the number cannot settle it and a person has to look.
+            detail = db.execute(
+                "select query, coalesce(display_name,''), lat, lng, coalesce(precision,'venue') "
+                "from places where status='ok' and city=? and lat is not null "
+                "and coalesce(precision,'venue') in ('venue','area') order by query", (city,)
+            ).fetchall()
+            out[city] = (round(d, 1), len(pins), (alat, alng),
+                         (round(mlat, 4), round(mlng, 4)), detail)
     return out
 
 
@@ -1294,8 +1306,14 @@ def write_review(db: sqlite3.Connection) -> dict:
         # --apply until one does.
         "badCityAnchors": [
             {"city": c, "kmFromItsOwnVenues": d, "venuesCompared": n,
-             "anchor": {"lat": a[0], "lng": a[1]}, "venueMedian": {"lat": m[0], "lng": m[1]}}
-            for c, (d, n, a, m) in sorted(audit_anchors(db).items(), key=lambda kv: -kv[1][0])
+             "anchor": {"lat": a[0], "lng": a[1]}, "venueMedian": {"lat": m[0], "lng": m[1]},
+             "pins": [
+                 {"query": q, "matched": dn, "lat": round(la, 5), "lng": round(ln, 5),
+                  "precision": pr,
+                  "map": f"https://www.openstreetmap.org/?mlat={la}&mlon={ln}#map=14/{la}/{ln}"}
+                 for q, dn, la, ln, pr in _pins
+             ]}
+            for c, (d, n, a, m, _pins) in sorted(audit_anchors(db).items(), key=lambda kv: -kv[1][0])
         ],
         "farFromCityCentre": [
             {"query": q, "city": c, "kmFromCentre": d, "precision": pr,
