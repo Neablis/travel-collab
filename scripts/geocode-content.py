@@ -1477,14 +1477,21 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
     if outlier_keys:
         print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
 
-    touched = written = held = 0
+    touched = written = held = already = 0
     for path in bundle_files():
         bundle = json.loads(path.read_text(encoding="utf-8"))
         changed = False
         for stop in stops_of(bundle):
             loc = stop.get("location") or {}
             name = (loc.get("name") or "").strip()
-            if not name or "lat" in loc:
+            if not name:
+                continue
+            if "lat" in loc:
+                # Already carries one — from a person, or from a previous run.
+                # Counted rather than passed over in silence: "wrote 0" with no
+                # further explanation is indistinguishable from a broken apply,
+                # and read as one twice before this line existed.
+                already += 1
                 continue
             place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
             if place.key in outlier_keys:
@@ -1506,6 +1513,12 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
                 path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     verb = "would write" if dry_run else "wrote"
     print(f"  {verb} {written} coordinate(s) across {touched} bundle(s); {held} held back for review")
+    if already:
+        print(f"  {already} stop(s) already had a coordinate and were left alone — "
+              f"a value already in the file always wins.")
+        if written == 0:
+            print("  Nothing was written because everything writable is already written. "
+                  "To take back\n  a coordinate this pass would now refuse, use --retract.")
     if not dry_run and written:
         print("  now run `pnpm content:verify` — the schema refuses a lat without a lng.")
 
