@@ -6,36 +6,32 @@
     "description": "Eight day-shaped playbooks built around what is actually open: two Paris days that are not a monument checklist, Versailles taken at nine rather than eleven, a Loire day that only works with a driver, the D-Day coast finished on an empty Mont-Saint-Michel, a Saturday Luberon market, the Corniches with a three-star table at the end, and Lyon's traboules between two counters.",
     "origin": "ai",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
-      "https://www.louvre.fr/en/visit",
-      "https://www.musee-orsay.fr/en/visit/opening-times-and-admission",
-      "https://www.musee-orangerie.fr/en/practical-information",
-      "https://www.museepicassoparis.fr/en/practical-information",
-      "https://www.carnavalet.paris.fr/en/practical-information",
-      "https://www.paris.fr/pages/les-marches-parisiens-2428",
-      "https://www.parisjetaime.com/eng/",
-      "https://www.iledefrance-mobilites.fr/en/tickets-fares",
-      "https://www.chateauversailles.fr/en/plan-your-visit/practical-information/hours",
-      "https://www.chateauversailles-spectacles.fr/en",
-      "https://www.chenonceau.com/en/",
-      "https://www.chambord.org/en/",
-      "https://www.chateauvillandry.fr/en/",
-      "https://www.bonlaboureur.com/en/",
-      "https://www.abmc.gov/Normandy",
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening days, hours, seasonal closures, booking rules) were checked against the official sources listed below for 8 of 8 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
+      "https://www.louvre.fr/en/visit/hours-admission",
+      "https://contact.louvre.fr/hc/en-gb/articles/12707516217757-Can-I-enter-the-Louvre-several-times-in-one-day-with-the-same-ticket",
+      "https://www.musee-orsay.fr/en/visit/admission-opening-times-tickets",
+      "https://www.musee-orangerie.fr/en/visit-orangerie",
+      "https://www.carnavalet.paris.fr/en/visit/pratical-information",
+      "https://www.museepicassoparis.fr/en/opening-times-and-access",
+      "https://parisjetaime.com/eng/shopping/marche-beauvau-marche-d-aligre-p2488",
+      "https://en.chateauversailles.fr/plan-your-visit/practical-information",
+      "https://www.chateauversailles-spectacles.fr/en/evenement/the-musical-fountains-show-2026/",
+      "https://www.versailles-tourisme.com/marche-notre-dame.html",
+      "https://www.chenonceau.com/en/practical-information/opening-times/",
+      "https://www.chambord.org/en/plan-your-visit/opening-hours/",
+      "https://www.chateauvillandry.fr/useful-information/prices-opening-times-how-to-get-there-how-to-visit-villandry/?lang=en",
       "https://www.bayeuxmuseum.com/en/the-bayeux-tapestry/",
-      "https://www.bayeux-bessin-tourisme.com/en/",
-      "https://www.abbaye-mont-saint-michel.fr/en",
-      "https://www.ot-montsaintmichel.com/en/",
-      "https://www.senanque.fr/",
-      "https://www.luberon-apt.fr/en/",
-      "https://www.avignon-tourisme.com/en/",
-      "https://www.explorenicecotedazur.com/en/",
-      "https://www.eze-tourisme.com/en/",
-      "https://www.montecarlosbm.com/en/restaurant-monaco/gourmet/le-louis-xv-alain-ducasse",
-      "https://www.halles-de-lyon-paulbocuse.com/",
-      "https://www.fourviere.org/en/",
-      "https://www.fetedeslumieres.lyon.fr/en",
-      "https://www.lyon-france.com/en"
+      "https://www.abmc.gov/plan/plan-your-visit-to-normandy-american-cemetery/",
+      "https://www.abbaye-mont-saint-michel.fr/en/",
+      "https://www.senanque.fr/en/visits-of-the-abbey-2/",
+      "https://roussillon-en-provence.fr/decouvrir-2/sentier-des-ocres/",
+      "https://en.luberon-apt.fr/discover-the-luberon/experiencies/apt-market",
+      "https://www.explorenicecotedazur.com/en/event/marche-a-la-brocante-saleya/",
+      "https://www.eze-tourisme.com/fr/decouvrir-visiter-se-divertir/visiter-eze/le-village/24-horaires-et-tarifs.html",
+      "https://www.trophee-auguste.fr/visiter/informations-pratiques",
+      "https://www.montecarlosbm.com/en/restaurant-monaco/le-louis-xv-alain-ducasse-hotel-de-paris",
+      "https://www.halles-de-lyon-paulbocuse.com/informations-utiles/",
+      "https://www.fetedeslumieres.lyon.fr/en"
     ],
     "generatedAt": "2026-09-06"
   },
@@ -83,7 +79,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Tuesday to Sunday only, and the whole day collapses on a Monday — Aligre, Carnavalet, the Picasso and the Enfants Rouges are all shut on one. The open-air stalls start packing up around 13:00; the covered Marché Beauvau behind them is where the butchers and the cheese are. Buy for a picnic later, not to eat now.",
+          "notes": "Tuesday to Sunday only, and the whole day collapses on a Monday — Aligre, Carnavalet, the Picasso and the Enfants Rouges are all shut on one. The open-air stalls start packing up around 13:00; the covered Marché Beauvau behind them is where the butchers and the cheese are. Buy for a picnic later, not to eat now. Verified 2026-09-06: closed Mondays, as written. The open-air stalls run Tuesday to Friday 07:30–13:30 and Saturday and Sunday 07:30–14:30; the covered Marché Beauvau is Tuesday to Sunday (Sunday mornings only, to about 13:30). The 08:20 start is right.",
           "cost": {
             "amountMinor": 1900,
             "currency": "USD"
@@ -122,7 +118,7 @@
             "area": "Le Marais"
           },
           "kind": "planned",
-          "notes": "The permanent collection is free and needs no booking, which is why almost no guidebook day includes it. Closed Mondays. If you only have ninety minutes, skip the chronology and go straight to the Revolution rooms, the shop signs, and Proust's bedroom rebuilt as it was on boulevard Haussmann.",
+          "notes": "The permanent collection is free and needs no booking, which is why almost no guidebook day includes it. Closed Mondays. If you only have ninety minutes, skip the chronology and go straight to the Revolution rooms, the shop signs, and Proust's bedroom rebuilt as it was on boulevard Haussmann. Verified 2026-09-06: closed Mondays, open 10:00–18:00, ticket desk closing 17:15 and rooms clearing 17:55. The permanent collection is genuinely free and needs no booking; only the temporary exhibitions are paid.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -143,7 +139,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "The oldest covered market in Paris, and in practice a food court under a 400-year-old roof at 39 rue de Bretagne. Alain Miam Miam's sandwich takes twenty minutes because he cooks the galette in front of you — join that queue first, then eat at the communal tables. Closed Monday, and the kitchens wind down by 14:00 midweek.",
+          "notes": "The oldest covered market in Paris, and in practice a food court under a 400-year-old roof at 39 rue de Bretagne. Alain Miam Miam's sandwich takes twenty minutes because he cooks the galette in front of you — join that queue first, then eat at the communal tables. Closed Monday, and the kitchens wind down by 14:00 midweek. Verified 2026-09-06: closed Mondays; open Tuesday to Saturday from about 08:30 to 19:30 and Sunday mornings, so the 12:25 sitting is inside the hours on every day the market runs.",
           "cost": {
             "amountMinor": 1700,
             "currency": "USD"
@@ -182,7 +178,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Book a slot even though walk-up usually works: the door at 5 rue de Thorigny has no shade and the queue is on the street. Closed Mondays. Half the reason to come is the building — a seventeenth-century salt-tax mansion, with Diego Giacometti's furniture made for it still in the rooms.",
+          "notes": "Book a slot even though walk-up usually works: the door at 5 rue de Thorigny has no shade and the queue is on the street. Closed Mondays. Half the reason to come is the building — a seventeenth-century salt-tax mansion, with Diego Giacometti's furniture made for it still in the rooms. Verified 2026-09-06: closed Mondays, open Tuesday to Sunday 09:30–18:00 with last admission 17:15 and rooms cleared at 17:40 — a 15:15 entry is comfortable. Late opening to 22:00 on the first Wednesday of the month, and free on the first Sunday.",
           "cost": {
             "amountMinor": 1800,
             "currency": "USD"
@@ -263,7 +259,7 @@
             "area": "Louvre, 1er"
           },
           "kind": "transit",
-          "notes": "The pyramid queue is the one in the photographs; the underground Carrousel entrance at 99 rue de Rivoli is the one to use, and Porte des Lions is the third when it is staffed. Tickets are online-only with a timed slot. The Louvre is closed Tuesdays and the Orsay is closed Mondays and open late only on Thursdays — which is why this day is a Thursday and cannot be anything else.",
+          "notes": "The pyramid queue is the one in the photographs; the underground Carrousel entrance at 99 rue de Rivoli is the one to use, and Porte des Lions is the third when it is staffed. Tickets are online-only with a timed slot. The Louvre is closed Tuesdays and the Orsay is closed Mondays and open late only on Thursdays — which is why this day is a Thursday and cannot be anything else. Verified 2026-09-06: the Louvre is closed Tuesdays and open 09:00–18:00, with late nights to 21:45 on Wednesdays and Fridays and last admission an hour before closing. A timed-slot reservation is mandatory for every visitor, including anyone hoping to buy at the door, at least until 19 April 2026. The Orsay is closed Mondays and its only late night is Thursday to 21:45 — so a Thursday really is the one weekday this pairing works, exactly as claimed.",
           "cost": {
             "amountMinor": 250,
             "currency": "USD"
@@ -284,7 +280,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "The first thirty minutes in front of the Mona Lisa are the only civil ones of the day — go straight there, then walk back through the Grande Galerie against the flow of everybody arriving. Do not try to see the Louvre; pick two wings and accept that you are leaving nine-tenths of it. Ticket around €22 booked online.",
+          "notes": "The first thirty minutes in front of the Mona Lisa are the only civil ones of the day — go straight there, then walk back through the Grande Galerie against the flow of everybody arriving. Do not try to see the Louvre; pick two wings and accept that you are leaving nine-tenths of it. Ticket around €22 booked online. Verified 2026-09-06: doors at 09:00 and the €22 online ticket is right; last admission is 17:00 and galleries clear from 17:30.",
           "cost": {
             "amountMinor": 2400,
             "currency": "USD"
@@ -323,7 +319,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Eating inside the Louvre costs more and tastes like an airport. This is eight minutes' walk on rue de l'Arbre-Sec, it fills by 12:30, and same-day tables go if you ring at 11:00. Leeks vinaigrette and a pot of rillettes, then back in on the same ticket — re-entry is allowed on the day.",
+          "notes": "Eating inside the Louvre costs more and tastes like an airport. This is eight minutes' walk on rue de l'Arbre-Sec, it fills by 12:30, and same-day tables go if you ring at 11:00. Leeks vinaigrette and a pot of rillettes. CORRECTED 2026-09-06: the old advice to go \"back in on the same ticket\" is wrong and would have cost someone their afternoon — the Louvre's own FAQ says any exit is final and a standard ticket admits you once; only Amis du Louvre members can come and go. So lunch has to be the end of the Louvre, not a break in it. This day is already built that way: the afternoon is the Orangerie, and if you want a second Louvre visit it is a second timed ticket.",
           "cost": {
             "amountMinor": 4200,
             "currency": "USD"
@@ -344,7 +340,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Two oval top-lit rooms at the Concorde end of the Tuileries, closed Tuesdays. Early morning is when the coach groups do it; by 14:00 they have moved on to the Orsay and you can sit on the bench in the middle of the second room for as long as you like. Buy the combined Orsay + Orangerie ticket here — it is cheaper than two singles and it covers tonight.",
+          "notes": "Two oval top-lit rooms at the Concorde end of the Tuileries, closed Tuesdays. Early morning is when the coach groups do it; by 14:00 they have moved on to the Orsay and you can sit on the bench in the middle of the second room for as long as you like. Buy the combined Orsay + Orangerie ticket here — it is cheaper than two singles and it covers tonight. Verified 2026-09-06: closed Tuesdays, open 09:00–18:00 with last admission 17:15 and rooms clearing 17:45, plus a Friday late opening to 21:00 during exhibition runs. The combined Orsay + Orangerie ticket is €20, cheaper than two singles, as claimed.",
           "cost": {
             "amountMinor": 1300,
             "currency": "USD"
@@ -386,7 +382,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Open until 21:45 on Thursdays and only Thursdays; last admission 21:00. After 18:00 the Impressionist floor empties out to the point where you can stand alone in front of the Van Goghs, which does not happen at any other hour in the year. Take the lift straight to level 5 and work down; entrance C is the pre-booked door.",
+          "notes": "Open until 21:45 on Thursdays and only Thursdays; last admission 21:00. After 18:00 the Impressionist floor empties out to the point where you can stand alone in front of the Van Goghs, which does not happen at any other hour in the year. Take the lift straight to level 5 and work down; entrance C is the pre-booked door. Verified 2026-09-06: the Thursday late opening runs to 21:45 with last admission 21:00 and galleries cleared from 21:15, so leaving level 5 by 20:45 as this day does is right. Closed Mondays, and timed entry is now mandatory — book the slot, do not turn up for it.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
@@ -476,7 +472,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "A 09:00 slot and an 11:00 slot are two different buildings. At nine you walk the Hall of Mirrors with perhaps fifty people in it; by eleven the day coaches from Paris have landed and it is one shuffling line you cannot leave. Closed Mondays, entrance A, and it is the security scan that is slow, never the ticket desk.",
+          "notes": "A 09:00 slot and an 11:00 slot are two different buildings. At nine you walk the Hall of Mirrors with perhaps fifty people in it; by eleven the day coaches from Paris have landed and it is one shuffling line you cannot leave. Closed Mondays, entrance A, and it is the security scan that is slow, never the ticket desk. Verified 2026-09-06: the Palace and the Trianon estate are both closed Mondays; the Palace opens at 09:00 and closes 18:30 in high season, 17:30 the rest of the year.",
           "cost": {
             "amountMinor": 3200,
             "currency": "USD"
@@ -497,7 +493,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "The Grandes Eaux Musicales run weekends from April to October and on some Tuesdays, and they are the only times the groves — Salle de Bal, Trois Fontaines, the Bosquet d'Encelade — are unlocked and playing. On any other day the gardens are free to walk and the ticket you bought is for a park with the taps off, so check the calendar before you pick the date, not after.",
+          "notes": "The Grandes Eaux Musicales run weekends from April to October and on some Tuesdays, and they are the only times the groves — Salle de Bal, Trois Fontaines, the Bosquet d'Encelade — are unlocked and playing. On any other day the gardens are free to walk and the ticket you bought is for a park with the taps off, so check the calendar before you pick the date, not after. Verified 2026-09-06: against the published 2026 calendar, the Grandes Eaux Musicales run every Saturday and Sunday from 4 April to 1 November 2026, every Tuesday from 5 May to 30 June, and on a handful of one-off dates (3 and 6 April, 8, 14 and 25 May, 14 July), 09:00–19:00. On any other date the groves are locked and the taps are off, so the warning here is exactly right — pick the date from the calendar first.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -518,7 +514,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Not a good restaurant, but the only table at the head of the canal, and the alternative is a two-kilometre walk back out through the gates and in again. The better version of this stop: buy a picnic at the Marché Notre-Dame in town — Tuesday, Friday and Sunday mornings — before you ever go into the palace.",
+          "notes": "Not a good restaurant, but the only table at the head of the canal, and the alternative is a two-kilometre walk back out through the gates and in again. The better version of this stop: buy a picnic at the Marché Notre-Dame in town — Tuesday, Friday and Sunday mornings — before you ever go into the palace. Verified 2026-09-06: the outdoor Carrés of the Marché Notre-Dame do run Tuesday, Friday and Sunday, 07:30–14:00, and the covered halls behind them are open Tuesday to Sunday — closed Monday, the same day the palace is shut.",
           "cost": {
             "amountMinor": 3400,
             "currency": "USD"
@@ -536,7 +532,7 @@
             "area": "Trianon"
           },
           "kind": "planned",
-          "notes": "The Trianon estate opens at 12:00 — turning up at 10:00 to a locked gate is the classic Versailles mistake and it wrecks the running order of the whole day. Petit Trianon first, the Queen's Hamlet last, and keep going to the working farm at the far end: it has actual animals and most people turn back one thatched cottage before it.",
+          "notes": "The Trianon estate opens at 12:00 — turning up at 10:00 to a locked gate is the classic Versailles mistake and it wrecks the running order of the whole day. Petit Trianon first, the Queen's Hamlet last, and keep going to the working farm at the far end: it has actual animals and most people turn back one thatched cottage before it. Verified 2026-09-06: the Trianon estate opens at 12:00 (10:00 in July and August) and closes 18:30 April–June and September–October, 17:30 in winter. The locked-gate warning stands.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -656,7 +652,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Opens 09:00, 09:30 in winter, and the coaches land at 10:30 — so walk the plane-tree avenue quickly, do the gallery over the Cher while it is empty, and come back down through Diane de Poitiers' garden afterwards. Book online to skip the till. It is the one château here worth the crowd if you get the order wrong, but you will not need to.",
+          "notes": "Opens 09:00, 09:30 in winter, and the coaches land at 10:30 — so walk the plane-tree avenue quickly, do the gallery over the Cher while it is empty, and come back down through Diane de Poitiers' garden afterwards. Book online to skip the till. It is the one château here worth the crowd if you get the order wrong, but you will not need to. Verified 2026-09-06: Chenonceau is open every day of the year, opening at 09:00 from 4 April and 09:30 in the winter months, so the 09:05 start holds in season. NOT verified: the exact October opening and closing times, which the château moves in fortnightly steps — have the driver confirm the day's hours the evening before.",
           "cost": {
             "amountMinor": 2100,
             "currency": "USD"
@@ -716,7 +712,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "The interior is mostly empty and people trail through it dutifully for an hour. Go up the double-helix staircase immediately and spend your time on the roof terrace among the chimneys — that is the building. The park outside is free and full of deer; in October you can hear the stags roaring from the ramparts at dusk.",
+          "notes": "The interior is mostly empty and people trail through it dutifully for an hour. Go up the double-helix staircase immediately and spend your time on the roof terrace among the chimneys — that is the building. The park outside is free and full of deer; in October you can hear the stags roaring from the ramparts at dusk. Verified 2026-09-06: open 09:00–18:00 from 28 March to 25 October 2026 and 09:00–17:00 from 26 October, with last entry 30 minutes before closing — so a 14:50 arrival works on either side of that switch.",
           "cost": {
             "amountMinor": 2200,
             "currency": "USD"
@@ -725,8 +721,8 @@
         {
           "title": "Villandry's gardens in low sun",
           "timeWindow": {
-            "start": "17:15",
-            "end": "18:15"
+            "start": "17:10",
+            "end": "17:55"
           },
           "location": {
             "name": "Château de Villandry",
@@ -737,7 +733,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Take the gardens-only ticket: it is cheaper and the château interior is the least interesting thing on this whole route. Late afternoon is when the ornamental kitchen garden's colour comes up and the box hedges throw shadows. Last admission is an hour before closing and closing moves with the season, so have the driver ring ahead in October.",
+          "notes": "Take the gardens-only ticket: it is cheaper and the château interior is the least interesting thing on this whole route. Late afternoon is when the ornamental kitchen garden's colour comes up and the box hedges throw shadows. CORRECTED 2026-09-06: last admission is 30 minutes before closing, not the hour this note used to claim, and October closing is 18:00 up to the 24th and 17:00 from 25 to 31 October. The old 17:15–18:15 slot ran past closing on every October date, so the stop now ends at 17:55 — and from 25 October it is not possible at this hour at all: on those dates move Villandry to the morning and Chenonceau to the afternoon, or drop it. The gardens are open daily all year except 25 December; the château building itself is open 7 February–11 November 2026 and again from 28 November.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
@@ -790,7 +786,7 @@
             "area": "Centre"
           },
           "kind": "transit",
-          "notes": "Take the guided day rather than driving it yourself. Sixty kilometres of near-empty coast, and without someone telling you where the seawall stood, Omaha is a car park and a beach. Shared full-day tours out of Bayeux run about €130 a head and book out weeks ahead in summer. One planning note: the Bayeux Tapestry museum is closed for its rebuild until 2027, so do not build the morning around it.",
+          "notes": "Take the guided day rather than driving it yourself. Sixty kilometres of near-empty coast, and without someone telling you where the seawall stood, Omaha is a car park and a beach. Shared full-day tours out of Bayeux run about €130 a head and book out weeks ahead in summer. One planning note: the Bayeux Tapestry museum is closed for its rebuild until 2027, so do not build the morning around it. Verified 2026-09-06: the Bayeux Tapestry has been closed to the public since 1 September 2025 for a €38m rebuild, with the new museum due to open in October 2027 — so it is out for the whole of 2026 and the warning here is correct.",
           "cost": {
             "amountMinor": 14500,
             "currency": "USD"
@@ -871,7 +867,7 @@
             "area": "Above Omaha Beach"
           },
           "kind": "planned",
-          "notes": "Free, but bring photo ID for the gate. Visitor centre first, then the graves, then take the path down to the sand and walk back up — coming up off the beach towards the bluff is the only way the ground makes sense, and nobody who arrives by coach does it. Closing is 18:00 in summer and 17:00 from mid-September; the flag lowering is at the end of the day, not the middle.",
+          "notes": "Free, but bring photo ID for the gate. Visitor centre first, then the graves, then take the path down to the sand and walk back up — coming up off the beach towards the bluff is the only way the ground makes sense, and nobody who arrives by coach does it. Closing is 18:00 in summer and 17:00 from mid-September; the flag lowering is at the end of the day, not the middle. Verified 2026-09-06: open every day of the year except 25 December and 1 January, and last admission to both the cemetery and the visitor centre is 16:30. A 13:30 start is enough; anyone arriving after 16:30 is turned away at the gate.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -928,7 +924,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "The abbey closes at 19:00 in summer and 18:00 out of season, and that is exactly why you arrive now. The Grande Rue empties, the ramparts stay open and free all night, and on a big tidal coefficient the water comes in fast enough to watch it move across the sand. Eat inside the walls at the Mère Poulard brasserie, or better, at Le Pré Salé in Beauvoir on the way in — lamb raised on the salt marsh you have just driven across.",
+          "notes": "The abbey closes at 19:00 in summer and 18:00 out of season, and that is exactly why you arrive now. The Grande Rue empties, the ramparts stay open and free all night, and on a big tidal coefficient the water comes in fast enough to watch it move across the sand. Eat inside the walls at the Mère Poulard brasserie, or better, at Le Pré Salé in Beauvoir on the way in — lamb raised on the salt marsh you have just driven across. Verified 2026-09-06: the abbey is open 09:00–19:00 from May to August and 09:30–18:00 from September to April, last admission one hour before closing. Mid-September already counts as low season, so the abbey's last admission is 17:00 and it is shut before this stop begins — which is the point of arriving now. The ramparts and the Grande Rue stay open and free.",
           "cost": {
             "amountMinor": 4800,
             "currency": "USD"
@@ -964,7 +960,7 @@
             "area": "Vallée du Calavon"
           },
           "kind": "transit",
-          "notes": "Every Luberon market is finished by 13:00 and the good half of it is finished by 11:00, so this day only exists if the car moves before eight. A hire car is not optional here — the villages are 10 to 20 km apart with two buses a day between them — so budget it as a line of the day, not an afterthought. Which market you get depends entirely on the weekday: Saturday is Apt, Sunday is L'Isle-sur-la-Sorgue and Coustellet, Tuesday is Gordes, Friday is Bonnieux and Lourmarin.",
+          "notes": "Every Luberon market is finished by 13:00 and the good half of it is finished by 11:00, so this day only exists if the car moves before eight. A hire car is not optional here — the villages are 10 to 20 km apart with two buses a day between them — so budget it as a line of the day, not an afterthought. Which market you get depends entirely on the weekday: Saturday is Apt, Sunday is L'Isle-sur-la-Sorgue and Coustellet, Tuesday is Gordes, Friday is Bonnieux and Lourmarin. Verified 2026-09-06: the big Apt market is Saturday 08:00–13:00, Gordes' is Tuesday morning and Bonnieux' is Friday, so the weekday table here is right. Note that this day has been REORDERED on the same date — the Sénanque visit was booked into a window in which the abbey runs no tour at all. See that stop.",
           "cost": {
             "amountMinor": 9500,
             "currency": "USD"
@@ -985,38 +981,17 @@
           "tags": [
             "meal"
           ],
-          "notes": "Saturday only, and it takes the whole old town. The food is at the Place de la Bouquerie end; the souvenir stalls creep up towards the cathedral, so start low and work up. Buy today's lunch here — tapenade, a Banon wrapped in its chestnut leaf, tomatoes, and the candied fruit Apt has made since the popes were in Avignon. Park at the Place Jean Jaurès lot and walk in; the streets are closed to cars.",
+          "notes": "Saturday only, and it takes the whole old town. The food is at the Place de la Bouquerie end; the souvenir stalls creep up towards the cathedral, so start low and work up. Buy today's lunch here — tapenade, a Banon wrapped in its chestnut leaf, tomatoes, and the candied fruit Apt has made since the popes were in Avignon. Park at the Place Jean Jaurès lot and walk in; the streets are closed to cars. Verified 2026-09-06: Saturday only, 08:00–13:00, and it has run in this square for five centuries. The 08:45 start is right and the food end thins out well before noon.",
           "cost": {
             "amountMinor": 2400,
             "currency": "USD"
           }
         },
         {
-          "title": "Sénanque, on a visit booked days ago",
-          "timeWindow": {
-            "start": "11:15",
-            "end": "12:15"
-          },
-          "location": {
-            "name": "Abbaye Notre-Dame de Sénanque",
-            "city": "Gordes",
-            "area": "Vallée de la Sénancole"
-          },
-          "kind": "booked",
-          "tags": [
-            "ticketed"
-          ],
-          "notes": "It is a working Cistercian monastery, not a monument: the interior is by guided visit only, booked online, and anyone who turns up unbooked gets the shop and the outside of the church. The lavender in front flowers from mid-June and is cut in the third week of July — after that the photograph everybody drove here for is a field of stubble.",
-          "cost": {
-            "amountMinor": 1100,
-            "currency": "USD"
-          }
-        },
-        {
           "title": "Gordes from the road, then Gordes from inside",
           "timeWindow": {
-            "start": "12:30",
-            "end": "13:40"
+            "start": "11:15",
+            "end": "12:20"
           },
           "location": {
             "name": "Gordes village",
@@ -1024,7 +999,7 @@
             "area": "Village"
           },
           "kind": "planned",
-          "notes": "The view of the village stacked up its cliff is from a lay-by on the D15 coming up from Cavaillon — not from anywhere inside the village — so stop there before you drive in or you will never see it. Parking within the walls is metered and full by 11:00 in summer; the lot below the château is the one that turns over.",
+          "notes": "The view of the village stacked up its cliff is from a lay-by on the D15 coming up from Cavaillon — not from anywhere inside the village — so stop there before you drive in or you will never see it. Parking within the walls is metered and full by 11:00 in summer; the lot below the château is the one that turns over. Moved earlier on 2026-09-06 (it was 12:30–13:40) so that Sénanque can take an afternoon tour slot; nothing at this stop is time-gated.",
           "cost": {
             "amountMinor": 600,
             "currency": "USD"
@@ -1033,8 +1008,8 @@
         {
           "title": "The market lunch, eaten at the Village des Bories",
           "timeWindow": {
-            "start": "13:55",
-            "end": "15:00"
+            "start": "12:35",
+            "end": "13:25"
           },
           "location": {
             "name": "Village des Bories",
@@ -1046,9 +1021,30 @@
             "meal",
             "outdoors"
           ],
-          "notes": "Twenty dry-stone huts in a field three kilometres below Gordes, almost always empty, with walls to sit against and a little shade — the best lunch table in the Luberon and it costs the price of the entry. If it is shut, the lane down to it runs between olive terraces and does the job just as well.",
+          "notes": "Twenty dry-stone huts in a field three kilometres below Gordes, almost always empty, with walls to sit against and a little shade — the best lunch table in the Luberon and it costs the price of the entry. If it is shut, the lane down to it runs between olive terraces and does the job just as well. Moved on 2026-09-06 (it was 13:55–15:00) to fit the reordered day; the field has no opening hours to break.",
           "cost": {
             "amountMinor": 700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sénanque, on a visit booked days ago",
+          "timeWindow": {
+            "start": "13:45",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Abbaye Notre-Dame de Sénanque",
+            "city": "Gordes",
+            "area": "Vallée de la Sénancole"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "IMPOSSIBLE AS ORIGINALLY SCHEDULED — corrected 2026-09-06. It is a working Cistercian monastery, not a monument: the interior is by guided visit only, booked online, and anyone who turns up unbooked gets the shop and the outside of the church. But the tours run Monday to Saturday at 09:40, 10:00 and 10:30 and then not again until 13:00, 13:45, 14:30, 15:15, 16:00 and 16:45 — last morning entry 11:00, last afternoon entry 17:00, and Sundays are afternoons only. The old 11:15–12:15 slot fell squarely in the closed middle of the day, when no tour exists to book. This visit has therefore been moved to the 13:45 tour, and Gordes and the Bories lunch have moved ahead of it. Book the exact departure time online; places are capped. The lavender in front flowers from mid-June and is cut in the third week of July — after that the photograph everybody drove here for is a field of stubble.",
+          "cost": {
+            "amountMinor": 1100,
             "currency": "USD"
           }
         },
@@ -1067,7 +1063,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "A 30- or 50-minute loop through worked-out ochre quarries; take the long one, the extra twenty minutes are the best of it. Late afternoon is when the reds do what the postcards promise — at midday it is flat and glaring. The site closes for January. Do not wear white: the dust is a pigment and it does not wash out.",
+          "notes": "A 30- or 50-minute loop through worked-out ochre quarries; take the long one, the extra twenty minutes are the best of it. Late afternoon is when the reds do what the postcards promise — at midday it is flat and glaring. The site closes for January. Do not wear white: the dust is a pigment and it does not wash out. Verified 2026-09-06: the Sentier des Ocres is closed for the whole of January and otherwise open daily, 7 February to 31 December 2026; in July and August it runs 09:00–19:30, with the ticket office closing 30 minutes before the gates. Entry is €3.50.",
           "cost": {
             "amountMinor": 400,
             "currency": "USD"
@@ -1117,7 +1113,7 @@
     {
       "key": "nice-market-the-moyenne-corniche-and-le-louis-xv",
       "name": "Nice, the Moyenne Corniche, Èze — and the table the whole day is priced around",
-      "summary": "Socca at the Cours Saleya at eight, a car and driver for the three Corniches, the garden on top of Èze, and dinner at Le Louis XV in Monaco with the pairing. Honestly expensive and it is all in one stop.",
+      "summary": "Socca at the Cours Saleya at eight, a car and driver for the three Corniches, the garden on top of Èze, and dinner at Le Louis XV in Monaco with the pairing. Honestly expensive and it is all in one stop. Warning (2026-09-06): Le Louis XV shuts for a long winter break, so this day does not work on a February date as filed.",
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2026-02-19T22:50:00.000Z",
@@ -1157,7 +1153,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Flowers and produce Tuesday to Sunday mornings, packed away by about 13:00; on Mondays it is the brocante instead and there is no food market at all. Socca has to be eaten within a minute of coming off the copper pan — Chez Thérésa sells it from the shop on rue Droite and the queue moves faster than it looks. Eat it standing, with pepper, off the paper.",
+          "notes": "Flowers and produce Tuesday to Sunday mornings, packed away by about 13:00; on Mondays it is the brocante instead and there is no food market at all. Socca has to be eaten within a minute of coming off the copper pan — Chez Thérésa sells it from the shop on rue Droite and the queue moves faster than it looks. Eat it standing, with pepper, off the paper. Verified 2026-09-06: flowers and produce Tuesday to Sunday from about 06:00 to 13:30, and on Mondays the square is given over to the brocante (roughly 07:00–18:00) with no food market at all — exactly as written.",
           "cost": {
             "amountMinor": 1200,
             "currency": "USD"
@@ -1217,9 +1213,9 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "The village is one spiral of stone lanes and it is genuinely lovely in the hour before the coaches; the cactus garden crowning it sits 429 m straight above the sea for the price of a coffee. The Chemin de Nietzsche drops from the village to Èze-sur-Mer in about 1h20 down and 1h30 back up — real shoes, and not in the middle of a day that ends in a jacket.",
+          "notes": "The village is one spiral of stone lanes and it is genuinely lovely in the hour before the coaches; the cactus garden crowning it sits 429 m straight above the sea for the price of a coffee. The Chemin de Nietzsche drops from the village to Èze-sur-Mer in about 1h20 down and 1h30 back up — real shoes, and not in the middle of a day that ends in a jacket. Verified 2026-09-06: in January, February, March, November and December the Jardin Exotique is open 09:00–16:30, and the winter admission is about €4 rather than the summer rate, so the midday visit works on a February date. Cost corrected to the winter price.",
           "cost": {
-            "amountMinor": 800,
+            "amountMinor": 450,
             "currency": "USD"
           }
         },
@@ -1248,7 +1244,7 @@
           "title": "La Turbie and the Trophy of Augustus",
           "timeWindow": {
             "start": "16:00",
-            "end": "17:00"
+            "end": "16:45"
           },
           "location": {
             "name": "Trophée d'Auguste",
@@ -1256,7 +1252,7 @@
             "area": "Grande Corniche"
           },
           "kind": "idea",
-          "notes": "Two thousand years old, raised to mark Augustus subduing the Alpine tribes, standing 480 m directly above Monaco with almost nobody at it. Closed Mondays. Ten minutes off the Grande Corniche on the way down, and it is the best place on this coast to see how absurdly small the principality is.",
+          "notes": "Two thousand years old, raised to mark Augustus subduing the Alpine tribes, standing 480 m directly above Monaco with almost nobody at it. Closed Mondays. Ten minutes off the Grande Corniche on the way down, and it is the best place on this coast to see how absurdly small the principality is. Verified 2026-09-06: closed Mondays, and in low season (2 January to 18 May) the hours are 10:00–13:30 and 14:30–17:00 — it shuts for lunch and closes at 17:00, so this stop has been pulled back to end at 16:45 rather than at the gate-closing minute. Also closed 1 January, 1 May, 1 and 11 November and 25 December.",
           "cost": {
             "amountMinor": 700,
             "currency": "USD"
@@ -1277,7 +1273,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Three stars since 1990, closed Tuesdays and Wednesdays, and tables go six to eight weeks ahead. The tasting menu is around €390 and the pairing another €250 or so — this single stop is most of the day's total and none of it is padding. Jacket for men and they do mean it. Ask for a table on the square side; the room is the point as much as the food.",
+          "notes": "NOT POSSIBLE ON A FEBRUARY DATE — corrected 2026-09-06, and this is the stop the whole day is priced around. Two things in the original were wrong. The closing days are Sunday and Monday, not Tuesday and Wednesday: dinner runs Tuesday to Saturday from about 19:30, with lunch on Friday and Saturday only. And the restaurant takes a long annual winter break — in the 2025–26 season it went dark in mid-November and announced its reopening for late March 2026, with reopenings in other years falling in the first week of March. A February evening here is a locked door. Either move this day to the April–October half of the year, or keep the Corniche route and eat somewhere else in Monaco or back in Nice. When it is open, the rest holds: three stars since 1990, tables six to eight weeks ahead, a tasting menu around €390 and a pairing another €250 or so, and a jacket for men that they do mean. Ask for a table on the square side; the room is the point as much as the food.",
           "cost": {
             "amountMinor": 70000,
             "currency": "USD"
@@ -1337,7 +1333,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Closed Mondays; on Sundays it shuts at 13:00. This is a market you eat in rather than shop at — a dozen at one of the seafood counters with a glass of Mâcon at nine in the morning is an ordinary Lyonnais thing to do and nobody will look at you. Take a Saint-Marcellin from Mère Richard away with you for later.",
+          "notes": "CORRECTED 2026-09-06: the hall is not closed on Mondays. It runs Monday to Saturday from 07:00 — traders until 19:00, the restaurants until 22:30 — and Sunday 07:00–13:00 with the restaurants to 16:30, so the Sunday early close in the original is right but the Monday closure is not. What is true is that Monday is the traders' rest day and a good share of the stalls, some seafood counters among them, do not open, which makes a Monday morning here a thin version of this stop. Otherwise: this is a market you eat in rather than shop at — a dozen at one of the seafood counters with a glass of Mâcon at nine in the morning is an ordinary Lyonnais thing to do and nobody will look at you. Take a Saint-Marcellin from Mère Richard away with you for later.",
           "cost": {
             "amountMinor": 2900,
             "currency": "USD"
@@ -1472,7 +1468,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Four nights around 8 December, free, and something like a million people walk the same loop in the same direction. Start at Terreaux and go against the current towards Bellecour — or better, do the Croix-Rousse installations first, which have no queue at all. Every restaurant on the Presqu'île is booked solid those nights: eat before seven or after eleven, and do not plan to change your mind in the middle.",
+          "notes": "Four nights around 8 December, free, and something like a million people walk the same loop in the same direction. Start at Terreaux and go against the current towards Bellecour — or better, do the Croix-Rousse installations first, which have no queue at all. Every restaurant on the Presqu'île is booked solid those nights: eat before seven or after eleven, and do not plan to change your mind in the middle. Verified 2026-09-06: the 2026 edition runs Saturday 5 to Tuesday 8 December, with the installations lit 18:00–24:00 on the 5th, 6th and 7th and 18:00–23:00 on the 8th. Free, no ticket and no booking, as written — the 19:30–22:30 window here is inside the lighting hours on all four nights.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"

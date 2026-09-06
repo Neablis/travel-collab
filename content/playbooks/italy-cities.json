@@ -6,47 +6,32 @@
     "description": "Eight day-shaped playbooks from the Italian mainland and Sicily — timed-entry museums taken in the order that leaves them empty, two market mornings, a Pompeii day with somebody who can read the walls, a Parmigiano dairy at the hour it is actually made, and one honestly expensive day on a private boat around Capri.",
     "origin": "ai",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
-      "https://colosseo.it/en/tickets/",
-      "https://www.coopculture.it/en/heritage/colosseum-roman-forum-palatine-hill/",
-      "https://thebettervacation.com/rome/colosseum-tickets/",
-      "https://www.artvisitguide.com/colosseum-tickets-guide/",
-      "https://www.mercatoditestaccio.it/",
-      "https://www.cimiteroacattolico.it/",
-      "https://www.uffizi.it/en/tickets",
-      "https://www.b-ticket.com/b-ticket/uffizi/",
-      "https://www.galleriaaccademiafirenze.it/en/visit/tickets/",
-      "https://www.visittuscany.com/en/ideas/uffizi-and-accademia-tickets-and-booking/",
-      "https://thebettervacation.com/florence/accademia-gallery-official-website/",
-      "https://visituffizi.com/en/tickets/prices/",
-      "https://www.anticosetificiofiorentino.com/",
-      "https://actv.avmspa.it/en/content/tickets-1",
-      "https://www.veneziaunica.it/en/content/public-transport-tickets",
-      "https://www.torcellovenezia.it/en/",
-      "https://www.museoebraico.it/en/",
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening days, hours, seasonal ferry and cable-car operation, booking and access rules) were checked against the official sources listed below for 8 of 8 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
+      "https://cemeteryrome.it/en/information/plan-your-visit/",
+      "https://www.daenzoal29.com/en/",
+      "https://www.feelflorence.it/en/points-interest/rose-garden",
+      "https://attivitastoriche.destinationflorence.com/en/attivita_storiche/trattoria-cammillo/",
+      "https://www.patriarcatovenezia.it/basilica-di-santa-maria-assunta-di-torcello/",
+      "https://www.museoebraico.it/en/opening-times/",
       "https://www.gattonero.com/",
-      "https://pompeiisites.org/en/plan-your-visit/tickets/",
-      "https://untolditaly.com/how-to-buy-tickets-for-pompeii/",
-      "https://pompeii-italy.org/tickets/",
-      "https://mann-napoli.it/en/tickets/",
-      "https://www.eavsrl.it/web/linee-orari-ferro",
-      "https://www.ilriccio-capri.com/en/",
-      "https://www.villasanmichele.eu/en/",
-      "https://www.seggioviamontesolaro.it/en/",
-      "https://www.capri.com/en/s/blue-grotto",
-      "https://www.oltrelartematera.it/en/rupestrian-churches/",
-      "https://www.parcomurgia.it/",
-      "https://www.trullosovrano.eu/",
-      "https://piazzaduomoparma.com/en/baptistery/",
-      "https://www.ruliano.it/en/",
-      "https://www.parmigianoreggiano.com/dairy-visits",
-      "https://www.giusti.it/en/acetaia-visits/",
-      "https://www.franceschetta58.it/",
-      "https://www.funiviaetna.com/en/",
-      "https://www.etnaguide.com/",
-      "https://www.ct.ingv.it/index.php/monitoraggio-e-sorveglianza",
-      "https://www.parconaxostaormina.com/en/teatro-antico-di-taormina/",
-      "https://www.tenutasanmichele.it/en/"
+      "https://guide.michelin.com/us/en/veneto/burano/restaurant/al-gatto-nero-da-ruggero",
+      "https://www.museoarcheologiconapoli.it/en/timetables-and-fares/",
+      "https://www.facebook.com/pasticceriaattanasio/",
+      "https://www.coopculture.it/en/poi/blue-grotto/",
+      "https://www.capri.com/en/e/la-grotta-azzurra",
+      "https://www.villasanmichele.eu/",
+      "https://www.capriseggiovia.it/en/impianto.html",
+      "https://www.oltrelartematera.it/en/rupestrian-churches/santa-maria-de-idris/",
+      "https://www.oltrelartematera.it/en/rupestrian-churches/san-pietro-barisano/",
+      "https://www.trullosovrano.eu/ingresso-biglietti/",
+      "https://www.piazzaduomoparma.com/en/opening-hours-and-visit-passes/",
+      "https://www.aidueplatani.com/en-EN/contact.html",
+      "https://guide.michelin.com/us/en/emilia-romagna/coloreto/restaurant/trattoria-ai-due-platani",
+      "https://franceschetta.it/en/contacts/",
+      "https://parchiarcheologici.regione.sicilia.it/naxos-taormina/en/biglietti/teatro-antico-di-taormina-2/",
+      "https://parconaxostaormina.com/it/informazioni/al-via-la-stagione-estiva-2026-aperture-serali-al-teatro-antico-di-taormina",
+      "https://guidevulcanologicheetna.it/en/access-to-the-summit-craters-of-etna-rules-to-follow/",
+      "https://pianoprovenzana.it/escursioni-etna/funivia-delletna-2500-metri/"
     ],
     "generatedAt": "2026-09-06"
   },
@@ -148,7 +133,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Sergio Esposito's stall does one thing: boiled-beef panini soaked in their own gravy. Allesso di scottona is the one to order; picchiapo if they are out. The queue builds 12:30–13:30 and the market winds down around 15:00, so this is not a 14:45 plan. Cash moves the line faster than card.",
+          "notes": "Sergio Esposito's stall does one thing: boiled-beef panini soaked in their own gravy. Allesso di scottona is the one to order; picchiapo if they are out. The queue builds 12:30–13:30 and the market winds down around 15:00, so this is not a 14:45 plan. Cash moves the line faster than card. Verified 2026-09-06 (market listings; the market has no working official site): Mercato Testaccio runs Mon–Sat roughly 07:00–15:30 and is shut all day Sunday, with Mordi e Vai serving about 10:00–15:00 — the whole day below is a Monday-to-Saturday day.",
           "cost": {
             "amountMinor": 800,
             "currency": "USD"
@@ -190,7 +175,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "€5 suggested donation in the box at the gate, and a colony of cats that live in the pyramid's shadow. Keats and Shelley are signposted and busy; the part worth the hour is the older enclosure against the Aurelian wall, where nothing is signposted at all. Closes at 17:00 with last admission at 16:30.",
+          "notes": "€5 suggested donation in the box at the gate, and a colony of cats that live in the pyramid's shadow. Keats and Shelley are signposted and busy; the part worth the hour is the older enclosure against the Aurelian wall, where nothing is signposted at all. Verified 2026-09-06: Mon–Sat 09:00–17:00 with last entry 16:30, so this slot fits — but on Sundays and public holidays (and Easter Monday, 25 April, 1 May, 2 June, 29 June) it closes at 13:00 with last entry 12:30, when a 15:15 arrival finds a locked gate.",
           "cost": {
             "amountMinor": 550,
             "currency": "USD"
@@ -226,7 +211,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "About thirty seats on Via dei Vascellari and a reservations book that only covers the early sitting; without one you leave a name at the door and drink across the lane until somebody shouts it. Cacio e pepe and the fiori di zucca. The carciofo alla giudia is only honest between November and April — the rest of the year it has been somewhere cold for a long time.",
+          "notes": "About thirty seats on Via dei Vascellari and a reservations book that only covers the early sitting; without one you leave a name at the door and drink across the lane until somebody shouts it. Cacio e pepe and the fiori di zucca. The carciofo alla giudia is only honest between November and April — the rest of the year it has been somewhere cold for a long time. Verified 2026-09-06: closed Sundays; service is 12:15–15:00 and 19:00–23:00, so 20:30 sits mid-sitting.",
           "cost": {
             "amountMinor": 3800,
             "currency": "USD"
@@ -334,7 +319,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Over the Ponte Vecchio on Borgo San Jacopo, family-run since 1945, and full of Florentines rather than of us by 13:30. Book. Closed Tuesday and Wednesday, which catches people out. Ask what the fritto is that day instead of reading the menu.",
+          "notes": "Over the Ponte Vecchio on Borgo San Jacopo, family-run since 1945, and full of Florentines rather than of us by 13:30. Book. Closed Tuesday and Wednesday, which catches people out. Ask what the fritto is that day instead of reading the menu. Verified 2026-09-06: closed Tuesday and Wednesday (some listings also show no Thursday lunch), so this day is Friday-to-Monday.",
           "cost": {
             "amountMinor": 4400,
             "currency": "USD"
@@ -410,7 +395,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Free, and it is the terrace below Piazzale Michelangelo rather than on it: the same skyline, Folon's bronzes standing about in the grass, and none of the coaches. The gate is on Viale Giuseppe Poggi and it closes at sunset, so in winter this is a 17:00 plan, not a 19:00 one."
+          "notes": "Free, and it is the terrace below Piazzale Michelangelo rather than on it: the same skyline, Folon's bronzes standing about in the grass, and none of the coaches. The gate is on Viale Giuseppe Poggi. Verified 2026-09-06: free, open daily from 09:00, closing 20:00 from 1 May to 30 September, 19:00 in April, 18:00 in March and October and 17:00 from November to February — so this 19:15 slot only exists in the May–September window; any other month, move it ahead of the aperitivo."
         }
       ]
     },
@@ -484,8 +469,8 @@
         {
           "title": "Santa Maria Assunta and the campanile, Torcello",
           "timeWindow": {
-            "start": "09:30",
-            "end": "11:00"
+            "start": "10:30",
+            "end": "11:45"
           },
           "location": {
             "name": "Basilica di Santa Maria Assunta",
@@ -496,7 +481,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Climb the campanile first: the stairs are a ramp, nobody is on them before 10:00, and the whole northern lagoon reads as a map from the top. Inside, the Last Judgement mosaic is on the wall behind you as you come in, so you meet it on the way out, which is the right order. One combined ticket for basilica, campanile and museum; no photography in the church.",
+          "notes": "CORRECTED 2026-09-06: this stop used to start at 09:30, which was impossible — the basilica complex opens at 10:30 from March to October and 10:00 from November to February, last entry 30 minutes before it shuts (18:00 summer, 17:00 winter). The 08:30 boat still earns its place: it lands you about 09:15 with the island to yourself, so walk out to the Ponte del Diavolo and Attila's throne while the doors are shut. Then climb the campanile first — the stairs are a ramp, the first hour after opening is still empty, and the whole northern lagoon reads as a map from the top. Inside, the Last Judgement mosaic is on the wall behind you as you come in, so you meet it on the way out, which is the right order. One combined ticket covers basilica, campanile and museum; no photography in the church.",
           "cost": {
             "amountMinor": 1300,
             "currency": "USD"
@@ -505,8 +490,8 @@
         {
           "title": "Over the Mazzorbo bridge into Burano",
           "timeWindow": {
-            "start": "11:15",
-            "end": "11:45"
+            "start": "11:55",
+            "end": "12:25"
           },
           "location": {
             "name": "Ponte Longo, Mazzorbo",
@@ -522,8 +507,8 @@
         {
           "title": "Lunch at Trattoria al Gatto Nero",
           "timeWindow": {
-            "start": "12:00",
-            "end": "13:45"
+            "start": "12:30",
+            "end": "14:00"
           },
           "location": {
             "name": "Trattoria al Gatto Nero",
@@ -534,7 +519,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Book weeks ahead, and say on the phone if you want the risotto de gò: it is made from the lagoon goby, takes forty minutes, and is cooked for a minimum of two people. On the Fondamenta della Giudecca facing the canal. Closed Mondays.",
+          "notes": "Book weeks ahead, and say on the phone if you want the risotto de gò: it is made from the lagoon goby, takes forty minutes, and is cooked for a minimum of two people. On the Fondamenta della Giudecca facing the canal. Closed Mondays. Verified 2026-09-06: closed Mondays, and lunch service does not start until 12:30 — the old 12:00 sitting in this slot did not exist, so the window now opens with the kitchen.",
           "cost": {
             "amountMinor": 6050,
             "currency": "USD"
@@ -559,7 +544,7 @@
           "title": "The Ghetto Nuovo and the seven-storey houses",
           "timeWindow": {
             "start": "16:15",
-            "end": "17:30"
+            "end": "17:15"
           },
           "location": {
             "name": "Museo Ebraico di Venezia",
@@ -570,7 +555,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Look up in the campo: these are the tallest buildings in Venice because after 1516 the Ghetto could only grow upwards. The five synagogues are reachable only on the museum's guided tour, in English roughly hourly, and they are the reason to come rather than the museum itself. Closed Saturdays and on Jewish holidays.",
+          "notes": "Look up in the campo: these are the tallest buildings in Venice because after 1516 the Ghetto could only grow upwards. The five synagogues are reachable only on the museum's guided tour, in English roughly hourly, and they are the reason to come rather than the museum itself. Closed Saturdays and on Jewish holidays. Verified 2026-09-06: closed Saturdays, Jewish holidays, 25 December, 1 January and 1 May; open 10:00–19:00 from 1 June to 30 September and 10:00–17:30 from 1 October to 31 May. Synagogue tours run hourly from 10:30, and the last Friday tour is sometimes dropped for the Sabbath — in the October–May half take the 16:30 tour at the latest.",
           "cost": {
             "amountMinor": 1200,
             "currency": "USD"
@@ -642,7 +627,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Behind the station on Vico Ferrovia; you smell it a street before you find it. Riccia, not frolla — the shell should shatter down your front. Ask for one off the tray that has just come out and eat it standing in the paper, which is the only way it works.",
+          "notes": "Behind the station on Vico Ferrovia; you smell it a street before you find it. Riccia, not frolla — the shell should shatter down your front. Ask for one off the tray that has just come out and eat it standing in the paper, which is the only way it works. Verified 2026-09-06: open Tue–Sun 06:30–19:30 and closed Mondays — which, with the MANN shut on Tuesdays, makes this a Wednesday-to-Sunday day.",
           "cost": {
             "amountMinor": 350,
             "currency": "USD"
@@ -747,7 +732,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Everything portable from Pompeii is here, which is why it belongs on the same day as the site and not on a different one. Closed Tuesdays. Go up to the mosaics first — the Alexander Mosaic came back on display in 2025 after its restoration — then the Gabinetto Segreto, a separate small room the desk may give you a timed slot for. The Farnese Bull downstairs is carved from one block of marble and deserves ten minutes rather than a photograph.",
+          "notes": "Everything portable from Pompeii is here, which is why it belongs on the same day as the site and not on a different one. Verified 2026-09-06: open Wed–Mon 09:00–19:30 with last entry 18:30, closed Tuesdays — with two 2026 exceptions, open Tuesday 2 June and Tuesday 8 December and shut the Wednesday after each. Go up to the mosaics first — the Alexander Mosaic came back on display in 2025 after its restoration — then the Gabinetto Segreto, a separate small room the desk may give you a timed slot for. The Farnese Bull downstairs is carved from one block of marble and deserves ten minutes rather than a photograph.",
           "cost": {
             "amountMinor": 2400,
             "currency": "USD"
@@ -867,7 +852,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "A full-day gozzo with skipper out of Amalfi is €900–1,300 for the boat, not per person, plus fuel — split four ways it costs about what four ferry-plus-tour tickets cost and is a completely different day. Go anti-clockwise so you are through the Faraglioni arch before 10:30, when the tour fleet arrives from Sorrento. The Blue Grotto needs flat calm and a low tide, the transfer in is a separate rowing boat at roughly €18 cash a head, and a skipper who tells you it is shut is telling you the truth.",
+          "notes": "A full-day gozzo with skipper out of Amalfi is €900–1,300 for the boat, not per person, plus fuel — split four ways it costs about what four ferry-plus-tour tickets cost and is a completely different day. Go anti-clockwise so you are through the Faraglioni arch before 10:30, when the tour fleet arrives from Sorrento. The Blue Grotto needs flat calm and a low tide, the transfer in is a separate rowing boat at roughly €18 cash a head, and a skipper who tells you it is shut is telling you the truth. Verified 2026-09-06 on the grotto: entry runs 08:30–18:00 from 1 April to 30 September, 08:30–16:00 for the first half of October and 09:00–14:00 from 16 October to 31 March; it is always shut on 25 December and 1 January, only sporadically open through the winter, and closed outright on any swell — the skippers judge it at the cave mouth each morning from about 09:00.",
           "cost": {
             "amountMinor": 126500,
             "currency": "USD"
@@ -897,8 +882,8 @@
         {
           "title": "Villa San Michele",
           "timeWindow": {
-            "start": "16:00",
-            "end": "16:45"
+            "start": "15:45",
+            "end": "16:30"
           },
           "location": {
             "name": "Villa San Michele di Axel Munthe",
@@ -909,7 +894,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Ten minutes from the restaurant. Axel Munthe built it on a Tiberian ruin and the loggia at the far end, with the Egyptian sphinx facing out to sea, is the best view on Capri that does not require a boat or a chairlift. Closes 18:00 in summer and 15:30 in midwinter.",
+          "notes": "Ten minutes from the restaurant. Axel Munthe built it on a Tiberian ruin and the loggia at the far end, with the Egyptian sphinx facing out to sea, is the best view on Capri that does not require a boat or a chairlift. Verified 2026-09-06: open daily from 09:00, closing 19:00 June–August, 18:00 in May and September, 17:00 in April and October, 16:30 in March and 15:30 from November to January — and closed for the whole of February, plus Tuesdays in January. This stop has been moved back to 15:45 so it still fits in the April–October shoulder; from November to January it has to happen before lunch instead.",
           "cost": {
             "amountMinor": 1300,
             "currency": "USD"
@@ -918,8 +903,8 @@
         {
           "title": "Seggiovia to the top of Monte Solaro",
           "timeWindow": {
-            "start": "17:00",
-            "end": "17:45"
+            "start": "16:45",
+            "end": "17:30"
           },
           "location": {
             "name": "Seggiovia Monte Solaro",
@@ -931,7 +916,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "A single-seat chairlift from Piazza Vittoria with your feet swinging over other people's gardens, twelve minutes each way. Last ascent is an hour before closing and it stops in any real wind. If your knees are willing, walk down through the hermitage at Santa Maria Cetrella instead of riding back.",
+          "notes": "A single-seat chairlift from Piazza Vittoria with your feet swinging over other people's gardens, twelve minutes each way. CORRECTED 2026-09-06: the old note said the last ascent is an hour before closing, which is wrong and cost you the ride. Ascents run 09:15–17:00 in April, May, September and October (last descent 17:30), 09:30–16:00 from November to March (last descent 16:30), and late into the evening only in high summer. The 17:00 start this stop used to carry was the very last chair at best and impossible for five months of the year, so it now goes up at 16:45 — and from November to March both this and Villa San Michele must move ahead of lunch. It also stops in any real wind. If your knees are willing, walk down through the hermitage at Santa Maria Cetrella instead of riding back.",
           "cost": {
             "amountMinor": 1550,
             "currency": "USD"
@@ -1011,8 +996,8 @@
         {
           "title": "The rock churches: Santa Maria de Idris and San Pietro Barisano",
           "timeWindow": {
-            "start": "08:15",
-            "end": "09:45"
+            "start": "09:30",
+            "end": "11:00"
           },
           "location": {
             "name": "Chiese rupestri del Sasso Caveoso",
@@ -1023,7 +1008,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "One combined ticket covers several and you buy it at whichever you reach first. Idris is cut into the rock spur with frescoes reached through a tunnel; Barisano is the largest and the coldest, with the drainage niches where the dead were seated upright to dry. Add the Casa Grotta di Vico Solitario for €5 — one room, a mule stall inside the front door, and the only exhibit that explains why the state emptied the Sassi in 1952.",
+          "notes": "CORRECTED 2026-09-06: this stop used to start at 08:15, when every one of these churches is locked. Santa Maria de Idris with San Giovanni in Monterrone and Santa Lucia alle Malve open daily 09:30–19:30, San Pietro Barisano daily 10:00–19:00 — so take Idris on the dot of 09:30 and cross to Barisano after 10:00. One combined ticket covers several (about €3, €5 or €6 for one, two or three) and you buy it at whichever you reach first. Idris is cut into the rock spur with frescoes reached through a tunnel; Barisano is the largest and the coldest, with the drainage niches where the dead were seated upright to dry. Add the Casa Grotta di Vico Solitario for €5 — one room, a mule stall inside the front door, and the only exhibit that explains why the state emptied the Sassi in 1952.",
           "cost": {
             "amountMinor": 1100,
             "currency": "USD"
@@ -1032,8 +1017,8 @@
         {
           "title": "Drive Matera to Alberobello",
           "timeWindow": {
-            "start": "10:15",
-            "end": "11:30"
+            "start": "11:15",
+            "end": "12:30"
           },
           "location": {
             "name": "SS99 then SS172 through Locorotondo",
@@ -1042,7 +1027,7 @@
           },
           "kind": "transit",
           "tags": [],
-          "notes": "About 70 km and an hour and a quarter, and the SS172 stretch through the Valle d'Itria is the good part. Leave the Sassi before 10:00: the ZTL and the coach drop-off make everything around Piazza Vittorio Veneto unusable after that. Fuel and the odd toll on the card.",
+          "notes": "About 70 km and an hour and a quarter, and the SS172 stretch through the Valle d'Itria is the good part. You now leave the Sassi at 11:15 rather than 10:15, because the rock churches do not open until 09:30. Both centres are limited-traffic zones — park outside and walk in. NOT VERIFIED 2026-09-06: Alberobello's exact ZTL hours; what is clear is that access permits go to residents and businesses only, so do not plan on driving to the trulli. Fuel and the odd toll on the card.",
           "cost": {
             "amountMinor": 900,
             "currency": "USD"
@@ -1051,8 +1036,8 @@
         {
           "title": "Rione Aia Piccola, not Rione Monti",
           "timeWindow": {
-            "start": "11:45",
-            "end": "13:15"
+            "start": "12:40",
+            "end": "13:20"
           },
           "location": {
             "name": "Rione Aia Piccola",
@@ -1063,7 +1048,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Monti is the thousand-trulli postcard and nearly every cone in it is a shop with a man outside offering you a free look upstairs. Cross Largo Martellotta into Aia Piccola, where roughly four hundred trulli are still lived in and nobody will sell you a whistle. Trullo Sovrano, the only two-storey one, is €5 and takes twenty minutes.",
+          "notes": "Monti is the thousand-trulli postcard and nearly every cone in it is a shop with a man outside offering you a free look upstairs. Cross Largo Martellotta into Aia Piccola, where roughly four hundred trulli are still lived in and nobody will sell you a whistle. Trullo Sovrano, the only two-storey one, takes twenty minutes. Verified 2026-09-06: it opens 10:00–12:45 and 15:30–18:30 (15:30–18:00 November–March), and on this later timing you reach Alberobello at 12:30, so it does not fit — either go straight to its door before 12:45 and walk Aia Piccola after, or pick it up at 15:30 and push the drive to the coast back an hour.",
           "cost": {
             "amountMinor": 550,
             "currency": "USD"
@@ -1243,7 +1228,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Pink Verona marble outside, and inside a painted dome most people do not look up at for long enough. Antelami carved the portals and the cycle of the months around the interior. One ticket covers the baptistery and the diocesan museum; Correggio's dome in the Duomo next door is free and takes ten minutes.",
+          "notes": "Pink Verona marble outside, and inside a painted dome most people do not look up at for long enough. Antelami carved the portals and the cycle of the months around the interior. One ticket covers the baptistery and the diocesan museum; Correggio's dome in the Duomo next door is free and takes ten minutes. Verified 2026-09-06: baptistery and diocesan museum open daily 10:00–18:00 on one combined ticket valid two days, sold at the museum on the far side of the piazza rather than at the baptistery door.",
           "cost": {
             "amountMinor": 1300,
             "currency": "USD"
@@ -1264,7 +1249,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Five kilometres out of Parma toward Coloreto and full of Parmigiani at 13:00, which is the test. Anolini in brodo — small, one filling, and the reason to drive out here — then torta fritta with the culatello. Book, and check the closing day before you build a day around it.",
+          "notes": "Five kilometres out of Parma toward Coloreto and full of Parmigiani at 13:00, which is the test. Anolini in brodo — small, one filling, and the reason to drive out here — then torta fritta with the culatello. Book. Verified 2026-09-06: closed all day Wednesday and on Tuesday evenings, so this day cannot be run on a Wednesday.",
           "cost": {
             "amountMinor": 4950,
             "currency": "USD"
@@ -1325,7 +1310,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Bottura's other room and the honest answer to Osteria Francescana's booking lottery: the tasting costs a fraction, opens about a week ahead instead of months, and comes out of the same school of kitchen. Sit at the counter. If you did want Francescana itself, its online release is quarterly and gone in minutes — that is a trip planned around a booking, not a booking fitted into a trip.",
+          "notes": "Bottura's other room and the honest answer to Osteria Francescana's booking lottery: the tasting costs a fraction, opens about a week ahead instead of months, and comes out of the same school of kitchen. Sit at the counter. If you did want Francescana itself, its online release is quarterly and gone in minutes — that is a trip planned around a booking, not a booking fitted into a trip. Verified 2026-09-06: open Monday to Saturday and closed Sundays; dinner runs 20:00–24:00 with the last seating at 21:30, so a 20:00 table is the right end of it.",
           "cost": {
             "amountMinor": 7700,
             "currency": "USD"
@@ -1335,8 +1320,8 @@
     },
     {
       "key": "catania-market-etna-summit-and-taormina-at-dusk",
-      "name": "Sicily's east: the Catania fish market, Etna's summit craters, Taormina at dusk",
-      "summary": "Market at seven, three thousand metres by noon, a Greek theatre in the last hour of light. Palermo's markets and Monreale are the other Sicily and need their own day — they are four hours west of every stop below.",
+      "name": "Sicily's east: the Catania fish market, as high up Etna as the ordinance allows, Taormina at dusk",
+      "summary": "Market at seven, the high slopes of Etna by noon — the summit craters themselves are off limits under the 2026 altitude cap, so the mountain half of this day stops where the ordinance stops it — and a Greek theatre in the last hour of light. Palermo's markets and Monreale are the other Sicily and need their own day — they are four hours west of every stop below.",
       "ownerId": "dev-sofia",
       "visibility": "public",
       "keptOn": "2026-05-16T09:45:00.000Z",
@@ -1358,7 +1343,7 @@
           },
           "kind": "idea",
           "tags": [],
-          "notes": "Down the steps beside the Fontana dell'Amenano, under the piazza. Swordfish heads on wet marble, prices shouted in Catanese, and it is finished by 09:00 — and it does not happen at all on Sunday. Buy nothing: this is a place to stand still in and get splashed."
+          "notes": "Down the steps beside the Fontana dell'Amenano, under the piazza. Swordfish heads on wet marble, prices shouted in Catanese, and Verified 2026-09-06 it runs Monday to Saturday from about 07:00 until 14:00, loudest between 09:00 and 11:00, with the stalls breaking down from 13:30 — and it does not happen at all on Sunday, or on 5 February when the city shuts for Sant'Agata. Buy nothing: this is a place to stand still in and get splashed."
         },
         {
           "title": "Granita di mandorla and a brioche col tuppo at Savia",
@@ -1394,14 +1379,14 @@
           },
           "kind": "transit",
           "tags": [],
-          "notes": "An hour and a quarter through Nicolosi and up past the 2001 flows, which cross the road as fields of black rubble with a bar buried in them. Parking at Sapienza (1,900 m) is free and full by 10:00. It runs about 15°C colder up here than in Catania and there is no shade anywhere above the treeline: boots, a windproof, sunglasses.",
+          "notes": "An hour and a quarter through Nicolosi and up past the 2001 flows, which cross the road as fields of black rubble with a bar buried in them. Parking at Sapienza (1,900 m) is free and full by 10:00. It runs about 15°C colder up here than in Catania and there is no shade anywhere above the treeline: boots, a windproof, sunglasses. Verified 2026-09-06: the cable car at Sapienza starts running at 08:30, so a 10:00 arrival is inside its day.",
           "cost": {
             "amountMinor": 900,
             "currency": "USD"
           }
         },
         {
-          "title": "The summit craters with an alpine guide",
+          "title": "Etna Sud: cable car, 4x4 and a guide, as high as the current ordinance allows",
           "timeWindow": {
             "start": "10:15",
             "end": "14:15"
@@ -1416,7 +1401,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "The combined cable-car-plus-4x4-plus-guide ticket is around €98 and stops at 2,900 m by the Torre del Filosofo; the summit craters above that are only legal with a licensed volcanological guide, booked separately through the Gruppo Guide Alpine Etna Sud. Book the day before rather than the week before — the Osservatorio Etneo's bulletin can shut everything above 2,750 m at an hour's notice, and a guide who cancels on you is doing the job properly. Carry cash for the 4x4 leg.",
+          "notes": "CORRECTED 2026-09-06, and read this before you book: the summit craters are not currently a plan. Access above roughly 2,800 m has required a guide from the Collegio Regionale delle Guide Alpine e Vulcanologiche since 2013, and after the Christmas Eve 2025 eruption and the activity that followed, an ordinance has capped access at about 2,850 m on both flanks — which for now removes the summit craters themselves, guide or no guide. The cap is reassessed against the INGV Osservatorio Etneo bulletins and can move either way at short notice, so treat the top of this stop as a maybe and confirm the ordinance with the guides the day before. What reliably works is the combined cable-car-plus-4x4-plus-guide ticket, around €98, which takes you up the Valle del Bove side toward the Torre del Filosofo as far as the day's limit. Verified 2026-09-06: the Funivia dell'Etna runs from 08:30, closing 17:45 in high season with the last descent at 17:30 and 16:00 in low season with the last descent at 15:50; during maintenance windows (in 2026, roughly 8–24 April and 5–20 May) the cabins are replaced by 4x4 buses from 1,920 m. It shuts entirely for wind, storms or volcanic activity, and a guide who cancels on you is doing the job properly. Carry cash for the 4x4 leg.",
           "cost": {
             "amountMinor": 24500,
             "currency": "USD"
@@ -1477,7 +1462,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "€14, with last entry an hour before it closes — 19:00 from April to September, earlier in winter, so check before you build the evening on it. Climb to the top of the cavea and sit on the left: from there Etna lines up exactly in the gap in the scaenae frons, which after a morning standing on it closes the day properly. Midday here is a furnace and a scrum; this hour is neither.",
+          "notes": "Verified 2026-09-06: open daily 09:00–19:45 with last entry at 19:00, so this 17:45 arrival is comfortable and the theatre is yours for the last hour. On set dates in June, July, August and September 2026 the park also runs evening openings to midnight, last entry 23:00. Climb to the top of the cavea and sit on the left: from there Etna lines up exactly in the gap in the scaenae frons, which after a morning standing on it closes the day properly. Midday here is a furnace and a scrum; this hour is neither.",
           "cost": {
             "amountMinor": 1550,
             "currency": "USD"

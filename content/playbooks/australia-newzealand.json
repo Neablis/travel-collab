@@ -3,52 +3,33 @@
   "bundle": {
     "id": "australia-newzealand",
     "name": "Australia and New Zealand: eight days worth cloning",
-    "description": "Eight day-shaped playbooks from Sydney's eastern beaches, Melbourne's laneways, the Agincourt ribbon reefs out of Port Douglas, Uluru, and four New Zealand days — Queenstown at full blowout, Milford Sound from Te Anau, the Tongariro Alpine Crossing, and Hobbiton with Rotorua's thermal ground. Priced at what these two countries honestly cost, with the shuttle rules, road closures, tide and swell windows and booking lead times that decide whether the day works at all.",
+    "description": "Eight day-shaped playbooks from Sydney's eastern beaches, Melbourne's laneways, Wavelength's outer-reef moorings out of Port Douglas, Uluru, and four New Zealand days - Queenstown at full blowout, Milford Sound from Te Anau, the Tongariro Alpine Crossing, and Hobbiton with Rotorua's thermal ground. Priced at what these two countries honestly cost, with the shuttle rules, road closures, seasonal shutdowns and booking lead times that decide whether the day works at all.",
     "origin": "ai",
     "generatedAt": "2026-09-06",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
-      "https://www.waverley.nsw.gov.au/recreation/beaches_and_coast/coastal_walks",
-      "https://icebergs.com.au/",
-      "https://www.randwick.nsw.gov.au/facilities-and-recreation/beaches-and-coast",
-      "https://firedoor.com.au/",
-      "https://www.porteno.com.au/",
-      "https://www.transportnsw.info/tickets-opal",
-      "https://patriciacoffee.com.au/",
-      "https://qvm.com.au/",
-      "https://www.ngv.vic.gov.au/",
-      "https://supernormal.net.au/",
-      "https://cumulusinc.com.au/",
-      "https://proudmarycoffee.com.au/",
-      "https://www.ptv.vic.gov.au/tickets/myki/",
-      "https://www.wavelength.com.au/",
-      "https://www.quicksilver-cruises.com/",
-      "https://www2.gbrmpa.gov.au/access/environmental-management-charge",
-      "https://www.bom.gov.au/qld/forecasts/coastal-waters.shtml",
-      "https://parksaustralia.gov.au/uluru/plan/passes/",
-      "https://parksaustralia.gov.au/uluru/do/walks/",
-      "https://parksaustralia.gov.au/uluru/plan/opening-hours/",
-      "https://maruku.com.au/",
-      "https://www.ayersrockresort.com.au/experiences/detail/field-of-light",
-      "https://www.ayersrockresort.com.au/experiences/detail/sounds-of-silence",
-      "https://www.bungy.co.nz/nevis/nevis-bungy/",
-      "https://www.nzoneskydive.co.nz/",
-      "https://www.shotoverjet.com/",
-      "https://www.glaciersouthernlakes.co.nz/",
-      "https://www.onsen.co.nz/",
-      "https://amisfield.co.nz/",
-      "https://www.journeys.nzta.govt.nz/",
-      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/fiordland/places/fiordland-national-park/",
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening days, hours, seasonal and weather access rules, shuttle and booking requirements) were checked against the official sources listed below for 8 of 8 days. Prices were NOT systematically verified and remain model estimates - see KI-2026-09-06-d.",
+      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tongariro-alpine-crossing/",
+      "https://www.doc.govt.nz/our-work/sustainable-visitor-management-for-tongariro/tongariro-alpine-crossing-booking-system-information-for-concessionaires/",
+      "https://www.doc.govt.nz/news/media-releases/2026-media-releases/tongariro-alpine-crossing-transport-operator-suspended/",
+      "https://www.tongarirocrossing.org.nz/tongariro-alpine-crossing-winter",
+      "https://www.nzta.govt.nz/projects/sh94-milford-road",
+      "https://www.nzta.govt.nz/projects/sh94-milford-road/avalanche-control-programme",
+      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/fiordland/places/fiordland-national-park/places-to-go/milford-road-milford-sound-area/milford-road-tips-for-drivers/",
       "https://www.mitrepeak.com/",
-      "https://www.realnz.com/en/experiences/cruises/milford-sound-scenic-cruise/",
-      "https://www.milfordsoundlodge.com/pio-pio-cafe/",
-      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tongariro-alpine-crossing/",
-      "https://www.tongariroexpeditions.com/",
-      "https://www.metservice.com/rural/mountains-and-parks/tongariro-national-park",
-      "https://www.hobbitontours.com/",
+      "https://www.hobbitontours.com/experiences/hobbiton-movie-set-tour/",
+      "https://www.hobbitontours.com/experiences/matamata/",
       "https://www.waiotapu.co.nz/",
-      "https://www.treewalk.co.nz/",
-      "https://tepatu.co.nz/"
+      "https://www.treewalk.co.nz/faqs/",
+      "https://www.bungy.co.nz/queenstown/nevis/nevis-bungy/",
+      "https://www.wavelength.com.au/tours",
+      "https://www.wavelength.com.au/about-us",
+      "https://www.wavelength.com.au/faqs",
+      "https://parksaustralia.gov.au/uluru/about/opening-hours/",
+      "https://parksaustralia.gov.au/uluru/plan/passes/",
+      "https://www.ayersrockresort.com.au/experiences/field-of-light-uluru-dinner",
+      "https://qvm.com.au/blog/faq/when-is-the-market-open/",
+      "https://www.ngv.vic.gov.au/plan-your-visit/",
+      "https://icebergs.com.au/pool-conditions/"
     ]
   },
   "trips": [],
@@ -98,7 +79,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Ten dollars at the turnstile, and it buys you the pool before the photographers arrive around nine. Two things to know: the pool closes all day Thursday for cleaning, and on a big south swell the sea breaks straight over the end wall, which is thrilling if you were expecting it and alarming if you were not. Swim laps in the 50 m, then get out — the day is long. Lockers take coins.",
+          "notes": "Ten dollars at the turnstile, and it buys you the pool before the photographers arrive around nine. Two things to know: the pool closes all day Thursday for cleaning, and on a big south swell the sea breaks straight over the end wall, which is thrilling if you were expecting it and alarming if you were not. Swim laps in the 50 m, then get out — the day is long. Lockers take coins. Verified 2026-09-06: the Thursday cleaning closure is real (the club notes it may open on summer Thursdays when the tides allow), pool hours are 06:00-18:30 Mon-Fri and 06:30-18:30 weekends, and adult entry is A$10 with towel or locker hire A$5 each, so this 06:50 slot is inside opening hours on any day but Thursday.",
           "cost": {
             "amountMinor": 660,
             "currency": "USD"
@@ -306,7 +287,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Check the day before you plan around this: the market is closed Mondays and Wednesdays, which catches out more visitors than any other rule in this city. Go to the Deli Hall (the enclosed one), get a borek from the Turkish counter and a bratwurst if it is cold, then a filter at Market Lane's Therry Street shop on the way out. Fruit and veg sheds discount hard in the last hour, not the first.",
+          "notes": "Check the day before you plan around this: the market is closed Mondays and Wednesdays, which catches out more visitors than any other rule in this city. Go to the Deli Hall (the enclosed one), get a borek from the Turkish counter and a bratwurst if it is cold, then a filter at Market Lane's Therry Street shop on the way out. Fruit and veg sheds discount hard in the last hour, not the first. Verified 2026-09-06: Queen Victoria Market is closed all day Monday and Wednesday (the Wednesday night market, 17:00-22:00, runs only in season), and trades Tue/Thu/Fri 06:00-15:00, Sat 06:00-16:00, Sun 09:00-16:00. This 08:25 stop therefore only works Tuesday, Thursday, Friday or Saturday - on a Sunday the market is still shut at 08:25, and on Monday or Wednesday the day needs a different second breakfast.",
           "cost": {
             "amountMinor": 920,
             "currency": "USD"
@@ -342,7 +323,7 @@
             "area": "Southbank"
           },
           "kind": "planned",
-          "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies.",
+          "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies. Verified 2026-09-06: NGV International is open daily 10:00-17:00 and entry to the permanent collection is free, so a 10:40 arrival is fine and the building closes well before this day needs it to.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -431,7 +412,7 @@
     {
       "key": "port-douglas-agincourt-ribbon-reefs",
       "name": "Port Douglas: the outer reef on a small boat",
-      "summary": "Past the inner reef to the Agincourt ribbons with a marine biologist and 28 other people, not a pontoon with 400 — and back in time for a beer on Macrossan Street.",
+      "summary": "Past the inner reef to Wavelength's own outer-reef moorings with a marine biologist and a small boat, not a pontoon with 400 - and back in time for a beer on Macrossan Street.",
       "ownerId": "dev-sofia",
       "visibility": "public",
       "keptOn": "2025-04-22T07:05:00.000Z",
@@ -475,7 +456,7 @@
           }
         },
         {
-          "title": "Check in at Marina Mirage",
+          "title": "Check in at the Crystalbrook Superyacht Marina",
           "timeWindow": {
             "start": "08:05",
             "end": "08:25"
@@ -486,14 +467,14 @@
             "area": "Marina Mirage"
           },
           "kind": "transit",
-          "notes": "Check-in is 30 minutes before departure and the boats leave on the hour they say they leave — Wavelength at 08:30, Poseidon at 08:30, Quicksilver's pontoon run later at 10:00. The marina car park is free and fills; a 12-minute walk from anywhere in town beats circling. Reef-safe sunscreen only, and a rash vest saves more skin than any bottle.",
+          "notes": "Check-in is 30 minutes before departure and the boats leave on the hour they say they leave — Wavelength at 08:30, Poseidon at 08:30, Quicksilver's pontoon run later at 10:00. The marina car park is free and fills; a 12-minute walk from anywhere in town beats circling. Reef-safe sunscreen only, and a rash vest saves more skin than any bottle. Verified 2026-09-06: boarding for Wavelength is from 08:10 at the Crystalbrook Superyacht Marina (the marina formerly branded Marina Mirage) and the boat is back in Port Douglas about 16:00; the Wavelength shop itself is in the Reef Marina building, not at the berth, so go to the boat.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
           }
         },
         {
-          "title": "Crossing to the Agincourt ribbons",
+          "title": "Crossing to Wavelength's outer-reef moorings",
           "timeWindow": {
             "start": "08:30",
             "end": "10:00"
@@ -508,7 +489,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "Wavelength caps the boat at about 30 people, is snorkel-only (no divers to wait for), and only goes to the Agincourt ribbon reefs on the outer edge — clear water, wall structure, and no pontoon. The price includes the reef environmental management charge and the daily park fee; check that when comparing quotes, because some operators quote before it. If the forecast is over 25 knots, the honest alternative is Quicksilver's pontoon: a much larger crowd but a fixed platform that does not move, which turns a miserable day into a fine one.",
+          "notes": "CORRECTED 2026-09-06: this day was written as Wavelength going to the Agincourt ribbon reefs, and it does not. Wavelength's own site says it holds exclusive outer-reef moorings on Opal Reef, St Crispin Reef and Tongue Reef and picks three of them on the day, and it markets those sites as seeing far fewer visitors than the Agincourt Reefs. Agincourt is where Quicksilver's pontoon goes. So: same continental-shelf edge, same 90-minute crossing, different reefs - and if you specifically want Agincourt you are booking Quicksilver, not this. Wavelength is snorkel-only (no divers to wait for) and caps the boat at 58 guests on a vessel built for 100, not the 30 this day used to claim. The price includes the reef environmental management charge and the daily park fee; check that when comparing quotes, because some operators quote before it. If the forecast is over 25 knots, the honest alternative is Quicksilver's pontoon: a much larger crowd but a fixed platform that does not move.",
           "cost": {
             "amountMinor": 19070,
             "currency": "USD"
@@ -521,7 +502,7 @@
             "end": "11:05"
           },
           "location": {
-            "name": "Agincourt Reef, outer ribbon site one",
+            "name": "Wavelength site one, Opal or Tongue Reef",
             "city": "Port Douglas",
             "area": "Great Barrier Reef"
           },
@@ -529,7 +510,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Take the guided snorkel on the first site even if you are a confident swimmer — you spend an hour being shown what you would otherwise swim over, and the guides are reef researchers who log what they see. From November to May you wear a full lycra stinger suit: irukandji and box jellyfish are the reason, they are not optional, and hire is a few dollars. Also: a stinger suit is a sun suit, which matters more than people expect at 16 degrees south.",
+          "notes": "Take the guided snorkel on the first site even if you are a confident swimmer — you spend an hour being shown what you would otherwise swim over, and the guides are reef researchers who log what they see. From November to May you wear a full lycra stinger suit: irukandji and box jellyfish are the reason, they are not optional, and hire is a few dollars. Also: a stinger suit is a sun suit, which matters more than people expect at 16 degrees south. Verified 2026-09-06: marine biologists guide a snorkel and give a reef talk every day the boat runs, and stinger season is early November to late May. The suits are not optional on the boat and are included in the fare; note that the serious box jellyfish and irukandji risk is inshore, on beaches and estuaries, and is considerably lower out at the shelf edge - the suit out here is as much a sun suit as anything.",
           "cost": {
             "amountMinor": 530,
             "currency": "USD"
@@ -542,7 +523,7 @@
             "end": "13:00"
           },
           "location": {
-            "name": "Agincourt Reef, outer ribbon site two",
+            "name": "Wavelength site two, Opal or St Crispin Reef",
             "city": "Port Douglas",
             "area": "Great Barrier Reef"
           },
@@ -561,7 +542,7 @@
           "title": "Third site, then the run home",
           "timeWindow": {
             "start": "13:15",
-            "end": "16:30"
+            "end": "16:00"
           },
           "location": {
             "name": "Return crossing to Port Douglas",
@@ -569,7 +550,7 @@
             "area": "Coral Sea"
           },
           "kind": "transit",
-          "notes": "The run home is usually downwind and faster than the run out. Sit outside and at the back if your stomach is uncertain, and look for the low outline of the Low Isles on the port side. Boats are alongside about 16:30, which leaves the whole evening — do not book anything before 17:30 in case the swell adds half an hour.",
+          "notes": "The run home is usually downwind and faster than the run out. Sit outside and at the back if your stomach is uncertain, and look for the low outline of the Low Isles on the port side. Boats are alongside about 16:30, which leaves the whole evening — do not book anything before 17:30 in case the swell adds half an hour. Verified 2026-09-06: Wavelength quotes a return to Port Douglas of approximately 16:00, not 16:30, so this window has been pulled back an hour earlier at the end. Still do not book anything before 17:30 in case the swell adds half an hour.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -659,7 +640,7 @@
             "area": "Ayers Rock Resort"
           },
           "kind": "transit",
-          "notes": "The park gates open before sunrise and the opening time moves every month — it is roughly half an hour before first light, so check the month's hours rather than assuming. Yulara to the Talinguru car park is about 25 minutes. Have the pass on your phone before you leave: there is no reliable signal at the gate. Cost here is a day of a small hire car plus fuel out of Yulara, which is the most expensive fuel you will buy in Australia — fill up before you leave Alice if you drove.",
+          "notes": "The park gates open before sunrise and the opening time moves every month — it is roughly half an hour before first light, so check the month's hours rather than assuming. Yulara to the Talinguru car park is about 25 minutes. Have the pass on your phone before you leave: there is no reliable signal at the gate. Cost here is a day of a small hire car plus fuel out of Yulara, which is the most expensive fuel you will buy in Australia — fill up before you leave Alice if you drove. Verified 2026-09-06: park gate hours move with the sun across the year - roughly 05:00 to 21:00 in December and January, narrowing to about 06:30 to 19:30 in June and July. This 04:50 departure is a December-to-February plan. In June or July the gate is still shut at 05:20 and sunrise is not until about 07:20, so the whole morning shifts about ninety minutes later and the base walk starts nearer 09:00. Check the month's posted hours before you set an alarm.",
           "cost": {
             "amountMinor": 8580,
             "currency": "USD"
@@ -681,7 +662,7 @@
             "outdoors",
             "ticketed"
           ],
-          "notes": "Talinguru is the sunrise side, and the reason to use it rather than any other pull-off is that from the top of the dune boardwalk you can see Uluru and Kata Tjuta in the same frame as the light arrives. Get there 40 minutes before sunrise: the near car park fills first and the walk from the far one is ten minutes in the dark, so carry a head torch. The park pass is a three-day ticket bought online, roughly 38 dollars, and it is checked. Do not go to the sunset viewing area at dawn — you will be looking into a shadow.",
+          "notes": "Talinguru is the sunrise side, and the reason to use it rather than any other pull-off is that from the top of the dune boardwalk you can see Uluru and Kata Tjuta in the same frame as the light arrives. Get there 40 minutes before sunrise: the near car park fills first and the walk from the far one is ten minutes in the dark, so carry a head torch. The park pass is a three-day ticket bought online, roughly 38 dollars, and it is checked. Do not go to the sunset viewing area at dawn — you will be looking into a shadow. Verified 2026-09-06: the three-day park pass is A$38 per adult and under-18s are free; buy it online and have it on the phone, because it is scanned at the entry station.",
           "cost": {
             "amountMinor": 2510,
             "currency": "USD"
@@ -723,7 +704,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Ninety minutes with an Anangu artist and an interpreter, learning the iconography before you paint anything — it is the best-value cultural hour in the park and about 89 dollars. Book the day before; morning sessions run daily and sell out in peak season. The Cultural Centre itself is free, has no photography inside, and Maruku's shop is where you buy work directly from the artists rather than from a gallery in Alice.",
+          "notes": "Ninety minutes with an Anangu artist and an interpreter, learning the iconography before you paint anything — it is the best-value cultural hour in the park and about 89 dollars. Book the day before; morning sessions run daily and sell out in peak season. The Cultural Centre itself is free, has no photography inside, and Maruku's shop is where you buy work directly from the artists rather than from a gallery in Alice. Verified 2026-09-06: the Cultural Centre is open 07:00-17:45 daily, so this 10:30-12:15 workshop sits comfortably inside its hours.",
           "cost": {
             "amountMinor": 5870,
             "currency": "USD"
@@ -775,7 +756,7 @@
           "title": "Sounds of Silence dinner under the stars",
           "timeWindow": {
             "start": "17:45",
-            "end": "21:00"
+            "end": "21:45"
           },
           "location": {
             "name": "Sounds of Silence dune-top dining area",
@@ -787,17 +768,17 @@
             "meal",
             "ticketed"
           ],
-          "notes": "Canapes and sparkling on a dune with Uluru on one side and Kata Tjuta on the other while the sun goes, then a bush-tucker buffet at shared tables, then all the lights go out and someone talks you through the Southern Cross and the Emu in the Sky. About 295 dollars, includes transfers from every hotel in the resort, and it books out weeks ahead in the cool season. The smaller, seated, four-course Tali Wiru is the upgrade and only runs roughly April to October. Take a jacket: winter nights here drop near freezing after a 22-degree day.",
+          "notes": "Canapes and sparkling on a dune with Uluru on one side and Kata Tjuta on the other while the sun goes, then a bush-tucker buffet at shared tables, then all the lights go out and someone talks you through the Southern Cross and the Emu in the Sky. About 295 dollars, includes transfers from every hotel in the resort, and it books out weeks ahead in the cool season. The smaller, seated, four-course Tali Wiru is the upgrade and only runs roughly April to October. Take a jacket: winter nights here drop near freezing after a 22-degree day. Verified 2026-09-06: Sounds of Silence is a four-hour experience door to door including the hotel transfer, not the three and a quarter this day allowed, so the window now runs to 21:45. The start moves with sunset - earlier in winter, well after 19:00 in midsummer - so take the pick-up time you are given rather than this one.",
           "cost": {
             "amountMinor": 19470,
             "currency": "USD"
           }
         },
         {
-          "title": "Walk into the Field of Light last thing",
+          "title": "Field of Light, as part of the dinner package",
           "timeWindow": {
-            "start": "21:15",
-            "end": "22:15"
+            "start": "21:45",
+            "end": "22:30"
           },
           "location": {
             "name": "Field of Light, Bruce Munro installation",
@@ -808,7 +789,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Fifty thousand solar stems over an area the size of several football fields, and it is a separate ticket from the dinner — the Star Pass at around 99 dollars includes the coach transfer and a sparkling wine at the viewing platform before you walk down into it. Go on the last session of the night when the earlier groups have cleared and you can stand in the middle of it alone. Phone cameras make a mess of it; look instead. Book ahead, and book the dinner and this as one combination if the operator is offering it, since the transfers then line up.",
+          "notes": "CORRECTED 2026-09-06: this was written as a separate Star Pass session stacked after dinner, and that does not fit. Sounds of Silence is a four-hour evening ending with your transfer back to the hotel, and Field of Light general admission is itself about 90 minutes, so the two only work as one booking. Ayers Rock Resort sells exactly that: a combined Field of Light + Sounds of Silence dinner, where the 50,000 solar stems come on as darkness falls beside the dining dune and you walk down into the field as the night ends, with one transfer instead of two. Book that combination rather than the dinner and a standalone Star Pass, and treat this window as the tail of the same evening, not a second outing. If you would rather do the field on its own, do it on a different night - the last session, when the earlier groups have cleared. Phone cameras make a mess of it; look instead.",
           "cost": {
             "amountMinor": 6530,
             "currency": "USD"
@@ -856,8 +837,8 @@
         {
           "title": "Nevis shuttle from The Station",
           "timeWindow": {
-            "start": "08:15",
-            "end": "09:00"
+            "start": "08:10",
+            "end": "08:40"
           },
           "location": {
             "name": "The Station, cnr Camp and Shotover Streets",
@@ -865,7 +846,7 @@
             "area": "Town Centre"
           },
           "kind": "transit",
-          "notes": "You cannot drive yourself to the Nevis — it is 40 minutes up a private 4WD farm track and the transfer is part of the ticket, leaving from The Station in town. Check in 30 minutes before your slot. Weigh-in happens here and the number goes on your hand in marker, which is how they set the cord; there is a minimum and a maximum weight and it is not negotiable.",
+          "notes": "You cannot drive yourself to the Nevis — it is 40 minutes up a private 4WD farm track and the transfer is part of the ticket, leaving from The Station in town. Check in 30 minutes before your slot. Weigh-in happens here and the number goes on your hand in marker, which is how they set the cord; there is a minimum and a maximum weight and it is not negotiable. Verified 2026-09-06: the Bungy Bus leaves from the AJ Hackett Queenstown Bungy Centre on the corner of Camp and Shotover Streets, the first departure of the day is 08:40 and they run every 40 minutes to 14:40, and check-in is 30 minutes before your bus. The old 08:15 departure in this day was not a real bus time - this window is now check-in for the 08:40.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -874,8 +855,8 @@
         {
           "title": "The Nevis Bungy: 134 metres, 8.5 seconds",
           "timeWindow": {
-            "start": "09:00",
-            "end": "12:15"
+            "start": "08:40",
+            "end": "12:40"
           },
           "location": {
             "name": "Nevis Bungy, Nevis Valley",
@@ -887,7 +868,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "New Zealand's highest, from a pod slung on cables over the canyon — around 305 dollars, and the trip out and back is about three and a half hours all in. Two pieces of advice from people who have done all three local jumps: the Nevis is the one where the walk out along the cable to the pod is worse than the jump, and going first in your group is much easier than going eighth. The Kawarau bridge jump is half the price, a third of the height, and the one to pick if you only want to say you did it. Wind stops the Nevis more often than rain; they rebook the same day when they can.",
+          "notes": "New Zealand's highest, from a pod slung on cables over the canyon — around 305 dollars, and the trip out and back is about three and a half hours all in. Two pieces of advice from people who have done all three local jumps: the Nevis is the one where the walk out along the cable to the pod is worse than the jump, and going first in your group is much easier than going eighth. The Kawarau bridge jump is half the price, a third of the height, and the one to pick if you only want to say you did it. Wind stops the Nevis more often than rain; they rebook the same day when they can. Verified 2026-09-06: AJ Hackett tells you to allow four hours total from the Bungy Centre, so the 08:40 bus has you back in town about 12:40 rather than 12:15; the freefall is 8.5 seconds off 134 metres as described.",
           "cost": {
             "amountMinor": 18300,
             "currency": "USD"
@@ -896,8 +877,8 @@
         {
           "title": "Fergburger, eaten on a wall",
           "timeWindow": {
-            "start": "12:30",
-            "end": "13:15"
+            "start": "12:55",
+            "end": "13:35"
           },
           "location": {
             "name": "Fergburger, Shotover Street",
@@ -1006,7 +987,7 @@
     {
       "key": "milford-sound-from-te-anau",
       "name": "Milford Sound the right way: from Te Anau, on the first boat",
-      "summary": "The 119 km road is the trip, not the transfer — leave Te Anau at seven, be on the 10:45 cruise before the Queenstown coaches arrive, and drive back with the valley to yourself.",
+      "summary": "The 119 km road is the trip, not the transfer - leave Te Anau at seven, take the 11:10 small-boat sailing (there is no 10:45), and drive back down the valley with the light behind you.",
       "ownerId": "dev-marco",
       "visibility": "public",
       "keptOn": "2025-10-26T19:25:00.000Z",
@@ -1037,7 +1018,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Fill the tank in Te Anau. There is no fuel anywhere on the Milford Road — 119 km in, 119 km back, and the only pump at the far end is for boats. Before you turn the key, check the road status: the Milford Road is closed by avalanche risk and slips more often than any other state highway in the country, sometimes for a day, and between May and November you are legally required to carry snow chains in the vehicle even when the sun is out. Rental companies hand them over on request. Buy lunch supplies here too, and sandfly repellent, which is not a joke in Fiordland.",
+          "notes": "Fill the tank in Te Anau. There is no fuel anywhere on the Milford Road — 119 km in, 119 km back, and the only pump at the far end is for boats. Before you turn the key, check the road status: the Milford Road is closed by avalanche risk and slips more often than any other state highway in the country, sometimes for a day, and between June and November you are legally required to carry snow chains in the vehicle even when the sun is out. Rental companies hand them over on request. Buy lunch supplies here too, and sandfly repellent, which is not a joke in Fiordland. Verified 2026-09-06: NZTA and DOC put the legal chain-carrying requirement between Te Anau and Milford at June to November inclusive, not May - the old May date here was wrong - and not carrying them is a fine of up to $750 with roadside checks that turn vehicles back. The avalanche control programme runs the winter season and the road is genuinely closed on average about eight days a year; check the status on the NZTA journey planner or 0800 44 44 49 before you turn the key.",
           "cost": {
             "amountMinor": 1320,
             "currency": "USD"
@@ -1055,7 +1036,7 @@
             "area": "Fiordland National Park"
           },
           "kind": "transit",
-          "notes": "Two hours without stopping, and you will stop, so give it two and a quarter. In order: the Eglinton flats where the beech forest opens out, Mirror Lakes (a five-minute boardwalk, only mirrors on a still morning, which is another argument for going early rather than at midday), Knobs Flat toilets, Pop's View, and Monkey Creek where you can drink straight from the stream and the kea will strip the rubber off your windscreen wipers while you do. Do not feed them. The road is single lane in places with no barrier, and the coaches from Queenstown come the other way from about 09:30 — being ahead of them is the entire trick of this day.",
+          "notes": "Two hours without stopping, and you will stop, so give it two and a quarter. In order: the Eglinton flats where the beech forest opens out, Mirror Lakes (a five-minute boardwalk, only mirrors on a still morning, which is another argument for going early rather than at midday), Knobs Flat toilets, Pop's View, and Monkey Creek where you can drink straight from the stream and the kea will strip the rubber off your windscreen wipers while you do. Do not feed them. The road is single lane in places with no barrier, and the coaches from Queenstown come the other way from about 09:30 — being ahead of them is the entire trick of this day. Verified 2026-09-06: the stretch between the Hollyford Road junction and The Chasm is a signposted Restricted No Stopping Zone because it is avalanche path - the roadside stops on this list are all south of it, so keep driving through that section rather than pulling over for a photo.",
           "cost": {
             "amountMinor": 2700,
             "currency": "USD"
@@ -1076,7 +1057,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "The Homer Tunnel is one lane, unlit, rough-hewn, and runs on traffic lights from October to April with waits up to 15 or 20 minutes — build that in. It drops 10 percent through the mountain and pops you into the Cleddau Valley. The Chasm is a 20-minute return loop over two bridges above water that has drilled the rock into holes; it is the best short walk on the road and nearly everyone on a coach misses it because the coach does not stop.",
+          "notes": "The Homer Tunnel is one lane, unlit, rough-hewn, and runs on traffic lights from October to April with waits up to 15 or 20 minutes — build that in. It drops 10 percent through the mountain and pops you into the Cleddau Valley. The Chasm is a 20-minute return loop over two bridges above water that has drilled the rock into holes; it is the best short walk on the road and nearly everyone on a coach misses it because the coach does not stop. Verified 2026-09-06: the Homer Tunnel traffic lights run over the summer peak with delays of up to about 20 minutes, so keep that in this window.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -1085,8 +1066,8 @@
         {
           "title": "Park and check in at the terminal",
           "timeWindow": {
-            "start": "10:10",
-            "end": "10:40"
+            "start": "10:20",
+            "end": "10:50"
           },
           "location": {
             "name": "Milford Sound Visitor Terminal",
@@ -1094,17 +1075,17 @@
             "area": "Deepwater Basin"
           },
           "kind": "planned",
-          "notes": "Parking at the terminal is paid and enforced, the machine wants a card, and there is no phone signal to fix it if the machine dislikes you, so keep a card that works. It is a ten-minute walk from the car park to the wharf along the foreshore. Check in 20 minutes before departure — boats leave on time and there is no second one for an hour.",
+          "notes": "Parking at the terminal is paid and enforced, the machine wants a card, and there is no phone signal to fix it if the machine dislikes you, so keep a card that works. It is a ten-minute walk from the car park to the wharf along the foreshore. Check in 20 minutes before departure — boats leave on time and there is no second one for an hour. Verified 2026-09-06: the terminal car park is NZ$10 an hour after the first 20 minutes free (NZ$5 an hour if you arrive after 15:00), the machine wants a card and there is no signal to argue with it; free parking exists at Deepwater Basin Road about 1.5 km back. In high season the main car park is full by about 09:00, which is another reason to be early even for a later sailing.",
           "cost": {
             "amountMinor": 1200,
             "currency": "USD"
           }
         },
         {
-          "title": "The 10:45 cruise on a small boat",
+          "title": "The 11:10 sailing on a small boat",
           "timeWindow": {
-            "start": "10:45",
-            "end": "12:35"
+            "start": "11:10",
+            "end": "13:10"
           },
           "location": {
             "name": "Mitre Peak Cruises wharf",
@@ -1116,7 +1097,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "Hold rather than book if you can, because this is weather-dependent in a specific way: rain is good here. A wet day puts hundreds of temporary waterfalls down the walls and is the better cruise; what ruins it is a storm that cancels sailings outright. Mitre Peak Cruises runs small boats capped near 75 people and gets closer to the rock faces than the 400-seat vessels; RealNZ and Southern Discoveries run the big ones and the underwater observatory add-on. The 10:45 to 13:00 slots are the coach crush — a 09:00 or a 15:00 sailing is markedly emptier if you can shift. Sit outside on the bow going out, inside coming back, and expect the boat to nose right under Stirling Falls.",
+          "notes": "CORRECTED 2026-09-06: there is no 10:45 Mitre Peak Cruises sailing and this day could not be walked as written. Mitre Peak's published departures are 08:50, 09:55, 11:10, 13:30 and 15:55, subject to season, so the 11:10 is the one this drive actually makes - leaving Te Anau at 07:05 does not get you to the terminal in time to check in for the 09:55. Everything about the boat itself checks out: Mitre Peak runs two-hour cruises on purpose-built vessels capped at 75 passengers, gets closer to the walls than the 400-seat ships, and is still operating in 2026; RealNZ and Southern Discoveries run the big boats and the underwater observatory add-on. Hold rather than book if you can, because this is weather-dependent in a specific way: rain is good here - a wet day puts hundreds of temporary waterfalls down the walls - and what ruins it is a storm that cancels sailings outright. The 11:10 is inside the coach crush; the 08:50 or the 15:55 are markedly emptier if you can shift the shape of the day. Sit outside on the bow going out, inside coming back, and expect the boat to nose right under Stirling Falls.",
           "cost": {
             "amountMinor": 8340,
             "currency": "USD"
@@ -1125,8 +1106,8 @@
         {
           "title": "Lunch at Pio Pio, up the road from the terminal",
           "timeWindow": {
-            "start": "12:50",
-            "end": "13:45"
+            "start": "13:25",
+            "end": "14:20"
           },
           "location": {
             "name": "Pio Pio Cafe, Milford Sound Lodge",
@@ -1146,8 +1127,8 @@
         {
           "title": "Back down the valley in the afternoon light",
           "timeWindow": {
-            "start": "14:00",
-            "end": "16:30"
+            "start": "14:35",
+            "end": "17:00"
           },
           "location": {
             "name": "Milford Road southbound, Hollyford turnoff to Te Anau",
@@ -1187,7 +1168,7 @@
     {
       "key": "tongariro-alpine-crossing-shuttle-day",
       "name": "Tongariro Alpine Crossing: 19.4 km, one direction, no car",
-      "summary": "A one-way alpine traverse with a four-hour parking limit at one end — which is why everyone takes the shuttle, and why the weather forecast decides the night before whether this day exists.",
+      "summary": "A one-way alpine traverse with a four-hour parking limit at one end, a DOC track booking your shuttle operator needs you to hold, and a June-to-October winter season when the ordinary shuttles stop running altogether.",
       "ownerId": "dev-bob",
       "visibility": "public",
       "keptOn": "2026-03-14T06:45:00.000Z",
@@ -1211,7 +1192,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Check the mountain forecast, not the town forecast — MetService publishes a Tongariro National Park page and the shuttle operators cancel off it. The crossing tops out at 1,886 m on an exposed ridge with no shelter and no water for 19.4 km; the difference between a fine day and a dangerous one is a wind speed number. Pack three litres of water, a windproof and a warm layer regardless of the temperature at the road, sunscreen, and food for six hours. There are toilets at the trailheads and two composting toilets on the track, and no rubbish bins anywhere.",
+          "notes": "Check the mountain forecast, not the town forecast — MetService publishes a Tongariro National Park page and the shuttle operators cancel off it. The crossing tops out at 1,886 m on an exposed ridge with no shelter and no water for 19.4 km; the difference between a fine day and a dangerous one is a wind speed number. Pack three litres of water, a windproof and a warm layer regardless of the temperature at the road, sunscreen, and food for six hours. There are toilets at the trailheads and two composting toilets on the track, and no rubbish bins anywhere. Verified 2026-09-06: DOC's transport concessionaires are required to follow NIWA hazardous weather alerts and one operator had its concession suspended for two weeks in March 2026 for carrying more than 100 walkers through a Hazardous Weather Warning - so if your shuttle cancels, that is the system working, not the operator being timid.",
           "cost": {
             "amountMinor": 900,
             "currency": "USD"
@@ -1232,7 +1213,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "This is the rule that surprises everyone: the crossing is a one-way walk between two car parks 40 minutes' drive apart, and the Ketetahi end has a four-hour parking limit that is enforced. You physically cannot leave a car at the finish and you cannot leave one at the start unless someone drives it round. So it is a shuttle — around 45 to 60 dollars from National Park Village, Turangi or Whakapapa, with a fixed pick-up time at Ketetahi (typically 14:00, 15:30 and 17:00) that you must make. Book the earliest departure: you want to be over Red Crater before the afternoon cloud, and being early converts a rush at the end into a coffee.",
+          "notes": "SEASON WARNING, checked 2026-09-06: from June to October this day does not exist in the form written here. DOC and the crossing's own operators state that the usual shuttle services do not run in winter and the Ketetahi car park is closed for the winter season, reopening 24 October; in winter the crossing is an alpine trip needing helmet, crampons and ice axe with the competence to use them, and the way through is a guided trip booked out of National Park Village, not a shuttle. In season the rule is as described: the crossing is a one-way walk between two car parks 40 minutes' drive apart, and a four-hour parking limit is enforced at the road ends over the October-to-May peak, so you cannot leave a car at either end and walk. Around 45 to 60 dollars from National Park Village, Turangi or Whakapapa, with a fixed Ketetahi pick-up you must make. Verified 2026-09-06 and new since this day was written: DOC now runs a Tongariro Alpine Crossing booking system, and while walkers are not penalised for turning up without one and there is no cap, a track booking IS required to use a shuttle or a guided walk - concessionaires must confirm you hold one, and can make it for you. Sort it when you book the shuttle. Book the earliest departure: you want to be over Red Crater before the afternoon cloud.",
           "cost": {
             "amountMinor": 3300,
             "currency": "USD"
@@ -1295,7 +1276,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "The ridge to the top is loose, narrow and the one place the wind funnels hard enough to knock people over — this is where a poor forecast turns from unpleasant to genuinely serious. From roughly June to October the whole route becomes an alpine mountaineering trip needing ice axe, crampons and the skill to use them, and shuttle operators will not carry you without a guide. In summer it is just a steep, scenic slog. The descent off the top is loose scree: heels first, small steps, and let the person below get clear before you start.",
+          "notes": "The ridge to the top is loose, narrow and the one place the wind funnels hard enough to knock people over — this is where a poor forecast turns from unpleasant to genuinely serious. Verified 2026-09-06: from June to October the whole route is an alpine mountaineering trip - DOC lists helmet, crampons and ice axe as essential, with the competence to use them, plus avalanche awareness - and the ordinary shuttles simply stop running for the season, so the only way across is a guided trip. In summer it is just a steep, scenic slog. The descent off the top is loose scree: heels first, small steps, and let the person below get clear before you start.",
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -1358,7 +1339,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Where the shuttle drops everyone and the only place in the village guaranteed to be serving food at half past three. Sit outside if Ruapehu is out. If the crossing was cancelled for weather — which happens often enough that you should hold a spare day — the Taranaki Falls loop from Whakapapa is two flat hours in the same park and stays open in almost anything.",
+          "notes": "Where the shuttle drops everyone and the only place in the village guaranteed to be serving food at half past three. Sit outside if Ruapehu is out. If the crossing was cancelled for weather — which happens often enough that you should hold a spare day — the Taranaki Falls loop from Whakapapa is two flat hours in the same park and stays open in almost anything. Verified 2026-09-06: if you are reading this between June and 24 October, the Ketetahi car park is shut and the shuttle-based version of this day is off - the Taranaki Falls loop from Whakapapa is the fallback and stays open in almost anything.",
           "cost": {
             "amountMinor": 1920,
             "currency": "USD"
@@ -1421,7 +1402,7 @@
             "area": "Hinuera"
           },
           "kind": "transit",
-          "notes": "Drive to the farm, not to the town. Tours depart from the Shire's Rest on Buckland Road, about 10 minutes outside Matamata; the i-SITE in town is only a pick-up point for people without a car and sending yourself there costs you 20 minutes. Cost here is the day's fuel out of Rotorua and back. Roads are rural and the fog sits in these valleys until nine in winter.",
+          "notes": "Drive to the farm, not to the town. Tours depart from the Shire's Rest on Buckland Road, about 10 minutes outside Matamata; the i-SITE in town is only a pick-up point for people without a car and sending yourself there costs you 20 minutes. Cost here is the day's fuel out of Rotorua and back. Roads are rural and the fog sits in these valleys until nine in winter. Verified 2026-09-06: tours do depart from the Shire's Rest, 501 Buckland Road, Hinuera - but it is about a 20-minute drive from Matamata township, not 10, so leave the margin. Shire's Rest departures run every 30 minutes from 09:30 to 16:00; the Matamata i-SITE version leaves every 45 minutes from 09:30 to 15:30 and is a four-hour trip because it includes the coach both ways.",
           "cost": {
             "amountMinor": 3000,
             "currency": "USD"
@@ -1431,7 +1412,7 @@
           "title": "The Hobbiton tour, and a pint at the Green Dragon",
           "timeWindow": {
             "start": "10:00",
-            "end": "12:00"
+            "end": "12:30"
           },
           "location": {
             "name": "Hobbiton Movie Set",
@@ -1442,17 +1423,17 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Around 120 dollars, two hours, guided the whole way — you cannot wander it alone. Departures run every 15 to 30 minutes and summer sells out a fortnight ahead, so book, and book an early slot: the set faces the morning sun and the 10:00 group is a third the size of the 13:00. There are no toilets on the set itself for the two hours. It rains here and the tour does not stop for it, so take a jacket rather than an umbrella. The drink at the Green Dragon at the end is included — the ginger beer is the one to get if you are driving, and the Evening Banquet Tour is the upgrade if you would rather eat there than in Rotorua.",
+          "notes": "Around NZ$130, two and a half hours, guided the whole way — you cannot wander it alone. Departures run every 30 minutes from 09:30 to 16:00 and summer sells out a fortnight ahead, so book, and book an early slot: the set faces the morning sun and the 10:00 group is a third the size of the 13:00. There are no toilets on the set itself for the two hours. It rains here and the tour does not stop for it, so take a jacket rather than an umbrella. The drink at the Green Dragon at the end is included — the ginger beer is the one to get if you are driving, and the Evening Banquet Tour is the upgrade if you would rather eat there than in Rotorua. Verified 2026-09-06: the Signature Tour from the Shire's Rest is 2.5 hours, not 2 - this window has been extended and the rest of the afternoon pushed back accordingly - and the adult fare was NZ$130 as at 25 August 2026. A bus takes you from the Shire's Rest car park onto the set; no cars go in. Advance booking is strongly recommended, particularly in school holidays, weekends and the summer peak.",
           "cost": {
-            "amountMinor": 7200,
+            "amountMinor": 7800,
             "currency": "USD"
           }
         },
         {
           "title": "Lunch at the Shire's Rest",
           "timeWindow": {
-            "start": "12:10",
-            "end": "12:55"
+            "start": "12:40",
+            "end": "13:15"
           },
           "location": {
             "name": "Shire's Rest Cafe",
@@ -1472,8 +1453,8 @@
         {
           "title": "Back to the thermal belt",
           "timeWindow": {
-            "start": "13:10",
-            "end": "14:15"
+            "start": "13:25",
+            "end": "14:45"
           },
           "location": {
             "name": "SH5 south to Rotorua",
@@ -1490,8 +1471,8 @@
         {
           "title": "Wai-O-Tapu: Champagne Pool and the Artist's Palette",
           "timeWindow": {
-            "start": "14:30",
-            "end": "16:00"
+            "start": "14:45",
+            "end": "16:15"
           },
           "location": {
             "name": "Wai-O-Tapu Thermal Wonderland",
@@ -1503,7 +1484,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "About 40 dollars for a 3 km loop of boardwalks over ground that is orange, green and violently green. Skip the Lady Knox Geyser: it goes off at 10:15 every morning because a ranger drops soap into it, it does not fit a Hobbiton morning, and it is the least interesting thing here. Stay on the boardwalks — the crust is thin and people have gone through it. Champagne Pool steams hardest on a cold afternoon, which makes winter the better season for photographs. Te Puia in town is the alternative if you want the Pohutu geyser and a Maori cultural centre in one ticket.",
+          "notes": "About 40 dollars for a 3 km loop of boardwalks over ground that is orange, green and violently green. Skip the Lady Knox Geyser: it goes off at 10:15 every morning because a ranger drops soap into it, it does not fit a Hobbiton morning, and it is the least interesting thing here. Stay on the boardwalks — the crust is thin and people have gone through it. Champagne Pool steams hardest on a cold afternoon, which makes winter the better season for photographs. Te Puia in town is the alternative if you want the Pohutu geyser and a Maori cultural centre in one ticket. Verified 2026-09-06: Wai-O-Tapu is open seven days 08:30-16:30 with LAST ADMISSION AT 15:00, closed only on Christmas Day, and the Lady Knox soaping is 10:15 daily as described. That last-admission time is what forces the shape of this afternoon: with a 2.5-hour Hobbiton tour you arrive here about 14:45 and have fifteen minutes of slack. Miss 15:00 and the day's second half is gone.",
           "cost": {
             "amountMinor": 2400,
             "currency": "USD"
@@ -1513,7 +1494,7 @@
           "title": "Redwoods Treewalk at dusk",
           "timeWindow": {
             "start": "16:30",
-            "end": "17:45"
+            "end": "17:30"
           },
           "location": {
             "name": "Redwoods Treewalk, Whakarewarewa Forest",
@@ -1525,7 +1506,7 @@
             "outdoors",
             "ticketed"
           ],
-          "notes": "Suspension bridges strung between 117-year-old Californian redwoods, 20 m up. The nightlights version with David Trubridge's lanterns is the one to buy and it starts at dusk, which in a Rotorua winter is barely five o'clock — check the day's start time when you buy, because in midsummer it is not dark until nine and the day ticket is the better deal then. The forest floor walking tracks underneath are free and excellent if you would rather not pay.",
+          "notes": "Suspension bridges strung between 117-year-old Californian redwoods, 20 m up. The nightlights version with David Trubridge's lanterns is the one to buy and it starts at dusk, which in a Rotorua winter is barely five o'clock — check the day's start time when you buy, because in midsummer it is not dark until nine and the day ticket is the better deal then. The forest floor walking tracks underneath are free and excellent if you would rather not pay. Verified 2026-09-06: the Treewalk opens daily at 09:00 and closes about 21:00 in winter and midnight in midsummer, and Nightlights starts 20 minutes after sunset - which in September is around 18:20, i.e. after the Te Pa Tu pick-up. Take the day walk here and the hangi in the evening, or move Nightlights to another night. From 1 September 2026 booking a specific date and time for Nightlights is strongly recommended.",
           "cost": {
             "amountMinor": 2640,
             "currency": "USD"
