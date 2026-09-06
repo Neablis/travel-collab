@@ -708,47 +708,77 @@ def distance_km(alat: float, alng: float, blat: float, blng: float) -> float:
     return 2 * r * math.asin(min(1.0, math.sqrt(h)))
 
 
-def audit_anchors(db: sqlite3.Connection, km: float = 50.0) -> dict[str, tuple]:
-    """City anchors that disagree with the venues found in that same city.
+def audit_cities(db: sqlite3.Connection, km: float = 50.0) -> dict[str, dict]:
+    """Classify a city's pins against its anchor, and say which half is wrong.
 
-    An anchor is one lookup; a city's venue pins are many, independently
-    resolved and independently agreeing with its name. So when the two
-    disagree, the anchor is the thing that is wrong — and a wrong anchor is
-    not a harmless error, because it manufactures phantom outliers: every
-    correct venue in that city then measures as hundreds of kilometres out.
+    The first version compared the anchor to the MEDIAN of a city's pins and
+    blamed the anchor. Watkins Glen showed why that is not enough: two venues
+    matched North Franklin Street in New York correctly, and two matched a
+    "Watkins Glen" street in Paradise, NEVADA. The median of a bimodal split
+    sits between the clusters — in that case Kansas, where nothing is — so the
+    report accused a correct anchor and withheld two correct pins along with the
+    two wrong ones.
 
-    The signature of it in the first real review was distances REPEATING
-    exactly — Fuente De's three venues all at 652.6km, Watkins Glen's two both
-    at 2357.1. Independently wrong venues do not land on identical distances;
-    correct venues measured against one wrong point do.
+    A median cannot describe a split. Counting can:
 
-    Needs three pins to say anything: a median of two is not a cluster.
+      healthy      every pin agrees with the anchor.
+      bad-pins     most pins agree with the anchor, a minority does not. The
+                   anchor has corroboration; the outliers are wrong. Withhold
+                   only those.  (Watkins Glen: 2 New York, 2 Nevada.)
+      bad-anchor   no pin agrees with the anchor, but they agree with each
+                   other. Many independent lookups beat one. Keep the pins,
+                   drop the anchor.  (Koh Lanta: anchor in Bangkok.)
+      split        no agreement anywhere. Withhold everything: the evidence does
+                   not say which is right, and KI-39's lesson is that a
+                   confidently wrong pin costs more than a missing one.
+                   (Fuente De: anchor in Veracruz, pins near Guadalajara, and
+                   the real place is in Spain.)
     """
-    out: dict[str, tuple] = {}
-    anchors = db.execute("select city, lat, lng from cities where status='ok' and lat is not null")
-    for city, alat, alng in anchors.fetchall():
+    out: dict[str, dict] = {}
+    anchors = db.execute(
+        "select city, lat, lng from cities where status='ok' and lat is not null").fetchall()
+    for city, alat, alng in anchors:
         pins = db.execute(
-            "select lat, lng from places where status='ok' and city=? and lat is not null "
-            "and coalesce(precision,'venue') in ('venue','area')", (city,)).fetchall()
-        if len(pins) < 3:
+            "select key, query, coalesce(display_name,''), lat, lng, coalesce(precision,'venue') "
+            "from places where status='ok' and city=? and lat is not null "
+            "and coalesce(precision,'venue') in ('venue','area') order by query", (city,)
+        ).fetchall()
+        if len(pins) < 2:
+            continue  # one pin and an anchor is two opinions and no majority
+
+        near = [p for p in pins if distance_km(alat, alng, p[3], p[4]) <= km]
+        far = [p for p in pins if distance_km(alat, alng, p[3], p[4]) > km]
+        if not far:
             continue
-        mlat = statistics.median(p[0] for p in pins)
-        mlng = statistics.median(p[1] for p in pins)
-        d = distance_km(alat, alng, mlat, mlng)
-        if d > km:
-            # Carry the PINS, not just the verdict. Excluding these cities from
-            # the outlier list (so correct venues stop being reported as
-            # outliers) also removed the only place their matches were shown —
-            # so the report could say "these six disagree" and give a reader
-            # nothing to decide WHICH half is wrong with. The whole point is
-            # that the number cannot settle it and a person has to look.
-            detail = db.execute(
-                "select query, coalesce(display_name,''), lat, lng, coalesce(precision,'venue') "
-                "from places where status='ok' and city=? and lat is not null "
-                "and coalesce(precision,'venue') in ('venue','area') order by query", (city,)
-            ).fetchall()
-            out[city] = (round(d, 1), len(pins), (alat, alng),
-                         (round(mlat, 4), round(mlng, 4)), detail)
+
+        if near and len(near) >= len(far):
+            verdict, bad = "bad-pins", far
+        else:
+            # Do the disagreeing pins at least agree with each other?
+            mlat = statistics.median(p[3] for p in far)
+            mlng = statistics.median(p[4] for p in far)
+            cohesive = all(distance_km(mlat, mlng, p[3], p[4]) <= km for p in far)
+            if cohesive and not near:
+                verdict, bad = "bad-anchor", []
+            else:
+                verdict, bad = "split", pins
+
+        out[city] = {
+            "verdict": verdict,
+            "anchor": (alat, alng),
+            "agreeing": len(near),
+            "disagreeing": len(far),
+            "withhold": [p[0] for p in bad],
+            "dropAnchor": verdict in ("bad-anchor", "split"),
+            "pins": [
+                {"query": q, "matched": dn, "lat": round(la, 5), "lng": round(ln, 5),
+                 "precision": pr,
+                 "kmFromAnchor": round(distance_km(alat, alng, la, ln), 1),
+                 "verdict": "disagrees" if (k in {b[0] for b in far}) else "agrees",
+                 "map": f"https://www.openstreetmap.org/?mlat={la}&mlon={ln}#map=14/{la}/{ln}"}
+                for k, q, dn, la, ln, pr in pins
+            ],
+        }
     return out
 
 
@@ -764,7 +794,10 @@ def far_from_anchor(db: sqlite3.Connection, km: float = 40.0) -> list[tuple]:
     # Skip cities whose anchor failed the audit. Measuring a correct venue
     # against a wrong anchor produces an outlier report full of places that are
     # not outliers, which is exactly what the first real review looked like.
-    suspect = set(audit_anchors(db))
+    # Only skip a city whose ANCHOR is the untrustworthy half. Where the anchor
+    # is corroborated ("bad-pins"), measuring against it is exactly right.
+    audit = audit_cities(db)
+    suspect = {c for c, v in audit.items() if v["dropAnchor"]}
     anchors = {c: (la, ln) for c, la, ln
                in db.execute("select city, lat, lng from cities where status='ok'")
                if c not in suspect}
@@ -1304,16 +1337,16 @@ def write_review(db: sqlite3.Connection) -> dict:
         # NOTE: this says the two disagree, NOT which one is wrong. Both
         # coordinates are given so a person can tell — and both are withheld by
         # --apply until one does.
-        "badCityAnchors": [
-            {"city": c, "kmFromItsOwnVenues": d, "venuesCompared": n,
-             "anchor": {"lat": a[0], "lng": a[1]}, "venueMedian": {"lat": m[0], "lng": m[1]},
-             "pins": [
-                 {"query": q, "matched": dn, "lat": round(la, 5), "lng": round(ln, 5),
-                  "precision": pr,
-                  "map": f"https://www.openstreetmap.org/?mlat={la}&mlon={ln}#map=14/{la}/{ln}"}
-                 for q, dn, la, ln, pr in _pins
-             ]}
-            for c, (d, n, a, m, _pins) in sorted(audit_anchors(db).items(), key=lambda kv: -kv[1][0])
+        # Says WHICH half is wrong, and why. `verdict` is one of:
+        #   bad-pins    the anchor is corroborated; the listed pins are wrong
+        #   bad-anchor  the pins agree with each other; the anchor is wrong
+        #   split       no agreement; everything here is withheld
+        "cityDisagreements": [
+            {"city": c, "verdict": v["verdict"], "agreeing": v["agreeing"],
+             "disagreeing": v["disagreeing"],
+             "anchor": {"lat": v["anchor"][0], "lng": v["anchor"][1]},
+             "pinsWithheld": len(v["withhold"]), "pins": v["pins"]}
+            for c, v in sorted(audit_cities(db).items(), key=lambda kv: -kv[1]["disagreeing"])
         ],
         "farFromCityCentre": [
             {"query": q, "city": c, "kmFromCentre": d, "precision": pr,
@@ -1369,19 +1402,17 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
     # So the disagreement says one of them is wrong and does NOT say which.
     # Withholding both is the only reading that cannot write a pin in the wrong
     # country, which is the whole of KI-39.
-    bad_anchor = audit_anchors(db)
-    if bad_anchor:
-        blocked = db.execute(
-            "select key from places where status='ok' and city in "
-            f"({','.join('?' * len(bad_anchor))})", tuple(bad_anchor)).fetchall()
-        for (key,) in blocked:
-            good.pop(key, None)
-        print(f"  {len(bad_anchor)} city/ies where the anchor and its venues disagree — "
-              f"all {len(blocked)} pin(s) there withheld pending review "
-              f"({', '.join(sorted(bad_anchor))})")
-    outlier_keys = {q.strip().lower() for q, _, _ in flag_outliers(db)}
-    if outlier_keys:
-        print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
+    audit = audit_cities(db)
+    withheld = {k for v in audit.values() for k in v["withhold"]}
+    for key in withheld:
+        good.pop(key, None)
+    if audit:
+        by_verdict: dict[str, int] = {}
+        for v in audit.values():
+            by_verdict[v["verdict"]] = by_verdict.get(v["verdict"], 0) + 1
+        print(f"  {len(audit)} city/ies disagree with their own pins "
+              f"({', '.join(f'{n} {k}' for k, n in sorted(by_verdict.items()))}) — "
+              f"{len(withheld)} pin(s) withheld; see cityDisagreements in --review")
 
     touched = written = held = 0
     for path in bundle_files():
@@ -1503,7 +1534,7 @@ def main() -> None:
     if args.review:
         review = write_review(db)
         print(f"  {len(review['rejected'])} rejected · {len(review['unresolved'])} unresolved · "
-              f"{len(review['badCityAnchors'])} bad anchor(s) · "
+              f"{len(review['cityDisagreements'])} city/ies disagreeing · "
               f"{len(review['farFromCityCentre'])} far from their city centre")
         print(f"  written to {REVIEW.relative_to(REPO)}")
         return
