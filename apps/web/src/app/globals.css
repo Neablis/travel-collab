@@ -701,6 +701,9 @@
      design's kept state. Nothing is left on screen claiming a persistence the
      schema cannot back — `SavedDay` has no `sourceDayId`, so after a reload
      "is this day kept?" has no answer (ADR-040). */
+  /* GREEN, not brand. Mitchell, 2026-09-06 10:07, on the phone: *"just have
+     it turn green and do the animation when it succeeds"*. Green is what a
+     save reads as; the brand fill the design specified read as a selection. */
   @keyframes om-flag-keep {
     0% {
       background-color: var(--color-surface);
@@ -710,12 +713,12 @@
        holds with `fill: 'forwards'`; the hold here is the flat middle, and the
        return is the design's frame run backwards at the same length. */
     10.77% {
-      background-color: var(--color-brand);
+      background-color: var(--color-success);
       color: var(--color-surface);
       animation-timing-function: linear;
     }
     89.23% {
-      background-color: var(--color-brand);
+      background-color: var(--color-success);
       color: var(--color-surface);
       animation-timing-function: ease-in;
     }
@@ -740,24 +743,6 @@
     }
     100% {
       fill: transparent;
-    }
-  }
-  @keyframes om-flag-label {
-    0% {
-      max-width: 0;
-      opacity: 0;
-      margin-left: 0;
-    }
-    14%,
-    86% {
-      max-width: 52px;
-      opacity: 1;
-      margin-left: 6px;
-    }
-    100% {
-      max-width: 0;
-      opacity: 0;
-      margin-left: 0;
     }
   }
   @keyframes om-flag-ring {
@@ -795,16 +780,10 @@
   .flag-celebrate svg path {
     animation: om-flag-fill 2600ms linear;
   }
-  .flag-celebrate-label {
-    display: inline-block;
-    overflow: hidden;
-    white-space: nowrap;
-    animation: om-flag-label 2600ms cubic-bezier(0.2, 1, 0.3, 1);
-  }
   .flag-celebrate-ring {
     position: absolute;
     inset: -5px;
-    border: 2px solid var(--color-brand);
+    border: 2px solid var(--color-success);
     border-radius: 999px;
     pointer-events: none;
     animation: om-flag-ring 700ms ease-out;
@@ -824,7 +803,7 @@
     position: absolute;
     top: 50%;
     border-radius: 999px;
-    background: var(--color-brand);
+    background: var(--color-success);
     pointer-events: none;
     animation: om-flag-spark 780ms ease-out both;
   }
@@ -861,13 +840,12 @@
   }
   @media (prefers-reduced-motion: reduce) {
     /* Same call as `.flag-wave`: the toast carries the outcome, so all of this
-       is decoration. The label still appears and leaves on its timer — that is
-       a state change, not motion, and it is the one part of the celebration
-       that says anything. The ring and sparks have no resting state worth
-       showing, so they are hidden outright rather than frozen mid-flight. */
+       is decoration. The ring and sparks have no resting state worth showing,
+       so they are hidden outright rather than frozen mid-flight. (The "Kept"
+       label this block used to carve out an exception for is gone — Mitchell,
+       2026-09-06 10:07: *"drop the word kept and the expanded UI"*.) */
     .flag-celebrate,
     .flag-celebrate svg path,
-    .flag-celebrate-label,
     .flag-celebrate-ring,
     .flag-celebrate-spark {
       animation: none;

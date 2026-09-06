@@ -19,3 +19,25 @@ The original entry follows, unchanged.
 - **A detail worth carrying into whichever is chosen:** the component's own comment says the design "parks this permanently in the DOM at `max-width: 0`" and that this was rejected because it "would be read out, so every un-kept day would announce 'Kept'". That reason no longer binds on its own — the label already carries `aria-hidden`, so a permanently parked copy would not be announced. Option 2 is therefore closer to the design than the comment implies.
 - **Cross-reference:** `docs/design-feedback/2026-09-06-preview-ui-feedback.md` finding 14.
 - **First noted:** 2026-09-06.
+
+---
+
+## Superseded, 2026-09-06 10:07 — the label went instead of the space
+
+The fix above reserved `88px` permanently so the button could not grow. It
+worked, and it cost an un-kept pennant nearly three times the design's 30px.
+Mitchell, seeing it on the phone:
+
+> lets go back to this being smaller, drop the word kept and the expanded UI
+> and just have it turn green and do the animation when it succeeds
+
+So the "Kept" label is gone — the component, the `om-flag-label` keyframe, the
+`.flag-celebrate-label` rule and the `prefers-reduced-motion` carve-out written
+around it. The pennant is a fixed 30px square at every moment of its life,
+which fixes the reported wrap the same way the reservation did and for a
+simpler reason: there is nothing left that can change size. The fill and ring
+are `--color-success` rather than `--color-brand`, which is the "turn green"
+half.
+
+**Both of the alternatives this entry weighed are now moot**, and the third
+option — the one nobody proposed — was to delete the thing that was growing.

@@ -1,7 +1,7 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 10:30: seventeen threads — fourteen fixed, two answered, one
-filed.** This file exists so Mitchell has a preview deployment to comment on
+**Status, as of 10:45: twenty threads — fifteen fixed, two answered, three
+open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
 The sections below are in the order they were written and each one's totals
@@ -606,3 +606,50 @@ hover/focus" unreachable; and the repeat table carried a Tailwind `block`
 utility that beat `.tc-widget-table`'s `display: table` in the cascade, so the
 table it was supposed to be was a shrink-to-fit box floating inside a
 full-width card. Both now have a walk that fails without the fix.
+
+
+## Third batch — threads 18, 19, 20, 2026-09-06 10:07–10:10
+
+Left while PR 149's review round was being worked. All three on the same trip,
+two of them at 912px and one at 412px.
+
+| # | Thread | Route / surface | What | Outcome |
+| - | ------ | --------------- | ---- | ------- |
+| 18 | `FeAGRfPJn5p3` | Schedule → Timeline, 412px, day head | "lets go back to this being smaller, drop the word kept and the expanded UI and just have it turn green and do the animation when it succeeds" | **Fixed** |
+| 19 | `PBcXql7hanpO` | Map lens, 912px, `div.phone-tab-bar-inset` | "this is no longer filling the height available" | **Open — needs a decision** |
+| 20 | `3AP1dMISqZxO` | Account menu, 912px | "the your account screen has the desktop styling, it should be a full height page like the activity adder" | **Open — M17 work, not a defect** |
+
+### 18 — the keep-day pennant, and a fix that was overturned by a better one
+
+This reverses finding 14's fix rather than extending it. That fix reserved the
+"Kept" label's width permanently so the day head could not reflow; it worked,
+and it left an un-kept pennant nearly three times the design's 30px. Dropping
+the label removes the reflow for a simpler reason — nothing can change size any
+more — and it is what was asked for.
+
+Gone with it: `om-flag-label`, `.flag-celebrate-label`, and the
+`prefers-reduced-motion` carve-out written to keep the label appearing when the
+motion was dropped. The fill, ring and sparks are `--color-success` now instead
+of `--color-brand`; the design specified brand, and brand reads as *selected*
+where green reads as *saved*. `KI-2026-09-06-f` records the supersession.
+
+### 19 — "no longer filling the height available"
+
+Selector `body > div.phone-tab-bar-inset`, Map lens, 912×1685 Android. **Not
+fixed, and not yet diagnosed.** "No longer" says it is a regression, and the
+element named is the tab-bar inset wrapper rather than the map canvas — which
+makes it a different element from `KI-2026-09-06-g`'s `100dvh` canvas even
+though the two are on the same screen and could easily be read as one report.
+
+The honest position is that this needs a look at the preview before anything is
+changed: at 912px the phone tab bar is not rendered, both terms of the inset's
+padding subtraction are zero, and guessing at a height rule on a screen where
+another height bug is already open (`g`) is how the wrong one gets "fixed".
+
+### 20 — the account screen at phone width
+
+**Not a defect and not a regression: unbuilt.** M17 is the account-preferences
+milestone and its exit gate still has three unticked boxes; the phone treatment
+for that screen is inside it. This thread is the clearest statement so far of
+what the phone treatment should be — a full-height page, the same shape as the
+activity adder — and belongs in M17's notes rather than in this branch.
