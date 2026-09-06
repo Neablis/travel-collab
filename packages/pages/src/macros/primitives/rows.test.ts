@@ -3,7 +3,7 @@ import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { Seg, WidgetContext, RenderedRow } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
-import { formatMoney } from "../../format";
+import { formatMoney, formatDate } from "../../format";
 
 const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetContext => ({
   trip,
@@ -165,6 +165,12 @@ describe("stop.rows", () => {
 });
 
 describe("cost.rows", () => {
+  // Through `formatDate`, not a literal: the widget's own claim is "a human
+  // readable string" (Mitchell, 2026-09-06 — *"march 10, 2026 rather than
+  // 2026-03-10"*), and a hard-coded "Jun 1, 2027" here would pass just as
+  // happily if the widget went back to emitting the ISO and someone updated
+  // this file to match. Sharing the formatter means the assertion tracks the
+  // claim rather than the current output.
   it("is a row per costed day, plus unscheduled, plus the total", () => {
     // **Every row, not the first and the last.** Checking only Day 1, the
     // unscheduled row and the total passes for a renderer that drops Day 2 and
@@ -174,8 +180,8 @@ describe("cost.rows", () => {
     const ctx = contextOf(fixture);
     const money = (index: number) => formatMoney(fixture.trip.days[index]!.costSubtotal, "USD");
     expect(lines(ctx, "cost.rows")).toEqual([
-      `Day 1 · 2027-06-01 ${money(0)}`,
-      `Day 2 · 2027-06-02 ${money(1)}`,
+      `Day 1 · ${formatDate("2027-06-01")} ${money(0)}`,
+      `Day 2 · ${formatDate("2027-06-02")} ${money(1)}`,
       // Day 3 has no date, so its label is the day number alone.
       `Day 3 ${money(2)}`,
       `Unscheduled ${formatMoney(fixture.trip.unscheduledCostSubtotal, "USD")}`,
@@ -193,8 +199,8 @@ describe("cost.rows", () => {
     const s0 = fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor;
     const s3 = fixture.trip.activities[fixture.ids.s3]!.cost!.amountMinor;
     expect(booked).toEqual([
-      `Day 1 · 2027-06-01 ${formatMoney(s0, "USD")}`,
-      `Day 2 · 2027-06-02 ${formatMoney(s3, "USD")}`,
+      `Day 1 · ${formatDate("2027-06-01")} ${formatMoney(s0, "USD")}`,
+      `Day 2 · ${formatDate("2027-06-02")} ${formatMoney(s3, "USD")}`,
       `Total ${formatMoney(s0 + s3, "USD")}`,
     ]);
   });

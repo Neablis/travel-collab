@@ -18,7 +18,25 @@ import { BlockView } from "./BlockView";
 //
 // The C-era swap seam is unchanged and now stated by the types rather than by a
 // comment: block components consume resolver payloads, never markup.
-function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents }) {
+/**
+ * `plain` — a value inside a TABLE, drawn as text rather than as a chip.
+ *
+ * Mitchell, 2026-09-06, twice on two different widgets: *"text in a widget
+ * table shouldn't be color coded like inline text, also add row strips to show
+ * it's a table"* and *"all tables should have row stripping, and not color.code
+ * the text like other inline text"*.
+ *
+ * The chip treatment below exists to answer a question a table does not ask.
+ * Inline, a resolved value sits in a sentence the author wrote, and the tint
+ * says which words came from the trip rather than from them. Every cell of a
+ * repeat table came from the trip — the whole widget did — so the tint marks
+ * nothing, and at 411px a column of tinted pills reads as a column of buttons.
+ *
+ * `data-widget-value` stays on either path: it is the non-presentational
+ * handle a test asks "how many values came from a widget" with, and that
+ * question is still the same question.
+ */
+function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents: CityAccents; plain?: boolean }) {
   return (
     <>
       {segs.map((seg, i) =>
@@ -65,7 +83,7 @@ function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents })
             key={i}
             data-widget-value={seg.name}
             className={cn(
-              "mx-0.5 rounded-sm border-b-2 border-brand bg-brand-tint px-1",
+              plain ? null : "mx-0.5 rounded-sm border-b-2 border-brand bg-brand-tint px-1",
               // A city is the one value with a colour of its own, and it is
               // the trip's colour, not the widget's — see `cityAccents`.
               seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
@@ -225,22 +243,31 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
               role="row"
               key={i}
               className={cn(
+                // Zebra striping rather than a hairline between every row:
+                // *"add row strips to show it's a table"*. The stripe lives in
+                // globals.css as an `:nth-child(even)` rule, because the row
+                // does not know its own index in CSS terms and the component
+                // should not have to hand it one. A hairline as well would be
+                // two separators doing one job, and at this row height it read
+                // as ruled paper.
                 "tc-widget-row",
-                // Separators between rows, never above the first: a rule under
-                // the last row would double with the card's own border.
-                i > 0 && "border-t border-hairline",
+                // The total keeps its own tint and wins the cascade over the
+                // stripe outright: `bg-moss` is a utility, the stripe is a
+                // component-layer rule, and Tailwind v4 orders utilities last.
+                // (That ordering is also what broke `display: table` here on
+                // 2026-09-06; same rule, working in our favour this time.)
                 row.kind === "total" && "bg-moss font-semibold text-ink",
               )}
             >
               <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left align-baseline">
-                <Segs segs={row.lead} accents={accents} />
+                <Segs segs={row.lead} accents={accents} plain />
               </span>
               {/* A header row names a group and has no value of its own; it
                   spans both columns rather than leaving an empty cell that
                   reads as a missing number. */}
               {row.kind === "header" ? null : (
                 <span role="cell" className="tc-widget-cell px-3 py-2 text-right align-baseline">
-                  <Segs segs={row.values} accents={accents} />
+                  <Segs segs={row.values} accents={accents} plain />
                 </span>
               )}
             </span>

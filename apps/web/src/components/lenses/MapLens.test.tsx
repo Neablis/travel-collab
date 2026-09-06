@@ -6,6 +6,7 @@ import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
+import { MAP_DAY_STRIP_HEIGHT_PX } from "./MapDayStrip";
 
 // MapLens dynamically imports maplibre-gl, whose real module init touches
 // browser APIs jsdom doesn't implement (window.URL.createObjectURL, WebGL),
@@ -920,6 +921,32 @@ describe("MapLens on a phone", () => {
 
   afterEach(() => {
     Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  it("gives a focused day's pins room to breathe on the small screen too", async () => {
+    // Mitchell, 2026-09-06 at 764px: *"have the map default be even more
+    // zoomed out by default so the pins aren't so close to the edges"*. The
+    // phone branch was padding fitBounds by 24 on three sides where the
+    // desktop branch pads by 100, so a day whose bounds already filled the
+    // frame put its outermost pins almost on the edge.
+    //
+    // Padding rather than `maxZoom`: the cap only bites on a day whose stops
+    // are close together, and this is about a day whose bounds are wide.
+    setViewportMatches(true);
+    fitBoundsMock.mockClear();
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+
+    const [, options] = fitBoundsMock.mock.calls.at(-1)!;
+    const padding = (options as { padding: { top: number; right: number; bottom: number; left: number } }).padding;
+    expect(padding.right).toBe(48);
+    expect(padding.bottom).toBe(48);
+    // Left is the plain padding here, not the rail's footprint: on a phone the
+    // day control is the strip across the top, and reserving 284px of a 411px
+    // screen would leave the camera nothing to fit a day into.
+    expect(padding.left).toBe(48);
+    // And the top clears the strip on top of that same breathing room.
+    expect(padding.top).toBe(MAP_DAY_STRIP_HEIGHT_PX + 48);
   });
 
   it("swaps the rail, focus card and legend for one day strip below 768px", async () => {

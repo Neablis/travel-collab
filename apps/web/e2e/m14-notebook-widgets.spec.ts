@@ -325,30 +325,6 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
 
-  // **A resolved value reads as a word with room around it, not flush against
-  // the prose.** Mitchell, on the preview: *"These inline elements should have
-  // a natural space at the start and end, otherwise ill need to go in and put a
-  // unnatural space."* A widget node is an inline atom, so its tinted
-  // background butted straight against the character beside it.
-  //
-  // Asserted in e2e rather than in a unit test because it is genuinely
-  // presentational: `toHaveClass` and `.className` are eslint errors in
-  // `src/**/*.test.tsx` outside `components/ui/**`, and rightly — but a
-  // computed margin is a real measurement, and e2e is where this repo already
-  // measures rendered geometry (§13's 44px floor is checked the same way).
-  //
-  // A repeater's rows are where a value definitely renders: this trip has days
-  // and dates but no costs, so an inline `cost` would resolve to its empty
-  // chip and there would be no value to measure.
-  const value = page.locator(".tc-page-editor [data-widget-value]").first();
-  await expect(value).toBeVisible();
-  const gaps = await value.evaluate((el) => {
-    const style = getComputedStyle(el);
-    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
-  });
-  expect(gaps.left).toBeGreaterThan(0);
-  expect(gaps.right).toBeGreaterThan(0);
-
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
@@ -584,4 +560,81 @@ test("a selected block widget shows its bindings with the pointer nowhere near i
       message: "the caret has left the widget and its bindings are still showing",
     })
     .toBe("0");
+});
+
+test("a repeat widget's rows are striped, and its values are text rather than chips", async ({ page }) => {
+  // Mitchell, 2026-09-06, on two widgets in a row: *"text in a widget table
+  // shouldn't be color coded like inline text, also add row strips to show
+  // it's a table"* and *"all tables should have row stripping, and not
+  // color.code the text like other inline text"*.
+  //
+  // Both halves are computed background colours, which is what they are:
+  // "striped" and "not tinted" have no other observable. The roles cannot see
+  // either, and the repo's lint forbids asserting the classes.
+  // `day.rows` rather than `stop.rows` or `cost.rows`: the second half of this
+  // walk needs rows that actually carry values, and this trip has neither
+  // costs (so `cost.rows` renders `empty`) nor scheduled stops (so a
+  // `stop.rows` line is a lead and nothing else). Every day here is dated, and
+  // a dated day's row carries its date as a value.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every day/, "every day");
+
+  const table = page.getByRole("table").first();
+  const backgrounds = await table
+    .getByRole("row")
+    .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).backgroundColor));
+  expect(backgrounds.length).toBeGreaterThan(1);
+  // Adjacent rows differ — that is what a stripe is, whichever two colours it
+  // is drawn in.
+  for (let i = 1; i < backgrounds.length; i += 1) {
+    expect(backgrounds[i]).not.toBe(backgrounds[i - 1]);
+  }
+
+  // And a value in a cell is not wearing the inline widget chip's tint. The
+  // chip is right in a sentence, where it says which words came from the trip;
+  // in a table every cell did, so it marks nothing and reads as a button.
+  const values = await table
+    .locator("[data-widget-value]")
+    .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+  expect(values.length).toBeGreaterThan(0);
+  for (const background of values) {
+    expect(background).toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
+test("an inline value keeps a natural space on each side of it", async ({ page }) => {
+  // Mitchell, on the PR 141 preview: *"These inline elements should have a
+  // natural space at the start and end, otherwise ill need to go in and put a
+  // unnatural space."* A widget node is an inline atom, so its tinted
+  // background butted straight against the character beside it and the
+  // author's own typed space landed outside the tint.
+  //
+  // **`The dates`, an inline widget, and not a repeater.** This assertion used
+  // to live inside "a repeater renders one line per day", on the reasoning
+  // that a repeat row was where a value definitely rendered. That stopped
+  // being true on 2026-09-06: a value inside a TABLE is drawn as plain text
+  // now, with no tint and no margin — Mitchell, *"not color.code the text like
+  // other inline text"* — so the margin the walk measured was the one thing
+  // the table was supposed to have dropped, and it kept passing right up until
+  // it was dropped. The claim is about a value in a SENTENCE, and it belongs
+  // on one.
+  //
+  // Measured in e2e rather than in a unit test because it is genuinely
+  // presentational: `toHaveClass` and `.className` are eslint errors in
+  // `src/**/*.test.tsx` outside `components/ui/**`, and rightly — but a
+  // computed margin is a real measurement, and e2e is where this repo already
+  // measures rendered geometry (§13's 44px floor is checked the same way).
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The dates/, "dates");
+
+  const value = page.locator(".tc-page-editor [data-widget-value]").first();
+  await expect(value).toBeVisible();
+  const gaps = await value.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
+  });
+  expect(gaps.left).toBeGreaterThan(0);
+  expect(gaps.right).toBeGreaterThan(0);
 });

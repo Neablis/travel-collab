@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 16:20: twenty-one threads — sixteen fixed, two answered, three
+**Status, as of 16:40: twenty-five threads — twenty fixed, two answered, three
 open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -687,3 +687,79 @@ red with the 30px restored — `Expected: <= 2, Received: 21`.
 `calc(100dvh - … - var(--phone-tab-bar-height))`, so the map gains those 22px.
 That is not a fix for thread 19, which is at 912px where the bar does not
 render at all.
+
+
+## Fourth batch — threads 22–25, 2026-09-06 16:18–16:21
+
+All four on the phone, on a real trip, minutes apart. Three land on work from
+earlier today, which is what a preview is for.
+
+| # | Thread | Route / surface | What | Outcome |
+| - | ------ | --------------- | ---- | ------- |
+| 22 | `Xud5cQzzx5k8` | Notebook, 411px, `cost.rows` lead | "these should be human readable strings, march 10, 2026 rather than 2026-03-10" | **Fixed** |
+| 23 | `EfaaGdPt6FEW` | Notebook, 411px, `day.rows` cell | "text in a widget table shouldn't be color coded like inline text, also add row strips to show it's a table" | **Fixed** |
+| 24 | `XxySsTRjrmT6` | Notebook, 411px, `cost.rows` cell | "all tables should have row stripping, and not color.code the text like other inline text" | **Fixed** (same as 23, restated on the other widget) |
+| 25 | `ZFduaYRa85yd` | Map lens, 764px, canvas | "have the map default be even more zoomed out by default so the pins aren't so close to the edges" | **Fixed** |
+
+### 22 — one widget was printing an ISO date
+
+`cost.rows` built its lead as `` `Day ${n} · ${date}` `` with the raw ISO
+string, while `day.rows` — on the same page, four rows up — went through
+`formatDate`. That is the whole defect: one call site skipped the formatter.
+
+It reads `Day 1 · Jun 1, 2027` now. The abbreviated month is `formatDate`'s
+own, kept rather than widened to "June": `day.rows` has been drawing it that
+way on this page all along and drew no complaint, and inventing a second date
+format for one widget is worse than either choice. **If the long month is
+wanted, it is one word in `format.ts` and every widget moves together.**
+
+The test asserts through `formatDate` rather than against a literal, so it
+tracks the claim ("a human-readable string") rather than today's output —
+a hard-coded `"Jun 1, 2027"` would pass just as happily after someone
+reverted the widget and updated the fixture to match. Seen red with the ISO
+restored.
+
+### 23 and 24 — a table is not a sentence
+
+Two threads, one answer, and it settles a question this file has been carrying
+open since the table landed: *"money in the table still renders as a widget
+chip rather than the design's flat grey."*
+
+The chip — brand tint, brand underline — exists to answer a question a table
+does not ask. Inline, a resolved value sits in a sentence the author wrote, and
+the tint says which words came from the trip rather than from them (§7, and
+Mitchell's own earlier *"should be clearly coming from a widget"*). Every cell
+of a repeat table came from the trip; the whole widget did. So the tint marks
+nothing, and at 411px a column of tinted pills reads as a column of buttons.
+
+`Segs` takes a `plain` flag and the `rows` renderer sets it. `data-widget-value`
+stays on both paths — it is the handle a test asks "how many values came from a
+widget" with, and that question is unchanged.
+
+Striping replaces the per-row hairline rather than joining it: two separators
+doing one job read as ruled paper at this row height. `:nth-child(even)` gets
+`--color-paper` on the card's white, the same pairing the app already uses for
+a page on its background. The total row's `bg-moss` is a Tailwind utility and
+outranks the component-layer stripe, so it stays distinct from both — the same
+cascade rule that broke `display: table` this morning, working the right way
+round this time.
+
+**One judgement call worth flagging:** a city keeps its accent colour inside a
+table. "Colour coded like other inline text" was read as the widget-chip
+treatment, which is what both comments clicked on; a city's colour is the
+trip's own language and appears in Day columns and on the map too, so removing
+it here would be a wider change than was asked for. Say the word if it should
+go as well.
+
+### 25 — the pins were sitting on the edge
+
+`fitBounds` padded the phone branch by 24px on three sides where the desktop
+branch pads by 100, so a day whose bounds already filled the frame put its
+outermost pins almost against the canvas edge. It is 48 now, and the top still
+adds the day strip's height on top of that.
+
+**Padding rather than `maxZoom`,** which is the lever the report's wording
+points at: the zoom cap only bites on a day whose stops are close together,
+while this is a day whose bounds are wide. More padding zooms out *and* moves
+the pins inward; a lower cap would do neither for the day being complained
+about. Seen red at 24.

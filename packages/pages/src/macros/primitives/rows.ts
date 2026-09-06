@@ -252,7 +252,13 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
       if (subtotal === 0) continue;
       const date = trip.days[index]!.date;
       rows.push({
-        lead: rowLabel(date ? `Day ${index + 1} · ${date}` : `Day ${index + 1}`),
+        // `formatDate`, not the raw ISO. Mitchell, 2026-09-06 on the
+        // preview: *"these should be human readable strings, march 10, 2026
+        // rather than 2026-03-10"*. `day.rows` on the same page already went
+        // through `formatDate` and drew no complaint, which is why this keeps
+        // the abbreviated month it produces rather than inventing a second
+        // date format for one widget.
+        lead: rowLabel(date ? `Day ${index + 1} · ${formatDate(date)}` : `Day ${index + 1}`),
         values: [rowValue(formatMoney(subtotal, trip.currency))],
       });
     }

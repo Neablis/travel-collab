@@ -471,12 +471,20 @@ export function MapLens({
     //
     // On a phone the day control is the strip across the TOP, not the rail on
     // the left, so the clearance moves with it: the left inset goes back to
-    // the plain 100px every other side gets, and the top absorbs the strip.
+    // the plain padding every other side gets, and the top absorbs the strip.
     // Reserving the rail's 284px on a 411px screen would leave the camera
     // almost no width to fit a day into.
+    //
+    // That plain padding is 48px, up from 24. Mitchell, 2026-09-06 at 764px:
+    // *"have the map default be even more zoomed out by default so the pins
+    // aren't so close to the edges"*. Padding is the lever rather than
+    // `maxZoom`: the cap only bites on a day whose stops are close together,
+    // while the complaint is about where the pins land on a day whose bounds
+    // already fill the frame. More padding zooms out AND moves them inward;
+    // a lower cap would do neither for the day being complained about.
     map.fitBounds(bounds, {
       padding: isPhone
-        ? { top: MAP_DAY_STRIP_HEIGHT_PX + 24, right: 24, bottom: 24, left: 24 }
+        ? { top: MAP_DAY_STRIP_HEIGHT_PX + 48, right: 48, bottom: 48, left: 48 }
         : { top: 100, right: 100, bottom: 100, left: MAP_RAIL_INSET_PX + MAP_RAIL_WIDTH_PX + 100 },
       maxZoom: 13,
       animate: false,

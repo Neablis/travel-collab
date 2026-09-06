@@ -279,6 +279,14 @@
   .tc-widget-row {
     display: table-row;
   }
+  /* Zebra striping, 2026-09-06: *"all tables should have row stripping"*. On
+     `--color-surface` (white) the alternate row is `--color-paper`, which is
+     the same pairing the app already uses for a page on its background — a
+     stripe you read as structure rather than as a highlight. The total row's
+     `bg-moss` is a utility and outranks this, so it stays distinct from both. */
+  .tc-widget-row:nth-child(even) {
+    background-color: var(--color-paper);
+  }
   .tc-widget-cell {
     display: table-cell;
   }
