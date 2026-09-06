@@ -368,9 +368,24 @@ workflow instead, in two steps from `main`:
 2. **`import-content-production`** — `confirm: import`, `dry_run` **on** first.
    Re-dispatch with it off once the plan looks right.
 
-Needs two secrets: `PRODUCTION_DATABASE_URL` (the migration workflow already
-uses it) and `CONTENT_OWNER_ID`, a user id to own the demo trips — a dedicated
-account, not a person's.
+Needs one secret: `PRODUCTION_DATABASE_URL`, which the migration workflow
+already uses.
+
+`CONTENT_OWNER_ID` is optional. A trip has an owner, and left unset the demo
+trips belong to a service account the importer creates — **"Travel Collab AI"**
+(`service-ai-library`). That account **cannot be signed in as**: a user id is
+minted from the OAuth provider's subject (PR #150) and no provider will return
+that string, so the row is addressable by the importer and reachable by nobody.
+It carries no email, because there is no inbox behind it. Set the secret only to
+hand the trips to a real account instead.
+
+The alternative — a person's own account — puts four demo trips in their real
+trip list for good, removable only one `DeleteTrip` at a time, and shows a human
+name on the member list of trips nobody planned by hand.
+
+Only the trips and their notebooks have an owner in this sense. The 148 playbook
+days take theirs from the bundle file (`ownerId` on each day) and never consult
+this variable at all.
 
 **It is safe to re-run**, because every id derives from the file:
 

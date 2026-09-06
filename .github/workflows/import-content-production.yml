@@ -109,6 +109,10 @@ jobs:
           # writes through the command pipeline and wants a real session, not a
           # PgBouncer-pooled one (docs/guidelines/environments-and-deploys.md).
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-          # The user id that owns the demo trips. A trip has an owner; these
-          # need one that is not a person's real account.
+          # OPTIONAL. Left unset, the demo trips are owned by a service
+          # account the importer creates — "Travel Collab AI"
+          # (service-ai-library), which cannot be signed in as because a user
+          # id is minted from the OAuth provider's subject and no provider
+          # returns that string. Set this only to hand the trips to a real
+          # account instead.
           CONTENT_OWNER_ID: ${{ secrets.CONTENT_OWNER_ID }}

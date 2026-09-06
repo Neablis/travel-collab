@@ -63,9 +63,42 @@ import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
 import { createPage } from "@/server/pages";
+import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+
+/**
+ * The account the demo trips belong to, when nobody names another.
+ *
+ * A trip has an owner, and the demo trips should not belong to a person: they
+ * would sit in that person's own trip list for good, removable only one
+ * DeleteTrip at a time, and a colleague reading the member list would see a
+ * name that implies somebody planned these by hand. They were generated.
+ *
+ * **It cannot be signed in as.** A user id is minted from the OAuth provider's
+ * subject (`account.providerAccountId`, PR #150), and no provider will ever
+ * return this string — so the row is addressable by the importer and reachable
+ * by nobody. It carries no email for the same reason: there is no inbox behind
+ * it and a plausible-looking address would suggest otherwise.
+ */
+const SERVICE_USER = {
+  id: "service-ai-library",
+  name: "Travel Collab AI",
+  email: null,
+  image: null,
+} as const;
+
+/** Creates the service account if it is absent. Never touches an existing row. */
+async function ensureServiceUser(): Promise<void> {
+  const now = new Date().toISOString();
+  await db
+    .insert(users)
+    .values({ ...SERVICE_USER, createdAt: now, updatedAt: now })
+    // `onConflictDoNothing`, not an upsert: if somebody has renamed this
+    // account, that is a decision and not drift to be corrected on every run.
+    .onConflictDoNothing({ target: users.id });
+}
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 type Options = {
@@ -243,14 +276,9 @@ async function importTrips(bundle: ContentBundleV1, ownerId: string) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const ownerId = process.env.CONTENT_OWNER_ID ?? "";
+  const named = (process.env.CONTENT_OWNER_ID ?? "").trim();
+  const ownerId = named || SERVICE_USER.id;
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  // Not for a dry run: it writes nothing, so it needs no owner, and demanding
-  // one is a needless obstacle in front of the command whose entire purpose is
-  // to be safe to run.
-  if (!options.dryRun && !options.skipTrips && !ownerId) {
-    throw new Error("CONTENT_OWNER_ID is required to own the demo trips (or pass --skip-trips)");
-  }
 
   // Parse and lint EVERYTHING before writing anything. A run that imports nine
   // bundles and then rejects the tenth leaves a database nobody can reason
@@ -286,6 +314,16 @@ async function main() {
     const trips = bundles.reduce((n, b) => n + b.trips.length, 0);
     console.log(`  would write ${days} playbook day(s) and up to ${trips} trip(s)`);
     return;
+  }
+
+  if (!options.skipTrips) {
+    if (named) {
+      console.log(`  demo trips will be owned by ${named} (CONTENT_OWNER_ID)`);
+    } else {
+      await ensureServiceUser();
+      console.log(`  demo trips will be owned by "${SERVICE_USER.name}" (${SERVICE_USER.id}) — `
+                  + `a service account, created if absent, that cannot be signed in as`);
+    }
   }
 
   let days = 0, pruned = 0, created = 0, skipped = 0, resumed = 0;
