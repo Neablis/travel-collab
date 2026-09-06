@@ -51,7 +51,19 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
   }, [params]);
 
   if (!failure) return null;
-  return <Banner variant="danger">{failure}</Banner>;
+  // A refusal message may be more than one paragraph (`authCopy`'s
+  // MISSING_INVITE_CODE is two): why the door is shut, then what to do. Split
+  // on the blank line so the second instruction is not buried in the first.
+  const paragraphs = failure.split("\n\n");
+  return (
+    <Banner variant="danger">
+      {paragraphs.map((paragraph, index) => (
+        <p key={paragraph} className={index > 0 ? "mt-2" : undefined}>
+          {paragraph}
+        </p>
+      ))}
+    </Banner>
+  );
 }
 
 // `dc.html:1584-1628`: sign-in and sign-up are the same screen with different
@@ -306,7 +318,21 @@ export function AuthScreen({
                     onChange={(event) => setUsername(event.target.value)}
                   />
                 </FormField>
-                <Button type="submit" variant="ghost" disabled={!hydrated}>Sign in with dev login</Button>
+                {/* `secondary`, not `ghost`. Ghost is the right weight for a
+                    "Preview and local only" control that should not compete
+                    with Google — but this form only renders where dev login is
+                    enabled, which is exactly where it is usually the only path
+                    that completes. There the quietest control on the screen was
+                    the one every reviewer needed (2026-09-06 preview feedback,
+                    finding 1). Sizing matches the Google button above it. */}
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  className="h-11.5 w-full text-md font-semibold"
+                  disabled={!hydrated}
+                >
+                  Sign in with dev login
+                </Button>
               </form>
             )}
 

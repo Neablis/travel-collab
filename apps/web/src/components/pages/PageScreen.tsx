@@ -378,7 +378,12 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
           document itself is inside the container with it. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      {/* `mt-3` because this row carried `mb-3` and nothing above it, and
+          `PageContainer` is `mx-auto w-full px-6` — horizontal padding only —
+          so the row landed hard against the global header (2026-09-06 preview
+          feedback, finding 7). Spaced here rather than in `PageContainer`,
+          which five other surfaces share. */}
+      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
           <Button

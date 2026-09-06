@@ -113,8 +113,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 // screen's own swap CTA (`AUTH_COPY.signin.swapCta`), so the instruction stays
 // true as long as the screen does.
 const ADMISSION_MESSAGES: Record<AdmissionRefusal, string> = {
+  // Two paragraphs, split on the blank line by `Banner`'s caller. One dense
+  // line was doing two jobs — saying why the door is shut, then what to do
+  // about it — and the em dash that joined the two instructions hid the second
+  // one inside the first (2026-09-06 preview feedback, finding 2).
   MISSING_INVITE_CODE:
-    "Caesura is invite-only while it is small, so we need something that lets you in. Follow Create an account below and enter your invite code — or, if someone invited you to their trip, open that invite link instead and it admits you on its own.",
+    "Caesura is invite-only while it is small, so we are requiring invite codes at this time.\n\nFollow Create an account below and enter your invite code. If someone invited you to their trip, open that invite link instead and it admits you on its own.",
   INVALID_INVITE_CODE:
     "That invite code is not one of ours. Check it for a typo or a stray space and try again under Create an account — if it still will not take, ask whoever invited you for a fresh one.",
   SPENT_INVITE_CODE:

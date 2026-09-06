@@ -1,8 +1,9 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status: open, collecting.** This file exists so Mitchell has a preview
-deployment to comment on and a place for those comments to land. Nothing has
-been triaged or fixed yet.
+**Status: four fixed, three open.** This file exists so Mitchell has a preview
+deployment to comment on and a place for those comments to land. Findings 1, 2,
+3 and 7 are fixed on this branch; 4, 5 and 6 are open and each needs a decision
+before anyone starts it — see their entries for why.
 
 ## Why this PR exists
 
@@ -71,23 +72,45 @@ silence:
 
 ## Findings
 
-Seven threads, in the order left. Detail below the table. **Nothing is fixed
-yet** — the branch is still prose-only and awaiting a decision on scope.
+Seven threads, in the order left. Detail below the table. **Four are fixed on
+this branch (1, 2, 3, 7); three are open and need a decision (4, 5, 6).** The
+branch is no longer prose-only.
 
 | # | Route / surface | Viewport | What's wrong | Outcome |
 | - | --------------- | -------- | ------------ | ------- |
-| 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | Open |
-| 2 | `/signup?error=MISSING_INVITE_CODE` | 1728×836 | Error copy is one dense line; wants two, and the em dash dropped | Open |
-| 3 | `/` — first-trip card | 1728×836 | "Look around an example trip" doesn't read as a button | Open |
+| 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | **Fixed** |
+| 2 | `/signup?error=MISSING_INVITE_CODE` | 1728×836 | Error copy is one dense line; wants two, and the em dash dropped | **Fixed** |
+| 3 | `/` — first-trip card | 1728×836 | "Look around an example trip" doesn't read as a button | **Fixed** |
 | 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | Open — **behaviour, not cosmetics** |
-| 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open |
+| 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open — **needs a decision** |
 | 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
-| 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | Open |
+| 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
 
 **Groupings worth reading together.** 1 and 3 are the same complaint about the
-same thing: `variant="ghost"` does not read as an actionable control. 5, 6 and 7
-are all the same Notebook page, and 6 is the only item here that cannot be done
-as a styling change. **Four of the seven (1, 3, 2, 7) are small and local.**
+same thing: `variant="ghost"` (`text-slate`, no border, no background) does not
+read as an actionable control; both are now `secondary`. 5, 6 and 7 are all the
+same Notebook page, and 6 is the only item here that cannot be done as a styling
+change.
+
+**What was verified for the four fixes** (Tier 2 — the minimal subset covering
+the changed files, not `pnpm check`):
+
+- `vitest run src/components/front/AuthScreen.test.tsx` — **52 passed**
+- `vitest run src/app/(app)/page.test.tsx src/components/pages/ src/components/home/` — **196 passed, 1 skipped**, 15 files
+- `tsc --noEmit` — clean
+- `eslint` on the four changed files plus the new test — clean
+
+**The new test was seen red before green.** `AuthScreen.test.tsx` gains
+"breaks the missing-invite refusal into why-shut and what-to-do paragraphs".
+Collapsing the copy back to one string with the em dash restored fails it with
+`AssertionError: expected <p></p> not to be <p></p> // Object.is equality` —
+both phrases resolving to the same element is exactly the regression. Restored,
+52 pass.
+
+**Not verified:** none of this was seen in a browser. This is a cloud session
+and the preview blocks it at the bot checkpoint, so the four fixes are proven by
+tests and types, not by looking at the screen. Worth a glance on the next
+preview before they are called done.
 
 ### 1. `/signin` — "Sign in with dev login" prominence
 
@@ -206,9 +229,19 @@ comment reading "**A block's chrome gets its own row; a single value's stays
 inline**" — because "an inline row that cannot wrap pushes the paragraph it sits
 in". So the current behaviour is a considered fix for a different problem, and
 the ask is to replace it with an overlay rather than to restore something that
-regressed. `day.rows` is not `shape === "single"`, so it should already be
-taking the `stacked` branch — worth checking on the live page which branch it
-actually renders before changing the rule.
+regressed. **Checked, and it is already on the stacked branch** — the captured
+`<span className="mt-1 flex flex-wrap items-center gap-1">` is the non-inline
+path, so there is no bug here to fix. What stays inline is the *inner*
+`WidgetBindControls`, which `WidgetChrome` passes `layout="inline"`
+unconditionally. So the ask is a genuinely new behaviour — a floating overlay
+positioned above the document — not a restoration of something that regressed.
+
+**Left open deliberately.** This surface has already ping-ponged once: the row
+was inline for every shape, Mitchell reported "the dropdown is also overtop the
+widget block", and it was moved to its own row in response. Going back to
+overlaying it — properly this time, hovering rather than displacing — needs
+positioning, stacking order and a dismissal rule decided rather than guessed,
+and guessing is what produced the first round trip.
 
 ### 6. Notebook — `day.rows` should be a real table
 

@@ -97,7 +97,12 @@ export function FirstTripStart({
             finished trip before making one. `/demo` is the same board with the
             changes turned off (ADR-031), and it carries its own "make this
             trip mine". */}
-        <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "ghost", size: "md" }))}>
+        {/* `secondary`, not `ghost`: ghost is `text-slate` with no border and
+            no background, so this read as body text rather than as the third
+            route out of an empty Home (2026-09-06 preview feedback, finding 3).
+            Primary still carries the hierarchy — this only has to look like
+            something you can click. */}
+        <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
           Look around an example trip
         </Link>
       </div>
