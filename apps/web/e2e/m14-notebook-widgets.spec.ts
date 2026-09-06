@@ -541,3 +541,47 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
     expect(lead.x).toBe(firstLead?.x);
   }
 });
+
+test("a selected block widget shows its bindings with the pointer nowhere near it", async ({ page }) => {
+  // The third reveal path, and the one the other two walks cannot see.
+  // `WidgetChrome` reveals its popover on hover, on focus, OR when the caret is
+  // in the widget — the last is what keeps the panel open while you pick a
+  // value from a select inside it, since choosing one moves the pointer off the
+  // widget. CodeRabbit, PR 149: hover and focus are covered by the walks above,
+  // `selected` is not, and a regression that made the selected popover
+  // invisible would pass every one of them.
+  //
+  // Read as computed opacity because that is the only observable: any
+  // Playwright action that touches the control moves the pointer onto it and
+  // reveals it by hover instead, which would make this walk prove the thing it
+  // is trying to isolate. The pointer is parked in the far corner throughout.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The days, in detail/);
+
+  const widget = page.locator('[data-macro-name="day.detail"]');
+  const chrome = widget.getByTestId("widget-chrome");
+
+  await widget.click();
+  await page.mouse.move(5, 5);
+  await expect
+    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
+      message: "the caret is in the widget and its bindings are still invisible",
+    })
+    .toBe("1");
+
+  // And it goes again when the caret leaves — otherwise every widget on a page
+  // would end up showing its controls at once, which is the state SPEC §18
+  // removed and Mitchell asked not to have back.
+  //
+  // A heading with text in it, not the empty leading paragraph: clicking an
+  // empty block leaves the node selection where it was, so the first attempt at
+  // this assertion read `opacity: 1` and looked like the popover was stuck.
+  await page.locator(".tc-page-editor h2").last().click();
+  await page.mouse.move(5, 5);
+  await expect
+    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
+      message: "the caret has left the widget and its bindings are still showing",
+    })
+    .toBe("0");
+});
