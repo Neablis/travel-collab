@@ -763,6 +763,7 @@ def one_request(provider, place: Place, query: str, stopping, db, args, progress
 
     Raises DailyCapReached upward — that one is not this function's to absorb.
     """
+    tries = 0
     while True:
         try:
             return provider.lookup(query, countrycodes), None
@@ -778,7 +779,26 @@ def one_request(provider, place: Place, query: str, stopping, db, args, progress
                 return None, "stopped"
             continue
         except Transient as exc:
-            return None, str(exc)[:200]
+            # Retry in place, backing off. The refactor that introduced this
+            # helper dropped the escalation the inline handler used to do, and a
+            # transient became an instant permanent-ish failure: 318 of 1,344 on
+            # the first full run, against 44 genuine not_founds. A timeout or a
+            # 5xx is the provider asking for room, and the answer is to give it
+            # some rather than to march on at the same rate.
+            tries += 1
+            if tries > args.max_transient_retries:
+                return None, str(exc)[:200]
+            wait = min(provider.min_interval * (2 ** tries), args.max_backoff)
+            progress.interrupt(
+                f"  · {str(exc)[:60]} — retry {tries}/{args.max_transient_retries} "
+                f"in {wait:.0f}s ({query[:40]})")
+            slept = 0.0
+            while slept < wait and not stopping.now:
+                time.sleep(min(1.0, wait - slept))
+                slept += 1.0
+            if stopping.now:
+                return None, "stopped"
+            continue
 
 
 def learned_countries(db) -> dict[str, str]:
@@ -1029,11 +1049,27 @@ def report(db: sqlite3.Connection) -> None:
         print("  of which —")
         for name, n in sorted(prec, key=lambda r: -r[1]):
             print(f"    {name:8s} {n:5d}  {label.get(name, '')}")
+    # WHY, not just how many. A wall of `failed` says nothing about whether the
+    # provider is throttling, the network wobbled, or a key expired — and those
+    # want completely different responses.
+    reasons = db.execute(
+        "select last_error, count(*) from places where status in ('failed','not_found') "
+        "and last_error is not null group by 1 order by 2 desc limit 6"
+    ).fetchall()
+    if reasons:
+        print("  why they did not settle —")
+        for why, n in reasons:
+            print(f"    {n:5d}  {str(why)[:88]}")
     stuck = db.execute(
-        "select count(*) from places where status='failed' and attempts >= 3"
+        "select count(*) from places where status='failed' and attempts >= ?",
+        (3,),
     ).fetchone()[0]
     if stuck:
         print(f"  {stuck} have failed 3+ times — `--retry-failed` resets them, or look at --review")
+    retryable = db.execute("select count(*) from places where status='failed'").fetchone()[0]
+    if retryable:
+        print(f"  {retryable} failed place(s) are retried automatically by the next run — "
+              f"failures are transient, not verdicts")
 
 
 def write_review(db: sqlite3.Connection) -> dict:
@@ -1155,6 +1191,8 @@ def main() -> None:
     ap.add_argument("--include-city-level", action="store_true",
                     help="with --apply, also write the city-centre fallbacks")
     ap.add_argument("--verbose", action="store_true", help="name each city as it resolves")
+    ap.add_argument("--max-transient-retries", type=int, default=3,
+                    help="retries for a timeout or 5xx before a place is marked failed")
     ap.add_argument("--max-attempts", type=int, default=4, help="give up on a place after this many tries")
     ap.add_argument("--max-backoff", type=float, default=300.0, help="longest sleep after a 429")
     ap.add_argument("--progress-every", type=int, default=10,
