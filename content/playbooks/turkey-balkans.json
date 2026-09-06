@@ -1,0 +1,1547 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "turkey-balkans",
+    "name": "Turkey, Croatia and the Balkans: mosques, ferries, walls and boats",
+    "description": "Eight day-shaped playbooks from Istanbul to the Albanian-facing Adriatic — two Istanbul days built around the hours the monuments are actually empty, a Cappadocia dawn that admits how often it is cancelled, Ephesus and Pamukkale done downhill in one long day, and four Adriatic days from a Plitvice boardwalk walked against the coaches to a skippered boat in the Pakleni channel.",
+    "origin": "ai",
+    "sources": [
+      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
+      "https://muze.gov.tr/",
+      "https://topkapi-palace.org/entrance-fee/",
+      "https://istanbul.com/blog/topkapi-palace-guide",
+      "https://theistanbulinsider.com/entrance-fees-of-istanbuls-main-tourist-attractions/",
+      "https://istanbulclues.com/hagia-sophia-entrance-fee-opening-hours/",
+      "https://blog.wego.com/hagia-sophia-visitor-guide/",
+      "https://www.sehirhatlari.istanbul/en",
+      "https://yerebatan.com/",
+      "https://www.cemberlitashamami.com/",
+      "https://kilicalipasahamami.com/",
+      "https://np-plitvicka-jezera.hr/en/",
+      "https://www.citywallsdubrovnik.hr/",
+      "https://www.dubrovnikpass.com/",
+      "https://www.dubrovnikcablecar.com/",
+      "https://www.tzdubrovnik.hr/",
+      "https://palmizana.hr/",
+      "https://zori.hr/",
+      "https://www.tzhvar.hr/",
+      "https://catovicamlini.me/",
+      "https://www.tokotor.me/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "notebooks": [],
+  "activities": [],
+  "playbooks": [
+    {
+      "key": "istanbul-sultanahmet-before-the-queues",
+      "name": "Sultanahmet in the order nobody does it, and a Sinan hammam at the end",
+      "summary": "Topkapı at the gate opening instead of Hagia Sophia, so the Harem is done before its queue exists; Hagia Sophia's gallery before the midday prayer; and the 1584 hammam at five, when the tour groups have gone.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2026-01-17T19:20:00.000Z",
+      "sourceTrip": {
+        "name": "Istanbul in January, four days"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Menemen and çay on Divanyolu before anything opens",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Çiğdem Pastanesi",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Do the buying the night before, not now: Topkapı and Hagia Sophia both sell timed tickets through the official Turkish Museums portal, and the queue in Sultanahmet is the ticket window, never the gate. With a QR code on your phone you walk straight to the security line. Also check what day it is — Topkapı is closed on Tuesdays and Hagia Sophia shuts to visitors for Friday congregational prayer, so Tuesday and Friday both break this day.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Topkapı Palace and the Harem, at the Imperial Gate for opening",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Topkapı Sarayı, Imperial Gate",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "This is the inversion the day is built on. Everyone starts at Hagia Sophia because it is the famous one; Topkapı is the one with the bottleneck, because the Harem and the Treasury are narrow rooms in single file and the queue for the Harem forms from about 10:30 and never clears. Be at the gate at 08:45 for the 09:00 opening and walk it backwards from what the signs suggest — Harem first, then the Treasury, then the Fourth Courtyard terraces over the Bosphorus, and back out through the courtyards against the incoming crowd. The Harem stopped being a separate ticket in 2024; one combined ticket now covers the palace, the Harem and Hagia Irene, so nobody needs to sell you an upgrade at the door.",
+          "cost": {
+            "amountMinor": 6200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hagia Sophia's upper gallery, in the gap before noon",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Ayasofya-i Kebir Camii, visitors' entrance",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "It is a working mosque, so the ground floor is for worship and your ticket buys the upper gallery — which is where the Byzantine mosaics are, so this is not the consolation prize. Two things nobody tells you at the door: the visitors' entrance is a separate door on the north side, not the one the congregation uses, and tourist access pauses for each of the five daily prayers. On Fridays it is shut to visitors roughly noon to 14:30, which is why this stop sits before twelve. Shoulders and knees covered for everyone, a scarf for women — they hand out scarves but the queue for them is its own queue.",
+          "cost": {
+            "amountMinor": 2700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Köfte, piyaz and şalgam, standing room only",
+          "timeWindow": {
+            "start": "12:45",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Sultanahmet Köftecisi Selim Usta",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The original is at Divanyolu No. 12 and there are four near-identical signs on the same three hundred metres trading on the name — check for 'Selim Usta' and the 1920 date. The menu is meatballs, white bean salad, pickled turnip juice and rice pudding, and asking for anything else marks you out. Twenty minutes, cash, and you are back on the street.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Basilica Cistern with a timed slot",
+          "timeWindow": {
+            "start": "13:45",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Yerebatan Sarnıcı",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Run separately from the state museums since its restoration, so it is not on the museum pass and needs its own timed ticket. Two practical things: the two Medusa heads are at the far end on the left, past the point where most people turn round, and the evening ticket costs more, is darker for photographs and is busier because it is the one the hotels push. It is cold down there in every season.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Blue Mosque between afternoon prayers",
+          "timeWindow": {
+            "start": "15:00",
+            "end": "15:45"
+          },
+          "location": {
+            "name": "Sultanahmet Camii",
+            "city": "Istanbul",
+            "area": "Sultanahmet"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "Free, so there is nothing to book and nobody to buy a skip-the-line from — anyone offering one is selling you a guide. The visitors' door is on the Hippodrome side, not the grand courtyard everybody photographs, and it closes for about ninety minutes around each prayer, which in practice means turning up between calls and being flexible about which. Shoe bags at the door, bare feet on the carpet, and the İznik tile that gives it the name is up in the gallery arches, not at eye level.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Kese and köpük at Çemberlitaş, Sinan's 1584 hammam",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Çemberlitaş Hamamı",
+            "city": "Istanbul",
+            "area": "Çemberlitaş"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "Book the plain traditional service — the scrub with the kese mitt and the olive-oil foam wash — and refuse the oil-massage add-ons at the desk, which triple the price for a fifteen-minute rub. Late afternoon is the trick: coach groups fill both chambers between eleven and two and the marble göbektaşı is elbow-to-elbow, whereas at five you may have it. Men's and women's sections are separate and both are the original 1584 rooms, which is not true of every 'historic' hammam in the district. Bring cash for the tip; it goes to your natır directly and is not on the bill.",
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Künefe at Hafız Mustafa, walking back",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "19:15"
+          },
+          "location": {
+            "name": "Hafız Mustafa 1864",
+            "city": "Istanbul",
+            "area": "Sirkeci"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Uncommitted — it is on the way and it is open late, so it survives a day that overran. The Hamidiye branch near Sirkeci has upstairs seating; the Divanyolu one is a takeaway counter with a queue out of the door. Order the künefe hot and eat it there, not the boxed lokum, which costs three times what the same thing costs at the Mısır Çarşısı.",
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "istanbul-bosphorus-public-ferry-and-kadikoy",
+      "name": "The Bosphorus on the public boat, and Kadıköy at dinner time",
+      "summary": "The Şehir Hatları long tour to Anadolu Kavağı for the price of a coffee, Yoros Castle in the layover, and the evening spent on the Asian side eating along Güneşlibahçe Sokak.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2024-10-19T20:05:00.000Z",
+      "sourceTrip": {
+        "name": "Istanbul, both sides, October"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
+      "stops": [
+        {
+          "title": "The Şehir Hatları long Bosphorus tour from Eminönü",
+          "timeWindow": {
+            "start": "10:35",
+            "end": "12:20"
+          },
+          "location": {
+            "name": "Eminönü Boğaz İskelesi",
+            "city": "Istanbul",
+            "area": "Eminönü"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The single best-value thing in Istanbul and it is a municipal ferry, not a tour. The pier you want is the Boğaz Hattı jetty east of the Galata Bridge with the state ferry branding; the men shouting 'Bosphorus cruise' at the waterfront are selling a ninety-minute private boat that turns round at the second bridge. The public boat calls at Beşiktaş, Üsküdar, Kanlıca, Sarıyer and Rumeli Kavağı and ends at Anadolu Kavağı near the Black Sea. Buy the round trip at the kiosk, not with the İstanbulkart, because the tour fare is a separate ticket. Sit on the port side going up for Dolmabahçe, the Rumeli Hisarı fortress and the wooden yalıs, and go up on deck the moment you clear the bridge — the seats inside are warm and useless.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Midye tava on the Anadolu Kavağı quay",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Anadolu Kavağı quayside",
+            "city": "Istanbul",
+            "area": "Anadolu Kavağı"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Every restaurant on the quay sends a man to the gangway and they are all much the same; prices are posted on boards and are honest, which the touting does not suggest. The fried mussels and the calamari are better than the grilled fish, which is frozen at this end of the strait outside the autumn palamut run. Eat fast — you want an hour on the hill, not two on the quay.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up to Yoros Castle for the mouth of the Black Sea",
+          "timeWindow": {
+            "start": "13:40",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Yoros Kalesi",
+            "city": "Istanbul",
+            "area": "Anadolu Kavağı"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Twenty-five minutes of steep lane from the village, past a gauntlet of souvenir stalls that thins out after the first bend. The Byzantine ruin itself is fenced and half-excavated; the terrace below it, where the strait opens into the Black Sea, is the reason to climb. Be back at the pier by 14:50 — there is one boat home and it does not wait, and the alternative is a bus to Üsküdar that takes two hours.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The same boat back down the strait",
+          "timeWindow": {
+            "start": "15:00",
+            "end": "16:40"
+          },
+          "location": {
+            "name": "Anadolu Kavağı iskelesi",
+            "city": "Istanbul",
+            "area": "Anadolu Kavağı"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Same ticket, no second queue, and the southbound run is the better half: you are pointing at the city with the afternoon sun behind you, which is the opposite of the morning. Tea comes round on a tray for a few lira. If you want to shorten the day, get off at Beşiktaş or Üsküdar rather than riding to Eminönü.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Cross to Asia on the commuter ferry",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "17:20"
+          },
+          "location": {
+            "name": "Eminönü–Kadıköy vapur iskelesi",
+            "city": "Istanbul",
+            "area": "Eminönü"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "A different jetty from the tour boat, a hundred metres along and signposted Kadıköy. This one takes the İstanbulkart, which is the card that makes every ferry, tram and metro cost about a dollar — buy it from a machine at any pier, load it with cash, and tap it once per person. Twenty minutes, no ticket, and the best cheap view in the city; buy a simit on the gangway if you want the gulls to follow the stern.",
+          "cost": {
+            "amountMinor": 100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Turkish coffee standing up at Fazıl Bey",
+          "timeWindow": {
+            "start": "17:40",
+            "end": "18:10"
+          },
+          "location": {
+            "name": "Fazıl Bey'in Türk Kahvesi",
+            "city": "Istanbul",
+            "area": "Kadıköy"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "On Serasker Caddesi, and you will smell the roaster before you find the door. Ask for 'orta' — medium sweet — because plain is bitter enough to be a dare and şekerli is syrup. It is a counter with four stools and turnover is deliberate, so drink it standing like everyone else. Buy a bag of beans on the way out; it is a third of what the Spice Bazaar charges for worse coffee.",
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Çiya Sofrası on Güneşlibahçe Sokak",
+          "timeWindow": {
+            "start": "18:20",
+            "end": "20:00"
+          },
+          "location": {
+            "name": "Çiya Sofrası",
+            "city": "Istanbul",
+            "area": "Kadıköy"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Musa Dağdeviren's place, and the reason food writers cross the water. There is no printed menu because the food is whatever regional cooking came in from Anatolia this week — walk to the steam counter, point at four or five things, and they weigh the plate at the end, which is why nobody can tell you in advance what dinner costs. It is roughly half what a Beyoğlu meyhane charges. No alcohol, so this is the sober half of the evening. The kebap house a few doors down shares the name and the family and is a different, also very good, restaurant — do not let a waiter walk you into the wrong one.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A Kup Griye at Baylan, in the back garden",
+          "timeWindow": {
+            "start": "20:15",
+            "end": "21:00"
+          },
+          "location": {
+            "name": "Baylan Pastanesi",
+            "city": "Istanbul",
+            "area": "Kadıköy"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The 1961 branch on Muvakkithane Caddesi, not the newer ones. There is exactly one thing to order — the Kup Griye, caramel and croquant and ice cream in a tall glass, invented here — and the waiters visibly relax when you ask for it by name. Walk through to the garden at the back, which almost nobody finds, and which is open long after the front room looks shut. If you would rather drink than eat, Kadife Sokak two streets up is the bar street and runs until three.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "cappadocia-balloon-dawn-red-valley-underground-city",
+      "name": "Cappadocia: the balloon that might not fly, the Red Valley, and Kaymaklı",
+      "summary": "A dawn flight booked in the knowledge that a third of winter mornings are grounded, the Red Valley walked in from Çavuşin rather than driven to, and the underground city entered after the coaches have left.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2024-12-28T17:45:00.000Z",
+      "sourceTrip": {
+        "name": "Cappadocia between Christmas and New Year"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Pickup from the cave hotel, in the dark",
+          "timeWindow": {
+            "start": "04:45",
+            "end": "05:20"
+          },
+          "location": {
+            "name": "Göreme village pickup point",
+            "city": "Göreme",
+            "area": "Göreme"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The time on your voucher is a guess. The operator calls the flight at about four in the morning once the civil aviation authority has released the fleet, and the minibus is either at your door forty minutes later or not at all — so sleep with the phone loud and the clothes laid out. Dress for ten degrees colder than the forecast: the launch field at five in December is genuinely freezing and the burner only warms your head.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The flight over Göreme and the fairy chimneys",
+          "timeWindow": {
+            "start": "05:30",
+            "end": "07:30"
+          },
+          "location": {
+            "name": "Göreme balloon launch field",
+            "city": "Göreme",
+            "area": "Göreme"
+          },
+          "kind": "hold",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Held, not booked, and that is the honest status. The number the booking sites do not print: the Turkish civil aviation authority grounds the entire Cappadocia fleet on roughly a third of winter mornings and about one in six in summer, for wind aloft you cannot feel standing on the ground. Rebooking means the next morning if a basket has space, so budget two mornings here and take the first one — people who allow a single morning are the ones who leave without flying. Pay the extra eighty euros or so for a sixteen-passenger 'comfort' basket rather than a twenty-eight-person one; the difference is an edge compartment instead of the middle. The champagne at the landing is included, ceremonial, and frequently sparkling apple juice.",
+          "cost": {
+            "amountMinor": 24500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Second breakfast back in Göreme",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Nazar Börek & Cafe",
+            "city": "Göreme",
+            "area": "Müze Caddesi"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "You have been awake four hours and eaten a biscuit. This is on the museum road, opens early for exactly this trade, and does a proper village breakfast — börek, eggs, honey, clotted kaymak — for the price of a coffee in Istanbul. If the flight was scrubbed, come here anyway and rebook from the table while the operator's phone is still answering.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Red Valley walked in from Çavuşin, not driven to",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Kızılçukur (Red Valley) trail",
+            "city": "Çavuşin",
+            "area": "Kızılçukur"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Almost everyone drives to the Red Valley sunset car park, walks two hundred metres and calls it the Red Valley. Start instead from Çavuşin village and walk in: the car park is the last stretch of the same trail and the good part is the two hours before it. The path braids constantly and next to nothing is signposted — the tea stands at the junctions are the landmarks, and the men running them will point. The rock-cut Üzümlü church is up a short scramble off the main line and is not marked at all. Take two litres and a torch for the tunnels; there is no shade and no water on the route.",
+          "cost": {
+            "amountMinor": 150,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Testi kebap and a sit down at Seten",
+          "timeWindow": {
+            "start": "13:00",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Seten Anatolian Cuisine",
+            "city": "Göreme",
+            "area": "Aydınlı Sokak"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Up the hill behind the village on Aydınlı Sokak, so it gets less passing trade than the museum road and cooks better for it. Regional Anatolian rather than the same six kebabs, and the terrace looks back over the chimneys. Phone ahead if you want the pot kebab, which is sealed and baked and cannot be started when you arrive.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Kaymaklı underground city, after the coaches",
+          "timeWindow": {
+            "start": "14:45",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Kaymaklı Yeraltı Şehri",
+            "city": "Kaymaklı",
+            "area": "Nevşehir"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Kaymaklı rather than Derinkuyu if you are tall or at all claustrophobic: the tunnels are wider, the loop is shorter, and the descent is not eight storeys. Whichever you pick, come after two — the guided groups do the underground cities in the morning and a tunnel built for single file with two-way traffic in it is genuinely unpleasant. The route is arrowed, red going down and blue coming up, and following them is not optional if you do not want to meet a queue head-on in a passage you cannot turn round in. No phone signal, and last entry is well before closing, which in winter is earlier than the sign at the ticket office suggests.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Uçhisar Castle instead of Göreme's sunset point",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Uçhisar Kalesi",
+            "city": "Uçhisar",
+            "area": "Uçhisar"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Göreme's Sunset Point is a hundred tripods facing the same way. Uçhisar is the highest rock in Cappadocia and you look down into the valleys instead of across at other people — a few lira to climb, twenty minutes at the top. The last flight of steps is exposed and there is no handrail worth the name, and they clear it at sunset sharp rather than after it, so go up early in the light rather than timing the last minute.",
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner in somebody's cave house at Topdeck",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Topdeck Cave Restaurant",
+            "city": "Göreme",
+            "area": "Hafız Abdullah Efendi Sokak"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Six or seven tables in a family's own carved rooms, one seating a night, and it books out days ahead in every season including January — reserve when you book the balloon, not when you land. Home cooking rather than restaurant cooking: mantı, stuffed vine leaves, the slow lamb. Bring your own wine, they do not have a licence, and the shop on the museum road shuts at eight.",
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "ephesus-upper-gate-and-pamukkale-downhill",
+      "name": "Ephesus from the upper gate and Pamukkale barefoot, in one long day",
+      "summary": "A driver so both sites are walked downhill and once — dropped at Ephesus's Magnesia gate before the Kuşadası coaches, collected at the lower gate, then the travertines entered from the south and walked down into the town at dusk.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2025-04-22T21:10:00.000Z",
+      "sourceTrip": {
+        "name": "Aegean Turkey by road, April"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Meet the driver in Selçuk and go straight to the Upper Gate",
+          "timeWindow": {
+            "start": "07:40",
+            "end": "08:10"
+          },
+          "location": {
+            "name": "Selçuk otogar",
+            "city": "Selçuk",
+            "area": "Selçuk centre"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "The entire reason to pay for a car today: you are dropped at the Upper (Magnesia) Gate and collected at the Lower Gate, so Ephesus is walked downhill, once, instead of down and back up. Every coach from Kuşadası and the cruise berth unloads at the Lower Gate from about half nine and walks up the marble against you. Agree the price for the whole day including the run to Pamukkale before you get in, and say in advance that you are not stopping at a leather factory or a carpet cooperative — otherwise you will, and it costs an hour.",
+          "cost": {
+            "amountMinor": 17500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Down Curetes Street to the Library of Celsus",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Ephesus Archaeological Site, Upper Gate",
+            "city": "Selçuk",
+            "area": "Efes"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Gates open at eight and the first ninety minutes are the only ones with shade on Curetes Street and the only ones with the Library facade to yourself; by eleven it is a photograph of other people photographing it. Take the Odeon and the Fountain of Trajan on the way down rather than backtracking, and look at the paving — the ruts are cart tracks. There is no shade and no water for sale until the Lower Gate, and in July the site is genuinely dangerous by midday.",
+          "cost": {
+            "amountMinor": 4400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Terrace Houses, which are a second ticket",
+          "timeWindow": {
+            "start": "10:20",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Terrace Houses (Yamaç Evler)",
+            "city": "Selçuk",
+            "area": "Efes"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Sold separately at a booth inside the site, opposite the Library, and not included in site entry — which is why a lot of people walk past it thinking they have already paid. Do not. It is the roofed, climate-controlled excavation of six Roman apartment blocks, the mosaics and frescoes are the best-preserved thing at Ephesus, and it is the only place on the site where you are out of the sun. Forty-five minutes on the walkways is enough.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch on the terrace at Şirince",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Artemis Restaurant & Wine House",
+            "city": "Şirince",
+            "area": "Şirince"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Eight kilometres of switchbacks above Selçuk, in the old schoolhouse, looking down the valley. Ignore the fruit wine every stall in the village presses on you — it is a souvenir, not a drink — and eat the Aegean meze and the local olive oil instead. The village is at its worst from noon when the coaches arrive, so this is the last comfortable half-hour; buy nothing on the way in.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The long drive inland to Denizli",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Selçuk to Pamukkale road",
+            "city": "Denizli",
+            "area": "Aydın–Denizli corridor"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "About three hours on the Aydın road and the motorway, and there is nothing on it worth stopping for — this is the tax you pay to do both sites in a day, and it is why so many people do this as an overnight instead. Sleep. Ask the driver to aim for the South Gate rather than Pamukkale town, and confirm he will collect you at the bottom in the village afterwards, because the two gates are eight kilometres apart by road.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The travertines, entered at the South Gate and walked down",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Pamukkale travertines, South Gate",
+            "city": "Pamukkale",
+            "area": "Hierapolis"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Enter at the South Gate and walk down the white terraces into the village. The shuttle tours all use the North Gate and walk the flat top, so the terraces themselves are quieter from above than below. Shoes come off at the top and go in a bag — it is compulsory and enforced, and the calcite is sharp in places and slick in others, so go slowly and stay in the wet channel. Most of the pools are drained by afternoon and only the marked channel runs water; the pictures with waist-deep turquoise are either the top two pools or somewhere else entirely.",
+          "cost": {
+            "amountMinor": 3300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hierapolis: the theatre and the necropolis, on the same ticket",
+          "timeWindow": {
+            "start": "17:40",
+            "end": "18:45"
+          },
+          "location": {
+            "name": "Hierapolis Roman theatre",
+            "city": "Pamukkale",
+            "area": "Hierapolis"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The Roman city on the plateau is included and most day-trippers never walk to it. The theatre is fifteen minutes uphill from the top of the terraces and empties completely after five. Cleopatra's Antique Pool is a further separate fee and is a warm, crowded swimming pool with columns in it — skip it unless somebody in the party has been promised a swim.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Last light from the top of the white terraces",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Upper travertine terraces",
+            "city": "Pamukkale",
+            "area": "Hierapolis"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Uncommitted because it depends on how the day has run. Closing is later in summer than the signs suggest but the guards sweep the terraces from the top down about half an hour before, so be already walking as the sun drops rather than turning to leave when it has. Barefoot in the dark on wet calcite is worse than it sounds; keep the phone torch out.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "dubrovnik-walls-at-opening-and-the-cruise-ship-hours",
+      "name": "Dubrovnik: the walls at eight, and somewhere else when the ships are in",
+      "summary": "The circuit walked at opening while the sea side is still in shade, Lovrijenac on the same ticket, then deliberately off the peninsula for the four hours two cruise ships own the Stradun.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2025-09-27T18:30:00.000Z",
+      "sourceTrip": {
+        "name": "Dalmatia end to end, September"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee at Pile while the ticket office opens",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Kavana Dubravka 1836",
+            "city": "Dubrovnik",
+            "area": "Pile"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Outside the Pile Gate with the terrace over the water, open before anything inside the walls is. Decide here whether you are buying a walls ticket or the one-day Dubrovnik Pass: the pass costs about the same as the walls alone and also covers the Rector's Palace, the Maritime Museum and the rest, so buying the walls ticket on its own only makes sense if the walls are genuinely all you want.",
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The full wall circuit, first through the gate",
+          "timeWindow": {
+            "start": "08:05",
+            "end": "10:05"
+          },
+          "location": {
+            "name": "City Walls, Pile entrance",
+            "city": "Dubrovnik",
+            "area": "Stari Grad"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Opening is eight in summer and nine in the low season, and being in the first twenty people is the whole day: the circuit is one-way and enforced, so once you are on it you cannot let a group past and you cannot double back for the bit you missed. Going anticlockwise from Pile puts the seaward half in the mountain's shadow for the first hour, which matters more than it sounds on an unshaded two-kilometre wall with a hundred metres of stair. Two hours is the honest time with stops; the 'one hour' in the guidebooks is a walk without looking. There is one kiosk on the circuit and it charges accordingly — carry water.",
+          "cost": {
+            "amountMinor": 3800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Fort Lovrijenac, which you have already paid for",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Tvrđava Lovrijenac",
+            "city": "Dubrovnik",
+            "area": "Pile"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The walls ticket includes the free-standing fortress across the little bay and hardly anybody uses it, because nothing at the exit tells you. It is only valid the same day, so walk over while the ticket is still in your hand. The view back at the walls you have just done is the best photograph in Dubrovnik and it is empty at this hour.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Out to Lokrum while the ships unload",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Lokrum island boat, Old Port",
+            "city": "Dubrovnik",
+            "area": "Ploče"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "This stop is a tactic. Dubrovnik caps cruise arrivals at two ships a day, they berth at Gruž, and their passengers are inside the walls from roughly eleven to three — so the correct move is to not be. Boats leave the Old Port every half hour and the fare includes the island's own entry fee. On the island: the Benedictine cloister, the salt lagoon that is bath-warm and shallow, and peacocks that are aggressive about food. Check the last boat time when you board, because there is no other way off.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "An octopus burger standing at the counter",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Barba",
+            "city": "Dubrovnik",
+            "area": "Stari Grad"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "On Boškovićeva, a side lane off the Stradun, and about the only lunch inside the walls that costs less than fifteen euros and is still worth eating. Octopus burger, fried anchovies, a beer, six stools. By two the ships are starting to reboard and the lanes are usable again, which is why lunch is late today.",
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Cable car up to Srđ, walk down",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Dubrovnik Cable Car, Ploče station",
+            "city": "Dubrovnik",
+            "area": "Ploče"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The queue is savage from five o'clock because everybody goes up for sunset; at half three you walk on. Buy a single rather than a return and come down the Serpentine, the old switchback track, in about fifty minutes — no shade, so not in August at midday, but fine in the late afternoon and it saves the descent queue entirely. The Napoleonic fort at the top holds the Homeland War museum, which is the only place in Dubrovnik that talks properly about the 1991–95 siege, and it deserves more than the twenty minutes people give it.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A drink through the hole in the sea wall",
+          "timeWindow": {
+            "start": "17:30",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Buža",
+            "city": "Dubrovnik",
+            "area": "Stari Grad"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "Signposted by a hand-painted 'Cold Drinks' board and a doorway cut through the south wall, which is genuinely how you get in. The drinks cost roughly triple what they do a street inland and that is the deal — you are renting a ledge above the Adriatic. Cash. There are two Bužas a few hundred metres apart; the further one is quieter and has the better swim off the rocks.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Konoba Dalmatino",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Konoba Dalmatino",
+            "city": "Dubrovnik",
+            "area": "Stari Grad"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A dozen tables on Miha Pracata, booked by email a week ahead in season and full every night. Black cuttlefish risotto, whole fish sold by the kilo — ask the weight before you agree to it, which is normal here and not rude. If it is full, Pantarul out in Lapad is a short bus ride, cheaper, and cooks as well; the harbourside places with menus in six languages are neither.",
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "plitvice-upper-lakes-against-the-coaches",
+      "name": "Plitvice from Entrance 2, walked against the flow",
+      "summary": "A timed slot booked days ahead, the Upper Lakes done first from the southern gate so the whole day runs opposite the coach traffic, and Veliki Slap reached at four when Entrance 1's crowd has gone home.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2026-05-09T19:55:00.000Z",
+      "sourceTrip": {
+        "name": "Croatia inland, May"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-elena"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Rastoke at first light, on the way down",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "07:50"
+          },
+          "location": {
+            "name": "Rastoke mill village",
+            "city": "Slunj",
+            "area": "Rastoke"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Thirty kilometres north of the park on the Zagreb road, where the Slunjčica drops into the Korana through a village built on the waterfalls. The ticketed mill complex does not open until nine, but the public lanes and the bridge are free and open, and at this hour there is nobody. Twenty minutes, and it costs you nothing except the alarm clock.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Park at Entrance 2 before the lot fills",
+          "timeWindow": {
+            "start": "08:00",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Entrance 2 (Hladovina) car park",
+            "city": "Plitvička Jezera",
+            "area": "Entrance 2"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Parking is charged by the hour and the Entrance 2 lot is the smaller of the two — it is full by ten in season and the overflow is a walk along the main road with no pavement. Pay on exit at the machine, keep the ticket, and note that the coaches use the far lot, so if it is filling with buses you are already later than you wanted to be.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Upper Lakes on foot, walked the unpopular way",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "12:00"
+          },
+          "location": {
+            "name": "Upper Lakes boardwalks",
+            "city": "Plitvička Jezera",
+            "area": "Gornja Jezera"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Book the timed slot online days ahead and do not plan on turning up: the park sells a fixed number of tickets per entry hour to cap how many people are inside at once, the early slots go first, and by mid-morning in July there is no walk-up allocation left at either gate. Your ticket admits you in that hour and at that entrance only. The reason to start at Entrance 2 and take the Upper Lakes first is simple: the coaches from Zagreb and Zadar all unload at Entrance 1 around ten and walk the other way, so you spend the whole morning meeting them rather than queueing behind them. Swimming is banned everywhere in the park, including the pools that look designed for it, and so are drones.",
+          "cost": {
+            "amountMinor": 2700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at the Kozjak landing, because there is nothing else",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Kozjak boat landing kiosk",
+            "city": "Plitvička Jezera",
+            "area": "Jezero Kozjak"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Food inside the park is two kiosks and a self-service canteen, it is fine and it is the only option, because you are not meant to leave and re-enter on one ticket. Bring your own if you care; there are benches and the park would rather you did that than fed the bears' cousins. The good restaurant is outside Entrance 1 and belongs at the end of the day, not the middle.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The electric boat across Lake Kozjak",
+          "timeWindow": {
+            "start": "13:15",
+            "end": "13:35"
+          },
+          "location": {
+            "name": "Lake Kozjak ferry, P2 to P1",
+            "city": "Plitvička Jezera",
+            "area": "Jezero Kozjak"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Included in the ticket, silent, and the single worst bottleneck in the park — in August the queue at the landing runs forty minutes and there is no way round the lake on foot in less than an hour. Everything about starting early is really about crossing this water before the crowd does. There is a second, smaller boat line at the north end; the boards at the landing tell you which is running.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Lower Lakes canyon, one-way as posted",
+          "timeWindow": {
+            "start": "13:45",
+            "end": "15:45"
+          },
+          "location": {
+            "name": "Lower Lakes boardwalks",
+            "city": "Plitvička Jezera",
+            "area": "Donja Jezera"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The Lower Lakes boardwalks are one-way and staff enforce the direction in season, so build the route to finish at the big waterfall rather than assuming you can nip back for it. Long stretches have no handrail and the planks are slippery for hours after rain — this is not the place for the sandals. Stay on the wood: the tufa barriers that make the whole landscape are living and a footprint in them lasts years.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Veliki Slap with the morning's crowd gone",
+          "timeWindow": {
+            "start": "15:50",
+            "end": "16:20"
+          },
+          "location": {
+            "name": "Veliki Slap",
+            "city": "Plitvička Jezera",
+            "area": "Donja Jezera"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Seventy-eight metres, the tallest waterfall in Croatia, and the thing every day-tripper photographs at eleven — which is exactly why it is worth arriving at four. Getting out from here is either the staircase cut up the canyon wall, about twenty minutes, or the shuttle from the ST1 stop; the staircase is usually faster than the shuttle queue. If your car is at Entrance 2, check the last panoramic shuttle before you sit down anywhere, because it stops earlier than the park closes.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lamb and sarma at Lička Kuća",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Lička Kuća",
+            "city": "Plitvička Jezera",
+            "area": "Entrance 1"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Directly across the road from Entrance 1, an open hearth in the middle of the room and Lika mountain cooking rather than lake-view pricing. The lamb under the peka has to be ordered hours ahead — phone from the boardwalk if you want it — but the sarma, the trout and the sheep's cheese do not. It fills with tour groups at seven, so a five o'clock table is a different restaurant from a seven o'clock one.",
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "hvar-pakleni-islands-private-boat",
+      "name": "Hvar and the Pakleni islands with a skipper for the day",
+      "summary": "The expensive one, honestly priced: an eight-hour skippered boat through the Pakleni channel before the taxi boats fill it, lunch in the Meneghello botanical garden at Palmižana, the fortress at five and Konoba Menego at eight.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2026-07-19T22:40:00.000Z",
+      "sourceTrip": {
+        "name": "Central Dalmatia by boat, July"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee in Groda before the town wakes up",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Nonica",
+            "city": "Hvar",
+            "area": "Groda"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Hvar Town keeps nightclub hours, which means the one genuinely empty part of the day is before nine — St Stephen's Square, the cathedral steps and the stone lanes of Groda belong to delivery vans and nobody else. Nonica does local cakes and a decent coffee in a lane above the square. It is also the last cheap thing you will buy today.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Board the skippered boat on the Riva",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Hvar Riva, west end",
+            "city": "Hvar",
+            "area": "Riva"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "The boat is the price of the day and everything else is loose change, so get the contract right. An eight-to-ten-metre RIB with a skipper for eight hours is the sweet spot; what turns a good quote into a bad one is the three things quietly left out — fuel, mooring fees at Palmižana, and the skipper's lunch. Ask for all three in writing before you pay a deposit, because together they add a couple of hundred euros to a nine-hundred-euro day. One weather note that decides the route: the maestral gets up around one in the afternoon in July, so ask to do the exposed southern coves first and be back in the sheltered channel by lunch.",
+          "cost": {
+            "amountMinor": 98000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The first swim, before the taxi boats",
+          "timeWindow": {
+            "start": "09:15",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Jerolim and Marinkovac coves",
+            "city": "Hvar",
+            "area": "Pakleni otoci"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "At this hour every bay in the archipelago is yours. By eleven the taxi boats from the Riva have filled Jerolim, and Stipanska has become a beach club with a door charge and a sound system. Ask for the north-facing coves of Marinkovac instead — same water, no speakers. The islands are called Pakleni after the pine pitch once boiled here for caulking, not after hell, whatever the tour commentary says.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The far end of Sveti Klement, and Vlaka",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Vlaka bay, Sveti Klement",
+            "city": "Hvar",
+            "area": "Pakleni otoci"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The long island's far end is a hamlet of a few houses and one konoba with no road in, which is exactly why it is empty in the third week of July. This is the stretch where a skipper earns the fee — the south side has no shelter at all, and if he says the swell is up, believe him and take the north coast instead. Nothing here sells water; take it from Hvar.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Long lunch at Zori in Vinogradišće bay",
+          "timeWindow": {
+            "start": "12:45",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Zori",
+            "city": "Hvar",
+            "area": "Palmižana"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Reserve by phone days ahead and give them the boat's name so the skipper is told where to tie up. Zori and Meneghello sit at opposite ends of the same beach inside the Meneghello family's botanical garden, planted from the 1900s — Zori is the serious fish and the tasting menu, Meneghello is the older story and the garden itself, and Laganini is the third and slightly cheaper option on the same sand. None of them is cheap and pretending otherwise is how people get a shock at the end of a boat day. Two courses and a bottle of Hvar plavac is what this budget assumes.",
+          "cost": {
+            "amountMinor": 11000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The slow way home along Hvar's south coast",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Milna and the south coast",
+            "city": "Hvar",
+            "area": "Milna"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Ask not to be run straight back across the channel. Coming home along the island's own south coast past Milna adds forty minutes and is the reason you kept the boat until five — the cliffs take the afternoon light and the swimming stops on this side have nobody in them. This is also the last swim, so do not leave the towels drying on the bow.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up to the Fortica in the empty hour",
+          "timeWindow": {
+            "start": "17:30",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Fortica (Španjola)",
+            "city": "Hvar",
+            "area": "Groda"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Twenty minutes up through the Groda lanes on the signed footpath — not the road, which is twice as long and has cars on it. Everybody climbs at half seven for the sunset shot over the Pakleni, which means half five is the empty hour and the light on the islands is arguably better anyway. The Venetian cistern and the tiny amphora collection are included. Take water; there is a bar at the top and it charges fortress prices.",
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner up the steps at Konoba Menego",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Konoba Menego",
+            "city": "Hvar",
+            "area": "Groda"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Three floors of a stone house on the stairs above St Stephen's Square, candles, no music, no fuss — Dalmatian small plates, cheese and prosciutto from the island, wine by the carafe. Book the same morning; they hold tables for walk-ins but not at eight. Gariful on the harbour costs three or four times as much and is priced for the superyachts moored in front of it, which is a service it performs honestly.",
+          "cost": {
+            "amountMinor": 6500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "bay-of-kotor-private-boat-and-the-walls-at-seven",
+      "name": "The Bay of Kotor: the walls before the ships, then a boat all day",
+      "summary": "Kotor's fortress steps climbed in the mountain's shadow before the first tender lands, then a private skipper for the Verige strait, Our Lady of the Rocks, an old watermill lunch at Morinj and the Blue Cave when the flotilla has left.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2025-08-14T20:15:00.000Z",
+      "sourceTrip": {
+        "name": "Montenegro and the Boka, August"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-elena"
+        }
+      ],
+      "stops": [
+        {
+          "title": "The Old Town at seven, before the first tender",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "Trg od oružja and St Tryphon's",
+            "city": "Kotor",
+            "area": "Stari Grad"
+          },
+          "kind": "planned",
+          "tags": [],
+          "notes": "The cruise berth is two hundred metres from the Sea Gate, which is the whole problem with Kotor and the whole reason for this hour. The first passengers are inside by about half eight; between seven and eight the squares belong to cats, bread deliveries and people going to work, and it is the only time the twelfth-century cathedral square reads as a town rather than a set. Nothing is open. That is the point.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "1,350 steps up to San Giovanni, in the shade",
+          "timeWindow": {
+            "start": "08:00",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Kotor fortress walls, San Giovanni",
+            "city": "Kotor",
+            "area": "Stari Grad"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Two hundred and sixty metres of vertical on rough steps, and the only variable that matters is shade: the wall is in the mountain's shadow until roughly ten and is a furnace after it. The ticket booths at both gates open at eight and the staff work their way up the path, so an earlier start is a free start but not an honest one. The free-ish alternative is the Ladder of Kotor, the old switchback mule track behind the town that joins the wall higher up — there is a collector on that route now too, and it is an hour longer, so take it for the walk rather than the saving. Two litres of water; there is one drinks stall halfway and it knows what it has.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Meet the skipper and run up the bay",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Kotor marina",
+            "city": "Kotor",
+            "area": "Kotor waterfront"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "A skippered boat for the day out of Kotor is the difference between the Boka and the Boka's bus tours, and the price is real money — agree the route before you pay, because most operators default to Our Lady of the Rocks and back inside ninety minutes and call it a day charter. Ask specifically for the Blue Cave down at Luštica, the abandoned submarine tunnels cut into the cliffs near Rose, and the Verige strait taken slowly, which is where the bay narrows to three hundred metres and the Venetians strung a chain across it.",
+          "cost": {
+            "amountMinor": 42000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Our Lady of the Rocks, which people built",
+          "timeWindow": {
+            "start": "11:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Gospa od Škrpjela",
+            "city": "Perast",
+            "area": "Boka Kotorska"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The island is man-made — two centuries of Perast sailors dropping rocks onto a reef, and they still add to it every 22 July at the Fašinada, rowing out at dusk with stones. Pay the small extra for the museum upstairs: the silver votive plaques left by crews who came home, and a tapestry a woman spent twenty-five years embroidering with gold thread and her own hair while waiting for a sailor who did not. The cypress island next door is a working monastery and landing is not allowed, so do not ask the skipper to try.",
+          "cost": {
+            "amountMinor": 450,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch in the watermills at Morinj",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Konoba Ćatovića Mlini",
+            "city": "Morinj",
+            "area": "Boka Kotorska"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "An old watermill complex at the head of the bay with the stream running under the tables and trout in it. It is the meal people remember from Montenegro and it takes two hours whether you have them or not, so build the day around it rather than squeezing it. Book, and arrive by boat — there is a jetty, and the road approach through Kostanjica is slow. Let them bring the bread, the oil and the mussels before you order anything else.",
+          "cost": {
+            "amountMinor": 7500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Blue Cave, deliberately late",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Plava Špilja, Luštica",
+            "city": "Herceg Novi",
+            "area": "Luštica"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Down at the mouth of the bay near the Luštica peninsula, an hour's run. The tour flotilla is there between eleven and one and there is genuinely not room for all of them, so being late is the correct strategy — by half two you may have it. The colour comes from light entering under the water rather than through the mouth, so swim rather than photograph; the phone will not get it and you will be disappointed. The submarine tunnels near Rose are five minutes further and take about ten.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up the campanile at Perast",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "St Nicholas bell tower",
+            "city": "Perast",
+            "area": "Perast waterfront"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Perast is one street, no cars, and a wall of coach parking at the entrance until about five, when it empties and becomes the best hour of the day here. A couple of euros gets you up the bell tower of St Nicholas on wooden stairs, and you look straight down onto both islands with the bay behind them. Uncommitted — if lunch has run long, and it will, this is the stop to drop.",
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at the quiet end of Perast",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Restaurant Školji",
+            "city": "Perast",
+            "area": "Perast waterfront"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "At the far, quiet end of the waterfront away from the tour-boat jetty. There is barely a menu — a set run of Boka dishes, mostly from the bay, and they want telling in the morning that you are coming. If you would rather sleep in Kotor, the equivalent there is Galion under the fortress, which has the view of the Old Town and, on a bad night, of a cruise ship parked in front of it.",
+          "cost": {
+            "amountMinor": 6000,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

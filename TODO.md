@@ -851,8 +851,9 @@ marked "history", so nothing live surfaced it and nobody resumed.
   branch `claude/serialize-and-seed-data-66f8tb`, **ADR-041**. Mitchell asked for
   a JSON serialization for notebooks, activities and trips, an importer, and *"a
   lot of believable playbooks"*. `travel-collab/content-bundle/v1` +
-  `pnpm --filter web content:import` + 88 playbook days over eleven regions and
-  four demo trips, all in `content/`. `saved_days.author_kind` (migration `0017`)
+  `pnpm --filter web content:import` + **148 playbook days over twenty regions**
+  and four demo trips, all in `content/` — including San Francisco, Napa,
+  Capitola/Monterey and the Finger Lakes, which Mitchell named on the night. `saved_days.author_kind` (migration `0017`)
   is the human-vs-AI flag he asked for, surfaced as an "AI starter" badge.
   **It closed a real gap**: Discover's budget filter had no occupant in three of
   its four bands anywhere in the seed — the thing `starterDays.ts`' own header
@@ -862,7 +863,10 @@ marked "history", so nothing live surfaced it and nobody resumed.
   so the four demo trips read "N stops have no place yet" on the Map lens until
   somebody runs an offline geocoding pass on the model of
   `scripts/geocode-japan-seed.mts`. The playbook days are unaffected — Discover
-  matches on `location.city` and all 905 stops carry one.
+  matches on `location.city` and all 1,375 stops carry one. And
+  **`KI-2026-09-06-d`** — the later bundles were written without live web access,
+  so their prices and opening hours need a verification pass; each says so in its
+  own `bundle.sources`.
 
 - ~~`docs/guidelines/testing.md` does not exist~~ (7.2) — **done 2026-09-02.**
 - ~~No `write-a-test` skill~~ (7.4) — **done 2026-09-02.**

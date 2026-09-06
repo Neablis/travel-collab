@@ -1,0 +1,1484 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "france-cities",
+    "name": "France: Paris and the regions — markets, museums, châteaux and long tables",
+    "description": "Eight day-shaped playbooks built around what is actually open: two Paris days that are not a monument checklist, Versailles taken at nine rather than eleven, a Loire day that only works with a driver, the D-Day coast finished on an empty Mont-Saint-Michel, a Saturday Luberon market, the Corniches with a three-star table at the end, and Lyon's traboules between two counters.",
+    "origin": "ai",
+    "sources": [
+      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
+      "https://www.louvre.fr/en/visit",
+      "https://www.musee-orsay.fr/en/visit/opening-times-and-admission",
+      "https://www.musee-orangerie.fr/en/practical-information",
+      "https://www.museepicassoparis.fr/en/practical-information",
+      "https://www.carnavalet.paris.fr/en/practical-information",
+      "https://www.paris.fr/pages/les-marches-parisiens-2428",
+      "https://www.parisjetaime.com/eng/",
+      "https://www.iledefrance-mobilites.fr/en/tickets-fares",
+      "https://www.chateauversailles.fr/en/plan-your-visit/practical-information/hours",
+      "https://www.chateauversailles-spectacles.fr/en",
+      "https://www.chenonceau.com/en/",
+      "https://www.chambord.org/en/",
+      "https://www.chateauvillandry.fr/en/",
+      "https://www.bonlaboureur.com/en/",
+      "https://www.abmc.gov/Normandy",
+      "https://www.bayeuxmuseum.com/en/the-bayeux-tapestry/",
+      "https://www.bayeux-bessin-tourisme.com/en/",
+      "https://www.abbaye-mont-saint-michel.fr/en",
+      "https://www.ot-montsaintmichel.com/en/",
+      "https://www.senanque.fr/",
+      "https://www.luberon-apt.fr/en/",
+      "https://www.avignon-tourisme.com/en/",
+      "https://www.explorenicecotedazur.com/en/",
+      "https://www.eze-tourisme.com/en/",
+      "https://www.montecarlosbm.com/en/restaurant-monaco/gourmet/le-louis-xv-alain-ducasse",
+      "https://www.halles-de-lyon-paulbocuse.com/",
+      "https://www.fourviere.org/en/",
+      "https://www.fetedeslumieres.lyon.fr/en",
+      "https://www.lyon-france.com/en"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "notebooks": [],
+  "activities": [],
+  "playbooks": [
+    {
+      "key": "paris-aligre-market-marais-and-a-nine-oclock-table",
+      "name": "Paris: Aligre at eight, the Marais all afternoon, a table at nine",
+      "summary": "A Paris day with no monuments in it — two markets, the free half of Carnavalet, Picasso in a salt-tax mansion, and a no-reservations seafood counter at the end of it.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2026-05-12T20:15:00.000Z",
+      "sourceTrip": {
+        "name": "Paris in May, no monuments"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Marché d'Aligre before the stalls thin out",
+          "timeWindow": {
+            "start": "08:20",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Marché d'Aligre",
+            "city": "Paris",
+            "area": "Aligre, 12e"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Tuesday to Sunday only, and the whole day collapses on a Monday — Aligre, Carnavalet, the Picasso and the Enfants Rouges are all shut on one. The open-air stalls start packing up around 13:00; the covered Marché Beauvau behind them is where the butchers and the cheese are. Buy for a picnic later, not to eat now.",
+          "cost": {
+            "amountMinor": 1900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A glass at the barrel in Le Baron Rouge",
+          "timeWindow": {
+            "start": "09:35",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Le Baron Rouge",
+            "city": "Paris",
+            "area": "Aligre, 12e"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The wine bar on rue Théophile-Roussel fills glasses straight from the barrels and charges by the centilitre. Standing at a barrel on the pavement is the whole point. In winter they shuck oysters out there on Sunday mornings; the rest of the year it is saucisson and a glass of Chinon at ten in the morning, which nobody here finds strange.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Carnavalet, the free museum with no queue",
+          "timeWindow": {
+            "start": "10:40",
+            "end": "12:10"
+          },
+          "location": {
+            "name": "Musée Carnavalet – Histoire de Paris",
+            "city": "Paris",
+            "area": "Le Marais"
+          },
+          "kind": "planned",
+          "notes": "The permanent collection is free and needs no booking, which is why almost no guidebook day includes it. Closed Mondays. If you only have ninety minutes, skip the chronology and go straight to the Revolution rooms, the shop signs, and Proust's bedroom rebuilt as it was on boulevard Haussmann.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch standing up at the Enfants Rouges",
+          "timeWindow": {
+            "start": "12:25",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Marché des Enfants Rouges",
+            "city": "Paris",
+            "area": "Le Marais"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The oldest covered market in Paris, and in practice a food court under a 400-year-old roof at 39 rue de Bretagne. Alain Miam Miam's sandwich takes twenty minutes because he cooks the galette in front of you — join that queue first, then eat at the communal tables. Closed Monday, and the kitchens wind down by 14:00 midweek.",
+          "cost": {
+            "amountMinor": 1700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Village Saint-Paul and the rue des Rosiers",
+          "timeWindow": {
+            "start": "13:45",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Village Saint-Paul",
+            "city": "Paris",
+            "area": "Saint-Paul, Le Marais"
+          },
+          "kind": "idea",
+          "notes": "Linked courtyards of antique dealers between rue Saint-Paul and the river; several shops keep Tuesday and Wednesday closed, so it is a weekend or Thursday walk. Pair it with rue des Rosiers — but L'As du Fallafel shuts Friday afternoon and all Saturday for Shabbat, so on a Saturday go to Jacques Genin on rue de Turenne for caramels instead.",
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Picasso in the Hôtel Salé",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Musée national Picasso-Paris",
+            "city": "Paris",
+            "area": "Le Marais"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Book a slot even though walk-up usually works: the door at 5 rue de Thorigny has no shade and the queue is on the street. Closed Mondays. Half the reason to come is the building — a seventeenth-century salt-tax mansion, with Diego Giacometti's furniture made for it still in the rooms.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Apéro hour at Le Mary Celeste",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "19:45"
+          },
+          "location": {
+            "name": "Le Mary Celeste",
+            "city": "Paris",
+            "area": "Haut Marais"
+          },
+          "kind": "hold",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Corner bar on rue Commines: oysters, a short cocktail list that is genuinely good, and no reservations at the bar. Arrive by 18:30 or you drink standing on the pavement, which is not the worst outcome.",
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A nine o'clock table at Clamato",
+          "timeWindow": {
+            "start": "20:45",
+            "end": "22:45"
+          },
+          "location": {
+            "name": "Clamato",
+            "city": "Paris",
+            "area": "Rue de Charonne, 11e"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Septime's seafood sibling at 80 rue de Charonne takes no reservations at all. Put your name down when the door opens, walk up to Bastille for a drink, come back. Small plates, a short natural wine list, and no main course anywhere on it. If the wait runs past an hour, Le Servan two streets north does take bookings and is the better fallback than anything on rue de Lappe.",
+          "cost": {
+            "amountMinor": 6400,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "louvre-and-orsay-the-thursday-that-works",
+      "name": "The Louvre and the Orsay done properly — the one weekday both allow",
+      "summary": "Denon at opening, Richelieu while everyone else is queueing for the Mona Lisa, the Water Lilies mid-afternoon, and the Orsay's Thursday late opening with the Impressionist floor nearly to yourself.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2026-03-05T21:30:00.000Z",
+      "sourceTrip": {
+        "name": "Paris in March, museums first"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Carrousel entrance, twenty minutes before the slot",
+          "timeWindow": {
+            "start": "08:40",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Carrousel du Louvre entrance",
+            "city": "Paris",
+            "area": "Louvre, 1er"
+          },
+          "kind": "transit",
+          "notes": "The pyramid queue is the one in the photographs; the underground Carrousel entrance at 99 rue de Rivoli is the one to use, and Porte des Lions is the third when it is staffed. Tickets are online-only with a timed slot. The Louvre is closed Tuesdays and the Orsay is closed Mondays and open late only on Thursdays — which is why this day is a Thursday and cannot be anything else.",
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Denon at opening: the Salle des États first",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Musée du Louvre — Denon wing",
+            "city": "Paris",
+            "area": "Louvre, 1er"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The first thirty minutes in front of the Mona Lisa are the only civil ones of the day — go straight there, then walk back through the Grande Galerie against the flow of everybody arriving. Do not try to see the Louvre; pick two wings and accept that you are leaving nine-tenths of it. Ticket around €22 booked online.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Richelieu: the sculpture courts and Napoleon III's apartments",
+          "timeWindow": {
+            "start": "10:20",
+            "end": "12:00"
+          },
+          "location": {
+            "name": "Musée du Louvre — Richelieu wing",
+            "city": "Paris",
+            "area": "Louvre, 1er"
+          },
+          "kind": "planned",
+          "notes": "Nearly everyone stays in Denon and Sully, so Richelieu is the quiet half of the same ticket. The glass-roofed Marly and Puget courts are full of light and empty of people, and the Napoleon III apartments upstairs are the closest thing to Versailles you can reach without leaving the 1st arrondissement.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Get out of the museum for lunch",
+          "timeWindow": {
+            "start": "12:20",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Chez la Vieille",
+            "city": "Paris",
+            "area": "Les Halles, 1er"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Eating inside the Louvre costs more and tastes like an airport. This is eight minutes' walk on rue de l'Arbre-Sec, it fills by 12:30, and same-day tables go if you ring at 11:00. Leeks vinaigrette and a pot of rillettes, then back in on the same ticket — re-entry is allowed on the day.",
+          "cost": {
+            "amountMinor": 4200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Water Lilies at two, not at opening",
+          "timeWindow": {
+            "start": "14:10",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Musée de l'Orangerie",
+            "city": "Paris",
+            "area": "Jardin des Tuileries"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Two oval top-lit rooms at the Concorde end of the Tuileries, closed Tuesdays. Early morning is when the coach groups do it; by 14:00 they have moved on to the Orsay and you can sit on the bench in the middle of the second room for as long as you like. Buy the combined Orsay + Orangerie ticket here — it is cheaper than two singles and it covers tonight.",
+          "cost": {
+            "amountMinor": 1300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Across the Tuileries and over the footbridge",
+          "timeWindow": {
+            "start": "15:35",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Jardin des Tuileries",
+            "city": "Paris",
+            "area": "Tuileries, 1er"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Twenty minutes on the green metal chairs by the round basin — moving one to where you want it is the local custom, not vandalism. Then the Passerelle Léopold-Sédar-Senghor to the Left Bank. If it is raining, the Jeu de Paume on the Concorde corner is a photography museum almost every Louvre visitor walks straight past.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Orsay's Thursday nocturne, level five first",
+          "timeWindow": {
+            "start": "17:30",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "Musée d'Orsay",
+            "city": "Paris",
+            "area": "Quai d'Orsay, 7e"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Open until 21:45 on Thursdays and only Thursdays; last admission 21:00. After 18:00 the Impressionist floor empties out to the point where you can stand alone in front of the Van Goghs, which does not happen at any other hour in the year. Take the lift straight to level 5 and work down; entrance C is the pre-booked door.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A late table booked before you went in",
+          "timeWindow": {
+            "start": "21:15",
+            "end": "23:00"
+          },
+          "location": {
+            "name": "Les Antiquaires",
+            "city": "Paris",
+            "area": "Saint-Germain-des-Prés, 7e"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Very little around the Orsay serves after 21:30 that is worth eating, and the streets behind it go quiet early. Book something on rue de Verneuil or rue du Bac in the morning, before the museum, because you will not get a table by walking out at 21:00 and looking around.",
+          "cost": {
+            "amountMinor": 5400,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "versailles-nine-oclock-and-the-trianon-afternoon",
+      "name": "Versailles at nine, then the half of it the buses never reach",
+      "summary": "A 09:00 slot in the State Apartments, the groves running on a fountain day, and the whole afternoon in the Trianon and the Queen's Hamlet, which do not even open until noon.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-06-19T19:00:00.000Z",
+      "sourceTrip": {
+        "name": "Paris and out, June"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "RER C from Invalides, direction Versailles Château",
+          "timeWindow": {
+            "start": "07:50",
+            "end": "08:35"
+          },
+          "location": {
+            "name": "Gare des Invalides (RER C)",
+            "city": "Paris",
+            "area": "Invalides, 7e"
+          },
+          "kind": "transit",
+          "notes": "Any RER C train whose four-letter code begins with V — VICK, VITY — runs to Versailles Château–Rive Gauche, ten minutes' walk from the gates. Since the 2025 fare reform a single out into Île-de-France is a flat fare, so buy the return at the same time: the machines at Rive Gauche at 17:30 have the only real queue of the day.",
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "State Apartments at 09:00, ahead of the coaches",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Château de Versailles",
+            "city": "Versailles",
+            "area": "Cour d'honneur"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "A 09:00 slot and an 11:00 slot are two different buildings. At nine you walk the Hall of Mirrors with perhaps fifty people in it; by eleven the day coaches from Paris have landed and it is one shuffling line you cannot leave. Closed Mondays, entrance A, and it is the security scan that is slow, never the ticket desk.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Down through the bosquets while the fountains run",
+          "timeWindow": {
+            "start": "10:40",
+            "end": "12:00"
+          },
+          "location": {
+            "name": "Gardens of Versailles",
+            "city": "Versailles",
+            "area": "Petit Parc"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The Grandes Eaux Musicales run weekends from April to October and on some Tuesdays, and they are the only times the groves — Salle de Bal, Trois Fontaines, the Bosquet d'Encelade — are unlocked and playing. On any other day the gardens are free to walk and the ticket you bought is for a park with the taps off, so check the calendar before you pick the date, not after.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at the head of the Grand Canal",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "13:20"
+          },
+          "location": {
+            "name": "La Flottille",
+            "city": "Versailles",
+            "area": "Grand Canal"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Not a good restaurant, but the only table at the head of the canal, and the alternative is a two-kilometre walk back out through the gates and in again. The better version of this stop: buy a picnic at the Marché Notre-Dame in town — Tuesday, Friday and Sunday mornings — before you ever go into the palace.",
+          "cost": {
+            "amountMinor": 3400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Hameau de la Reine, which does not open until noon",
+          "timeWindow": {
+            "start": "13:35",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Domaine de Marie-Antoinette",
+            "city": "Versailles",
+            "area": "Trianon"
+          },
+          "kind": "planned",
+          "notes": "The Trianon estate opens at 12:00 — turning up at 10:00 to a locked gate is the classic Versailles mistake and it wrecks the running order of the whole day. Petit Trianon first, the Queen's Hamlet last, and keep going to the working farm at the far end: it has actual animals and most people turn back one thatched cottage before it.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A bike for the last hour of the park",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Grand Canal bike hire",
+            "city": "Versailles",
+            "area": "Petit Parc"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The park is 800 hectares and the trudge back from the Hameau is the bit people remember badly. Bikes go by the hour at the canal head, rowing boats a little more, and the little road train is there if legs have gone. Ride the far side of the canal — hardly anyone crosses the water and the palace from that end is the view on the old engravings.",
+          "cost": {
+            "amountMinor": 950,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back through the town instead of straight to the platform",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Quartier Saint-Louis",
+            "city": "Versailles",
+            "area": "Saint-Louis"
+          },
+          "kind": "idea",
+          "notes": "The Carrés Saint-Louis and rue de Satory are a real market town five minutes from the Rive Gauche platform — bakeries, a cheesemonger, tables outside. Almost nobody who comes for the palace ever sees it, which is the entire recommendation.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "RER C back into Paris",
+          "timeWindow": {
+            "start": "17:55",
+            "end": "18:40"
+          },
+          "location": {
+            "name": "Versailles Château–Rive Gauche",
+            "city": "Versailles",
+            "area": "Rive Gauche"
+          },
+          "kind": "transit",
+          "notes": "Four an hour, and the ones just after the palace closes are the crush. Let the first train go and you will sit down for the whole way back.",
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "loire-chateaux-with-a-driver-from-amboise",
+      "name": "The Loire with a driver: Chenonceau at opening, Chambord's roof, Villandry at dusk",
+      "summary": "Three châteaux, a Vouvray cellar and a starred country lunch in one day — which only works because somebody else is driving and you are always half an hour ahead of the coaches.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2025-10-09T18:20:00.000Z",
+      "sourceTrip": {
+        "name": "The Loire in October"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Driver at the hotel door in Amboise",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Amboise town centre",
+            "city": "Amboise",
+            "area": "Centre-ville"
+          },
+          "kind": "transit",
+          "notes": "The châteaux are 30 to 70 km apart with no useful train between them, and every coach tour arrives at Chenonceau and Chambord at the same two moments each day. A private driver-guide out of Tours or Amboise runs €550–650 for the car for the day; split three or four ways it is the cheapest way to be standing somewhere at 09:00. Book the day before, and give them the running order — most will default to the coach timings otherwise.",
+          "cost": {
+            "amountMinor": 60000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Chenonceau in the first hour it is open",
+          "timeWindow": {
+            "start": "09:05",
+            "end": "10:50"
+          },
+          "location": {
+            "name": "Château de Chenonceau",
+            "city": "Chenonceaux",
+            "area": "Vallée du Cher"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Opens 09:00, 09:30 in winter, and the coaches land at 10:30 — so walk the plane-tree avenue quickly, do the gallery over the Cher while it is empty, and come back down through Diane de Poitiers' garden afterwards. Book online to skip the till. It is the one château here worth the crowd if you get the order wrong, but you will not need to.",
+          "cost": {
+            "amountMinor": 2100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Vouvray, tasted in the tuffeau",
+          "timeWindow": {
+            "start": "11:20",
+            "end": "12:20"
+          },
+          "location": {
+            "name": "Domaine Huet",
+            "city": "Vouvray",
+            "area": "Le Haut-Lieu"
+          },
+          "kind": "booked",
+          "notes": "Chenin blanc from vineyards worked biodynamically since 1990, tasted in a cellar cut into the same soft limestone the châteaux are built from. Appointments only and closed Sundays — ring two days ahead, not on the morning. Ask to taste the sec and the demi-sec side by side; the second is the one people write off and then buy.",
+          "cost": {
+            "amountMinor": 1700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The long lunch the day is built around",
+          "timeWindow": {
+            "start": "12:45",
+            "end": "14:20"
+          },
+          "location": {
+            "name": "Auberge du Bon Laboureur",
+            "city": "Chenonceaux",
+            "area": "Village"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "One Michelin star, three hundred metres from the Chenonceau gate, and the set lunch is roughly a third of what the same kitchen charges at dinner. Book it when you book the driver — the day is arranged around this table, not the other way round, and it is why the afternoon starts at a civilised 14:50.",
+          "cost": {
+            "amountMinor": 7500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Chambord for the roof, not for the rooms",
+          "timeWindow": {
+            "start": "14:50",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Château de Chambord",
+            "city": "Chambord",
+            "area": "Domaine national"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The interior is mostly empty and people trail through it dutifully for an hour. Go up the double-helix staircase immediately and spend your time on the roof terrace among the chimneys — that is the building. The park outside is free and full of deer; in October you can hear the stags roaring from the ramparts at dusk.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Villandry's gardens in low sun",
+          "timeWindow": {
+            "start": "17:15",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Château de Villandry",
+            "city": "Villandry",
+            "area": "Vallée du Cher"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Take the gardens-only ticket: it is cheaper and the château interior is the least interesting thing on this whole route. Late afternoon is when the ornamental kitchen garden's colour comes up and the box hedges throw shadows. Last admission is an hour before closing and closing moves with the season, so have the driver ring ahead in October.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner under the château wall in Amboise",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Chez Bruno",
+            "city": "Amboise",
+            "area": "Place Michel Debré"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "A wine bar and bistro on the square below the château, still serving when most of Amboise has shut for the night. Work through the Loire list by the glass — Bourgueil, Montlouis, Chinon, Saumur-Champigny — because you have been driven all day and are not driving now.",
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "d-day-beaches-and-the-mount-at-dusk",
+      "name": "The D-Day coast with a guide, and Mont-Saint-Michel after everyone leaves",
+      "summary": "Longues-sur-Mer, Pointe du Hoc, Omaha and the American cemetery with someone who can read the ground — then two hours south to walk the Mount's ramparts at dusk with the day-trippers gone.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-09-18T20:05:00.000Z",
+      "sourceTrip": {
+        "name": "Normandy, mid-September"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Guide pick-up outside the Bayeux tourist office",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Bayeux tourist office",
+            "city": "Bayeux",
+            "area": "Centre"
+          },
+          "kind": "transit",
+          "notes": "Take the guided day rather than driving it yourself. Sixty kilometres of near-empty coast, and without someone telling you where the seawall stood, Omaha is a car park and a beach. Shared full-day tours out of Bayeux run about €130 a head and book out weeks ahead in summer. One planning note: the Bayeux Tapestry museum is closed for its rebuild until 2027, so do not build the morning around it.",
+          "cost": {
+            "amountMinor": 14500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Longues-sur-Mer, the only battery with its guns still in it",
+          "timeWindow": {
+            "start": "09:10",
+            "end": "10:10"
+          },
+          "location": {
+            "name": "Batterie de Longues-sur-Mer",
+            "city": "Longues-sur-Mer",
+            "area": "Falaise"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Free, always open, and unlike every other German position on this coast the 150 mm guns are still in their casemates. Walk past the four bunkers to the observation post at the cliff edge — that is the shot from The Longest Day, and standing in it explains the geometry of the whole landing better than any museum on the coast.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Pointe du Hoc",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Pointe du Hoc",
+            "city": "Cricqueville-en-Bessin",
+            "area": "Falaise"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The ground here has never been levelled: those craters are the naval bombardment, left exactly as it finished. Free, and the car park fills by 11:00 in season. Keep going past the monument to the cliff observation post — most people photograph the first crater and turn round.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch on the beach road above Omaha",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:10"
+          },
+          "location": {
+            "name": "La Sapinière",
+            "city": "Saint-Laurent-sur-Mer",
+            "area": "Omaha Beach"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "One of very few places actually on the beach road open at lunch outside July and August. Plain food, seventy minutes, and you eat looking at the sand — which is the reason to stop here rather than drive fifteen minutes back into Bayeux and lose the thread of the morning.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The American cemetery, then down to the beach",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Normandy American Cemetery",
+            "city": "Colleville-sur-Mer",
+            "area": "Above Omaha Beach"
+          },
+          "kind": "planned",
+          "notes": "Free, but bring photo ID for the gate. Visitor centre first, then the graves, then take the path down to the sand and walk back up — coming up off the beach towards the bluff is the only way the ground makes sense, and nobody who arrives by coach does it. Closing is 18:00 in summer and 17:00 from mid-September; the flag lowering is at the end of the day, not the middle.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Arromanches and what is left of the Mulberry",
+          "timeWindow": {
+            "start": "15:45",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Arromanches-les-Bains",
+            "city": "Arromanches-les-Bains",
+            "area": "Port Winston"
+          },
+          "kind": "idea",
+          "notes": "The concrete caissons out in the bay are the artificial harbour, and the visit is governed by the tide table rather than opening hours — at low water you can walk out among them. The 360° cinema on the cliff above is twenty minutes and earns its keep only if the weather has closed in.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "South to the bay while the light goes",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:50"
+          },
+          "location": {
+            "name": "Bayeux to Mont-Saint-Michel by the A84",
+            "city": "Pontorson",
+            "area": "Baie du Mont-Saint-Michel"
+          },
+          "kind": "transit",
+          "notes": "About 1h45. Everything parks at the mainland lot — there is no other option and it is charged per day, not per hour. From there the free navette shuttle drops you 200 m short of the gate, or you walk the causeway in 35 minutes, which at this hour is the better half of the journey: the Mount grows for the whole walk.",
+          "cost": {
+            "amountMinor": 1750,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Mount once the day-trippers have gone",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Mont-Saint-Michel",
+            "city": "Le Mont-Saint-Michel",
+            "area": "Intra-muros"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The abbey closes at 19:00 in summer and 18:00 out of season, and that is exactly why you arrive now. The Grande Rue empties, the ramparts stay open and free all night, and on a big tidal coefficient the water comes in fast enough to watch it move across the sand. Eat inside the walls at the Mère Poulard brasserie, or better, at Le Pré Salé in Beauvoir on the way in — lamb raised on the salt marsh you have just driven across.",
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "apt-market-gordes-and-the-ochre-road",
+      "name": "A Saturday in the Luberon: Apt market, Sénanque, Gordes and the ochre road",
+      "summary": "The biggest market in the Luberon at eight, a booked visit inside a working abbey, lunch bought from the stalls eaten among dry-stone huts, and back into Avignon for a late table.",
+      "ownerId": "dev-priya",
+      "visibility": "public",
+      "keptOn": "2025-07-26T19:40:00.000Z",
+      "sourceTrip": {
+        "name": "The Luberon by car, July"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-sofia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Out of Avignon early, east on the D900",
+          "timeWindow": {
+            "start": "07:50",
+            "end": "08:40"
+          },
+          "location": {
+            "name": "Avignon to Apt by the D900",
+            "city": "Apt",
+            "area": "Vallée du Calavon"
+          },
+          "kind": "transit",
+          "notes": "Every Luberon market is finished by 13:00 and the good half of it is finished by 11:00, so this day only exists if the car moves before eight. A hire car is not optional here — the villages are 10 to 20 km apart with two buses a day between them — so budget it as a line of the day, not an afterthought. Which market you get depends entirely on the weekday: Saturday is Apt, Sunday is L'Isle-sur-la-Sorgue and Coustellet, Tuesday is Gordes, Friday is Bonnieux and Lourmarin.",
+          "cost": {
+            "amountMinor": 9500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Apt on a Saturday, the biggest market in the Luberon",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Marché d'Apt",
+            "city": "Apt",
+            "area": "Centre ancien"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Saturday only, and it takes the whole old town. The food is at the Place de la Bouquerie end; the souvenir stalls creep up towards the cathedral, so start low and work up. Buy today's lunch here — tapenade, a Banon wrapped in its chestnut leaf, tomatoes, and the candied fruit Apt has made since the popes were in Avignon. Park at the Place Jean Jaurès lot and walk in; the streets are closed to cars.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sénanque, on a visit booked days ago",
+          "timeWindow": {
+            "start": "11:15",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Abbaye Notre-Dame de Sénanque",
+            "city": "Gordes",
+            "area": "Vallée de la Sénancole"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "It is a working Cistercian monastery, not a monument: the interior is by guided visit only, booked online, and anyone who turns up unbooked gets the shop and the outside of the church. The lavender in front flowers from mid-June and is cut in the third week of July — after that the photograph everybody drove here for is a field of stubble.",
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Gordes from the road, then Gordes from inside",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:40"
+          },
+          "location": {
+            "name": "Gordes village",
+            "city": "Gordes",
+            "area": "Village"
+          },
+          "kind": "planned",
+          "notes": "The view of the village stacked up its cliff is from a lay-by on the D15 coming up from Cavaillon — not from anywhere inside the village — so stop there before you drive in or you will never see it. Parking within the walls is metered and full by 11:00 in summer; the lot below the château is the one that turns over.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The market lunch, eaten at the Village des Bories",
+          "timeWindow": {
+            "start": "13:55",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Village des Bories",
+            "city": "Gordes",
+            "area": "Les Savournins"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "Twenty dry-stone huts in a field three kilometres below Gordes, almost always empty, with walls to sit against and a little shade — the best lunch table in the Luberon and it costs the price of the entry. If it is shut, the lane down to it runs between olive terraces and does the job just as well.",
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The ochre trail late enough for the colour",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Sentier des Ocres",
+            "city": "Roussillon",
+            "area": "Village"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "A 30- or 50-minute loop through worked-out ochre quarries; take the long one, the extra twenty minutes are the best of it. Late afternoon is when the reds do what the postcards promise — at midday it is flat and glaring. The site closes for January. Do not wear white: the dust is a pigment and it does not wash out.",
+          "cost": {
+            "amountMinor": 400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Tasting at Château La Canorgue below Bonnieux",
+          "timeWindow": {
+            "start": "17:15",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Château La Canorgue",
+            "city": "Bonnieux",
+            "area": "Route du Pont Julien"
+          },
+          "kind": "planned",
+          "notes": "Organic long before anyone here was, and the house from A Good Year, which they are politely tired of being asked about. The cellar door shuts at 18:00 exactly and all day Sunday. Buy the rosé to drink tonight and the red to carry home; they will not ship it for you.",
+          "cost": {
+            "amountMinor": 4600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back inside the walls for a late table",
+          "timeWindow": {
+            "start": "20:15",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Restaurant Christian Étienne",
+            "city": "Avignon",
+            "area": "Intra-muros"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Beside the Palais des Papes with a terrace over the square, and one of the few kitchens inside the ramparts still serving at 21:30 in high season. If the festival is on in July the entire city eats late and books out a week ahead — reserve before you leave for the market in the morning, not when you get back.",
+          "cost": {
+            "amountMinor": 7800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "nice-market-the-moyenne-corniche-and-le-louis-xv",
+      "name": "Nice, the Moyenne Corniche, Èze — and the table the whole day is priced around",
+      "summary": "Socca at the Cours Saleya at eight, a car and driver for the three Corniches, the garden on top of Èze, and dinner at Le Louis XV in Monaco with the pairing. Honestly expensive and it is all in one stop.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2026-02-19T22:50:00.000Z",
+      "sourceTrip": {
+        "name": "The Corniches in February"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Cours Saleya at eight, and socca standing up",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Cours Saleya",
+            "city": "Nice",
+            "area": "Vieux Nice"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Flowers and produce Tuesday to Sunday mornings, packed away by about 13:00; on Mondays it is the brocante instead and there is no food market at all. Socca has to be eaten within a minute of coming off the copper pan — Chez Thérésa sells it from the shop on rue Droite and the queue moves faster than it looks. Eat it standing, with pepper, off the paper.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up the Colline du Château for the bay",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "10:20"
+          },
+          "location": {
+            "name": "Colline du Château",
+            "city": "Nice",
+            "area": "Vieux Nice"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Free, open from 08:30, and there is a lift at the east end of the Promenade if the 200 steps do not appeal. Go before eleven: later the sun swings behind the view and the whole curve of the Baie des Anges sits in haze until evening.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Car and driver, and the middle road east",
+          "timeWindow": {
+            "start": "11:00",
+            "end": "12:10"
+          },
+          "location": {
+            "name": "Moyenne Corniche (D6007)",
+            "city": "Èze",
+            "area": "Corniche"
+          },
+          "kind": "transit",
+          "notes": "Three roads run east out of Nice: the Basse is traffic lights and seafront towns, the Grande is the highest and emptiest, the Moyenne is the one that delivers you to the gate of Èze. A car and driver for the day on this coast runs €550–700 and removes the parking problem in Èze, the Monaco dress code and the wine pairing question all at once. Confirm the finish time when you book — some quote a hard eight hours and dinner is at 19:30.",
+          "cost": {
+            "amountMinor": 68000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Èze village and the garden on the summit",
+          "timeWindow": {
+            "start": "12:20",
+            "end": "13:40"
+          },
+          "location": {
+            "name": "Jardin Exotique d'Èze",
+            "city": "Èze",
+            "area": "Village médiéval"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The village is one spiral of stone lanes and it is genuinely lovely in the hour before the coaches; the cactus garden crowning it sits 429 m straight above the sea for the price of a coffee. The Chemin de Nietzsche drops from the village to Èze-sur-Mer in about 1h20 down and 1h30 back up — real shoes, and not in the middle of a day that ends in a jacket.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch on the terrace cut into the rampart",
+          "timeWindow": {
+            "start": "13:55",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Château Eza",
+            "city": "Èze",
+            "area": "Village médiéval"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The terrace hangs off the village wall with nothing between you and the water. Book the terrace specifically when you reserve — the indoor room is a different and much lesser experience for the same money. Keep it to two courses: dinner tonight is four hours long.",
+          "cost": {
+            "amountMinor": 9500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "La Turbie and the Trophy of Augustus",
+          "timeWindow": {
+            "start": "16:00",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Trophée d'Auguste",
+            "city": "La Turbie",
+            "area": "Grande Corniche"
+          },
+          "kind": "idea",
+          "notes": "Two thousand years old, raised to mark Augustus subduing the Alpine tribes, standing 480 m directly above Monaco with almost nobody at it. Closed Mondays. Ten minutes off the Grande Corniche on the way down, and it is the best place on this coast to see how absurdly small the principality is.",
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Le Louis XV, and the reason this day costs what it costs",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "23:00"
+          },
+          "location": {
+            "name": "Le Louis XV – Alain Ducasse à l'Hôtel de Paris",
+            "city": "Monaco",
+            "area": "Monte-Carlo"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Three stars since 1990, closed Tuesdays and Wednesdays, and tables go six to eight weeks ahead. The tasting menu is around €390 and the pairing another €250 or so — this single stop is most of the day's total and none of it is padding. Jacket for men and they do mean it. Ask for a table on the square side; the room is the point as much as the food.",
+          "cost": {
+            "amountMinor": 70000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Home the low way, with the coast lit",
+          "timeWindow": {
+            "start": "23:10",
+            "end": "23:55"
+          },
+          "location": {
+            "name": "Basse Corniche (D6098)",
+            "city": "Nice",
+            "area": "Corniche"
+          },
+          "kind": "transit",
+          "notes": "Twenty-five minutes at that hour, and the reason to take the sea road back rather than the motorway is Cap-d'Ail and Villefranche reflected on the water. Included in the driver's day if you asked for it at the start, and an extra hour if you did not.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "lyon-traboules-halles-and-a-bouchon",
+      "name": "Lyon: oysters at nine, the traboules, and a bouchon with the plaque",
+      "summary": "Breakfast at a market counter, the covered passages of Vieux Lyon and the Croix-Rousse walked properly, one certified bouchon for lunch, and the Presqu'île at night during the Fête des Lumières.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2024-12-07T22:10:00.000Z",
+      "sourceTrip": {
+        "name": "Lyon for the Lumières"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Oysters and a glass of white at nine, in the Halles",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Halles de Lyon – Paul Bocuse",
+            "city": "Lyon",
+            "area": "Part-Dieu"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Closed Mondays; on Sundays it shuts at 13:00. This is a market you eat in rather than shop at — a dozen at one of the seafood counters with a glass of Mâcon at nine in the morning is an ordinary Lyonnais thing to do and nobody will look at you. Take a Saint-Marcellin from Mère Richard away with you for later.",
+          "cost": {
+            "amountMinor": 2900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The long traboule, 54 rue Saint-Jean",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:40"
+          },
+          "location": {
+            "name": "Traboules of Vieux Lyon",
+            "city": "Lyon",
+            "area": "Vieux Lyon – Saint-Jean"
+          },
+          "kind": "planned",
+          "notes": "Traboules are covered passages cut through private buildings, and the city pays the residents to leave certain doors unlocked in daylight. The long one runs from 54 rue Saint-Jean through four courtyards to 27 rue du Bœuf. Push the door, close it behind you, and keep your voice down — people live up those stairs, and the access is a courtesy that gets withdrawn street by street when it is abused.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Ficelle up to Fourvière",
+          "timeWindow": {
+            "start": "11:45",
+            "end": "12:05"
+          },
+          "location": {
+            "name": "Funiculaire Saint-Jean–Fourvière",
+            "city": "Lyon",
+            "area": "Vieux Lyon"
+          },
+          "kind": "transit",
+          "notes": "The funicular leaves from inside the Vieux Lyon metro station and an ordinary TCL ticket covers it. Walking up is twenty-five minutes of steps and nobody local does it twice.",
+          "cost": {
+            "amountMinor": 230,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Fourvière, and down through the Roman theatres",
+          "timeWindow": {
+            "start": "12:10",
+            "end": "13:10"
+          },
+          "location": {
+            "name": "Basilique Notre-Dame de Fourvière",
+            "city": "Lyon",
+            "area": "Fourvière"
+          },
+          "kind": "planned",
+          "notes": "The basilica is free and gaudy in the best possible way; the terrace beside it is where you finally see how the Rhône and the Saône fit around the Presqu'île. Leave on foot through the Roman theatres rather than taking the funicular back down — they are open, free, and the path through them lands you back at the top of rue Saint-Jean.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch in a bouchon that has the certificate",
+          "timeWindow": {
+            "start": "13:25",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Daniel et Denise Saint-Jean",
+            "city": "Lyon",
+            "area": "Vieux Lyon"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Look for the 'Les Bouchons Lyonnais' certificate in the window — it is the only quick way to tell the twenty real ones from the sixty imitations on rue Saint-Jean. Book: there are about twelve tables. Quenelle de brochet, or the pâté en croûte that won the world championship. Most bouchons close Sunday and Monday, which shapes the whole week here.",
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up the slopes of the Croix-Rousse",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Cour des Voraces",
+            "city": "Lyon",
+            "area": "Croix-Rousse"
+          },
+          "kind": "planned",
+          "notes": "The other traboule quarter, and the working one. The silk weavers' six-storey open staircase at 9 place Colbert was built so a canut could carry finished cloth downhill under cover and dry. Climb the Montée Saint-Sébastien, look up at the Mur des Canuts trompe-l'œil at the top of the hill, and come back down through the Passage Thiaffait.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A praluline and a glass before dark",
+          "timeWindow": {
+            "start": "17:45",
+            "end": "18:45"
+          },
+          "location": {
+            "name": "Pralus",
+            "city": "Lyon",
+            "area": "Presqu'île"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The pink-praline brioche is a Lyon institution and Pralus invented it — buy a whole one, not a slice, because a slice goes stale by the time you want the rest. Then a glass on rue Mercière while the Presqu'île fills up for the evening.",
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Fête des Lumières, walked against the flow",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Place des Terreaux",
+            "city": "Lyon",
+            "area": "Presqu'île"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Four nights around 8 December, free, and something like a million people walk the same loop in the same direction. Start at Terreaux and go against the current towards Bellecour — or better, do the Croix-Rousse installations first, which have no queue at all. Every restaurant on the Presqu'île is booked solid those nights: eat before seven or after eleven, and do not plan to change your mind in the middle.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

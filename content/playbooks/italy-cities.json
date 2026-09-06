@@ -1,0 +1,1512 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "italy-cities",
+    "name": "Italy: cities, coast and food",
+    "description": "Eight day-shaped playbooks from the Italian mainland and Sicily — timed-entry museums taken in the order that leaves them empty, two market mornings, a Pompeii day with somebody who can read the walls, a Parmigiano dairy at the hour it is actually made, and one honestly expensive day on a private boat around Capri.",
+    "origin": "ai",
+    "sources": [
+      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
+      "https://colosseo.it/en/tickets/",
+      "https://www.coopculture.it/en/heritage/colosseum-roman-forum-palatine-hill/",
+      "https://thebettervacation.com/rome/colosseum-tickets/",
+      "https://www.artvisitguide.com/colosseum-tickets-guide/",
+      "https://www.mercatoditestaccio.it/",
+      "https://www.cimiteroacattolico.it/",
+      "https://www.uffizi.it/en/tickets",
+      "https://www.b-ticket.com/b-ticket/uffizi/",
+      "https://www.galleriaaccademiafirenze.it/en/visit/tickets/",
+      "https://www.visittuscany.com/en/ideas/uffizi-and-accademia-tickets-and-booking/",
+      "https://thebettervacation.com/florence/accademia-gallery-official-website/",
+      "https://visituffizi.com/en/tickets/prices/",
+      "https://www.anticosetificiofiorentino.com/",
+      "https://actv.avmspa.it/en/content/tickets-1",
+      "https://www.veneziaunica.it/en/content/public-transport-tickets",
+      "https://www.torcellovenezia.it/en/",
+      "https://www.museoebraico.it/en/",
+      "https://www.gattonero.com/",
+      "https://pompeiisites.org/en/plan-your-visit/tickets/",
+      "https://untolditaly.com/how-to-buy-tickets-for-pompeii/",
+      "https://pompeii-italy.org/tickets/",
+      "https://mann-napoli.it/en/tickets/",
+      "https://www.eavsrl.it/web/linee-orari-ferro",
+      "https://www.ilriccio-capri.com/en/",
+      "https://www.villasanmichele.eu/en/",
+      "https://www.seggioviamontesolaro.it/en/",
+      "https://www.capri.com/en/s/blue-grotto",
+      "https://www.oltrelartematera.it/en/rupestrian-churches/",
+      "https://www.parcomurgia.it/",
+      "https://www.trullosovrano.eu/",
+      "https://piazzaduomoparma.com/en/baptistery/",
+      "https://www.ruliano.it/en/",
+      "https://www.parmigianoreggiano.com/dairy-visits",
+      "https://www.giusti.it/en/acetaia-visits/",
+      "https://www.franceschetta58.it/",
+      "https://www.funiviaetna.com/en/",
+      "https://www.etnaguide.com/",
+      "https://www.ct.ingv.it/index.php/monitoraggio-e-sorveglianza",
+      "https://www.parconaxostaormina.com/en/teatro-antico-di-taormina/",
+      "https://www.tenutasanmichele.it/en/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "playbooks": [
+    {
+      "key": "rome-forum-at-opening-testaccio-lunch-trastevere-late",
+      "name": "Rome: the Forum at opening, Testaccio at lunch, Trastevere after dark",
+      "summary": "The ancient half done before the heat and the queues, a market lunch in the neighbourhood Romans actually eat in, and the river crossed on foot at the right hour.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-11-08T19:20:00.000Z",
+      "sourceTrip": {
+        "name": "Rome and the south, twelve days"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Roman Forum and Palatine from the Via di San Gregorio gate",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Roman Forum – Via di San Gregorio entrance",
+            "city": "Rome",
+            "area": "Celio"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "One €18 Colosseo–Foro–Palatino ticket covers all three and runs 24 hours from your Colosseum slot, so spend the cool part of it here. Three gates open onto the Forum: Largo della Salara Vecchia is the one every group is dropped at, and Via di San Gregorio, on the Palatine side, is usually walk-up. Tickets are named and released 30 days out on coopculture.it — between April and October the 09:00–10:00 slots go in the first hours.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Down the Palatine and out under the Arch of Titus",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Via Sacra",
+            "city": "Rome",
+            "area": "Celio"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Come off the Palatine at the Titus end rather than back the way you came: it drops you within sight of the Colosseum's security line with nothing retraced. Fill your bottle at the nasone beside the arch — there is nowhere to drink inside the amphitheatre and the queue for the one bar is longer than the one to get in."
+        },
+        {
+          "title": "Colosseum, levels 1 and 2, on the timed slot",
+          "timeWindow": {
+            "start": "11:15",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Colosseum – Stern gate",
+            "city": "Rome",
+            "area": "Celio"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Already paid for on the combo ticket, so nothing to buy here. The slot is an entry window, not a tour: be in the line ten minutes early, then go straight up to level 2, because the ground-level arcade is where everyone else stops and stands. The arena floor and the underground are a separate, dearer ticket that sells out first — if you did not get one, level 2 looks down on the hypogeum anyway."
+        },
+        {
+          "title": "Mordi e Vai, box 15, Mercato Testaccio",
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Mercato Testaccio",
+            "city": "Rome",
+            "area": "Testaccio"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Sergio Esposito's stall does one thing: boiled-beef panini soaked in their own gravy. Allesso di scottona is the one to order; picchiapo if they are out. The queue builds 12:30–13:30 and the market winds down around 15:00, so this is not a 14:45 plan. Cash moves the line faster than card.",
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A supplì at the original Trapizzino",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Trapizzino",
+            "city": "Rome",
+            "area": "Testaccio"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Two blocks from the market on Via Giovanni Branca, and only worth it if you did not have a second panino. Pollo alla cacciatora is the original filling and still the best one; this is the shop the chain grew out of in 2008, not a branch of it.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Cimitero Acattolico and the Pyramid of Cestius",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Cimitero Acattolico di Roma",
+            "city": "Rome",
+            "area": "Testaccio"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "€5 suggested donation in the box at the gate, and a colony of cats that live in the pyramid's shadow. Keats and Shelley are signposted and busy; the part worth the hour is the older enclosure against the Aurelian wall, where nothing is signposted at all. Closes at 17:00 with last admission at 16:30.",
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Over Ponte Sisto into Trastevere",
+          "timeWindow": {
+            "start": "19:45",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "Ponte Sisto",
+            "city": "Rome",
+            "area": "Trastevere"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Walk it rather than taking the tram down Viale Trastevere: the bridge is where the light goes copper over the river bend and the buskers have not started yet. Piazza Trilussa on the far side is solid by 20:30, so cross before then and cut straight up Via del Moro."
+        },
+        {
+          "title": "Dinner at Da Enzo al 29",
+          "timeWindow": {
+            "start": "20:30",
+            "end": "22:15"
+          },
+          "location": {
+            "name": "Da Enzo al 29",
+            "city": "Rome",
+            "area": "Trastevere"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "About thirty seats on Via dei Vascellari and a reservations book that only covers the early sitting; without one you leave a name at the door and drink across the lane until somebody shouts it. Cacio e pepe and the fiori di zucca. The carciofo alla giudia is only honest between November and April — the rest of the year it has been somewhere cold for a long time.",
+          "cost": {
+            "amountMinor": 3800,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "florence-accademia-first-slot-uffizi-and-the-oltrarno",
+      "name": "Florence: the Accademia's first slot, the Uffizi after, and the Oltrarno's workshops",
+      "summary": "Both timed museums taken in the order that leaves them empty, then over the river to the streets where things are still made — marbled paper, silk on eighteenth-century looms, wine poured by the people who imported it.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-01-24T17:05:00.000Z",
+      "sourceTrip": {
+        "name": "Tuscany in the cold months"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Galleria dell'Accademia on the 08:15 slot",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Galleria dell'Accademia",
+            "city": "Florence",
+            "area": "San Marco"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "€20 plus the €4 booking fee, through b-ticket.com — the state platform, not one of the resellers that adds €20 for the same slot. Entry is a 15-minute arrival window, and the long line on Via Ricasoli is people who do not have one. Closed Mondays. Walk past David to the unfinished Prisoners first and come back to him around 09:00, when the room briefly empties between windows.",
+          "cost": {
+            "amountMinor": 2650,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Coffee and a bombolone standing at Robiglio",
+          "timeWindow": {
+            "start": "09:45",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Pasticceria Robiglio",
+            "city": "Florence",
+            "area": "San Marco"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Two minutes from the Accademia on Via dei Servi. Drink it at the bar: table service is a legally separate, higher price list and the sign on the wall says so. The bombolone is filled to order, which is the whole difference.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Uffizi, timed entry at Door 1",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Galleria degli Uffizi",
+            "city": "Florence",
+            "area": "Centro Storico"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Reserved tickets go in at Door 1. Door 3 is the exchange desk and swallows twenty minutes for nothing — people queue there because it is the first door they reach. The €4 booking fee is per ticket and unavoidable on the official site. From 1 January 2026 an entry from 16:00 onwards costs €16, which is the cheap way in if you would rather do this at the end of a day than the middle of one. Closed Mondays.",
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at Trattoria Cammillo",
+          "timeWindow": {
+            "start": "13:45",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Trattoria Cammillo",
+            "city": "Florence",
+            "area": "Oltrarno"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Over the Ponte Vecchio on Borgo San Jacopo, family-run since 1945, and full of Florentines rather than of us by 13:30. Book. Closed Tuesday and Wednesday, which catches people out. Ask what the fritto is that day instead of reading the menu.",
+          "cost": {
+            "amountMinor": 4400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Marbled paper at Giulio Giannini e Figlio",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Giulio Giannini e Figlio",
+            "city": "Florence",
+            "area": "Oltrarno"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "Facing Palazzo Pitti; bookbinders on this spot since 1856. Ask to see the marbling tray in the back room — they will show you if the shop is quiet, which it is mid-afternoon and never is at 11:00. A notebook is around €16 and is the only thing sold on this street that was made on it.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Antico Setificio Fiorentino, if the appointment comes through",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Antico Setificio Fiorentino",
+            "city": "Florence",
+            "area": "San Frediano"
+          },
+          "kind": "hold",
+          "tags": [],
+          "notes": "A working silk mill on Via Lorenzo Bartolini, weaving on looms from the 1780s and warping on a machine built to a Leonardo drawing. Visits are by written appointment only and they do say no, so email a week ahead and hold this slot loosely — which is why it sits here as a maybe rather than a plan."
+        },
+        {
+          "title": "Aperitivo at Le Volpi e l'Uva",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Le Volpi e l'Uva",
+            "city": "Florence",
+            "area": "Oltrarno"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Six stools in Piazza dei Rossi behind Santa Felicita, pouring small growers by the glass and cutting the crostini to order. Tell them what you drank at lunch and let them pick; that is the entire service model and it is better than any list.",
+          "cost": {
+            "amountMinor": 1650,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Giardino delle Rose at dusk",
+          "timeWindow": {
+            "start": "19:15",
+            "end": "20:00"
+          },
+          "location": {
+            "name": "Giardino delle Rose",
+            "city": "Florence",
+            "area": "San Niccolò"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Free, and it is the terrace below Piazzale Michelangelo rather than on it: the same skyline, Folon's bronzes standing about in the grass, and none of the coaches. The gate is on Viale Giuseppe Poggi and it closes at sunset, so in winter this is a 17:00 plan, not a 19:00 one."
+        }
+      ]
+    },
+    {
+      "key": "venice-cannaregio-and-the-northern-lagoon",
+      "name": "Venice: the 08:30 boat to Torcello, Burano from the back, Cannaregio at dusk",
+      "summary": "A day spent entirely north of the Rialto — the empty early vaporetto to the lagoon's oldest church, into Burano over the Mazzorbo bridge, and back for cicchetti on the Ormesini where Venetians still drink.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-06-22T16:40:00.000Z",
+      "sourceTrip": {
+        "name": "The lagoon, slowly"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Coffee and a pastry standing at Dal Mas",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "08:10"
+          },
+          "location": {
+            "name": "Pasticceria Dal Mas",
+            "city": "Venice",
+            "area": "Cannaregio"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Opens at 07:00 on the Lista di Spagna, which is otherwise the worst street in Venice. Croissant and a caffè at the bar, then twenty minutes on foot across to Fondamente Nove. Do not plan on eating anything on Torcello before noon — there are two places and they open when they open.",
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Vaporetto 12 from Fondamente Nove to Torcello",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Fondamente Nove pontoon",
+            "city": "Venice",
+            "area": "Cannaregio"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The 08:30 leaves half empty and the day-tour boats do not reach Torcello until about 11:00 — that gap is the whole trick of this day. Buy the 24-hour ACTV travel card rather than singles: line 12 alone would eat three of them, and the card covers the way back and the late boats home. Check the departure board for which pontoon at Fondamente Nove; line 12 does not always use the same one.",
+          "cost": {
+            "amountMinor": 2750,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Santa Maria Assunta and the campanile, Torcello",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Basilica di Santa Maria Assunta",
+            "city": "Venice",
+            "area": "Torcello"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Climb the campanile first: the stairs are a ramp, nobody is on them before 10:00, and the whole northern lagoon reads as a map from the top. Inside, the Last Judgement mosaic is on the wall behind you as you come in, so you meet it on the way out, which is the right order. One combined ticket for basilica, campanile and museum; no photography in the church.",
+          "cost": {
+            "amountMinor": 1300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Over the Mazzorbo bridge into Burano",
+          "timeWindow": {
+            "start": "11:15",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Ponte Longo, Mazzorbo",
+            "city": "Venice",
+            "area": "Mazzorbo"
+          },
+          "kind": "transit",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Get off one stop early at Mazzorbo and walk the long wooden bridge instead of landing at Burano's front door. You pass the Venissa walled vineyard and arrive at the quiet end of the painted houses — the end without the lace shops and the photographers."
+        },
+        {
+          "title": "Lunch at Trattoria al Gatto Nero",
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Trattoria al Gatto Nero",
+            "city": "Venice",
+            "area": "Burano"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Book weeks ahead, and say on the phone if you want the risotto de gò: it is made from the lagoon goby, takes forty minutes, and is cooked for a minimum of two people. On the Fondamenta della Giudecca facing the canal. Closed Mondays.",
+          "cost": {
+            "amountMinor": 6050,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Vaporetto 12 back to Fondamente Nove",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "15:15"
+          },
+          "location": {
+            "name": "Burano pontoon",
+            "city": "Venice",
+            "area": "Burano"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Already on the travel card. The 14:30 is the last comfortable one — from 15:30 the returning tour groups fill it at Burano and you stand the whole way to Venice with a bag of lace between your feet."
+        },
+        {
+          "title": "The Ghetto Nuovo and the seven-storey houses",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Museo Ebraico di Venezia",
+            "city": "Venice",
+            "area": "Cannaregio"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Look up in the campo: these are the tallest buildings in Venice because after 1516 the Ghetto could only grow upwards. The five synagogues are reachable only on the museum's guided tour, in English roughly hourly, and they are the reason to come rather than the museum itself. Closed Saturdays and on Jewish holidays.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Cicchetti along the Fondamenta degli Ormesini",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:00"
+          },
+          "location": {
+            "name": "Al Timon",
+            "city": "Venice",
+            "area": "Cannaregio"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Start at Al Timon — the moored boat outside is the seating — then work up the fondamenta to Vino Vero. An ombra at each, everything eaten standing. Done properly this is dinner, and it is the last part of Venice still priced for the people who live in it.",
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "naples-pompeii-with-an-archaeologist-and-pizza-in-the-sanita",
+      "name": "Naples: Pompeii with an archaeologist, the Farnese marbles, pizza in the Sanità",
+      "summary": "The site in the morning with somebody who can read it, everything portable that came out of it in the afternoon at the MANN, and the evening in the neighbourhood the guidebooks used to warn you off.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-04-11T18:15:00.000Z",
+      "sourceTrip": {
+        "name": "Campania, a week from a flat in Chiaia"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-ruth"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Sfogliatella riccia straight from the oven at Attanasio",
+          "timeWindow": {
+            "start": "08:00",
+            "end": "08:25"
+          },
+          "location": {
+            "name": "Sfogliatelle Attanasio",
+            "city": "Naples",
+            "area": "Piazza Garibaldi"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Behind the station on Vico Ferrovia; you smell it a street before you find it. Riccia, not frolla — the shell should shatter down your front. Ask for one off the tray that has just come out and eat it standing in the paper, which is the only way it works.",
+          "cost": {
+            "amountMinor": 350,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Circumvesuviana from Porta Nolana to Pompei Scavi",
+          "timeWindow": {
+            "start": "08:40",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Napoli Porta Nolana station",
+            "city": "Naples",
+            "area": "Porta Nolana"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Board at Porta Nolana, not Garibaldi: it is the line's origin one stop earlier, and it is the difference between a seat and forty minutes standing in a crush. Take the Sorrento line and get off at Pompei Scavi–Villa dei Misteri, which is the stop for the Porta Marina gate. The Campania Express is the reserved, air-conditioned alternative at roughly five times the fare and is worth it in August.",
+          "cost": {
+            "amountMinor": 350,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Pompeii from Porta Marina with a licensed archaeologist",
+          "timeWindow": {
+            "start": "09:30",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Pompeii – Porta Marina Inferiore",
+            "city": "Pompei",
+            "area": "Scavi di Pompei"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Three gates, and which you use changes the day. Porta Marina Inferiore is the station gate and the one online tickets skip the line at; Piazza Esedra sits beside it; Piazza Anfiteatro is at the far end, in the modern town. Entry is €23, named, time-slotted, with a 20,000-a-day cap. A private licensed archaeologist runs about €160 for the group and is what turns a hot field of walls into three hours — ask specifically for the House of the Vettii, reopened in 2023, and for the Villa dei Misteri last, once the coaches have gone. The free first Sunday of the month is exactly as bad as it sounds.",
+          "cost": {
+            "amountMinor": 20150,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at Il Principe, Piazza Bartolo Longo",
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Ristorante Il Principe",
+            "city": "Pompei",
+            "area": "Piazza Bartolo Longo"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Leave the site by the Piazza Anfiteatro gate rather than walking back across it, and this is two minutes away. They cook a handful of dishes reconstructed from Roman sources and it is not a gimmick — the cassata taken from a fresco is genuinely good. Everything within sight of the Porta Marina gate is a coach canteen.",
+          "cost": {
+            "amountMinor": 4400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Circumvesuviana back from Pompei Santuario",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "15:20"
+          },
+          "location": {
+            "name": "Pompei Santuario station",
+            "city": "Pompei",
+            "area": "Piazza Bartolo Longo"
+          },
+          "kind": "transit",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "You do not have to walk back to Porta Marina: Pompei Santuario, on the Poggiomarino line, is three minutes from the restaurant and also runs to Napoli Garibaldi. Half-hourly, no air conditioning, and sit on the left for Vesuvius.",
+          "cost": {
+            "amountMinor": 350,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "MANN: the Farnese marbles, the mosaics, the Secret Cabinet",
+          "timeWindow": {
+            "start": "16:00",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Museo Archeologico Nazionale di Napoli",
+            "city": "Naples",
+            "area": "Museo"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Everything portable from Pompeii is here, which is why it belongs on the same day as the site and not on a different one. Closed Tuesdays. Go up to the mosaics first — the Alexander Mosaic came back on display in 2025 after its restoration — then the Gabinetto Segreto, a separate small room the desk may give you a timed slot for. The Farnese Bull downstairs is carved from one block of marble and deserves ten minutes rather than a photograph.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Pizza at Concettina ai Tre Santi",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "Concettina ai Tre Santi",
+            "city": "Naples",
+            "area": "Rione Sanità"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Fourth generation on Via Arena della Sanità. Book, or take a number and drink a beer in the street with everybody else. Start with the montanara fritta and follow it with a plain marinara — the fried things are what this place does that the famous queue at Da Michele does not.",
+          "cost": {
+            "amountMinor": 2000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A fiocco di neve at Poppella",
+          "timeWindow": {
+            "start": "21:00",
+            "end": "21:20"
+          },
+          "location": {
+            "name": "Pasticceria Poppella",
+            "city": "Naples",
+            "area": "Rione Sanità"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Three minutes' walk. One thing only: a small brioche filled with cold sheep's-milk cream, invented in this shop and copied across the city badly. They come straight out of the fridge and there is still a queue for them at nine at night.",
+          "cost": {
+            "amountMinor": 300,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "capri-by-private-gozzo-and-lunch-at-il-riccio",
+      "name": "Capri by private gozzo from Amalfi, with lunch at Il Riccio",
+      "summary": "The expensive version of a Capri day, priced at what it actually costs: a wooden boat and a skipper for eight hours, the island circled before the ferries land, a starred lunch above the Blue Grotto and the chairlift up Monte Solaro after it.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2025-07-19T15:30:00.000Z",
+      "sourceTrip": {
+        "name": "Amalfi Coast, the splurge week"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-kenji"
+        },
+        {
+          "addedBy": "dev-maeve"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Santarosa and coffee at Pasticceria Pansa",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Pasticceria Pansa",
+            "city": "Amalfi",
+            "area": "Piazza Duomo"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "On the cathedral steps since 1830 and open at 07:30, which almost nothing else in Amalfi is. The santarosa is the coast's own older, sweeter ancestor of the Naples sfogliatella and is only made properly here and in Conca dei Marini, where the nuns invented it.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Meet the skipper at the Molo Pennello",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "08:45"
+          },
+          "location": {
+            "name": "Molo Pennello",
+            "city": "Amalfi",
+            "area": "Porto"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Charters load from the left-hand mole, not the ferry quay where the Positano boats fill up. Confirm by 21:00 the night before: the skipper reads the morning sea state and a Force 4 out of the west cancels Capri altogether, not just the grotto. Bring cash for the tip and for the grotto dinghy."
+        },
+        {
+          "title": "Around Capri anti-clockwise: the Faraglioni, the grottoes, a swim",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Private gozzo charter",
+            "city": "Capri",
+            "area": "Around the island"
+          },
+          "kind": "booked",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "A full-day gozzo with skipper out of Amalfi is €900–1,300 for the boat, not per person, plus fuel — split four ways it costs about what four ferry-plus-tour tickets cost and is a completely different day. Go anti-clockwise so you are through the Faraglioni arch before 10:30, when the tour fleet arrives from Sorrento. The Blue Grotto needs flat calm and a low tide, the transfer in is a separate rowing boat at roughly €18 cash a head, and a skipper who tells you it is shut is telling you the truth.",
+          "cost": {
+            "amountMinor": 126500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at Il Riccio",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Il Riccio",
+            "city": "Anacapri",
+            "area": "Grotta Azzurra"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "One Michelin star, blue-and-white tiles on a terrace directly above the Blue Grotto, and the only room on the island where the food is the point rather than the view. Book weeks out and ask for a terrace table, then ask to see the dessert room — it is a walk-in fridge they let you choose from. Around €110–130 a head before wine.",
+          "cost": {
+            "amountMinor": 13200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Villa San Michele",
+          "timeWindow": {
+            "start": "16:00",
+            "end": "16:45"
+          },
+          "location": {
+            "name": "Villa San Michele di Axel Munthe",
+            "city": "Anacapri",
+            "area": "Capodimonte"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Ten minutes from the restaurant. Axel Munthe built it on a Tiberian ruin and the loggia at the far end, with the Egyptian sphinx facing out to sea, is the best view on Capri that does not require a boat or a chairlift. Closes 18:00 in summer and 15:30 in midwinter.",
+          "cost": {
+            "amountMinor": 1300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Seggiovia to the top of Monte Solaro",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Seggiovia Monte Solaro",
+            "city": "Anacapri",
+            "area": "Piazza Vittoria"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "A single-seat chairlift from Piazza Vittoria with your feet swinging over other people's gardens, twelve minutes each way. Last ascent is an hour before closing and it stops in any real wind. If your knees are willing, walk down through the hermitage at Santa Maria Cetrella instead of riding back.",
+          "cost": {
+            "amountMinor": 1550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back to Amalfi along the cliffs",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "19:30"
+          },
+          "location": {
+            "name": "Marina Grande, Capri",
+            "city": "Capri",
+            "area": "Marina Grande"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "The run home passes under Positano at the hour the cliffs turn orange, which is the part of the charter nobody photographs in the brochure. Tip the skipper in cash — €50–80 on a full-day charter is normal and is not included in the quoted price."
+        },
+        {
+          "title": "A lemon granita on the Amalfi seafront",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "20:30"
+          },
+          "location": {
+            "name": "Kiosk on Piazza Flavio Gioia",
+            "city": "Amalfi",
+            "area": "Porto"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Crushed in front of you from sfusato amalfitano lemons at the kiosk by the roundabout. Two or three euros, and after the day you have just paid for it will taste like the best thing you bought.",
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "matera-alberobello-polignano-in-one-drive",
+      "name": "Matera at sunrise, Alberobello's quiet half, Polignano when the cove empties",
+      "summary": "A driving day across two regions that works only if you take each place at the hour nobody else does — the Sassi at first light, the trulli quarter people still live in, and the cove under the Roman bridge after five.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2024-10-19T14:10:00.000Z",
+      "sourceTrip": {
+        "name": "The heel, by car"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Sunrise over the Sassi from the Belvedere di Murgia Timone",
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:30"
+          },
+          "location": {
+            "name": "Belvedere di Murgia Timone",
+            "city": "Matera",
+            "area": "Murgia Materana"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Fifteen minutes by car around and across the gorge, on the park side. This is the angle every film of Matera is shot from, and at sunrise the light comes up the Sasso Caveoso first while the Barisano side is still blue. No gate, no ticket, and there will be two other cars."
+        },
+        {
+          "title": "The rock churches: Santa Maria de Idris and San Pietro Barisano",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Chiese rupestri del Sasso Caveoso",
+            "city": "Matera",
+            "area": "Sasso Caveoso"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "One combined ticket covers several and you buy it at whichever you reach first. Idris is cut into the rock spur with frescoes reached through a tunnel; Barisano is the largest and the coldest, with the drainage niches where the dead were seated upright to dry. Add the Casa Grotta di Vico Solitario for €5 — one room, a mule stall inside the front door, and the only exhibit that explains why the state emptied the Sassi in 1952.",
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive Matera to Alberobello",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "SS99 then SS172 through Locorotondo",
+            "city": "Alberobello",
+            "area": "Valle d'Itria"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "About 70 km and an hour and a quarter, and the SS172 stretch through the Valle d'Itria is the good part. Leave the Sassi before 10:00: the ZTL and the coach drop-off make everything around Piazza Vittorio Veneto unusable after that. Fuel and the odd toll on the card.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Rione Aia Piccola, not Rione Monti",
+          "timeWindow": {
+            "start": "11:45",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Rione Aia Piccola",
+            "city": "Alberobello",
+            "area": "Aia Piccola"
+          },
+          "kind": "idea",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Monti is the thousand-trulli postcard and nearly every cone in it is a shop with a man outside offering you a free look upstairs. Cross Largo Martellotta into Aia Piccola, where roughly four hundred trulli are still lived in and nobody will sell you a whistle. Trullo Sovrano, the only two-storey one, is €5 and takes twenty minutes.",
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at La Cantina",
+          "timeWindow": {
+            "start": "13:30",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "La Cantina",
+            "city": "Alberobello",
+            "area": "Centro"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Twenty seats down a staircase on Vico Lippolis, open since 1958, and there is no walk-in — book it before you leave Matera or eat somewhere worse. Orecchiette with cime di rapa, and the house Primitivo comes in a jug.",
+          "cost": {
+            "amountMinor": 3850,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive down to Polignano a Mare",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "SS16 to the coast",
+            "city": "Polignano a Mare",
+            "area": "Costa Adriatica"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Forty minutes. Park in the paid lots on Via San Vito and walk in: the centro storico is pedestrian and the streets ringing it are a one-way trap that has eaten better drivers than you."
+        },
+        {
+          "title": "Lama Monachile after the crowd has gone",
+          "timeWindow": {
+            "start": "16:15",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Lama Monachile (Cala Porto)",
+            "city": "Polignano a Mare",
+            "area": "Centro Storico"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The pebble cove under the Roman bridge is shoulder to shoulder from 11:00 and empty by 17:00, when the cliff throws it into shade and the water goes glass-flat. Swim shoes — it is stones, not sand, and the entry is steep. Walk the terraces above it afterwards toward the Lungomare Domenico Modugno."
+        },
+        {
+          "title": "A caffè speciale at Il Super Mago del Gelo",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Il Super Mago del Gelo",
+            "city": "Polignano a Mare",
+            "area": "Piazza Garibaldi"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Mario's bar on Piazza Garibaldi. Ask for the caffè speciale — espresso, cream, lemon zest and amaretto, invented on this counter — and drink it standing up with the rest of the town.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "emilia-food-valley-curd-at-dawn-to-modena-at-night",
+      "name": "The food valley from Bologna: curd at 07:00, prosciutto by 09:00, Modena after dark",
+      "summary": "One long day down the Via Emilia with a driver, built around the fact that Parmigiano is made once a day and it is over by eight in the morning — then hams, a baptistery, anolini, a 1605 vinegar loft and Bottura's cheaper room.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-12-13T20:00:00.000Z",
+      "sourceTrip": {
+        "name": "Emilia-Romagna, four days of eating"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Car and driver from Piazza Maggiore, 05:50",
+          "timeWindow": {
+            "start": "05:50",
+            "end": "07:00"
+          },
+          "location": {
+            "name": "Piazza Maggiore",
+            "city": "Bologna",
+            "area": "Centro Storico"
+          },
+          "kind": "booked",
+          "tags": [],
+          "notes": "A driver for the whole day, Bologna–Parma–Modena and back, is €260–300 and is what makes this possible: the dairy is at dawn, the acetaia is somebody's house with no bus to it, and everything after lunch involves wine. The hour on the A1 in the dark is the price of standing at the vats while they are still full.",
+          "cost": {
+            "amountMinor": 30800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The morning curd at Caseificio San Pier Damiani",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "08:15"
+          },
+          "location": {
+            "name": "Caseificio San Pier Damiani",
+            "city": "Parma",
+            "area": "Fontevivo"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Parmigiano Reggiano is made once a day and it is finished by 08:00: copper vats, the curd broken with the spino, twin cheeses lifted out together in a sheet. Book direct with the dairy rather than through a hotel desk — €20–25 including the tasting of 12, 24 and 36 month. Wear something you do not mind smelling of whey, and be early, because they cannot wait for you.",
+          "cost": {
+            "amountMinor": 2750,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Prosciutto cellars at Ruliano, Langhirano",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Ruliano",
+            "city": "Parma",
+            "area": "Langhirano"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Twenty minutes up into the hills, where the draught off the Apennines does the drying. Ask why the windows are all on one side of the building; the entire method is that one current of air. The 24-month against the 30-month, cut on the blade, is the tasting that matters, and the unsalted Tuscan-style bread it arrives with is not an accident.",
+          "cost": {
+            "amountMinor": 1650,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Baptistery of Parma",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Battistero di Parma",
+            "city": "Parma",
+            "area": "Centro Storico"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Pink Verona marble outside, and inside a painted dome most people do not look up at for long enough. Antelami carved the portals and the cycle of the months around the interior. One ticket covers the baptistery and the diocesan museum; Correggio's dome in the Duomo next door is free and takes ten minutes.",
+          "cost": {
+            "amountMinor": 1300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Anolini in brodo at Trattoria Ai Due Platani",
+          "timeWindow": {
+            "start": "12:15",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Trattoria Ai Due Platani",
+            "city": "Parma",
+            "area": "Coloreto"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Five kilometres out of Parma toward Coloreto and full of Parmigiani at 13:00, which is the test. Anolini in brodo — small, one filling, and the reason to drive out here — then torta fritta with the culatello. Book, and check the closing day before you build a day around it.",
+          "cost": {
+            "amountMinor": 4950,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Acetaia Giusti, Modena",
+          "timeWindow": {
+            "start": "15:00",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Acetaia Giusti",
+            "city": "Modena",
+            "area": "Villa Giusti"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The family has been doing this since 1605, and the barrels in the loft are not 'aged twelve years' — they are a battery topped up for generations, so the number on the bottle is a minimum rather than an age. Take the tasting that includes the Riserva. The supermarket balsamic you have had is caramel and wine vinegar, and you will taste the gap in about a second. Booking required; there is no shop to wander into.",
+          "cost": {
+            "amountMinor": 2750,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Salumeria Giusti, Via Farini 75",
+          "timeWindow": {
+            "start": "16:45",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Salumeria Giusti",
+            "city": "Modena",
+            "area": "Centro Storico"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "Same family, different address: four tables behind a 1605 shopfront, the oldest deli in Italy that has never moved. Cotechino and a plate of gnocco fritto. Buy the vinegar here rather than at the acetaia — same bottles, and you are not carrying them round all afternoon.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Franceschetta 58",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Franceschetta 58",
+            "city": "Modena",
+            "area": "Via Vignolese"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Bottura's other room and the honest answer to Osteria Francescana's booking lottery: the tasting costs a fraction, opens about a week ahead instead of months, and comes out of the same school of kitchen. Sit at the counter. If you did want Francescana itself, its online release is quarterly and gone in minutes — that is a trip planned around a booking, not a booking fitted into a trip.",
+          "cost": {
+            "amountMinor": 7700,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "catania-market-etna-summit-and-taormina-at-dusk",
+      "name": "Sicily's east: the Catania fish market, Etna's summit craters, Taormina at dusk",
+      "summary": "Market at seven, three thousand metres by noon, a Greek theatre in the last hour of light. Palermo's markets and Monreale are the other Sicily and need their own day — they are four hours west of every stop below.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-05-16T09:45:00.000Z",
+      "sourceTrip": {
+        "name": "Sicily, east coast, ten days"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "A Piscaria at full volume",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "La Pescheria",
+            "city": "Catania",
+            "area": "Piazza Duomo"
+          },
+          "kind": "idea",
+          "tags": [],
+          "notes": "Down the steps beside the Fontana dell'Amenano, under the piazza. Swordfish heads on wet marble, prices shouted in Catanese, and it is finished by 09:00 — and it does not happen at all on Sunday. Buy nothing: this is a place to stand still in and get splashed."
+        },
+        {
+          "title": "Granita di mandorla and a brioche col tuppo at Savia",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "08:15"
+          },
+          "location": {
+            "name": "Pasticceria Savia",
+            "city": "Catania",
+            "area": "Via Etnea"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Opposite the gates of the Villa Bellini, doing this since 1897. Almond, not lemon, and you dip the brioche into it — in a Sicilian summer this is breakfast, not pudding. Pay at the till first and take the receipt to the counter, which is the order everywhere in Sicily and catches everyone out once.",
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Up the SP92 to Rifugio Sapienza",
+          "timeWindow": {
+            "start": "08:45",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Rifugio Sapienza, Etna Sud",
+            "city": "Nicolosi",
+            "area": "Etna Sud"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "An hour and a quarter through Nicolosi and up past the 2001 flows, which cross the road as fields of black rubble with a bar buried in them. Parking at Sapienza (1,900 m) is free and full by 10:00. It runs about 15°C colder up here than in Catania and there is no shade anywhere above the treeline: boots, a windproof, sunglasses.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The summit craters with an alpine guide",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Funivia dell'Etna and the summit craters",
+            "city": "Nicolosi",
+            "area": "Etna Sud"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "The combined cable-car-plus-4x4-plus-guide ticket is around €98 and stops at 2,900 m by the Torre del Filosofo; the summit craters above that are only legal with a licensed volcanological guide, booked separately through the Gruppo Guide Alpine Etna Sud. Book the day before rather than the week before — the Osservatorio Etneo's bulletin can shut everything above 2,750 m at an hour's notice, and a guide who cancels on you is doing the job properly. Carry cash for the 4x4 leg.",
+          "cost": {
+            "amountMinor": 24500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Late lunch at Tenuta San Michele",
+          "timeWindow": {
+            "start": "15:15",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Tenuta San Michele (Murgo)",
+            "city": "Santa Venerina",
+            "area": "Etna Est"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Come off the mountain on the Taormina side instead of dropping back into Catania. Murgo's estate on the eastern slope makes a metodo classico out of nerello mascalese — a sparkling wine from a red grape grown on lava — and feeds you their own pork and vegetables for as long as you let them. Book; it is not a place you turn up at.",
+          "cost": {
+            "amountMinor": 4400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Park at Lumbi and take the shuttle down",
+          "timeWindow": {
+            "start": "17:00",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Parcheggio Lumbi",
+            "city": "Taormina",
+            "area": "Lumbi"
+          },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Do not drive into Taormina. The Lumbi multi-storey sits on the approach road, roughly €25 for the day, with a free shuttle that drops you at Porta Messina every fifteen minutes. The alternative is an hour spent reversing down a one-way street with a wall on both sides.",
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Teatro Antico in the last hour of light",
+          "timeWindow": {
+            "start": "17:45",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Teatro Antico di Taormina",
+            "city": "Taormina",
+            "area": "Centro Storico"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "€14, with last entry an hour before it closes — 19:00 from April to September, earlier in winter, so check before you build the evening on it. Climb to the top of the cavea and sit on the left: from there Etna lines up exactly in the gap in the scaenae frons, which after a morning standing on it closes the day properly. Midday here is a furnace and a scrum; this hour is neither.",
+          "cost": {
+            "amountMinor": 1550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Osteria RossoDiVino",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:15"
+          },
+          "location": {
+            "name": "Osteria RossoDiVino",
+            "city": "Taormina",
+            "area": "Centro Storico"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Down a staircase off Vico De Spuches, a handful of tables, and the only room in orbit of the Corso Umberto that is neither a laminated tourist menu nor a hundred euros. Pasta alla Norma with proper salted ricotta, and Etna Rosso by the glass off the slope you were standing on this morning.",
+          "cost": {
+            "amountMinor": 3300,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ],
+  "notebooks": [],
+  "activities": []
+}

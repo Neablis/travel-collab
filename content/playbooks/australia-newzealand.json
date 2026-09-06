@@ -1,0 +1,1559 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "australia-newzealand",
+    "name": "Australia and New Zealand: eight days worth cloning",
+    "description": "Eight day-shaped playbooks from Sydney's eastern beaches, Melbourne's laneways, the Agincourt ribbon reefs out of Port Douglas, Uluru, and four New Zealand days — Queenstown at full blowout, Milford Sound from Te Anau, the Tongariro Alpine Crossing, and Hobbiton with Rotorua's thermal ground. Priced at what these two countries honestly cost, with the shuttle rules, road closures, tide and swell windows and booking lead times that decide whether the day works at all.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
+      "https://www.waverley.nsw.gov.au/recreation/beaches_and_coast/coastal_walks",
+      "https://icebergs.com.au/",
+      "https://www.randwick.nsw.gov.au/facilities-and-recreation/beaches-and-coast",
+      "https://firedoor.com.au/",
+      "https://www.porteno.com.au/",
+      "https://www.transportnsw.info/tickets-opal",
+      "https://patriciacoffee.com.au/",
+      "https://qvm.com.au/",
+      "https://www.ngv.vic.gov.au/",
+      "https://supernormal.net.au/",
+      "https://cumulusinc.com.au/",
+      "https://proudmarycoffee.com.au/",
+      "https://www.ptv.vic.gov.au/tickets/myki/",
+      "https://www.wavelength.com.au/",
+      "https://www.quicksilver-cruises.com/",
+      "https://www2.gbrmpa.gov.au/access/environmental-management-charge",
+      "https://www.bom.gov.au/qld/forecasts/coastal-waters.shtml",
+      "https://parksaustralia.gov.au/uluru/plan/passes/",
+      "https://parksaustralia.gov.au/uluru/do/walks/",
+      "https://parksaustralia.gov.au/uluru/plan/opening-hours/",
+      "https://maruku.com.au/",
+      "https://www.ayersrockresort.com.au/experiences/detail/field-of-light",
+      "https://www.ayersrockresort.com.au/experiences/detail/sounds-of-silence",
+      "https://www.bungy.co.nz/nevis/nevis-bungy/",
+      "https://www.nzoneskydive.co.nz/",
+      "https://www.shotoverjet.com/",
+      "https://www.glaciersouthernlakes.co.nz/",
+      "https://www.onsen.co.nz/",
+      "https://amisfield.co.nz/",
+      "https://www.journeys.nzta.govt.nz/",
+      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/fiordland/places/fiordland-national-park/",
+      "https://www.mitrepeak.com/",
+      "https://www.realnz.com/en/experiences/cruises/milford-sound-scenic-cruise/",
+      "https://www.milfordsoundlodge.com/pio-pio-cafe/",
+      "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tongariro-alpine-crossing/",
+      "https://www.tongariroexpeditions.com/",
+      "https://www.metservice.com/rural/mountains-and-parks/tongariro-national-park",
+      "https://www.hobbitontours.com/",
+      "https://www.waiotapu.co.nz/",
+      "https://www.treewalk.co.nz/",
+      "https://tepatu.co.nz/"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "activities": [],
+  "playbooks": [
+    {
+      "key": "bondi-to-coogee-and-a-surry-hills-night",
+      "name": "Bondi to Coogee at dawn, Surry Hills after dark",
+      "summary": "The eastern beaches walk done in the only order that works — south from Bondi with the sun behind you, four swims on the way, and the bus back into town for the best dinner in Sydney.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-01-18T21:40:00.000Z",
+      "sourceTrip": {
+        "name": "Three weeks down the east coast"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "First swim of the day in the Icebergs pool",
+          "timeWindow": {
+            "start": "06:50",
+            "end": "07:35"
+          },
+          "location": {
+            "name": "Bondi Icebergs Club, Notts Avenue",
+            "city": "Sydney",
+            "area": "Bondi Beach"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Ten dollars at the turnstile, and it buys you the pool before the photographers arrive around nine. Two things to know: the pool closes all day Thursday for cleaning, and on a big south swell the sea breaks straight over the end wall, which is thrilling if you were expecting it and alarming if you were not. Swim laps in the 50 m, then get out — the day is long. Lockers take coins.",
+          "cost": {
+            "amountMinor": 660,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Coffee and a bacon roll on Hall Street",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Lox, Stock and Barrel",
+            "city": "Sydney",
+            "area": "Bondi Beach"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Eat before the walk, not after. There is precisely one good coffee between Bondi and Coogee — the Bronte kiosks — and it always has a queue twelve deep by nine. Two blocks back from the sand on Hall Street the prices drop by a third and the seats exist. Fill a water bottle here too; the bubblers along the path work but they are warm.",
+          "cost": {
+            "amountMinor": 1580,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Walk south: Bondi to Tamarama to Bronte, swim at Bronte Baths",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "10:20"
+          },
+          "location": {
+            "name": "Bondi to Bronte coastal path via Marks Park",
+            "city": "Sydney",
+            "area": "Tamarama"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Walk it north to south. The six kilometres are the same either way, but southbound the morning sun is behind you rather than in the lens, the climbs are shorter, and you end at Coogee where the bus back to the city runs every ten minutes instead of at Bondi where it runs full. Mackenzies Bay between Bondi and Tamarama only has sand a few months a year — if it is there, it is a beach that comes and goes. At Bronte swim in the Baths at the south end, not the bogey hole, and do not swim the Bronte Express rip in the middle of the beach. In late October and early November Sculpture by the Sea puts 100,000 people on this path: the same walk at 07:00 is empty and the sculptures are all still there.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Waverley Cemetery boardwalk, then snorkel the Clovelly channel",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Clovelly Bay",
+            "city": "Sydney",
+            "area": "Clovelly"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The clifftop boardwalk through Waverley Cemetery is the prettiest 500 metres of the whole route and half the walkers cut inland and miss it — it closes for storm repairs occasionally, and the detour up Trafalgar Street is signposted when it does. Clovelly is the swim to plan around: a narrow concrete-sided inlet, flat when everything else is churning, with resident blue gropers that come to look at you. Hire a mask at the kiosk if you are not carrying one. Go at high tide for depth, and never at the mouth on a big swell — the surge in that channel is stronger than it looks. Gordons Bay, five minutes further, has an underwater nature trail if you have time and your own gear.",
+          "cost": {
+            "amountMinor": 1320,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Wylie's Baths on the ocean rocks",
+          "timeWindow": {
+            "start": "11:55",
+            "end": "12:40"
+          },
+          "location": {
+            "name": "Wylie's Baths",
+            "city": "Sydney",
+            "area": "Coogee"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Everyone finishes at Coogee Beach; the finish is actually 400 m past it. Wylie's is a 1907 tidal pool on the rocks, entry about ten dollars, timber deck, and the water has whatever the ocean sent it that morning — seaweed, small fish, sometimes an octopus in the corner. Lower tide means shallower and warmer. The women-only McIvers Baths next door is the other one, cash donation at the gate.",
+          "cost": {
+            "amountMinor": 660,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Late lunch upstairs at the Coogee Pavilion",
+          "timeWindow": {
+            "start": "12:50",
+            "end": "14:10"
+          },
+          "location": {
+            "name": "Coogee Pavilion",
+            "city": "Sydney",
+            "area": "Coogee"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Ground floor is families and ping-pong; the rooftop is 18+ and has the view. No bookings for small groups on the roof, so arrive before one on a weekend or you will wait 40 minutes. If it is heaving, A Fish Called Coogee does fish and chips two minutes away and you eat them on the grass.",
+          "cost": {
+            "amountMinor": 2510,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Bus 373 back to town, shower, change",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "15:20"
+          },
+          "location": {
+            "name": "Coogee Beach bus interchange, Arden Street",
+            "city": "Sydney",
+            "area": "Coogee"
+          },
+          "kind": "transit",
+          "notes": "Tap on with a credit card or phone — no Opal card needed, and the daily cap applies to contactless the same way. The 373 runs Coogee to the CBD; the X73 is the express in peak. Do not try to do this walk and then drive: parking at both ends is metered, patrolled and full by nine.",
+          "cost": {
+            "amountMinor": 280,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Firedoor, everything over wood",
+          "timeWindow": {
+            "start": "18:45",
+            "end": "21:15"
+          },
+          "location": {
+            "name": "Firedoor, Mary Street",
+            "city": "Sydney",
+            "area": "Surry Hills"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal",
+            "ticketed"
+          ],
+          "notes": "No gas, no electricity in the kitchen — every plate comes off wood, and the fish is dry-aged for days before it gets near a fire. Bookings open about two months ahead and the counter seats facing the fire are released at the same time; take those over a table. If you cannot get in, Porteno two streets over does whole animals on the asado from midday and keeps a walk-in bar, and the Dolphin Hotel's wine room takes walk-ins until late. Budget for the chef's menu with a glass — this is the day's one big spend.",
+          "cost": {
+            "amountMinor": 10890,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "melbourne-laneways-coffee-crawl",
+      "name": "Melbourne laneways: a coffee crawl with an art gallery attached",
+      "summary": "A weekday walked at coffee pace — standing room at Patricia, borek in the Queen Vic deli hall, the Great Hall ceiling on your back, and dinner at the bar at Cumulus.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2024-11-05T08:15:00.000Z",
+      "sourceTrip": {
+        "name": "Melbourne, slowly, in November"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-elena"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Stand up and drink it at Patricia",
+          "timeWindow": {
+            "start": "07:40",
+            "end": "08:10"
+          },
+          "location": {
+            "name": "Patricia Coffee Brewers, cnr Little Bourke and Little William",
+            "city": "Melbourne",
+            "area": "CBD"
+          },
+          "kind": "planned",
+          "notes": "There are no seats. That is the whole design — you stand at the shelf, drink it, and leave, which is why the queue moves even when it is out the door at 08:15. Weekdays only: Patricia is shut Saturday and Sunday, and a laneway coffee day planned for a weekend has to start at Market Lane instead. The magic in a glass is what to order; the white chocolate mendiant comes with it.",
+          "cost": {
+            "amountMinor": 360,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Second breakfast in the Queen Vic deli hall",
+          "timeWindow": {
+            "start": "08:25",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Queen Victoria Market, Therry Street",
+            "city": "Melbourne",
+            "area": "North Melbourne"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Check the day before you plan around this: the market is closed Mondays and Wednesdays, which catches out more visitors than any other rule in this city. Go to the Deli Hall (the enclosed one), get a borek from the Turkish counter and a bratwurst if it is cold, then a filter at Market Lane's Therry Street shop on the way out. Fruit and veg sheds discount hard in the last hour, not the first.",
+          "cost": {
+            "amountMinor": 920,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hosier Lane, Centre Place, Degraves, Presgrave",
+          "timeWindow": {
+            "start": "09:35",
+            "end": "10:25"
+          },
+          "location": {
+            "name": "Hosier Lane and the Flinders Lane arcades",
+            "city": "Melbourne",
+            "area": "CBD"
+          },
+          "kind": "planned",
+          "notes": "Hosier Lane before 10:30 or not at all — the walking tours land on the half hour and the lane is 3 m wide. The walls are repainted constantly, so nothing you saw in a photo is still there; that is the point rather than a disappointment. Then cut through Centre Place and Degraves for the cafe-table version, and find Presgrave Place off Howey Place, which is the one nobody photographs: a lane hung with framed miniatures and tiny installations. Cathedral Arcade in the Nicholas Building has the leadlight dome worth a lift ride.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "NGV International and the Great Hall ceiling",
+          "timeWindow": {
+            "start": "10:40",
+            "end": "12:10"
+          },
+          "location": {
+            "name": "NGV International, St Kilda Road",
+            "city": "Melbourne",
+            "area": "Southbank"
+          },
+          "kind": "planned",
+          "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at the bar at Supernormal",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Supernormal, Flinders Lane",
+            "city": "Melbourne",
+            "area": "CBD"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Lunch is the way into the Flinders Lane restaurants you cannot book for dinner. Supernormal keeps bar seats for walk-ins and turns them fast; the lobster roll is the thing people queue for and it is worth it once. Chin Chin two doors down runs the same walk-in-and-wait system and sends you to the basement bar while you wait, which is a decent place to be waiting.",
+          "cost": {
+            "amountMinor": 3040,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Tram 86 to Collingwood for Proud Mary",
+          "timeWindow": {
+            "start": "14:05",
+            "end": "15:15"
+          },
+          "location": {
+            "name": "Proud Mary, Oxford Street",
+            "city": "Melbourne",
+            "area": "Collingwood"
+          },
+          "kind": "transit",
+          "notes": "The Free Tram Zone stops at the edge of the CBD — the moment you cross into Collingwood you need a Myki, and the daily cap is a few dollars, so buy the card and stop thinking about it. Proud Mary roasts its own and is the reason half of Melbourne's other cafes taste the way they do. Weekend brunch there is a 45-minute wait; a Tuesday at two, you walk in. Walk back down Smith Street rather than taking the tram — it is 20 minutes of the best browsing in the city.",
+          "cost": {
+            "amountMinor": 1550,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "A negroni standing up at Bar Americano",
+          "timeWindow": {
+            "start": "17:15",
+            "end": "17:50"
+          },
+          "location": {
+            "name": "Bar Americano, Presgrave Place",
+            "city": "Melbourne",
+            "area": "CBD"
+          },
+          "kind": "idea",
+          "notes": "A tiled room the size of a bathroom that fits about ten people standing, hidden in the lane you found this morning. Cash used to be the rule and the no-photos house style still is. The drinks are expensive and correct. If it is full — it is often full by six — Siglo's terrace above the Supper Club has the Parliament view and a fireplace.",
+          "cost": {
+            "amountMinor": 1720,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Cumulus Inc",
+          "timeWindow": {
+            "start": "19:00",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Cumulus Inc, Flinders Lane",
+            "city": "Melbourne",
+            "area": "CBD"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Book the table, but know that the long marble bar is walk-in only and is the better seat — you watch the pass and you never wait for service. Order the tuna tartare, the madeleines, and something from the rotisserie to share. It runs from breakfast to late, so a 21:00 table is a real option if the earlier sittings are gone.",
+          "cost": {
+            "amountMinor": 6270,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "port-douglas-agincourt-ribbon-reefs",
+      "name": "Port Douglas: the outer reef on a small boat",
+      "summary": "Past the inner reef to the Agincourt ribbons with a marine biologist and 28 other people, not a pontoon with 400 — and back in time for a beer on Macrossan Street.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2025-04-22T07:05:00.000Z",
+      "sourceTrip": {
+        "name": "Queensland: reef, rainforest, and a lot of driving"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast early, and take the tablet now",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Origin Espresso, Macrossan Street",
+            "city": "Port Douglas",
+            "area": "Macrossan Street"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Seasickness medication works taken an hour before boarding and does almost nothing taken on the boat when you already feel it — this is the single highest-value line in this day. Eat something plain and eat it now: the crossing is 90 minutes and the trade winds pick up from about May to October, when 20-25 knot forecasts make it a genuinely bouncy ride out. Check the Bureau's coastal waters forecast for Cairns the night before rather than trusting the tour desk.",
+          "cost": {
+            "amountMinor": 1450,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Check in at Marina Mirage",
+          "timeWindow": {
+            "start": "08:05",
+            "end": "08:25"
+          },
+          "location": {
+            "name": "Crystalbrook Superyacht Marina, Wharf Street",
+            "city": "Port Douglas",
+            "area": "Marina Mirage"
+          },
+          "kind": "transit",
+          "notes": "Check-in is 30 minutes before departure and the boats leave on the hour they say they leave — Wavelength at 08:30, Poseidon at 08:30, Quicksilver's pontoon run later at 10:00. The marina car park is free and fills; a 12-minute walk from anywhere in town beats circling. Reef-safe sunscreen only, and a rash vest saves more skin than any bottle.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Crossing to the Agincourt ribbons",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "10:00"
+          },
+          "location": {
+            "name": "Wavelength Reef Cruises catamaran",
+            "city": "Port Douglas",
+            "area": "Coral Sea"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Wavelength caps the boat at about 30 people, is snorkel-only (no divers to wait for), and only goes to the Agincourt ribbon reefs on the outer edge — clear water, wall structure, and no pontoon. The price includes the reef environmental management charge and the daily park fee; check that when comparing quotes, because some operators quote before it. If the forecast is over 25 knots, the honest alternative is Quicksilver's pontoon: a much larger crowd but a fixed platform that does not move, which turns a miserable day into a fine one.",
+          "cost": {
+            "amountMinor": 19070,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "First site: guided snorkel with the marine biologist",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:05"
+          },
+          "location": {
+            "name": "Agincourt Reef, outer ribbon site one",
+            "city": "Port Douglas",
+            "area": "Great Barrier Reef"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Take the guided snorkel on the first site even if you are a confident swimmer — you spend an hour being shown what you would otherwise swim over, and the guides are reef researchers who log what they see. From November to May you wear a full lycra stinger suit: irukandji and box jellyfish are the reason, they are not optional, and hire is a few dollars. Also: a stinger suit is a sun suit, which matters more than people expect at 16 degrees south.",
+          "cost": {
+            "amountMinor": 530,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Second site, then lunch on the back deck",
+          "timeWindow": {
+            "start": "11:20",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Agincourt Reef, outer ribbon site two",
+            "city": "Port Douglas",
+            "area": "Great Barrier Reef"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
+          "notes": "The crew move the boat to a second and third site rather than parking all day, and each site is a different structure — a bommie field, then a wall. Lunch is included and served on the crossing between sites. Eat lightly, get back in the water within 20 minutes, and skip the third site only if you are cold; the water is 24-29 degrees depending on the month and an hour still gets you.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Third site, then the run home",
+          "timeWindow": {
+            "start": "13:15",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Return crossing to Port Douglas",
+            "city": "Port Douglas",
+            "area": "Coral Sea"
+          },
+          "kind": "transit",
+          "notes": "The run home is usually downwind and faster than the run out. Sit outside and at the back if your stomach is uncertain, and look for the low outline of the Low Isles on the port side. Boats are alongside about 16:30, which leaves the whole evening — do not book anything before 17:30 in case the swell adds half an hour.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sunset on Four Mile Beach",
+          "timeWindow": {
+            "start": "17:15",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Four Mile Beach, southern end",
+            "city": "Port Douglas",
+            "area": "Four Mile Beach"
+          },
+          "kind": "idea",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Walk it, do not swim it in stinger season unless you are inside the netted enclosure at the southern end — and the net stops jellyfish, not crocodiles, which is why nobody swims at dawn or dusk near the creek mouths here. Flagstaff Hill is a 25-minute climb from the far end for the view back over the bay if your legs still work.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Salsa Bar and Grill",
+          "timeWindow": {
+            "start": "18:45",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "Salsa Bar and Grill, Wharf Street",
+            "city": "Port Douglas",
+            "area": "Macrossan Street"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Book it in the morning before you get on the boat — you will have no phone signal at the reef and Salsa is full by seven every night in the dry season. Coral trout or barramundi, and the wine list is better than a beach town has any right to. Hemingway's brewery at the marina is the walk-in fallback and the beer is made 200 m from the table.",
+          "cost": {
+            "amountMinor": 5150,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "uluru-sunrise-base-walk-field-of-light",
+      "name": "Uluru: sunrise at Talinguru, the base walk, and the desert lit up",
+      "summary": "The rock from every side on foot before the heat, an afternoon that respects it, and a night that ends among 50,000 stems of light.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-07-09T11:30:00.000Z",
+      "sourceTrip": {
+        "name": "Red Centre, three nights at Yulara"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-elena"
+        },
+        {
+          "addedBy": "dev-tomas"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Out of Yulara in the dark",
+          "timeWindow": {
+            "start": "04:50",
+            "end": "05:20"
+          },
+          "location": {
+            "name": "Yulara to the park entry station",
+            "city": "Yulara",
+            "area": "Ayers Rock Resort"
+          },
+          "kind": "transit",
+          "notes": "The park gates open before sunrise and the opening time moves every month — it is roughly half an hour before first light, so check the month's hours rather than assuming. Yulara to the Talinguru car park is about 25 minutes. Have the pass on your phone before you leave: there is no reliable signal at the gate. Cost here is a day of a small hire car plus fuel out of Yulara, which is the most expensive fuel you will buy in Australia — fill up before you leave Alice if you drove.",
+          "cost": {
+            "amountMinor": 8580,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sunrise from Talinguru Nyakunytjaku",
+          "timeWindow": {
+            "start": "05:25",
+            "end": "06:40"
+          },
+          "location": {
+            "name": "Talinguru Nyakunytjaku sunrise viewing area",
+            "city": "Uluru-Kata Tjuta National Park",
+            "area": "Uluru"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
+          "notes": "Talinguru is the sunrise side, and the reason to use it rather than any other pull-off is that from the top of the dune boardwalk you can see Uluru and Kata Tjuta in the same frame as the light arrives. Get there 40 minutes before sunrise: the near car park fills first and the walk from the far one is ten minutes in the dark, so carry a head torch. The park pass is a three-day ticket bought online, roughly 38 dollars, and it is checked. Do not go to the sunset viewing area at dawn — you will be looking into a shadow.",
+          "cost": {
+            "amountMinor": 2510,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The full base walk, anticlockwise from Mala",
+          "timeWindow": {
+            "start": "07:00",
+            "end": "10:10"
+          },
+          "location": {
+            "name": "Uluru base walk, Mala car park trailhead",
+            "city": "Uluru-Kata Tjuta National Park",
+            "area": "Uluru"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "10.6 km, flat, three hours at a walking pace, and it is the thing to do here — the rock is not one shape, it is a dozen, and you only learn that by walking around it. Start at Mala and go anticlockwise so the sun stays off your face longest. Climbing has been closed permanently since October 2019 at the request of the Anangu traditional owners; the old chain route is still visible and is not a path. Several sites — Mala and the Kuniya side near Mutitjulu waterhole — are signposted no-photography for cultural reasons, and rangers do ask. Carry three litres per person minimum, refill at the Mala and Kuniya tanks, and take the free Mala ranger walk at 08:00 in the cooler months if you would rather be told the stories than read them. When the forecast tops 36 the walks close from 11:00, which is another argument for starting at seven.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dot-painting workshop with Maruku Arts at the Cultural Centre",
+          "timeWindow": {
+            "start": "10:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Uluru-Kata Tjuta Cultural Centre",
+            "city": "Uluru-Kata Tjuta National Park",
+            "area": "Mutitjulu"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Ninety minutes with an Anangu artist and an interpreter, learning the iconography before you paint anything — it is the best-value cultural hour in the park and about 89 dollars. Book the day before; morning sessions run daily and sell out in peak season. The Cultural Centre itself is free, has no photography inside, and Maruku's shop is where you buy work directly from the artists rather than from a gallery in Alice.",
+          "cost": {
+            "amountMinor": 5870,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch and lie down at the resort in the worst of the heat",
+          "timeWindow": {
+            "start": "12:45",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "Kulata Academy Cafe, Town Square",
+            "city": "Yulara",
+            "area": "Ayers Rock Resort"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Plan the middle of the day as nothing. Between 12:00 and 15:00 from October to March the desert is genuinely dangerous to walk in and the shade at the resort is where everyone sensible is. Kulata is staffed by Anangu hospitality trainees and is the cheapest decent food in Yulara; the IGA in Town Square is cheaper still if you want to build a lunch. There is a free guided garden walk and a bush yarn session at Town Square most afternoons.",
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Fifteen minutes over the rock by helicopter",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Ayers Rock Airport helipad",
+            "city": "Yulara",
+            "area": "Connellan Airport"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "The 15-minute Uluru flight is about 185 dollars and it does one thing the ground cannot: it shows you that Kata Tjuta is bigger than Uluru and 30 km away, which no photograph from the base ever conveys. If the budget stretches, the 25-30 minute flight adds Kata Tjuta properly. Afternoon flights fly into better light than morning ones. Skip it entirely if it is windy — they cancel and refund rather than fly rough, so keep it late enough in the day that a cancellation does not wreck anything.",
+          "cost": {
+            "amountMinor": 12200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Sounds of Silence dinner under the stars",
+          "timeWindow": {
+            "start": "17:45",
+            "end": "21:00"
+          },
+          "location": {
+            "name": "Sounds of Silence dune-top dining area",
+            "city": "Yulara",
+            "area": "Ayers Rock Resort"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal",
+            "ticketed"
+          ],
+          "notes": "Canapes and sparkling on a dune with Uluru on one side and Kata Tjuta on the other while the sun goes, then a bush-tucker buffet at shared tables, then all the lights go out and someone talks you through the Southern Cross and the Emu in the Sky. About 295 dollars, includes transfers from every hotel in the resort, and it books out weeks ahead in the cool season. The smaller, seated, four-course Tali Wiru is the upgrade and only runs roughly April to October. Take a jacket: winter nights here drop near freezing after a 22-degree day.",
+          "cost": {
+            "amountMinor": 19470,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Walk into the Field of Light last thing",
+          "timeWindow": {
+            "start": "21:15",
+            "end": "22:15"
+          },
+          "location": {
+            "name": "Field of Light, Bruce Munro installation",
+            "city": "Yulara",
+            "area": "Ayers Rock Resort"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Fifty thousand solar stems over an area the size of several football fields, and it is a separate ticket from the dinner — the Star Pass at around 99 dollars includes the coach transfer and a sparkling wine at the viewing platform before you walk down into it. Go on the last session of the night when the earlier groups have cleared and you can stand in the middle of it alone. Phone cameras make a mess of it; look instead. Book ahead, and book the dinner and this as one combination if the operator is offering it, since the transfers then line up.",
+          "cost": {
+            "amountMinor": 6530,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "queenstown-everything-in-one-day",
+      "name": "Queenstown, no restraint: 134 metres, 15,000 feet, and a tasting menu",
+      "summary": "The blowout day this town exists to sell — the Nevis, a skydive over the Wakatipu basin, a snow landing in the Remarkables, and Amisfield to put you back together.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-02-07T09:50:00.000Z",
+      "sourceTrip": {
+        "name": "South Island, two weeks, one very expensive Tuesday"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-kenji"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast at Vudu, and do not overdo it",
+          "timeWindow": {
+            "start": "07:15",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Vudu Cafe and Larder, Beach Street",
+            "city": "Queenstown",
+            "area": "Town Centre"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Eat something, but eat small — you have a bungy at nine and a skydive at two. The lakefront Vudu on Beach Street has the view; the original on Rees Street has the shorter queue. Both are cash-flow-positive on flat whites by 08:30, so order at the counter and take a table outside.",
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Nevis shuttle from The Station",
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "The Station, cnr Camp and Shotover Streets",
+            "city": "Queenstown",
+            "area": "Town Centre"
+          },
+          "kind": "transit",
+          "notes": "You cannot drive yourself to the Nevis — it is 40 minutes up a private 4WD farm track and the transfer is part of the ticket, leaving from The Station in town. Check in 30 minutes before your slot. Weigh-in happens here and the number goes on your hand in marker, which is how they set the cord; there is a minimum and a maximum weight and it is not negotiable.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Nevis Bungy: 134 metres, 8.5 seconds",
+          "timeWindow": {
+            "start": "09:00",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Nevis Bungy, Nevis Valley",
+            "city": "Queenstown",
+            "area": "Nevis Valley"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "New Zealand's highest, from a pod slung on cables over the canyon — around 305 dollars, and the trip out and back is about three and a half hours all in. Two pieces of advice from people who have done all three local jumps: the Nevis is the one where the walk out along the cable to the pod is worse than the jump, and going first in your group is much easier than going eighth. The Kawarau bridge jump is half the price, a third of the height, and the one to pick if you only want to say you did it. Wind stops the Nevis more often than rain; they rebook the same day when they can.",
+          "cost": {
+            "amountMinor": 18300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Fergburger, eaten on a wall",
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Fergburger, Shotover Street",
+            "city": "Queenstown",
+            "area": "Town Centre"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The queue looks worse than it is — it moves, and they text you when it is ready, so join it, walk away, and come back. Order at the window, then get Fergbaker next door to hold a pie for later. If the line is genuinely round the corner, Devil Burger does the same job in ten minutes.",
+          "cost": {
+            "amountMinor": 1140,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Skydive over the Wakatipu basin from 15,000 feet",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "NZONE Skydive drop zone",
+            "city": "Queenstown",
+            "area": "Frankton"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Fifteen thousand feet is about 60 seconds of freefall and roughly 479 dollars; the 12,000 ft option is cheaper for 45 seconds and honestly the difference is not the money. Book the earliest slot you can and expect to be moved: cloud base decides everything, and they roll jumps down the day rather than cancel them, which is exactly why this sits before dinner and not after. The photo package is a hard sell at the hangar — decide before you go up, not while you are buzzing.",
+          "cost": {
+            "amountMinor": 28740,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Snow landing high in the Remarkables",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Glacier Southern Lakes Helicopters, Lucas Place",
+            "city": "Queenstown",
+            "area": "Frankton"
+          },
+          "kind": "hold",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "A 30-minute alpine flight with a landing on the snow, around 495 dollars, and the landing is the whole point: you stand on a ridge in absolute silence with the Wakatipu 1,500 m below. Hold it rather than book it — alpine landings are the first thing cancelled for wind or low cloud, and the operators will tell you honestly at midday whether the afternoon is flying. If it is a no, the same money buys a Milford Sound fly-cruise-fly on a different day, which is a better use of it than a scenic circuit in flat light.",
+          "cost": {
+            "amountMinor": 29700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Onsen Hot Pools with the roof open",
+          "timeWindow": {
+            "start": "18:00",
+            "end": "18:50"
+          },
+          "location": {
+            "name": "Onsen Hot Pools, Arthurs Point",
+            "city": "Queenstown",
+            "area": "Arthurs Point"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Private cedar tubs above the Shotover canyon, booked by the pool rather than the person, with a roof and a wall that retract — book the last light slot and ask for a west-facing room. It is 15 minutes out of town and they run a free shuttle if you ask when booking. After a bungy and a skydive this is not a luxury, it is maintenance.",
+          "cost": {
+            "amountMinor": 4080,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Trust the chef at Amisfield",
+          "timeWindow": {
+            "start": "19:30",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Amisfield Bistro, Lake Hayes",
+            "city": "Queenstown",
+            "area": "Lake Hayes"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal",
+            "ticketed"
+          ],
+          "notes": "No menu — you say what you do not eat and they cook, roughly 180 dollars a head with the wine pairing on top, and the pairing is worth taking because the estate pours its own pinot and riesling next to the food they were made for. Book six to eight weeks ahead for dinner; the lunch sitting is far easier to get and arguably better, since you can see the vines and the lake. It is 20 minutes from town on the Arrowtown road, so one of you is not drinking or you have already booked the taxi — Queenstown taxis after 22:00 on a Saturday are a genuine problem.",
+          "cost": {
+            "amountMinor": 18600,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "milford-sound-from-te-anau",
+      "name": "Milford Sound the right way: from Te Anau, on the first boat",
+      "summary": "The 119 km road is the trip, not the transfer — leave Te Anau at seven, be on the 10:45 cruise before the Queenstown coaches arrive, and drive back with the valley to yourself.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-10-26T19:25:00.000Z",
+      "sourceTrip": {
+        "name": "Fiordland and the deep south"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast in Te Anau and the last fuel there is",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:05"
+          },
+          "location": {
+            "name": "Sandfly Cafe, The Lane",
+            "city": "Te Anau",
+            "area": "Town Centre"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Fill the tank in Te Anau. There is no fuel anywhere on the Milford Road — 119 km in, 119 km back, and the only pump at the far end is for boats. Before you turn the key, check the road status: the Milford Road is closed by avalanche risk and slips more often than any other state highway in the country, sometimes for a day, and between May and November you are legally required to carry snow chains in the vehicle even when the sun is out. Rental companies hand them over on request. Buy lunch supplies here too, and sandfly repellent, which is not a joke in Fiordland.",
+          "cost": {
+            "amountMinor": 1320,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "SH94 north: Eglinton flats, Mirror Lakes, Monkey Creek",
+          "timeWindow": {
+            "start": "07:05",
+            "end": "09:10"
+          },
+          "location": {
+            "name": "Milford Road, Eglinton Valley",
+            "city": "Te Anau",
+            "area": "Fiordland National Park"
+          },
+          "kind": "transit",
+          "notes": "Two hours without stopping, and you will stop, so give it two and a quarter. In order: the Eglinton flats where the beech forest opens out, Mirror Lakes (a five-minute boardwalk, only mirrors on a still morning, which is another argument for going early rather than at midday), Knobs Flat toilets, Pop's View, and Monkey Creek where you can drink straight from the stream and the kea will strip the rubber off your windscreen wipers while you do. Do not feed them. The road is single lane in places with no barrier, and the coaches from Queenstown come the other way from about 09:30 — being ahead of them is the entire trick of this day.",
+          "cost": {
+            "amountMinor": 2700,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Homer Tunnel and the walk into The Chasm",
+          "timeWindow": {
+            "start": "09:10",
+            "end": "09:55"
+          },
+          "location": {
+            "name": "Homer Tunnel east portal and The Chasm walk",
+            "city": "Milford Sound",
+            "area": "Fiordland National Park"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The Homer Tunnel is one lane, unlit, rough-hewn, and runs on traffic lights from October to April with waits up to 15 or 20 minutes — build that in. It drops 10 percent through the mountain and pops you into the Cleddau Valley. The Chasm is a 20-minute return loop over two bridges above water that has drilled the rock into holes; it is the best short walk on the road and nearly everyone on a coach misses it because the coach does not stop.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Park and check in at the terminal",
+          "timeWindow": {
+            "start": "10:10",
+            "end": "10:40"
+          },
+          "location": {
+            "name": "Milford Sound Visitor Terminal",
+            "city": "Milford Sound",
+            "area": "Deepwater Basin"
+          },
+          "kind": "planned",
+          "notes": "Parking at the terminal is paid and enforced, the machine wants a card, and there is no phone signal to fix it if the machine dislikes you, so keep a card that works. It is a ten-minute walk from the car park to the wharf along the foreshore. Check in 20 minutes before departure — boats leave on time and there is no second one for an hour.",
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The 10:45 cruise on a small boat",
+          "timeWindow": {
+            "start": "10:45",
+            "end": "12:35"
+          },
+          "location": {
+            "name": "Mitre Peak Cruises wharf",
+            "city": "Milford Sound",
+            "area": "Milford Sound / Piopiotahi"
+          },
+          "kind": "hold",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "Hold rather than book if you can, because this is weather-dependent in a specific way: rain is good here. A wet day puts hundreds of temporary waterfalls down the walls and is the better cruise; what ruins it is a storm that cancels sailings outright. Mitre Peak Cruises runs small boats capped near 75 people and gets closer to the rock faces than the 400-seat vessels; RealNZ and Southern Discoveries run the big ones and the underwater observatory add-on. The 10:45 to 13:00 slots are the coach crush — a 09:00 or a 15:00 sailing is markedly emptier if you can shift. Sit outside on the bow going out, inside coming back, and expect the boat to nose right under Stirling Falls.",
+          "cost": {
+            "amountMinor": 8340,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at Pio Pio, up the road from the terminal",
+          "timeWindow": {
+            "start": "12:50",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Pio Pio Cafe, Milford Sound Lodge",
+            "city": "Milford Sound",
+            "area": "Cleddau Valley"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "The terminal cafe is a sandwich in a fridge; Pio Pio at the lodge, a few minutes back down the road, is a proper kitchen with a deck over the river and is the only real food in Milford. It closes in the deep off-season, so check. If you brought lunch from Te Anau instead, eat it at Deepwater Basin rather than the car park — same water, no buses.",
+          "cost": {
+            "amountMinor": 1680,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back down the valley in the afternoon light",
+          "timeWindow": {
+            "start": "14:00",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Milford Road southbound, Hollyford turnoff to Te Anau",
+            "city": "Te Anau",
+            "area": "Fiordland National Park"
+          },
+          "kind": "transit",
+          "notes": "Southbound in the afternoon is the good direction — the sun is on the Darran Mountains behind you and the coaches have all gone. Two worthwhile stops if the legs allow: the Lake Marian falls boardwalk off the Hollyford Road (20 minutes return; the full lake is four hours and not today), and Mirror Lakes again, which is a different place with the light from the other side. Watch for keas on the road at the tunnel and for one-lane bridges the whole way.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Dinner at Redcliff, and book it this morning",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "Redcliff Cafe, Mokonui Street",
+            "city": "Te Anau",
+            "area": "Town Centre"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal"
+          ],
+          "notes": "An old settler's cottage that cooks blue cod and Fiordland venison properly and has live music in the back bar most nights in summer — it is the best table in Te Anau by a distance and it has maybe fifteen of them. Ring before you drive out in the morning, because there is no signal in the valley to ring from later. Closed in winter some years, so check the season.",
+          "cost": {
+            "amountMinor": 5100,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "tongariro-alpine-crossing-shuttle-day",
+      "name": "Tongariro Alpine Crossing: 19.4 km, one direction, no car",
+      "summary": "A one-way alpine traverse with a four-hour parking limit at one end — which is why everyone takes the shuttle, and why the weather forecast decides the night before whether this day exists.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2026-03-14T06:45:00.000Z",
+      "sourceTrip": {
+        "name": "North Island volcanoes"
+      },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Eat in the dark and pack for four seasons",
+          "timeWindow": {
+            "start": "05:00",
+            "end": "05:35"
+          },
+          "location": {
+            "name": "National Park Village accommodation",
+            "city": "National Park Village",
+            "area": "Ruapehu"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Check the mountain forecast, not the town forecast — MetService publishes a Tongariro National Park page and the shuttle operators cancel off it. The crossing tops out at 1,886 m on an exposed ridge with no shelter and no water for 19.4 km; the difference between a fine day and a dangerous one is a wind speed number. Pack three litres of water, a windproof and a warm layer regardless of the temperature at the road, sunscreen, and food for six hours. There are toilets at the trailheads and two composting toilets on the track, and no rubbish bins anywhere.",
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Shuttle to Mangatepopo",
+          "timeWindow": {
+            "start": "05:45",
+            "end": "06:30"
+          },
+          "location": {
+            "name": "Mangatepopo car park trailhead",
+            "city": "Tongariro National Park",
+            "area": "Mangatepopo Valley"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "This is the rule that surprises everyone: the crossing is a one-way walk between two car parks 40 minutes' drive apart, and the Ketetahi end has a four-hour parking limit that is enforced. You physically cannot leave a car at the finish and you cannot leave one at the start unless someone drives it round. So it is a shuttle — around 45 to 60 dollars from National Park Village, Turangi or Whakapapa, with a fixed pick-up time at Ketetahi (typically 14:00, 15:30 and 17:00) that you must make. Book the earliest departure: you want to be over Red Crater before the afternoon cloud, and being early converts a rush at the end into a coffee.",
+          "cost": {
+            "amountMinor": 3300,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Mangatepopo Valley to Soda Springs",
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:45"
+          },
+          "location": {
+            "name": "Mangatepopo Valley track",
+            "city": "Tongariro National Park",
+            "area": "Mangatepopo Valley"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "An hour and a bit of boardwalk and old lava flow, almost flat, and it is the warm-up you should walk slowly — everyone who sprints this section pays for it on the staircase. The Soda Springs side trip is ten minutes return to a waterfall off Mount Ngauruhoe's flank. The last toilet before the climb is here; use it.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Devil's Staircase to South Crater",
+          "timeWindow": {
+            "start": "07:45",
+            "end": "09:05"
+          },
+          "location": {
+            "name": "Devil's Staircase and South Crater",
+            "city": "Tongariro National Park",
+            "area": "Mount Ngauruhoe"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The hard 200 vertical metres of the day, done first, which is the mercy of walking this direction. Then South Crater opens out flat and unreal, a gravel plain you cross in 20 minutes. Ngauruhoe is on your right; the summit scramble is closed and discouraged out of respect to Ngati Hikairo ki Tongariro and because the scree has killed people. Do not do it.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Red Crater ridge, the high point",
+          "timeWindow": {
+            "start": "09:05",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Red Crater summit, 1886 m",
+            "city": "Tongariro National Park",
+            "area": "Red Crater"
+          },
+          "kind": "hold",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "The ridge to the top is loose, narrow and the one place the wind funnels hard enough to knock people over — this is where a poor forecast turns from unpleasant to genuinely serious. From roughly June to October the whole route becomes an alpine mountaineering trip needing ice axe, crampons and the skill to use them, and shuttle operators will not carry you without a guide. In summer it is just a steep, scenic slog. The descent off the top is loose scree: heels first, small steps, and let the person below get clear before you start.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Emerald Lakes and Blue Lake",
+          "timeWindow": {
+            "start": "10:15",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Emerald Lakes and Te Wai-whakaata-o-te-Rangihiroa",
+            "city": "Tongariro National Park",
+            "area": "Central Crater"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Lunch spot, and the picture everyone came for — the colour is dissolved minerals from the thermal vents, and the smell is sulphur. Both these lakes are tapu: do not touch or enter the water, and do not eat sitting at the edge of Blue Lake. Walk 20 m back and eat there instead. This is a request from the iwi that the signs make plainly, and it costs you nothing to honour.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The long descent to Ketetahi",
+          "timeWindow": {
+            "start": "11:15",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Ketetahi track and car park",
+            "city": "Tongariro National Park",
+            "area": "Ketetahi"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
+          "notes": "Nearly three hours and 1,100 m down, first on open switchbacks with Lake Rotoaira and Taupo laid out in front of you, then into bush for the last hour that goes on longer than anyone expects and is where knees fail. Poles earn their keep here. The hot springs you pass are on private Maori land and are closed to the public — the signs mean it. Aim to be at the car park 20 minutes before your shuttle slot, and if you are running late, phone from the bush edge where signal returns.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Beer and a burger at Schnapps",
+          "timeWindow": {
+            "start": "15:30",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Schnapps Bar, Carroll Street",
+            "city": "National Park Village",
+            "area": "Ruapehu"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Where the shuttle drops everyone and the only place in the village guaranteed to be serving food at half past three. Sit outside if Ruapehu is out. If the crossing was cancelled for weather — which happens often enough that you should hold a spare day — the Taranaki Falls loop from Whakapapa is two flat hours in the same park and stays open in almost anything.",
+          "cost": {
+            "amountMinor": 1920,
+            "currency": "USD"
+          }
+        }
+      ]
+    },
+    {
+      "key": "hobbiton-and-rotorua-thermal-ground",
+      "name": "Hobbiton first, then the ground that steams",
+      "summary": "Out to Matamata for the early tour before the buses, back to Rotorua for Champagne Pool and the redwoods, and a hangi that is cooked in the ground you have been walking on.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-08-02T13:10:00.000Z",
+      "sourceTrip": {
+        "name": "North Island loop with the kids"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-maeve"
+        }
+      ],
+      "stops": [
+        {
+          "title": "Breakfast at Okere Falls Store",
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:15"
+          },
+          "location": {
+            "name": "Okere Falls Store",
+            "city": "Rotorua",
+            "area": "Okere Falls"
+          },
+          "kind": "planned",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Twenty minutes out of town on the Tauranga road and worth the detour if you are heading north anyway — a general store with a garden bar, a serious beer list for later in the day, and the Kaituna river rapids five minutes' walk away. In town, Ciabatta Bakery opens earlier and does the pastry version of this.",
+          "cost": {
+            "amountMinor": 1440,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Drive to Matamata, straight to the Shire's Rest",
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:35"
+          },
+          "location": {
+            "name": "Hobbiton Movie Set, Buckland Road",
+            "city": "Matamata",
+            "area": "Hinuera"
+          },
+          "kind": "transit",
+          "notes": "Drive to the farm, not to the town. Tours depart from the Shire's Rest on Buckland Road, about 10 minutes outside Matamata; the i-SITE in town is only a pick-up point for people without a car and sending yourself there costs you 20 minutes. Cost here is the day's fuel out of Rotorua and back. Roads are rural and the fog sits in these valleys until nine in winter.",
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Hobbiton tour, and a pint at the Green Dragon",
+          "timeWindow": {
+            "start": "10:00",
+            "end": "12:00"
+          },
+          "location": {
+            "name": "Hobbiton Movie Set",
+            "city": "Matamata",
+            "area": "Alexander Farm"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "Around 120 dollars, two hours, guided the whole way — you cannot wander it alone. Departures run every 15 to 30 minutes and summer sells out a fortnight ahead, so book, and book an early slot: the set faces the morning sun and the 10:00 group is a third the size of the 13:00. There are no toilets on the set itself for the two hours. It rains here and the tour does not stop for it, so take a jacket rather than an umbrella. The drink at the Green Dragon at the end is included — the ginger beer is the one to get if you are driving, and the Evening Banquet Tour is the upgrade if you would rather eat there than in Rotorua.",
+          "cost": {
+            "amountMinor": 7200,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Lunch at the Shire's Rest",
+          "timeWindow": {
+            "start": "12:10",
+            "end": "12:55"
+          },
+          "location": {
+            "name": "Shire's Rest Cafe",
+            "city": "Matamata",
+            "area": "Buckland Road"
+          },
+          "kind": "idea",
+          "tags": [
+            "meal"
+          ],
+          "notes": "Perfectly decent farm cafe food at the departure building, which saves driving into Matamata hungry. If you would rather eat in town, the Redoubt Bar and Eatery on Broadway is the local choice and is ten minutes away.",
+          "cost": {
+            "amountMinor": 1560,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Back to the thermal belt",
+          "timeWindow": {
+            "start": "13:10",
+            "end": "14:15"
+          },
+          "location": {
+            "name": "SH5 south to Rotorua",
+            "city": "Rotorua",
+            "area": "Ngongotaha"
+          },
+          "kind": "transit",
+          "notes": "An hour back, and the smell tells you when you have arrived — hydrogen sulphide, everywhere, and you stop noticing it by dinner. Wai-O-Tapu is a further 25 minutes south of the city on SH5, so do not drive into town first and then back out; go straight past the turnoff.",
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Wai-O-Tapu: Champagne Pool and the Artist's Palette",
+          "timeWindow": {
+            "start": "14:30",
+            "end": "16:00"
+          },
+          "location": {
+            "name": "Wai-O-Tapu Thermal Wonderland",
+            "city": "Rotorua",
+            "area": "Waiotapu"
+          },
+          "kind": "planned",
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
+          "notes": "About 40 dollars for a 3 km loop of boardwalks over ground that is orange, green and violently green. Skip the Lady Knox Geyser: it goes off at 10:15 every morning because a ranger drops soap into it, it does not fit a Hobbiton morning, and it is the least interesting thing here. Stay on the boardwalks — the crust is thin and people have gone through it. Champagne Pool steams hardest on a cold afternoon, which makes winter the better season for photographs. Te Puia in town is the alternative if you want the Pohutu geyser and a Maori cultural centre in one ticket.",
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Redwoods Treewalk at dusk",
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Redwoods Treewalk, Whakarewarewa Forest",
+            "city": "Rotorua",
+            "area": "Whakarewarewa"
+          },
+          "kind": "planned",
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
+          "notes": "Suspension bridges strung between 117-year-old Californian redwoods, 20 m up. The nightlights version with David Trubridge's lanterns is the one to buy and it starts at dusk, which in a Rotorua winter is barely five o'clock — check the day's start time when you buy, because in midsummer it is not dark until nine and the day ticket is the better deal then. The forest floor walking tracks underneath are free and excellent if you would rather not pay.",
+          "cost": {
+            "amountMinor": 2640,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "Hangi and a powhiri at Te Pa Tu",
+          "timeWindow": {
+            "start": "18:30",
+            "end": "21:45"
+          },
+          "location": {
+            "name": "Te Pa Tu, Tarawera Road",
+            "city": "Rotorua",
+            "area": "Tikitere"
+          },
+          "kind": "booked",
+          "tags": [
+            "meal",
+            "ticketed"
+          ],
+          "notes": "Around 180 dollars for a four-hour evening in the forest: a powhiri welcome, performance, and a hangi lifted out of the earth oven in front of you. They collect from Rotorua hotels around 17:45 to 18:15 depending where you are staying, so the pick-up, not the start time, is what you plan around — confirm yours when you book. Go in with some manners about it: it is a welcome onto a marae-style space, they will ask your group to nominate a chief, and taking that seriously makes the night. Book at least a few days out in summer.",
+          "cost": {
+            "amountMinor": 10800,
+            "currency": "USD"
+          }
+        }
+      ]
+    }
+  ]
+}

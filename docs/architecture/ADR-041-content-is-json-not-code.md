@@ -144,12 +144,13 @@ importer about what it accepts.
 
 ## Consequences
 
-**Good.** Content is reviewable as content. Eighty-eight playbook days across
-eleven regions now exist, authored by twelve people, spanning 200 cities — and
+**Good.** Content is reviewable as content. 148 playbook days across twenty
+regions now exist, authored by twelve people, spanning 327 cities — and
 Discover's budget filter has occupants in all four bands for the first time
-(`under200` 48, `200to500` 23, `500to1000` 7, `over1000` 10), closing the gap
+(`under200` 80, `200to500` 39, `500to1000` 12, `over1000` 17), closing the gap
 `starterDays.ts` flagged and could not fix at its own size. Adding a region is
-one JSON file and no code.
+one JSON file and no code, which is the whole claim: the second wave of nine
+bundles cost no source changes at all.
 
 **The notebook library moved with it, and one line of it was got wrong first.**
 `@tc/pages`' `templates.ts` now splits `DEFAULT_TEMPLATES` (seeded into every
@@ -194,6 +195,18 @@ and this repo's geocoder (LocationIQ, ADR-007) needs a key and a rate-limited
 offline pass, which is its own piece of work. The consequence is real and is
 filed rather than hidden: the four demo trips render "N stops have no place yet"
 on the Map lens. See `docs/known-issues/open/`.
+
+**Not all of the content is equally researched, and the format had nowhere to
+say so.** The first eleven bundles were built against live pages; the later ones
+ran after the session's search budget was spent and outbound fetches were
+blocked, so their venue names and prices are model knowledge. They are kept —
+seed content's bar is "plausible, well-shaped and labelled as generated", and
+`authorKind: "ai"` plus the badge already tell a reader that — but each affected
+file now opens `bundle.sources` with a `PROVENANCE:` line, and
+`KI-2026-09-06-d` owns the verification pass. **If provenance turns out to
+matter more than once, it wants a field rather than a convention inside a free
+string**; that is the obvious next version of this format and is deliberately
+not being invented now on one example.
 
 **A dev-gated route now accepts content in its body.** Bounded as described in
 decision 4, and gated exactly as its neighbour is — but it is a wider door than

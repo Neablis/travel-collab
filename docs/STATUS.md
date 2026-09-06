@@ -47,15 +47,24 @@ in the database when its a human playbook or a AI seed data"*. Not called `origi
 the Discover card and the shared-day screen): "human" is the absence of a claim, which is
 also why an unreadable value falls back to it instead of dropping the row.
 
-**The content: 88 playbook days over eleven regions** — Thailand beaches, the Italian Alps,
-Spain on foot, the Greek islands, Iceland and Norway, Mexico and Central America, the US
-parks, Vietnam and Indonesia, the summer Alps, the Andes and Patagonia, the medinas and
-deserts — plus **four demo trips** (Thailand, the Dolomites, northern Spain, Iceland). 905
-stops, 200 cities, twelve authors, every one researched against real venues with sources
-cited in each file. **It closes a gap `starterDays.ts` flagged and could not fix at its own
-size:** Discover's budget filter now has occupants in all four bands (`under200` 48,
-`200to500` 23, `500to1000` 7, `over1000` 10) where three of the four had none anywhere in the
-seed, and all four seasons are filled.
+**The content: 148 playbook days over twenty regions** — Thailand beaches, the Italian Alps and
+Italian cities, Spain on foot, France, the Greek islands, Iceland and Norway, Mexico and Central
+America, the US parks, **San Francisco / Napa / the Monterey Bay coast**, **the Finger Lakes and
+upstate New York**, Vietnam and Indonesia, the summer Alps, the Andes and Patagonia, the medinas
+and deserts, Turkey and the Balkans, Britain and Ireland, Australia and New Zealand, Korea and
+Taiwan — plus **four demo trips** (Thailand, the Dolomites, northern Spain, Iceland). 1,375 stops,
+327 cities, twelve authors. **It closes a gap `starterDays.ts` flagged and could not fix at its own
+size:** Discover's budget filter now has occupants in all four bands (`under200` 80, `200to500` 39,
+`500to1000` 12, `over1000` 17) where three of the four had none anywhere in the seed, and all four
+seasons are filled.
+
+**Not all of it is equally researched, and that is written down rather than glossed.** The first
+eleven bundles (88 days) and the four trips were built against live pages. The second and third
+waves ran after the session's search budget was spent and while outbound fetches were blocked, so
+sixty-odd days are model knowledge with canonical reference URLs rather than checked ones. Every
+affected file opens its `bundle.sources` with a `PROVENANCE:` line saying so, and
+**`KI-2026-09-06-d`** carries the verification pass they still owe. `pnpm content:verify` cannot
+catch this — it checks structure, not whether a price is true.
 
 **Notebook templates are a library again.** `@tc/pages` splits `DEFAULT_TEMPLATES` (what a new
 trip is seeded with — still two) from `TEMPLATE_LIBRARY` (what "Start from a template" offers
