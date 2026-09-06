@@ -12,6 +12,7 @@ import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { cityFor } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -203,7 +204,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 // eslint-disable-next-line no-restricted-syntax -- 30px avatar circle + 11px initials text have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
                 style={{ height: "30px", width: "30px", fontSize: "11px" }}
               >
-                {initialsFor(member.userId)}
+                {initialsFor(displayNameFor(member))}
               </div>
             ))}
           </div>

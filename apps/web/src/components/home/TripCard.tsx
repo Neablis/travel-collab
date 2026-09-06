@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 
@@ -187,7 +188,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
               // eslint-disable-next-line no-restricted-syntax -- 9px initials text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
               style={{ fontSize: "9px" }}
             >
-              {initialsFor(member.userId)}
+              {initialsFor(displayNameFor(member))}
             </div>
           ))}
         </div>

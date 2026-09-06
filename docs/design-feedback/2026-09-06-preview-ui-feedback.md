@@ -85,8 +85,8 @@ branch is no longer prose-only.
 | 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open — **needs a decision** |
 | 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
 | 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
-| 8 | Schedule / Timeline — attributee | 1728×836 | A raw internal user id is printed on every timed card | Open — **one defect with 9** |
-| 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | Open — **one defect with 8** |
+| 8 | Schedule / Timeline — attributee | 1728×836 | A raw internal user id is printed on every timed card | **Fixed** |
+| 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | **Fixed** |
 | 10 | Schedule / Timeline — `timeline-ghost` | 1728×836 | "Is ask still under construction?" | **Answered** — registry shell, M9 |
 | 11 | Schedule / Timeline — `cost-estimate-state` | 1728×836 | "Whats under construction here?" | **Answered** — registry shell, M19 |
 | 12 | Board / Timeline — day scroller | 1728×836 | Cannot scroll to day 14 or day 1; stops at day 13 | **Fixed** |
@@ -329,11 +329,29 @@ no per-activity 'who's this for' field", so the trip's first member is used as a
 assignment data". The intent was to avoid inventing assignment data — reasonable
 — but the result prints an internal identifier to the user on every timed card.
 
-**Open, because the replacement is a decision.** That a raw user id should not
-be on screen is not in doubt. What replaces it is: drop the text label and keep
-the avatar (initials stay meaningless), drop the whole attributee block until
-there is real data, or put a display name on `TripMember` — a contracts change,
-with a changelog entry and consumers updated, per invariant 5.
+**Fixed, and it needed no contracts change — the answer already existed.**
+`apps/web/src/lib/displayName.ts` is documented as "the ONE place `who` becomes
+something to call a person", and its `handleFor` fallback exists precisely
+because of the same complaint made earlier: *"Dont show the UUID in the Header
+bar where publish button is"* (Mitchell, 2026-09-01). It turns an id into
+`Alice` for a dev-login id and `Traveler 3f4a5b` otherwise, and never returns
+the id. TravelersPanel, SharedDayScreen, DiscoverCard and LeaderboardScreen all
+route through it. **The timeline was simply the surface that was missed.**
+
+**And it was missed in two more places than were reported.** `initialsFor(member.userId)`
+— initials built from a raw key — was also in `home/TripCard.tsx:190` and
+`home/NextTripHero.tsx:206`. Both are fixed here too: leaving them would have
+knowingly shipped the same "0D" avatar on Home the day after it was reported on
+the timeline. `AccountMenu` already did the right thing (`initialsFor(name)`),
+which is what made the other three visible as the odd ones out.
+
+**Red-first, and the first attempt was wrong in an instructive way.** A dashed
+UUID does *not* reproduce "0D": `initialsFor` splits on non-alphanumerics and
+only takes "the first two characters" when that yields fewer than two parts, so
+a UUID renders "04" and the test passed against the bug. It needs a
+separator-free id. With that corrected, all three tests fail on the old code —
+`expected <span class="text-slate"> to be null` for the label, and the same for
+the avatar — and pass on the new.
 
 ### 10 and 11. Two "under construction" markers — both are registry shells
 

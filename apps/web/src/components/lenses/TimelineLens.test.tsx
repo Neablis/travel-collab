@@ -67,6 +67,46 @@ function renderLens(detail = detailFixture(), onSelectActivity = vi.fn(), readOn
 // setFocusedDay directly, the same shape as FocusProvider.test.tsx's own
 // Probe, so the ghost-card-appears-when-focused behavior can be exercised
 // without pulling DayChips into this test.
+describe("the attributee beside a timed stop", () => {
+  // 2026-09-06 preview feedback, asked as two questions on the same card:
+  // "Whats this long id string?" and "Whats 0D?". The label printed
+  // `member.userId` raw, and the avatar fed that same id to `initialsFor`,
+  // whose no-two-parts fallback takes the first two characters — so a member
+  // id beginning "0d…" rendered as the avatar "0D". Both now go through
+  // `displayNameFor`, which `lib/displayName.ts` documents as the ONE place a
+  // `who` becomes something to call a person, and which never returns an id.
+  //
+  // The same complaint was already made and fixed elsewhere — TravelersPanel
+  // carries it as "Dont show the UUID" (Mitchell, 2026-09-01) — so what this
+  // pins is that the timeline stops being the surface that was missed.
+  const withMember = (userId: string): TripDetail => {
+    const detail = detailFixture();
+    return { ...detail, members: [{ userId, role: "owner" as const }] };
+  };
+
+  it("never prints a raw member id", () => {
+    renderLens(withMember("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b"));
+    expect(screen.queryByText("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b")).toBeNull();
+    // The handle `displayNameFor` falls back to: six characters off the end.
+    expect(screen.getAllByText(/Traveler 3f4a5b/).length).toBeGreaterThan(0);
+  });
+
+  it("does not build the avatar out of the head of that id", () => {
+    renderLens(withMember("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b"));
+    // "0D" was the reported symptom. It needs a SEPARATOR-FREE id to reproduce:
+    // `initialsFor` splits on non-alphanumerics and only falls back to "first
+    // two characters" when that yields fewer than two parts, so a dashed UUID
+    // would render "04" instead and this test would pass against the bug.
+    expect(screen.queryByText("0D")).toBeNull();
+  });
+
+  it("uses a dev-login username where the id actually carries one", () => {
+    renderLens(withMember("dev-alice"));
+    expect(screen.getAllByText(/Alice/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("dev-alice")).toBeNull();
+  });
+});
+
 function renderLensWithFocusControl(detail = detailFixture()) {
   function Harness() {
     const { setFocusedDay } = useFocus();

@@ -25,6 +25,7 @@ import {
 import { GhostProposal } from "@/components/assistant/GhostProposal";
 import { PREVIEW_GHOST_PROPOSAL } from "@/components/assistant/ghost-proposal-fixtures";
 import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { shortPlace } from "@/lib/place";
 import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
@@ -313,7 +314,7 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
                 // eslint-disable-next-line no-restricted-syntax -- 11px attributee label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
                 style={{ fontSize: "11px" }}
               >
-                {member.userId}
+                {displayNameFor(member)}
               </span>
               <span
                 aria-hidden
@@ -321,7 +322,7 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
                 // eslint-disable-next-line no-restricted-syntax -- 22px avatar circle / 10px initials have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
                 style={{ height: "22px", width: "22px", fontSize: "10px" }}
               >
-                {initialsFor(member.userId)}
+                {initialsFor(displayNameFor(member))}
               </span>
             </div>
           )}
