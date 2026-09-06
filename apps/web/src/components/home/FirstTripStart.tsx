@@ -33,6 +33,13 @@ const WIZARD_STEPS: readonly { label: string; detail: string }[] = [
   { label: "Shape", detail: "How full the days should feel." },
 ];
 
+/**
+ * Presents options for beginning a first trip.
+ *
+ * @param onStart - Called when the user starts the trip wizard
+ * @param disabled - Disables the trip wizard button while another trip-start operation is in progress
+ * @returns The first-trip start card
+ */
 export function FirstTripStart({
   onStart,
   disabled = false,

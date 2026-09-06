@@ -86,7 +86,26 @@ const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
 // Tailwind classes on this element. The launcher pill that opens it is
 // unchanged and is off-SPEC on its own terms (§13.5: "no floating action
 // button") — that is a real designed-mobile-entry-point decision this fix
-// does not make; see KI-84.
+/**
+ * Renders an assistant conversation panel in docked, floating, or modal sheet form.
+ *
+ * @param contextLine - Context displayed above the conversation.
+ * @param scope - Scope used to tailor the composer placeholder.
+ * @param turns - Conversation turns, ordered from oldest to newest.
+ * @param suggestions - Questions offered when the conversation is empty.
+ * @param emptyHint - Text displayed above the suggested questions.
+ * @param asksRemaining - Number of questions remaining in the conversation.
+ * @param restoreDraft - Question text to restore in the composer.
+ * @param onAsk - Handles a submitted question. Returning `false` preserves the composer text.
+ * @param onApproveProposal - Handles approval of a proposal in a turn.
+ * @param onRejectProposal - Handles rejection of a proposal in a turn.
+ * @param approvalBlockedReason - Explanation shown when proposal approval is unavailable.
+ * @param asking - Whether a question is currently being processed.
+ * @param askError - Error message displayed for the most recent question.
+ * @param simulated - Whether the latest answer was generated in simulated mode.
+ * @param presentation - Layout presentation for the panel.
+ * @param onHide - Closes or hides the panel.
+ */
 export function AssistantRail({
   contextLine,
   scope,

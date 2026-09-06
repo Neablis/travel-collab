@@ -110,7 +110,12 @@ const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
 
 // The latest wall-clock time anything on this day ends, raw "HH:MM", or null
 // when the day has no timed activity to end after. `row.timed` is sorted by
-// START, so the last element is not necessarily the last to finish.
+/**
+ * Finds the latest ending time among a day's timed activities.
+ *
+ * @param row - The timeline day whose activities are inspected
+ * @returns The latest activity end time, or `null` if the day has no timed activities
+ */
 function lastEndTime(row: TimelineRow): string | null {
   let latest: string | null = null;
   for (const item of row.timed) {
@@ -121,28 +126,10 @@ function lastEndTime(row: TimelineRow): string | null {
 }
 
 /**
- * The prefilled timeWindow behind both add-a-stop affordances on a day (the
- * day-header "Add stop" button and the per-day dashed add row) — or `null`
- * when the day has no room left for one.
+ * Determines the next available time window for adding a stop to a day.
  *
- * KI-30: this used to be
- * `{ start: toTimeString(lastEnd), end: toTimeString(lastEnd + 60) }`.
- * `toTimeString` clamps *silently* at DAY_END_MIN, so on a day whose last stop
- * already ends at or near midnight both ends collapsed to "23:59" — and
- * contracts' `TimeWindow` refines `start < end`, so the UI was offering a
- * window the domain would reject. The rule below is the one `overlapData.ts`'s
- * `repairedEnd()` already established for the overlap fix: do the arithmetic
- * in minutes, compare against DAY_END_MIN *before* formatting, and never let
- * the clamp be what decides the answer.
- *
- * Where it differs from `repairedEnd()` is deliberate. The overlap fix must
- * keep the moved stop's own duration, so a duration that will not fit has no
- * honest repair and the fix is withheld. A brand-new stop has no duration to
- * keep, so a day with 29 minutes left can still be offered those 29 minutes:
- * a short window is a real, valid, editable suggestion. Only a day that
- * already runs to 23:59 has nothing left to offer, and there `null` means the
- * affordance is WITHHELD — not degraded — exactly as a null `suggestedEnd`
- * makes OverlapWarning render no fix button at all.
+ * @param row - The timeline day whose available time is being determined
+ * @returns A one-hour window starting at 09:00 for an empty day or after the latest stop, shortened at day end; `null` when no time remains
  */
 export function nextSlot(
   row: TimelineRow,
@@ -170,7 +157,12 @@ export function nextSlot(
 // A day holding only UNTIMED stops takes the "Add the first stop" branch: it
 // has no last end time to name, so the other string is unwritable, and the
 // slot it prefills (09:00) really is the day's first timed stop. The copy
-// table offers no third string and this phase does not invent one.
+/**
+ * Creates the label for adding a stop to a timeline day.
+ *
+ * @param row - The timeline day used to determine whether it already has a timed stop
+ * @returns A first-stop label or a label referencing the latest stop's end time
+ */
 function addRowLabel(row: TimelineRow): string {
   const lastEnd = lastEndTime(row);
   return lastEnd === null
@@ -185,7 +177,12 @@ const NO_ROOM_LEFT =
 
 // Real, honest sum of each timed activity's own duration (end − start) —
 // NOT the elapsed span from first start to last end, which would count idle
-// gaps as "out" time. This is the stop-meter's mono "Xh Ym out" figure.
+/**
+ * Calculates the total time scheduled for a day's timed activities, excluding gaps.
+ *
+ * @param row - The timeline day whose timed activities are measured
+ * @returns The total scheduled duration in minutes
+ */
 function totalScheduledMinutes(row: TimelineRow): number {
   return row.timed.reduce(
     (sum, item) =>
@@ -207,6 +204,13 @@ function totalScheduledMinutes(row: TimelineRow): number {
 // simply omitted rather than fabricated; individual legs (below) no longer
 // attempt one either (Phase 8 Task 8.1) — they name real free time instead.
 const ROUTE_MAX_STOPS = 3;
+/**
+ * Builds a concise route summary from the activities in a timeline row.
+ *
+ * @param row - The timeline row whose activities define the route
+ * @param activities - Activity details used to resolve location names
+ * @returns A route string containing up to three locations and an optional count of additional locations, or `null` when no locations are available
+ */
 function routeSummary(
   row: TimelineRow,
   activities: TripDetail["activities"],
@@ -273,7 +277,12 @@ function Leg({ prevEnd, nextStart }: { prevEnd: string; nextStart: string }) {
 // Handoff README §2 "Activity rows": 92px right-aligned time column, a Card
 // with a 4px full-height accent rail, title, optional conflict Badge, place
 // line, optional note block, and a right column with an attributee avatar +
-// ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
+/**
+ * Renders a timeline activity with its schedule, details, cost, conflict status, and editing controls.
+ *
+ * @param focusedTag - The tag used to determine whether the activity is visually deemphasized.
+ * @param onSelectActivity - Called with the activity ID when editing is requested.
+ */
 function ActivityRow({
   start,
   end,
@@ -470,6 +479,15 @@ function ActivityRow({
   );
 }
 
+/**
+ * Renders the trip's day-by-day timeline with activities, gaps, costs, conflicts, and editing controls.
+ *
+ * @param detail - Trip data used to build the timeline.
+ * @param onSelectActivity - Called when an activity is selected.
+ * @param onCommand - Receives commands for trip changes or conflict actions.
+ * @param readOnly - Whether to hide controls that modify the trip.
+ * @returns The rendered timeline.
+ */
 export function TimelineLens({
   detail,
   onSelectActivity,

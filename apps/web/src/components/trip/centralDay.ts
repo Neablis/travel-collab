@@ -32,12 +32,13 @@ export type DaySpan = { start: number; size: number };
 export const READING_LINE = { vertical: 0.38, horizontal: 0.5 } as const;
 
 /**
- * The index of the span whose centre is nearest the reading line, or null when
- * there is nothing to choose between.
+ * Identifies the day span nearest the reading line or the visible scroll edge.
  *
- * Ties go to the earlier index — `<` rather than `<=` below — so a scroll that
- * parks two days symmetrically about the line settles on one of them instead of
- * flickering between the two as sub-pixel rounding moves.
+ * @param viewport - The scroll viewport position and size
+ * @param spans - The day spans to evaluate
+ * @param readingLine - The reading line position as a fraction of the viewport
+ * @param edges - Indicates whether the viewport is at the start or end of the spans
+ * @returns The selected span index, or `null` when no spans are provided
  */
 export function centralDayIndex(
   viewport: { start: number; size: number },

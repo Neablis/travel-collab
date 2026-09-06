@@ -60,7 +60,12 @@ function LockedNotice({ children }: { children: ReactNode }) {
 // `fetchTripDetail` the board/lens system uses — pages don't need
 // `TripProvider`'s optimistic-update machinery, they never write planning
 // data) and wires `PageEditor`'s `value`/`onChange` to
-// `pagesClient.updatePage`, debounced.
+/**
+ * Displays a trip page and supports safe editing, widget insertion, autosaving, and assistant interactions.
+ *
+ * @param tripId - Identifier of the trip containing the page
+ * @param pageId - Identifier of the page to display
+ */
 export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);

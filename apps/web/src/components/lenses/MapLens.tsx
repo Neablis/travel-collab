@@ -47,6 +47,13 @@ function layerIdFor(dayId: string, variant: RouteVariant): string {
 // without turning into a dotted-line-shaped smear when the map zooms out.
 const TRAVEL_DASHARRAY = [2, 1.6];
 
+/**
+ * Renders an interactive map of day-associated activities and routes.
+ *
+ * @param detail - Trip data containing activities and day-specific map information
+ * @param onSelectActivity - Callback invoked when a mapped activity is selected
+ * @param readOnly - Whether to disable creating activities by double-clicking the map
+ */
 export function MapLens({
   detail,
   onSelectActivity,

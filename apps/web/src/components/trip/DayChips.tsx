@@ -207,7 +207,19 @@ export type DayChipsProps = {
 // TimelineLens's "add a day" focuses silently, so adding one locked you into
 // day scope for the session. `aria-pressed` already tells assistive tech this
 // is a toggle; the × on the focused chip is what tells everyone else, since a
-// toggle nobody can see is a toggle nobody uses.
+/**
+ * Renders selectable day chips for a trip.
+ *
+ * The row supports keyboard navigation, focused-day synchronization, and optional
+ * read-only presentation.
+ *
+ * @param days - The trip days represented by the chips
+ * @param focusedDay - The index of the selected day, or `null`
+ * @param onSelect - Called with the selected day index or `null` to clear selection
+ * @param readOnly - Whether to hide the visual removal control
+ * @param sync - Optional synchronization configuration for related trip surfaces
+ * @returns The rendered day-chip group
+ */
 export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
