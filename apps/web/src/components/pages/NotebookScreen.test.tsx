@@ -96,6 +96,28 @@ describe("NotebookScreen", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
   });
 
+  // Mitchell, 2026-09-06 on a 411px phone: *"start from template should be
+  // below existing notebooks"*. On a trip that already has notebooks, the
+  // gallery was a screenful of choices already made, sitting above the list of
+  // what those choices produced.
+  //
+  // Read off `getAllByRole`, which returns regions in document order, so this
+  // asserts the ORDER rather than the presence of two sections — which is the
+  // whole of the request, and which a `mb-8` moved to the wrong element would
+  // still satisfy if it only counted them.
+  it("lists your notebooks above the template gallery", async () => {
+    const page = pageFixture({ tripId: TRIP_ID });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await screen.findByRole("region", { name: "Your notebooks" });
+
+    const inOrder = screen
+      .getAllByRole("region")
+      .map((region) => within(region).getByRole("heading", { level: 3 }).textContent);
+    expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
+  });
+
   // The rename moved to the notebook's own `h1` (`PageTitle`, asserted in
   // `PageScreen.test.tsx`). Mitchell, 2026-09-06: *"rename shouldn't be a
   // button here"*. Asserted as an absence because that is the request — a row

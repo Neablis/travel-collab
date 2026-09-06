@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 17:30: twenty-six threads — twenty-one fixed, two answered,
+**Status, as of 17:45: twenty-seven threads — twenty-two fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -811,3 +811,23 @@ assertion passed by accident; it reads the attribute now. And React has routed
 `onBlur` through the bubbling `focusout` event since 17, so a dispatched `blur`
 reaches no handler at all — the first version of the rename test dispatched one
 and would have passed with the whole feature unwired.
+
+
+## Thread 27, 17:21 — templates go under the notebooks
+
+> "start from template should be below existing notebooks"
+
+- Thread: `8mE14jqheOHL`, `/trips/081f2e6d-…/pages`, Chrome 152 on Android, 411×760
+- Selector: `body > div.phone-tab-bar-inset > div.mx-auto > section.mb-8 > #start-from-a-template`
+- Maps to: `NotebookScreen.tsx` — the two `<section>`s
+
+**Fixed**, by swapping the two sections. On a trip that already has notebooks,
+the gallery was a screenful of choices already made sitting above the list of
+what those choices produced — so on a phone this route opened on the answer to
+a question nobody asks twice. `mb-8` moved with the order, since the gap
+belongs under whichever section comes first.
+
+The test reads the regions off `getAllByRole`, which returns them in document
+order, and asserts the two names in sequence. Counting them would pass with the
+order reversed, which is the entire finding. Seen red with the sections swapped
+back.

@@ -341,35 +341,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
 
       {error !== null && <p role="alert">{error}</p>}
 
-      <section aria-labelledby="start-from-a-template" className="mb-8">
-        <Heading level={3} id="start-from-a-template">
-          Start from a template
-        </Heading>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-          {STARTERS.map((starter) => (
-            <Card as="li" key={starter.key} className="flex flex-col gap-2">
-              <Text className="font-medium text-ink">{starter.title}</Text>
-              <Text variant="secondary" className="flex-1">
-                {starter.description}
-              </Text>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleCreate(starter)}
-                disabled={creating}
-                // The starter's own title is in the accessible name because
-                // three buttons all labelled "Use this" is three buttons a
-                // screen-reader user cannot tell apart, and because the e2e
-                // suite has to be able to name the one it means.
-                aria-label={`Start from ${starter.title}`}
-              >
-                Use this
-              </Button>
-            </Card>
-          ))}
-        </ul>
-      </section>
-
       {/* A titled region, not a bare list. Two things made this necessary
           rather than decorative: the gallery above is itself a list of named
           things, so an untitled second list left the page with two peers and no
@@ -377,7 +348,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           to say which is which; and a template card and a notebook seeded FROM
           that template carry the same name by design ("Trip Overview" is both),
           so the name alone can never disambiguate them. */}
-      <section aria-labelledby="your-notebooks">
+      <section aria-labelledby="your-notebooks" className="mb-8">
         <Heading level={3} id="your-notebooks">
           Your notebooks
         </Heading>
@@ -420,6 +391,44 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             ))}
           </ul>
         )}
+      </section>
+
+      {/* **Templates BELOW the notebooks you already have.** Mitchell,
+          2026-09-06 on a 411px phone: *"start from template should be below
+          existing notebooks"*. On a trip with notebooks in it, the gallery was
+          a screenful of choices already made, sitting above the list of what
+          those choices produced — so this route opened on the answer to a
+          question nobody asks twice.
+
+          `mb-8` moves with the order: the gap belongs under whichever section
+          comes first, and templates are last now. */}
+      <section aria-labelledby="start-from-a-template">
+        <Heading level={3} id="start-from-a-template">
+          Start from a template
+        </Heading>
+        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+          {STARTERS.map((starter) => (
+            <Card as="li" key={starter.key} className="flex flex-col gap-2">
+              <Text className="font-medium text-ink">{starter.title}</Text>
+              <Text variant="secondary" className="flex-1">
+                {starter.description}
+              </Text>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handleCreate(starter)}
+                disabled={creating}
+                // The starter's own title is in the accessible name because
+                // three buttons all labelled "Use this" is three buttons a
+                // screen-reader user cannot tell apart, and because the e2e
+                // suite has to be able to name the one it means.
+                aria-label={`Start from ${starter.title}`}
+              >
+                Use this
+              </Button>
+            </Card>
+          ))}
+        </ul>
       </section>
 
       {/* **`presentation="sheet"` unconditionally, because the sheet is the
