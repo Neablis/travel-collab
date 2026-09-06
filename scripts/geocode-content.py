@@ -584,6 +584,38 @@ def judge_best(place: Place, rows: list[dict]) -> tuple[dict | None, str]:
     return None, reasons[0] if reasons else "no usable result"
 
 
+def distance_km(alat: float, alng: float, blat: float, blng: float) -> float:
+    """Equirectangular approximation — plenty for "is this tens of km out"."""
+    dx = (blng - alng) * 111.32 * max(0.01, abs(1 - abs(alat) / 90))
+    dy = (blat - alat) * 110.57
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def far_from_anchor(db: sqlite3.Connection, km: float = 40.0) -> list[tuple]:
+    """Accepted pins measured against their own city's resolved centre.
+
+    Better baseline than the median of sibling results: it exists for EVERY
+    city, including the ones with one or two stops that the median check had to
+    skip, and it cannot be dragged by a cluster of bad pins. This is the list to
+    read when judging whether an `area` hit — "something in the right city that
+    matched a prose string" — actually landed anywhere sensible.
+    """
+    anchors = {c: (la, ln) for c, la, ln
+               in db.execute("select city, lat, lng from cities where status='ok'")}
+    out = []
+    for q, city, lat, lng, prec in db.execute(
+        "select query, city, lat, lng, coalesce(precision,'venue') from places "
+        "where status='ok' and lat is not null and coalesce(precision,'venue') != 'city'"
+    ):
+        a = anchors.get(city)
+        if not a:
+            continue
+        d = distance_km(a[0], a[1], lat, lng)
+        if d > km:
+            out.append((q, city, round(d, 1), prec))
+    return sorted(out, key=lambda r: -r[2])
+
+
 def flag_outliers(db: sqlite3.Connection, km: float = 60.0) -> list[tuple[str, str, float]]:
     """Accepted results that sit absurdly far from the rest of their own city.
 
@@ -839,6 +871,10 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
 
     try:
         anchors = city_anchors(db, provider, args, stopping, progress)
+        # Restart the clock. The city pass can be several minutes, and counting
+        # it as elapsed time against zero processed places deflated the rate and
+        # multiplied the ETA by ~9 on the first real run.
+        progress.started = time.monotonic()
     except DailyCapReached as exc:
         progress.done()
         print(f"  out of quota while resolving cities ({str(exc)[:60]}). Re-run tomorrow.")
@@ -953,6 +989,7 @@ def write_review(db: sqlite3.Connection) -> dict:
         "select query, city, last_error from places where status in ('not_found','failed') order by city, query"
     ).fetchall()
     outliers = flag_outliers(db)
+    far = far_from_anchor(db)
     review = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "note": (
@@ -967,6 +1004,15 @@ def write_review(db: sqlite3.Connection) -> dict:
         "unresolved": [{"query": q, "city": c, "why": e} for q, c, e in missing],
         "farFromCityMedian": [
             {"query": q, "city": c, "kmFromMedian": d} for q, c, d in outliers
+        ],
+        # The list to actually read. An `area` hit is only "something in the
+        # right city that matched a prose string", so distance from the city's
+        # own resolved centre is the cheapest signal that it landed somewhere
+        # absurd — and unlike the median check this exists for every city, not
+        # only those with three or more results.
+        "farFromCityCentre": [
+            {"query": q, "city": c, "kmFromCentre": d, "precision": pr}
+            for q, c, d, pr in far
         ],
     }
     REVIEW.write_text(json.dumps(review, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -1085,7 +1131,7 @@ def main() -> None:
     if args.review:
         review = write_review(db)
         print(f"  {len(review['rejected'])} rejected · {len(review['unresolved'])} unresolved · "
-              f"{len(review['farFromCityMedian'])} far from their city")
+              f"{len(review['farFromCityCentre'])} far from their city centre")
         print(f"  written to {REVIEW.relative_to(REPO)}")
         return
     if args.apply:
