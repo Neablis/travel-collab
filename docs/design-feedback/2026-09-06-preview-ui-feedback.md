@@ -36,10 +36,12 @@ deliberately unbuilt surfaces. Anything in it is known-absent, not a bug.
 
 ## How to leave feedback
 
-Open the preview URL in the PR (Vercel's bot comments it, and it is also on the
-"Preview URL walked" line below once confirmed) and use the Vercel toolbar's
-comment tool. Each comment anchors to the element and route it was written on,
-which is what makes this pass cheap to act on: the selector and React component
+The preview, built from `4728239` and confirmed READY on 2026-09-06:
+
+    https://travel-collab-git-claude-vercel-preview-6497b8-neablis-projects.vercel.app
+
+Open it and use the Vercel toolbar's comment tool. Each comment anchors to the
+element and route it was written on, which is what makes this pass cheap to act on: the selector and React component
 tree come back with the thread and map straight to a file, no guessing. That is
 how `2026-07-12-pr11-vercel-ui-comments.md` and `2026-08-30-design-pass-preview.md`
 were both worked.
