@@ -757,6 +757,53 @@ test("a repeat widget's rows are striped, and its values are text rather than ch
   }
 });
 
+// Runs in the page: the tinted chip's own height against the line box it sits
+// in. Module-level so the walk keeps no conditional in its body.
+function chipAgainstLine(el: Element): { chip: number; line: number } {
+  const heading = el.closest("h1, h2, h3, h4");
+  if (heading === null) throw new Error("the value is not in a heading, so this walk proves nothing");
+  return { chip: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(heading).lineHeight) };
+}
+
+test("a widget value inside a heading fits the line it is on", async ({ page }) => {
+  // Mitchell, 2026-09-06, on a heading holding a row of city chips: *"The
+  // second line is overtop the top line"*.
+  //
+  // The chips are inline, so their tint and their `border-b-2` are painted over
+  // the font's content area plus 2px — and vertical padding on an inline box
+  // adds nothing to the line box. The editor's headings are set tight
+  // (`--text-2xl--line-height: 1.15`, `--text-xl--line-height: 1.2`), tighter
+  // than the box a chip paints, so once enough chips wrapped to a second line
+  // the second line's tint was drawn over the first's.
+  //
+  // **One chip, and no wrapping needed.** Whether two lines collide is decided
+  // by whether ONE chip is taller than the line it sits on, and that is a
+  // measurement a single widget in a heading can make. Arranging eleven cities
+  // in an e2e trip to reproduce the wrap itself would test the same inequality
+  // through a great deal more setup.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  // Into the heading, not under it: `insertFromList` presses Enter first, which
+  // puts the widget in a paragraph of its own where the leading is roomy and
+  // nothing overlaps.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.getByRole("button", { name: "Insert a widget" }).click();
+  const list = page.getByRole("dialog");
+  await expect(list).toBeVisible();
+  await list.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
+  await waitForPageSaved(page, () => list.getByRole("button", { name: /The dates/ }).click());
+  await expect(list).toBeHidden();
+
+  const value = page.locator(".tc-page-editor h2 [data-widget-value]").first();
+  await expect(value).toBeVisible();
+  const box = await value.evaluate(chipAgainstLine);
+  expect(box.chip).toBeGreaterThan(0);
+  // The whole claim: a chip no taller than its line cannot reach the line above.
+  expect(box.chip).toBeLessThanOrEqual(box.line);
+});
+
 test("an inline value keeps a natural space on each side of it", async ({ page }) => {
   // Mitchell, on the PR 141 preview: *"These inline elements should have a
   // natural space at the start and end, otherwise ill need to go in and put a

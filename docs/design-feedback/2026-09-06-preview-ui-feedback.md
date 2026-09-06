@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 19:30: thirty threads — twenty-five fixed, two answered,
+**Status, as of 19:50: thirty-one threads — twenty-six fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -991,3 +991,38 @@ defect was not merely uncaught, it was held in place. It reads through
 someone updated the file to match. The many-day path has its own assertion,
 because it renders through a different component and carried the same raw value.
 Seen red both ways: `expected [ '2027-06-01', … ] to deeply equal [ 'Jun 1, 2027', … ]`.
+
+
+## Thread 31, 19:21 — chips in a heading collide when they wrap
+
+> "The second line is overtop the top line"
+
+- Thread: `otYDSjUyIBb0`, `/trips/081f2e6d-…/pages/60ec2eae-…`, Chrome 151 on macOS, 1492×836
+- Selector: `… > div.tiptap > h1 > span.react-renderer > span > span.mx-0.5:nth-of-type(11)`, a `city` widget with eleven chips
+- Maps to: `apps/web/src/app/globals.css` — the `.tc-page-editor` heading rules
+
+**Fixed.** A widget value is an inline chip: its tint and its `border-b-2` are
+painted over the font's content area plus 2px, and vertical padding on an inline
+box adds nothing to the line box. The editor's heading scale is deliberately
+tight — `--text-2xl--line-height: 1.15`, `--text-xl--line-height: 1.2` — tighter
+than the box a chip paints. Measured in the walk: **a 30px chip on a 28.8px line
+in an `h2`**. Once eleven city chips wrapped, the second line's tint was drawn
+over the first's.
+
+A heading that contains a widget value now gets `line-height: 1.4`. `:has()`
+rather than loosening every heading: the tight leading is right for a heading of
+words, and only one carrying a chip has anything to make room for. 1.4 clears
+the worst case — the 2px rule costs more relative to a small heading than a
+large one, so `h4` at 16px needs the most (1.325).
+
+**One chip, no wrapping.** Whether two lines collide is decided by whether one
+chip is taller than the line it sits on, which a single widget in a heading can
+measure. Reproducing the wrap would have needed eleven cities in an e2e trip to
+test the same inequality. Seen red before the rule existed:
+`expected <= 28.8, received 30`.
+
+**And the obvious shortening breaks the suite.** Writing the six selectors as
+`:is(h1, …, h6):has(…)` throws in jsdom, whose selector engine splits a selector
+list on commas before parsing and is left with `h6):has([data-widget-value])`.
+`PageEditor.test.tsx` reads these rules against a real editor DOM (KI-44) and
+caught it; the CSS carries a note so the next reader does not re-shorten it.
