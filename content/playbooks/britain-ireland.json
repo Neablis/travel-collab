@@ -7,39 +7,32 @@
     "origin": "ai",
     "generatedAt": "2026-09-06",
     "sources": [
-      "PROVENANCE: written without live web access (the session's search budget was spent and outbound fetches were blocked), so venue names, prices and opening rules come from model knowledge rather than pages read at authoring time. The URLs below are canonical references for those facts, NOT sources that were fetched and checked. Treat every price and time here as needing a verification pass before it is quoted as fact — see KI-2026-09-06-d.",
-      "https://www.columbiaroad.info/",
-      "https://www.dennissevershouse.co.uk/",
-      "https://www.trumanbrewery.com/",
-      "https://www.wallacecollection.org/",
+      "PARTIALLY VERIFIED 2026-09-06: gating facts (opening days, hours, seasonal closures, booking rules, transport schedules) were checked against the official sources listed below for 8 of 8 days. Prices were NOT systematically verified and remain model estimates — see KI-2026-09-06-d.",
+      "https://columbiaroad.info/flower-market/",
+      "https://www.dennissevershouse.co.uk/calendar",
+      "https://www.wallacecollection.org/visit/",
       "https://ikoyilondon.com/",
-      "https://officiallondontheatre.com/",
-      "https://www.historicenvironment.scot/visit-a-place/places/holyrood-park/",
-      "https://www.edinburghcastle.scot/",
-      "https://www.realmarykingsclose.com/",
-      "https://www.walkhighlands.co.uk/edinburgh/arthurs-seat.shtml",
-      "https://www.walkhighlands.co.uk/skye/oldmanstorr.shtml",
-      "https://www.walkhighlands.co.uk/skye/quiraing.shtml",
-      "https://www.skyemuseum.co.uk/",
+      "https://www.edinburghcastle.scot/plan-your-visit/tickets/",
+      "https://www.historicenvironment.scot/visit/all/edinburgh-castle/plan-your-visit/",
+      "https://www.historicenvironment.scot/about-us/news/historic-time-capsule-returns-to-edinburgh-castle-s-crown-room/",
+      "https://www.realmarykingsclose.com/plan-your-visit/opening-times/",
+      "https://www.scotsman.com/regions/edinburgh-fife-and-lothians/former-gardeners-cottage-to-reopen-as-unique-scottish-dining-destination-6569425",
+      "http://skyemuseum.co.uk/",
+      "https://scorrybreac.com/Bookings",
       "https://www.romanbaths.co.uk/",
-      "https://www.thermaebathspa.com/",
-      "https://www.olivetreebath.co.uk/",
+      "https://www.thermaebathspa.com/opening-times",
       "https://www.nationaltrust.org.uk/visit/wiltshire/lacock",
-      "https://www.gwr.com/",
-      "https://www.southwestcoastpath.org.uk/",
-      "https://www.gurnardshead.co.uk/",
-      "https://www.minack.com/",
-      "https://www.oldcoastguardhotel.co.uk/",
-      "https://www.eryri.llyw.cymru/",
-      "https://www.metoffice.gov.uk/weather/specialist-forecasts/mountain",
-      "https://www.snowdonrailway.co.uk/",
-      "https://museum.wales/slate/",
-      "https://www.cliffsofmoher.ie/",
-      "https://www.caherconnell.com/",
-      "https://burrenperfumery.com/",
-      "https://www.wildhoneyinn.com/",
-      "https://doolin2aranferries.com/",
-      "https://heritageireland.ie/"
+      "https://minack.com/visit/opening-times-prices/",
+      "https://www.gurnardshead.co.uk/Eat.aspx",
+      "https://museum.wales/slate/redevelopment/",
+      "https://www.thegreatoutdoorsmag.com/news/petes-eats-has-not-closed-down/",
+      "https://www.sherparwyddfa.wales/times.shtml",
+      "https://eryri.gov.wales/visit/plan-your-visit/snowdon-sherpa/",
+      "https://www.cliffsofmoher.ie/en/opening-hours/",
+      "https://doolinferry.com/cliffs-of-moher-ferry/",
+      "https://burrenperfumery.com/pages/opening-hours",
+      "https://visitclare.ie/dining/wild-honey-inn/",
+      "https://doolin.ie/caherconnell-fort/"
     ]
   },
   "trips": [],
@@ -86,7 +79,7 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Sunday only, roughly 08:00 to 15:00 — there is no market here on any other day of the week and the street is a row of shut shutters if you turn up on a Saturday. Be on it by 08:15: by 10:30 the road is a single shuffling file and you cannot turn round, let alone carry a tree. The buying rule is the reverse of the walking rule — do the first lap empty-handed, then come back at the end. After about 14:00 the traders would rather sell at a loss than load stock back onto the van, and the shouting starts. Nearest station is Hoxton on the Overground, not a tube; Bethnal Green and Old Street are both a ten-minute walk."
+          "notes": "Sunday only, roughly 08:00 to 15:00 — there is no market here on any other day of the week and the street is a row of shut shutters if you turn up on a Saturday. Be on it by 08:15: by 10:30 the road is a single shuffling file and you cannot turn round, let alone carry a tree. The buying rule is the reverse of the walking rule — do the first lap empty-handed, then come back at the end. After about 14:00 the traders would rather sell at a loss than load stock back onto the van, and the shouting starts. Nearest station is Hoxton on the Overground, not a tube; Bethnal Green and Old Street are both a ten-minute walk. Verified 2026-09-06: Sunday only, 08:00 to about 15:00 — the market's own site and Visit London give the same hours, and there is no market here on any other day of the week."
         },
         {
           "title": "Coffee and a slice in Ezra Street, behind the stalls",
@@ -177,7 +170,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Book the timed slot in advance — it is a private house with about a dozen people in it at a time and walk-ups are turned away. Silence is genuinely enforced and so is the no-photographs rule; if that sounds like a gimmick, it is the entire point, and it stops working the moment somebody talks. The candlelit Silent Night sittings are the ones to want. Not for children, and not for anyone who wants a guide to explain things.",
+          "notes": "Book the timed slot in advance — it is a private house with about a dozen people in it at a time and walk-up tickets are sold only if a slot happens to have room. Silence is genuinely enforced and so is the no-photographs rule; if that sounds like a gimmick, it is the entire point, and it stops working the moment somebody talks. Not for children, and not for anyone who wants a guide to explain things. Verified 2026-09-06: the house opens Friday 12:00–21:00 and Saturday and Sunday 12:00–16:00 — it is shut Monday to Thursday. Daytime silent visits run from 12:00 with the last around 15:15, so on the Sunday this day is built around, 14:00 is the last comfortable slot. The candlelit evening sittings at 18:00 and 20:00 are a Friday thing and are NOT available on a Sunday — if the Silent Night is what you came for, it is a separate evening at roughly four times the daytime price.",
           "cost": {
             "amountMinor": 2550,
             "currency": "USD"
@@ -249,7 +242,7 @@
             "area": "Marylebone"
           },
           "kind": "planned",
-          "notes": "Free, open every day from 10:00, and ten minutes from Oxford Street with none of the crowd. The terms of the bequest forbid anything leaving or joining the collection, which means nothing here ever travels to a blockbuster show somewhere else — you see it in this house or not at all. Everyone stops at the Laughing Cavalier and the Fragonard and then leaves; the arms and armour in the basement is one of the best collections in Europe and is usually empty."
+          "notes": "Free, open every day from 10:00, and ten minutes from Oxford Street with none of the crowd. The terms of the bequest forbid anything leaving or joining the collection, which means nothing here ever travels to a blockbuster show somewhere else — you see it in this house or not at all. Everyone stops at the Laughing Cavalier and the Fragonard and then leaves; the arms and armour in the basement is one of the best collections in Europe and is usually empty. Verified 2026-09-06: open seven days a week, 10:00–17:00, free, and no advance booking is needed for general admission; the only regular closures are 24–26 December."
         },
         {
           "title": "Lunch at The Golden Hind",
@@ -305,7 +298,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Matinees are Wednesday and Saturday almost everywhere, usually 14:00 or 14:30 — a Monday or Tuesday afternoon in the West End has nothing on at all, which catches people out. Book direct with the theatre rather than a reseller, and check the seating plan for the specific house: many of these are Victorian buildings where the front of the dress circle beats the back of the stalls for the same money. TKTS in Leicester Square sells genuine same-day discounts if you are willing to take what is left.",
+          "notes": "Matinees are Wednesday and Saturday almost everywhere, usually 14:00 or 14:30 — a Monday or Tuesday afternoon in the West End has nothing on at all, which catches people out. Book direct with the theatre rather than a reseller, and check the seating plan for the specific house: many of these are Victorian buildings where the front of the dress circle beats the back of the stalls for the same money. TKTS in Leicester Square sells genuine same-day discounts if you are willing to take what is left. Verified 2026-09-06: dinner tonight is Ikoyi, which opens Monday to Friday only — so of the two standard matinee days this has to be the Wednesday one. A Saturday matinee leaves you with the restaurant shut.",
           "cost": {
             "amountMinor": 15500,
             "currency": "USD"
@@ -344,7 +337,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "Two stars, one menu, no choices, and it is West African larder cooking rather than anything you can predict from the address. Reservations open on a rolling window and the good times go in minutes — set an alarm for the release rather than trying your luck. The pairing roughly doubles the bill and is the part people regret skipping; a half-pairing is usually available if you ask when booking rather than at the table. Three and a half hours is the honest length, which is why the theatre is a matinee and not an evening show.",
+          "notes": "Two stars, one menu, no choices, and it is West African larder cooking rather than anything you can predict from the address. Verified 2026-09-06: the dining room opens Monday to Friday only, and reservations are released on the 1st of each month at 12:00 UK time for dates up to two months ahead — set an alarm for that release rather than trying your luck, because the good times go in minutes. Parties of five or more go through reservations@ikoyilondon.com rather than the online form. The pairing roughly doubles the bill and is the part people regret skipping; a half-pairing is usually available if you ask when booking rather than at the table. Three and a half hours is the honest length, which is why the theatre is a matinee and not an evening show.",
           "cost": {
             "amountMinor": 70000,
             "currency": "USD"
@@ -440,7 +433,7 @@
           }
         },
         {
-          "title": "Edinburgh Castle, first slot after opening",
+          "title": "Edinburgh Castle, mid-morning timed slot",
           "timeWindow": {
             "start": "10:45",
             "end": "12:15"
@@ -454,7 +447,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Timed entry, booked online in advance, and cheaper online than at the gate — the gate queue on the esplanade can be forty minutes in summer for the privilege of paying more. Go straight up to the Crown Room and St Margaret's Chapel first and work back down; everyone else does the sequence in the printed order and bunches at the top by noon. The One O'Clock Gun is fired every day except Sunday, Good Friday and Christmas Day, and if you want it you need to still be here at 13:00, which this day is not.",
+          "notes": "Timed entry, booked online in advance, and cheaper online than at the gate — the gate queue on the esplanade can be forty minutes in summer for the privilege of paying more. Go straight up to the Crown Room and St Margaret's Chapel first and work back down; everyone else does the sequence in the printed order and bunches at the top by noon. The One O'Clock Gun is fired every day except Sunday, Good Friday and Christmas Day, and if you want it you need to still be here at 13:00, which this day is not. Verified 2026-09-06: open daily from 09:30 (closed 25–26 December); April to September it closes at 18:00 with last admission 17:00, October to March it closes at 17:00 with last admission 16:00. Entry is in 30-minute timed slots and once the online allocation has gone there are no tickets at the gate at all — this is a book-ahead, not a turn-up-and-queue. The Crown Room, closed in January 2026 for refurbishment and a new display case, reopened in May 2026, so the Honours are back on show.",
           "cost": {
             "amountMinor": 2800,
             "currency": "USD"
@@ -496,7 +489,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "A genuine 17th-century street sealed under the City Chambers, and the only one of the Old Town underground attractions that is the real thing rather than a vault repurposed for a ghost act. Timed tours in small groups, booked ahead, and they do sell out. It is cold and low — you will duck. The costumed guiding is hammier than it needs to be; the archaeology under it is not.",
+          "notes": "A genuine 17th-century street sealed under the City Chambers, and the only one of the Old Town underground attractions that is the real thing rather than a vault repurposed for a ghost act. Timed tours in small groups, booked ahead, and they do sell out. It is cold and low — you will duck. The costumed guiding is hammier than it needs to be; the archaeology under it is not. Verified 2026-09-06: tours run from 10:00, hourly-ish every 20–30 minutes, with the last tour at 21:00 from 1 April to 31 October and at 17:00 Sunday to Thursday off-peak. It sells out; book online, where it is also a couple of pounds cheaper than the door.",
           "cost": {
             "amountMinor": 2900,
             "currency": "USD"
@@ -521,13 +514,13 @@
           }
         },
         {
-          "title": "Dinner at The Gardener's Cottage",
+          "title": "Dinner at The Cottage at Royal Terrace",
           "timeWindow": {
             "start": "19:00",
             "end": "21:30"
           },
           "location": {
-            "name": "The Gardener's Cottage, 1 Royal Terrace Gardens",
+            "name": "The Cottage at Royal Terrace, 1 Royal Terrace Gardens",
             "city": "Edinburgh",
             "area": "Royal Terrace"
           },
@@ -535,7 +528,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "A gardener's cottage in the London Road gardens with two long communal tables and a set menu that changes daily — you sit next to strangers and there is no choosing, which is either the charm or the dealbreaker. Book weeks out; there are about thirty covers. It is a twenty-minute walk from the Old Town round the back of Calton Hill, which is the pleasant way to end up back where the hill was this morning.",
+          "notes": "CORRECTED 2026-09-06 — the stop as written was impossible: The Gardener's Cottage closed for good in December 2024, and guides that still list it are out of date. The same cottage in the Royal Terrace gardens has been taken on by new owners and reopened as The Cottage at Royal Terrace, taking bookings from 1 May 2026 and opening four days a week to begin with — find out which four before you build an evening on it, because the old place was shut Sunday, Monday and Tuesday and a successor operating four days will be shut most of the week too. The room is the draw either way: a gardener's cottage behind Calton Hill, long tables, a short seasonal menu, and about thirty covers. It is a twenty-minute walk from the Old Town round the back of the hill, which is the pleasant way to end up where the morning started. Book before you travel; if it is shut on your night, Broughton Street ten minutes away is the fallback.",
           "cost": {
             "amountMinor": 7500,
             "currency": "USD"
@@ -680,8 +673,8 @@
         {
           "title": "Skye Museum of Island Life at Kilmuir",
           "timeWindow": {
-            "start": "16:15",
-            "end": "17:30"
+            "start": "16:05",
+            "end": "16:55"
           },
           "location": {
             "name": "Skye Museum of Island Life",
@@ -692,7 +685,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Seven thatched blackhouses kept as a croft township, run by the family whose township it was. Cheap, seasonal, usually shut by 17:00 and all day Sunday out of high season — this is the stop to drop if the Quiraing overran. Flora MacDonald's grave is in the cemetery on the headland just above, five minutes on foot, and the view from it back down the Minch is the better half of the stop.",
+          "notes": "Seven thatched blackhouses kept as a croft township, run by the family whose township it was. Cheap, and the stop to drop if the Quiraing overran. Verified 2026-09-06: open Easter to late September only, Monday to Saturday 09:30–17:00, and closed every Sunday — not just out of high season — with the whole site shut from about the start of October until Easter. The window here has been pulled back to finish at 16:55 because the old 17:30 end ran past the door being locked. Flora MacDonald's grave is in the cemetery on the headland just above, five minutes on foot, and the view from it back down the Minch is the better half of the stop.",
           "cost": {
             "amountMinor": 600,
             "currency": "USD"
@@ -713,7 +706,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "About twenty covers in a room over the harbour, one sitting, set menu, and it books out weeks ahead in summer — reserve before you book anything else on Skye. If you miss it, Sea Breezes on the quay does the shellfish plainly and takes walk-ins earlier in the evening. Portree stops serving food remarkably early for a town this size; anything after 21:00 means a bar meal or nothing.",
+          "notes": "About twenty covers in a room over the harbour, one sitting, set menu, and it books out weeks ahead in summer — reserve before you book anything else on Skye. If you miss it, Sea Breezes on the quay does the shellfish plainly and takes walk-ins earlier in the evening. Portree stops serving food remarkably early for a town this size; anything after 21:00 means a bar meal or nothing. Verified 2026-09-06: dinner is Tuesday to Saturday only (lunch Wednesday to Saturday), so a Sunday or Monday night in Portree needs a different plan entirely, and the restaurant closes for January and February. Book by phone; parties of five or more by email.",
           "cost": {
             "amountMinor": 8500,
             "currency": "USD"
@@ -766,7 +759,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Timed entry, booked online, and the price moves with the slot — weekday mornings are the cheapest and the emptiest at once. Take a slot before 10:00: the coaches from London and Stonehenge arrive between 11:00 and 14:00 and the Great Bath terrace becomes unusable. The water is 46 degrees, untreated and genuinely unsafe to touch, which is what the signs are actually about. The included audio guide has a separate Bill Bryson commentary track that is better company than the official one. Do not drink the spa water in the Pump Room unless you want to know what it tastes like, which is the only reason anyone does.",
+          "notes": "Timed entry, booked online, and the price moves with the slot — weekday mornings are the cheapest and the emptiest at once. Take a slot before 10:00: the coaches from London and Stonehenge arrive between 11:00 and 14:00 and the Great Bath terrace becomes unusable. The water is 46 degrees, untreated and genuinely unsafe to touch, which is what the signs are actually about. The included audio guide has a separate Bill Bryson commentary track that is better company than the official one. Do not drink the spa water in the Pump Room unless you want to know what it tastes like, which is the only reason anyone does. Verified 2026-09-06: open every day 09:00–18:00 with last entry 17:00, except 20 July–31 August 2026 when it runs 09:00–22:00 with last admission 21:00; closed 25–26 December. Timed tickets are booked online and they ask you to book at least an hour ahead of the slot you want.",
           "cost": {
             "amountMinor": 3800,
             "currency": "USD"
@@ -829,7 +822,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "Half a day with a car and driver, shared, which is what a group of three or four should do here — the villages are twenty minutes apart and forty from Bath, and the bus connections between them are effectively fictional. Castle Combe has no parking in the village at all: the car park is up on the hill by the main road and you walk five minutes down, which is also the best way to see it. Lacock is owned end to end by the National Trust and the street is free to walk; the Abbey and the Fox Talbot museum are ticketed and stop admitting around 17:00, so do Castle Combe first. Neither village has a cash machine and Lacock's shops close early.",
+          "notes": "Half a day with a car and driver, shared, which is what a group of three or four should do here — the villages are twenty minutes apart and forty from Bath, and the bus connections between them are effectively fictional. Castle Combe has no parking in the village at all: the car park is up on the hill by the main road and you walk five minutes down, which is also the best way to see it. Lacock is owned end to end by the National Trust and the street is free to walk; the Abbey, cloisters and Fox Talbot Museum are ticketed and, verified 2026-09-06, run 10:00–17:00 with last admission 45 minutes before closing — so you have to be through the gate by about 16:15, not 17:00. That is why Castle Combe goes first and why this half-day cannot start later than 14:30. Neither village has a cash machine and Lacock's shops close early.",
           "cost": {
             "amountMinor": 19000,
             "currency": "USD"
@@ -850,7 +843,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "The only place in Britain where you can get into the natural thermal water, two minutes from the Roman ones you were not allowed to touch this morning. Book the two-hour session; robe, towel and slippers are included and hiring them separately is a needless extra. Last entry is two hours before closing and they are strict about it. Go up to the open-air rooftop pool in the last of the light with the Abbey floodlit over the parapet — that fifteen minutes is what the ticket is for. Over-16s only in most sessions, and it is busiest at weekends from about 14:00.",
+          "notes": "The only place in Britain where you can get into the natural thermal water, two minutes from the Roman ones you were not allowed to touch this morning. Book the two-hour session; robe, towel and slippers are included and hiring them separately is a needless extra. Last entry is two hours before closing and they are strict about it. Go up to the open-air rooftop pool in the last of the light with the Abbey floodlit over the parapet — that fifteen minutes is what the ticket is for. It is busiest at weekends from about 14:00. Verified 2026-09-06: the New Royal Bath main spa runs 09:00–21:30 with the pools and Wellness Suite closing at 21:00, every day except 25–26 December and 1 January; the two-hour session is the Thermae Welcome and robe, towel and slippers are included in it; and 16 is the minimum age for admission outright, not just for most sessions, with 18 the minimum for treatments.",
           "cost": {
             "amountMinor": 6000,
             "currency": "USD"
@@ -969,7 +962,7 @@
           "tags": [
             "meal"
           ],
-          "notes": "A mustard-yellow pub alone on the B3306 about a mile past Zennor — book, because it is the only kitchen for miles and it fills with people who drove. The bar menu comes out of the same kitchen for half the price of the dining room and is what to order after four hours of walking. They will keep a table if you call. The Tinners Arms in Zennor village itself is the shorter walk and does a decent pint and a plainer plate if you are done in.",
+          "notes": "A mustard-yellow pub alone on the B3306 about a mile past Zennor — book, because it is the only kitchen for miles and it fills with people who drove. The bar menu comes out of the same kitchen for half the price of the dining room and is what to order after four hours of walking. They will keep a table if you call. The Tinners Arms in Zennor village itself is the shorter walk and does a decent pint and a plainer plate if you are done in. Verified 2026-09-06: open every day except 25 and 26 December, doors from 10:00 for coffee, lunch served 12:00–14:30 (Sunday lunch to 15:00) and supper 18:00–21:00, with the short bar menu running 12:00–20:00 every day except Sunday. Arriving off the path at 13:30 gets you inside lunch service; on a Sunday there is no bar menu, so it is the full Sunday lunch or nothing.",
           "cost": {
             "amountMinor": 5800,
             "currency": "USD"
@@ -997,7 +990,7 @@
           "title": "Porthcurno beach on the falling tide",
           "timeWindow": {
             "start": "16:00",
-            "end": "17:00"
+            "end": "17:30"
           },
           "location": {
             "name": "Porthcurno beach",
@@ -1008,34 +1001,13 @@
           "tags": [
             "outdoors"
           ],
-          "notes": "Check the Newlyn tide tables before you fix the time of this stop, and treat everything else in the afternoon as movable around it. At high water on a spring tide there is essentially no beach here — the sand is gone and the cove is a wall of surf against the rocks. On the ebb it opens into the white shell sand that made the place famous, and the walk round to Pedn Vounder appears at the eastern end. That crossing is cut off by the sea and people get stranded there every single summer; do not start it on a rising tide."
-        },
-        {
-          "title": "The Minack Theatre",
-          "timeWindow": {
-            "start": "17:15",
-            "end": "18:15"
-          },
-          "location": {
-            "name": "The Minack Theatre",
-            "city": "Porthcurno",
-            "area": "West Penwith"
-          },
-          "kind": "booked",
-          "tags": [
-            "ticketed"
-          ],
-          "notes": "Daytime entry is timed and booked online, and on performance days the site closes to sightseers in the early afternoon — check the what's-on before you plan an afternoon here, because turning up to a locked gate is the standard Minack disappointment. If you are coming for a show instead, bring a cushion and a waterproof: the seats are concrete, performances go ahead in rain, and the wind off the sea at nine at night is colder than the day suggests. Parking is on site and small.",
-          "cost": {
-            "amountMinor": 2400,
-            "currency": "USD"
-          }
+          "notes": "Check the Newlyn tide tables before you fix the time of this stop, and treat everything else in the afternoon as movable around it. At high water on a spring tide there is essentially no beach here — the sand is gone and the cove is a wall of surf against the rocks. On the ebb it opens into the white shell sand that made the place famous, and the walk round to Pedn Vounder appears at the eastern end. That crossing is cut off by the sea and people get stranded there every single summer; do not start it on a rising tide. Window widened to 17:30 in the 2026-09-06 pass, because the afternoon no longer has a Minack daytime slot to be back for."
         },
         {
           "title": "Dinner at The Old Coastguard, Mousehole",
           "timeWindow": {
-            "start": "19:30",
-            "end": "21:30"
+            "start": "18:00",
+            "end": "19:30"
           },
           "location": {
             "name": "The Old Coastguard, The Parade",
@@ -1046,9 +1018,30 @@
           "tags": [
             "meal"
           ],
-          "notes": "Same owners as the Gurnard's Head, a terrace of palms above the water, and the fish is whatever came into Newlyn that morning. Book. Mousehole's harbour road is one car wide with no turning space and residents' permits on most of it — park in the car park at the top of the village and walk down the hill, which takes five minutes and saves an argument. The village is at its best out of season, and in late December it is lit up for the harbour lights and unbookable.",
+          "notes": "Same owners as the Gurnard's Head, a terrace of palms above the water, and the fish is whatever came into Newlyn that morning. Book. Mousehole's harbour road is one car wide with no turning space and residents' permits on most of it — park in the car park at the top of the village and walk down the hill, which takes five minutes and saves an argument. The village is at its best out of season, and in late December it is lit up for the harbour lights and unbookable. Moved 2026-09-06 to an early sitting, because the Minack stop had to become an evening performance. Check when you book that the kitchen is serving from 18:00 and say you are going on to a show — the sister pub at Zennor starts supper at 18:00, but confirm it rather than assume it.",
           "cost": {
             "amountMinor": 7800,
+            "currency": "USD"
+          }
+        },
+        {
+          "title": "The Minack Theatre, evening performance",
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:15"
+          },
+          "location": {
+            "name": "The Minack Theatre",
+            "city": "Porthcurno",
+            "area": "West Penwith"
+          },
+          "kind": "booked",
+          "tags": [
+            "ticketed"
+          ],
+          "notes": "CORRECTED 2026-09-06 — the stop as written was impossible. Theatre-and-garden daytime visits run 10:00–17:00 with last entry at 15:30, and last entry moves earlier still on performance days, so a 17:15 sightseeing visit does not exist: you cannot walk in at 17:15 on any day of the year, let alone after six miles of coast path and a long lunch. The honest way to be at the Minack in the evening is a show. The 2026 season runs April to October; pre-booking is essential and tickets are released roughly two months ahead, so this is booked before the trip, not during it. Bring a cushion and a waterproof — the seats are cut into the cliff, performances go ahead in rain, and the wind off the sea at ten at night is far colder than the afternoon suggests. Parking is on site and small. From November to February the site is closed to visitors on Mondays and Tuesdays. If there is no show on your date, do the daytime visit on a different and much shorter day, and be through the gate before 15:30.",
+          "cost": {
+            "amountMinor": 2400,
             "currency": "USD"
           }
         }
@@ -1079,8 +1072,8 @@
         {
           "title": "Nant Peris park-and-ride and the Sherpa bus up to Pen-y-Pass",
           "timeWindow": {
-            "start": "06:45",
-            "end": "07:15"
+            "start": "06:50",
+            "end": "07:25"
           },
           "location": {
             "name": "Nant Peris park-and-ride",
@@ -1088,7 +1081,7 @@
             "area": "Eryri"
           },
           "kind": "transit",
-          "notes": "Pen-y-Pass has about a hundred spaces, it is pre-book only, and the slots go weeks ahead in summer — driving up there on spec means driving back down again. Everyone local uses Nant Peris instead: cheap all-day parking at the bottom of the pass and the Sherpa'r Wyddfa S1 up the hill for a couple of pounds. Check the first departure the night before, because the timetable changes with the season and the early bus is the whole plan. Verges on the A4086 are double-yellowed and actively ticketed.",
+          "notes": "Pen-y-Pass has about a hundred spaces, it is pre-book only, and the slots go weeks ahead in summer — driving up there on spec means driving back down again. Everyone local uses Nant Peris instead: cheap all-day parking at the bottom of the pass and the Sherpa'r Wyddfa S1 up the hill for a couple of pounds. Verified 2026-09-06: the high-season Sherpa'r Wyddfa timetable runs through to Sunday 1 November 2026, the first S1 leaves the Nant Peris Park & Ride for Pen-y-Pass at 07:15, and the last bus back down from Pen-y-Pass is 19:30. S1, S2 and S5 between them give a bus every 15 minutes at weekends and in school holidays, every 30 minutes otherwise. The Park & Ride itself cannot be pre-booked — it is Pen-y-Pass that is pre-book only. This window has been set to 06:50–07:25 to match that 07:15 departure. Verges on the A4086 are double-yellowed and actively ticketed.",
           "cost": {
             "amountMinor": 500,
             "currency": "USD"
@@ -1182,25 +1175,25 @@
           "tags": [
             "meal"
           ],
-          "notes": "The climbers' cafe at the centre of British mountaineering for fifty years — bright walls, a wall of route guides and logbooks you are meant to read, and mugs of tea that hold a pint because that is what people coming off a hill want. Enormous portions and cheap. Cash still gets a warmer reception than a card. Upstairs has the weather forecasts pinned up, which is how everyone here decides tomorrow.",
+          "notes": "The climbers' cafe at the centre of British mountaineering for fifty years — bright walls, a wall of route guides and logbooks you are meant to read, and mugs of tea that hold a pint because that is what people coming off a hill want. Enormous portions and cheap. Verified 2026-09-06: Pete's Eats shut in September 2022 and did not reopen until November 2025, under new ownership and after a long refurbishment — so anything written between those dates calling it gone is stale, and anything describing the old room may no longer match. Published hours disagree between listings, so check the day you are going rather than assuming it is open late, and do not count on the old cash-preferred habit either way. Upstairs has the weather forecasts pinned up, which is how everyone here decides tomorrow.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
           }
         },
         {
-          "title": "The National Slate Museum and Dolbadarn Castle",
+          "title": "Dolbadarn Castle and the lake path — the Slate Museum is shut",
           "timeWindow": {
             "start": "17:00",
             "end": "18:15"
           },
           "location": {
-            "name": "National Slate Museum, Padarn Country Park",
+            "name": "Dolbadarn Castle, Llyn Padarn",
             "city": "Llanberis",
             "area": "Padarn Country Park"
           },
           "kind": "idea",
-          "notes": "Free entry, in the workshops of the Dinorwig quarry that hangs above the town — the slate landscape of northwest Wales became a World Heritage Site in 2021 and this is the room that explains why. The slate-splitting demonstration is the best twenty minutes in Llanberis and runs only a few times a day, so check the board when you arrive rather than wandering in at closing. Dolbadarn Castle is a ten-minute walk round the lake, a single Welsh round tower from the 1200s, free and open."
+          "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the National Slate Museum has been closed since November 2024 for a redevelopment now costed at about £25m, construction only started on site in November 2025, and the reopening has slipped from 2026 to 2027. There is nothing to walk into: no slate-splitting demonstration, no workshops, no cafe, no free entry, because there is no open museum. Amgueddfa Cymru is running the collection as 'Museum on the Move' out of partner venues across the slate World Heritage Site while the work goes on, so check where it is showing if the slate story is why you came. What is still here, still free and still open is Dolbadarn Castle — a single Welsh round tower from the 1200s on the knoll above Llyn Padarn, ten minutes on foot from the village — and the path round the lake below it, which is the better hour anyway with a day on the mountain behind you."
         },
         {
           "title": "Pizza and a pint at Gallt y Glyn",
@@ -1303,7 +1296,7 @@
           "tags": [
             "ticketed"
           ],
-          "notes": "A ring fort a kilometre south of the dolmen, still being excavated, on the family's own land. The sheepdog demonstrations run at fixed times a few times a day and are the reason to come — build the late morning around the one you want rather than turning up and hoping. Fort and dogs are sold together or separately and the combined ticket is the better value. Seasonal: much reduced from November to March, so check before making it the anchor of a winter day.",
+          "notes": "A ring fort a kilometre south of the dolmen, still being excavated, on the family's own land. The sheepdog demonstrations run at fixed times a few times a day and are the reason to come — build the late morning around the one you want rather than turning up and hoping. Fort and dogs are sold together or separately and the combined ticket is the better value. Seasonal: much reduced from November to March, so check before making it the anchor of a winter day. Verified 2026-09-06: the sheepdog demonstrations run daily at fixed times, and the times published are a late-morning slot (commonly 11:15) and an early-afternoon one (around 14:00–14:15). Confirm the day's times on the fort's own site before you fix this window — it is the demonstration that has to be caught, not the fort.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
@@ -1324,32 +1317,28 @@
           "tags": [
             "meal"
           ],
-          "notes": "Free to walk into, at the end of a boreen you will be certain is the wrong turning — keep going. The tea room is garden vegetables, brown bread and cake, it is small, and it shuts earlier in the day than the perfumery does, so eat first and browse after. Cash is easier than card out here and the mobile signal is nil.",
+          "notes": "Free to walk into, at the end of a boreen you will be certain is the wrong turning — keep going. The tea room is garden vegetables, brown bread and cake, it is small, and it shuts earlier in the day than the perfumery does, so eat first and browse after. Cash is easier than card out here and the mobile signal is nil. Verified 2026-09-06: the perfumery is open seven days a week, 10:00–17:00, but the tea room runs only from St Patrick's Day to the end of October. From November to mid-March there is no lunch here at all — just a Winter Warming Room with complimentary coffee and biscuits — so a winter version of this day has to find its lunch elsewhere.",
           "cost": {
             "amountMinor": 1600,
             "currency": "USD"
           }
         },
         {
-          "title": "Late lunch at the Wild Honey Inn",
+          "title": "Through Lisdoonvarna to Doolin — not lunch at the Wild Honey Inn",
           "timeWindow": {
             "start": "14:30",
             "end": "16:00"
           },
           "location": {
-            "name": "Wild Honey Inn, Kincora Road",
+            "name": "Lisdoonvarna and the road to Doolin",
             "city": "Lisdoonvarna",
             "area": "North Clare"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
-            "meal"
+            "outdoors"
           ],
-          "notes": "The first pub in Ireland to hold a Michelin star, and still a pub — you eat in the bar. It does not serve every day of the week and the days change with the season, so ring rather than assume; a closed Wild Honey with no plan B is a long drive to a chip van. Book if you can. Lisdoonvarna is otherwise a spa town that spends September being the matchmaking festival, which is a very different experience of the same street.",
-          "cost": {
-            "amountMinor": 5800,
-            "currency": "USD"
-          }
+          "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the Wild Honey Inn serves DINNER ONLY, Wednesday to Saturday, and its season runs roughly March to September. There is no lunch service to book at 14:30 on any day of the week, so 'a late lunch at the Wild Honey' is a stop that cannot happen and a plan built on it strands you in Lisdoonvarna at half past two with nothing arranged. If you want it — and it is worth wanting, Ireland's only Michelin-starred pub, eaten in the bar — give it its own evening, book it, and check it is in season. What is left here is an easy hour rather than a meal: the Carran tea room was this day's lunch, Lisdoonvarna is a spa town that spends September being the matchmaking festival and is a completely different street the rest of the year, and the run out to Doolin puts you at the pier in good time for the boat. Eat something in Doolin before you sail if the tea room was not enough — you are not sitting down again until after the cliffs."
         },
         {
           "title": "Under the cliffs from Doolin pier",
@@ -1367,7 +1356,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "An hour-long cruise that runs south under the cliff face and turns at Hag's Head. You do not understand that the cliffs are 214m high until you are at the bottom of them looking up, and the sea stack and the nesting ledges are invisible from the top. Sailings are cancelled outright in any real swell and the decision is made on the morning, which is why this is a hold and why the evening plan needs to survive without it. Take the seasickness advice seriously — the Atlantic here is rarely flat.",
+          "notes": "An hour-long cruise that runs south under the cliff face and turns at Hag's Head. You do not understand that the cliffs are 214m high until you are at the bottom of them looking up, and the sea stack and the nesting ledges are invisible from the top. Sailings are cancelled outright in any real swell and the decision is made on the morning, which is why this is a hold and why the evening plan needs to survive without it. Take the seasickness advice seriously — the Atlantic here is rarely flat. Verified 2026-09-06: the Cliffs of Moher cruise out of Doolin sails seven days a week from March to October only, so this stop does not exist in a winter version of the day. The trip is 45 minutes to an hour depending on conditions, and the fare is refunded if the sailing is cancelled.",
           "cost": {
             "amountMinor": 4200,
             "currency": "USD"
@@ -1377,7 +1366,7 @@
           "title": "The Cliffs of Moher, evening slot",
           "timeWindow": {
             "start": "18:30",
-            "end": "20:15"
+            "end": "20:00"
           },
           "location": {
             "name": "Cliffs of Moher Visitor Experience",
@@ -1389,7 +1378,7 @@
             "ticketed",
             "outdoors"
           ],
-          "notes": "Entry is pre-booked and timed, priced by slot, and walk-ups are not guaranteed a space — the late slots are both the cheapest and by a distance the best. Three reasons the evening wins: the cliffs face west, so at noon you are looking at a wall in its own shadow and after five they are lit end to end; the coach fleet has gone by about half five; and the site stays open past the visitor centre's hours in summer. When you get up top, turn south towards Hag's Head rather than north to O'Brien's Tower, and within ten minutes you will have the cliff path more or less to yourself. Stay behind the wall — the grass edge is undercut and the wind here comes up the face.",
+          "notes": "Entry is pre-booked and timed, priced by slot, and walk-ups are not guaranteed a space — the late slots are both the cheapest and by a distance the best. Three reasons the evening wins: the cliffs face west, so at noon you are looking at a wall in its own shadow and after five they are lit end to end; the coach fleet has gone by about half five; and you are allowed to stay out on the cliff path after the visitor centre itself has shut. When you get up top, turn south towards Hag's Head rather than north to O'Brien's Tower, and within ten minutes you will have the cliff path more or less to yourself. Stay behind the wall — the grass edge is undercut and the wind here comes up the face. Verified 2026-09-06 against the official opening hours, which are seasonal and are what make or break this evening: May to August 08:00–21:00; March, April, September and October 08:00–19:00; November to February 09:00–17:00; closed 24–26 December. Last entry to the Visitor Experience and O'Brien's Tower is 20 minutes before closing, so an 18:30 arrival works from May to October and is flatly impossible from November to February — a winter version of this day has to put the cliffs in the early afternoon and find something else for the evening. You may stay on the paths after the centre closes; the car park exit barrier lifts automatically on the way out. Book online — the official site advertises savings of up to 70% against the gate, and walk-up spaces are not guaranteed.",
           "cost": {
             "amountMinor": 1400,
             "currency": "USD"
