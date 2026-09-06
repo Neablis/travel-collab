@@ -89,7 +89,7 @@ branch is no longer prose-only.
 | 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | Open — **one defect with 8** |
 | 10 | Schedule / Timeline — `timeline-ghost` | 1728×836 | "Is ask still under construction?" | **Answered** — registry shell, M9 |
 | 11 | Schedule / Timeline — `cost-estimate-state` | 1728×836 | "Whats under construction here?" | **Answered** — registry shell, M19 |
-| 12 | Board / Timeline — day scroller | 1728×836 | Cannot scroll to day 14 or day 1; stops at day 13 | Open — **functional bug** |
+| 12 | Board / Timeline — day scroller | 1728×836 | Cannot scroll to day 14 or day 1; stops at day 13 | **Fixed** |
 
 **Groupings worth reading together.** 1 and 3 are the same complaint about the
 same thing: `variant="ghost"` (`text-slate`, no border, no background) does not
@@ -376,7 +376,24 @@ The two differ sharply in cost, which is the part worth knowing:
 copy edit, or a deliberate placeholder; this one means two of fourteen days are
 unreachable, on the trip board's primary lens.
 
-**Not diagnosed — two candidates, and it needs to be seen to choose.** The
+**Diagnosed, and it was neither guess in full: the cause is arithmetic.**
+`centralDayIndex` names the column nearest the box's reading line, which is its
+true centre horizontally. A scrollport is wider than one column, so the first
+and last columns can never bring their own centres to that line — scrolled hard
+right, an interior column still owns the centre. Nearest-to-the-line therefore
+never returns `0` or `length - 1`, and both end days were unselectable however
+far you scrolled. The `-mx-1 px-1` pattern is innocent.
+
+**Fixed** by giving `centralDayIndex` the scroll-edge state its caller measures
+(`Board.tsx`, `box.scrollLeft` against `scrollWidth - clientWidth`, 1px slack
+for fractional scroll). Being at an end is a stronger statement about what you
+are looking at than a distance is, so it wins. Proven red first at both layers:
+the unit test went `expected 11 to be 13` and `expected 1 to be +0`, and the new
+e2e test on `/demo`'s fourteen-day fixture went `Expected [13], Received [11]`
+in a real browser — day 14 unreachable, exactly as reported.
+
+**The superseded guesses, kept because being wrong in public is cheaper than
+quietly rewriting history.** The
 scroller is `className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1"`:
 
 1. **The `-mx-1 px-1` pair.** This is a deliberate pattern shared with

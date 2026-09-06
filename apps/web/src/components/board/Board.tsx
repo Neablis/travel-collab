@@ -168,10 +168,18 @@ export function Board({
       if (rect === undefined) return null;
       spans.push({ start: rect.left, size: rect.width });
     }
+    // Whether this box is scrolled hard to an end. Without it the first and
+    // last columns are unreachable: they cannot bring their centres to the
+    // reading line, so nearest-to-the-line never names them (2026-09-06
+    // preview feedback — "impossible to scroll right all the way to day 14 …
+    // same with day 1"). 1px of slack because scrollLeft is fractional under
+    // zoom and on trackpads, where an exact equality never lands.
+    const maxScroll = box.scrollWidth - box.clientWidth;
     return centralDayIndex(
       { start: boxRect.left, size: boxRect.width },
       spans,
       READING_LINE.horizontal,
+      { atStart: box.scrollLeft <= 1, atEnd: box.scrollLeft >= maxScroll - 1 },
     );
   });
 
