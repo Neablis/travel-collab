@@ -72,7 +72,7 @@ silence:
 
 ## Findings
 
-Nine threads, in the order left. Detail below the table. **Four are fixed on
+Twelve threads, in the order left. Detail below the table. **Four are fixed on
 this branch (1, 2, 3, 7); three are open and need a decision (4, 5, 6).** The
 branch is no longer prose-only.
 
@@ -87,6 +87,9 @@ branch is no longer prose-only.
 | 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
 | 8 | Schedule / Timeline — attributee | 1728×836 | A raw internal user id is printed on every timed card | Open — **one defect with 9** |
 | 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | Open — **one defect with 8** |
+| 10 | Schedule / Timeline — `timeline-ghost` | 1728×836 | "Is ask still under construction?" | **Answered** — registry shell, M9 |
+| 11 | Schedule / Timeline — `cost-estimate-state` | 1728×836 | "Whats under construction here?" | **Answered** — registry shell, M19 |
+| 12 | Board / Timeline — day scroller | 1728×836 | Cannot scroll to day 14 or day 1; stops at day 13 | Open — **functional bug** |
 
 **Groupings worth reading together.** 1 and 3 are the same complaint about the
 same thing: `variant="ghost"` (`text-slate`, no border, no background) does not
@@ -331,3 +334,63 @@ be on screen is not in doubt. What replaces it is: drop the text label and keep
 the avatar (initials stay meaningless), drop the whole attributee block until
 there is real data, or put a display name on `TripMember` — a contracts change,
 with a changelog entry and consumers updated, per invariant 5.
+
+### 10 and 11. Two "under construction" markers — both are registry shells
+
+> "Is ask still under construction? we could build this easily" — thread `hGHfcXnvmxec`
+> "Whats under construction here?" — thread `FqU55jwEb-nZ`
+
+Neither is a defect. Both selectors land on a `data-preview-id` element with
+`role="group" aria-disabled="true"` — the deliberate unbuilt-surface markers
+listed in `apps/web/src/lib/preview-registry.ts`, which this file's header
+already named as authoritative. The construction icon is the marker, not a bug.
+The two differ sharply in cost, which is the part worth knowing:
+
+- **`timeline-ghost`** (`title="Coming in M9"`, registry line 64) — *"Proposals
+  rendered inline in the timeline — the approval mechanism itself shipped in
+  PR #88"*. **Not the assistant.** It is the ghost of a proposed change drawn in
+  the timeline. "We could build this easily" is plausible here precisely because
+  the approval mechanism already exists; what is missing is the inline
+  rendering. Note the registry's own history: the neighbouring entry was
+  retagged M9 → `unplaced` on 2026-09-01 because M9's scope did not actually
+  support the claim, so M9's ownership of this one is worth re-checking before
+  committing to it.
+- **`cost-estimate-state`** (`title="Coming in M19"`, registry line 79) —
+  *"Confirmed-vs-estimate flag per cost — no field models it"*. **Not easy.** It
+  is blocked on a contract field that does not exist; M19 was minted for exactly
+  this (`docs/milestones/M19-cost-model.md`) after M11b found it mis-tagged.
+
+### 12. Board / Timeline — the first and last day columns cannot be reached
+
+> "Its impossible to scroll right all the way to day 14, because it stops at day 13. Same with day 1"
+
+- Thread: `_exXctu1bEit`
+- Route: `/trips/164138c7-…?lens=Board&view=Timeline`
+- Selector: `… > div.flex > div.-mx-1 > section.flex:nth-of-type(13) > ul.m-0 > li.rounded-md`
+- Component tree: the `role="group" aria-label="Day columns"` scroller
+  (`focusedDay={11}`) → `section[data-testid="day-column"]` for
+  `title="Day 13 — Sep 28"`.
+- Maps to: `apps/web/src/components/board/Board.tsx:356-367`.
+
+**The most serious item in this round.** Everything else here is cosmetic, a
+copy edit, or a deliberate placeholder; this one means two of fourteen days are
+unreachable, on the trip board's primary lens.
+
+**Not diagnosed — two candidates, and it needs to be seen to choose.** The
+scroller is `className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1"`:
+
+1. **The `-mx-1 px-1` pair.** This is a deliberate pattern shared with
+   `ui/sheet.tsx` and `ui/dialog.tsx`, which use it so a focus ring is not
+   clipped by the scrollport — `overlays.test.tsx:129` pins it. It pulls the
+   container 4px wider than its parent each side while padding 4px back in, so
+   an ancestor that clips would eat both ends. That matches "same with day 1"
+   symmetrically, but 4px is small to describe as a whole column.
+2. **The focus-following scroll.** `useFollowFocusedDay` (line 181) drives
+   `scrollRef` from `focusedDay`, which the capture shows as `11`. Programmatic
+   scrolling that competes with a manual drag would explain a hard stop better
+   than 4px of padding does.
+
+The symmetry across both ends favours the first; the magnitude favours the
+second. Left open rather than guessed: this is a functional regression and
+deserves a real repro at 1728×836 with fourteen days, plus an e2e test that
+reaches the first and last column, since nothing currently covers it.
