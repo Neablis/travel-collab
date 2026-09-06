@@ -512,3 +512,25 @@ lock. A wheel gesture does not move it — with or without the lock that was
 written for it — so Radix's modal lock is already doing that job and the fix was
 deleted rather than shipped as decoration. Only `overscroll-contain` shipped,
 labelled as unverified.
+
+## Thread 17, 06:51 — and it closes a question left open on 2026-08-30
+
+> "on the map view page on mobile, I'm able to scroll way off the page"
+
+- Thread: `qJYYDdp_FTDW`, `/trips/081f2e6d-…?lens=Map`, Chrome 152 on Android, 912×1685
+- Selector: `body > div.phone-tab-bar-inset > main.mx-auto > div.flex > div.trip-board-content > header.sticky > div.flex`
+- Maps to: `apps/web/src/components/lenses/MapLens.tsx:90-104` and `:526-529`
+
+**This is the same defect as finding 12 of the 2026-08-30 pass** — *"I was able
+to scroll way past the bottom, not sure how, its not a always thing"* — which
+was left open with an explicit **"Needs: which lens, and what you had just
+done"**. This names the lens. Filed as `KI-2026-09-06-g` with the mechanism:
+the canvas is sized in `100dvh`, and `dvh` grows as Android's URL bar
+collapses, so scrolling makes the canvas taller, which makes the document
+taller, which allows more scrolling. `svh` is the candidate fix and is not
+free — it reintroduces, by the toolbar's height, the under-map strip that the
+same 2026-08-30 pass fixed as its finding 8.
+
+**Not fixed here**, because the loop needs a browser with a dynamic toolbar and
+Playwright's desktop Chromium has none: `dvh`, `svh` and `lvh` are one number
+in this harness, so no test written here could tell the fix from the bug.
