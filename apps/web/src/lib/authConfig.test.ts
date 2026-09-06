@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { devLoginIdentity } from "./authConfig";
+import { devLoginIdentity, googleProfile } from "./authConfig";
 
 // Dev login exists to resemble a real Google sign-in closely enough that
 // email-shaped features are testable end to end (ADR-025's seam, and the gap
@@ -216,16 +216,24 @@ describe("the session token's environment claim", () => {
 
   // The callback is plain data on authConfig, so it can be called directly
   // rather than driven through a whole sign-in.
-  const jwt = async (args: { token: Record<string, unknown>; user?: { id?: string } }) => {
+  const jwt = async (args: {
+    token: Record<string, unknown>;
+    user?: { id?: string };
+    account?: { providerAccountId?: string } | null;
+  }) => {
     const { authConfig } = await import("./authConfig");
     return (authConfig.callbacks!.jwt as unknown as (a: unknown) => unknown)(args) as
       | Record<string, unknown>
       | null;
   };
 
+  // A sign-in always carries an account — it is where the durable subject
+  // lives, and since 2026-09-05 a mint with no account mints nothing at all.
+  const signingIn = { user: { id: "dev-alice" }, account: { providerAccountId: "dev-alice" } };
+
   it("stamps the minting environment on the token at sign-in", async () => {
     await withEnv("preview", async () => {
-      expect(await jwt({ token: {}, user: { id: "dev-alice" } })).toMatchObject({
+      expect(await jwt({ token: {}, ...signingIn })).toMatchObject({
         userId: "dev-alice",
         env: "preview",
       });
@@ -262,9 +270,102 @@ describe("the session token's environment claim", () => {
 
   it("treats off-Vercel as one stable environment, so local dev and the test lane work", async () => {
     await withEnv(undefined, async () => {
-      const minted = await jwt({ token: {}, user: { id: "dev-alice" } });
+      const minted = await jwt({ token: {}, ...signingIn });
       expect(minted).toMatchObject({ env: "development" });
       expect(await jwt({ token: minted! })).not.toBeNull();
     });
+  });
+});
+
+// The Google provider's identity mapping (2026-09-05 regression, see
+// `server/users.test.ts` for the full mechanism).
+//
+// @auth/core's `defaultProfile` maps `id: profile.sub` — a bare 21-digit
+// string — and that `id` survives only as `account.providerAccountId`. This
+// override exists so the Google provider NAMESPACES its own subject, exactly
+// as dev login already namespaces its username as `dev-<username>`. With both
+// providers doing that, the identity seam in `server/users.ts` reads
+// `account.providerAccountId` with no per-provider branching at all.
+describe("googleProfile", () => {
+  // The claim shape Google's OIDC userinfo actually returns.
+  const raw = {
+    sub: "104928374651029384756",
+    name: "Mitchell DeMarco",
+    email: "neablis121@gmail.com",
+    picture: "https://lh3.googleusercontent.com/a/ACg8ocJ",
+  };
+
+  it("namespaces Google's subject, the way dev login namespaces its username", () => {
+    expect(googleProfile(raw).id).toBe("google-104928374651029384756");
+  });
+
+  it("is stable across sign-ins — the same Google account is the same id, forever", () => {
+    const ids = new Set([googleProfile(raw).id, googleProfile({ ...raw }).id, googleProfile(raw).id]);
+    expect(ids.size).toBe(1);
+  });
+
+  it("carries through exactly the profile fields the users row keeps", () => {
+    expect(googleProfile(raw)).toEqual({
+      id: "google-104928374651029384756",
+      name: "Mitchell DeMarco",
+      email: "neablis121@gmail.com",
+      image: "https://lh3.googleusercontent.com/a/ACg8ocJ",
+    });
+  });
+
+  // `sub` is the one claim OIDC guarantees; the rest are optional, and a
+  // Google account can carry no picture. Absent must not become "undefined".
+  it("survives a profile carrying nothing but its subject", () => {
+    expect(googleProfile({ sub: "1" })).toEqual({
+      id: "google-1",
+      name: null,
+      email: null,
+      image: null,
+    });
+  });
+});
+
+// The other half of the 2026-09-05 identity fix. `token.userId` is what
+// `session.user.id` is read from on every request, so if it is minted from the
+// throwaway `user.id` then every authenticated request for that whole 30-day
+// cookie is acting as an account that only exists for this one sign-in. The
+// `signIn` callback and this one must agree, or the gate admits one identity
+// and the session carries another.
+describe("the session token's identity claim", () => {
+  const jwt = async (args: {
+    token: Record<string, unknown>;
+    user?: { id?: string };
+    account?: { provider?: string; providerAccountId?: string } | null;
+  }) => {
+    const { authConfig } = await import("./authConfig");
+    return (authConfig.callbacks!.jwt as unknown as (a: unknown) => unknown)(args) as
+      | Record<string, unknown>
+      | null;
+  };
+
+  it("stamps the provider's durable subject, not the id Auth.js re-rolls each sign-in", async () => {
+    const minted = await jwt({
+      token: {},
+      user: { id: "3c469060-84e8-4e8b-996a-5bd886ab2c2b" },
+      account: { provider: "google", providerAccountId: "google-104928374651029384756" },
+    });
+    expect(minted).toMatchObject({ userId: "google-104928374651029384756" });
+  });
+
+  it("carries dev login's subject through unchanged", async () => {
+    expect(
+      await jwt({
+        token: {},
+        user: { id: "dev-alice" },
+        account: { provider: "dev-login", providerAccountId: "dev-alice" },
+      }),
+    ).toMatchObject({ userId: "dev-alice" });
+  });
+
+  // Fail-closed, and unreachable in practice: `recordSignIn` has already
+  // refused a sign-in with no durable subject by the time this runs. Minting a
+  // session off `user.id` here would resurrect the bug behind a passing gate.
+  it("mints no session at all when there is no durable subject to name it by", async () => {
+    expect(await jwt({ token: {}, user: { id: "3c469060-84e8-4e8b-996a-5bd886ab2c2b" }, account: null })).toBeNull();
   });
 });
