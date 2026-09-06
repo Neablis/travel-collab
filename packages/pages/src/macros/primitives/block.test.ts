@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderMacro } from "../../registry";
 import type { ItineraryTripPayload, WidgetContext } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
+import { formatDate } from "../../format";
 
 // `block` is the shape ADR-039 was written about: `itinerary.trip` rendered a
 // list of lists because *"nothing in the model said what a block widget does
@@ -27,7 +28,13 @@ describe("day.detail", () => {
           kind: "itinerary-day",
           dayId: fixture.trip.days[0]!.dayId,
           ordinal: 1,
-          date: "2027-06-01",
+          // Through the shared formatter, not a hard-coded "Jun 1, 2027" — the
+          // same reasoning `rows.test.ts` gives: a literal here would pass just
+          // as happily if the payload went back to emitting the ISO and someone
+          // updated this file to match. That is not hypothetical; this line
+          // asserted the raw `"2027-06-01"` until 2026-09-06, which is how the
+          // date reached the page as a timestamp with a green suite behind it.
+          date: formatDate("2027-06-01"),
           activities: [
             { title: "Colosseum", timeWindow: "09:00–10:00", cost: expect.any(String) },
             { title: "Lunch", timeWindow: "12:00–13:00", cost: expect.any(String) },
@@ -46,6 +53,10 @@ describe("day.detail", () => {
     // NOT a stack of day cards, which is the bug ADR-039 was written about.
     expect(payload.kind).toBe("itinerary-trip");
     expect(payload.days.map((d) => d.ordinal)).toEqual([1, 2, 3]);
+    // And each dated day carries a date a person reads. The card test above
+    // covers one day; this is the many-day path, which renders through a
+    // different component and had the same raw ISO.
+    expect(payload.days.map((d) => d.date)).toEqual([formatDate("2027-06-01"), formatDate("2027-06-02"), null]);
     expect(payload.days.map((d) => d.activities.map((a) => a.title))).toEqual([
       ["Colosseum", "Lunch"],
       ["Train to Kyoto", "Ryokan"],

@@ -228,6 +228,26 @@ describe("AuthScreen", () => {
     expect(screen.queryByText("MISSING_INVITE_CODE")).toBeNull();
   });
 
+  // 2026-09-06 preview feedback, finding 2. The refusal used to be one dense
+  // line joining two instructions with an em dash, which buried the second one.
+  // The paragraph split is the fix, so it is the thing worth pinning: asserting
+  // only on the words would still pass if they collapsed back into one block.
+  it("breaks the missing-invite refusal into why-shut and what-to-do paragraphs", () => {
+    searchParams = new URLSearchParams("error=MISSING_INVITE_CODE");
+    render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);
+
+    const why = screen.getByText(/we are requiring invite codes at this time/);
+    const what = screen.getByText(/Follow Create an account below/);
+
+    expect(why.tagName).toBe("P");
+    expect(what.tagName).toBe("P");
+    // Two separate paragraphs, not one element holding both sentences.
+    expect(why).not.toBe(what);
+    expect(why.textContent).not.toMatch(/Follow Create an account below/);
+    // The em dash that joined the two instructions is gone.
+    expect(screen.getByRole("status").textContent).not.toContain("—");
+  });
+
   it("tells someone with an unrecognised code to check it and who to ask", () => {
     searchParams = new URLSearchParams("error=INVALID_INVITE_CODE");
     render(<AuthScreen mode="signin" devLoginEnabled={false} googleAvailable />);

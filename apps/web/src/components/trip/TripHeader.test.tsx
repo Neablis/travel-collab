@@ -258,18 +258,21 @@ describe("TripHeader restyle (Task 9)", () => {
   // day moved out of the header entirely (Task 1.4, M10 Wave 2 — the design
   // moved it into the plan flow; Phase 6 rebuilds it there), so it's no
   // longer part of this component to assert on.
-  // M11 link 4 made Share real. What this header is still responsible for is
-  // mounting it for THIS trip and not letting it touch the board — the panel's
-  // own behaviour is ShareButton.test.tsx's territory.
-  it("Share opens its own panel and changes nothing about the trip", async () => {
-    const { getEditorState } = await renderHeader();
+  // **Share is not in this header any more, at any width.** Mitchell,
+  // 2026-09-06: *"Put share in the trip settings under invite someone, both
+  // here and in mobile"*. `SettingsSheet` mounts the only `ShareButton` on a
+  // trip now, and `SettingsSheet.test.tsx` owns the assertions about it.
+  //
+  // Asserted as an absence, in the owner case, because a reader-only assertion
+  // would pass on a header that still showed it to owners — which is exactly
+  // the state this replaced.
+  it("does not offer Share — that lives in Trip settings now", async () => {
+    await renderHeader();
 
-    await userEvent.click(screen.getByRole("button", { name: "Share" }));
-
-    expect(await screen.findByTestId("share-panel")).toBeTruthy();
-    expect(sendTripCommandMock).not.toHaveBeenCalled();
-    expect(pushMock).not.toHaveBeenCalled();
-    expect(getEditorState()).toEqual({ mode: null });
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    // The actions that have nowhere else to live are untouched.
+    expect(screen.getByRole("button", { name: "Add stop" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "History" })).toBeTruthy();
   });
 
   it("keeps the view tabs and day chips inside the sticky header", async () => {
@@ -301,8 +304,7 @@ describe("TripHeader viewer gating", () => {
     expect(await screen.findByText("Viewer")).toBeTruthy();
     // Sharing is an editor capability (ADR-027), so it is absent rather than
     // disabled — the way Delete is absent for a non-owner in the settings
-    // sheet. A disabled Share still reads as an offer.
-    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    // sheet.
     // Absent, not disabled (KI-64). This asserted `disabled === true` until
     // the header was the last greyed control on a board ADR-031 had otherwise
     // gone quiet: same reasoning as Share one line up, applied to the button
@@ -323,7 +325,6 @@ describe("TripHeader viewer gating", () => {
     await renderHeader();
 
     expect(screen.queryByText("Viewer")).toBeNull();
-    expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
 
     await userEvent.click(screen.getByRole("button", { name: "History" }));
@@ -370,7 +371,7 @@ describe("TripHeader — the access read failed", () => {
 // which runs in a browser; these are the cheap regression guard for the
 // breakpoint itself, which a browser test would not tell you the number of.
 describe("TripHeader on a phone", () => {
-  it("puts Share and the meta/budget row behind the 768px breakpoint, and nothing else", async () => {
+  it("puts the meta/budget row behind the 768px breakpoint, and nothing else", async () => {
     await renderHeader(
       <>
         <div role="tablist" aria-label="Trip view" />
@@ -381,8 +382,10 @@ describe("TripHeader on a phone", () => {
     // `md:` IS 768px — the line globals.css already draws between "narrow but
     // still a shrinkable plan" and "phone" (`.assistant-rail`,
     // `.unscheduled-rack`) and the one `useIsPhone` reads.
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(screen.getByTestId("trip-header-share").className).toBe("hidden md:block");
+    //
+    // Share used to be the other half of this assertion, at `hidden md:block`.
+    // It is not behind the breakpoint any more — it is out of this header
+    // entirely, which the owner-case test above asserts.
     // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByTestId("trip-meta-row").className).toMatch(/(^| )hidden( |$)/);
     // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.

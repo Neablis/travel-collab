@@ -64,6 +64,108 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
+  // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
+  // Rename button: *"rename shouldn't be a button here, the title should be at
+  // the top of the notebook as a h1 and when you edit the title it does the
+  // actual edit/rename"*. The claim moved here with the surface — this used to
+  // be `NotebookScreen.test.tsx`'s "renames a page via the client".
+  it("renames the page when its heading is edited", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    const onUpdate = vi.fn();
+    server.use(
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Still a heading, and now the page's `h1`. Reading owns no chrome (§18),
+    // so the title takes a caret only in Editing.
+    const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    // `getAttribute`, not `isContentEditable`: jsdom does not implement the
+    // property, and it reads `undefined` rather than `false` — which is how the
+    // first cut of this test passed its own "not editable yet" assertion by
+    // accident.
+    expect(heading.getAttribute("contenteditable")).toBe("false");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(heading.getAttribute("contenteditable")).toBe("true");
+
+    // `contentEditable` is not an input: `userEvent.type` drives the browser's
+    // own editing behaviour, which jsdom does not implement, so the text is set
+    // the way the element's own `onBlur` reads it back.
+    heading.textContent = "Renamed Page";
+    // `focusout`, not `blur`. React has routed `onBlur` through the bubbling
+    // `focusout` event since 17, so a dispatched `blur` reaches no handler at
+    // all — and a test that dispatched one would pass its "nothing was renamed"
+    // sibling below for entirely the wrong reason.
+    await act(async () => {
+      heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+
+    await waitFor(() =>
+      expect(onUpdate).toHaveBeenCalledWith(page.id, expect.objectContaining({ title: "Renamed Page" })),
+    );
+    expect(screen.getByRole("heading", { name: "Renamed Page", level: 1 })).toBeTruthy();
+  });
+
+  // Two renames in flight at once, finishing out of order. CodeRabbit on #149:
+  // *"Line 295 restores `previousTitle` even when a newer rename has already
+  // succeeded."* A slow first PATCH that fails after a fast second one
+  // succeeded used to put the ORIGINAL title back over the name the user can
+  // see — the screen would then disagree with the server about what the
+  // notebook is called, and only a reload would settle it.
+  it("does not let a stale rename roll back a newer one", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    // The first PATCH is held open until the test releases it; nothing about
+    // the ordering is a matter of timing luck.
+    let releaseFirst: (() => void) | null = null;
+    const firstSent = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let seen = 0;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const patch = (await request.json()) as { title?: string };
+        seen += 1;
+        if (seen === 1) {
+          await firstSent;
+          return HttpResponse.json({ error: "boom" }, { status: 500 });
+        }
+        return HttpResponse.json({
+          page: { ...page, title: patch.title ?? page.title, updatedAt: new Date().toISOString() },
+        });
+      }),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+
+    const rename = async (title: string) => {
+      heading.textContent = title;
+      await act(async () => {
+        heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+      });
+    };
+
+    await rename("First name");
+    await rename("Second name");
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name"));
+
+    // Now the first rename fails, long after the second one landed.
+    await act(async () => {
+      releaseFirst?.();
+      await firstSent;
+    });
+
+    await waitFor(() => expect(seen).toBe(2));
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name");
+  });
+
   it("resolves a day macro's own params against the loaded TripDetail", async () => {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({

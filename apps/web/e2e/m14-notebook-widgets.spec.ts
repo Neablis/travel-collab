@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eTripName } from "./tripNames";
 
 // M14's builder half, walked the way a person walks it.
@@ -199,6 +199,39 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
 });
 
+/**
+ * Walk the pointer to a block widget's bind control, the way a person does.
+ *
+ * Since 2026-09-06 a block widget's controls are a popover revealed on hover or
+ * focus of the widget — Mitchell: *"I dont care about always visible, people
+ * editing the one they are focusing on. Reveal on hover/focus."* Until then
+ * they are `opacity-0 pointer-events-none`, so a click on one waits out its
+ * actionability check.
+ *
+ * **The stepped move is the point, not a flourish.** Playwright's own `hover()`
+ * and `click()` teleport the pointer, so they would cross any dead space
+ * between the widget and its popover without ever landing in it. A person's
+ * pointer cannot. The first cut of this popover had `mt-1` — a 4px band that
+ * hit-tests as neither element — so travelling to the control dropped
+ * `group-hover` and the panel vanished as it was being reached; Copilot caught
+ * it by reading, and a teleporting test never would. Moving in steps makes
+ * every walk below a regression test for that gap.
+ *
+ * A `single` widget's chrome is still inline and always visible, so this is
+ * harmless there too — no caller needs to know which shape it has.
+ */
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error("expected an on-screen element, got one with no box");
+  return box;
+}
+
+async function reachChrome(page: Page, control: Locator) {
+  await page.locator("[data-macro-name]").filter({ has: control }).first().hover();
+  const box = await boxOf(control);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 });
+}
+
 test("two widgets on one page read two different days", async ({ page }) => {
   // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
   // notebook that shows day 1, day 3 and day 9". Each widget carries its own
@@ -214,7 +247,9 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // position: a primitive declares up to five controls now (ADR-039 decision
   // 1), so "the first two comboboxes on the page" are both the first widget's.
   const pickDay = async (widget: RegExp, day: RegExp) => {
-    await page.getByRole("button", { name: widget }).click();
+    const control = page.getByRole("button", { name: widget });
+    await reachChrome(page, control);
+    await control.click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
     );
@@ -228,11 +263,13 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await page.getByRole("button", { name: "Edit page" }).click();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
   // page-level control would break.
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
-  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).not.toHaveText("All days");
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText(
-    await page.getByRole("button", { name: /The days in detail: dates/ }).innerText(),
-  );
+  // Named days rather than "these two differ": the pair being different is
+  // only interesting if each is the day THIS widget was pointed at, and an
+  // inequality passes just as happily when both went wrong together. The
+  // summary is the DATE the day resolved to (`daysSummary`), not its ordinal,
+  // and the trip starts 2027-06-01 — so Day 1 and Day 2 read as the two dates.
+  await expect(page.getByRole("button", { name: /What it costs: dates/ })).toHaveText("2027-06-01");
+  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).toHaveText("2027-06-02");
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -279,42 +316,20 @@ test("a repeater renders one line per day", async ({ page }) => {
   // **Exactly two rows, one per day.** Asserting only that both labels appear
   // allows a renderer that duplicates a row or puts both leads in one — and
   // "one line per day" is precisely the claim those break (CodeRabbit, PR 139).
-  // A repeater renders as an ARIA list, which is what makes a ROW queryable
-  // without asserting on classes.
-  const rows = page.locator(".tc-page-editor [role='listitem']");
+  // A repeater renders as an ARIA TABLE since 2026-09-06 ("These were always
+  // meant to be tables with columns"), so a row is `role="row"` rather than
+  // `role="listitem"`. Either way the point stands: the role is what makes a
+  // ROW queryable without asserting on classes.
+  const rows = page.locator(".tc-page-editor [role='row']");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
-
-  // **A resolved value reads as a word with room around it, not flush against
-  // the prose.** Mitchell, on the preview: *"These inline elements should have
-  // a natural space at the start and end, otherwise ill need to go in and put a
-  // unnatural space."* A widget node is an inline atom, so its tinted
-  // background butted straight against the character beside it.
-  //
-  // Asserted in e2e rather than in a unit test because it is genuinely
-  // presentational: `toHaveClass` and `.className` are eslint errors in
-  // `src/**/*.test.tsx` outside `components/ui/**`, and rightly — but a
-  // computed margin is a real measurement, and e2e is where this repo already
-  // measures rendered geometry (§13's 44px floor is checked the same way).
-  //
-  // A repeater's rows are where a value definitely renders: this trip has days
-  // and dates but no costs, so an inline `cost` would resolve to its empty
-  // chip and there would be no value to measure.
-  const value = page.locator(".tc-page-editor [data-widget-value]").first();
-  await expect(value).toBeVisible();
-  const gaps = await value.evaluate((el) => {
-    const style = getComputedStyle(el);
-    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
-  });
-  expect(gaps.left).toBeGreaterThan(0);
-  expect(gaps.right).toBeGreaterThan(0);
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
   // a reload that lost Day 1 would also satisfy.
-  const afterReload = page.locator(".tc-page-editor [role='listitem']");
+  const afterReload = page.locator(".tc-page-editor [role='row']");
   await expect(afterReload).toHaveCount(2);
   await expect(afterReload.nth(0)).toContainText("Day 1");
   await expect(afterReload.nth(1)).toContainText("Day 2");
@@ -340,6 +355,8 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // Two controls, one per declared input.
   const days = page.getByRole("button", { name: /A line for every stop: dates/i });
   const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
+  // `stop.rows` is a block widget, so its chrome is the hover popover.
+  await reachChrome(page, days);
   await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
   // `stop.rows` is entity `stop`, and the matrix gives that entity every
@@ -434,4 +451,431 @@ test("an undated trip says it has no days to filter by, and is not a dead end", 
   await expect(page.getByRole("group", { name: "Trip days" })).toHaveCount(0);
   // The way out is still there.
   await expect(page.getByRole("button", { name: "All days" })).toBeVisible();
+});
+
+test("a block widget's bindings are reachable by keyboard, not only by hover", async ({ page }) => {
+  // The regression this exists for shipped and was caught by review, not by a
+  // test: the popover was hidden with `visibility: hidden`, which drops a
+  // subtree out of the accessibility tree AND out of the tab order. So the
+  // focus half of "reveal on hover/focus" could never fire — there was nothing
+  // focusable to fire it. Every other walk in this file reaches the chrome by
+  // pointer, which is exactly why none of them noticed.
+  //
+  // The pointer never goes near the widget here. That is the whole test.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The days, in detail/);
+
+  const days = page.getByRole("button", { name: /The days in detail: dates/ });
+  await days.focus();
+  await days.press("Enter");
+  // The day list itself is a portalled dialog, not part of the popover, so
+  // clicking in it says nothing about the reveal either way.
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
+  );
+  await page.keyboard.press("Escape");
+  await expect(days).toHaveText("2027-06-02");
+});
+
+test("a repeat widget is one table as wide as the card it sits in", async ({ page }) => {
+  // Geometry, because the roles cannot see this. `MacroView` builds a repeat's
+  // table out of grid and subgrid on spans — a real `<table>` would be closed
+  // out of the paragraph by the parser — and a Tailwind `block` utility on the
+  // container silently beat the display type it started with, because v4 orders
+  // `utilities` after `components`. The rows then formed their own shrink-to-fit
+  // anonymous table inside a full-width card: same roles, same text, same
+  // passing suite, and a value column floating 369px short of the card's right
+  // edge.
+  //
+  // `stop.rows` rather than a `day.detail`: only the `rows` render kind goes
+  // through this path. The block widgets next to it (`ItineraryTripBlock` and
+  // friends) carry the same roles over their own flex layout and are untouched
+  // by any of this.
+  await tripWithTwoDays(page);
+  await addTaggedStop(page, "Ramen", "Meal");
+  await addStopInCity(page, "Kinkaku-ji", "Kyoto");
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every stop/, "every stop");
+
+  const table = page.getByRole("table").first();
+  const tableBox = await boxOf(table);
+
+  // `px-3` on the cells, so the LAST cell of a row ends 12px inside the card's
+  // border. Anything narrower means the table is not the card's width.
+  //
+  // The last, not every one: since 2026-09-06 a row has a cell per column —
+  // *"The date and the city and the text shouldnt all be rolled into each
+  // other. Introduce real columns"* — and only the rightmost reaches the edge.
+  const rows = await table.getByRole("row").all();
+  expect(rows.length).toBeGreaterThan(1);
+  for (const row of rows) {
+    const cells = await row.getByRole("cell").all();
+    const last = await boxOf(cells[cells.length - 1]!);
+    expect(Math.abs(tableBox.x + tableBox.width - (last.x + last.width))).toBeLessThan(16);
+  }
+
+  // And the lead column is one column: same left edge, same width, every row.
+  // (Whether the columns AFTER it line up is the walk below's, which has the
+  // ragged rows that can tell the difference — every stop here is unscheduled
+  // and uncosted, so each row's cells are equally empty.)
+  const leads = await Promise.all((await table.getByRole("rowheader").all()).map(boxOf));
+  expect(leads.length).toBeGreaterThan(1);
+  const [firstLead, ...otherLeads] = leads;
+  for (const lead of otherLeads) {
+    expect(lead.x).toBe(firstLead?.x);
+  }
+});
+
+// Adds a stop straight through the command API, because this is the one walk
+// that needs a SCHEDULED stop and dragging one onto a day column is a whole
+// board interaction to prove a table's geometry. Everything the walk is about
+// happens after the trip is loaded, so how the stop got there is incidental.
+async function addStopViaApi(
+  page: Page,
+  tripId: string,
+  title: string,
+  extra: { dayId?: string; timeWindow?: { start: string; end: string } } = {},
+): Promise<void> {
+  const response = await page.request.post(`/api/trips/${tripId}/commands`, {
+    data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title, ...extra },
+  });
+  expect(response.ok()).toBe(true);
+}
+
+// Runs in the page: how far the widget's popover spills past the nearest
+// ancestor that clips it. Module-level so the walk below keeps no conditional
+// in its own body, and so the "nothing clips this" case is a thrown error
+// rather than a silent pass.
+function spillPastClipper(el: Element): { below: number; right: number; height: number } {
+  const box = el.getBoundingClientRect();
+  for (let node = el.parentElement; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).overflow === "visible") continue;
+    const clip = node.getBoundingClientRect();
+    return { below: box.bottom - clip.bottom, right: box.right - clip.right, height: box.height };
+  }
+  throw new Error("nothing clips this popover, so this walk proves nothing");
+}
+
+test("the bindings of the last widget in a page are not clipped by the card", async ({ page }) => {
+  // CodeRabbit, PR 149: `PageScreen` puts the editor inside a `Card` with
+  // `overflow-hidden`, and `WidgetChrome`'s popover is `absolute top-full` —
+  // so a widget at the very bottom of the document could open its controls
+  // into a strip the card cuts off, with nothing in the roles to show it.
+  //
+  // Geometry against the CLIPPING ANCESTOR, not `toBeVisible` and not a hit
+  // test after `scrollIntoViewIfNeeded`. Both of those pass on a clipped
+  // popover: an element cut off by `overflow: hidden` still has a box and is
+  // still `visible` to Playwright, and `scrollIntoViewIfNeeded` will scroll an
+  // `overflow: hidden` container — which a person with no scrollbar and no
+  // wheel cannot — and bring the hidden strip into view itself. The first cut
+  // of this walk did exactly that and passed with the popover pushed 900px
+  // down.
+  //
+  // 1100px because that is inside the band the finding named (768–1179px),
+  // where the editor is at its widest with no sidebar beside it.
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  // The END of the document, not after the first heading: `insertFromList`
+  // inserts under the `h2`, which leaves the whole rest of the page below the
+  // widget and no card edge anywhere near it.
+  await page.locator(".tc-page-editor").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Insert a widget" }).click();
+  const list = page.getByRole("dialog");
+  await expect(list).toBeVisible();
+  await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
+  await expect(list).toBeHidden();
+
+  const widget = page.locator('[data-macro-name="day.detail"]');
+  const chrome = widget.getByTestId("widget-chrome");
+  await widget.click();
+  await expect(chrome).toBeVisible();
+
+  const spill = await chrome.evaluate(spillPastClipper);
+  expect(spill.height).toBeGreaterThan(0);
+  expect(spill.below).toBeLessThanOrEqual(0);
+  expect(spill.right).toBeLessThanOrEqual(0);
+});
+
+test("a group header in a repeat table is as wide as the table", async ({ page }) => {
+  // `stop.rows` groups under day headers as soon as the selection spans more
+  // than one day (`rows.ts`: *"a header is due whenever the day changes"*), and
+  // nothing walked that path before this — every other repeat walk here uses
+  // unscheduled stops, which are one group and get no headers at all.
+  //
+  // Geometry again, and for the same reason as the walk above: a header row's
+  // single cell is a lone cell in a two-column layout, and where it stops is
+  // invisible to the roles. It used to stop at the label column's edge, because
+  // `display: table` has no way to span columns without an HTML `colspan` and a
+  // span cannot carry one — so a group label longer than the stop titles under
+  // it wrapped inside a column instead of using the row it has to itself.
+  // CodeRabbit found that on PR 149; the layout is subgrid now, and the lone
+  // cell spans `1 / -1`.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  expect(detail.ok()).toBe(true);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  const dayId = trip.days[0]!.dayId;
+
+  // A time on the scheduled stop, so the VALUE column has a width. Without one
+  // both columns' content is a title and an empty values array, the value
+  // column collapses to nothing, and a lead cell reaching the table's right
+  // edge would prove nothing about spanning.
+  await addStopViaApi(page, tripId, "Breakfast at the market", {
+    dayId,
+    timeWindow: { start: "09:00", end: "10:00" },
+  });
+  await addStopViaApi(page, tripId, "Someday: the tram museum");
+
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every stop/, "every stop");
+
+  const table = page.getByRole("table").first();
+  // Day 1 and Unscheduled: two groups, so two headers.
+  const header = table.getByRole("rowheader").filter({ hasText: "Day 1" }).first();
+  const stopLead = table.getByRole("rowheader").filter({ hasText: "Breakfast at the market" }).first();
+  await expect(header).toBeVisible();
+  await expect(stopLead).toBeVisible();
+
+  const tableBox = await boxOf(table);
+  const headerBox = await boxOf(header);
+  const leadBox = await boxOf(stopLead);
+
+  // `px-3` on every cell, so a cell filling the row ends 12px inside the
+  // table's border — the same tolerance the walk above uses.
+  expect(Math.abs(tableBox.x + tableBox.width - (headerBox.x + headerBox.width))).toBeLessThan(16);
+  // …and an ordinary lead stops well short of it, because the time is over
+  // there. This is the half that fails if the columns silently collapse.
+  expect(tableBox.x + tableBox.width - (leadBox.x + leadBox.width)).toBeGreaterThan(40);
+
+  // **The columns line up across ragged rows**, which is what Mitchell asked
+  // for on 2026-09-06: *"The date and the city and the text shouldnt all be
+  // rolled into each other. Introduce real columns"*. This trip is the case
+  // that can tell: the scheduled stop has a time, the backlog stop does not, so
+  // a renderer that skipped a row's empty cells would start the second row's
+  // cells where the first row's times begin. Only the data rows — a group
+  // header is one cell spanning the lot, by design.
+  const dataRows = table.getByRole("row").filter({ hasNot: page.getByRole("rowheader", { name: /^(Day 1|Unscheduled)$/ }) });
+  const edges = await Promise.all(
+    (await dataRows.all()).map(async (row) =>
+      Promise.all((await row.getByRole("cell").all()).map(async (cell) => (await boxOf(cell)).x)),
+    ),
+  );
+  expect(edges.length).toBeGreaterThan(1);
+  const [firstEdges, ...otherEdges] = edges;
+  expect(firstEdges?.length).toBeGreaterThan(1);
+  for (const rowEdges of otherEdges) expect(rowEdges).toEqual(firstEdges);
+});
+
+test("a selected block widget shows its bindings with the pointer nowhere near it", async ({ page }) => {
+  // The third reveal path, and the one the other two walks cannot see.
+  // `WidgetChrome` reveals its popover on hover, on focus, OR when the caret is
+  // in the widget — the last is what keeps the panel open while you pick a
+  // value from a select inside it, since choosing one moves the pointer off the
+  // widget. CodeRabbit, PR 149: hover and focus are covered by the walks above,
+  // `selected` is not, and a regression that made the selected popover
+  // invisible would pass every one of them.
+  //
+  // Read as computed opacity because that is the only observable: any
+  // Playwright action that touches the control moves the pointer onto it and
+  // reveals it by hover instead, which would make this walk prove the thing it
+  // is trying to isolate. The pointer is parked in the far corner throughout.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The days, in detail/);
+
+  const widget = page.locator('[data-macro-name="day.detail"]');
+  const chrome = widget.getByTestId("widget-chrome");
+
+  await widget.click();
+  await page.mouse.move(5, 5);
+  await expect
+    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
+      message: "the caret is in the widget and its bindings are still invisible",
+    })
+    .toBe("1");
+
+  // And it goes again when the caret leaves — otherwise every widget on a page
+  // would end up showing its controls at once, which is the state SPEC §18
+  // removed and Mitchell asked not to have back.
+  //
+  // A heading with text in it, not the empty leading paragraph: clicking an
+  // empty block leaves the node selection where it was, so the first attempt at
+  // this assertion read `opacity: 1` and looked like the popover was stuck.
+  await page.locator(".tc-page-editor h2").last().click();
+  await page.mouse.move(5, 5);
+  await expect
+    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
+      message: "the caret has left the widget and its bindings are still showing",
+    })
+    .toBe("0");
+});
+
+test("a repeat widget's rows are striped, and its values are text rather than chips", async ({ page }) => {
+  // Mitchell, 2026-09-06, on two widgets in a row: *"text in a widget table
+  // shouldn't be color coded like inline text, also add row strips to show
+  // it's a table"* and *"all tables should have row stripping, and not
+  // color.code the text like other inline text"*.
+  //
+  // Both halves are computed background colours, which is what they are:
+  // "striped" and "not tinted" have no other observable. The roles cannot see
+  // either, and the repo's lint forbids asserting the classes.
+  // `day.rows` rather than `stop.rows` or `cost.rows`: the second half of this
+  // walk needs rows that actually carry values, and this trip has neither
+  // costs (so `cost.rows` renders `empty`) nor scheduled stops (so a
+  // `stop.rows` line is a lead and nothing else). Every day here is dated, and
+  // a dated day's row carries its date as a value.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /A line for every day/, "every day");
+
+  const table = page.getByRole("table").first();
+  const backgrounds = await table
+    .getByRole("row")
+    .evaluateAll((rows) => rows.map((row) => getComputedStyle(row).backgroundColor));
+  expect(backgrounds.length).toBeGreaterThan(1);
+  // Adjacent rows differ — that is what a stripe is, whichever two colours it
+  // is drawn in.
+  for (let i = 1; i < backgrounds.length; i += 1) {
+    expect(backgrounds[i]).not.toBe(backgrounds[i - 1]);
+  }
+
+  // And a value in a cell is not wearing the inline widget chip's tint. The
+  // chip is right in a sentence, where it says which words came from the trip;
+  // in a table every cell did, so it marks nothing and reads as a button.
+  const values = await table
+    .locator("[data-widget-value]")
+    .evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+  expect(values.length).toBeGreaterThan(0);
+  for (const background of values) {
+    expect(background).toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
+// Runs in the page: the tinted chip's own height against the line box it sits
+// in. Module-level so the walk keeps no conditional in its body.
+function chipAgainstLine(el: Element): { chip: number; line: number } {
+  const heading = el.closest("h1, h2, h3, h4");
+  if (heading === null) throw new Error("the value is not in a heading, so this walk proves nothing");
+  return { chip: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(heading).lineHeight) };
+}
+
+test("a widget value inside a heading fits the line it is on", async ({ page }) => {
+  // Mitchell, 2026-09-06, on a heading holding a row of city chips: *"The
+  // second line is overtop the top line"*.
+  //
+  // The chips are inline, so their tint and their `border-b-2` are painted over
+  // the font's content area plus 2px — and vertical padding on an inline box
+  // adds nothing to the line box. The editor's headings are set tight
+  // (`--text-2xl--line-height: 1.15`, `--text-xl--line-height: 1.2`), tighter
+  // than the box a chip paints, so once enough chips wrapped to a second line
+  // the second line's tint was drawn over the first's.
+  //
+  // **One chip, and no wrapping needed.** Whether two lines collide is decided
+  // by whether ONE chip is taller than the line it sits on, and that is a
+  // measurement a single widget in a heading can make. Arranging eleven cities
+  // in an e2e trip to reproduce the wrap itself would test the same inequality
+  // through a great deal more setup.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  // Into the heading, not under it: `insertFromList` presses Enter first, which
+  // puts the widget in a paragraph of its own where the leading is roomy and
+  // nothing overlaps.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.getByRole("button", { name: "Insert a widget" }).click();
+  const list = page.getByRole("dialog");
+  await expect(list).toBeVisible();
+  await list.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
+  await waitForPageSaved(page, () => list.getByRole("button", { name: /The dates/ }).click());
+  await expect(list).toBeHidden();
+
+  const value = page.locator(".tc-page-editor h2 [data-widget-value]").first();
+  await expect(value).toBeVisible();
+  const box = await value.evaluate(chipAgainstLine);
+  expect(box.chip).toBeGreaterThan(0);
+  // The whole claim: a chip no taller than its line cannot reach the line above.
+  expect(box.chip).toBeLessThanOrEqual(box.line);
+});
+
+test("an inline value keeps a natural space on each side of it", async ({ page }) => {
+  // Mitchell, on the PR 141 preview: *"These inline elements should have a
+  // natural space at the start and end, otherwise ill need to go in and put a
+  // unnatural space."* A widget node is an inline atom, so its tinted
+  // background butted straight against the character beside it and the
+  // author's own typed space landed outside the tint.
+  //
+  // **`The dates`, an inline widget, and not a repeater.** This assertion used
+  // to live inside "a repeater renders one line per day", on the reasoning
+  // that a repeat row was where a value definitely rendered. That stopped
+  // being true on 2026-09-06: a value inside a TABLE is drawn as plain text
+  // now, with no tint and no margin — Mitchell, *"not color.code the text like
+  // other inline text"* — so the margin the walk measured was the one thing
+  // the table was supposed to have dropped, and it kept passing right up until
+  // it was dropped. The claim is about a value in a SENTENCE, and it belongs
+  // on one.
+  //
+  // Measured in e2e rather than in a unit test because it is genuinely
+  // presentational: `toHaveClass` and `.className` are eslint errors in
+  // `src/**/*.test.tsx` outside `components/ui/**`, and rightly — but a
+  // computed margin is a real measurement, and e2e is where this repo already
+  // measures rendered geometry (§13's 44px floor is checked the same way).
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+  await insertFromList(page, /The dates/, "dates");
+
+  const value = page.locator(".tc-page-editor [data-widget-value]").first();
+  await expect(value).toBeVisible();
+  const gaps = await value.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
+  });
+  expect(gaps.left).toBeGreaterThan(0);
+  expect(gaps.right).toBeGreaterThan(0);
+});
+
+test("a notebook is renamed by editing its own heading, and the index follows", async ({ page }) => {
+  // Mitchell, 2026-09-06 on a 411px phone, pointing at the index's Rename
+  // button: *"rename shouldn't be a button here, the title should be at the top
+  // of the notebook as a h1 and when you edit the title it does the actual
+  // edit/rename"*.
+  //
+  // In a real browser, because that is the only place the interaction exists:
+  // the heading is a `contentEditable`, and jsdom implements none of the
+  // editing behaviour a person uses on one — `PageTitle.test.tsx` can prove the
+  // commit and the guards, and nothing below the browser can prove that typing
+  // into the thing works at all.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  const heading = page.getByRole("heading", { name: "Trip Overview", level: 1 });
+  await expect(heading).toBeVisible();
+
+  // Select the whole title and type over it, which is what a person does to a
+  // name they are replacing.
+  await heading.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await waitForPageSaved(page, async () => {
+    await page.keyboard.type("Kyoto notes");
+    // Enter commits, and is the reason this heading refuses a newline.
+    await page.keyboard.press("Enter");
+  });
+  await expect(page.getByRole("heading", { name: "Kyoto notes", level: 1 })).toBeVisible();
+
+  // The index is the other half of the claim: a rename that only shows on the
+  // page it was typed on has not renamed anything. Back via the page's own
+  // link, not `openNotebookIndex` — that helper starts from the trip board, and
+  // the board's "Notebooks" button is not on this screen.
+  await page.getByRole("link", { name: /Notebooks/ }).click();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Kyoto notes/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Trip Overview/ })).toHaveCount(0);
+  // And the button it replaced is gone.
+  await expect(page.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
 });

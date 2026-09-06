@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
@@ -171,11 +171,54 @@ describe("MacroView", () => {
       // that both labels appear somewhere passes for a renderer that duplicates
       // a row or puts both leads in one (CodeRabbit, PR 139) — which is exactly
       // the bug "one line per day" is the claim about.
-      const rows = screen.getAllByRole("listitem");
+      // `row`, not `listitem`, since 2026-09-06 — a repeat renders as a table
+      // now. The claim is unchanged: one row per day, each carrying its own
+      // lead.
+      const rows = screen.getAllByRole("row");
       expect(rows).toHaveLength(2);
       expect(rows[0]!.textContent).toContain("Day 1");
       expect(rows[1]!.textContent).toContain("Day 2");
       expect(rows[0]!.textContent).not.toContain("Day 2");
+    });
+
+    // Mitchell, 2026-09-06: "These were always meant to be tables with columns,
+    // and styled ... just build it, no need for a ADR." Then, that afternoon,
+    // on a `day.rows`: *"The date and the city and the text shouldnt all be
+    // rolled into each other. Introduce real columns"* — which is the second
+    // assertion below.
+    it("gives every row a lead and the same columns beside it", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="cost.rows" params={{}} />);
+
+      const table = screen.getByRole("table");
+      expect(table).toBeTruthy();
+      // A row header names the row; the cells beside it carry its facts.
+      // Flattened into one line — which is what this used to be — neither
+      // exists. Scoped to each row, not counted across the table: "some row has
+      // a lead and some other row has a value" is exactly what a flattened
+      // renderer would also satisfy. CodeRabbit's finding on PR 149.
+      const valueRows = screen.getAllByRole("row").filter((row) => within(row).queryAllByRole("cell").length > 0);
+      expect(valueRows.length).toBeGreaterThan(0);
+      const widths = new Set<number>();
+      for (const row of valueRows) {
+        expect(within(row).getByRole("rowheader")).toBeTruthy();
+        widths.add(within(row).getAllByRole("cell").length);
+      }
+      // **The same number of cells on every row, empty ones included.** That is
+      // the whole of "real columns": a row that dropped its empty date cell
+      // would slide its money one column left, and a renderer that rolled the
+      // date and the money back together would report one cell here.
+      expect([...widths]).toEqual([2]);
+    });
+
+    it("ends on a total row, and says so structurally", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="cost.rows" params={{}} />);
+      const rows = screen.getAllByRole("row");
+      // `cost.rows` always appends a total. It is the last row, and its money is
+      // in the money column — the last one — rather than a line of prose.
+      const last = rows[rows.length - 1]!;
+      expect(last.textContent).toContain("Total");
+      const cells = within(last).getAllByRole("cell");
+      expect(cells[cells.length - 1]!.textContent).not.toBe("");
     });
   });
 

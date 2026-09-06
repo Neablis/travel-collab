@@ -32,19 +32,41 @@ export type DaySpan = { start: number; size: number };
 export const READING_LINE = { vertical: 0.38, horizontal: 0.5 } as const;
 
 /**
- * The index of the span whose centre is nearest the reading line, or null when
- * there is nothing to choose between.
+ * Identifies the day span nearest the reading line or the visible scroll edge.
  *
- * Ties go to the earlier index — `<` rather than `<=` below — so a scroll that
- * parks two days symmetrically about the line settles on one of them instead of
- * flickering between the two as sub-pixel rounding moves.
+ * @param viewport - The scroll viewport position and size
+ * @param spans - The day spans to evaluate
+ * @param readingLine - The reading line position as a fraction of the viewport
+ * @param edges - Indicates whether the viewport is at the start or end of the spans
+ * @returns The selected span index, or `null` when no spans are provided
  */
 export function centralDayIndex(
   viewport: { start: number; size: number },
   spans: readonly DaySpan[],
   readingLine: number = READING_LINE.vertical,
+  edges?: { atStart?: boolean; atEnd?: boolean },
 ): number | null {
   if (spans.length === 0) return null;
+  // The ends, before the arithmetic, because the arithmetic cannot reach them.
+  //
+  // A scrollport is wider than one day, so the first and last spans can never
+  // bring their own centre to the reading line — scrolled hard to one end, the
+  // first day sits at the edge while some later day owns the centre. Nearest-
+  // to-the-line therefore never answers 0 or `length - 1`, and those two days
+  // are unselectable by scrolling however far you go.
+  //
+  // Mitchell, on the 2026-09-06 preview, of a fourteen-day trip: *"Its
+  // impossible to scroll right all the way to day 14, because it stops at day
+  // 13. Same with day 1."* Both ends, symmetrically, which is the signature of
+  // this rather than of a clipped container.
+  //
+  // `edges` is what the caller measured — it alone knows whether its box is
+  // scrolled to an end — and being at an end is a stronger statement about
+  // what you are looking at than a distance is. `atStart` wins a both-true tie
+  // (a trip short enough not to scroll), matching the earlier-index tiebreak
+  // below.
+  if (edges?.atStart === true) return 0;
+  if (edges?.atEnd === true) return spans.length - 1;
   const line = viewport.start + viewport.size * readingLine;
   let best: number | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;

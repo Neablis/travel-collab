@@ -12,6 +12,7 @@ import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { cityFor } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { formatTripDate } from "@/lib/formatDate";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -61,7 +62,13 @@ type SparklineFetchState =
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
 // primary Open plan + secondary Share (via shareSlot). Right: --color-moss
-// panel with the "shape of the trip" sparkline.
+/**
+ * Displays a trip overview with key statistics, budget information, and a trip-shape sparkline.
+ *
+ * @param trip - Summary data for the trip and its travelers
+ * @param shareSlot - Optional sharing control rendered beside the plan link
+ * @returns The rendered trip overview hero
+ */
 export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   const created = new Date(trip.createdAt);
   const createdLabel = Number.isNaN(created.getTime())
@@ -203,7 +210,7 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 // eslint-disable-next-line no-restricted-syntax -- 30px avatar circle + 11px initials text have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
                 style={{ height: "30px", width: "30px", fontSize: "11px" }}
               >
-                {initialsFor(member.userId)}
+                {initialsFor(displayNameFor(member))}
               </div>
             ))}
           </div>

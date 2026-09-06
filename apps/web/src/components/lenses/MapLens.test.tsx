@@ -6,6 +6,7 @@ import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
 import { MapLens } from "./MapLens";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
+import { MAP_DAY_STRIP_HEIGHT_PX } from "./MapDayStrip";
 
 // MapLens dynamically imports maplibre-gl, whose real module init touches
 // browser APIs jsdom doesn't implement (window.URL.createObjectURL, WebGL),
@@ -273,6 +274,25 @@ function detailWithTransitStop(): TripDetail {
   });
 }
 
+// Two days where the SECOND has a transit stop, so it owns both route variants
+// — the shape the non-focused travel-leg rule needs to be asserted against.
+function detailWithTravelOnSecondDay(): TripDetail {
+  return tripDetailFixture({
+    days: [
+      { dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 },
+      { dayId: "d2", activityIds: ["b1", "t2", "b2", "b3"], date: "2027-06-02", costSubtotal: 0 },
+    ],
+    activities: {
+      a1: locatedActivity("a1", 41.89, 12.49, "a1"),
+      a2: locatedActivity("a2", 41.9, 12.5, "a1"),
+      b1: locatedActivity("b1", 43.0, 12.7, "b1"),
+      t2: locatedActivity("t2", 44.0, 12.8, "b1", "transit"),
+      b2: locatedActivity("b2", 45.0, 12.9, "b1"),
+      b3: locatedActivity("b3", 45.1, 13.0, "b1"),
+    },
+  });
+}
+
 // Both stops on a day share that day's city, which is what a day normally
 // looks like and what the accent tests here actually mean to set up.
 //
@@ -491,7 +511,45 @@ describe("MapLens", () => {
   });
 
   describe("route ghosting on focus", () => {
-    it("dims the non-focused day's route further than a faint fade and gives it a neutral colour", async () => {
+    // 2026-09-06 preview feedback: "Lets try the UI in the designs. Remove the
+    // travel lines from all days that are not currently selected."
+    //
+    // **The whole day goes, both route variants and the pins with them.** My
+    // first reading of that was narrower — travel legs only, on the reasoning
+    // that a `rest` leg stays inside its own city's cluster while a `travel`
+    // leg rakes across the map. Mitchell corrected it the same day: *"what
+    // happened to on map view removing stops on the days you arent looking at.
+    // I asked for that chnage"*. This comment described the superseded reading
+    // while the assertions below already enforced the corrected one; Copilot
+    // and CodeRabbit both caught the mismatch on PR 149.
+    it("takes a non-focused day off the map entirely — both route variants", async () => {
+      setPaintPropertyMock.mockClear();
+      renderMap(detailWithTravelOnSecondDay(), { focusedDay: 0 });
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      const lastOpacity = (layerId: string) =>
+        setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === "line-opacity").at(-1)!;
+
+      // Day 2 is not focused: nothing of it is drawn. Not ghosted — gone.
+      expect(lastOpacity("route-travel-d2")[2]).toBe(0);
+      expect(lastOpacity("route-rest-d2")[2]).toBe(0);
+      // Day 1 is focused and keeps everything it has at full strength.
+      expect(lastOpacity("route-rest-d1")[2]).toBe(1);
+    });
+
+    it("keeps a focused day's own travel legs", async () => {
+      setPaintPropertyMock.mockClear();
+      renderMap(detailWithTravelOnSecondDay(), { focusedDay: 1 });
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      const lastOpacity = (layerId: string) =>
+        setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === "line-opacity").at(-1)!;
+
+      // The rule is about OTHER days, not about travel legs being unwelcome.
+      expect(lastOpacity("route-travel-d2")[2]).toBe(1);
+    });
+
+    it("draws nothing for a non-focused day's route, and keeps the focused day's own accent", async () => {
       // detailWithTwoDays()'s d1/d2 hash to the "danger"/"success" accent
       // families respectively (derived from each day's first stop id, "a1"
       // and "b1" — see dayAccents' djb2 hash; with only two distinct cities
@@ -516,17 +574,24 @@ describe("MapLens", () => {
         setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === prop).at(-1)!;
 
       const focusedOpacity = lastCall("route-rest-d1", "line-opacity");
-      const ghostedOpacity = lastCall("route-rest-d2", "line-opacity");
+      const hiddenOpacity = lastCall("route-rest-d2", "line-opacity");
       expect(focusedOpacity[2]).toBe(1);
-      expect(ghostedOpacity[2]).toBeLessThan(0.55); // strictly ghostier than the old faint-fade value
-      expect(ghostedOpacity[2]).toBeGreaterThan(0);
+      // Gone, not ghosted (Mitchell, 2026-09-06). This used to be 0.25 with a
+      // neutral colour; a day you are not looking at is now simply not drawn.
+      expect(hiddenOpacity[2]).toBe(0);
 
+      // Each day keeps its OWN accent. The neutral ghost tone existed to stop
+      // a faint line still reading as "that day's colour"; nothing is faint
+      // any more, so there is nothing to disambiguate and `ghostRouteColor`
+      // went with the behaviour it served.
       const focusedColor = lastCall("route-rest-d1", "line-color");
-      const ghostedColor = lastCall("route-rest-d2", "line-color");
-      // The focused day keeps its own accent colour; the non-focused day
-      // shifts to a shared neutral tone rather than its accent at low opacity.
-      expect(ghostedColor[2]).not.toBe(focusedColor[2]);
-      expect(ghostedColor[2]).toBe("TEST-SLATE");
+      expect(focusedColor[2]).toBe("TEST-DANGER");
+      // The hidden day too, which is the half that actually protects the
+      // deletion: `ghostRouteColor()` only ever ran on the NON-focused branch,
+      // so a test that reads colours off the focused day alone would pass with
+      // the neutral ghost tone put straight back.
+      const hiddenColor = lastCall("route-rest-d2", "line-color");
+      expect(hiddenColor[2]).toBe("TEST-SUCCESS");
     });
 
     it("restores a day's own accent colour and full opacity once it becomes the focused day", async () => {
@@ -567,7 +632,11 @@ describe("MapLens", () => {
   });
 
   describe("marker ghosting on focus", () => {
-    it("ghosts every non-focused day's markers and keeps the focused day's markers full-strength", async () => {
+    // Mitchell, 2026-09-06: "what happened to on map view removing stops on the
+    // days you arent looking at. I asked for that change". Non-focused days
+    // used to ghost to 0.35; they now leave the map. The tag axis still dims
+    // rather than hides — that is M18b's rule and a different question.
+    it("takes every non-focused day's stops off the map, and keeps the focused day's", async () => {
       markerInstances.length = 0;
       renderMap(detailWithTwoDays(), { focusedDay: 0 });
       await waitFor(() => expect(markerInstances).toHaveLength(4));
@@ -578,10 +647,13 @@ describe("MapLens", () => {
       expect(a1!.getElement().style.opacity).toBe("1");
       expect(a2!.getElement().style.opacity).toBe("1");
 
-      // Day 1's stops (b1, b2) are not focused — ghosted.
-      expect(Number(b1!.getElement().style.opacity)).toBeLessThan(1);
-      expect(Number(b1!.getElement().style.opacity)).toBeGreaterThan(0);
-      expect(b1!.getElement().style.opacity).toBe(b2!.getElement().style.opacity);
+      // Day 1's stops (b1, b2) are not focused — gone, not faint.
+      expect(b1!.getElement().style.opacity).toBe("0");
+      expect(b2!.getElement().style.opacity).toBe("0");
+      // And not clickable: an invisible pin left in the hit-test would open a
+      // stop from a day that is not on screen.
+      expect(b1!.getElement().style.pointerEvents).toBe("none");
+      expect(a1!.getElement().style.pointerEvents).not.toBe("none");
     });
 
     it("keeps every marker full-strength when nothing is focused", async () => {
@@ -718,7 +790,7 @@ describe("MapLens tag focus", () => {
 
   // The two dims compose by taking the fainter, not by multiplying: 0.35 ×
   // 0.32 is 0.11, which is invisible, and "dim, never hide" is the rule.
-  it("takes the fainter of the day dim and the tag dim, never their product", async () => {
+  it("keeps the tag dim on the focused day, and removes other days outright", async () => {
     markerInstances.length = 0;
     renderMap(detailWithTags(), { focusedDay: 0, focusedTag: "meal" });
     await waitFor(() => expect(markerInstances).toHaveLength(4));
@@ -726,13 +798,14 @@ describe("MapLens tag focus", () => {
 
     // Focused day, focused tag.
     expect(a1!.getElement().style.opacity).toBe("1");
-    // Focused day, wrong tag — the tag dim (0.32) is the fainter.
+    // Focused day, wrong tag — the TAG dim still applies, and still dims
+    // rather than hides. M18b's "dim, never hide" is about this axis and is
+    // untouched by the day change below.
     expect(Number(a2!.getElement().style.opacity)).toBeCloseTo(0.32);
-    // Other day, right tag — only the day dim (0.35) applies.
-    expect(Number(b1!.getElement().style.opacity)).toBeCloseTo(0.35);
-    // Other day, wrong tag — both apply, and 0.32 wins over 0.35.
-    expect(Number(b2!.getElement().style.opacity)).toBeCloseTo(0.32);
-    expect(Number(b2!.getElement().style.opacity)).toBeGreaterThan(0.35 * 0.32);
+    // Another day — off the map regardless of its tag. The day axis is no
+    // longer a dim to be weighed against the tag dim; it removes.
+    expect(b1!.getElement().style.opacity).toBe("0");
+    expect(b2!.getElement().style.opacity).toBe("0");
   });
 
   it("un-dims when the tag focus clears", async () => {
@@ -848,6 +921,32 @@ describe("MapLens on a phone", () => {
 
   afterEach(() => {
     Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  it("gives a focused day's pins room to breathe on the small screen too", async () => {
+    // Mitchell, 2026-09-06 at 764px: *"have the map default be even more
+    // zoomed out by default so the pins aren't so close to the edges"*. The
+    // phone branch was padding fitBounds by 24 on three sides where the
+    // desktop branch pads by 100, so a day whose bounds already filled the
+    // frame put its outermost pins almost on the edge.
+    //
+    // Padding rather than `maxZoom`: the cap only bites on a day whose stops
+    // are close together, and this is about a day whose bounds are wide.
+    setViewportMatches(true);
+    fitBoundsMock.mockClear();
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    await waitFor(() => expect(fitBoundsMock).toHaveBeenCalled());
+
+    const [, options] = fitBoundsMock.mock.calls.at(-1)!;
+    const padding = (options as { padding: { top: number; right: number; bottom: number; left: number } }).padding;
+    expect(padding.right).toBe(48);
+    expect(padding.bottom).toBe(48);
+    // Left is the plain padding here, not the rail's footprint: on a phone the
+    // day control is the strip across the top, and reserving 284px of a 411px
+    // screen would leave the camera nothing to fit a day into.
+    expect(padding.left).toBe(48);
+    // And the top clears the strip on top of that same breathing room.
+    expect(padding.top).toBe(MAP_DAY_STRIP_HEIGHT_PX + 48);
   });
 
   it("swaps the rail, focus card and legend for one day strip below 768px", async () => {

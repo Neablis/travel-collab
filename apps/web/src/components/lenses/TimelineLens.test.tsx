@@ -67,6 +67,81 @@ function renderLens(detail = detailFixture(), onSelectActivity = vi.fn(), readOn
 // setFocusedDay directly, the same shape as FocusProvider.test.tsx's own
 // Probe, so the ghost-card-appears-when-focused behavior can be exercised
 // without pulling DayChips into this test.
+describe("the activity description", () => {
+  // 2026-09-06 preview feedback, on a phone: "move the activity description
+  // down under the header sub elements so it can be full width". It used to sit
+  // inside the left box, so the attributee-and-cost box beside it took width
+  // away from the one field that is free prose.
+  //
+  // Asserted structurally rather than by class, and rather than by measuring:
+  // jsdom computes no layout, so "full width" is only checkable as "no longer a
+  // child of the box that was narrowing it".
+  const withNotes = (): TripDetail => {
+    const detail = detailFixture();
+    const timed = detail.activities.timed1!;
+    return {
+      ...detail,
+      members: [{ userId: "dev-alice", role: "owner" as const }],
+      activities: { ...detail.activities, timed1: { ...timed, notes: "Book ahead, the queue is long." } },
+    };
+  };
+
+  it("sits outside the heading row, not inside it", () => {
+    renderLens(withNotes());
+    const card = screen.getByTestId("timeline-item-timed1");
+    const head = screen.getByTestId("timeline-head-timed1");
+
+    // The heading row holds the title AND the attributee — the two boxes that
+    // used to squeeze the description between them.
+    expect(within(head).getByText("Colosseum tour")).toBeTruthy();
+    expect(within(head).getByText(/Alice/)).toBeTruthy();
+
+    // The description is in the card but NOT in that row: that is the move.
+    expect(within(card).getByText("Book ahead, the queue is long.")).toBeTruthy();
+    expect(within(head).queryByText("Book ahead, the queue is long.")).toBeNull();
+  });
+});
+
+describe("the attributee beside a timed stop", () => {
+  // 2026-09-06 preview feedback, asked as two questions on the same card:
+  // "Whats this long id string?" and "Whats 0D?". The label printed
+  // `member.userId` raw, and the avatar fed that same id to `initialsFor`,
+  // whose no-two-parts fallback takes the first two characters — so a member
+  // id beginning "0d…" rendered as the avatar "0D". Both now go through
+  // `displayNameFor`, which `lib/displayName.ts` documents as the ONE place a
+  // `who` becomes something to call a person, and which never returns an id.
+  //
+  // The same complaint was already made and fixed elsewhere — TravelersPanel
+  // carries it as "Dont show the UUID" (Mitchell, 2026-09-01) — so what this
+  // pins is that the timeline stops being the surface that was missed.
+  const withMember = (userId: string): TripDetail => {
+    const detail = detailFixture();
+    return { ...detail, members: [{ userId, role: "owner" as const }] };
+  };
+
+  it("never prints a raw member id", () => {
+    renderLens(withMember("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b"));
+    expect(screen.queryByText("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b")).toBeNull();
+    // The handle `displayNameFor` falls back to: six characters off the end.
+    expect(screen.getAllByText(/Traveler 3f4a5b/).length).toBeGreaterThan(0);
+  });
+
+  it("does not build the avatar out of the head of that id", () => {
+    renderLens(withMember("0d3f1a2b4c5d6e7f8a9b0c1d2e3f4a5b"));
+    // "0D" was the reported symptom. It needs a SEPARATOR-FREE id to reproduce:
+    // `initialsFor` splits on non-alphanumerics and only falls back to "first
+    // two characters" when that yields fewer than two parts, so a dashed UUID
+    // would render "04" instead and this test would pass against the bug.
+    expect(screen.queryByText("0D")).toBeNull();
+  });
+
+  it("uses a dev-login username where the id actually carries one", () => {
+    renderLens(withMember("dev-alice"));
+    expect(screen.getAllByText(/Alice/).length).toBeGreaterThan(0);
+    expect(screen.queryByText("dev-alice")).toBeNull();
+  });
+});
+
 function renderLensWithFocusControl(detail = detailFixture()) {
   function Harness() {
     const { setFocusedDay } = useFocus();

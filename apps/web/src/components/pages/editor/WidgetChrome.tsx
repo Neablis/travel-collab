@@ -5,6 +5,7 @@ import { getMacro } from "@tc/pages";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { cn } from "@/lib/cn";
 import { Text } from "@/components/ui/text";
 import { WidgetBindControls, bindSummary, bindableInputs } from "./widgetBind";
 
@@ -29,19 +30,32 @@ import { WidgetBindControls, bindSummary, bindableInputs } from "./widgetBind";
 // The controls themselves, the option lists and the merge-don't-replace rule all
 // live in `widgetBind.tsx` now: SPEC §19 gives the phone a bind *sheet* and the
 // insert flow a bind *step*, and three surfaces building their own option list
-// is how a phone ends up offering a day the desktop does not.
+/**
+ * Renders binding controls for a widget in phone or desktop layouts.
+ *
+ * @param name - The widget name used to determine its bindable inputs.
+ * @param selected - Whether the widget is currently selected.
+ * @returns The widget binding controls, or `null` when the widget has no bindable inputs.
+ */
 
 export function WidgetChrome({
   name,
   params,
   detail,
   globals = null,
+  selected = false,
   onChange,
 }: {
   name: string;
   params: Record<string, unknown>;
   detail: TripDetail;
   globals?: TripGlobals | null;
+  /**
+   * Whether the caret is in this widget. Only the block shape reads it: its
+   * chrome is a popover that reveals on hover or focus, and a widget you are
+   * editing counts as focused even when the pointer is elsewhere.
+   */
+  selected?: boolean;
   onChange: (params: Record<string, unknown>) => void;
 }) {
   const isPhone = useIsPhone();
@@ -134,6 +148,9 @@ export function WidgetChrome({
 
   return (
     <span
+      // A stable handle: the popover's placement and reveal are expressible
+      // only as classes, and the repo's lint forbids reaching for the node.
+      data-testid="widget-chrome"
       className={
         inline
           // `flex-wrap`, because a primitive declares up to five controls
@@ -143,7 +160,56 @@ export function WidgetChrome({
           // ones you have not set", so the row is wide by design and has to
           // fold rather than overflow.
           ? "ml-1 inline-flex flex-wrap items-center gap-1 align-middle"
-          : "mt-1 flex flex-wrap items-center gap-1"
+          : cn(
+              // **A popover on the widget you are working on, not a row under
+              // every widget on the page.** Mitchell, 2026-09-06 preview: *"The
+              // widget option select is still inline and not hovering over or
+              // blocking the existing elements"*, then, asked how to keep the
+              // bindings reachable: *"I dont care about always visible, people
+              // editing the one they are focusing on. Reveal on hover/focus"*.
+              //
+              // `absolute` is what answers the report — in the flow this row
+              // displaced the paragraph after the widget. Out of flow it can
+              // never reflow anything, which also means the reveal below costs
+              // no layout: only paint changes.
+              //
+              // `bg-surface` and a border because an overlay over text has to
+              // be opaque to be readable — the "blocking the existing
+              // elements" half of the request.
+              // **No `mt-1`.** A margin here is a gap that hit-tests as
+              // neither the widget nor the popover, so a pointer travelling
+              // from one to the other crosses dead space, `group-hover` drops,
+              // and the panel vanishes exactly as it is being reached. Copilot
+              // caught it on PR 149. The popover sits flush against the
+              // widget's bottom edge instead; its own border and shadow are
+              // what separate it.
+              "absolute left-0 top-full z-20 flex w-max max-w-full flex-wrap items-center gap-1 rounded-md border border-hairline bg-surface p-1 shadow-raised transition-opacity",
+              // Revealed by hover or focus of the whole widget (`group` on
+              // `MacroNodeView`'s wrapper), and kept open while the caret is in
+              // it — otherwise picking a value from a select would dismiss the
+              // panel the select lives in the moment the pointer left.
+              //
+              // **Opacity, not `visibility` — `visibility: hidden` would make
+              // the focus half of "reveal on hover/focus" unreachable.** The
+              // first cut of this used `invisible`, on the belief that it kept
+              // the controls in the accessibility tree; it does not. A
+              // `visibility: hidden` subtree is removed from the a11y tree AND
+              // from the tab order, so `group-focus-within` could never fire
+              // from the keyboard: there was no way to focus what only focus
+              // revealed. The e2e walk found it as a 30s actionability timeout
+              // on a control `getByRole` could no longer see at all.
+              //
+              // At `opacity-0` the controls stay focusable and stay in the
+              // tree, so tabbing into them reveals them. They are out of flow
+              // either way, so this costs no layout — only paint.
+              //
+              // `pointer-events-none` while hidden, because an invisible
+              // overlay that still swallowed clicks on the paragraph beneath it
+              // would be a worse bug than the one this popover fixed.
+              selected
+                ? "opacity-100"
+                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
+            )
       }
     >
       {/* The name pill. §18 makes it conditional on the widget having a name;

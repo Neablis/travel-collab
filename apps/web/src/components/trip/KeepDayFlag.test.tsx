@@ -147,28 +147,31 @@ describe("the keep-day pennant's wave", () => {
 });
 
 // The design's `celebrate()` (`Trip Planner Redesign.dc.html:4871`) — the
-// spring, the brand fill, the ring burst, the sparks and the "Kept" pill that
-// expands and collapses over 2.6s. KeepDayDialog.tsx used to carry a comment
-// saying "the save is real; the confetti is not"; this is the confetti.
+// spring, the fill, the ring burst and the sparks over 2.6s. KeepDayDialog.tsx
+// used to carry a comment saying "the save is real; the confetti is not"; this
+// is the confetti.
 //
-// Asserted through the pill's visible text rather than the animation class:
-// the colour wall owns classes (no `toHaveClass`), and KI-2026-09-02-b
+// Asserted through the decoration's `data-testid` rather than the animation
+// class: the colour wall owns classes (no `toHaveClass`), and KI-2026-09-02-b
 // grandfathers the one `document.querySelector` above without wanting more.
-// The text is a real seam anyway — it is conditionally rendered precisely so a
-// day that is not being kept never announces "Kept".
+// It used to be asserted through the "Kept" pill's text, which was the only
+// thing here a test could see; Mitchell dropped the pill on 2026-09-06 —
+// *"drop the word kept and the expanded UI and just have it turn green"* — so
+// the handle moved to the ring-and-sparks wrapper. Same seam, same conditional
+// render, no text.
 describe("the keep-day celebration", () => {
-  it("does not say Kept before the save lands", async () => {
+  it("does not celebrate before the save lands", async () => {
     renderFlag();
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
     await screen.findByRole("button", { name: "Save" });
-    expect(screen.queryByText("Kept")).toBeNull();
+    expect(screen.queryByTestId("keep-day-celebration")).toBeNull();
   });
 
-  it("says Kept on the pennant once the save lands", async () => {
+  it("celebrates on the pennant once the save lands", async () => {
     renderFlag();
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
     await userEvent.click(await screen.findByRole("button", { name: "Save" }));
-    expect(await screen.findByText("Kept")).toBeTruthy();
+    expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
   });
 
   // The label is driven by a timer rather than `animationend` — under
@@ -186,12 +189,12 @@ describe("the keep-day celebration", () => {
       renderFlag();
       await user.click(screen.getByRole("button", { name: "Keep day 1" }));
       await user.click(await screen.findByRole("button", { name: "Save" }));
-      expect(await screen.findByText("Kept")).toBeTruthy();
+      expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       await act(async () => {
         vi.advanceTimersByTime(2600);
       });
-      expect(screen.queryByText("Kept")).toBeNull();
+      expect(screen.queryByTestId("keep-day-celebration")).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -209,7 +212,7 @@ describe("the keep-day celebration", () => {
 
       await user.click(flag);
       await user.click(await screen.findByRole("button", { name: "Save" }));
-      expect(await screen.findByText("Kept")).toBeTruthy();
+      expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       // Halfway through the first run, save again.
       await act(async () => {
@@ -223,13 +226,50 @@ describe("the keep-day celebration", () => {
       await act(async () => {
         vi.advanceTimersByTime(1300);
       });
-      expect(screen.getByText("Kept")).toBeTruthy();
+      expect(screen.getByTestId("keep-day-celebration")).toBeTruthy();
 
       // The second run's own deadline.
       await act(async () => {
         vi.advanceTimersByTime(1300);
       });
-      expect(screen.queryByText("Kept")).toBeNull();
+      expect(screen.queryByTestId("keep-day-celebration")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the pennant keeps one size", () => {
+  // 2026-09-06 05:58: "add stop goes briefly to the second line when the flag
+  // button is clicked". The button grew a "Kept" label mid-celebration inside a
+  // `flex-wrap` row with no slack at 412px. The first answer reserved the
+  // label's width permanently; Copilot then flagged that this test asserted the
+  // literal "88px", a value no equivalent implementation would match.
+  //
+  // Both are moot: at 10:07 Mitchell asked for the label to go entirely, so
+  // there is nothing left that can change size. What is worth holding is that
+  // the celebration adds no text to the button — text is what grew it.
+  it("adds no text to the button when it celebrates", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderFlag();
+      const flag = screen.getByRole("button", { name: /Keep day/ });
+      expect(flag.textContent).toBe("");
+      // The size the button is given, not the size it computes: jsdom has no
+      // layout, so this reads the inline style the component sets. A square is
+      // the whole claim — nothing about the celebration may make it oblong.
+      const size = { width: flag.style.width, height: flag.style.height };
+      expect(size.width).not.toBe("");
+      expect(size.height).toBe(size.width);
+
+      await user.click(flag);
+      await user.click(await screen.findByRole("button", { name: "Save" }));
+      expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
+
+      expect(flag.textContent).toBe("");
+      expect(flag.style.width).toBe(size.width);
+      expect(flag.style.height).toBe(size.height);
     } finally {
       vi.useRealTimers();
     }

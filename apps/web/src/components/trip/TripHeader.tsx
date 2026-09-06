@@ -20,7 +20,6 @@ import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
-import { ShareButton } from "./ShareButton";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 
@@ -333,42 +332,21 @@ export function TripHeader({
                   copies and turns off pinned share links. It needs the tripId
                   it is sharing; everything else about this call site is
                   unchanged. */}
-              {/* `hidden md:block`: Share leaves the header on a phone —
-                  Mitchell, Vercel toolbar comment on
-                  `/trips/:id?lens=Map&view=Calendar` at 411x760, "all three
-                  columns from share, trip overview to budget are really
-                  crowded and ugly on mobile, if we hid them here would they
-                  still be accessible in trip settings?". It is hidden only
-                  because it now HAS somewhere to go: SettingsSheet mounts a
-                  ShareButton of its own, under "Who is invited", at every
-                  width. Hiding it before that existed would have left a phone
-                  user with no way to share the trip they are looking at —
-                  ShareButton had exactly two mount points in the app, this one
-                  and the home hero's.
+              {/* **Share is not in the header at all**, at any width.
+                  Mitchell, 2026-09-06: *"Put share in the trip settings under
+                  invite someone, both here and in mobile"*.
 
-                  768px, not a new number: it is the line this app already
-                  draws between "narrow but still a shrinkable plan" and
-                  "phone" — `.assistant-rail` and `.unscheduled-rack` in
-                  globals.css, `useIsPhone`'s PHONE_MAX_WIDTH_PX, and
-                  Tailwind's own `md`, which is the same 768px.
+                  It was `hidden md:block` first — off the phone only, because
+                  of an earlier report that these controls were "really crowded
+                  and ugly on mobile". Desktop kept it on the reasoning that
+                  there was room. Room is not the argument: sharing belongs with
+                  the other answer to "who can see this trip", and having it in
+                  two places meant a reader had to know which one this build
+                  put it in.
 
-                  CSS, not `useIsPhone`: the JS hook exists because the Map
-                  lens mounts a genuinely DIFFERENT day control below the
-                  breakpoint and must not leave the desktop one's
-                  ResizeObserver alive against a zero-height box (see that
-                  file). Nothing here observes anything — hiding a button is
-                  what CSS is for, and a JS breakpoint would add a
-                  false-on-first-render flash to a control that has none. */}
-              {!readOnly && (
-                // The testid is on the WRAPPER, not the button: it is the
-                // wrapper that carries the breakpoint, and the e2e assertion
-                // ("Share is not in the header on a phone") has to name the
-                // header's copy unambiguously now that a second Share exists
-                // in the settings sheet.
-                <div data-testid="trip-header-share" className="hidden md:block">
-                  <ShareButton tripId={tripId} />
-                </div>
-              )}
+                  `SettingsSheet` mounts the only `ShareButton` on a trip now,
+                  under "Invite someone". The header keeps the actions that have
+                  nowhere else to live — Add stop, History, undo/redo. */}
               {/* HIDDEN for a reader, not greyed (KI-64). This was the one
                   disabled control left on an otherwise quiet page: ADR-031 took
                   every other write affordance away from a read-only board —

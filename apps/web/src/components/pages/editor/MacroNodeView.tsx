@@ -39,12 +39,27 @@ const SELECTED_RING = "ring-2 ring-primary rounded";
 // The NodeView for the `macro` ProseMirror node. Renders `MacroView`
 // (Task 4.2) — this component owns none of the resolution/rendering logic
 // itself, only the TipTap/React wiring: pulling attrs off the node and
-// `detail`/`context` off the surrounding editor context.
+/**
+ * Renders a macro node and its editing controls within the editor.
+ *
+ * @param node - The macro node containing its name and parameters
+ * @param selected - Whether the node is selected
+ * @param updateAttributes - Updates the macro node's attributes
+ * @returns The rendered macro node view
+ */
 export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeViewProps) {
   const { detail, context, user, globals, onBindDay, editing } = useMacroEditorContext();
   const name = node.attrs.name as string;
   const params = (node.attrs.params ?? {}) as Record<string, unknown>;
-  const className = [macroShape(name) === "single" ? null : "block", selected ? SELECTED_RING : null]
+  // `group relative` on the block shape: `relative` because its chrome is now a
+  // popover anchored here rather than a row in the flow, and `group` because
+  // the popover reveals on hover/focus of the whole widget (see WidgetChrome).
+  // A `single` widget reads as a word in a sentence and keeps its inline
+  // chrome, so it needs neither.
+  const className = [
+    macroShape(name) === "single" ? null : "group relative block",
+    selected ? SELECTED_RING : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -61,6 +76,7 @@ export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeVie
           params={params}
           detail={detail}
           globals={globals}
+          selected={selected}
           onChange={(next) => updateAttributes({ params: next })}
         />
       ) : null}

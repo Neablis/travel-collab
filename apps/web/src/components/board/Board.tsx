@@ -102,6 +102,21 @@ export type BoardCallbacks = {
   onDismissConflict: (conflictId: string) => void;
 };
 
+/**
+ * Renders a horizontally scrollable board of trip day columns.
+ *
+ * Supports day selection, activity editing and removal, conflict handling,
+ * drag-and-drop activity scheduling, optional tag focus, and read-only
+ * presentation.
+ *
+ * @param trip - The trip data displayed by the board
+ * @param callbacks - Handlers for board interactions
+ * @param focusedDay - Index of the selected day
+ * @param focusedTag - Tag used to focus matching activities
+ * @param onToggleTag - Handler for toggling tag focus
+ * @param readOnly - Whether to hide controls that modify the trip
+ * @param sync - Optional handle for synchronizing scrolling with day selection
+ */
 export function Board({
   trip,
   callbacks,
@@ -168,10 +183,18 @@ export function Board({
       if (rect === undefined) return null;
       spans.push({ start: rect.left, size: rect.width });
     }
+    // Whether this box is scrolled hard to an end. Without it the first and
+    // last columns are unreachable: they cannot bring their centres to the
+    // reading line, so nearest-to-the-line never names them (2026-09-06
+    // preview feedback — "impossible to scroll right all the way to day 14 …
+    // same with day 1"). 1px of slack because scrollLeft is fractional under
+    // zoom and on trackpads, where an exact equality never lands.
+    const maxScroll = box.scrollWidth - box.clientWidth;
     return centralDayIndex(
       { start: boxRect.left, size: boxRect.width },
       spans,
       READING_LINE.horizontal,
+      { atStart: box.scrollLeft <= 1, atEnd: box.scrollLeft >= maxScroll - 1 },
     );
   });
 

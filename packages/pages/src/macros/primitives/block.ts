@@ -11,7 +11,7 @@ import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatMoney } from "../../format";
+import { formatDate, formatMoney } from "../../format";
 
 // The `block` primitives (ADR-039 decision 1): a shape that **details** its
 // selection — one member renders one card, many render one card per member
@@ -39,7 +39,13 @@ function dayCard(trip: TripDetail, index: number, stops: readonly SelectedStop[]
     // labelling them "Day 1" and "Day 2" would be the selection's private
     // numbering printed onto the page as a fact about the trip.
     ordinal: index + 1,
-    date: day.date,
+    // `formatDate`, not the raw ISO. Mitchell, 2026-09-06, pointing at this
+    // exact line on the preview: *"Still have the non human readable timestamp
+    // here."* — "still", because `cost.rows` had the same defect that morning
+    // and this call site was missed. Everything else in this payload is already
+    // display-ready (`timeWindow` is a joined range, `cost` is formatted money);
+    // the date was the one field handed over as storage saw it.
+    date: day.date === null ? null : formatDate(day.date),
     activities: stops.map(({ activity }) => ({
       title: activity.title,
       timeWindow: activity.timeWindow ? `${activity.timeWindow.start}–${activity.timeWindow.end}` : null,

@@ -86,7 +86,26 @@ const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
 // Tailwind classes on this element. The launcher pill that opens it is
 // unchanged and is off-SPEC on its own terms (§13.5: "no floating action
 // button") — that is a real designed-mobile-entry-point decision this fix
-// does not make; see KI-84.
+/**
+ * Renders an assistant conversation panel in docked, floating, or modal sheet form.
+ *
+ * @param contextLine - Context displayed above the conversation.
+ * @param scope - Scope used to tailor the composer placeholder.
+ * @param turns - Conversation turns, ordered from oldest to newest.
+ * @param suggestions - Questions offered when the conversation is empty.
+ * @param emptyHint - Text displayed above the suggested questions.
+ * @param asksRemaining - Number of questions remaining in the conversation.
+ * @param restoreDraft - Question text to restore in the composer.
+ * @param onAsk - Handles a submitted question. Returning `false` preserves the composer text.
+ * @param onApproveProposal - Handles approval of a proposal in a turn.
+ * @param onRejectProposal - Handles rejection of a proposal in a turn.
+ * @param approvalBlockedReason - Explanation shown when proposal approval is unavailable.
+ * @param asking - Whether a question is currently being processed.
+ * @param askError - Error message displayed for the most recent question.
+ * @param simulated - Whether the latest answer was generated in simulated mode.
+ * @param presentation - Layout presentation for the panel.
+ * @param onHide - Closes or hides the panel.
+ */
 export function AssistantRail({
   contextLine,
   scope,
@@ -247,6 +266,40 @@ export function AssistantRail({
 }) {
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
+
+  // **The sheet locks the DOCUMENT ELEMENT while it is open, and that is not
+  // redundant with Radix's modal lock.** Mitchell, on an Android phone: *"when
+  // the assistant overlay is open, you are still scrolling the background
+  // rather than the assistant chat"*.
+  //
+  // I removed a lock from here once, on the reasoning that the wheel walk in
+  // `m16-mobile-assistant.spec.ts` passed without it, so `react-remove-scroll`
+  // must already be refusing wheel. CI then failed that same walk on 2bcc8a4 —
+  // the plan behind the open sheet went from 42 to 442, on the first attempt
+  // and again on the retry. The walk had been passing locally for a reason
+  // that had nothing to do with the lock: it wheeled the page to its maximum
+  // first, and this app's plan is short enough on a 412px viewport that there
+  // was nowhere left to scroll (that vacuity is fixed there now).
+  //
+  // The gap is which element gets locked. `document.scrollingElement` is
+  // `<html>` in standards mode, and `react-remove-scroll`'s scrollbar lock
+  // sets `overflow: hidden` on `<body>` — which does not stop the viewport
+  // scroller when that scroller is the root element. Its wheel handler is a
+  // second, event-level defence that evidently holds in one Chromium and not
+  // in another. Locking the root removes the class outright rather than
+  // relying on either.
+  //
+  // Not reproducible in this container; CI reproduces it deterministically,
+  // and is the proof. See KI-2026-09-06-e.
+  useEffect(() => {
+    if (!isSheet) return;
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, [isSheet]);
 
   // Where focus goes when the sheet closes. Radix's FocusScope already
   // captures this, but `DialogContentModal` overrides `onCloseAutoFocus` to
@@ -429,7 +482,14 @@ export function AssistantRail({
             drops the "drag the header to park it anywhere" copy the other two
             presentations use — dragging is off while docked (SPEC §9), and
             this rail is always docked. */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3.5">
+        {/* `overscroll-contain`: a fling that reaches the end of the transcript
+            must not chain out into whatever scrolls behind it. This is the part
+            of the 2026-09-06 scroll-through report that stands on its own — it
+            is correct for any scrollable panel inside an overlay regardless of
+            what the modal lock does, and it is the mechanism most likely to
+            produce that symptom under touch. It is NOT verified against the
+            report: see the note by `isSheet` and KI-2026-09-06-e. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
           {turns.length === 0 ? (
             <>
               <p className="text-sm leading-relaxed text-slate">{emptyHint}</p>

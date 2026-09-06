@@ -53,13 +53,31 @@ function refusalUrl(reason: AdmissionRefusal): RegExp {
   return new RegExp(`/signup\\?error=${reason}$`);
 }
 
-/** The exact sentence the screen owes this refusal — from the copy map itself. */
-function refusalCopy(reason: AdmissionRefusal): string {
+/**
+ * The exact sentences the screen owes this refusal — from the copy map itself.
+ *
+ * Paragraphs, not one string: a refusal may be more than one (2026-09-06
+ * preview feedback, finding 2 split MISSING_INVITE_CODE in two), and the banner
+ * renders each in its own `<p>`. No single element then holds the whole text,
+ * so `getByText(wholeString)` finds nothing — assert paragraph by paragraph.
+ */
+function refusalCopy(reason: AdmissionRefusal): string[] {
   const copy = errorMessage(reason);
   // `errorMessage` returns `string | null`, and a null here would mean a
   // refusal with no copy at all — the blank state link 6 exists to prevent.
   expect(copy, `no copy is registered for ${reason}`).not.toBeNull();
-  return copy!;
+  return copy!.split("\n\n");
+}
+
+/** Every paragraph of a refusal's copy is on the screen. */
+async function expectRefusalCopy(page: Page, reason: AdmissionRefusal): Promise<void> {
+  for (const paragraph of refusalCopy(reason)) {
+    // `exact`, because the default is substring: if the split ever regressed
+    // and both paragraphs rendered inside one element, every lookup here would
+    // still match that element and this helper would pass while asserting the
+    // opposite of what it documents. CodeRabbit's finding on PR 149.
+    await expect(page.getByText(paragraph, { exact: true })).toBeVisible();
+  }
 }
 
 // The suite has no way to mint a single-use code through the app — the
@@ -143,9 +161,7 @@ test("a brand-new account with no invite is refused, and leaves no users row beh
   await signUp(page, username);
 
   await expect(page).toHaveURL(refusalUrl(AdmissionRefusal.enum.MISSING_INVITE_CODE));
-  await expect(
-    page.getByText(refusalCopy(AdmissionRefusal.enum.MISSING_INVITE_CODE)),
-  ).toBeVisible();
+  await expectRefusalCopy(page, AdmissionRefusal.enum.MISSING_INVITE_CODE);
   // The raw code is never shown to the person — it is a routing token, and the
   // screen owes them a sentence instead.
   await expect(page.getByText(AdmissionRefusal.enum.MISSING_INVITE_CODE)).toHaveCount(0);
@@ -193,9 +209,7 @@ test("a single-use code admits exactly one person, and is refused the second tim
     const page = await refused.newPage();
     await signUp(page, second, code);
     await expect(page).toHaveURL(refusalUrl(AdmissionRefusal.enum.SPENT_INVITE_CODE));
-    await expect(
-      page.getByText(refusalCopy(AdmissionRefusal.enum.SPENT_INVITE_CODE)),
-    ).toBeVisible();
+    await expectRefusalCopy(page, AdmissionRefusal.enum.SPENT_INVITE_CODE);
     // Still exactly one redeemer: the second attempt neither admitted anyone
     // nor rewrote the row it lost.
     expect(await redeemerOf(code)).toBe(`dev-${first}`);
@@ -267,9 +281,7 @@ test("the proxy banks an invite token in a short-lived httpOnly cookie, and a re
     page.waitForURL(refusalUrl(AdmissionRefusal.enum.INVALID_INVITE_CODE)),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
-  await expect(
-    page.getByText(refusalCopy(AdmissionRefusal.enum.INVALID_INVITE_CODE)),
-  ).toBeVisible();
+  await expectRefusalCopy(page, AdmissionRefusal.enum.INVALID_INVITE_CODE);
 
   // Cleared on the refusal path too, so the rejected credential cannot be
   // replayed by the next attempt from this browser.

@@ -17,8 +17,18 @@ import { formatMoney, formatDate } from "../../format";
 // `city.rows` the lead IS the resolved value, and `RepeatValue` is what lets one
 // renderer say so.
 const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.name, v.text));
+// Cells, not one flattened line. `RepeatRow` has always carried `{ lead,
+// values }` and this seam used to throw the boundary away — which is why a
+// table looked like it needed a new cell model when it only needed the one
+// already upstream. See `RenderedRow`.
 const renderRows = (payload: RepeatPayload) =>
-  rowsOf(payload.rows.map((row) => [segOf(row.lead), ...row.values.map(segOf)]));
+  rowsOf(
+    payload.rows.map((row) => ({
+      lead: [segOf(row.lead)],
+      cells: row.cells.map((cell) => cell.map(segOf)),
+      ...(row.kind === undefined ? {} : { kind: row.kind }),
+    })),
+  );
 
 const DAY_ROWS_FILTERS = ["day", "city", "dates"] as const satisfies readonly FilterDimension[];
 const DayRowsParams = filterParams(DAY_ROWS_FILTERS);
@@ -51,15 +61,25 @@ export const dayRows: MacroDef<DayRowsParams, RepeatPayload> = {
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     if (selection.value.days.length === 0) return empty();
+    // Three columns, always the same three, and empty where a day has no
+    // answer: date, cities, cost. Mitchell, 2026-09-06: *"The date and the city
+    // and the text shouldnt all be rolled into each other. Introduce real
+    // columns"*. A day with no date still leaves its date column open, because
+    // a column that appears and disappears per row is not a column.
     const rows: RepeatRow[] = selection.value.days.map((index) => {
       const day = trip.days[index]!;
-      const values: RepeatValue[] = [];
-      if (day.date !== null) values.push(rowValue(formatDate(day.date)));
-      // One value PER CITY, not one joined string: a day that touches two
-      // cities wears two colours on the board, and one value can only wear one.
-      for (const cityName of globals?.days[index]?.cities ?? []) values.push(rowCity(cityName));
-      if (day.costSubtotal !== 0) values.push(rowValue(formatMoney(day.costSubtotal, trip.currency)));
-      return { lead: rowLabel(`Day ${index + 1}`), values };
+      // One value PER CITY inside the city cell, not one joined string: a day
+      // that touches two cities wears two colours on the board, and one value
+      // can only wear one.
+      const cities = (globals?.days[index]?.cities ?? []).map(rowCity);
+      return {
+        lead: rowLabel(`Day ${index + 1}`),
+        cells: [
+          day.date === null ? [] : [rowValue(formatDate(day.date))],
+          cities,
+          day.costSubtotal === 0 ? [] : [rowValue(formatMoney(day.costSubtotal, trip.currency))],
+        ],
+      };
     });
     return ok({ kind: "repeat-rows", rows });
   },
@@ -96,8 +116,9 @@ export const cityRows: MacroDef<CityRowsParams, RepeatPayload> = {
     if (cities.length === 0) return empty();
     const { days, stops } = selection.value;
     const rows: RepeatRow[] = cities.map((entry) => {
-      const values: RepeatValue[] = [];
-      // **Both values are scoped to the selection.** `TripGlobalsCity` carries
+      // Two columns: which days, and how many stops.
+      //
+      // **Both are scoped to the selection.** `TripGlobalsCity` carries
       // the whole trip's answer, so a date-filtered line was showing one
       // selected day beside a stop count that included the days the filter had
       // just excluded (CodeRabbit, PR 141).
@@ -105,12 +126,14 @@ export const cityRows: MacroDef<CityRowsParams, RepeatPayload> = {
       // Day NUMBERS, not indexes: the projection counts from 0 and a person
       // counts from 1.
       const ordinals = cityDayOrdinals(entry, days);
-      if (ordinals.length > 0) {
-        values.push(rowValue(ordinals.map((ordinal) => `Day ${ordinal}`).join(", ")));
-      }
       const count = stopsInCity(stops, entry.name).length;
-      if (count > 0) values.push(rowValue(count === 1 ? "1 stop" : `${count} stops`));
-      return { lead: rowCity(entry.name), values };
+      return {
+        lead: rowCity(entry.name),
+        cells: [
+          ordinals.length === 0 ? [] : [rowValue(ordinals.map((ordinal) => `Day ${ordinal}`).join(", "))],
+          count === 0 ? [] : [rowValue(count === 1 ? "1 stop" : `${count} stops`)],
+        ],
+      };
     });
     return ok({ kind: "repeat-rows", rows });
   },
@@ -121,15 +144,21 @@ const STOP_ROWS_FILTERS = ["day", "city", "tag", "kind", "person", "dates"] as c
 const StopRowsParams = filterParams(STOP_ROWS_FILTERS);
 type StopRowsParams = z.infer<typeof StopRowsParams>;
 
-// The header a group of stops sits under: a row whose lead is a label and whose
-// values are empty, which `renderRows` turns into a single text segment.
+// The header a group of stops sits under: a row whose lead is a label and which
+// has no cells at all, which `renderRows` turns into a single text segment and
+// the renderer widens across the whole row.
 //
-// A header is a row rather than a field on `RepeatRow` because `Rendered.rows`
-// is `Seg[][]` — a repeat renders N lines and `MacroView` maps them to
-// `role="listitem"` spans. Giving `RepeatRow` a `kind` would push a grouping
-// concept through the render seam and into `apps/web` for one widget's benefit;
-// a label-only line is the same thing said with what already exists.
-const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), values: [] });
+// A header is a row AND carries `kind: "header"`, as of 2026-09-06.
+//
+// This comment used to argue the opposite — that giving `RepeatRow` a `kind`
+// "would push a grouping concept through the render seam and into `apps/web`
+// for one widget's benefit", and that a label-only line said the same thing
+// with what already existed. That held while a repeat rendered as a list of
+// lines. It stopped holding when Mitchell asked for the table these were
+// always meant to be: a renderer that must not put a group header in the
+// value column has to know which rows are headers, and "its values array is
+// empty" is the guess that reasoning was avoiding, not an answer.
+const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), cells: [], kind: "header" });
 
 /**
  * `stop.rows` — one line per stop: when it is, and what it cost.
@@ -163,12 +192,15 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const stops = selection.value.stops;
     if (stops.length === 0) return empty();
 
-    const lineOf = ({ activity }: SelectedStop): RepeatRow => {
-      const values: RepeatValue[] = [];
-      if (activity.timeWindow) values.push(rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`));
-      if (activity.cost) values.push(rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency)));
-      return { lead: rowLabel(activity.title), values };
-    };
+    // Two columns: when it is, and what it cost. A stop with no time still
+    // leaves the time column open, so the costs stay in one line down the page.
+    const lineOf = ({ activity }: SelectedStop): RepeatRow => ({
+      lead: rowLabel(activity.title),
+      cells: [
+        activity.timeWindow ? [rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`)] : [],
+        activity.cost ? [rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency))] : [],
+      ],
+    });
 
     // Group only when there is more than one group to tell apart. `stops` is
     // already in board order — the selected days in order, then the backlog —
@@ -237,15 +269,31 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
       if (subtotal === 0) continue;
       const date = trip.days[index]!.date;
       rows.push({
-        lead: rowLabel(date ? `Day ${index + 1} · ${date}` : `Day ${index + 1}`),
-        values: [rowValue(formatMoney(subtotal, trip.currency))],
+        // Day and date in their own columns, not joined on a `·`. They were
+        // joined when the lead was the only place either could go; *"the date
+        // and the city and the text shouldnt all be rolled into each other"*
+        // is the same complaint one widget over, and the join here is the same
+        // mistake.
+        //
+        // `formatDate`, not the raw ISO. Mitchell, 2026-09-06 on the preview:
+        // *"these should be human readable strings, march 10, 2026 rather than
+        // 2026-03-10"*. `day.rows` on the same page already went through
+        // `formatDate` and drew no complaint, which is why this keeps the
+        // abbreviated month it produces rather than inventing a second date
+        // format for one widget.
+        lead: rowLabel(`Day ${index + 1}`),
+        cells: [date ? [rowValue(formatDate(date))] : [], [rowValue(formatMoney(subtotal, trip.currency))]],
       });
     }
     const unscheduled = costOfStops(byDay.get(null) ?? []);
     if (unscheduled !== 0) {
-      rows.push({ lead: rowLabel("Unscheduled"), values: [rowValue(formatMoney(unscheduled, trip.currency))] });
+      rows.push({ lead: rowLabel("Unscheduled"), cells: [[], [rowValue(formatMoney(unscheduled, trip.currency))]] });
     }
-    rows.push({ lead: rowLabel("Total"), values: [rowValue(formatMoney(total, trip.currency))] });
+    rows.push({
+      lead: rowLabel("Total"),
+      cells: [[], [rowValue(formatMoney(total, trip.currency))]],
+      kind: "total",
+    });
     return ok({ kind: "repeat-rows", rows });
   },
   render: renderRows,

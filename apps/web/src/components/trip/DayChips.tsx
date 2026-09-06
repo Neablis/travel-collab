@@ -207,7 +207,19 @@ export type DayChipsProps = {
 // TimelineLens's "add a day" focuses silently, so adding one locked you into
 // day scope for the session. `aria-pressed` already tells assistive tech this
 // is a toggle; the × on the focused chip is what tells everyone else, since a
-// toggle nobody can see is a toggle nobody uses.
+/**
+ * Renders selectable day chips for a trip.
+ *
+ * The row supports keyboard navigation, focused-day synchronization, and optional
+ * read-only presentation.
+ *
+ * @param days - The trip days represented by the chips
+ * @param focusedDay - The index of the selected day, or `null`
+ * @param onSelect - Called with the selected day index or `null` to clear selection
+ * @param readOnly - Whether to hide the visual removal control
+ * @param sync - Optional synchronization configuration for related trip surfaces
+ * @returns The rendered day-chip group
+ */
 export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
@@ -233,7 +245,17 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
       if (rect === undefined) return null;
       spans.push({ start: rect.left, size: rect.width });
     }
-    return centralDayIndex({ start: rowRect.left, size: rowRect.width }, spans, READING_LINE.horizontal);
+    // The third horizontal day scroller, carrying the same end-unreachable
+    // defect as Board and MapDayStrip: a row wider than one chip cannot bring
+    // the first or last chip's centre to the reading line, so neither could
+    // ever be the day this row reports. Fixed in all three together rather
+    // than one at a time — the first fix covered only Board and Mitchell found
+    // the strip within the hour.
+    const maxScroll = row.scrollWidth - row.clientWidth;
+    return centralDayIndex({ start: rowRect.left, size: rowRect.width }, spans, READING_LINE.horizontal, {
+      atStart: row.scrollLeft <= 1,
+      atEnd: row.scrollLeft >= maxScroll - 1,
+    });
   });
 
   // Contract clauses 2 and 3: a day picked in a column, a cell or the timeline

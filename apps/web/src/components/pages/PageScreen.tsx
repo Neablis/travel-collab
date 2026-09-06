@@ -8,6 +8,7 @@ import { usePreferences } from "@/components/account/PreferencesProvider";
 import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
+import { PageTitle } from "./PageTitle";
 import { Banner } from "@/components/ui/banner";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
@@ -60,7 +61,12 @@ function LockedNotice({ children }: { children: ReactNode }) {
 // `fetchTripDetail` the board/lens system uses — pages don't need
 // `TripProvider`'s optimistic-update machinery, they never write planning
 // data) and wires `PageEditor`'s `value`/`onChange` to
-// `pagesClient.updatePage`, debounced.
+/**
+ * Displays a trip page and supports safe editing, widget insertion, autosaving, and assistant interactions.
+ *
+ * @param tripId - Identifier of the trip containing the page
+ * @param pageId - Identifier of the page to display
+ */
 export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -173,6 +179,8 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // `page-inserts` guard below.
   const editingRef = useRef(editing);
   editingRef.current = editing;
+  // Which rename is the current one. See `handleRename`.
+  const renameSeq = useRef(0);
 
   // **The notebook's AI surface is the assistant rail, not a prompt box.**
   // Mitchell, walking the preview (2026-09-04): *"This should be the same style
@@ -268,6 +276,40 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // would kill a conversation the user can still have — and the write it was
   // guarding against is refused by the `page-inserts` guard above, which is
   // where it always belonged: cancellation cannot close that window on its own.
+  // **The rename, which used to be a button on the index list.** Mitchell,
+  // 2026-09-06: *"rename shouldn't be a button here, the title should be at
+  // the top of the notebook as a h1 and when you edit the title it does the
+  // actual edit/rename"*. Same `updatePage` call the index's inline rename
+  // made — only the surface moved.
+  //
+  // Not debounced, unlike the content autosave above: a title is committed
+  // once, on blur or Enter, rather than on every keystroke.
+  const handleRename = (title: string) => {
+    const previousTitle = page?.title ?? null;
+    // A rename says nothing about the title once a later one has been sent.
+    // Two edits in quick succession finish in whatever order the network gives
+    // them, and without this counter the FIRST one's completion still runs:
+    // its failure puts `previousTitle` back over the second name the user can
+    // see, and its success writes the older title back over the newer one.
+    // CodeRabbit found the failure half on #149; the success half is the same
+    // race and is fixed by the same guard.
+    const seq = ++renameSeq.current;
+    setPage((prev) => (prev === null ? prev : { ...prev, title }));
+    void updatePage(tripId, pageId, { title }).then((result) => {
+      if (seq !== renameSeq.current) return;
+      if (!result.ok) {
+        // Put the old name back rather than leaving the screen showing a name
+        // the server never took. `setError`/`setStatus("error")` — the pair
+        // this screen uses elsewhere — replaces the whole document with an
+        // alert, which is the right weight for "the notebook would not load"
+        // and much too heavy for "the rename did not stick".
+        setPage((prev) => (prev === null || previousTitle === null ? prev : { ...prev, title: previousTitle }));
+        return;
+      }
+      setPage((prev) => (prev === null ? prev : { ...prev, title: result.value.title, updatedAt: result.value.updatedAt }));
+    });
+  };
+
   const toggleEditing = () => setEditing((was) => !was);
 
   if (status === "loading") return <PageContainer>Loading…</PageContainer>;
@@ -352,7 +394,10 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     return (
       <PageContainer>
         <div className="mb-2">{backLink}</div>
-        <Heading level={2}>{page.title}</Heading>
+        {/* Plain, not a `PageTitle`: this branch exists precisely so nothing
+            here can write to a document the app cannot safely read, and a
+            rename is a write. It is still the page's `h1`. */}
+        <Heading level={1}>{page.title}</Heading>
         <div className="mb-3 mt-3">
           {stored.status === "unsupported" ? (
             <LockedNotice>
@@ -378,7 +423,12 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
           document itself is inside the container with it. */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      {/* `mt-3` because this row carried `mb-3` and nothing above it, and
+          `PageContainer` is `mx-auto w-full px-6` — horizontal padding only —
+          so the row landed hard against the global header (2026-09-06 preview
+          feedback, finding 7). Spaced here rather than in `PageContainer`,
+          which five other surfaces share. */}
+      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -433,7 +483,12 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           column. */}
       <Card raised className="overflow-hidden p-0">
         <div className="flex flex-col px-5 py-6 sm:px-12 sm:py-10">
-          <Heading level={2}>{page.title}</Heading>
+          {/* `h1`, and the document's own — the trip's name is the app chrome
+              above this card, not this page's heading. Editable only in
+              Editing: Reading is the traveller's view (§18) and a title that
+              accepts a caret there would be the one piece of chrome left in a
+              mode whose whole point is not having any. */}
+          <PageTitle title={page.title} editable={editing} onRename={handleRename} />
           {/* `mt-4` is the seam between the title and the document. It used to
               be `mt-3` on a wrapper that also held the editor and the rail as
               flex siblings; the rail is neither a sibling nor in this box any

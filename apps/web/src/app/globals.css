@@ -170,12 +170,25 @@
      `position: fixed`, so it reserves no flow space, and a page's last row
      ends underneath it.
 
-     `.phone-tab-bar` — the design's `padding: 8px 0 30px`. The 8px top is a
-     Tailwind class on the element; only the bottom needs to be here, because
-     it is not a scale value: `max()` rather than `calc()` so the 30px the
-     design draws is the floor on a device with no home indicator and the
-     inset takes over on one that has (34px on current iPhones) instead of
-     stacking to 64px.
+     `.phone-tab-bar` — the design draws `padding: 8px 0 30px`, and the 30px
+     floor is now **8px**. Mitchell, 2026-09-06 on a 411px Android: *"The
+     bottom bar has a bit of wasted space, have equal distance between top and
+     bottom for icon and shrink it down a bit."*
+
+     The design's 30px was clearance for a home indicator. On a device that has
+     one, `env(safe-area-inset-bottom)` reports it (34px on current iPhones)
+     and `max()` still takes it — so nothing changes there. On a device that
+     does not, the inset is 0 and the 30px was 30px of nothing, drawn under a
+     bar whose top padding is 8: the asymmetry Mitchell is looking at. Matching
+     the top makes the 44px tap target sit centred, and takes the bar from
+     8+44+1+30 = 83px to 61px.
+
+     `max()` rather than `calc()` for the same reason as before: the inset
+     replaces the floor rather than stacking on it.
+
+     The 44px floor is untouched — §13.1 is about what a thumb can hit, and the
+     shrink comes entirely out of padding that was clearing hardware this
+     device does not have.
 
      `.phone-tab-bar-inset` — the reservation, applied by `(app)/layout.tsx`
      to the wrapper around `children`. `--phone-tab-bar-height` is published
@@ -203,7 +216,7 @@
      measurement overwrites it. A wrapped label or a larger OS text size
      makes this an under-estimate for one paint, never a permanent one. */
   .phone-tab-bar {
-    padding-bottom: max(30px, env(safe-area-inset-bottom));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
   /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
      number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
@@ -242,9 +255,64 @@
   }
   @media (max-width: 767px) {
     :root {
-      --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));
+      --phone-tab-bar-height: calc(8px + 44px + 1px + max(8px, env(safe-area-inset-bottom)));
     }
   }
+  /* A repeat widget's table (MacroView's `rows` case, 2026-09-06).
+
+     Laid out on spans rather than a real `<table>`, and that is a constraint
+     rather than a preference: a widget node is an inline atom inside a `<p>`,
+     and the HTML parser closes the paragraph at any block element — `<table>`
+     included — so the server's DOM and the client's would disagree and
+     hydration would fail. `MacroView`'s own comment records the same problem
+     being measured with `<div>`.
+
+     Grid rather than the `display: table` this started as, and the reason is
+     the group header below: CSS tables have no way to span columns without
+     HTML `colspan`, which spans cannot carry. Subgrid keeps the columns shared
+     across rows — each row is its own grid box, so it can hold the stripe and
+     the total's tint, while its cells still line up with every other row's.
+
+     `grid-template-columns` is set on the element rather than here, because
+     the column COUNT is the widget's data: `MacroView` writes
+     `minmax(0, 1fr)` for the label column and one `auto` per value column, and
+     how many of those there are depends on the rows. That is what
+     `table-layout: auto` used to give for free — value columns sized to their
+     content, the label column taking the rest. `width: 100%` so the card fills
+     the paragraph. */
+  .tc-widget-table {
+    display: grid;
+    width: 100%;
+  }
+  .tc-widget-row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    /* What `vertical-align: baseline` did for the table cells: a lead that
+       wraps to two lines keeps its first line level with the value. */
+    align-items: baseline;
+  }
+  /* Zebra striping, 2026-09-06: *"all tables should have row stripping"*. On
+     `--color-surface` (white) the alternate row is `--color-paper`, which is
+     the same pairing the app already uses for a page on its background — a
+     stripe you read as structure rather than as a highlight. The total row's
+     `bg-moss` is a utility and outranks this, so it stays distinct from both. */
+  .tc-widget-row:nth-child(even) {
+    background-color: var(--color-paper);
+  }
+  .tc-widget-cell {
+    min-width: 0;
+  }
+  /* A group header spans both columns — it names the rows under it and has no
+     value of its own, so a second cell would read as a missing number. Under
+     `display: table` this rule only set the alignment and the claim above it
+     was false: a lone cell sat in the first column and the header was as narrow
+     as the leads under it. CodeRabbit caught the gap on #149. */
+  .tc-widget-row > .tc-widget-cell:only-child {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
   .phone-tab-bar-inset {
     padding-bottom: var(--phone-tab-bar-height, 0px);
   }
@@ -671,6 +739,9 @@
      design's kept state. Nothing is left on screen claiming a persistence the
      schema cannot back — `SavedDay` has no `sourceDayId`, so after a reload
      "is this day kept?" has no answer (ADR-040). */
+  /* GREEN, not brand. Mitchell, 2026-09-06 10:07, on the phone: *"just have
+     it turn green and do the animation when it succeeds"*. Green is what a
+     save reads as; the brand fill the design specified read as a selection. */
   @keyframes om-flag-keep {
     0% {
       background-color: var(--color-surface);
@@ -680,12 +751,12 @@
        holds with `fill: 'forwards'`; the hold here is the flat middle, and the
        return is the design's frame run backwards at the same length. */
     10.77% {
-      background-color: var(--color-brand);
+      background-color: var(--color-success);
       color: var(--color-surface);
       animation-timing-function: linear;
     }
     89.23% {
-      background-color: var(--color-brand);
+      background-color: var(--color-success);
       color: var(--color-surface);
       animation-timing-function: ease-in;
     }
@@ -710,24 +781,6 @@
     }
     100% {
       fill: transparent;
-    }
-  }
-  @keyframes om-flag-label {
-    0% {
-      max-width: 0;
-      opacity: 0;
-      margin-left: 0;
-    }
-    14%,
-    86% {
-      max-width: 52px;
-      opacity: 1;
-      margin-left: 6px;
-    }
-    100% {
-      max-width: 0;
-      opacity: 0;
-      margin-left: 0;
     }
   }
   @keyframes om-flag-ring {
@@ -765,16 +818,10 @@
   .flag-celebrate svg path {
     animation: om-flag-fill 2600ms linear;
   }
-  .flag-celebrate-label {
-    display: inline-block;
-    overflow: hidden;
-    white-space: nowrap;
-    animation: om-flag-label 2600ms cubic-bezier(0.2, 1, 0.3, 1);
-  }
   .flag-celebrate-ring {
     position: absolute;
     inset: -5px;
-    border: 2px solid var(--color-brand);
+    border: 2px solid var(--color-success);
     border-radius: 999px;
     pointer-events: none;
     animation: om-flag-ring 700ms ease-out;
@@ -794,7 +841,7 @@
     position: absolute;
     top: 50%;
     border-radius: 999px;
-    background: var(--color-brand);
+    background: var(--color-success);
     pointer-events: none;
     animation: om-flag-spark 780ms ease-out both;
   }
@@ -831,13 +878,12 @@
   }
   @media (prefers-reduced-motion: reduce) {
     /* Same call as `.flag-wave`: the toast carries the outcome, so all of this
-       is decoration. The label still appears and leaves on its timer — that is
-       a state change, not motion, and it is the one part of the celebration
-       that says anything. The ring and sparks have no resting state worth
-       showing, so they are hidden outright rather than frozen mid-flight. */
+       is decoration. The ring and sparks have no resting state worth showing,
+       so they are hidden outright rather than frozen mid-flight. (The "Kept"
+       label this block used to carve out an exception for is gone — Mitchell,
+       2026-09-06 10:07: *"drop the word kept and the expanded UI"*.) */
     .flag-celebrate,
     .flag-celebrate svg path,
-    .flag-celebrate-label,
     .flag-celebrate-ring,
     .flag-celebrate-spark {
       animation: none;
@@ -959,6 +1005,36 @@
   .tc-page-editor h5,
   .tc-page-editor h6 {
     @apply font-display text-md font-medium text-ink mt-4 mb-1;
+  }
+  /* A heading holding a widget value needs room for it. Mitchell, 2026-09-06,
+     on a heading full of city chips: *"The second line is overtop the top
+     line"*.
+
+     A chip is inline, so its tint and its `border-b-2` are painted over the
+     font's content area plus 2px, and vertical padding on an inline box adds
+     nothing to the line box. The heading scale is deliberately tight —
+     `--text-2xl--line-height: 1.15`, `--text-xl--line-height: 1.2` — tighter
+     than the box a chip paints (measured: a 30px chip on a 28.8px line in an
+     `h2`), so a second line of chips was drawn over the first.
+
+     `:has()` rather than loosening every heading: the leading is right for a
+     heading of words, and only one carrying a chip has anything to make room
+     for. 1.4 clears the tallest case with margin — the 2px rule costs more
+     relative to a small heading than a large one, so `h4` at 16px needs the
+     most (1.325) and gets it.
+
+     Written out six times rather than as `:is(h1, …, h6):has(…)`, which is the
+     obvious shortening and breaks the suite: jsdom's selector engine splits a
+     selector list on commas before parsing, so the comma INSIDE `:is()` leaves
+     it with `h6):has([data-widget-value])` and it throws. `PageEditor.test.tsx`
+     reads these rules against a real editor DOM (KI-44) and is what caught it. */
+  .tc-page-editor h1:has([data-widget-value]),
+  .tc-page-editor h2:has([data-widget-value]),
+  .tc-page-editor h3:has([data-widget-value]),
+  .tc-page-editor h4:has([data-widget-value]),
+  .tc-page-editor h5:has([data-widget-value]),
+  .tc-page-editor h6:has([data-widget-value]) {
+    line-height: 1.4;
   }
   .tc-page-editor p {
     @apply text-base text-ink my-3;

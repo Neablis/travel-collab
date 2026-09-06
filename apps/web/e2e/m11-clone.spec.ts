@@ -21,8 +21,17 @@ async function addDay(page: Page, tripId: string): Promise<void> {
 }
 
 async function shareLinkFor(page: Page): Promise<string> {
-  // `exact: true` — the trip title button's accessible name is
-  // "<trip name> — Trip settings", so a loose "Share" match can be ambiguous.
+  // **Through Trip settings, because that is where Share lives now.** It used
+  // to be a header button at desktop width; Mitchell moved it into the sheet on
+  // 2026-09-06 — *"Put share in the trip settings under invite someone, both
+  // here and in mobile"* — so the header has no Share at any width.
+  //
+  // `exact: true` on the Share click is still load-bearing, and for the reason
+  // the old comment gave: Playwright's name matching is substring-and-
+  // case-insensitive, and the trip title button's accessible name is
+  // "<trip name> — Trip settings", so a trip called "Shared 1787…" makes a
+  // loose "Share" match ambiguous and trips strict mode.
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await Promise.all([
     page.waitForResponse(

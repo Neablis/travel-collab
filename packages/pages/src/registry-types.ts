@@ -18,6 +18,10 @@ export type InlinePayload = string;
 // deriving that from the index of a payload it was handed would be right only
 // for as long as no widget ever renders a SUBSET of the days (the design's own
 // itinerary block already takes a from/to range).
+// Every string here is DISPLAY-READY — `date` formatted, `timeWindow` joined,
+// `cost` in the trip's currency — because a block component renders what it is
+// handed and has no formatter of its own. `date` was the one field that came
+// through as the ISO it is stored as, and it read on the page as a timestamp.
 export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ordinal: number; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }
@@ -87,9 +91,29 @@ export interface RepeatValue {
 export interface RepeatRow {
   // The line's opening phrase: "Day 1", a city name, a time.
   lead: RepeatValue;
-  // The values that follow. Empty is legitimate: a day with no date, no city
-  // and no cost is still a day, and its line still says which day it is.
-  values: readonly RepeatValue[];
+  /**
+   * The COLUMNS that follow, one entry each — not a flat list of values.
+   *
+   * Mitchell, 2026-09-06, on a `day.rows` widget whose date, cities and cost
+   * shared one cell: *"The date and the city and the text shouldnt all be
+   * rolled into each other. Introduce real columns"*. A flat list cannot
+   * answer that, and not because of the renderer: a day with two cities has
+   * one more value than a day with one, so "the third value" is a different
+   * KIND of thing on different rows and no renderer could line them up.
+   *
+   * A resolver therefore emits a fixed number of cells per widget and puts
+   * each fact in its own — an EMPTY cell where a row has no answer, which is
+   * what keeps the column a column. A cell may hold more than one value: a day
+   * that touches two cities wears both in the city column.
+   */
+  cells: readonly (readonly RepeatValue[])[];
+  /**
+   * What this row IS, when it is not simply data — a grouping header, or the
+   * total a breakdown ends on. A resolver already knows this and used to have
+   * nowhere to say it, so the renderer had to guess from the text or not at
+   * all. Optional, so every existing row stays an ordinary one.
+   */
+  kind?: "header" | "total";
 }
 
 // Constructors, so a resolver reads as data rather than as object literals with
@@ -121,10 +145,40 @@ export type Seg =
 // exists now, before link 6 builds repeaters, because the format has to
 // understand a shape before the editor emits it (the same argument ADR-038 makes
 // about `repeat` nodes).
+/**
+ * One rendered row of a repeat, as CELLS rather than as one flattened line.
+ *
+ * `RepeatRow` has always carried its lead separately; the render seam used to
+ * flatten the rest to one `Seg[]` and the columns were lost there. Mitchell,
+ * 2026-09-06, on the Notebook: *"These were always meant to be tables with
+ * columns, and styled … just build it, no need for a ADR."* So the split
+ * survives to the renderer, which is all a table needed — no new concept was
+ * added to the document, and nothing upstream of `render` changed.
+ *
+ * The second half of that came the same afternoon, on a `day.rows` whose date,
+ * cities and cost shared the one right-hand cell: *"The date and the city and
+ * the text shouldnt all be rolled into each other. Introduce real columns"*.
+ * So this is `cells`, one per column, rather than a single value list — see
+ * `RepeatRow.cells` for why a flat list could not be lined up.
+ *
+ * `kind` is what lets a renderer style a row differently without parsing its
+ * text. `cost.rows` ends with a total and `stop.rows` groups under headers;
+ * both were previously indistinguishable from a data row once flattened.
+ */
+export interface RenderedRow {
+  /** The left column: what the row is. */
+  lead: Seg[];
+  /** One entry per column, in order. Empty on a header row; an empty entry is
+   *  a column this row has no answer for and must still leave open. */
+  cells: Seg[][];
+  /** `undefined` for an ordinary data row. */
+  kind?: "header" | "total";
+}
+
 export type Rendered =
   | { kind: "inline"; segs: Seg[] }
   | { kind: "block"; block: BlockPayload }
-  | { kind: "rows"; rows: Seg[][] };
+  | { kind: "rows"; rows: RenderedRow[] };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -132,7 +186,7 @@ export const text = (t: string): Seg => ({ kind: "text", text: t });
 export const chip = (name: string, t: string): Seg => ({ kind: "chip", name, text: t });
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
-export const rowsOf = (rows: Seg[][]): Rendered => ({ kind: "rows", rows });
+export const rowsOf = (rows: RenderedRow[]): Rendered => ({ kind: "rows", rows });
 
 // What a widget TAKES, declared so a UI can choose a control for it
 // (ADR-035 decision 2, SPEC §18). A Zod schema says a param is a string; it

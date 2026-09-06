@@ -43,32 +43,13 @@ const SOLID_BG: Record<AccentFamily, string> = {
 export const MAP_DAY_STRIP_HEIGHT_PX = 84;
 
 /**
- * The phone replacement for `MapRail` (Mitchell, 2026-08-30 design pass: "map
- * view pretty broken on mobile … figure out a different static location for
- * the days, have less info and make that where you scroll so map jumping
- * still works").
+ * Renders a horizontally scrollable day strip above the map.
  *
- * The rail is a 268px-wide floating panel with a geared, scroll-driven focus.
- * On a 411px phone that is most of the screen, and the thing it overlays —
- * the map — is the actual content. So on a phone the days become a horizontal
- * chip strip pinned to the top of the canvas: the same idiom `DayChips` uses
- * everywhere else, which means one thing to learn rather than two.
+ * Scrolling selects the day at the reading line, while externally focused days
+ * are brought into view. The focused day displays its status, stop count, and
+ * distance when available.
  *
- * One deliberate difference from the rail, from "have less info": the per-day
- * detail the rail carries on every row (stop count, transition, distance) is
- * not on the chips. It appears once, under the strip, for the focused day only
- * — which is also where `MapFocusCard`'s content goes, since that card is a
- * desktop overlay with nowhere to sit on a phone.
- *
- * There used to be a second one: focus here was by **tap only**, on the
- * reasoning that scroll-driven focus on a horizontal strip would fight the
- * sideways scroll needed to reach day 14. Mitchell overruled that from the
- * preview, 2026-09-01: *"scrolling here on mobile should change the selected
- * day"* — and on a phone, where this strip is the only day control on the lens,
- * scrubbing to a day and choosing it really are one gesture. The strip now
- * obeys the day-sync contract in `FocusProvider`'s header like every other day
- * container; the jump lock is what keeps its own scroll-into-view from being
- * read back as a scrub, which is the fight the old comment was worried about.
+ * @param sync - Optional day synchronization state shared with other day controls.
  */
 export function MapDayStrip({
   days,
@@ -109,10 +90,18 @@ export function MapDayStrip({
       const rect = chip.getBoundingClientRect();
       return { start: rect.left, size: rect.width };
     });
+    // The ends, which the reading line cannot reach — the same defect fixed in
+    // Board, in the second of the three horizontal day scrollers. Mitchell, on
+    // a 411px phone: "day 1 and 2 and the last two days are not scrollable to,
+    // it is shown, but they don't get selected". TWO chips at each end here
+    // rather than one, because these chips are far narrower than a day column,
+    // so more of them fit between the track's edge and its centre.
+    const maxScroll = track.scrollWidth - track.clientWidth;
     const nth = centralDayIndex(
       { start: trackRect.left, size: trackRect.width },
       spans,
       READING_LINE.horizontal,
+      { atStart: track.scrollLeft <= 1, atEnd: track.scrollLeft >= maxScroll - 1 },
     );
     return nth === null ? null : (days[nth]?.index ?? null);
   });

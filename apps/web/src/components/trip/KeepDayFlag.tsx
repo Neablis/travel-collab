@@ -22,9 +22,9 @@ const INK_TEXT: Record<AccentFamily, string> = {
   neutral: "text-slate",
 };
 
-// The length of the celebration, and the `om-flag-label` keyframe's own
-// duration in globals.css. The two have to agree: the class drives the
-// motion, this drives how long the label stays in the DOM.
+// The length of the celebration, and the `om-flag-keep` keyframe's own
+// duration in globals.css. The two have to agree: the class drives the motion,
+// this drives how long the ring and sparks stay in the DOM.
 const CELEBRATION_MS = 2600;
 
 // Handoff README "Keep this day": an icon-only pennant, 30px circle,
@@ -38,6 +38,35 @@ const CELEBRATION_MS = 2600;
 // Disabled on an empty day rather than hidden: the pennant is part of the
 // day's row furniture and a row that loses a control as its last stop is
 // removed is worse than one whose control greys out. `title` says why.
+
+// **The pennant is a 30px circle at every moment of its life, and that is what
+// finally fixed the row it was breaking.**
+//
+// Mitchell, 2026-09-06 05:58, on a 412px phone: *"add stop goes briefly to the
+// second line when the flag button is clicked"* — the button used to grow a
+// "Kept" label mid-celebration, animating `max-width: 0 → 52px`, and the day
+// head is `flex-wrap` with no slack at that width. The first answer was to
+// reserve the label's width permanently (`88px`), which stopped the reflow at
+// the cost of an un-kept pennant three times wider than the design's.
+//
+// Mitchell, 2026-09-06 10:07, seeing that: *"lets go back to this being
+// smaller, drop the word kept and the expanded UI and just have it turn green
+// and do the animation when it succeeds."* So the label is gone outright, and
+// with nothing left that can change size there is nothing left to reserve. A
+// fixed square, not a `minWidth`: the two are the same number now, and the
+// square says the button cannot grow rather than that it will not.
+const PENNANT_PX = "30px";
+
+/**
+ * Provides a flag control for saving a trip day and displays save confirmation feedback.
+ *
+ * @param dayIndex - The zero-based index of the day.
+ * @param accent - The accent family used to style the control.
+ * @param tripId - The identifier of the trip containing the day.
+ * @param dayId - The identifier of the day to save.
+ * @param tripName - The name of the trip.
+ * @param stops - The stops included in the day.
+ */
 export function KeepDayFlag({
   dayIndex,
   accent,
@@ -74,9 +103,10 @@ export function KeepDayFlag({
   // Driven by a TIMER rather than `animationend`, which is where this departs
   // from `waving` above. The wave's class drives nothing but an animation, so
   // an `animationend` that never fires under `prefers-reduced-motion` costs
-  // nothing. This class also gates the "Kept" label — an event that never
-  // fires would leave the pennant claiming "Kept" for the life of the page.
-  // 2600ms is the label keyframe's own duration in globals.css.
+  // nothing. This class also gates the ring and sparks, which are removed from
+  // the DOM when the run ends — an event that never fires would leave them
+  // there for the life of the page. 2600ms is the fill keyframe's duration in
+  // globals.css.
   //
   // A RUN NUMBER rather than a boolean, because a second save inside the 2.6s
   // window has to start its own run (CodeRabbit, PR 142). With a boolean,
@@ -123,15 +153,15 @@ export function KeepDayFlag({
           title={empty ? "Add a stop to this day first" : "Keep this day"}
           onClick={keep}
           className={cn(
-            // `gap-0`: the design's only flank between glyph and label is the
-            // label's own animated 6px margin, and Button's default `gap-1.5`
-            // would silently double it to 12px.
-            "shrink-0 gap-0 rounded-full border-transparent bg-surface hover:bg-surface",
+            // `p-0`: the button is a fixed 30px square holding one 16px glyph,
+            // so Button's own horizontal padding has nothing to do and would
+            // only fight the width for it.
+            "shrink-0 justify-center rounded-full border-transparent bg-surface p-0 hover:bg-surface",
             INK_TEXT[accent],
             celebrating && "flag-celebrate",
           )}
-          // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle and the design's 7px flank have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-          style={{ height: "30px", minWidth: "30px", paddingInline: "7px" }}
+          // eslint-disable-next-line no-restricted-syntax -- the 30px pennant circle has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+          style={{ height: PENNANT_PX, width: PENNANT_PX }}
         >
           {/* The glyph waves, not the button: the design animates the `svg`
               inside the control, so the 30px circle and its focus ring stay put
@@ -144,23 +174,6 @@ export function KeepDayFlag({
           >
             <Flag className="h-4 w-4" aria-hidden />
           </span>
-          {/* Rendered only while celebrating, and `aria-hidden` while it is.
-              The design parks this permanently in the DOM at `max-width: 0` —
-              clipped to the eye, but still read out, so every un-kept day would
-              announce "Kept". And the button's `aria-label` wins over its own
-              text for the accessible name, so text inside it cannot be the
-              announcement anyway: the toast below is. */}
-          {celebrating && (
-            /* `text-xs font-semibold` is the design's 12px/600; Button's `md`
-               size would otherwise render this label at 16px/500. */
-            <span
-              key={run}
-              className="flag-celebrate-label text-xs font-semibold"
-              aria-hidden
-            >
-              Kept
-            </span>
-          )}
         </Button>
         {/* Keyed on the run so a second save inside the window replays the
             decoration instead of sitting inert under a class that is already
@@ -168,9 +181,13 @@ export function KeepDayFlag({
             focus to the element that opened the dialog, and remounting that
             element would drop the focus return on every save. The button's own
             pop does not replay, which reads correctly anyway — it is already
-            brand-filled, and stays so until the new run's later deadline. */}
+            green, and stays so until the new run's later deadline. */}
         {celebrating && (
-          <div key={run} className="contents">
+          /* `data-testid` because the celebration has no text any more: the
+             "Kept" label was the only thing a test could see, and the run
+             logic below it (a second save inside the window gets its own full
+             run) is still worth holding. */
+          <div key={run} data-testid="keep-day-celebration" className="contents">
             <span className="flag-celebrate-ring" aria-hidden />
             {/* Four sparks on the design's four paths. Their offsets, sizes and
                 delays are `nth-child` rules in globals.css, so this stays a list

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 
@@ -55,7 +56,14 @@ function statusLabel(status: TripStatus): string {
 // same accent across renders/reloads, just not a per-city one. This card
 // colors independently of any other card in the grid (Task 8.2, Group B), so
 // it resolves as a single-element dayAccents() call rather than batching
-// against the rest of the list.
+/**
+ * Renders a trip summary card with traveler information, status, creation date, and optional cost details.
+ *
+ * @param trip - The trip data displayed by the card
+ * @param menuSlot - Optional actions menu content
+ * @param plannedOfBudget - Optional preformatted planned-cost and budget text
+ * @returns The rendered trip summary card
+ */
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
 
@@ -187,7 +195,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
               // eslint-disable-next-line no-restricted-syntax -- 9px initials text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
               style={{ fontSize: "9px" }}
             >
-              {initialsFor(member.userId)}
+              {initialsFor(displayNameFor(member))}
             </div>
           ))}
         </div>

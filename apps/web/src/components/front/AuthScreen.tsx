@@ -40,7 +40,12 @@ import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/p
 // Suspense boundary, in the static shell), so it's lifted to the parent via
 // `onCallbackUrl` and applied through an effect — the buttons read the
 // resulting `callbackUrl` state instead of calling `useSearchParams()`
-// themselves.
+/**
+ * Displays authentication failure messages and reports the normalized callback URL.
+ *
+ * @param onCallbackUrl - Callback invoked with the normalized callback URL.
+ * @returns An authentication error banner when a failure message exists; otherwise, `null`.
+ */
 function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => void }) {
   const params = useSearchParams();
   const failure = errorMessage(params.get("error"));
@@ -51,7 +56,19 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
   }, [params]);
 
   if (!failure) return null;
-  return <Banner variant="danger">{failure}</Banner>;
+  // A refusal message may be more than one paragraph (`authCopy`'s
+  // MISSING_INVITE_CODE is two): why the door is shut, then what to do. Split
+  // on the blank line so the second instruction is not buried in the first.
+  const paragraphs = failure.split("\n\n");
+  return (
+    <Banner variant="danger">
+      {paragraphs.map((paragraph, index) => (
+        <p key={paragraph} className={index > 0 ? "mt-2" : undefined}>
+          {paragraph}
+        </p>
+      ))}
+    </Banner>
+  );
 }
 
 // `dc.html:1584-1628`: sign-in and sign-up are the same screen with different
@@ -82,7 +99,15 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 // comes back from Google with no memory of this form (the milestone's link
 // 5). Awaiting the action is what orders those two: its `Set-Cookie` is in
 // the jar before the browser leaves. Optional, because `/signin` has no code
-// field and passes nothing.
+/**
+ * Renders the sign-in or sign-up screen with the configured authentication options.
+ *
+ * @param mode - Whether to display sign-in or sign-up content.
+ * @param devLoginEnabled - Whether to show the development login form.
+ * @param googleAvailable - Whether Google authentication is configured and available.
+ * @param storeAdmissionCode - Optional callback that stores a submitted invite code before authentication.
+ * @param initialCallbackUrl - The safe destination to preserve when switching between authentication modes.
+ */
 export function AuthScreen({
   mode,
   devLoginEnabled,
@@ -306,7 +331,21 @@ export function AuthScreen({
                     onChange={(event) => setUsername(event.target.value)}
                   />
                 </FormField>
-                <Button type="submit" variant="ghost" disabled={!hydrated}>Sign in with dev login</Button>
+                {/* `secondary`, not `ghost`. Ghost is the right weight for a
+                    "Preview and local only" control that should not compete
+                    with Google — but this form only renders where dev login is
+                    enabled, which is exactly where it is usually the only path
+                    that completes. There the quietest control on the screen was
+                    the one every reviewer needed (2026-09-06 preview feedback,
+                    finding 1). Sizing matches the Google button above it. */}
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  className="h-11.5 w-full text-md font-semibold"
+                  disabled={!hydrated}
+                >
+                  Sign in with dev login
+                </Button>
               </form>
             )}
 

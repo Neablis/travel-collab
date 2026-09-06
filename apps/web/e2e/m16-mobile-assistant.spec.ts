@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
 import { e2eTripName } from "./tripNames";
 
@@ -32,6 +32,13 @@ import { e2eTripName } from "./tripNames";
 // leaves the plan stuck. What is genuinely new is the scrim test — DRIFT.md
 // build-check 4c, which the full-screen shape had no equivalent for because a
 // takeover covered the tab bar by being bigger than it.
+/** A locator's on-screen box, or a failure that names the locator rather than a null. */
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error("expected an on-screen element, got one with no box");
+  return box;
+}
+
 test.describe("mobile assistant (phone viewport)", () => {
   // Scoped to the trip header, and it has to be: the phone's plan is the
   // Timeline lens, and every stop on it carries its own `Ask` button (§9's
@@ -267,6 +274,56 @@ test.describe("mobile assistant (phone viewport)", () => {
     expect(layers.sheet).toBeGreaterThan(layers.scrim!);
   });
 
+  // 2026-09-06 preview feedback, on an Android phone: "when the assistant
+  // overlay is open, you are still scrolling the background rather than the
+  // assistant chat". The sheet is `max-height: 80dvh` anchored to the bottom,
+  // so a fifth of the screen above it is still the plan — and a drag there, or
+  // one that runs off the end of the transcript, must not move the page behind.
+  test("an open sheet does not let the plan behind it scroll", async ({ page }) => {
+    await seedTrip(page);
+
+    // **The witness comes first, and the page is put back where it can move.**
+    // "The page did not move" is trivially true of a page that could not have
+    // moved, and this walk had TWO ways to be that: a fixture with no scroll
+    // range, and — the one that actually bit — a page already wheeled to its
+    // maximum by the probe meant to prove it scrolls. Locally the plan is only
+    // a few hundred pixels tall, so one 400px wheel pinned it at the bottom and
+    // the assertion below could not have failed however broken the lock was.
+    // CI, with a taller fixture, had room left and caught the real defect: 42
+    // to 442 with the sheet open. CodeRabbit flagged the vacuity on PR 149
+    // before CI proved it.
+    const scrollTop = () => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
+    const scrollRoom = () =>
+      page.evaluate(() => {
+        const el = document.scrollingElement;
+        return el === null ? 0 : el.scrollHeight - el.clientHeight;
+      });
+    // The gesture, at these coordinates, does move the plan.
+    await page.mouse.move(206, 120);
+    await page.mouse.wheel(0, 400);
+    await expect.poll(scrollTop, { message: "the plan does not scroll at all — this walk proves nothing" }).toBeGreaterThan(0);
+    // And there is somewhere left for it to go.
+    expect(await scrollRoom()).toBeGreaterThan(200);
+    await page.mouse.wheel(0, -4000);
+    await expect.poll(scrollTop).toBe(0);
+
+    await askPill(page).click();
+    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+
+    const before = await scrollTop();
+
+    // A real wheel gesture, NOT `scrollingElement.scrollBy`. `overflow: hidden`
+    // — which is what a scroll lock is — still permits programmatic scrolling;
+    // it only refuses the user. A `scrollBy` probe therefore moves the page
+    // whether the lock is there or not, and would report this fixed while it
+    // was still broken. The first draft of this test did exactly that.
+    await page.mouse.move(206, 120); // above the 80dvh sheet: the plan behind it
+    await page.mouse.wheel(0, 400);
+    await expect
+      .poll(scrollTop, { message: "the plan behind an open sheet moved" })
+      .toBe(before);
+  });
+
   test("the composer is clickable and typeable — the reported 'unselectable' input", async ({ page }) => {
     await seedTrip(page);
 
@@ -330,5 +387,38 @@ test.describe("mobile assistant (phone viewport)", () => {
     await page.getByTestId("assistant-scrim").click({ position: { x: 205, y: 40 } });
     await expect(sheet).toBeHidden();
     await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+  });
+
+  test("the phone tab bar sits its icons the same distance from top and bottom", async ({ page }) => {
+    // Mitchell, 2026-09-06 on a 411px Android: *"The bottom bar has a bit of
+    // wasted space, have equal distance between top and bottom for icon and
+    // shrink it down a bit."*
+    //
+    // The design draws `padding: 8px 0 30px`, and the 30px was clearance for a
+    // home indicator. On a device that has one, `env(safe-area-inset-bottom)`
+    // reports it and `max()` still takes it. On one that does not — this
+    // viewport, and the phone Mitchell was holding — the inset is 0 and the 30px
+    // was 30px of nothing under a bar padded 8 at the top.
+    //
+    // Geometry rather than the padding value: the claim is about where the icons
+    // sit, and it should hold for any implementation that puts them there.
+    await seedTrip(page);
+    const bar = page.getByRole("navigation", { name: "Phone navigation" });
+    await expect(bar).toBeVisible();
+
+    const barBox = await boxOf(bar);
+    const tabs = await Promise.all((await bar.getByRole("link").all()).map(boxOf));
+    expect(tabs.length).toBeGreaterThan(1);
+
+    for (const tab of tabs) {
+      // Above and below, to within a pixel of rounding. `border-t` is outside
+      // the padding box and lands in the top gap, which is why this is not exact.
+      const above = tab.y - barBox.y;
+      const below = barBox.y + barBox.height - (tab.y + tab.height);
+      expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
+      // And the shrink does not come out of the thing a thumb has to hit
+      // (SPEC §13.1's floor).
+      expect(tab.height).toBeGreaterThanOrEqual(44);
+    }
   });
 });

@@ -29,6 +29,57 @@ describe("centralDayIndex", () => {
     expect(centralDayIndex({ start: 0, size: 1000 }, DAYS, READING_LINE.horizontal)).toBe(2);
   });
 
+  // 2026-09-06 preview feedback. Fourteen 200px columns in an 800px box: hard
+  // right, an interior day still owns the centre and the last two sit past it,
+  // so nearest-to-the-line can never name day 14 however far you scroll. Same
+  // at the start. Which interior day wins depends on the column widths — these
+  // synthetic 200px spans land on index 11, Mitchell's real board on day 13 —
+  // so what is pinned here is that the END is unreachable, not the number.
+  describe("the ends, which the reading line cannot reach", () => {
+    const FOURTEEN = Array.from({ length: 14 }, (_, i) => ({ start: i * 200, size: 200 }));
+    /** Scrolled hard right: the last column's right edge meets the box's. */
+    const hardRight = FOURTEEN.map((d) => ({ ...d, start: d.start - (14 * 200 - 800) }));
+
+    it("names the last day when the box is scrolled to its end", () => {
+      // Without `edges` this is 11, not 13: scrolled hard right, an interior
+      // column owns the centre and the last day never does. That gap is the
+      // reported symptom.
+      expect(centralDayIndex({ start: 0, size: 800 }, hardRight, READING_LINE.horizontal)).toBe(11);
+      expect(
+        centralDayIndex({ start: 0, size: 800 }, hardRight, READING_LINE.horizontal, { atEnd: true }),
+      ).toBe(13);
+    });
+
+    it("names the first day when the box is scrolled to its start", () => {
+      expect(centralDayIndex({ start: 0, size: 800 }, FOURTEEN, READING_LINE.horizontal)).toBe(1);
+      expect(
+        centralDayIndex({ start: 0, size: 800 }, FOURTEEN, READING_LINE.horizontal, { atStart: true }),
+      ).toBe(0);
+    });
+
+    it("gives a trip too short to scroll its first day, not its last", () => {
+      // Both ends at once. Ties go to the earlier index everywhere else here.
+      expect(
+        centralDayIndex({ start: 0, size: 800 }, FOURTEEN, READING_LINE.horizontal, {
+          atStart: true,
+          atEnd: true,
+        }),
+      ).toBe(0);
+    });
+
+    it("leaves the middle to the reading line", () => {
+      // The edges must not swallow ordinary scrolling: away from both ends the
+      // answer is still nearest-to-the-line.
+      const midway = FOURTEEN.map((d) => ({ ...d, start: d.start - 1000 }));
+      expect(
+        centralDayIndex({ start: 0, size: 800 }, midway, READING_LINE.horizontal, {
+          atStart: false,
+          atEnd: false,
+        }),
+      ).toBe(centralDayIndex({ start: 0, size: 800 }, midway, READING_LINE.horizontal));
+    });
+  });
+
   it("settles on the earlier day when two are equidistant", () => {
     // Line at 400 with two 200px days centred at 300 and 500. Without the
     // strict `<` this would flip between them on sub-pixel scroll jitter, which
