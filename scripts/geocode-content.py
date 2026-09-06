@@ -798,13 +798,22 @@ def one_request(provider, place: Place, query: str, stopping, db, args, progress
     Raises DailyCapReached upward — that one is not this function's to absorb.
     """
     tries = 0
+    limited = 0
     while True:
         try:
             return provider.lookup(query, countrycodes), None
         except RateLimited as exc:
+            # Bounded, not endless. This branch used to `continue` with no
+            # counter, so a provider answering 429 to everything spun forever
+            # with no output and no way to tell it from a hang.
+            limited += 1
+            if limited > args.max_rate_limit_retries:
+                return None, (f"still rate limited after {limited - 1} waits — "
+                              f"raise --interval")
             wait = exc.retry_after or provider.min_interval * 4
             wait = min(max(wait, provider.min_interval * 2), args.max_backoff)
-            progress.interrupt(f"  · rate limited — sleeping {wait:.0f}s ({query[:50]})")
+            progress.interrupt(f"  · rate limited {limited}/{args.max_rate_limit_retries}"
+                               f" — sleeping {wait:.0f}s ({query[:44]})")
             slept = 0.0
             while slept < wait and not stopping.now:
                 time.sleep(min(1.0, wait - slept))
@@ -961,6 +970,7 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     processed = 0
 
     anchors: dict = {}
+    capped = 0
 
     for key, query, name, area, city, attempts in todo:
       try:
@@ -1020,9 +1030,20 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
         time.sleep(backoff + random.uniform(0, 0.25))
       except DailyCapReached as exc:
         progress.done()
+        # Record the reason on the row. Skipping the write left the place in
+        # whatever state it already held and never touched `attempts`, so a
+        # capped run reported "318/318 this run" and changed nothing — a silent
+        # no-op indistinguishable from a fix that did not work. Status stays
+        # retryable and attempts stay put: not being attempted is not a failure.
+        db.execute(
+            "update places set last_error=?, updated_at=? where key=?",
+            ("daily quota reached before this place was attempted",
+             time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), key))
+        db.commit()
+        capped += 1
         if not provider.keys.retire(str(exc)[:60]):
-            print("  every key is out of requests for the day. "
-                  "Re-run tomorrow — the queue resumes where it stopped.")
+            print(f"  every key is out of requests for the day — {capped} place(s) "
+                  f"were not attempted.\n  Re-run tomorrow; the queue resumes here.")
             break
         continue
 
@@ -1244,6 +1265,8 @@ def main() -> None:
     ap.add_argument("--include-city-level", action="store_true",
                     help="with --apply, also write the city-centre fallbacks")
     ap.add_argument("--verbose", action="store_true", help="name each city as it resolves")
+    ap.add_argument("--max-rate-limit-retries", type=int, default=8,
+                    help="429 waits before a place is given up on for this run")
     ap.add_argument("--max-transient-retries", type=int, default=3,
                     help="retries for a timeout or 5xx before a place is marked failed")
     ap.add_argument("--max-attempts", type=int, default=4, help="give up on a place after this many tries")
