@@ -5,7 +5,7 @@ import Link from "next/link";
 import { DEFAULT_TEMPLATES, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
-import { createPage, deletePage, fetchPages, updatePage } from "@/lib/pagesClient";
+import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
 import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
@@ -14,9 +14,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { submitOnEnter } from "@/lib/submitOnEnter";
 import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -127,8 +125,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -257,24 +253,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
       }
       setPages((prev) => [...(prev ?? []), result.value]);
       router.push(`/trips/${tripId}/pages/${result.value.id}`);
-    });
-  };
-
-  const startRename = (page: PageSummary) => {
-    setRenamingId(page.id);
-    setRenameValue(page.title);
-  };
-
-  const saveRename = (pageId: string) => {
-    const title = renameValue.trim();
-    if (title.length === 0) return;
-    void updatePage(tripId, pageId, { title }).then((result) => {
-      if (!result.ok) {
-        setError(result.error.message);
-        return;
-      }
-      setPages((prev) => (prev ?? []).map((p) => (p.id === pageId ? { ...p, title: result.value.title, updatedAt: result.value.updatedAt } : p)));
-      setRenamingId(null);
     });
   };
 
@@ -412,64 +390,32 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           <ul className="mt-3 flex flex-col gap-2">
             {pages.map((page) => (
               <Card as="li" key={page.id} className="flex items-center justify-between gap-3">
-                {renamingId === page.id ? (
-                  <div className="flex flex-1 items-center gap-2">
-                    {/* Enter saves the rename, Escape abandons it — the two
-                        keys an inline rename is expected to answer to, and
-                        neither did (Mitchell, 2026-09-01). Escape is handled
-                        here rather than through `submitOnEnter` because it is a
-                        cancel, not a submit, and because stopping propagation
-                        matters: this row can sit inside an overlay whose own
-                        Escape would close the whole surface out from under a
-                        half-typed name. */}
-                    <Input
-                      aria-label={`Rename ${page.title}`}
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.stopPropagation();
-                          setRenamingId(null);
-                          return;
-                        }
-                        submitOnEnter(() => saveRename(page.id))(event);
-                      }}
-                      autoFocus
-                    />
-                    <Button size="sm" onClick={() => saveRename(page.id)}>
-                      Save
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRenamingId(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Link href={`/trips/${tripId}/pages/${page.id}`} className="flex-1">
-                    <span className="flex items-center gap-2">
-                      <Text as="span" className="font-medium text-ink">
-                        {page.title}
-                      </Text>
-                    </span>
-                    {/* Provenance and freshness, SPEC §7. The absolute timestamp
-                        it replaces answered a question nobody asks of a notebook
-                        ("at what second?") and buried the one they do ("is this
-                        stale?") in a locale string that changes width per row. */}
-                    <Text as="span" variant="secondary" className="mt-0.5 block">
-                      {provenanceLabel(page, viewerId)} · edited {formatRelativeInstant(page.updatedAt) ?? "recently"}
+                {/* No inline rename here any more. Mitchell, 2026-09-06:
+                    *"rename shouldn't be a button here, the title should be at
+                    the top of the notebook as a h1 and when you edit the title
+                    it does the actual edit/rename"*. The notebook's own `h1`
+                    is the rename surface now (`PageTitle`), which is also the
+                    only place the new name is visible while you type it. */}
+                <Link href={`/trips/${tripId}/pages/${page.id}`} className="flex-1">
+                  <span className="flex items-center gap-2">
+                    <Text as="span" className="font-medium text-ink">
+                      {page.title}
                     </Text>
-                  </Link>
-                )}
+                  </span>
+                  {/* Provenance and freshness, SPEC §7. The absolute timestamp
+                      it replaces answered a question nobody asks of a notebook
+                      ("at what second?") and buried the one they do ("is this
+                      stale?") in a locale string that changes width per row. */}
+                  <Text as="span" variant="secondary" className="mt-0.5 block">
+                    {provenanceLabel(page, viewerId)} · edited {formatRelativeInstant(page.updatedAt) ?? "recently"}
+                  </Text>
+                </Link>
 
-                {renamingId !== page.id && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => startRename(page)} aria-label={`Rename ${page.title}`}>
-                      Rename
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
-                      Delete
-                    </Button>
-                  </div>
-                )}
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
+                    Delete
+                  </Button>
+                </div>
               </Card>
             ))}
           </ul>

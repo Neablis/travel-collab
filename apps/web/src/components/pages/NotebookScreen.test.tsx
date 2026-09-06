@@ -96,24 +96,21 @@ describe("NotebookScreen", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
   });
 
-  it("renames a page via the client", async () => {
+  // The rename moved to the notebook's own `h1` (`PageTitle`, asserted in
+  // `PageScreen.test.tsx`). Mitchell, 2026-09-06: *"rename shouldn't be a
+  // button here"*. Asserted as an absence because that is the request — a row
+  // that grew the button back would still pass every other test in this file.
+  it("offers no rename button in the list", async () => {
     const page = pageFixture({ tripId: TRIP_ID });
-    const onUpdate = vi.fn();
-    server.use(...makePagesHandlers([page], { onUpdate }));
+    server.use(...makePagesHandlers([page]));
 
     render(<NotebookScreen tripId={TRIP_ID} />);
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(within(list).getByText(page.title)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: `Rename ${page.title}` }));
-    const input = screen.getByLabelText(`Rename ${page.title}`) as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "Renamed Page" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() =>
-      expect(onUpdate).toHaveBeenCalledWith(page.id, expect.objectContaining({ title: "Renamed Page" })),
-    );
-    expect(await within(list).findByText("Renamed Page")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `Rename ${page.title}` })).toBeNull();
+    // Delete stays: it is the one row action that has nowhere else to live.
+    expect(screen.getByRole("button", { name: `Delete ${page.title}` })).toBeTruthy();
   });
 
   it("deletes a page via the client", async () => {

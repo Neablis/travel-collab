@@ -638,3 +638,43 @@ test("an inline value keeps a natural space on each side of it", async ({ page }
   expect(gaps.left).toBeGreaterThan(0);
   expect(gaps.right).toBeGreaterThan(0);
 });
+
+test("a notebook is renamed by editing its own heading, and the index follows", async ({ page }) => {
+  // Mitchell, 2026-09-06 on a 411px phone, pointing at the index's Rename
+  // button: *"rename shouldn't be a button here, the title should be at the top
+  // of the notebook as a h1 and when you edit the title it does the actual
+  // edit/rename"*.
+  //
+  // In a real browser, because that is the only place the interaction exists:
+  // the heading is a `contentEditable`, and jsdom implements none of the
+  // editing behaviour a person uses on one — `PageTitle.test.tsx` can prove the
+  // commit and the guards, and nothing below the browser can prove that typing
+  // into the thing works at all.
+  await tripWithTwoDays(page);
+  await openTripOverview(page);
+
+  const heading = page.getByRole("heading", { name: "Trip Overview", level: 1 });
+  await expect(heading).toBeVisible();
+
+  // Select the whole title and type over it, which is what a person does to a
+  // name they are replacing.
+  await heading.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await waitForPageSaved(page, async () => {
+    await page.keyboard.type("Kyoto notes");
+    // Enter commits, and is the reason this heading refuses a newline.
+    await page.keyboard.press("Enter");
+  });
+  await expect(page.getByRole("heading", { name: "Kyoto notes", level: 1 })).toBeVisible();
+
+  // The index is the other half of the claim: a rename that only shows on the
+  // page it was typed on has not renamed anything. Back via the page's own
+  // link, not `openNotebookIndex` — that helper starts from the trip board, and
+  // the board's "Notebooks" button is not on this screen.
+  await page.getByRole("link", { name: /Notebooks/ }).click();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Kyoto notes/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Trip Overview/ })).toHaveCount(0);
+  // And the button it replaced is gone.
+  await expect(page.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
+});

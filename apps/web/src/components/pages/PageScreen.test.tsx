@@ -64,6 +64,51 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
+  // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
+  // Rename button: *"rename shouldn't be a button here, the title should be at
+  // the top of the notebook as a h1 and when you edit the title it does the
+  // actual edit/rename"*. The claim moved here with the surface — this used to
+  // be `NotebookScreen.test.tsx`'s "renames a page via the client".
+  it("renames the page when its heading is edited", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    const onUpdate = vi.fn();
+    server.use(
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Still a heading, and now the page's `h1`. Reading owns no chrome (§18),
+    // so the title takes a caret only in Editing.
+    const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    // `getAttribute`, not `isContentEditable`: jsdom does not implement the
+    // property, and it reads `undefined` rather than `false` — which is how the
+    // first cut of this test passed its own "not editable yet" assertion by
+    // accident.
+    expect(heading.getAttribute("contenteditable")).toBe("false");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(heading.getAttribute("contenteditable")).toBe("true");
+
+    // `contentEditable` is not an input: `userEvent.type` drives the browser's
+    // own editing behaviour, which jsdom does not implement, so the text is set
+    // the way the element's own `onBlur` reads it back.
+    heading.textContent = "Renamed Page";
+    // `focusout`, not `blur`. React has routed `onBlur` through the bubbling
+    // `focusout` event since 17, so a dispatched `blur` reaches no handler at
+    // all — and a test that dispatched one would pass its "nothing was renamed"
+    // sibling below for entirely the wrong reason.
+    await act(async () => {
+      heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+
+    await waitFor(() =>
+      expect(onUpdate).toHaveBeenCalledWith(page.id, expect.objectContaining({ title: "Renamed Page" })),
+    );
+    expect(screen.getByRole("heading", { name: "Renamed Page", level: 1 })).toBeTruthy();
+  });
+
   it("resolves a day macro's own params against the loaded TripDetail", async () => {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({

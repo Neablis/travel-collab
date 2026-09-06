@@ -1,7 +1,7 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 16:40: twenty-five threads — twenty fixed, two answered, three
-open.** This file exists so Mitchell has a preview deployment to comment on
+**Status, as of 17:30: twenty-six threads — twenty-one fixed, two answered,
+three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
 The sections below are in the order they were written and each one's totals
@@ -763,3 +763,51 @@ points at: the zoom cap only bites on a day whose stops are close together,
 while this is a day whose bounds are wide. More padding zooms out *and* moves
 the pins inward; a lower cap would do neither for the day being complained
 about. Seen red at 24.
+
+
+## Thread 26, 17:17 — the rename moves onto the title
+
+> "rename shouldn't be a button here, the title should be at the top of the notebook as a h1 and when you edit the title it does the actual edit/rename"
+
+- Thread: `sK0lWWvntrm9`, `/trips/081f2e6d-…/pages`, Chrome 152 on Android, 411×816
+- Selector: `body > div.phone-tab-bar-inset > div.mx-auto > section:nth-of-type(2) > ul.mt-3 > li.rounded-md > div.flex > button.inline-flex`
+- Maps to: `NotebookScreen.tsx` (the button and its inline form), `PageScreen.tsx` (the title)
+
+**Fixed.** The notebook's title is its own `h1` at the top of the document and
+is edited in place; the index's Rename button and its inline input/Save/Cancel
+row are gone. Delete stays, because it has nowhere else to live.
+
+**`contentEditable` on the heading, not an input dressed as one.** The title has
+to stay a heading: it is the document's `h1`, it is what a screen reader lands
+on, and a good share of this repo's e2e walks find this page by
+`getByRole("heading", …)`. An `<input>` keeps the look and loses all of that; an
+`<input>` nested inside an `<h1>` gives the heading an empty accessible name,
+which is worse than either. It was also `level={2}` before and is `level={1}`
+now — the trip's name is the app chrome above the card, so the page's own title
+was never the second-level heading of anything.
+
+**Editable only in Editing.** Reading is the traveller's view (§18) and a title
+that took a caret there would be the one piece of chrome left in the mode whose
+whole point is having none.
+
+**Where each claim is tested, and why it is not all in one place:**
+
+- `PageTitle.test.tsx` — the commit on blur, the trimmed text, the unchanged-text
+  no-op, the empty-title refusal, Escape. The empty-title guard in particular
+  has nowhere else it can fail: `PageScreen` restores the old name when the
+  request errors, and an empty title is exactly what the API refuses, so a
+  `PageScreen` test asserting "the old title is still on screen" passes with the
+  guard deleted. That test was written, seen to pass with the guard removed, and
+  moved.
+- `PageScreen.test.tsx` — the wiring: not editable in Reading, editable in
+  Editing, and a blur that reaches `updatePage`.
+- `m14-notebook-widgets.spec.ts` — a real browser, because jsdom implements none
+  of the editing behaviour a person uses on a `contentEditable`. Select all,
+  type over it, Enter, then check the index followed.
+
+**Two things the tests caught about themselves.** `isContentEditable` is not
+implemented in jsdom and reads `undefined`, so the first "not editable yet"
+assertion passed by accident; it reads the attribute now. And React has routed
+`onBlur` through the bubbling `focusout` event since 17, so a dispatched `blur`
+reaches no handler at all — the first version of the rename test dispatched one
+and would have passed with the whole feature unwired.
