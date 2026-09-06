@@ -12,11 +12,51 @@
   ```
   export LOCATIONIQ_API_KEY=...            # omit entirely to use Nominatim at 1.1s/request
   python3 scripts/geocode-content.py --status     # what is queued; touches no network
+  python3 scripts/geocode-content.py --sample 40  # measure the hit rate for ~70 requests
   python3 scripts/geocode-content.py              # Ctrl-C whenever; re-run resumes
   python3 scripts/geocode-content.py --review     # what it refused, and why — READ THIS
   python3 scripts/geocode-content.py --apply      # writes lat/lng into the bundles
   pnpm content:verify
   ```
+
+  **Run `--sample 40` first.** It tries a *random* forty rather than the first
+  forty, so the hit rate it reports is the hit rate you will get; `--max-requests`
+  samples the alphabet instead and tells you much less.
+
+- **The first strategy missed 97% of the time, and why.** Measured on 2026-09-06
+  over 265 real lookups: 258 `not_found`, 6 `ok`, 1 `rejected`. The script had
+  been sending `name, area, city`, on the theory that the extra component
+  disambiguates a venue name that repeats across a city — the KI-39 failure. But
+  a comma-separated query is read as an address **hierarchy**, so every
+  component must match something real, and **every place in this content has an
+  `area` that is descriptive prose rather than an addressable place**: "camino a
+  Toconao", "Mala car park trailhead", "Coral Sea", "Sycamore Canyon Road". One
+  unmatchable component empties the result. The specificity meant to prevent a
+  wrong pin was instead guaranteeing no pin at all.
+
+  What replaced it is a ladder, tried in order and stopping at the first answer,
+  with the rung recorded per place:
+
+  | rung | query | notes |
+  | --- | --- | --- |
+  | `venue` | `name, city` | the real target |
+  | `area` | `area, city` | a neighbourhood pin; also the only rung that can help a stop whose `name` is an activity rather than a place ("Return crossing to Port Douglas") |
+  | `city` | `city` | resolved **once per city** up front — 327 cities behind 1,344 places — so the bottom rung is nearly free |
+
+  Two smaller changes came with it: the request asks for `limit=5` instead of 1
+  and takes the first candidate that passes the city test (same cost, and the
+  right answer is below the first row more often than one would like), and a
+  `strategy` marker in the cache means a `not_found` recorded against the old
+  question is **re-queued automatically** rather than being trusted as evidence
+  about the new one.
+
+- **`--apply` writes venue and area pins; city-centre pins are held back** unless
+  you pass `--include-city-level`. They are true — that is where the city is —
+  but pinning every stop of a day onto one point draws a map that says something
+  false about the day, and KI-39's lesson is that a confidently wrong pin costs
+  more than a missing one. City-precision rows are also excluded from the
+  outlier baseline, since they would otherwise drag each city's median onto its
+  centre and hide the wrong-venue case the check exists to catch.
 
   `--review` is the step that is not optional, and it is the whole reason this is a separate piece of work: the script's job is to *narrow* what a person has to look at, not to replace them. It writes nothing into `content/` until `--apply`, and `--apply` skips every rejected and every geographic-outlier result, so the bundles only ever gain coordinates that survived both the city check and a distance check against the median of their own city.
 

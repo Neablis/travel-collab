@@ -85,14 +85,52 @@ class Place:
 
     @property
     def query(self) -> str:
-        # `name, area, city` — the same shape `locationName()` builds for the
-        # Japan fixture. The area is the half that disambiguates a venue name
-        # that repeats across a city, which is exactly the KI-39 failure.
+        """The row's IDENTITY — `name, area, city`. No longer what gets sent.
+
+        This stays the full triple because it is the primary key and has to be
+        stable across runs. What we *ask* the geocoder is `queries()` below.
+        """
         return ", ".join(p for p in (self.name, self.area, self.city) if p)
 
     @property
     def key(self) -> str:
         return self.query.strip().lower()
+
+    def queries(self) -> list[tuple[str, str]]:
+        """The ladder of (precision, query) to try, likeliest first.
+
+        The first version of this script sent `name, area, city` and nothing
+        else, and measured a **97% miss rate over 265 lookups** (258 not_found,
+        6 ok). The cause is that a comma-separated query is read as an address
+        *hierarchy*: every component has to match something real, and in this
+        content every place has an `area` that is descriptive prose rather than
+        an addressable one — "camino a Toconao", "Mala car park trailhead",
+        "Coral Sea", "Sycamore Canyon Road". One unmatchable component empties
+        the whole result, so the extra specificity intended to *disambiguate*
+        (KI-39) was instead guaranteeing a miss.
+
+        So the area is dropped from the first ask and kept only as a fallback
+        for the case it is genuinely a neighbourhood. The rungs are ordered by
+        how likely they are to answer, because every rung costs a request:
+
+          venue  `name, city`   the real target
+          area   `area, city`   a neighbourhood pin when the venue is unknown —
+                                also the only rung that helps the stops whose
+                                `name` is an activity, not a place ("Return
+                                crossing to Port Douglas")
+          city   `city`         handled separately and shared across every place
+                                in that city, so it costs one request per city
+                                rather than one per stop
+        """
+        rungs: list[tuple[str, str]] = []
+        if self.name and self.city:
+            rungs.append(("venue", f"{self.name}, {self.city}"))
+        elif self.name:
+            rungs.append(("venue", self.name))
+        # Only worth a request if it says something the city does not.
+        if self.area and self.area.lower() != self.city.lower():
+            rungs.append(("area", ", ".join(p for p in (self.area, self.city) if p)))
+        return rungs
 
 
 def bundle_files() -> list[Path]:
@@ -160,7 +198,51 @@ def connect() -> sqlite3.Connection:
         )
         """
     )
+    # Additive migrations, so a cache part-way through a run keeps the answers
+    # it already paid for. `precision` records WHICH rung of the ladder
+    # answered, which is what lets --apply treat a venue hit and a city centre
+    # differently instead of pretending they are the same fact.
+    have = {r[1] for r in db.execute("pragma table_info(places)")}
+    for col, decl in (("precision", "text"), ("query_used", "text")):
+        if col not in have:
+            db.execute(f"alter table places add column {col} {decl}")
+    db.execute(
+        """
+        create table if not exists cities (
+          city          text primary key,
+          status        text not null default 'pending',
+          lat           real,
+          lng           real,
+          display_name  text,
+          attempts      integer not null default 0,
+          last_error    text,
+          updated_at    text
+        )
+        """
+    )
+    db.execute("create table if not exists meta (k text primary key, v text)")
+    db.commit()
     return db
+
+
+# Bump when the QUESTION changes, not when the code does. A place recorded as
+# not_found was asked a question this version no longer asks, so its answer is
+# not evidence about the new one and the row is re-queued automatically.
+STRATEGY = "2-ladder"
+
+
+def apply_strategy(db: sqlite3.Connection) -> int:
+    """Re-queue answers that a previous strategy produced. Returns how many."""
+    row = db.execute("select v from meta where k='strategy'").fetchone()
+    if row and row[0] == STRATEGY:
+        return 0
+    n = db.execute(
+        "update places set status='pending', attempts=0, last_error=null "
+        "where status in ('not_found','rejected')"
+    ).rowcount
+    db.execute("insert or replace into meta (k,v) values ('strategy',?)", (STRATEGY,))
+    db.commit()
+    return n
 
 
 def sync_queue(db: sqlite3.Connection) -> tuple[int, int]:
@@ -273,7 +355,11 @@ class Provider:
             "q": query,
             "format": "json",
             "addressdetails": "1",
-            "limit": "1",
+            # Five, not one. The top hit is whatever the provider ranked first,
+            # which for a venue name is often the wrong city entirely; asking
+            # for a handful and letting `judge` pick the first that agrees with
+            # our own city costs exactly the same one request.
+            "limit": "5",
             # Romanised names, matching the app's own adapter: what this decides
             # is how a place is SPELLED IN STORAGE, not how one reader sees it.
             "accept-language": "en",
@@ -283,7 +369,7 @@ class Provider:
             params["key"] = key
         return f"{self.url}?{urllib.parse.urlencode(params)}"
 
-    def lookup(self, query: str) -> dict | None:
+    def lookup(self, query: str) -> list[dict]:
         req = urllib.request.Request(
             self.request_url(query),
             headers={"Accept": "application/json", "User-Agent": self.user_agent},
@@ -320,10 +406,8 @@ class Provider:
             raise Transient(str(exc))
         if isinstance(rows, dict) and rows.get("error"):
             # LocationIQ says "Unable to geocode" as a 200 with an error body.
-            return None
-        if not rows:
-            return None
-        return rows[0]
+            return []
+        return rows if isinstance(rows, list) else []
 
 
 def api_keys(args) -> KeyRing:
@@ -411,6 +495,24 @@ def judge(place: Place, row: dict) -> tuple[bool, str]:
     return True, "ok"
 
 
+def judge_best(place: Place, rows: list[dict]) -> tuple[dict | None, str]:
+    """The first candidate that agrees with our own city, or nothing.
+
+    `judge` decides one result. This picks among five, which is the point of
+    asking for five: a venue name that repeats across countries puts the right
+    answer somewhere below the first row surprisingly often.
+    """
+    if not rows:
+        return None, "no result"
+    reasons = []
+    for row in rows:
+        accept, reason = judge(place, row)
+        if accept:
+            return row, "ok"
+        reasons.append(reason)
+    return None, reasons[0] if reasons else "no usable result"
+
+
 def flag_outliers(db: sqlite3.Connection, km: float = 60.0) -> list[tuple[str, str, float]]:
     """Accepted results that sit absurdly far from the rest of their own city.
 
@@ -421,8 +523,14 @@ def flag_outliers(db: sqlite3.Connection, km: float = 60.0) -> list[tuple[str, s
     the suburbs. Reported, never auto-rejected: a genuinely remote trailhead
     outside a small town is a real place and this would flag it too.
     """
+    # City-centre fallbacks are excluded from BOTH sides. They all sit on one
+    # point per city, so including them drags the median onto the city centre
+    # and hides exactly the wrong-venue outlier this exists to catch — and
+    # flagging them as outliers is meaningless, since being the city centre is
+    # what they are.
     rows = db.execute(
-        "select key, query, city, lat, lng from places where status='ok' and city != ''"
+        "select key, query, city, lat, lng from places "
+        "where status='ok' and city != '' and coalesce(precision,'venue') != 'city'"
     ).fetchall()
     by_city: dict[str, list] = {}
     for key, query, city, lat, lng in rows:
@@ -533,6 +641,70 @@ class Stopping:
         print("\n  stopping after this request — press Ctrl-C again to abandon it", flush=True)
 
 
+def one_request(provider, place: Place, query: str, stopping, db, args, progress):
+    """One lookup, with the shared 429/backoff handling. Returns (rows, err).
+
+    Raises DailyCapReached upward — that one is not this function's to absorb.
+    """
+    while True:
+        try:
+            return provider.lookup(query), None
+        except RateLimited as exc:
+            wait = exc.retry_after or provider.min_interval * 4
+            wait = min(max(wait, provider.min_interval * 2), args.max_backoff)
+            progress.interrupt(f"  · rate limited — sleeping {wait:.0f}s ({query[:50]})")
+            slept = 0.0
+            while slept < wait and not stopping.now:
+                time.sleep(min(1.0, wait - slept))
+                slept += 1.0
+            if stopping.now:
+                return None, "stopped"
+            continue
+        except Transient as exc:
+            return None, str(exc)[:200]
+
+
+def city_anchors(db, provider, args, stopping, progress) -> dict:
+    """Resolve each distinct city once, and reuse it everywhere.
+
+    327 cities stand behind 1344 places, so this is the cheap rung: one request
+    per city buys the bottom of the ladder for every stop in it, plus a centre
+    to measure "is this result absurdly far from its own city" against.
+    """
+    db.executemany("insert or ignore into cities (city) values (?)",
+                   [(c,) for c in {p.city for p in places().values() if p.city}])
+    db.commit()
+    todo = db.execute("select city from cities where status in ('pending','failed') "
+                      "and attempts < ? order by city", (args.max_attempts,)).fetchall()
+    if todo:
+        progress.interrupt(f"  resolving {len(todo)} city centres first "
+                           f"(one request each, reused by every stop in them)")
+    for (city,) in todo:
+        if stopping.now:
+            break
+        place = Place(city, "", city)
+        rows, err = one_request(provider, place, city, stopping, db, args, progress)
+        if err == "stopped":
+            break
+        status, lat, lng, disp = "failed", None, None, None
+        if rows is not None:
+            row, reason = judge_best(place, rows)
+            if row:
+                status, lat, lng = "ok", float(row["lat"]), float(row["lon"])
+                disp = row.get("display_name")
+            else:
+                status, err = "not_found", reason
+        db.execute("update cities set status=?, lat=?, lng=?, display_name=?, "
+                   "attempts=attempts+1, last_error=?, updated_at=? where city=?",
+                   (status, lat, lng, disp, err,
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), city))
+        db.commit()
+        progress.interrupt(f"  city {city} → {status}") if args.verbose else None
+        time.sleep(provider.min_interval + random.uniform(0, 0.25))
+    got = db.execute("select city, lat, lng from cities where status='ok'").fetchall()
+    return {c: (la, ln) for c, la, ln in got}
+
+
 def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     stopping = Stopping()
     todo = db.execute(
@@ -543,6 +715,12 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     ).fetchall()
 
     total_remaining = len(todo)
+    if args.sample:
+        # Random, not the first N. The queue is ordered by key, so `--max-requests`
+        # samples the alphabet rather than the content and tells you very little
+        # about the real hit rate.
+        random.seed()
+        todo = random.sample(todo, min(args.sample, len(todo)))
     if args.max_requests:
         todo = todo[: args.max_requests]
     if not todo:
@@ -561,74 +739,74 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     backoff = provider.min_interval
     processed = 0
 
+    try:
+        anchors = city_anchors(db, provider, args, stopping, progress)
+    except DailyCapReached as exc:
+        progress.done()
+        print(f"  out of quota while resolving cities ({str(exc)[:60]}). Re-run tomorrow.")
+        return
+
     for key, query, name, area, city, attempts in todo:
+      try:
         if stopping.now:
             break
         place = Place(name, area, city)
-        status, lat, lng, display, cc, rcity, err = "failed", None, None, None, None, None, None
-        try:
-            row = provider.lookup(query)
-            backoff = provider.min_interval  # a success clears the penalty box
-            if row is None:
-                status, err = "not_found", "no result"
-            else:
-                accept, reason = judge(place, row)
+        status, lat, lng, display, cc, rcity = "not_found", None, None, None, None, None
+        precision, used, err = None, None, "no result"
+
+        # Walk the ladder. Stop at the first rung that answers, so a venue that
+        # resolves cleanly never costs a second request.
+        for rung, q in place.queries():
+            if stopping.now:
+                break
+            rows, rerr = one_request(provider, place, q, stopping, db, args, progress)
+            if rerr == "stopped":
+                break
+            if rows is None:
+                status, err, used = "failed", rerr, q
+                break
+            row, reason = judge_best(place, rows)
+            if row:
+                status, precision, used = "ok", rung, q
+                lat, lng = float(row["lat"]), float(row["lon"])
                 display = row.get("display_name")
                 address = row.get("address") or {}
                 cc = (address.get("country_code") or "").upper() or None
                 rcity = next((address[k] for k in SETTLEMENT_KEYS if address.get(k)), None)
-                if accept:
-                    status, lat, lng = "ok", float(row["lat"]), float(row["lon"])
-                else:
-                    status, err = "rejected", reason
-        except DailyCapReached as exc:
-            # Not a backoff: waiting will not help until midnight. Move to the
-            # next key if there is one, and otherwise stop cleanly so the next
-            # run picks up here tomorrow.
-            progress.done()
-            if not provider.keys.retire(str(exc)[:60]):
-                print("  every key is out of requests for the day. "
-                      "Re-run tomorrow — the queue resumes where it stopped.")
+                err = None
                 break
-            continue
-        except RateLimited as exc:
-            wait = exc.retry_after or min(backoff * 2, args.max_backoff)
-            backoff = min(max(wait, provider.min_interval * 2), args.max_backoff)
-            progress.interrupt(f"  · rate limited — sleeping {wait:.0f}s ({query[:50]})")
-            db.execute(
-                "update places set attempts=attempts+1, last_error=?, updated_at=? where key=?",
-                ("rate limited", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), key),
-            )
-            db.commit()
-            # Sleep in slices so Ctrl-C during a long backoff still stops promptly.
-            slept = 0.0
-            while slept < wait and not stopping.now:
-                time.sleep(min(1.0, wait - slept))
-                slept += 1.0
-            continue
-        except Transient as exc:
-            status, err = "failed", str(exc)[:200]
-            backoff = min(backoff * 2, args.max_backoff)
+            status, err, used = "not_found", reason, q
+            time.sleep(provider.min_interval + random.uniform(0, 0.25))
+
+        # The bottom rung costs nothing: the city was resolved once, up front.
+        if status == "not_found" and city in anchors:
+            lat, lng = anchors[city]
+            status, precision, used = "ok", "city", city
+            display, err = f"(city centre) {city}", None
 
         db.execute(
             """update places set status=?, lat=?, lng=?, display_name=?, country_code=?,
                                  result_city=?, provider=?, attempts=attempts+1,
-                                 last_error=?, updated_at=? where key=?""",
-            (status, lat, lng, display, cc, rcity, provider.name, err,
+                                 last_error=?, precision=?, query_used=?, updated_at=?
+               where key=?""",
+            (status, lat, lng, display, cc, rcity, provider.name, err, precision, used,
              time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), key),
         )
         db.commit()  # after EVERY row: this is what makes a kill -9 cheap
 
         processed += 1
         done_all += 1 if status != "failed" else 0
-        # Every request, not every 25th: see `Progress`. The label is the place
-        # that just resolved, so the line moves visibly even when the counters
-        # do not.
-        progress.tick(done_all, processed, f"{status:9s} {query[:52]}")
+        label = f"{(precision or status):9s} {(used or query)[:52]}"
+        progress.tick(done_all, processed, label)
 
-        # Jitter, so a restarted run does not march in lockstep with whatever
-        # else is hitting the same endpoint.
         time.sleep(backoff + random.uniform(0, 0.25))
+      except DailyCapReached as exc:
+        progress.done()
+        if not provider.keys.retire(str(exc)[:60]):
+            print("  every key is out of requests for the day. "
+                  "Re-run tomorrow — the queue resumes where it stopped.")
+            break
+        continue
 
     progress.done()
     if len(provider.keys.keys) > 1:
@@ -653,6 +831,15 @@ def report(db: sqlite3.Connection) -> None:
             print(f"  {status:10s} {n:5d}")
     settled = sum(v for k, v in c.items() if k not in ("pending", "failed"))
     print(f"  {'—' * 16}\n  {settled}/{grand} settled")
+    prec = db.execute(
+        "select coalesce(precision,'?'), count(*) from places where status='ok' group by 1"
+    ).fetchall()
+    if prec:
+        label = {"venue": "the venue itself", "area": "its neighbourhood",
+                 "city": "the city centre only"}
+        print("  of which —")
+        for name, n in sorted(prec, key=lambda r: -r[1]):
+            print(f"    {name:8s} {n:5d}  {label.get(name, '')}")
     stuck = db.execute(
         "select count(*) from places where status='failed' and attempts >= 3"
     ).fetchone()[0]
@@ -688,14 +875,29 @@ def write_review(db: sqlite3.Connection) -> dict:
     return review
 
 
-def apply(db: sqlite3.Connection, dry_run: bool) -> None:
-    """Writes accepted coordinates into the bundles. Never writes a rejected one."""
+def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> None:
+    """Writes accepted coordinates into the bundles. Never writes a rejected one.
+
+    City-centre fallbacks are held back unless asked for. They are true — that
+    IS where the city is — but pinning every stop of a day to one point draws a
+    map that says something false about the day, and KI-39's lesson is that a
+    confidently wrong pin costs more than a missing one.
+    """
+    allowed = ("venue", "area") + (("city",) if include_city else ())
     good = {
         key: (lat, lng)
         for key, lat, lng in db.execute(
-            "select key, lat, lng from places where status='ok' and lat is not null"
+            f"select key, lat, lng from places where status='ok' and lat is not null "
+            f"and coalesce(precision,'venue') in ({','.join('?' * len(allowed))})",
+            allowed,
         )
     }
+    held_city = db.execute(
+        "select count(*) from places where status='ok' and precision='city'"
+    ).fetchone()[0]
+    if held_city and not include_city:
+        print(f"  holding back {held_city} city-centre fallback(s) — "
+              f"--include-city-level writes them too")
     outlier_keys = {q.strip().lower() for q, _, _ in flag_outliers(db)}
     if outlier_keys:
         print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
@@ -749,6 +951,11 @@ def main() -> None:
     ap.add_argument("--url", help="search endpoint to use instead (e.g. a self-hosted Nominatim)")
     ap.add_argument("--interval", type=float, help="seconds between requests (default: per provider)")
     ap.add_argument("--max-requests", type=int, help="stop after this many lookups this run")
+    ap.add_argument("--sample", type=int, help="try a RANDOM N pending places and stop — "
+                    "use this to measure the hit rate before spending the quota")
+    ap.add_argument("--include-city-level", action="store_true",
+                    help="with --apply, also write the city-centre fallbacks")
+    ap.add_argument("--verbose", action="store_true", help="name each city as it resolves")
     ap.add_argument("--max-attempts", type=int, default=4, help="give up on a place after this many tries")
     ap.add_argument("--max-backoff", type=float, default=300.0, help="longest sleep after a 429")
     ap.add_argument("--progress-every", type=int, default=10,
@@ -766,6 +973,11 @@ def main() -> None:
         db.commit()
         print(f"  reset {n} failed place(s) to pending")
 
+    requeued = apply_strategy(db)
+    if requeued:
+        print(f"  the query strategy changed since this cache was built — re-queued "
+              f"{requeued} place(s) whose miss was recorded against the old question")
+
     added, seen = sync_queue(db)
     print(f"  {seen} distinct places across {len(bundle_files())} bundle(s)" + (f" (+{added} new)" if added else ""))
 
@@ -779,7 +991,7 @@ def main() -> None:
         print(f"  written to {REVIEW.relative_to(REPO)}")
         return
     if args.apply:
-        apply(db, args.dry_run)
+        apply(db, args.dry_run, args.include_city_level)
         return
 
     work(db, build_provider(args), args)
