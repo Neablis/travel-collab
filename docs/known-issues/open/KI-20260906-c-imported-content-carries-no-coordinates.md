@@ -14,6 +14,8 @@
   # With no key it falls back to Nominatim (OpenStreetMap's own geocoder — same
   # data, no key, ~1 req/s) and says so, naming the reason it found no key.
   python3 scripts/geocode-content.py --status     # what is queued; touches no network
+  python3 scripts/geocode-content.py --diagnose   # explain failures from the cache; no network
+  python3 scripts/geocode-content.py --provider nominatim   # no daily cap, ~1.1s/request
   python3 scripts/geocode-content.py --sample 40  # measure the hit rate for ~70 requests
   python3 scripts/geocode-content.py              # Ctrl-C whenever; re-run resumes
   python3 scripts/geocode-content.py --review     # what it refused, and why — READ THIS

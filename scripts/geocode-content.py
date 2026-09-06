@@ -509,6 +509,13 @@ def api_keys(args) -> KeyRing:
 
 def build_provider(args) -> Provider:
     ring = api_keys(args)
+    if args.provider == "nominatim":
+        # An explicit opt-out. Since the key is discovered from
+        # apps/web/.env.local automatically, there was otherwise no way to NOT
+        # use it short of editing the file — and Nominatim is the right choice
+        # whenever LocationIQ's DAILY cap is the binding constraint rather than
+        # its rate, because Nominatim has no daily cap at all.
+        ring = KeyRing([])
     if args.url:
         # A self-hosted Nominatim, which is the honest answer for 1,300+ places:
         # no rate limit you have to respect out of courtesy, no daily cap, and
@@ -1254,6 +1261,10 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="with --apply, report without writing")
     ap.add_argument("--retry-failed", action="store_true", help="reset failed rows so the next run retries them")
     ap.add_argument("--redo", action="store_true", help="reset EVERYTHING, including answers already paid for")
+    ap.add_argument("--provider", choices=("auto", "nominatim"), default="auto",
+                    help="'auto' uses a LocationIQ key if one is found; 'nominatim' "
+                         "ignores any key and uses OpenStreetMap's own service, which "
+                         "has no daily cap")
     ap.add_argument("--key", help="a LocationIQ key; also reads $LOCATIONIQ_API_KEY and "
                                   "$LOCATIONIQ_API_KEY_1..9, used one at a time as each "
                                   "hits its daily cap")
