@@ -81,7 +81,7 @@ branch is no longer prose-only.
 | 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | **Fixed** |
 | 2 | `/signup?error=MISSING_INVITE_CODE` | 1728×836 | Error copy is one dense line; wants two, and the em dash dropped | **Fixed** |
 | 3 | `/` — first-trip card | 1728×836 | "Look around an example trip" doesn't read as a button | **Fixed** |
-| 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | Open — **behaviour, not cosmetics** |
+| 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | **Fixed** |
 | 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open — **needs a decision** |
 | 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
 | 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
@@ -207,12 +207,33 @@ design system instead of patching two call sites.
   element", because the selected element is inside MapLibre's own canvas
   container rather than the React tree. Expected for a map marker, not a defect.
 
-**This one is not cosmetics.** Every other item here changes how something
-looks; this changes what is drawn, keyed on selection state, so it needs the
-map lens to know the selected day and re-render its legs when that changes. It
-also cites "the designs" as the target, which means the design source should be
-read before implementing rather than inferring the intended end state from the
-comment.
+**Fixed — but read the assumption, because "the designs" could not confirm it.**
+The map lens already knew the focused day: non-focused days were *ghosted*
+(opacity 0.25, shifted to a neutral grey) rather than removed. The change is
+that a non-focused day's **travel** legs now go to opacity 0 outright.
+
+**Only the travel variant, and that is an interpretation.** `ROUTE_VARIANTS` is
+`["rest", "travel"]`, and "travel legs" is this project's established term for
+the dashed inter-city ones — the 2026-08-30 pass used the same words ("Travel
+legs should be dotted, not solid"). The reason it is also the right reading: a
+`rest` leg is local to one city and stays inside its own day's cluster, while a
+`travel` leg spans the distance between cities, so on a fourteen-day trip the
+unfocused ones rake across the whole map and cross the pins of the day you are
+reading. Ghosting lowers their contrast without lowering the number of lines
+drawn over that day.
+
+**What was checked and did not settle it:** `.design-sync/handoff/design/Trip
+Planner Redesign.dc.html` mentions travel days and travel legs but says nothing
+about how the map treats unfocused ones. So this implements the comment's own
+sentence rather than a design it could not read. If "travel lines" meant every
+route line, the change is one condition wider — say so and it is a one-line
+edit.
+
+Pinned by two tests, seen red first (`expected 0.25 to be +0` — the ghosted
+travel leg that should have been gone): a non-focused day loses its travel legs
+and keeps its rest legs ghosted, and a focused day keeps its own travel legs,
+because the rule is about other days rather than about travel legs being
+unwelcome.
 
 ### 5. Notebook — widget option select is inline
 

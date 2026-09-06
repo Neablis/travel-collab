@@ -365,7 +365,17 @@ export function MapLens({
           // A day with no travel legs (or nothing but travel legs) never had
           // the other layer added.
           if (map.getLayer(layerId) === undefined) continue;
-          map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0.25);
+          // A non-focused day's TRAVEL legs go away entirely, rather than
+          // ghosting with the rest of its route (Mitchell, 2026-09-06 preview:
+          // "Remove the travel lines from all days that are not currently
+          // selected"). The two variants differ in what they cost the reader:
+          // a `rest` leg is local to one city and stays inside that day's own
+          // cluster, while a `travel` leg spans the distance between cities, so
+          // thirteen ghosted ones still rake across the whole map and cross
+          // every other day's pins. Ghosting reduces their contrast; it does
+          // not reduce the number of lines drawn over the day you are reading.
+          const hidden = variant === "travel" && !focused;
+          map.setPaintProperty(layerId, "line-opacity", hidden ? 0 : focused ? 1 : 0.25);
           map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
         }
       }

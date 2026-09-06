@@ -273,6 +273,25 @@ function detailWithTransitStop(): TripDetail {
   });
 }
 
+// Two days where the SECOND has a transit stop, so it owns both route variants
+// — the shape the non-focused travel-leg rule needs to be asserted against.
+function detailWithTravelOnSecondDay(): TripDetail {
+  return tripDetailFixture({
+    days: [
+      { dayId: "d1", activityIds: ["a1", "a2"], date: "2027-06-01", costSubtotal: 0 },
+      { dayId: "d2", activityIds: ["b1", "t2", "b2", "b3"], date: "2027-06-02", costSubtotal: 0 },
+    ],
+    activities: {
+      a1: locatedActivity("a1", 41.89, 12.49, "a1"),
+      a2: locatedActivity("a2", 41.9, 12.5, "a1"),
+      b1: locatedActivity("b1", 43.0, 12.7, "b1"),
+      t2: locatedActivity("t2", 44.0, 12.8, "b1", "transit"),
+      b2: locatedActivity("b2", 45.0, 12.9, "b1"),
+      b3: locatedActivity("b3", 45.1, 13.0, "b1"),
+    },
+  });
+}
+
 // Both stops on a day share that day's city, which is what a day normally
 // looks like and what the accent tests here actually mean to set up.
 //
@@ -491,6 +510,41 @@ describe("MapLens", () => {
   });
 
   describe("route ghosting on focus", () => {
+    // 2026-09-06 preview feedback: "Lets try the UI in the designs. Remove the
+    // travel lines from all days that are not currently selected."
+    //
+    // Only the TRAVEL variant goes. A `rest` leg is local to one city and stays
+    // inside its own day's cluster; a `travel` leg spans the distance between
+    // cities, so on a long trip the unfocused ones rake across the whole map
+    // and cross the pins of the day you are actually reading. Ghosting lowers
+    // their contrast without lowering the number of lines drawn over that day.
+    it("hides a non-focused day's travel legs outright, and still only ghosts its rest legs", async () => {
+      setPaintPropertyMock.mockClear();
+      renderMap(detailWithTravelOnSecondDay(), { focusedDay: 0 });
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      const lastOpacity = (layerId: string) =>
+        setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === "line-opacity").at(-1)!;
+
+      // Day 2 is not focused: its travel legs are gone, its rest legs ghosted.
+      expect(lastOpacity("route-travel-d2")[2]).toBe(0);
+      expect(lastOpacity("route-rest-d2")[2]).toBe(0.25);
+      // Day 1 is focused and keeps everything it has at full strength.
+      expect(lastOpacity("route-rest-d1")[2]).toBe(1);
+    });
+
+    it("keeps a focused day's own travel legs", async () => {
+      setPaintPropertyMock.mockClear();
+      renderMap(detailWithTravelOnSecondDay(), { focusedDay: 1 });
+      await waitFor(() => expect(setPaintPropertyMock).toHaveBeenCalled());
+
+      const lastOpacity = (layerId: string) =>
+        setPaintPropertyMock.mock.calls.filter((c) => c[0] === layerId && c[1] === "line-opacity").at(-1)!;
+
+      // The rule is about OTHER days, not about travel legs being unwelcome.
+      expect(lastOpacity("route-travel-d2")[2]).toBe(1);
+    });
+
     it("dims the non-focused day's route further than a faint fade and gives it a neutral colour", async () => {
       // detailWithTwoDays()'s d1/d2 hash to the "danger"/"success" accent
       // families respectively (derived from each day's first stop id, "a1"
