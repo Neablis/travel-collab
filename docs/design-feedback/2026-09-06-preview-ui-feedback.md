@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 18:35: twenty-eight threads — twenty-three fixed, two answered,
+**Status, as of 19:05: twenty-nine threads — twenty-four fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -911,3 +911,53 @@ Playwright, and `scrollIntoViewIfNeeded` scrolls an `overflow: hidden`
 container itself — bringing into view a strip a person with no scrollbar and no
 wheel can never reach. It measures the popover against its clipping ancestor
 now, and fails by 804px when the popover is pushed out.
+
+
+## Thread 29, 18:27 — a table with one column is not a table
+
+> "The date and the city and the text shouldnt all be rolled into each other. Introduce real columns"
+
+- Thread: `8zLyX4dQxCyo`, `/trips/081f2e6d-…/pages/60ec2eae-…`, Chrome 151 on macOS, 1492×836
+- Selector: `… > span.tc-widget-table > span.tc-widget-row > span.tc-widget-cell:nth-of-type(2) > span.text-success-ink`
+- Maps to: `packages/pages/src/registry-types.ts`, `macros/primitives/rows.ts`, `MacroView.tsx`, `globals.css`
+
+**Fixed**, and it went deeper than the renderer. A repeat row carried a lead
+and then a flat `values` list, and every value after the lead landed in ONE
+right-hand cell — so a `day.rows` line read "Jun 1, 2027 Rome $84.20" jammed
+together, which is exactly what the comment is pointing at.
+
+**A flat list could not have been fixed in the renderer, and that is the whole
+finding.** A day that touches two cities has one more value than a day that
+touches one, so "the third value" is a date on one row and a city on the next.
+There is no column to line up. `RepeatRow` carries `cells` now — one entry per
+column, **empty where a row has no answer** — and a resolver decides how many
+columns its widget has:
+
+- `day.rows`: date · cities · cost
+- `stop.rows`: time · cost
+- `city.rows`: which days · how many stops
+- `cost.rows`: date · amount — and its lead is `Day 3` alone now, not
+  `Day 3 · Jun 3, 2027`. That join was the same mistake one widget over; it
+  existed only because the lead was the only place a date could go.
+
+The empty cell is load-bearing: drop it and everything after it shifts a column
+left, which is the defect wearing a different hat. The table's
+`grid-template-columns` is written by `MacroView` from the widest row, since the
+column count is the widget's data rather than a design token. Last column right,
+the rest left — figures line up on their own edge, a date reads from where its
+column starts.
+
+**Two tests, because the old ones were structurally unable to see this.**
+`rows.test.ts` reads rows through a `lines()` helper that flattens the cells
+back to a string, so every assertion in that file passes for a widget that
+rolled everything into one cell — the reported defect exactly. `cellsOf()` is
+the helper that can tell, and `day.rows` now asserts `[date, cities, cost]` per
+row including the empties. Seen red with the cells concatenated back together:
+`expected [ Array(3) ] to deeply equal [ …(3) ]`, and `lines()` stayed green
+throughout, which is the point.
+
+In `MacroView.test.tsx` the claim is that every data row has the SAME number of
+cells; seen red at `expected [ 1 ] to deeply equal [ 2 ]`. And the e2e walk over
+a grouped `stop.rows` — one scheduled stop with a time, one backlog stop without
+— asserts the two rows' cell edges are identical, which is the only place the
+ragged case exists. Seen red with empty cells skipped: `expected > 1, received 1`.

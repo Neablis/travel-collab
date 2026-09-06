@@ -235,9 +235,20 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
     // the card instead of at its right edge. Both review bots caught it on PR
     // 149; the geometry walk in `m14-notebook-widgets.spec.ts` is what would
     // have.
-    case "rows":
+    case "rows": {
+      // How many columns the table has: the widest row's, so a row that leaves
+      // one empty still leaves it open. A resolver emits the same number of
+      // cells on every data row (see `RepeatRow.cells`), so this is normally
+      // just "that number" — the `max` is what keeps a header row, which has
+      // none, from deciding the table's width.
+      const columns = rendered.rows.reduce((widest, row) => Math.max(widest, row.cells.length), 0);
       return (
-        <span role="table" className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface">
+        <span
+          role="table"
+          className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface"
+          // eslint-disable-next-line no-restricted-syntax -- the column count is data, not design: it comes from the widget's own rows and no token can name it
+          style={{ gridTemplateColumns: `minmax(0, 1fr)${" auto".repeat(columns)}` }}
+        >
           {rendered.rows.map((row, i) => (
             <span
               role="row"
@@ -263,22 +274,38 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
               <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left">
                 <Segs segs={row.lead} accents={accents} plain />
               </span>
-              {/* A header row names a group and has no value of its own, so
-                  it renders one cell rather than an empty second one that
-                  reads as a missing number. That lone cell is what
+              {/* One cell per column, EMPTY ONES INCLUDED. Mitchell,
+                  2026-09-06, on a `day.rows` whose date, cities and cost shared
+                  one cell: *"The date and the city and the text shouldnt all be
+                  rolled into each other. Introduce real columns"*. Skipping a
+                  row's empty cells would shift everything after it one column
+                  left and undo exactly that.
+
+                  A header row is the exception and has no cells at all: it
+                  names a group and has no value of its own, so a second cell
+                  would read as a missing number. Its lone rowheader is what
                   `.tc-widget-row > .tc-widget-cell:only-child` widens to the
                   full row — under the `display: table` this started as there
                   was no way to widen it at all, and a long group label was
-                  penned into the label column. */}
-              {row.kind === "header" ? null : (
-                <span role="cell" className="tc-widget-cell px-3 py-2 text-right">
-                  <Segs segs={row.values} accents={accents} plain />
+                  penned into the label column.
+
+                  Last column right, the rest left: figures line up on their own
+                  edge, and a date or a city reads from where the column starts
+                  rather than drifting with its own width. */}
+              {row.cells.map((cell, c) => (
+                <span
+                  role="cell"
+                  key={c}
+                  className={cn("tc-widget-cell px-3 py-2", c === columns - 1 ? "text-right" : "text-left")}
+                >
+                  <Segs segs={cell} accents={accents} plain />
                 </span>
-              )}
+              ))}
             </span>
           ))}
         </span>
       );
+    }
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only

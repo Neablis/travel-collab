@@ -26,10 +26,26 @@ function lines(ctx: WidgetContext, name: string, params: Record<string, unknown>
   // tests own the table shape. Reading them through the flattened text keeps
   // them saying what they always said across the 2026-09-06 cell change.
   return outcome.rendered.rows.map((row: RenderedRow) =>
-    [...row.lead, ...row.values]
+    [...row.lead, ...row.cells.flat()]
       .map((s) => s.text)
       .join(" ")
       .trim(),
+  );
+}
+
+// The COLUMNS, as one string per cell per row. `lines()` deliberately flattens
+// them, so every assertion written through it passes just as happily for a
+// widget that rolled its facts back into a single cell — which is the defect
+// Mitchell reported on 2026-09-06: *"The date and the city and the text
+// shouldnt all be rolled into each other. Introduce real columns"*. This is
+// the helper that can see the difference.
+function cellsOf(ctx: WidgetContext, name: string, params: Record<string, unknown> = {}): string[][] {
+  const outcome = renderMacro(ctx, name, params);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") {
+    throw new Error(`${name} did not render rows: ${outcome.status}`);
+  }
+  return outcome.rendered.rows.map((row: RenderedRow) =>
+    row.cells.map((cell) => cell.map((s) => s.text).join(" ")),
   );
 }
 
@@ -58,6 +74,27 @@ describe("day.rows", () => {
       // Day 3 has no date and no city; the line is shorter and still says which
       // day it is.
       `Day 3 ${formatMoney(fixture.trip.days[2]!.costSubtotal, "USD")}`,
+    ]);
+  });
+
+  it("gives the date, the cities and the cost a column each", () => {
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    const money = (index: number) => formatMoney(fixture.trip.days[index]!.costSubtotal, "USD");
+    // Three cells on every row, in the same order, **including the empty ones**
+    // — an undated day leaves its date column open rather than shuffling its
+    // cost one column to the left. That shuffle is what makes a flat value list
+    // impossible to line up, and it is why this is `cells` upstream rather than
+    // a renderer trick.
+    expect(cellsOf(ctx, "day.rows")).toEqual([
+      ["Jun 1, 2027", "Rome", money(0)],
+      // Both cities in the ONE city cell, still as two values: each wears the
+      // trip's colour for its own city, and a joined "Rome – Kyoto" could wear
+      // only one.
+      ["Jun 2, 2027", "Rome Kyoto", money(1)],
+      // Day 3 has neither a date nor a city, and its cost is still in the third
+      // column.
+      ["", "", money(2)],
     ]);
   });
 
@@ -180,9 +217,10 @@ describe("cost.rows", () => {
     const ctx = contextOf(fixture);
     const money = (index: number) => formatMoney(fixture.trip.days[index]!.costSubtotal, "USD");
     expect(lines(ctx, "cost.rows")).toEqual([
-      `Day 1 · ${formatDate("2027-06-01")} ${money(0)}`,
-      `Day 2 · ${formatDate("2027-06-02")} ${money(1)}`,
-      // Day 3 has no date, so its label is the day number alone.
+      `Day 1 ${formatDate("2027-06-01")} ${money(0)}`,
+      `Day 2 ${formatDate("2027-06-02")} ${money(1)}`,
+      // Day 3 has no date, so its date column is empty and `lines()` — which
+      // flattens the cells — shows the day number followed by the money.
       `Day 3 ${money(2)}`,
       `Unscheduled ${formatMoney(fixture.trip.unscheduledCostSubtotal, "USD")}`,
       `Total ${formatMoney(fixture.trip.tripCostTotal, "USD")}`,
@@ -199,8 +237,8 @@ describe("cost.rows", () => {
     const s0 = fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor;
     const s3 = fixture.trip.activities[fixture.ids.s3]!.cost!.amountMinor;
     expect(booked).toEqual([
-      `Day 1 · ${formatDate("2027-06-01")} ${formatMoney(s0, "USD")}`,
-      `Day 2 · ${formatDate("2027-06-02")} ${formatMoney(s3, "USD")}`,
+      `Day 1 ${formatDate("2027-06-01")} ${formatMoney(s0, "USD")}`,
+      `Day 2 ${formatDate("2027-06-02")} ${formatMoney(s3, "USD")}`,
       `Total ${formatMoney(s0 + s3, "USD")}`,
     ]);
   });

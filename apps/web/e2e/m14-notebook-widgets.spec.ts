@@ -480,13 +480,13 @@ test("a block widget's bindings are reachable by keyboard, not only by hover", a
 
 test("a repeat widget is one table as wide as the card it sits in", async ({ page }) => {
   // Geometry, because the roles cannot see this. `MacroView` builds a repeat's
-  // table out of `display: table` / `table-row` / `table-cell` on spans — a
-  // real `<table>` would be closed out of the paragraph by the parser — and a
-  // Tailwind `block` utility on the container silently beat
-  // `.tc-widget-table`'s `display: table`, because v4 orders `utilities` after
-  // `components`. The rows then formed their own shrink-to-fit anonymous table
-  // inside a full-width card: same roles, same text, same passing suite, and a
-  // value column floating 369px short of the card's right edge.
+  // table out of grid and subgrid on spans — a real `<table>` would be closed
+  // out of the paragraph by the parser — and a Tailwind `block` utility on the
+  // container silently beat the display type it started with, because v4 orders
+  // `utilities` after `components`. The rows then formed their own shrink-to-fit
+  // anonymous table inside a full-width card: same roles, same text, same
+  // passing suite, and a value column floating 369px short of the card's right
+  // edge.
   //
   // `stop.rows` rather than a `day.detail`: only the `rows` render kind goes
   // through this path. The block widgets next to it (`ItineraryTripBlock` and
@@ -501,15 +501,24 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   const table = page.getByRole("table").first();
   const tableBox = await boxOf(table);
 
-  // `px-3` on the cells, so a cell that fills its column ends 12px inside the
-  // card's border. Anything narrower means the table is not the card's width.
-  const cells = await Promise.all((await table.getByRole("cell").all()).map(boxOf));
-  expect(cells.length).toBeGreaterThan(0);
-  for (const cell of cells) {
-    expect(Math.abs(tableBox.x + tableBox.width - (cell.x + cell.width))).toBeLessThan(16);
+  // `px-3` on the cells, so the LAST cell of a row ends 12px inside the card's
+  // border. Anything narrower means the table is not the card's width.
+  //
+  // The last, not every one: since 2026-09-06 a row has a cell per column —
+  // *"The date and the city and the text shouldnt all be rolled into each
+  // other. Introduce real columns"* — and only the rightmost reaches the edge.
+  const rows = await table.getByRole("row").all();
+  expect(rows.length).toBeGreaterThan(1);
+  for (const row of rows) {
+    const cells = await row.getByRole("cell").all();
+    const last = await boxOf(cells[cells.length - 1]!);
+    expect(Math.abs(tableBox.x + tableBox.width - (last.x + last.width))).toBeLessThan(16);
   }
 
   // And the lead column is one column: same left edge, same width, every row.
+  // (Whether the columns AFTER it line up is the walk below's, which has the
+  // ragged rows that can tell the difference — every stop here is unscheduled
+  // and uncosted, so each row's cells are equally empty.)
   const leads = await Promise.all((await table.getByRole("rowheader").all()).map(boxOf));
   expect(leads.length).toBeGreaterThan(1);
   const [firstLead, ...otherLeads] = leads;
@@ -643,6 +652,24 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   // …and an ordinary lead stops well short of it, because the time is over
   // there. This is the half that fails if the columns silently collapse.
   expect(tableBox.x + tableBox.width - (leadBox.x + leadBox.width)).toBeGreaterThan(40);
+
+  // **The columns line up across ragged rows**, which is what Mitchell asked
+  // for on 2026-09-06: *"The date and the city and the text shouldnt all be
+  // rolled into each other. Introduce real columns"*. This trip is the case
+  // that can tell: the scheduled stop has a time, the backlog stop does not, so
+  // a renderer that skipped a row's empty cells would start the second row's
+  // cells where the first row's times begin. Only the data rows — a group
+  // header is one cell spanning the lot, by design.
+  const dataRows = table.getByRole("row").filter({ hasNot: page.getByRole("rowheader", { name: /^(Day 1|Unscheduled)$/ }) });
+  const edges = await Promise.all(
+    (await dataRows.all()).map(async (row) =>
+      Promise.all((await row.getByRole("cell").all()).map(async (cell) => (await boxOf(cell)).x)),
+    ),
+  );
+  expect(edges.length).toBeGreaterThan(1);
+  const [firstEdges, ...otherEdges] = edges;
+  expect(firstEdges?.length).toBeGreaterThan(1);
+  for (const rowEdges of otherEdges) expect(rowEdges).toEqual(firstEdges);
 });
 
 test("a selected block widget shows its bindings with the pointer nowhere near it", async ({ page }) => {

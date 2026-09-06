@@ -273,12 +273,15 @@
      across rows — each row is its own grid box, so it can hold the stripe and
      the total's tint, while its cells still line up with every other row's.
 
-     `minmax(0, 1fr) auto` is what `table-layout: auto` was giving: the value
-     column sizes to its content and the label column takes the rest, which is
-     what the design's rows do. `width: 100%` so the card fills the paragraph. */
+     `grid-template-columns` is set on the element rather than here, because
+     the column COUNT is the widget's data: `MacroView` writes
+     `minmax(0, 1fr)` for the label column and one `auto` per value column, and
+     how many of those there are depends on the rows. That is what
+     `table-layout: auto` used to give for free — value columns sized to their
+     content, the label column taking the rest. `width: 100%` so the card fills
+     the paragraph. */
   .tc-widget-table {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
   }
   .tc-widget-row {

@@ -237,7 +237,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       const segs =
         outcome.rendered.kind === "inline"
           ? outcome.rendered.segs
-          : outcome.rendered.rows.flatMap((row) => [...row.lead, ...row.values]);
+          : outcome.rendered.rows.flatMap((row) => [...row.lead, ...row.cells.flat()]);
       inspected += segs.length;
       for (const seg of segs) expect(["text", "chip"]).toContain(seg.kind);
     }
