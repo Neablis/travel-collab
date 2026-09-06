@@ -1,4 +1,12 @@
-### KI-2026-09-06-f — the Keep-day pennant grows when clicked, which bumps "Add stop" onto a second line
+### KI-2026-09-06-f — RESOLVED 2026-09-06 — the pennant reserves its celebrating width
+
+**Resolved by Mitchell's decision, same day:** *"Reserve the width permanently"* — option 2 below. The button's `min-width` is now `88px` (the 30px circle plus `om-flag-label`'s own declared `52px` cap and `6px` margin), so the label animates inside space the button already owns and the row cannot reflow. Reserved from the keyframe's cap rather than the label's measured text, because the cap is the widest it can ever be and under-reserving is the failure being fixed. The cost, accepted knowingly, is that an un-kept pennant is now that wide on every day head.
+
+The original entry follows, unchanged.
+
+---
+
+### (original) the Keep-day pennant grows when clicked, which bumps "Add stop" onto a second line
 
 - **Severity:** cosmetic, transient. Nothing is lost or mis-shown; the row reflows for the length of the celebration animation and returns.
 - **Area:** `apps/web/src/components/trip/KeepDayFlag.tsx:119-164` (the button and its `celebrating` label); `apps/web/src/components/lenses/TimelineLens.tsx:729` (the `flex flex-wrap items-center gap-2` day-head row the two controls share).

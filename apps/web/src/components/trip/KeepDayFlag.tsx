@@ -38,6 +38,32 @@ const CELEBRATION_MS = 2600;
 // Disabled on an empty day rather than hidden: the pennant is part of the
 // day's row furniture and a row that loses a control as its last stop is
 // removed is worse than one whose control greys out. `title` says why.
+/**
+ * The button's width, reserved permanently so a save never reflows the row.
+ *
+ * Mitchell, 2026-09-06 preview, on a 412px phone: *"add stop goes briefly to
+ * the second line when the flag button is clicked"*. While celebrating, the
+ * pennant renders a "Kept" label inside itself, and `om-flag-label`
+ * (globals.css) animates it `max-width: 0 → 52px` with a `margin-left: 0 → 6px`
+ * — so the button could grow by 58px mid-animation. The day head is
+ * `flex-wrap` and at that width has no slack, so "Add stop" was pushed onto a
+ * second line and back.
+ *
+ * `30 + 6 + 52`: the pennant circle, plus the animation's own declared peak.
+ * Reserved from the KEYFRAME's cap rather than from the label's measured text,
+ * because the cap is the widest the button can ever be and under-reserving is
+ * the failure that is being fixed. The cost, chosen deliberately over the two
+ * alternatives in `KI-2026-09-06-f`, is that an un-kept pennant is now this
+ * wide too — the label floats out of flow in one alternative and lands on
+ * "Add stop"; the other leaves the row wrapping and only changes which pair.
+ *
+ * The component's own note below says the design "parks this permanently in
+ * the DOM at `max-width: 0`" and that this was rejected because it "would be
+ * read out". That reason does not bind: the label carries `aria-hidden`. So
+ * reserving the space is closer to the design than that note implies.
+ */
+const RESERVED_WIDTH = "88px";
+
 export function KeepDayFlag({
   dayIndex,
   accent,
@@ -130,8 +156,8 @@ export function KeepDayFlag({
             INK_TEXT[accent],
             celebrating && "flag-celebrate",
           )}
-          // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle and the design's 7px flank have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-          style={{ height: "30px", minWidth: "30px", paddingInline: "7px" }}
+          // eslint-disable-next-line no-restricted-syntax -- 30px pennant circle, the design's 7px flank, and the reserved label width below all have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+          style={{ height: "30px", minWidth: RESERVED_WIDTH, paddingInline: "7px" }}
         >
           {/* The glyph waves, not the button: the design animates the `svg`
               inside the control, so the 30px circle and its focus ring stay put

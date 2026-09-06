@@ -235,3 +235,16 @@ describe("the keep-day celebration", () => {
     }
   });
 });
+
+describe("the pennant reserves its celebrating width", () => {
+  // 2026-09-06 preview: "add stop goes briefly to the second line when the flag
+  // button is clicked". The label animates max-width 0 -> 52px with a 6px
+  // margin, so the button could grow by 58px inside a flex-wrap row with no
+  // slack. The width is now reserved up front and never changes.
+  it("is already as wide as its widest state before anything is clicked", () => {
+    renderFlag();
+    const button = screen.getByRole("button", { name: /Keep day/ });
+    // 30px circle + the keyframe's own 6px margin and 52px cap.
+    expect(button.style.minWidth).toBe("88px");
+  });
+});

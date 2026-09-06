@@ -1,4 +1,12 @@
-### KI-2026-09-06-c — the widget chrome cannot become a popover without hiding the bindings a multi-day notebook exists to show
+### KI-2026-09-06-c — RESOLVED 2026-09-06 — the widget chrome is a hover/focus popover
+
+**Resolved by Mitchell's decision, same day:** *"I dont care about always visible, people editing the one they are focusing on. Reveal on hover/focus"*. That is the second option this entry listed, and it dissolves the conflict below rather than working around it — the controls stay mounted and in the accessibility tree, so ADR-037's day-1/day-3/day-9 notebook keeps working (hover or tab reaches any widget's bindings), while nothing is drawn over the page until you are actually on a widget. The panel is `absolute`, so it can no longer reflow anything either.
+
+The original entry follows, unchanged, because the reasoning is what made the choice cheap.
+
+---
+
+### (original) the widget chrome cannot become a popover without hiding the bindings a multi-day notebook exists to show
 
 - **Severity:** design conflict, not a defect. The current behaviour works; it is the requested behaviour that has no unblocked implementation.
 - **Area:** `apps/web/src/components/pages/editor/WidgetChrome.tsx:133-165` (the `inline` split and the block shape's chrome row); `apps/web/src/components/pages/editor/MacroNodeView.tsx:47-67` (renders the chrome for every widget while `editing`).

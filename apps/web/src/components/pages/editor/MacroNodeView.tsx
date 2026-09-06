@@ -44,7 +44,15 @@ export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeVie
   const { detail, context, user, globals, onBindDay, editing } = useMacroEditorContext();
   const name = node.attrs.name as string;
   const params = (node.attrs.params ?? {}) as Record<string, unknown>;
-  const className = [macroShape(name) === "single" ? null : "block", selected ? SELECTED_RING : null]
+  // `group relative` on the block shape: `relative` because its chrome is now a
+  // popover anchored here rather than a row in the flow, and `group` because
+  // the popover reveals on hover/focus of the whole widget (see WidgetChrome).
+  // A `single` widget reads as a word in a sentence and keeps its inline
+  // chrome, so it needs neither.
+  const className = [
+    macroShape(name) === "single" ? null : "group relative block",
+    selected ? SELECTED_RING : null,
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -61,6 +69,7 @@ export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeVie
           params={params}
           detail={detail}
           globals={globals}
+          selected={selected}
           onChange={(next) => updateAttributes({ params: next })}
         />
       ) : null}

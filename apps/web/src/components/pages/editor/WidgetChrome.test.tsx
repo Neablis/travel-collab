@@ -248,6 +248,43 @@ describe("WidgetChrome shows what the document actually holds", () => {
   });
 });
 
+describe("the block shape's chrome is a hover/focus popover", () => {
+  // 2026-09-06 preview: "The widget option select is still inline and not
+  // hovering over or blocking the existing elements", then "I dont care about
+  // always visible, people editing the one they are focusing on. Reveal on
+  // hover/focus".
+  //
+  // **The reveal itself is deliberately not asserted here.** It is `absolute`
+  // placement plus `group-hover` / `group-focus-within` visibility — CSS, which
+  // jsdom does not apply, and which this repo's lint forbids reaching for
+  // through class names ("Assert behaviour, not classes"). What IS behaviour,
+  // and what actually broke in the two rejected designs, is whether the
+  // controls exist and stay reachable — so that is what these check.
+  it("keeps the controls mounted when the widget is not selected", () => {
+    // The first attempt at this rendered nothing unless selected, which is what
+    // failed PageScreen's "two widgets on one page point at different days" —
+    // ADR-037 open question 1. Hover/focus reveal costs nothing here because
+    // the controls never leave the DOM or the accessibility tree.
+    render(<WidgetChrome name="stop.rows" params={{}} detail={detail} globals={globals} onChange={vi.fn()} />);
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+  });
+
+  it("keeps them mounted when it is selected", () => {
+    render(
+      <WidgetChrome name="stop.rows" params={{}} detail={detail} globals={globals} selected onChange={vi.fn()} />,
+    );
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+  });
+
+  it("still renders a single-value widget's own controls", () => {
+    // `cost` is `shape: "single"` and keeps its inline chrome — the popover is
+    // the block shape's answer only, and this is the guard against the change
+    // leaking across shapes.
+    render(<WidgetChrome name="cost" params={{}} detail={detail} globals={globals} onChange={vi.fn()} />);
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
+  });
+});
+
 describe("WidgetChrome with other widgets", () => {
   it("renders nothing for a widget that binds nothing", () => {
     // `attribute` is the one: it reads a named field, and `LEGAL_FILTERS.trip`
