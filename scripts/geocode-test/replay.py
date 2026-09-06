@@ -74,6 +74,24 @@ for mode in MODES:
     try: os.killpg(os.getpgid(srv.pid), signal.SIGKILL)
     except Exception: pass
 
+# Every command that READS the cache and reports or writes, run against the
+# cache the last mode left behind. None of these were covered before, and a
+# NameError in `--apply` — the command the whole script exists to end with —
+# shipped green because the harness only ever exercised the geocoding loop.
+print("\ncommands:")
+for argv in (["--status"], ["--diagnose"], ["--review"],
+             ["--apply", "--dry-run"], ["--apply", "--dry-run", "--include-city-level"],
+             ["--retract", "--dry-run"]):
+    r = subprocess.run([sys.executable, "scripts/geocode-content.py", *argv],
+                       cwd=H, capture_output=True, text=True, timeout=60)
+    label = " ".join(argv)
+    if r.returncode != 0:
+        tail = (r.stderr.strip().splitlines() or ["(no stderr)"])[-1]
+        print(f"  {label:34} CRASHED — {tail}")
+        rows.append((f"cmd {label}", "CRASHED", "", tail))
+    else:
+        print(f"  {label:34} ok")
+
 bad = 0
 print(f"\n{'mode':10} {'statuses':26} {'':16} reason")
 for r in rows:
@@ -83,6 +101,9 @@ for r in rows:
         print(f"           ^ EXPECTED status {want_status!r}"); bad += 1
     elif want_reason and want_reason not in r[3]:
         print(f"           ^ EXPECTED reason containing {want_reason!r}"); bad += 1
+    if r[1] == "CRASHED":
+        bad += 1
+        continue
     if "failed+NULL=0" not in r[2]:
         print("           ^ a failure was recorded with NO reason"); bad += 1
 print(f"\n{'FAILURES: %d' % bad if bad else 'all modes behaved as expected'}")

@@ -26,5 +26,13 @@ located in seconds:
 Every mode also asserts that no row is ever recorded as `failed` with a NULL
 reason — the state that made a whole run unexplainable after the fact.
 
+It then runs every command that reads the cache and reports or writes —
+`--status`, `--diagnose`, `--review`, `--apply --dry-run` (with and without
+`--include-city-level`) and `--retract --dry-run` — and fails on any that exits
+non-zero. That half exists because it did not: a `NameError` in `--apply`, the
+command the whole script exists to end with, shipped green because the harness
+only ever exercised the geocoding loop. Reintroducing that one deleted line
+makes this report two CRASHED rows.
+
 To add a mode, add a response to `fake_provider.py` and its expectation to
 `EXPECTED` in `replay.py`. A mode without an expectation is not a test.

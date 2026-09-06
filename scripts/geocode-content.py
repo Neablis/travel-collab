@@ -1469,6 +1469,14 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
               f"({', '.join(f'{n} {k}' for k, n in sorted(by_verdict.items()))}) — "
               f"{len(withheld)} pin(s) withheld; see cityDisagreements in --review")
 
+    # Restored: this binding was dropped when the anchor block above was
+    # rewritten, and `--apply` then crashed with NameError on the first stop it
+    # examined. It was green in the replay harness because that harness never
+    # runs --apply — a gap the next commit closes.
+    outlier_keys = {q.strip().lower() for q, _, _ in flag_outliers(db)}
+    if outlier_keys:
+        print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
+
     touched = written = held = 0
     for path in bundle_files():
         bundle = json.loads(path.read_text(encoding="utf-8"))
