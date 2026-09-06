@@ -109,10 +109,18 @@ export function MapDayStrip({
       const rect = chip.getBoundingClientRect();
       return { start: rect.left, size: rect.width };
     });
+    // The ends, which the reading line cannot reach — the same defect fixed in
+    // Board, in the second of the three horizontal day scrollers. Mitchell, on
+    // a 411px phone: "day 1 and 2 and the last two days are not scrollable to,
+    // it is shown, but they don't get selected". TWO chips at each end here
+    // rather than one, because these chips are far narrower than a day column,
+    // so more of them fit between the track's edge and its centre.
+    const maxScroll = track.scrollWidth - track.clientWidth;
     const nth = centralDayIndex(
       { start: trackRect.left, size: trackRect.width },
       spans,
       READING_LINE.horizontal,
+      { atStart: track.scrollLeft <= 1, atEnd: track.scrollLeft >= maxScroll - 1 },
     );
     return nth === null ? null : (days[nth]?.index ?? null);
   });
