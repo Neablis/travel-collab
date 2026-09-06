@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eTripName } from "./tripNames";
 
 // M14's builder half, walked the way a person walks it.
@@ -199,6 +199,24 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
 });
 
+/**
+ * Bring a block widget's chrome within reach, the way a person does.
+ *
+ * Since 2026-09-06 a block widget's bind controls are a popover revealed on
+ * hover or focus of the widget — Mitchell: *"I dont care about always visible,
+ * people editing the one they are focusing on. Reveal on hover/focus."* Until
+ * then they are `opacity-0 pointer-events-none`, so a click on one waits out
+ * its actionability check. Hovering the widget that CONTAINS the control is
+ * the user's own route to it, and it keeps this a walk rather than a poke at
+ * the DOM.
+ *
+ * A `single` widget's chrome is still inline and always visible, so hovering
+ * is harmless there too — no caller needs to know which shape it has.
+ */
+async function revealChrome(page: Page, control: Locator) {
+  await page.locator("[data-macro-name]").filter({ has: control }).first().hover();
+}
+
 test("two widgets on one page read two different days", async ({ page }) => {
   // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
   // notebook that shows day 1, day 3 and day 9". Each widget carries its own
@@ -214,7 +232,9 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // position: a primitive declares up to five controls now (ADR-039 decision
   // 1), so "the first two comboboxes on the page" are both the first widget's.
   const pickDay = async (widget: RegExp, day: RegExp) => {
-    await page.getByRole("button", { name: widget }).click();
+    const control = page.getByRole("button", { name: widget });
+    await revealChrome(page, control);
+    await control.click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
     );
@@ -228,11 +248,13 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await page.getByRole("button", { name: "Edit page" }).click();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
   // page-level control would break.
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
-  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).not.toHaveText("All days");
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText(
-    await page.getByRole("button", { name: /The days in detail: dates/ }).innerText(),
-  );
+  // Named days rather than "these two differ": the pair being different is
+  // only interesting if each is the day THIS widget was pointed at, and an
+  // inequality passes just as happily when both went wrong together. The
+  // summary is the DATE the day resolved to (`daysSummary`), not its ordinal,
+  // and the trip starts 2027-06-01 — so Day 1 and Day 2 read as the two dates.
+  await expect(page.getByRole("button", { name: /What it costs: dates/ })).toHaveText("2027-06-01");
+  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).toHaveText("2027-06-02");
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -279,9 +301,11 @@ test("a repeater renders one line per day", async ({ page }) => {
   // **Exactly two rows, one per day.** Asserting only that both labels appear
   // allows a renderer that duplicates a row or puts both leads in one — and
   // "one line per day" is precisely the claim those break (CodeRabbit, PR 139).
-  // A repeater renders as an ARIA list, which is what makes a ROW queryable
-  // without asserting on classes.
-  const rows = page.locator(".tc-page-editor [role='listitem']");
+  // A repeater renders as an ARIA TABLE since 2026-09-06 ("These were always
+  // meant to be tables with columns"), so a row is `role="row"` rather than
+  // `role="listitem"`. Either way the point stands: the role is what makes a
+  // ROW queryable without asserting on classes.
+  const rows = page.locator(".tc-page-editor [role='row']");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
@@ -314,7 +338,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
   // a reload that lost Day 1 would also satisfy.
-  const afterReload = page.locator(".tc-page-editor [role='listitem']");
+  const afterReload = page.locator(".tc-page-editor [role='row']");
   await expect(afterReload).toHaveCount(2);
   await expect(afterReload.nth(0)).toContainText("Day 1");
   await expect(afterReload.nth(1)).toContainText("Day 2");
@@ -340,6 +364,8 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // Two controls, one per declared input.
   const days = page.getByRole("button", { name: /A line for every stop: dates/i });
   const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
+  // `stop.rows` is a block widget, so its chrome is the hover popover.
+  await revealChrome(page, days);
   await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
   // `stop.rows` is entity `stop`, and the matrix gives that entity every

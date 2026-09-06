@@ -176,13 +176,26 @@ export function WidgetChrome({
               // it — otherwise picking a value from a select would dismiss the
               // panel the select lives in the moment the pointer left.
               //
-              // `invisible`, not `hidden`: the controls stay in the layout and
-              // in the accessibility tree, so the reveal is a paint and not a
-              // remount, and a keyboard user reaches them by tabbing (which
-              // fires `focus-within`) rather than by hovering something.
+              // **Opacity, not `visibility` — `visibility: hidden` would make
+              // the focus half of "reveal on hover/focus" unreachable.** The
+              // first cut of this used `invisible`, on the belief that it kept
+              // the controls in the accessibility tree; it does not. A
+              // `visibility: hidden` subtree is removed from the a11y tree AND
+              // from the tab order, so `group-focus-within` could never fire
+              // from the keyboard: there was no way to focus what only focus
+              // revealed. The e2e walk found it as a 30s actionability timeout
+              // on a control `getByRole` could no longer see at all.
+              //
+              // At `opacity-0` the controls stay focusable and stay in the
+              // tree, so tabbing into them reveals them. They are out of flow
+              // either way, so this costs no layout — only paint.
+              //
+              // `pointer-events-none` while hidden, because an invisible
+              // overlay that still swallowed clicks on the paragraph beneath it
+              // would be a worse bug than the one this popover fixed.
               selected
-                ? "visible opacity-100"
-                : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100",
+                ? "opacity-100"
+                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
             )
       }
     >
