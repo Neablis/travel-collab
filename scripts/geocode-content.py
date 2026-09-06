@@ -230,7 +230,7 @@ def connect() -> sqlite3.Connection:
 # Bump when the QUESTION changes, not when the code does. A place recorded as
 # not_found was asked a question this version no longer asks, so its answer is
 # not evidence about the new one and the row is re-queued automatically.
-STRATEGY = "3-anchored-cities"
+STRATEGY = "4-folded-city-test"
 
 
 def apply_strategy(db: sqlite3.Connection) -> int:
@@ -994,6 +994,14 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
             status, err, used = "not_found", reason, q
             time.sleep(provider.min_interval + random.uniform(0, 0.25))
 
+        # Never record a failure without a reason. 317 rows came back `failed`
+        # with last_error NULL and no path in this loop accounts for it, which
+        # left the biggest bucket in the run unexplainable after the fact. If it
+        # happens again this says which branch produced it instead of nothing.
+        if status == "failed" and not err:
+            err = (f"no reason captured — rungs={len(place.queries())}, "
+                   f"stopping={stopping.now}, provider={provider.name}")
+
         db.execute(
             """update places set status=?, lat=?, lng=?, display_name=?, country_code=?,
                                  result_city=?, provider=?, attempts=attempts+1,
@@ -1092,9 +1100,13 @@ def report(db: sqlite3.Connection) -> None:
     # mattered, and they call for completely different responses.
     for status, heading in (("not_found", "rejected or unmatched"),
                             ("failed", "the request itself failed")):
+        # coalesce, not `is not null`: filtering out the rows with no recorded
+        # reason made 317 failures print NOTHING, and an empty section reads as
+        # "no failures" rather than as "no explanation" — which is itself the
+        # single most useful thing the report could have said.
         rows = db.execute(
-            "select last_error, count(*) from places where status=? and last_error is not null "
-            "group by 1 order by 2 desc limit 5", (status,)).fetchall()
+            "select coalesce(last_error,'(no reason recorded — see --diagnose)'), count(*) "
+            "from places where status=? group by 1 order by 2 desc limit 5", (status,)).fetchall()
         if rows:
             print(f"  {heading} —")
             for why, n in rows:
