@@ -85,8 +85,16 @@ jobs:
       # What this tree carries, for the run log. The importer parses and lints
       # every bundle before writing anything, so a bad file fails here rather
       # than half-way through the library.
+      # Block scalar, and `find` rather than a glob. The previous one-line form
+      # was `run: ls -1 content/**/*.json | sed 's#^#  #'`, and YAML ends an
+      # unquoted scalar at a space followed by `#` — so the shell received
+      # `ls -1 content/**/*.json | sed 's#^#` and died on the unterminated
+      # quote before the import ever started. `**` was wrong too: bash does not
+      # expand it recursively without globstar, so a bundle at the top of
+      # content/ would not have been listed.
       - name: Bundles in this tree
-        run: ls -1 content/**/*.json | sed 's#^#  #'
+        run: |
+          find content -name '*.json' -not -name '.*' | sort | sed 's|^|  |'
 
       - name: Import
         run: |
