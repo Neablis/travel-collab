@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 10:45: twenty threads — fifteen fixed, two answered, three
+**Status, as of 16:20: twenty-one threads — sixteen fixed, two answered, three
 open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -653,3 +653,37 @@ milestone and its exit gate still has three unticked boxes; the phone treatment
 for that screen is inside it. This thread is the clearest statement so far of
 what the phone treatment should be — a full-height page, the same shape as the
 activity adder — and belongs in M17's notes rather than in this branch.
+
+
+## Thread 21, 16:17 — the phone tab bar's wasted space
+
+> "The bottom bar has a bit of wasted space, have equal distance between top and bottom for icon and shrink it down a bit"
+
+- Thread: `66aIISW9gWVR`, `/trips/081f2e6d-…/pages`, Chrome 152 on Android, 411×760
+- Selector: `body > nav.phone-tab-bar > a.flex:nth-of-type(2)`
+- Maps to: `apps/web/src/app/globals.css` `.phone-tab-bar`
+
+**Fixed.** The bar was padded `8px` at the top and `30px` at the bottom, which
+is the design's own `padding: 8px 0 30px` — and that 30px is clearance for a
+home indicator. On a device that has one, `env(safe-area-inset-bottom)` reports
+it (34px on current iPhones) and the `max()` still takes it. On a device that
+does not, the inset is 0 and the 30px was 30px of nothing, sitting under a bar
+padded 8 at the top: exactly the asymmetry in the report, and exactly the
+wasted space.
+
+The floor is now `8px`, so the two sides match and the 44px tap target sits
+centred between them. The bar goes from `8 + 44 + 1 + 30 = 83px` to `61px` on
+this phone and is **unchanged on any device with a real inset**, since `max()`
+takes the larger. `--phone-tab-bar-height`'s pre-hydration fallback moved with
+it — that literal restates the element's own padding and has to.
+
+**The 44px floor is untouched.** SPEC §13.1 is about what a thumb can hit, and
+the whole shrink comes out of padding that was clearing hardware this device
+does not have. The walk asserts both halves: the gap above each tab equals the
+gap below to within rounding, and every tab is still at least 44px tall. Seen
+red with the 30px restored — `Expected: <= 2, Received: 21`.
+
+**One side effect worth naming:** `MapLens` sizes its canvas with
+`calc(100dvh - … - var(--phone-tab-bar-height))`, so the map gains those 22px.
+That is not a fix for thread 19, which is at 912px where the bar does not
+render at all.

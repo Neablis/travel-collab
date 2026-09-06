@@ -170,12 +170,25 @@
      `position: fixed`, so it reserves no flow space, and a page's last row
      ends underneath it.
 
-     `.phone-tab-bar` — the design's `padding: 8px 0 30px`. The 8px top is a
-     Tailwind class on the element; only the bottom needs to be here, because
-     it is not a scale value: `max()` rather than `calc()` so the 30px the
-     design draws is the floor on a device with no home indicator and the
-     inset takes over on one that has (34px on current iPhones) instead of
-     stacking to 64px.
+     `.phone-tab-bar` — the design draws `padding: 8px 0 30px`, and the 30px
+     floor is now **8px**. Mitchell, 2026-09-06 on a 411px Android: *"The
+     bottom bar has a bit of wasted space, have equal distance between top and
+     bottom for icon and shrink it down a bit."*
+
+     The design's 30px was clearance for a home indicator. On a device that has
+     one, `env(safe-area-inset-bottom)` reports it (34px on current iPhones)
+     and `max()` still takes it — so nothing changes there. On a device that
+     does not, the inset is 0 and the 30px was 30px of nothing, drawn under a
+     bar whose top padding is 8: the asymmetry Mitchell is looking at. Matching
+     the top makes the 44px tap target sit centred, and takes the bar from
+     8+44+1+30 = 83px to 61px.
+
+     `max()` rather than `calc()` for the same reason as before: the inset
+     replaces the floor rather than stacking on it.
+
+     The 44px floor is untouched — §13.1 is about what a thumb can hit, and the
+     shrink comes entirely out of padding that was clearing hardware this
+     device does not have.
 
      `.phone-tab-bar-inset` — the reservation, applied by `(app)/layout.tsx`
      to the wrapper around `children`. `--phone-tab-bar-height` is published
@@ -203,7 +216,7 @@
      measurement overwrites it. A wrapped label or a larger OS text size
      makes this an under-estimate for one paint, never a permanent one. */
   .phone-tab-bar {
-    padding-bottom: max(30px, env(safe-area-inset-bottom));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
   /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
      number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
@@ -242,7 +255,7 @@
   }
   @media (max-width: 767px) {
     :root {
-      --phone-tab-bar-height: calc(8px + 44px + 1px + max(30px, env(safe-area-inset-bottom)));
+      --phone-tab-bar-height: calc(8px + 44px + 1px + max(8px, env(safe-area-inset-bottom)));
     }
   }
   /* A repeat widget's table (MacroView's `rows` case, 2026-09-06).

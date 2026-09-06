@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
 import { e2eTripName } from "./tripNames";
 
@@ -32,6 +32,13 @@ import { e2eTripName } from "./tripNames";
 // leaves the plan stuck. What is genuinely new is the scrim test — DRIFT.md
 // build-check 4c, which the full-screen shape had no equivalent for because a
 // takeover covered the tab bar by being bigger than it.
+/** A locator's on-screen box, or a failure that names the locator rather than a null. */
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error("expected an on-screen element, got one with no box");
+  return box;
+}
+
 test.describe("mobile assistant (phone viewport)", () => {
   // Scoped to the trip header, and it has to be: the phone's plan is the
   // Timeline lens, and every stop on it carries its own `Ask` button (§9's
@@ -380,5 +387,38 @@ test.describe("mobile assistant (phone viewport)", () => {
     await page.getByTestId("assistant-scrim").click({ position: { x: 205, y: 40 } });
     await expect(sheet).toBeHidden();
     await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+  });
+
+  test("the phone tab bar sits its icons the same distance from top and bottom", async ({ page }) => {
+    // Mitchell, 2026-09-06 on a 411px Android: *"The bottom bar has a bit of
+    // wasted space, have equal distance between top and bottom for icon and
+    // shrink it down a bit."*
+    //
+    // The design draws `padding: 8px 0 30px`, and the 30px was clearance for a
+    // home indicator. On a device that has one, `env(safe-area-inset-bottom)`
+    // reports it and `max()` still takes it. On one that does not — this
+    // viewport, and the phone Mitchell was holding — the inset is 0 and the 30px
+    // was 30px of nothing under a bar padded 8 at the top.
+    //
+    // Geometry rather than the padding value: the claim is about where the icons
+    // sit, and it should hold for any implementation that puts them there.
+    await seedTrip(page);
+    const bar = page.getByRole("navigation", { name: "Phone navigation" });
+    await expect(bar).toBeVisible();
+
+    const barBox = await boxOf(bar);
+    const tabs = await Promise.all((await bar.getByRole("link").all()).map(boxOf));
+    expect(tabs.length).toBeGreaterThan(1);
+
+    for (const tab of tabs) {
+      // Above and below, to within a pixel of rounding. `border-t` is outside
+      // the padding box and lands in the top gap, which is why this is not exact.
+      const above = tab.y - barBox.y;
+      const below = barBox.y + barBox.height - (tab.y + tab.height);
+      expect(Math.abs(above - below)).toBeLessThanOrEqual(2);
+      // And the shrink does not come out of the thing a thumb has to hit
+      // (SPEC §13.1's floor).
+      expect(tab.height).toBeGreaterThanOrEqual(44);
+    }
   });
 });
