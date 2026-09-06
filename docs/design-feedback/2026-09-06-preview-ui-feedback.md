@@ -72,7 +72,7 @@ silence:
 
 ## Findings
 
-Seven threads, in the order left. Detail below the table. **Four are fixed on
+Nine threads, in the order left. Detail below the table. **Four are fixed on
 this branch (1, 2, 3, 7); three are open and need a decision (4, 5, 6).** The
 branch is no longer prose-only.
 
@@ -85,6 +85,8 @@ branch is no longer prose-only.
 | 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open — **needs a decision** |
 | 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
 | 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
+| 8 | Schedule / Timeline — attributee | 1728×836 | A raw internal user id is printed on every timed card | Open — **one defect with 9** |
+| 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | Open — **one defect with 8** |
 
 **Groupings worth reading together.** 1 and 3 are the same complaint about the
 same thing: `variant="ghost"` (`text-slate`, no border, no background) does not
@@ -292,3 +294,40 @@ change to six surfaces, not one. There is also a live architecture question in
 `docs/STATUS.md` about the phone continuing to render the global `AppHeader` —
 this is a symptom adjacent to it, though the desktop viewport here shows the
 spacing gap is not phone-specific.
+
+### 8 and 9. Schedule / Timeline — a raw user id, and the initials made from it
+
+Two threads, one defect. Both were asked as questions, and the answer is the
+finding.
+
+> "Whats this long id string?" — thread `I36VBahubnuh`
+> "Whats 0D?" — thread `Blp2OWn23_Ez`
+
+- Route: `/trips/164138c7-…?lens=Schedule&view=Timeline` ("Trip plan — Caesura")
+- Both selectors land in the same timed card
+  (`data-testid="timeline-item-fa1ceda9-…"`, `start="14:30" end="16:00"`), in
+  its `<div className="flex shrink-0 flex-col items-end gap-1.5">` attributee
+  column: the `<span className="text-slate">` for 8, the `<span aria-hidden>`
+  avatar circle for 9.
+- Maps to: `apps/web/src/components/lenses/TimelineLens.tsx:304-326`.
+
+**What they are.** Line 316 renders `{member.userId}` — the raw internal user
+id — as an 11px label, and line 324 renders `initialsFor(member.userId)` beside
+it. `initialsFor` (`apps/web/src/lib/initials.ts:8`) splits on non-alphanumerics
+and, failing to find two parts, takes the **first two characters of the id** and
+upper-cases them. So an id beginning `0d…` becomes exactly the "0D" in the
+question. The avatar is not showing anyone's initials; it is showing the first
+two characters of a database key.
+
+**Why it is like that, from the code's own comment.** `TripMember`
+(`packages/contracts/src/trip.ts`) "carries only a userId, no display name and
+no per-activity 'who's this for' field", so the trip's first member is used as a
+"generic, reasonable stand-in for 'attributee avatar' rather than fabricated
+assignment data". The intent was to avoid inventing assignment data — reasonable
+— but the result prints an internal identifier to the user on every timed card.
+
+**Open, because the replacement is a decision.** That a raw user id should not
+be on screen is not in doubt. What replaces it is: drop the text label and keep
+the avatar (initials stay meaningless), drop the whole attributee block until
+there is real data, or put a display name on `TripMember` — a contracts change,
+with a changelog entry and consumers updated, per invariant 5.
