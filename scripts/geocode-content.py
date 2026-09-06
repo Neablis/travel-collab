@@ -757,16 +757,23 @@ def far_from_anchor(db: sqlite3.Connection, km: float = 40.0) -> list[tuple]:
                in db.execute("select city, lat, lng from cities where status='ok'")
                if c not in suspect}
     out = []
-    for q, city, lat, lng, prec in db.execute(
-        "select query, city, lat, lng, coalesce(precision,'venue') from places "
-        "where status='ok' and lat is not null and coalesce(precision,'venue') != 'city'"
+    for q, city, lat, lng, prec, disp in db.execute(
+        "select query, city, lat, lng, coalesce(precision,'venue'), coalesce(display_name,'') "
+        "from places where status='ok' and lat is not null "
+        "and coalesce(precision,'venue') != 'city'"
     ):
         a = anchors.get(city)
         if not a:
             continue
         d = distance_km(a[0], a[1], lat, lng)
         if d > km:
-            out.append((q, city, round(d, 1), prec))
+            # The MATCH itself, not just the distance. "40km out" cannot be
+            # judged without knowing what was matched — a remote trailhead and a
+            # same-named town in the next country look identical as a number,
+            # and only one of them is wrong. Carrying the display name and the
+            # coordinates makes the review file answerable on its own, without
+            # the database that produced it.
+            out.append((q, city, round(d, 1), prec, disp, round(lat, 5), round(lng, 5)))
     return sorted(out, key=lambda r: -r[2])
 
 
@@ -1288,8 +1295,10 @@ def write_review(db: sqlite3.Connection) -> dict:
             for c, (d, n, a, m) in sorted(audit_anchors(db).items(), key=lambda kv: -kv[1][0])
         ],
         "farFromCityCentre": [
-            {"query": q, "city": c, "kmFromCentre": d, "precision": pr}
-            for q, c, d, pr in far
+            {"query": q, "city": c, "kmFromCentre": d, "precision": pr,
+             "matched": disp, "lat": lat, "lng": lng,
+             "map": f"https://www.openstreetmap.org/?mlat={lat}&mlon={lng}#map=14/{lat}/{lng}"}
+            for q, c, d, pr, disp, lat, lng in far
         ],
     }
     REVIEW.write_text(json.dumps(review, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
