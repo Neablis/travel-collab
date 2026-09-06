@@ -18,6 +18,10 @@ export type InlinePayload = string;
 // deriving that from the index of a payload it was handed would be right only
 // for as long as no widget ever renders a SUBSET of the days (the design's own
 // itinerary block already takes a from/to range).
+// Every string here is DISPLAY-READY — `date` formatted, `timeWindow` joined,
+// `cost` in the trip's currency — because a block component renders what it is
+// handed and has no formatter of its own. `date` was the one field that came
+// through as the ISO it is stored as, and it read on the page as a timestamp.
 export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ordinal: number; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }

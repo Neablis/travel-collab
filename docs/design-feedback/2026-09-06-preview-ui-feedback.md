@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 19:05: twenty-nine threads — twenty-four fixed, two answered,
+**Status, as of 19:30: thirty threads — twenty-five fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -961,3 +961,33 @@ cells; seen red at `expected [ 1 ] to deeply equal [ 2 ]`. And the e2e walk over
 a grouped `stop.rows` — one scheduled stop with a time, one backlog stop without
 — asserts the two rows' cell edges are identical, which is the only place the
 ragged case exists. Seen red with empty cells skipped: `expected > 1, received 1`.
+
+
+## Thread 30, 19:20 — the last raw ISO date
+
+> "Still have the non human readable timestamp here."
+
+- Thread: `DuvX0yo4tmmS`, `/trips/081f2e6d-…/pages/60ec2eae-…`, Chrome 151 on macOS, 1492×836
+- Selector: `… > span.block > span.flex:nth-of-type(3) > span.flex > span.font-mono`, on a `day.detail` widget
+- Maps to: `packages/pages/src/macros/primitives/block.ts`, `ItineraryTripBlock.tsx`
+
+**Fixed.** "Still", because thread 22 was the same defect in `cost.rows` that
+morning and this call site was missed: `dayCard` handed `day.date` through
+exactly as storage holds it. Every other string in that payload was already
+display-ready — `timeWindow` a joined range, `cost` formatted money — so the
+date was the one field crossing the seam raw. It goes through `formatDate` now,
+which fixes both the day card and the day table, since they share the payload.
+
+`font-mono` went with it. The face had a job while the field printed
+`2027-06-01` — digit columns that line up down a table — and once it reads
+"Jun 1, 2027" a monospace face only makes a human date look machine-written
+again.
+
+**The test asserting the raw ISO is how this survived a green suite.**
+`block.test.ts` pinned `date: "2027-06-01"` as the expected payload, so the
+defect was not merely uncaught, it was held in place. It reads through
+`formatDate` now — the same reasoning `rows.test.ts` records, that a hard-coded
+"Jun 1, 2027" would pass just as happily if the payload went back to the ISO and
+someone updated the file to match. The many-day path has its own assertion,
+because it renders through a different component and carried the same raw value.
+Seen red both ways: `expected [ '2027-06-01', … ] to deeply equal [ 'Jun 1, 2027', … ]`.

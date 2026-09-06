@@ -53,7 +53,13 @@ export function ItineraryTripBlock({ payload, accents }: { payload: ItineraryTri
           >
             <span role="rowheader" className="flex w-32 shrink-0 flex-col gap-0.5">
               <span className={cn("text-xs font-semibold", CITY_INK[family])}>Day {day.ordinal}</span>
-              <span className="font-mono text-2xs text-slate">{day.date ?? "No date"}</span>
+              {/* Not `font-mono` any more. The face was doing a job while this
+                  printed the stored ISO — digit columns that line up down the
+                  table — and once the date reads "Jun 1, 2027" a monospace face
+                  only makes it look machine-written again, which is the half of
+                  *"Still have the non human readable timestamp here"* that
+                  survives the formatter. */}
+              <span className="text-2xs text-slate">{day.date ?? "No date"}</span>
             </span>
             <span role="cell" className="min-w-0 text-sm text-ink">{summarise(day)}</span>
           </span>
