@@ -1289,6 +1289,9 @@ def write_review(db: sqlite3.Connection) -> dict:
         # only those with three or more results.
         # Anchors the evidence says are wrong. Read this BEFORE the outlier
         # list: a bad anchor puts correct venues in it.
+        # NOTE: this says the two disagree, NOT which one is wrong. Both
+        # coordinates are given so a person can tell — and both are withheld by
+        # --apply until one does.
         "badCityAnchors": [
             {"city": c, "kmFromItsOwnVenues": d, "venuesCompared": n,
              "anchor": {"lat": a[0], "lng": a[1]}, "venueMedian": {"lat": m[0], "lng": m[1]}}
@@ -1333,15 +1336,31 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
     # are not. These are dropped even under --include-city-level: the flag says
     # "a city centre is good enough here", not "write a point the evidence says
     # is in the wrong place".
+    # When a city's anchor and its venue cluster disagree, hold back EVERY pin
+    # in that city, not just the city one.
+    #
+    # The first version of this assumed the anchor was always the wrong half —
+    # "an anchor is one lookup, venues are many". The first real review refuted
+    # it: Watkins Glen's anchor was correct at 42.381,-76.871 and its four
+    # venues had all matched a Franklin Street in KANSAS, and Fuente De had both
+    # halves wrong on two different continents. A cluster of venues agreeing
+    # with each other is not evidence they are right — they can share one
+    # mistake, and a street name in a small town is exactly the kind that
+    # repeats.
+    #
+    # So the disagreement says one of them is wrong and does NOT say which.
+    # Withholding both is the only reading that cannot write a pin in the wrong
+    # country, which is the whole of KI-39.
     bad_anchor = audit_anchors(db)
     if bad_anchor:
         blocked = db.execute(
-            "select key from places where status='ok' and precision='city' and city in "
+            "select key from places where status='ok' and city in "
             f"({','.join('?' * len(bad_anchor))})", tuple(bad_anchor)).fetchall()
         for (key,) in blocked:
             good.pop(key, None)
-        print(f"  {len(bad_anchor)} city anchor(s) disagree with their own venues — "
-              f"{len(blocked)} pin(s) from them withheld (see --review)")
+        print(f"  {len(bad_anchor)} city/ies where the anchor and its venues disagree — "
+              f"all {len(blocked)} pin(s) there withheld pending review "
+              f"({', '.join(sorted(bad_anchor))})")
     outlier_keys = {q.strip().lower() for q, _, _ in flag_outliers(db)}
     if outlier_keys:
         print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
