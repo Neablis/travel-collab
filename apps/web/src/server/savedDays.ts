@@ -213,6 +213,13 @@ export function newSavedDayRow(input: {
    * except the importer is in fact doing.
    */
   authorKind?: SavedDayAuthorKind;
+  /**
+   * The bundle this row was imported from, or absent for a day a person saved.
+   * Only the content importer sets it, and `--prune` only ever considers rows
+   * where it IS set — so leaving it off is what keeps a person's saved day
+   * outside the importer's reach.
+   */
+  sourceBundle?: string;
   /** The seed declares its own ids so re-seeding is idempotent. */
   savedDayId?: string;
 }): SavedDayRow {
@@ -251,6 +258,7 @@ export function newSavedDayRow(input: {
     // note: the default IS the guarantee, not a convention every writer has to
     // remember.
     authorKind: input.authorKind ?? SavedDayAuthorKind.enum.human,
+    sourceBundle: input.sourceBundle ?? null,
     sourceTripId: input.sourceTripId,
     sourceTripName: input.sourceTripName,
     createdAt: input.createdAt,

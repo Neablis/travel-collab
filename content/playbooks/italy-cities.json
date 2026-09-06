@@ -74,7 +74,9 @@
           "location": {
             "name": "Roman Forum – Via di San Gregorio entrance",
             "city": "Rome",
-            "area": "Celio"
+            "area": "Celio",
+            "lat": 41.8851,
+            "lng": 12.49582
           },
           "kind": "booked",
           "tags": [
@@ -95,7 +97,9 @@
           "location": {
             "name": "Via Sacra",
             "city": "Rome",
-            "area": "Celio"
+            "area": "Celio",
+            "lat": 41.891284,
+            "lng": 12.488094
           },
           "kind": "transit",
           "tags": [],
@@ -110,7 +114,9 @@
           "location": {
             "name": "Colosseum – Stern gate",
             "city": "Rome",
-            "area": "Celio"
+            "area": "Celio",
+            "lat": 41.8851,
+            "lng": 12.49582
           },
           "kind": "booked",
           "tags": [
@@ -127,7 +133,9 @@
           "location": {
             "name": "Mercato Testaccio",
             "city": "Rome",
-            "area": "Testaccio"
+            "area": "Testaccio",
+            "lat": 41.877602,
+            "lng": 12.47358
           },
           "kind": "planned",
           "tags": [
@@ -148,7 +156,9 @@
           "location": {
             "name": "Trapizzino",
             "city": "Rome",
-            "area": "Testaccio"
+            "area": "Testaccio",
+            "lat": 41.909568,
+            "lng": 12.521549
           },
           "kind": "idea",
           "tags": [
@@ -169,7 +179,9 @@
           "location": {
             "name": "Cimitero Acattolico di Roma",
             "city": "Rome",
-            "area": "Testaccio"
+            "area": "Testaccio",
+            "lat": 41.876019,
+            "lng": 12.47928
           },
           "kind": "idea",
           "tags": [
@@ -190,7 +202,9 @@
           "location": {
             "name": "Ponte Sisto",
             "city": "Rome",
-            "area": "Trastevere"
+            "area": "Trastevere",
+            "lat": 41.892342,
+            "lng": 12.470748
           },
           "kind": "transit",
           "tags": [],
@@ -205,7 +219,9 @@
           "location": {
             "name": "Da Enzo al 29",
             "city": "Rome",
-            "area": "Trastevere"
+            "area": "Trastevere",
+            "lat": 41.888086,
+            "lng": 12.477807
           },
           "kind": "booked",
           "tags": [
@@ -250,7 +266,9 @@
           "location": {
             "name": "Galleria dell'Accademia",
             "city": "Florence",
-            "area": "San Marco"
+            "area": "San Marco",
+            "lat": 43.776917,
+            "lng": 11.258758
           },
           "kind": "booked",
           "tags": [
@@ -271,7 +289,9 @@
           "location": {
             "name": "Pasticceria Robiglio",
             "city": "Florence",
-            "area": "San Marco"
+            "area": "San Marco",
+            "lat": 43.791892,
+            "lng": 11.222437
           },
           "kind": "planned",
           "tags": [
@@ -292,7 +312,9 @@
           "location": {
             "name": "Galleria degli Uffizi",
             "city": "Florence",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 43.768313,
+            "lng": 11.255801
           },
           "kind": "booked",
           "tags": [
@@ -313,7 +335,9 @@
           "location": {
             "name": "Trattoria Cammillo",
             "city": "Florence",
-            "area": "Oltrarno"
+            "area": "Oltrarno",
+            "lat": 43.768108,
+            "lng": 11.250023
           },
           "kind": "booked",
           "tags": [
@@ -334,7 +358,9 @@
           "location": {
             "name": "Giulio Giannini e Figlio",
             "city": "Florence",
-            "area": "Oltrarno"
+            "area": "Oltrarno",
+            "lat": 43.766103,
+            "lng": 11.250474
           },
           "kind": "idea",
           "tags": [],
@@ -353,7 +379,9 @@
           "location": {
             "name": "Antico Setificio Fiorentino",
             "city": "Florence",
-            "area": "San Frediano"
+            "area": "San Frediano",
+            "lat": 43.695176,
+            "lng": 10.991938
           },
           "kind": "hold",
           "tags": [],
@@ -368,7 +396,9 @@
           "location": {
             "name": "Le Volpi e l'Uva",
             "city": "Florence",
-            "area": "Oltrarno"
+            "area": "Oltrarno",
+            "lat": 43.766993,
+            "lng": 11.252782
           },
           "kind": "planned",
           "tags": [
@@ -389,7 +419,9 @@
           "location": {
             "name": "Giardino delle Rose",
             "city": "Florence",
-            "area": "San Niccolò"
+            "area": "San Niccolò",
+            "lat": 43.762988,
+            "lng": 11.262945
           },
           "kind": "idea",
           "tags": [
@@ -433,7 +465,9 @@
           "location": {
             "name": "Pasticceria Dal Mas",
             "city": "Venice",
-            "area": "Cannaregio"
+            "area": "Cannaregio",
+            "lat": 45.44198,
+            "lng": 12.323308
           },
           "kind": "planned",
           "tags": [
@@ -454,7 +488,9 @@
           "location": {
             "name": "Fondamente Nove pontoon",
             "city": "Venice",
-            "area": "Cannaregio"
+            "area": "Cannaregio",
+            "lat": 45.443826,
+            "lng": 12.327037
           },
           "kind": "transit",
           "tags": [
@@ -475,7 +511,9 @@
           "location": {
             "name": "Basilica di Santa Maria Assunta",
             "city": "Venice",
-            "area": "Torcello"
+            "area": "Torcello",
+            "lat": 45.497146,
+            "lng": 12.415285
           },
           "kind": "planned",
           "tags": [
@@ -496,7 +534,9 @@
           "location": {
             "name": "Ponte Longo, Mazzorbo",
             "city": "Venice",
-            "area": "Mazzorbo"
+            "area": "Mazzorbo",
+            "lat": 45.487854,
+            "lng": 12.414232
           },
           "kind": "transit",
           "tags": [
@@ -513,7 +553,9 @@
           "location": {
             "name": "Trattoria al Gatto Nero",
             "city": "Venice",
-            "area": "Burano"
+            "area": "Burano",
+            "lat": 45.484754,
+            "lng": 12.41636
           },
           "kind": "booked",
           "tags": [
@@ -549,7 +591,9 @@
           "location": {
             "name": "Museo Ebraico di Venezia",
             "city": "Venice",
-            "area": "Cannaregio"
+            "area": "Cannaregio",
+            "lat": 45.445135,
+            "lng": 12.327181
           },
           "kind": "idea",
           "tags": [
@@ -570,7 +614,9 @@
           "location": {
             "name": "Al Timon",
             "city": "Venice",
-            "area": "Cannaregio"
+            "area": "Cannaregio",
+            "lat": 45.436796,
+            "lng": 12.325159
           },
           "kind": "planned",
           "tags": [
@@ -621,7 +667,9 @@
           "location": {
             "name": "Sfogliatelle Attanasio",
             "city": "Naples",
-            "area": "Piazza Garibaldi"
+            "area": "Piazza Garibaldi",
+            "lat": 40.853221,
+            "lng": 14.268933
           },
           "kind": "planned",
           "tags": [
@@ -642,7 +690,9 @@
           "location": {
             "name": "Napoli Porta Nolana station",
             "city": "Naples",
-            "area": "Porta Nolana"
+            "area": "Porta Nolana",
+            "lat": 40.849165,
+            "lng": 14.269178
           },
           "kind": "transit",
           "tags": [
@@ -663,7 +713,9 @@
           "location": {
             "name": "Pompeii – Porta Marina Inferiore",
             "city": "Pompei",
-            "area": "Scavi di Pompei"
+            "area": "Scavi di Pompei",
+            "lat": 40.750917,
+            "lng": 14.488476
           },
           "kind": "booked",
           "tags": [
@@ -684,7 +736,9 @@
           "location": {
             "name": "Ristorante Il Principe",
             "city": "Pompei",
-            "area": "Piazza Bartolo Longo"
+            "area": "Piazza Bartolo Longo",
+            "lat": 40.749148,
+            "lng": 14.501347
           },
           "kind": "booked",
           "tags": [
@@ -705,7 +759,9 @@
           "location": {
             "name": "Pompei Santuario station",
             "city": "Pompei",
-            "area": "Piazza Bartolo Longo"
+            "area": "Piazza Bartolo Longo",
+            "lat": 40.75127,
+            "lng": 14.501661
           },
           "kind": "transit",
           "tags": [
@@ -726,7 +782,9 @@
           "location": {
             "name": "Museo Archeologico Nazionale di Napoli",
             "city": "Naples",
-            "area": "Museo"
+            "area": "Museo",
+            "lat": 40.853606,
+            "lng": 14.25115
           },
           "kind": "planned",
           "tags": [
@@ -747,7 +805,9 @@
           "location": {
             "name": "Concettina ai Tre Santi",
             "city": "Naples",
-            "area": "Rione Sanità"
+            "area": "Rione Sanità",
+            "lat": 40.857431,
+            "lng": 14.252323
           },
           "kind": "booked",
           "tags": [
@@ -768,7 +828,9 @@
           "location": {
             "name": "Pasticceria Poppella",
             "city": "Naples",
-            "area": "Rione Sanità"
+            "area": "Rione Sanità",
+            "lat": 40.839058,
+            "lng": 14.24905
           },
           "kind": "idea",
           "tags": [
@@ -810,7 +872,9 @@
           "location": {
             "name": "Pasticceria Pansa",
             "city": "Amalfi",
-            "area": "Piazza Duomo"
+            "area": "Piazza Duomo",
+            "lat": 40.634202,
+            "lng": 14.602753
           },
           "kind": "planned",
           "tags": [
@@ -831,7 +895,9 @@
           "location": {
             "name": "Molo Pennello",
             "city": "Amalfi",
-            "area": "Porto"
+            "area": "Porto",
+            "lat": 40.632864,
+            "lng": 14.601462
           },
           "kind": "transit",
           "tags": [],
@@ -867,7 +933,9 @@
           "location": {
             "name": "Il Riccio",
             "city": "Anacapri",
-            "area": "Grotta Azzurra"
+            "area": "Grotta Azzurra",
+            "lat": 40.560861,
+            "lng": 14.204023
           },
           "kind": "booked",
           "tags": [
@@ -888,7 +956,9 @@
           "location": {
             "name": "Villa San Michele di Axel Munthe",
             "city": "Anacapri",
-            "area": "Capodimonte"
+            "area": "Capodimonte",
+            "lat": 40.557272,
+            "lng": 14.225045
           },
           "kind": "idea",
           "tags": [
@@ -909,7 +979,9 @@
           "location": {
             "name": "Seggiovia Monte Solaro",
             "city": "Anacapri",
-            "area": "Piazza Vittoria"
+            "area": "Piazza Vittoria",
+            "lat": 40.550329,
+            "lng": 14.222334
           },
           "kind": "planned",
           "tags": [
@@ -931,7 +1003,9 @@
           "location": {
             "name": "Marina Grande, Capri",
             "city": "Capri",
-            "area": "Marina Grande"
+            "area": "Marina Grande",
+            "lat": 40.556249,
+            "lng": 14.238793
           },
           "kind": "transit",
           "tags": [],
@@ -985,7 +1059,9 @@
           "location": {
             "name": "Belvedere di Murgia Timone",
             "city": "Matera",
-            "area": "Murgia Materana"
+            "area": "Murgia Materana",
+            "lat": 40.664026,
+            "lng": 16.617793
           },
           "kind": "idea",
           "tags": [
@@ -1002,7 +1078,9 @@
           "location": {
             "name": "Chiese rupestri del Sasso Caveoso",
             "city": "Matera",
-            "area": "Sasso Caveoso"
+            "area": "Sasso Caveoso",
+            "lat": 40.663531,
+            "lng": 16.611301
           },
           "kind": "planned",
           "tags": [
@@ -1023,7 +1101,9 @@
           "location": {
             "name": "SS99 then SS172 through Locorotondo",
             "city": "Alberobello",
-            "area": "Valle d'Itria"
+            "area": "Valle d'Itria",
+            "lat": 40.785295,
+            "lng": 17.236184
           },
           "kind": "transit",
           "tags": [],
@@ -1042,7 +1122,9 @@
           "location": {
             "name": "Rione Aia Piccola",
             "city": "Alberobello",
-            "area": "Aia Piccola"
+            "area": "Aia Piccola",
+            "lat": 40.783713,
+            "lng": 17.240714
           },
           "kind": "idea",
           "tags": [
@@ -1063,7 +1145,9 @@
           "location": {
             "name": "La Cantina",
             "city": "Alberobello",
-            "area": "Centro"
+            "area": "Centro",
+            "lat": 40.785077,
+            "lng": 17.236949
           },
           "kind": "booked",
           "tags": [
@@ -1084,7 +1168,9 @@
           "location": {
             "name": "SS16 to the coast",
             "city": "Polignano a Mare",
-            "area": "Costa Adriatica"
+            "area": "Costa Adriatica",
+            "lat": 40.97567,
+            "lng": 17.195764
           },
           "kind": "transit",
           "tags": [],
@@ -1099,7 +1185,9 @@
           "location": {
             "name": "Lama Monachile (Cala Porto)",
             "city": "Polignano a Mare",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 40.990955,
+            "lng": 17.218705
           },
           "kind": "idea",
           "tags": [
@@ -1116,7 +1204,9 @@
           "location": {
             "name": "Il Super Mago del Gelo",
             "city": "Polignano a Mare",
-            "area": "Piazza Garibaldi"
+            "area": "Piazza Garibaldi",
+            "lat": 40.995308,
+            "lng": 17.219083
           },
           "kind": "planned",
           "tags": [
@@ -1161,7 +1251,9 @@
           "location": {
             "name": "Piazza Maggiore",
             "city": "Bologna",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 44.493656,
+            "lng": 11.343049
           },
           "kind": "booked",
           "tags": [],
@@ -1180,7 +1272,9 @@
           "location": {
             "name": "Caseificio San Pier Damiani",
             "city": "Parma",
-            "area": "Fontevivo"
+            "area": "Fontevivo",
+            "lat": 44.810675,
+            "lng": 10.312087
           },
           "kind": "booked",
           "tags": [
@@ -1201,7 +1295,9 @@
           "location": {
             "name": "Ruliano",
             "city": "Parma",
-            "area": "Langhirano"
+            "area": "Langhirano",
+            "lat": 44.802121,
+            "lng": 10.327277
           },
           "kind": "planned",
           "tags": [
@@ -1222,7 +1318,9 @@
           "location": {
             "name": "Battistero di Parma",
             "city": "Parma",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 44.803062,
+            "lng": 10.330393
           },
           "kind": "planned",
           "tags": [
@@ -1243,7 +1341,9 @@
           "location": {
             "name": "Trattoria Ai Due Platani",
             "city": "Parma",
-            "area": "Coloreto"
+            "area": "Coloreto",
+            "lat": 44.768766,
+            "lng": 10.380061
           },
           "kind": "booked",
           "tags": [
@@ -1264,7 +1364,9 @@
           "location": {
             "name": "Acetaia Giusti",
             "city": "Modena",
-            "area": "Villa Giusti"
+            "area": "Villa Giusti",
+            "lat": 44.645869,
+            "lng": 10.926285
           },
           "kind": "booked",
           "tags": [
@@ -1285,7 +1387,9 @@
           "location": {
             "name": "Salumeria Giusti",
             "city": "Modena",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 44.647241,
+            "lng": 10.928201
           },
           "kind": "idea",
           "tags": [],
@@ -1304,7 +1408,9 @@
           "location": {
             "name": "Franceschetta 58",
             "city": "Modena",
-            "area": "Via Vignolese"
+            "area": "Via Vignolese",
+            "lat": 44.6473,
+            "lng": 10.928317
           },
           "kind": "booked",
           "tags": [
@@ -1339,7 +1445,9 @@
           "location": {
             "name": "La Pescheria",
             "city": "Catania",
-            "area": "Piazza Duomo"
+            "area": "Piazza Duomo",
+            "lat": 37.501601,
+            "lng": 15.08716
           },
           "kind": "idea",
           "tags": [],
@@ -1354,7 +1462,9 @@
           "location": {
             "name": "Pasticceria Savia",
             "city": "Catania",
-            "area": "Via Etnea"
+            "area": "Via Etnea",
+            "lat": 37.510829,
+            "lng": 15.085635
           },
           "kind": "planned",
           "tags": [
@@ -1375,7 +1485,9 @@
           "location": {
             "name": "Rifugio Sapienza, Etna Sud",
             "city": "Nicolosi",
-            "area": "Etna Sud"
+            "area": "Etna Sud",
+            "lat": 37.700006,
+            "lng": 14.998821
           },
           "kind": "transit",
           "tags": [],
@@ -1394,7 +1506,9 @@
           "location": {
             "name": "Funivia dell'Etna and the summit craters",
             "city": "Nicolosi",
-            "area": "Etna Sud"
+            "area": "Etna Sud",
+            "lat": 37.700299,
+            "lng": 14.998389
           },
           "kind": "booked",
           "tags": [
@@ -1416,7 +1530,9 @@
           "location": {
             "name": "Tenuta San Michele (Murgo)",
             "city": "Santa Venerina",
-            "area": "Etna Est"
+            "area": "Etna Est",
+            "lat": 37.692769,
+            "lng": 15.123944
           },
           "kind": "booked",
           "tags": [
@@ -1437,7 +1553,9 @@
           "location": {
             "name": "Parcheggio Lumbi",
             "city": "Taormina",
-            "area": "Lumbi"
+            "area": "Lumbi",
+            "lat": 37.856775,
+            "lng": 15.287714
           },
           "kind": "transit",
           "tags": [],
@@ -1456,7 +1574,9 @@
           "location": {
             "name": "Teatro Antico di Taormina",
             "city": "Taormina",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 37.852371,
+            "lng": 15.292271
           },
           "kind": "planned",
           "tags": [
@@ -1477,7 +1597,9 @@
           "location": {
             "name": "Osteria RossoDiVino",
             "city": "Taormina",
-            "area": "Centro Storico"
+            "area": "Centro Storico",
+            "lat": 37.850976,
+            "lng": 15.281874
           },
           "kind": "booked",
           "tags": [

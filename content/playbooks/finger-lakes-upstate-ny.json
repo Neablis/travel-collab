@@ -159,7 +159,9 @@
           "location": {
             "name": "Forge Cellars, 3775 Mathews Rd",
             "city": "Hector",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 42.482071,
+            "lng": -76.860517
           },
           "kind": "planned",
           "notes": "East side, Route 414: this is the side with the dry Rieslings and the serious Pinot Noir, and it faces the afternoon sun across the water. The Salon flight is five wines for $23 with no reservation, which is why it fits an afternoon. The deeper guided tasting is a separate thing in the Summer House and is reservation-only, so if you want that one, book it and start the day with wine and end with the gorge instead. Verified 2026-09-06 (forgecellars.com/visit, /salon, /tastings): open Friday and Saturday 11:30–18:30 and Sunday 12:00–17:00, closed Monday through Thursday — so this entire Route 414 afternoon only exists on a Friday, Saturday or Sunday. The Salon needs no reservation; the Summer House tastings do (twelve seats, arranged by email). Tasting prices were not re-verified.",
@@ -177,7 +179,9 @@
           "location": {
             "name": "Boundary Breaks Vineyard, 1568 Porter Covert Rd",
             "city": "Lodi",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 42.629396,
+            "lng": -76.864175
           },
           "kind": "planned",
           "notes": "A house that makes Riesling in a dozen dryness levels and almost nothing else, which makes it the one tasting where you actually learn something instead of drifting through six varieties. Ask them to pour the dry #239 against a late-harvest so you can feel the range. Verified 2026-09-06 (boundarybreaks.com/tasting-room): open seven days a week year-round 11:00–17:00, closing only New Year’s Day, Thanksgiving and Christmas — and they take no reservations at all. Tastings are first come, first served, with a maximum party size of six, so a group of seven or more cannot be booked around; split it or go elsewhere. This stop’s kind was changed from booked to planned on that basis. Tasting fees around Seneca are typically waived on a bottle purchase of roughly $30 or more; ask before you pay.",
@@ -195,7 +199,9 @@
           "location": {
             "name": "Wagner Vineyards Estate Winery, 9322 Route 414",
             "city": "Lodi",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 42.618546,
+            "lng": -76.876897
           },
           "kind": "idea",
           "notes": "Marked idea on purpose: three tastings is the honest maximum and this is the one to drop. If the gorge ran long, or Forge held you, skip it without regret. It stays on the list because Wagner has Wagner Valley Brewing on the same property, so the person who has been pacing themselves gets a beer instead of a fourth Riesling, and the octagonal cellar is a genuinely good building.",
@@ -255,7 +261,9 @@
           "location": {
             "name": "Taughannock Falls State Park, Route 89 lower lot",
             "city": "Trumansburg",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.541636,
+            "lng": -76.661157
           },
           "kind": "planned",
           "tags": [
@@ -276,7 +284,9 @@
           "location": {
             "name": "Route 89 / Taughannock Boulevard",
             "city": "Ithaca",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.443392,
+            "lng": -76.505479
           },
           "kind": "transit",
           "notes": "Twenty-five minutes with the water on your left the whole way. Route 96 is faster and shows you nothing."
@@ -290,7 +300,9 @@
           "location": {
             "name": "Ithaca Farmers Market, Steamboat Landing, 545 Third St",
             "city": "Ithaca",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.451177,
+            "lng": -76.509131
           },
           "kind": "planned",
           "tags": [
@@ -311,7 +323,9 @@
           "location": {
             "name": "Buttermilk Falls State Park, 112 E Buttermilk Falls Rd",
             "city": "Ithaca",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.407265,
+            "lng": -76.518499
           },
           "kind": "hold",
           "tags": [
@@ -332,7 +346,9 @@
           "location": {
             "name": "Cascadilla Gorge Trail, Treman Triangle Park, Linn St",
             "city": "Ithaca",
-            "area": "Cornell and Collegetown"
+            "area": "Cornell and Collegetown",
+            "lat": 42.443392,
+            "lng": -76.505479
           },
           "kind": "hold",
           "tags": [
@@ -353,7 +369,9 @@
           "location": {
             "name": "Cornell Dairy Bar, Stocking Hall, 411 Tower Rd",
             "city": "Ithaca",
-            "area": "Cornell and Collegetown"
+            "area": "Cornell and Collegetown",
+            "lat": 42.447336,
+            "lng": -76.470512
           },
           "kind": "idea",
           "notes": "The university has a working creamery and sells the output at counter prices. It is a two-dollar detour at the top of the gorge, not a destination — take it if the walk left you on campus anyway.",
@@ -371,7 +389,9 @@
           "location": {
             "name": "Moosewood Restaurant, 215 N Cayuga St, Dewitt Mall",
             "city": "Ithaca",
-            "area": "Downtown Ithaca"
+            "area": "Downtown Ithaca",
+            "lat": 42.440603,
+            "lng": -76.498632
           },
           "kind": "booked",
           "tags": [
@@ -406,7 +426,9 @@
           "location": {
             "name": "Dr. Konstantin Frank Winery, 9749 Middle Rd",
             "city": "Hammondsport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 42.430917,
+            "lng": -77.200721
           },
           "kind": "booked",
           "notes": "Start here and start early — this is where Frank proved in the 1960s that European vinifera would survive an upstate winter, and every dry Riesling in this file descends from that argument. Verified 2026-09-06 (drfrankwines.com): open daily 10:00–17:00 with the last tasting at 16:00 — the 09:45 start this day used to carry was before the doors opened, so the stop now begins at 10:00. Reservations are recommended and genuinely needed after noon; standard parties are capped at six and groups of twelve or more must reserve. The $25 tasting price was not re-verified. From June to October the 1886 Food and Wine Experience is $35 on the terrace and buys you the best view on the lake with your wine, which is the version to take. Ask for the Rkatsiteli — nobody else in the country grows it seriously. The June-to-October 1886 Food and Wine Experience and its $35 price could not be confirmed on the winery’s current pages this pass — check it still exists before building the terrace hour around it.",
@@ -424,7 +446,9 @@
           "location": {
             "name": "Glenn H. Curtiss Museum, 8419 Route 54",
             "city": "Hammondsport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 42.398766,
+            "lng": -77.232809
           },
           "kind": "idea",
           "notes": "Hammondsport built the first American aircraft sold commercially, and the museum has the motorcycles and flying boats to prove it. Forty-five minutes is honest; two hours if anyone in the car likes engines. Skip it without guilt if the weather is good — the lake is the reason you came. Verified 2026-09-06 (glennhcurtissmuseum.org/visit): open seven days a week, 09:00–17:00 from 1 May to 31 October and 10:00–16:00 from 1 November to 30 April — no closure day to work around.",
@@ -442,7 +466,9 @@
           "location": {
             "name": "Village Tavern Restaurant & Inn, 30 Mechanic St",
             "city": "Hammondsport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 42.409969,
+            "lng": -77.22182
           },
           "kind": "planned",
           "tags": [
@@ -463,7 +489,9 @@
           "location": {
             "name": "West Lake Road / Route 54A",
             "city": "Branchport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 40.310971,
+            "lng": -74.016037
           },
           "kind": "transit",
           "notes": "54A hugs the waterline the whole way to Branchport and is the better half of the loop by a distance. Pull off at the Bluff Point overlooks rather than trying to look sideways while driving — the shoulder is narrow and the road has no straight sections worth the name."
@@ -495,7 +523,9 @@
           "location": {
             "name": "Keuka Lake State Park, 3370 Pepper Rd",
             "city": "Branchport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 40.310971,
+            "lng": -74.016037
           },
           "kind": "hold",
           "tags": [
@@ -530,7 +560,9 @@
           "location": {
             "name": "The Waterfront Restaurant, 12 Water St",
             "city": "Hammondsport",
-            "area": "Keuka Lake"
+            "area": "Keuka Lake",
+            "lat": 42.410245,
+            "lng": -77.218933
           },
           "kind": "planned",
           "tags": [
@@ -581,7 +613,9 @@
           "location": {
             "name": "Skaneateles Bakery, 19 Jordan St",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.946099,
+            "lng": -76.429229
           },
           "kind": "planned",
           "tags": [
@@ -602,7 +636,9 @@
           "location": {
             "name": "Clift Park, 22 W Genesee St",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.85467,
+            "lng": -76.367488
           },
           "kind": "hold",
           "tags": [
@@ -623,7 +659,9 @@
           "location": {
             "name": "Genesee Street shops",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.944481,
+            "lng": -76.418411
           },
           "kind": "idea",
           "notes": "Four blocks, no chains, and it takes an hour only because you stop. Uncommitted on purpose — if the swim was good, stay in the water instead.",
@@ -641,7 +679,9 @@
           "location": {
             "name": "Doug's Fish Fry, 8 Jordan St",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.946398,
+            "lng": -76.429036
           },
           "kind": "planned",
           "tags": [
@@ -662,7 +702,9 @@
           "location": {
             "name": "Mid-Lakes Navigation, 11 Jordan St",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.946221,
+            "lng": -76.429298
           },
           "kind": "booked",
           "tags": [
@@ -683,7 +725,9 @@
           "location": {
             "name": "West Lake Road",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.93506,
+            "lng": -76.432028
           },
           "kind": "transit",
           "notes": "Ten minutes out of the village and 400 feet up. This is the view of the lake people photograph, and it is not from the village."
@@ -697,7 +741,9 @@
           "location": {
             "name": "Anyela's Vineyards, 2433 West Lake Rd",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.887911,
+            "lng": -76.416168
           },
           "kind": "idea",
           "notes": "The only vineyard on Skaneateles, and honestly the view is the better half of what you are buying — the wine is fine, the terrace at 18:00 in July is not. Weekends have live music and a crowd; a weekday is the whole hillside to yourself.",
@@ -715,7 +761,9 @@
           "location": {
             "name": "The Krebs, 53 W Genesee St",
             "city": "Skaneateles",
-            "area": "Skaneateles Lake"
+            "area": "Skaneateles Lake",
+            "lat": 42.944658,
+            "lng": -76.434031
           },
           "kind": "booked",
           "tags": [
@@ -760,7 +808,9 @@
           "location": {
             "name": "Gimme! Coffee, 54 E Main St",
             "city": "Trumansburg",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.541552,
+            "lng": -76.660219
           },
           "kind": "planned",
           "tags": [
@@ -781,7 +831,9 @@
           "location": {
             "name": "Lively Run Goat Dairy, 8978 County Road 142",
             "city": "Interlaken",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.616545,
+            "lng": -76.695888
           },
           "kind": "hold",
           "notes": "One of the oldest working goat dairies in the country and a real farm, not a farm-themed shop. Hold, hard: in winter the tours are by appointment only and they will say no if it is kidding season or the road is bad. Call two days ahead. Buy the Cayuga Blue on the way out — it is what the restaurants in Ithaca are putting on their boards.",
@@ -799,7 +851,9 @@
           "location": {
             "name": "Finger Lakes Cider House, 4017 Hickok Rd",
             "city": "Interlaken",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.616545,
+            "lng": -76.695888
           },
           "kind": "booked",
           "tags": [
@@ -820,7 +874,9 @@
           "location": {
             "name": "Route 96 south",
             "city": "Ithaca",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.699223,
+            "lng": -76.714431
           },
           "kind": "transit",
           "notes": "Thirty-five minutes. In February take 96 rather than the lake road — 89 gets lake-effect snow and drifts, and the plows do 96 first."
@@ -834,7 +890,9 @@
           "location": {
             "name": "South Hill Cider, 550 Sand Bank Rd",
             "city": "Ithaca",
-            "area": "South Hill"
+            "area": "South Hill",
+            "lat": 42.393741,
+            "lng": -76.525129
           },
           "kind": "planned",
           "notes": "Steve Selin makes cider from wild and abandoned apple trees he found around the county, and if you ask he will tell you which roadside the fruit came from. Verified 2026-09-06 (southhillcider.com/hours-and-information): open Thursday through Monday and closed Tuesday and Wednesday — roughly midday to 19:00, with later closes on Friday and Saturday, not the 21:00 four-day week this note used to claim. Check the exact close before you make this a late stop.",
@@ -852,7 +910,9 @@
           "location": {
             "name": "Black Diamond Farm & Cider, 4675 Seneca Rd",
             "city": "Trumansburg",
-            "area": "Cayuga Lake"
+            "area": "Cayuga Lake",
+            "lat": 42.547769,
+            "lng": -76.657084
           },
           "kind": "idea",
           "notes": "Ian Merwin spent a career on tree fruit at Cornell before planting this orchard, so the cider is an argument about varieties. Verified 2026-09-06 (blackdiamondcider.com/taste-and-visit): the cider shack is at 4675 Seneca Road in Trumansburg, about twenty minutes north of Ithaca — not the Newfield address this stop used to carry — and it opens seasonally May through November, Wednesday to Sunday 13:00–17:00, with appointments needed for groups of six or more. That means it is shut for the deep-winter framing of this day: in January or February drop it and give the hour back to the Cider House or to the taproom below. Come May to November and it is worth the detour; growler fills if you liked it.",
@@ -870,7 +930,9 @@
           "location": {
             "name": "Ithaca Beer Company, 122 Ithaca Beer Dr",
             "city": "Ithaca",
-            "area": "West Hill"
+            "area": "West Hill",
+            "lat": 42.416531,
+            "lng": -76.5351
           },
           "kind": "planned",
           "tags": [
@@ -918,7 +980,9 @@
           "location": {
             "name": "Hermann J. Wiemer Vineyard, 3962 Route 14",
             "city": "Dundee",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 56.473055,
+            "lng": -2.993131
           },
           "kind": "booked",
           "notes": "West side, Route 14: the older estates, the deep-water bank that keeps the vines alive in January, and the Rieslings that get compared to the Mosel without embarrassment. The seated tasting is $15–25 and you can more or less walk in; this is the other thing — into the blocks with somebody who farms them, then thief samples out of barrel and tank. It has to be arranged weeks ahead, it costs about $125 a head, and during harvest they may simply refuse because everyone is on a picking line. Ask in August for an October date and take whatever morning they offer. Verified 2026-09-06 (wiemer.com/visit-us, exploretock.com/wiemer): the tasting room opens 10:30 Monday to Saturday and 11:00 on Sunday and closes at 17:00, with the last guided tasting at 15:30 and preset flights until 16:30 — the 09:30 start this day used to carry was before opening, so it now begins at 10:30 and the rest of the morning shifts with it. Reservations run through Tock and are strongly recommended; walk-ins are taken when they are not full. The private vineyard-and-barrel walk and its ~$125 price could NOT be confirmed on those pages — ask for it by email rather than assuming it is a bookable product.",
@@ -993,7 +1057,9 @@
           "location": {
             "name": "Route 14 north",
             "city": "Geneva",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 42.886202,
+            "lng": -76.977937
           },
           "kind": "transit",
           "notes": "Fifty-five minutes up the west shore in low October light, which is the best drive in the region and the reason to sleep at the north end rather than back in Watkins Glen."
@@ -1028,7 +1094,9 @@
           "location": {
             "name": "F.L.X. Table, 22 Linden St",
             "city": "Geneva",
-            "area": "Downtown Geneva"
+            "area": "Downtown Geneva",
+            "lat": 42.867523,
+            "lng": -76.983524
           },
           "kind": "booked",
           "tags": [
@@ -1050,7 +1118,9 @@
           "location": {
             "name": "Geneva On The Lake garden lawn, 1001 Lochland Rd",
             "city": "Geneva",
-            "area": "Seneca Lake"
+            "area": "Seneca Lake",
+            "lat": 42.84849,
+            "lng": -76.97945
           },
           "kind": "idea",
           "notes": "Costs nothing and is the best part of the day. There is almost no light pollution across the water, the garden is open to guests all night, and the bar will let you carry a glass out.",
@@ -1086,7 +1156,9 @@
           "location": {
             "name": "The Breakfast Club, etc., 2733 Main St",
             "city": "Lake Placid",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 44.290555,
+            "lng": -73.984953
           },
           "kind": "planned",
           "tags": [
@@ -1107,7 +1179,9 @@
           "location": {
             "name": "Route 73 / Cascade Welcome Center",
             "city": "Keene",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 44.256918,
+            "lng": -73.795425
           },
           "kind": "transit",
           "notes": "Roadside parking on 73 at the trailhead has been squeezed hard. Verified 2026-09-06 (DEC notices via lakeplacid.com/notice-to-hikers and Adirondack Explorer): on peak periods DEC closes the Cascade trailhead parking on Route 73 outright — for 2026 that included 4–8 October — and hikers park at the Olympic Sports Complex at Mount Van Hoevenberg and ride a shuttle that runs on the half hour from 07:00, last ride up 15:00, last ride down 19:00, no dogs, and no other vehicle allowed into the trailhead. That is the Olympic Sports Complex, not the “Cascade Welcome Center” this note used to send you to. Whether the shuttle runs in January was NOT verified, so check which lot is open before you drive to either. Separately, and often confused with this: the Adirondack Mountain Reserve trailheads at St. Huberts need a free advance reservation from May 1 to October 31 through hikeamr.org. That is a different trailhead and does not apply here. The hikeamr.org reservation rule for the Adirondack Mountain Reserve at St. Huberts was not re-verified this pass."
@@ -1121,7 +1195,9 @@
           "location": {
             "name": "Cascade Mountain trail, Route 73",
             "city": "Keene",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 42.949885,
+            "lng": -72.299756
           },
           "kind": "hold",
           "tags": [
@@ -1142,7 +1218,9 @@
           "location": {
             "name": "Big Slide Brewery & Public House, 5686 Cascade Rd",
             "city": "Lake Placid",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 44.266072,
+            "lng": -73.969977
           },
           "kind": "planned",
           "tags": [
@@ -1163,7 +1241,9 @@
           "location": {
             "name": "Lake Placid Toboggan Chute, Parkside Dr",
             "city": "Lake Placid",
-            "area": "Mirror Lake"
+            "area": "Mirror Lake",
+            "lat": 44.284878,
+            "lng": -73.982681
           },
           "kind": "hold",
           "notes": "A wooden chute that fires you off a pier and out across the frozen lake. Verified 2026-09-06 (North Elba parks department, Lake Placid News): the 2026 season ran 17 January to 6 March, and the sessions are Friday 19:00–21:00, Saturday 12:00–16:00 and 19:00–21:00, and Sunday 12:00–15:00 — there is no weekday session and no late-afternoon one, so the 16:00–16:50 dusk run this day used to promise did not exist. It now takes the Saturday afternoon session; the Friday or Saturday evening session is the alternative if you want it in the dark, but that collides with dinner. It is $20 adult and $10 student for unlimited rides in a session, not a few dollars a run, and it only opens once the ice reaches twelve inches — some winters it never does, so this stays a hold.",
@@ -1181,7 +1261,9 @@
           "location": {
             "name": "James C. Sheffield Olympic Speedskating Oval, 2634 Main St",
             "city": "Lake Placid",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 44.28342,
+            "lng": -73.985649
           },
           "kind": "planned",
           "tags": [
@@ -1202,7 +1284,9 @@
           "location": {
             "name": "Lake Placid Olympic Museum, Olympic Center, 2634 Main St",
             "city": "Lake Placid",
-            "area": "Adirondack High Peaks"
+            "area": "Adirondack High Peaks",
+            "lat": 44.28342,
+            "lng": -73.985649
           },
           "kind": "idea",
           "notes": "An hour, indoors, warm, and it explains why a village of 2,500 people has two Winter Games behind it. Take it if the chute was closed; skip it if you are still cold from the summit.",
@@ -1220,7 +1304,9 @@
           "location": {
             "name": "Generations at Mirror Lake Inn, 77 Mirror Lake Dr",
             "city": "Lake Placid",
-            "area": "Mirror Lake"
+            "area": "Mirror Lake",
+            "lat": 44.293865,
+            "lng": -73.982812
           },
           "kind": "booked",
           "tags": [
@@ -1262,7 +1348,9 @@
           "location": {
             "name": "Metro-North Hudson Line, Grand Central Terminal",
             "city": "New York",
-            "area": "Hudson Valley"
+            "area": "Hudson Valley",
+            "lat": 42.250303,
+            "lng": -73.631975
           },
           "kind": "transit",
           "notes": "About 85 minutes and roughly $16 off-peak against $25 peak, so leave after 09:00 if you can stomach the later start. Sit on the left going north — the track runs on the riverbank almost the whole way and the right side is a wall of rock. Beacon station is an eight-minute walk from Dia, and the free Beacon Loop bus does the same trip Monday to Saturday. Verified 2026-09-06 (beaconny.gov, destinationdutchess.com): the Beacon Free Loop is free and runs Monday to Saturday, roughly 06:00–21:00, from the Metro-North station past Dia, Main Street and Mount Beacon — there is no Sunday service, so a Sunday version of this day walks. The off-peak and peak fares quoted here were not re-verified.",
@@ -1280,7 +1368,9 @@
           "location": {
             "name": "Dia:Beacon, 3 Beekman St",
             "city": "Beacon",
-            "area": "Hudson Valley"
+            "area": "Hudson Valley",
+            "lat": 41.500171,
+            "lng": -73.982602
           },
           "kind": "planned",
           "tags": [
@@ -1301,7 +1391,9 @@
           "location": {
             "name": "Meyer's Olde Dutch, 184 Main St",
             "city": "Beacon",
-            "area": "Main Street"
+            "area": "Main Street",
+            "lat": 41.507923,
+            "lng": -73.974852
           },
           "kind": "planned",
           "tags": [
@@ -1322,7 +1414,9 @@
           "location": {
             "name": "Storm King Art Center gate, 1 Museum Rd",
             "city": "New Windsor",
-            "area": "Hudson Valley"
+            "area": "Hudson Valley",
+            "lat": 41.421306,
+            "lng": -74.063262
           },
           "kind": "transit",
           "notes": "There is no transit link, and this is the part people discover too late: about 25 minutes and $30–40 each way by car across the Newburgh–Beacon bridge. Order the return ride before you start walking back to the gate — coverage out there is thin and a Sunday evening pickup can take twenty minutes to appear.",
@@ -1340,7 +1434,9 @@
           "location": {
             "name": "Storm King Art Center, 1 Museum Rd",
             "city": "New Windsor",
-            "area": "Hudson Valley"
+            "area": "Hudson Valley",
+            "lat": 41.423464,
+            "lng": -74.062558
           },
           "kind": "booked",
           "tags": [
@@ -1362,7 +1458,9 @@
           "location": {
             "name": "The Roundhouse, 2 E Main St",
             "city": "Beacon",
-            "area": "Main Street"
+            "area": "Main Street",
+            "lat": 41.502595,
+            "lng": -73.962327
           },
           "kind": "booked",
           "tags": [
@@ -1383,7 +1481,9 @@
           "location": {
             "name": "Beacon station, 1 Ferry Plaza",
             "city": "Beacon",
-            "area": "Hudson Valley"
+            "area": "Hudson Valley",
+            "lat": 41.505664,
+            "lng": -73.986733
           },
           "kind": "transit",
           "notes": "Trains thin out after about 22:00 and the late ones stop everywhere. Check the actual timetable at dinner rather than trusting this — a missed Beacon train is an hour on a cold platform.",

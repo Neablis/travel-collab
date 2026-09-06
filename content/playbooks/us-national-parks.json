@@ -69,7 +69,9 @@
           "location": {
             "name": "Deep Creek Coffee Co.",
             "city": "Springdale",
-            "area": "Zion Park Boulevard"
+            "area": "Zion Park Boulevard",
+            "lat": 37.188947,
+            "lng": -113.000057
           },
           "kind": "planned",
           "tags": [
@@ -90,7 +92,9 @@
           "location": {
             "name": "Springdale shuttle stop 5 (Bit & Spur)",
             "city": "Springdale",
-            "area": "Zion Park Boulevard"
+            "area": "Zion Park Boulevard",
+            "lat": 37.20373,
+            "lng": -112.978523
           },
           "kind": "transit",
           "notes": "Do not drive to the visitor center — the lot is full by 07:30 in spring and the whole plan dies there. The town line is free and drops you at the footbridge; walk through the entrance station and you are at Zion Canyon shuttle stop 1. The cost here is the $35 vehicle entrance pass, seven days, bought once for the trip. Non-US visitors 16+ now pay a $100 per-person surcharge on top at Zion.",
@@ -144,7 +148,9 @@
           "location": {
             "name": "Castle Dome Cafe, Zion Lodge",
             "city": "Zion National Park",
-            "area": "Zion Canyon"
+            "area": "Zion Canyon",
+            "lat": 37.200574,
+            "lng": -112.987065
           },
           "kind": "planned",
           "tags": [
@@ -165,7 +171,9 @@
           "location": {
             "name": "Temple of Sinawava shuttle stop 9",
             "city": "Zion National Park",
-            "area": "Zion Canyon"
+            "area": "Zion Canyon",
+            "lat": 37.200574,
+            "lng": -112.987065
           },
           "kind": "transit",
           "notes": "End of the road. Change into the dry suit at the trailhead restrooms, not in the parking lot in Springdale — you will cook on the shuttle otherwise."
@@ -179,7 +187,9 @@
           "location": {
             "name": "The Narrows, Virgin River",
             "city": "Zion National Park",
-            "area": "Temple of Sinawava"
+            "area": "Temple of Sinawava",
+            "lat": 37.200574,
+            "lng": -112.987065
           },
           "kind": "hold",
           "tags": [
@@ -200,7 +210,9 @@
           "location": {
             "name": "Bit & Spur Restaurant & Saloon",
             "city": "Springdale",
-            "area": "Zion Park Boulevard"
+            "area": "Zion Park Boulevard",
+            "lat": 37.161129,
+            "lng": -113.018216
           },
           "kind": "planned",
           "tags": [
@@ -242,7 +254,9 @@
           "location": {
             "name": "Tunnel View overlook, Wawona Road",
             "city": "Yosemite Valley",
-            "area": "Highway 41 / Wawona Road"
+            "area": "Highway 41 / Wawona Road",
+            "lat": 37.741606,
+            "lng": -119.57755
           },
           "kind": "idea",
           "tags": [
@@ -263,7 +277,9 @@
           "location": {
             "name": "Valley View, Northside Drive",
             "city": "Yosemite Valley",
-            "area": "Merced River, valley floor"
+            "area": "Merced River, valley floor",
+            "lat": 37.741606,
+            "lng": -119.57755
           },
           "kind": "planned",
           "tags": [
@@ -318,7 +334,9 @@
           "location": {
             "name": "Degnan's Kitchen, Yosemite Village",
             "city": "Yosemite Valley",
-            "area": "Yosemite Village"
+            "area": "Yosemite Village",
+            "lat": 37.748016,
+            "lng": -119.585475
           },
           "kind": "planned",
           "tags": [
@@ -339,7 +357,9 @@
           "location": {
             "name": "Glacier Point Road",
             "city": "Yosemite Valley",
-            "area": "Chinquapin junction to Glacier Point"
+            "area": "Chinquapin junction to Glacier Point",
+            "lat": 37.720505,
+            "lng": -119.573574
           },
           "kind": "transit",
           "notes": "An hour each way from the valley floor — 16 miles of road after a 30-minute climb to Chinquapin, and people routinely under-budget it. The road opened 9 May in 2026 and closes with the first real snow; before that it is a ski route, not a drive. Hazard-tree crews held traffic about 15 minutes at a time from 21 July into August, so pad it."
@@ -353,7 +373,9 @@
           "location": {
             "name": "Glacier Point",
             "city": "Yosemite Valley",
-            "area": "Glacier Point Road"
+            "area": "Glacier Point Road",
+            "lat": 37.73147,
+            "lng": -119.562645
           },
           "kind": "planned",
           "tags": [
@@ -370,7 +392,9 @@
           "location": {
             "name": "Mountain Room Restaurant, Yosemite Valley Lodge",
             "city": "Yosemite Valley",
-            "area": "Yosemite Valley Lodge"
+            "area": "Yosemite Valley Lodge",
+            "lat": 37.743728,
+            "lng": -119.599062
           },
           "kind": "booked",
           "tags": [
@@ -421,7 +445,9 @@
           "location": {
             "name": "Mather Point, Grand Canyon Visitor Center",
             "city": "Grand Canyon Village",
-            "area": "South Rim"
+            "area": "South Rim",
+            "lat": 36.050858,
+            "lng": -112.136746
           },
           "kind": "planned",
           "tags": [
@@ -442,7 +468,9 @@
           "location": {
             "name": "Bright Angel Bicycles & Cafe",
             "city": "Grand Canyon Village",
-            "area": "Grand Canyon Visitor Center plaza"
+            "area": "Grand Canyon Visitor Center plaza",
+            "lat": 36.059125,
+            "lng": -112.109327
           },
           "kind": "planned",
           "tags": [
@@ -463,7 +491,9 @@
           "location": {
             "name": "Bright Angel Trailhead",
             "city": "Grand Canyon Village",
-            "area": "South Rim, Village Historic District"
+            "area": "South Rim, Village Historic District",
+            "lat": 36.057282,
+            "lng": -112.143631
           },
           "kind": "planned",
           "tags": [
@@ -480,7 +510,9 @@
           "location": {
             "name": "Maswik Food Court, Maswik Lodge",
             "city": "Grand Canyon Village",
-            "area": "Village Historic District"
+            "area": "Village Historic District",
+            "lat": 36.053486,
+            "lng": -112.144401
           },
           "kind": "idea",
           "tags": [
@@ -501,7 +533,9 @@
           "location": {
             "name": "Highway 64 south to Grand Canyon National Park Airport",
             "city": "Tusayan",
-            "area": "South of the park's south entrance"
+            "area": "South of the park's south entrance",
+            "lat": 35.954133,
+            "lng": -112.14288
           },
           "kind": "transit",
           "notes": "Twenty minutes from the village on a clear road, forty if the entrance station has backed up northbound — the queue at the gate blocks the southbound lane too. Check in an hour before the flight; they weigh everyone and will give your seat away."
@@ -515,7 +549,9 @@
           "location": {
             "name": "Papillon terminal, Grand Canyon National Park Airport",
             "city": "Tusayan",
-            "area": "Highway 64, seven miles south of the rim"
+            "area": "Highway 64, seven miles south of the rim",
+            "lat": 35.954133,
+            "lng": -112.14288
           },
           "kind": "booked",
           "tags": [
@@ -536,7 +572,9 @@
           "location": {
             "name": "El Tovar Hotel",
             "city": "Grand Canyon Village",
-            "area": "South Rim, Village Historic District"
+            "area": "South Rim, Village Historic District",
+            "lat": 36.057437,
+            "lng": -112.137622
           },
           "kind": "booked",
           "tags": [
@@ -557,7 +595,9 @@
           "location": {
             "name": "El Tovar Dining Room",
             "city": "Grand Canyon Village",
-            "area": "South Rim, Village Historic District"
+            "area": "South Rim, Village Historic District",
+            "lat": 36.057467,
+            "lng": -112.137864
           },
           "kind": "booked",
           "tags": [
@@ -602,7 +642,9 @@
           "location": {
             "name": "Cadillac Summit Road gate, Park Loop Road",
             "city": "Bar Harbor",
-            "area": "Cadillac Mountain"
+            "area": "Cadillac Mountain",
+            "lat": 44.377776,
+            "lng": -68.337688
           },
           "kind": "transit",
           "tags": [
@@ -623,7 +665,9 @@
           "location": {
             "name": "Cadillac Mountain summit",
             "city": "Bar Harbor",
-            "area": "Cadillac Mountain, 1,530 ft"
+            "area": "Cadillac Mountain, 1,530 ft",
+            "lat": 44.352317,
+            "lng": -68.226049
           },
           "kind": "booked",
           "tags": [
@@ -644,7 +688,9 @@
           "location": {
             "name": "2 Cats Bar Harbor",
             "city": "Bar Harbor",
-            "area": "Cottage Street"
+            "area": "Cottage Street",
+            "lat": 44.388389,
+            "lng": -68.213677
           },
           "kind": "planned",
           "tags": [
@@ -665,7 +711,9 @@
           "location": {
             "name": "Beehive Trailhead, opposite Sand Beach",
             "city": "Bar Harbor",
-            "area": "Park Loop Road, Sand Beach"
+            "area": "Park Loop Road, Sand Beach",
+            "lat": 44.401036,
+            "lng": -68.287887
           },
           "kind": "planned",
           "tags": [
@@ -704,7 +752,9 @@
           "location": {
             "name": "Ocean Path, Otter Cliff to Thunder Hole",
             "city": "Bar Harbor",
-            "area": "Park Loop Road"
+            "area": "Park Loop Road",
+            "lat": 44.401036,
+            "lng": -68.287887
           },
           "kind": "idea",
           "tags": [
@@ -721,7 +771,9 @@
           "location": {
             "name": "Thurston's Lobster Pound",
             "city": "Bernard",
-            "area": "Bass Harbor, quiet side of Mount Desert Island"
+            "area": "Bass Harbor, quiet side of Mount Desert Island",
+            "lat": 44.239414,
+            "lng": -68.352282
           },
           "kind": "planned",
           "tags": [
@@ -1018,7 +1070,9 @@
           "location": {
             "name": "Upper Geyser Basin, Old Faithful",
             "city": "Yellowstone National Park",
-            "area": "Old Faithful complex"
+            "area": "Old Faithful complex",
+            "lat": 44.535733,
+            "lng": -110.800132
           },
           "kind": "planned",
           "tags": [
@@ -1061,7 +1115,9 @@
           "location": {
             "name": "Old Faithful Inn Dining Room",
             "city": "Yellowstone National Park",
-            "area": "Old Faithful complex"
+            "area": "Old Faithful complex",
+            "lat": 44.459587,
+            "lng": -110.831156
           },
           "kind": "booked",
           "tags": [
@@ -1113,7 +1169,9 @@
           "location": {
             "name": "Grand View Point Road, Island in the Sky",
             "city": "Moab",
-            "area": "Canyonlands National Park"
+            "area": "Canyonlands National Park",
+            "lat": 38.572082,
+            "lng": -109.551105
           },
           "kind": "transit",
           "notes": "About 45 minutes from Moab: north on 191, then Highway 313 up onto the mesa. In February the road ices on the switchbacks and there is no gas, no food and no signal past the turn. Cost is the $30 seven-day Canyonlands vehicle pass — a separate fee from Arches this afternoon.",
@@ -1131,7 +1189,9 @@
           "location": {
             "name": "Mesa Arch",
             "city": "Moab",
-            "area": "Island in the Sky, Canyonlands"
+            "area": "Island in the Sky, Canyonlands",
+            "lat": 38.580953,
+            "lng": -109.551838
           },
           "kind": "hold",
           "tags": [
@@ -1152,7 +1212,9 @@
           "location": {
             "name": "Green River Overlook",
             "city": "Moab",
-            "area": "Island in the Sky, Canyonlands"
+            "area": "Island in the Sky, Canyonlands",
+            "lat": 38.678891,
+            "lng": -109.492599
           },
           "kind": "idea",
           "tags": [
@@ -1169,7 +1231,9 @@
           "location": {
             "name": "Love Muffin Café",
             "city": "Moab",
-            "area": "North Main Street"
+            "area": "North Main Street",
+            "lat": 38.575438,
+            "lng": -109.550966
           },
           "kind": "planned",
           "tags": [
@@ -1190,7 +1254,9 @@
           "location": {
             "name": "Wolfe Ranch trailhead, Delicate Arch Road",
             "city": "Moab",
-            "area": "Arches National Park"
+            "area": "Arches National Park",
+            "lat": 38.734189,
+            "lng": -109.5221
           },
           "kind": "transit",
           "notes": "Arches dropped its timed-entry reservation for 2026 — announced 18 February, nothing to book, no $2 fee. What did not change is the entrance queue: between May and October the line at the booth can run 30 minutes from about 09:00 to 11:00, and the Wolfe Ranch lot fills. Winter has neither problem. $30 per vehicle, seven days.",
@@ -1208,7 +1274,9 @@
           "location": {
             "name": "Delicate Arch Trail",
             "city": "Moab",
-            "area": "Arches National Park"
+            "area": "Arches National Park",
+            "lat": 38.740473,
+            "lng": -109.510014
           },
           "kind": "planned",
           "tags": [
@@ -1225,7 +1293,9 @@
           "location": {
             "name": "The Windows Section",
             "city": "Moab",
-            "area": "Arches National Park"
+            "area": "Arches National Park",
+            "lat": 38.57206,
+            "lng": -109.551893
           },
           "kind": "idea",
           "tags": [
@@ -1242,7 +1312,9 @@
           "location": {
             "name": "Moab Brewery",
             "city": "Moab",
-            "area": "South Main Street"
+            "area": "South Main Street",
+            "lat": 38.562699,
+            "lng": -109.549646
           },
           "kind": "planned",
           "tags": [
@@ -1287,7 +1359,9 @@
           "location": {
             "name": "Little River Road to Laurel Creek Road",
             "city": "Gatlinburg",
-            "area": "Great Smoky Mountains National Park"
+            "area": "Great Smoky Mountains National Park",
+            "lat": 35.721528,
+            "lng": -83.499431
           },
           "kind": "transit",
           "notes": "An hour, and it is a slow, beautiful hour beside the Little River — do not believe the map's 45 minutes. There is no entrance fee in the Smokies, but Park It Forward means any vehicle parked over 15 minutes needs a tag: $5 daily, $15 weekly, $40 annual, bought on Recreation.gov, at visitor centers or from the machines at trailheads. Buy it on your phone before you leave town; the machine at Cades Cove has a queue at 08:00 and no signal to help you.",
@@ -1305,7 +1379,9 @@
           "location": {
             "name": "Cades Cove Loop Road",
             "city": "Townsend",
-            "area": "Cades Cove, Great Smoky Mountains"
+            "area": "Cades Cove, Great Smoky Mountains",
+            "lat": 48.123093,
+            "lng": -122.78284
           },
           "kind": "planned",
           "tags": [
@@ -1353,7 +1429,9 @@
           "location": {
             "name": "Crockett's Breakfast Camp / Parkway",
             "city": "Gatlinburg",
-            "area": "Parkway"
+            "area": "Parkway",
+            "lat": 35.707646,
+            "lng": -83.522
           },
           "kind": "planned",
           "tags": [
@@ -1374,7 +1452,9 @@
           "location": {
             "name": "Alum Cave Trailhead, Newfound Gap Road",
             "city": "Gatlinburg",
-            "area": "Mount LeConte, Great Smoky Mountains"
+            "area": "Mount LeConte, Great Smoky Mountains",
+            "lat": 35.622274,
+            "lng": -83.422046
           },
           "kind": "hold",
           "tags": [
@@ -1408,7 +1488,9 @@
           "location": {
             "name": "The Peddler Steakhouse",
             "city": "Gatlinburg",
-            "area": "River Road, on the Little Pigeon"
+            "area": "River Road, on the Little Pigeon",
+            "lat": 35.70796,
+            "lng": -83.523262
           },
           "kind": "planned",
           "tags": [

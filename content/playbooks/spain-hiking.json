@@ -41,73 +41,161 @@
       "ownerId": "dev-sofia",
       "visibility": "public",
       "keptOn": "2025-05-14T09:00:00.000Z",
-      "sourceTrip": { "name": "Asturias and the Picos, on foot" },
+      "sourceTrip": {
+        "name": "Asturias and the Picos, on foot"
+      },
       "addedBy": [
-        { "addedBy": "dev-alice" },
-        { "addedBy": "dev-carlos" },
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-nadia" }
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
       ],
       "stops": [
         {
           "title": "First car down the AS-264 to Poncebos",
-          "timeWindow": { "start": "06:50", "end": "07:20" },
-          "location": { "name": "Puente de Poncebos riverside car park", "city": "Poncebos", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "06:50",
+            "end": "07:20"
+          },
+          "location": {
+            "name": "Puente de Poncebos riverside car park",
+            "city": "Poncebos",
+            "area": "Picos de Europa"
+          },
           "kind": "transit",
           "notes": "The road in is single-track with passing places; after 08:30 you meet the tour minibuses head-on and reverse a lot. Park at the lower riverside lot, not the upper one, which belongs to the Bulnes funicular.",
-          "cost": { "amountMinor": 400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cafe con leche at Hotel Garganta del Cares",
-          "timeWindow": { "start": "07:20", "end": "07:50" },
-          "location": { "name": "Hotel Garganta del Cares bar", "city": "Poncebos", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "07:20",
+            "end": "07:50"
+          },
+          "location": {
+            "name": "Hotel Garganta del Cares bar",
+            "city": "Poncebos",
+            "area": "Picos de Europa"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Last real coffee for 12 km. Fill both bottles here: there is one spring on the whole trail and it is eight kilometres in, on the Cain side.",
-          "cost": { "amountMinor": 850, "currency": "USD" }
+          "cost": {
+            "amountMinor": 850,
+            "currency": "USD"
+          }
         },
         {
           "title": "Poncebos to Cain along the canal path, 12 km",
-          "timeWindow": { "start": "07:50", "end": "11:15" },
-          "location": { "name": "Ruta del Cares trailhead, Poncebos", "city": "Poncebos", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "07:50",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Ruta del Cares trailhead, Poncebos",
+            "city": "Poncebos",
+            "area": "Picos de Europa"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "This is the whole trick: walk north to south. From Poncebos you get the brutal 300 m of Camarmena zig-zags done in cool shade in the first hour and everything after is flat. Start from Cain and you finish with that climb at four in the afternoon in full sun. The morning light is behind you this way too.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cabrito asado at Casa Cuevas in Cain",
-          "timeWindow": { "start": "11:15", "end": "12:45" },
-          "location": { "name": "Pension-Restaurante Casa Cuevas", "city": "Cain de Valdeon", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "11:15",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Pension-Restaurante Casa Cuevas",
+            "city": "Cain de Valdeon",
+            "area": "Picos de Europa"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Fourth place on the left walking up from the river into the village. Order the cabrito asado, and have the Cabrales with cider rather than wine - the cheese is made in the valley you just walked out of.",
-          "cost": { "amountMinor": 2600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cold dip at the Cain footbridge",
-          "timeWindow": { "start": "12:45", "end": "13:15" },
-          "location": { "name": "Rio Cares footbridge below the village", "city": "Cain de Valdeon", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "12:45",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Rio Cares footbridge below the village",
+            "city": "Cain de Valdeon",
+            "area": "Picos de Europa"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Snowmelt, so about eight degrees in May and worth exactly ninety seconds. Nobody regrets it on the walk back."
         },
         {
           "title": "Back to Poncebos before the wind gets up",
-          "timeWindow": { "start": "13:15", "end": "16:30" },
-          "location": { "name": "Ruta del Cares, Cain end", "city": "Cain de Valdeon", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "13:15",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Ruta del Cares, Cain end",
+            "city": "Cain de Valdeon",
+            "area": "Picos de Europa"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The return is roughly 45 minutes quicker and finishes downhill. Afternoon wind funnels up the gorge from about three; the tunnels are the only shelter and there is no phone signal between them."
         },
         {
           "title": "Cabrales cheese cave at Arenas",
-          "timeWindow": { "start": "16:45", "end": "17:30" },
-          "location": { "name": "Cueva Exposicion Cabrales", "city": "Arenas de Cabrales", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "16:45",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Cueva Exposicion Cabrales",
+            "city": "Arenas de Cabrales",
+            "area": "Picos de Europa",
+            "lat": 43.299144,
+            "lng": -4.819003
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "A 25-minute guided walk into the limestone cave where the cheese matures. Last entry is five, and it is the only thing open between finishing the walk and dinner.",
-          "cost": { "amountMinor": 850, "currency": "USD" }
+          "cost": {
+            "amountMinor": 850,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -118,80 +206,185 @@
       "ownerId": "dev-tomas",
       "visibility": "public",
       "keptOn": "2025-06-28T09:00:00.000Z",
-      "sourceTrip": { "name": "Cantabria: the Picos from the south" },
+      "sourceTrip": {
+        "name": "Cantabria: the Picos from the south"
+      },
       "addedBy": [
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-marco" }
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
       ],
       "stops": [
         {
           "title": "Potes to Fuente De for the first cabin",
-          "timeWindow": { "start": "08:15", "end": "08:50" },
-          "location": { "name": "Teleferico de Fuente De lower station", "city": "Fuente De", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "08:50"
+          },
+          "location": {
+            "name": "Teleferico de Fuente De lower station",
+            "city": "Fuente De",
+            "area": "Picos de Europa"
+          },
           "kind": "transit",
           "notes": "The station car park is full by 09:30 in July. The queue for tickets is far longer than the queue for the cabin, so send one person ahead while the others sort boots.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "One-way ticket up the teleferico",
-          "timeWindow": { "start": "08:50", "end": "09:20" },
-          "location": { "name": "Teleferico de Fuente De ticket hall", "city": "Fuente De", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "08:50",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Teleferico de Fuente De ticket hall",
+            "city": "Fuente De",
+            "area": "Picos de Europa",
+            "lat": 20.562322,
+            "lng": -103.361667
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Buy the single, not the return - you are walking down the other side. 753 metres of ascent in under four minutes; stand on the left of the cabin for the wall.",
-          "cost": { "amountMinor": 2100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2100,
+            "currency": "USD"
+          }
         },
         {
           "title": "El Cable to Cabana Veronica by the Horcados Rojos track",
-          "timeWindow": { "start": "09:20", "end": "11:45" },
-          "location": { "name": "Mirador de El Cable, PR-PNPE 23 trailhead", "city": "Fuente De", "area": "Macizo Central" },
+          "timeWindow": {
+            "start": "09:20",
+            "end": "11:45"
+          },
+          "location": {
+            "name": "Mirador de El Cable, PR-PNPE 23 trailhead",
+            "city": "Fuente De",
+            "area": "Macizo Central",
+            "lat": 20.562322,
+            "lng": -103.361667
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A limestone desert with no water, no shade and no soil. The route is cairned rather than signed, so in cloud you follow the jeep track to the Horcados junction instead of cutting the moraine.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lentils at Cabana Veronica",
-          "timeWindow": { "start": "11:45", "end": "12:20" },
-          "location": { "name": "Refugio Cabana Veronica", "city": "Fuente De", "area": "Macizo Central" },
+          "timeWindow": {
+            "start": "11:45",
+            "end": "12:20"
+          },
+          "location": {
+            "name": "Refugio Cabana Veronica",
+            "city": "Fuente De",
+            "area": "Macizo Central"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "An aircraft-carrier gun turret bolted to the rock at 2,325 m, sleeping twelve. The guardian cooks one pot of lentejas a day for whoever turns up. Cash only, no card, no signal.",
-          "cost": { "amountMinor": 1400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Scramble to the Horcados Rojos col",
-          "timeWindow": { "start": "12:20", "end": "13:00" },
-          "location": { "name": "Collado Horcados Rojos", "city": "Fuente De", "area": "Macizo Central" },
+          "timeWindow": {
+            "start": "12:20",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Collado Horcados Rojos",
+            "city": "Fuente De",
+            "area": "Macizo Central",
+            "lat": 20.562322,
+            "lng": -103.361667
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Thirty minutes above the hut and the only point on this route where you see the Naranjo de Bulnes head-on. Skip it in cloud - there is nothing to see and the scree is loose."
         },
         {
           "title": "Down the Puertos de Aliva to Espinama",
-          "timeWindow": { "start": "13:00", "end": "16:30" },
-          "location": { "name": "Puertos de Aliva jeep track", "city": "Espinama", "area": "Picos de Europa" },
+          "timeWindow": {
+            "start": "13:00",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Puertos de Aliva jeep track",
+            "city": "Espinama",
+            "area": "Picos de Europa",
+            "lat": 43.1279,
+            "lng": -4.7864
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A long, kind 1,200 m descent past the Chalet Real and the summer cattle. Poles earn their place in the final hour, which is concrete track rather than path.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cocido lebaniego at Hotel Remona",
-          "timeWindow": { "start": "16:30", "end": "17:30" },
-          "location": { "name": "Hotel Remona restaurant", "city": "Espinama", "area": "Valle de Camaleno" },
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Hotel Remona restaurant",
+            "city": "Espinama",
+            "area": "Valle de Camaleno"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "First building you reach walking into Espinama. Cocido lebaniego is the chickpea stew of this valley and it arrives in three courses, so order one between two if you still have driving to do.",
-          "cost": { "amountMinor": 1900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1900,
+            "currency": "USD"
+          }
         },
         {
           "title": "Taxi back up to the car at Fuente De",
-          "timeWindow": { "start": "17:30", "end": "18:00" },
-          "location": { "name": "Espinama main road pick-up", "city": "Espinama", "area": "Valle de Camaleno" },
+          "timeWindow": {
+            "start": "17:30",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Espinama main road pick-up",
+            "city": "Espinama",
+            "area": "Valle de Camaleno",
+            "lat": 43.1279,
+            "lng": -4.7864
+          },
           "kind": "transit",
           "notes": "Four kilometres uphill on the CA-185. There is no rank - ring from the hotel before you sit down to eat, not after, because one driver covers the whole valley.",
-          "cost": { "amountMinor": 1800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -202,65 +395,156 @@
       "ownerId": "dev-maeve",
       "visibility": "public",
       "keptOn": "2026-02-07T09:00:00.000Z",
-      "sourceTrip": { "name": "Malaga in winter, mostly outdoors" },
+      "sourceTrip": {
+        "name": "Malaga in winter, mostly outdoors"
+      },
       "addedBy": [
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-alice" },
-        { "addedBy": "dev-carlos" },
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-bob" }
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-bob"
+        }
       ],
       "stops": [
         {
           "title": "Park at El Chorro station and take the shuttle north",
-          "timeWindow": { "start": "08:00", "end": "08:40" },
-          "location": { "name": "El Chorro-Caminito del Rey railway station", "city": "El Chorro", "area": "Alora" },
+          "timeWindow": {
+            "start": "08:00",
+            "end": "08:40"
+          },
+          "location": {
+            "name": "El Chorro-Caminito del Rey railway station",
+            "city": "El Chorro",
+            "area": "Alora",
+            "lat": 36.907073,
+            "lng": -4.759133
+          },
           "kind": "transit",
           "notes": "Park at the finish, not the start. The shuttle runs El Chorro to the north entrance every half hour, costs 2.50 euros and is cash only - no cards, no notes over twenty. Doing it this way means the walk ends where the car is instead of with an hour of waiting.",
-          "cost": { "amountMinor": 280, "currency": "USD" }
+          "cost": {
+            "amountMinor": 280,
+            "currency": "USD"
+          }
         },
         {
           "title": "Tostada at El Kiosko before the gate",
-          "timeWindow": { "start": "08:40", "end": "09:15" },
-          "location": { "name": "Restaurante El Kiosko, north access", "city": "Ardales", "area": "Desfiladero de los Gaitanes" },
+          "timeWindow": {
+            "start": "08:40",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Restaurante El Kiosko, north access",
+            "city": "Ardales",
+            "area": "Desfiladero de los Gaitanes",
+            "lat": 36.932257,
+            "lng": -4.789407
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The last food, water and toilet before the boardwalk - nothing is sold on the walk itself. Leave 25 minutes after this for the access path and tunnel to the control point; your slot is timed at the gate, not the car park.",
-          "cost": { "amountMinor": 750, "currency": "USD" }
+          "cost": {
+            "amountMinor": 750,
+            "currency": "USD"
+          }
         },
         {
           "title": "Control point: named ticket and helmet",
-          "timeWindow": { "start": "09:15", "end": "09:30" },
-          "location": { "name": "Caminito del Rey north control gate", "city": "Ardales", "area": "Desfiladero de los Gaitanes" },
+          "timeWindow": {
+            "start": "09:15",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Caminito del Rey north control gate",
+            "city": "Ardales",
+            "area": "Desfiladero de los Gaitanes",
+            "lat": 36.878945,
+            "lng": -4.846363
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Ten euros general admission, eighteen with an official guide, booked on caminitodelrey.info. Tickets are personalised after purchase and the name has to match the passport you hand over - they do check. Helmets are issued here and worn the whole way.",
-          "cost": { "amountMinor": 1100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
         },
         {
           "title": "The boardwalks: Gaitanejo gorge to the hanging bridge",
-          "timeWindow": { "start": "09:30", "end": "12:30" },
-          "location": { "name": "Caminito del Rey boardwalk", "city": "Ardales", "area": "Desfiladero de los Gaitanes" },
+          "timeWindow": {
+            "start": "09:30",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Caminito del Rey boardwalk",
+            "city": "Ardales",
+            "area": "Desfiladero de los Gaitanes",
+            "lat": 36.923845,
+            "lng": -4.783346
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "7.7 km end to end including access paths, one-way north to south and downhill throughout. The glass floor panel and the suspension bridge are both in the last third, so nobody bails early. Wind closes this walk far more often than rain does - ring the visitor centre the morning of, not the night before.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Terrace lunch at La Garganta",
-          "timeWindow": { "start": "12:30", "end": "14:00" },
-          "location": { "name": "Restaurante La Garganta", "city": "El Chorro", "area": "Alora" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "14:00"
+          },
+          "location": {
+            "name": "Restaurante La Garganta",
+            "city": "El Chorro",
+            "area": "Alora",
+            "lat": 36.906323,
+            "lng": -4.759295
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Beside the station at the south exit, with the gorge you just walked as the backdrop. Book it - every slot for two hours comes out of the same gate at the same time and the terrace fills in ten minutes.",
-          "cost": { "amountMinor": 3200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Drive up to the Conde de Guadalhorce reservoir",
-          "timeWindow": { "start": "14:00", "end": "15:00" },
-          "location": { "name": "Mirador del Embalse del Conde de Guadalhorce", "city": "Ardales", "area": "Embalse del Conde de Guadalhorce" },
+          "timeWindow": {
+            "start": "14:00",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Mirador del Embalse del Conde de Guadalhorce",
+            "city": "Ardales",
+            "area": "Embalse del Conde de Guadalhorce",
+            "lat": 36.918444,
+            "lng": -4.81721
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Ten minutes north on the MA-5403. In February it is a view and a coffee; in July it is the swim that makes the whole day."
         }
       ]
@@ -272,78 +556,185 @@
       "ownerId": "dev-sofia",
       "visibility": "public",
       "keptOn": "2026-03-19T09:00:00.000Z",
-      "sourceTrip": { "name": "Tramuntana in March, before the heat" },
+      "sourceTrip": {
+        "name": "Tramuntana in March, before the heat"
+      },
       "addedBy": [
-        { "addedBy": "dev-marco" }
+        {
+          "addedBy": "dev-marco"
+        }
       ],
       "stops": [
         {
           "title": "Bus 203 out to Deia",
-          "timeWindow": { "start": "08:20", "end": "08:50" },
-          "location": { "name": "Soller bus stop, Carrer de Cetre", "city": "Soller", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "08:20",
+            "end": "08:50"
+          },
+          "location": {
+            "name": "Soller bus stop, Carrer de Cetre",
+            "city": "Soller",
+            "area": "Serra de Tramuntana",
+            "lat": 39.767368,
+            "lng": 2.709836
+          },
           "kind": "transit",
           "notes": "Ride the bus at the start of the day, not the end. Walking the stage north-east means you finish at the sea in Port de Soller with a tram home, instead of standing at a Deia roadside at six with everyone else.",
-          "cost": { "amountMinor": 300, "currency": "USD" }
+          "cost": {
+            "amountMinor": 300,
+            "currency": "USD"
+          }
         },
         {
           "title": "Coffee in the Deia square before dropping to the sea",
-          "timeWindow": { "start": "08:50", "end": "09:20" },
-          "location": { "name": "Placa de Deia, below Sa Fonda", "city": "Deia", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "08:50",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Placa de Deia, below Sa Fonda",
+            "city": "Deia",
+            "area": "Serra de Tramuntana",
+            "lat": 39.747736,
+            "lng": 2.648343
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Refugi Can Boi, the GR221 stage hut, is two minutes below the square if you are doing the route in stages - twenty-odd beds, booked through the Consell de Mallorca months ahead, never on the day.",
-          "cost": { "amountMinor": 600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Down the cobbles to Cala Deia",
-          "timeWindow": { "start": "09:20", "end": "10:10" },
-          "location": { "name": "Cami de Cala Deia", "city": "Deia", "area": "Cala Deia" },
+          "timeWindow": {
+            "start": "09:20",
+            "end": "10:10"
+          },
+          "location": {
+            "name": "Cami de Cala Deia",
+            "city": "Deia",
+            "area": "Cala Deia",
+            "lat": 39.759552,
+            "lng": 2.640057
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Thirty minutes down through olive terraces on a stepped cobbled path. Go now: the cove is empty before eleven and the water is glass. Ca's Patro March, the fish shack on the rocks, only opens for lunch from about one, so it is a reason to come back rather than a reason to wait.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "First swim of the trip",
-          "timeWindow": { "start": "10:10", "end": "10:40" },
-          "location": { "name": "Cala Deia shingle beach", "city": "Deia", "area": "Cala Deia" },
+          "timeWindow": {
+            "start": "10:10",
+            "end": "10:40"
+          },
+          "location": {
+            "name": "Cala Deia shingle beach",
+            "city": "Deia",
+            "area": "Cala Deia",
+            "lat": 39.75948,
+            "lng": 2.640837
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "March water is around fifteen degrees and the shingle is punishing barefoot - the sandals are worth carrying for exactly this."
         },
         {
           "title": "Back up to the GR221 and on over Llucalcari",
-          "timeWindow": { "start": "10:40", "end": "13:40" },
-          "location": { "name": "GR221 Ruta de Pedra en Sec, Deia to Muleta section", "city": "Deia", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "10:40",
+            "end": "13:40"
+          },
+          "location": {
+            "name": "GR221 Ruta de Pedra en Sec, Deia to Muleta section",
+            "city": "Deia",
+            "area": "Serra de Tramuntana",
+            "lat": 39.747736,
+            "lng": 2.648343
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The climb out of the cala is the only real work of the day: 200 m in 25 minutes. After Llucalcari the path traverses high above the sea for two hours with no shade and no water, so carry two litres. Both places people go wrong are at the Llucalcari houses - keep the sea on your left and look for the red-and-white flash painted on the dry-stone wall.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Refugi Muleta and the Cap Gros lighthouse",
-          "timeWindow": { "start": "13:40", "end": "14:20" },
-          "location": { "name": "Refugi Muleta", "city": "Port de Soller", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "13:40",
+            "end": "14:20"
+          },
+          "location": {
+            "name": "Refugi Muleta",
+            "city": "Port de Soller",
+            "area": "Serra de Tramuntana",
+            "lat": 39.796601,
+            "lng": 2.681159
+          },
           "kind": "planned",
           "notes": "The old army telegraph station, in use until 1956, now a forty-bed refugi. Its terrace is where the whole bay opens up in one go - the best five minutes of the stage and most people walk straight past it.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Late lunch on the Repic waterfront",
-          "timeWindow": { "start": "14:20", "end": "15:45" },
-          "location": { "name": "Restaurant Randemar, Passeig Es Traves", "city": "Port de Soller", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "14:20",
+            "end": "15:45"
+          },
+          "location": {
+            "name": "Restaurant Randemar, Passeig Es Traves",
+            "city": "Port de Soller",
+            "area": "Serra de Tramuntana",
+            "lat": 39.797761,
+            "lng": 2.696415
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The path drops you at the far, lighthouse end of the bay; the restaurants are twenty minutes round the water. Kitchens here stop at four sharp, which is the real reason not to linger at Muleta.",
-          "cost": { "amountMinor": 4400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Wooden tram back to Soller",
-          "timeWindow": { "start": "15:45", "end": "16:15" },
-          "location": { "name": "Tranvia de Soller, Port de Soller terminus", "city": "Port de Soller", "area": "Serra de Tramuntana" },
+          "timeWindow": {
+            "start": "15:45",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Tranvia de Soller, Port de Soller terminus",
+            "city": "Port de Soller",
+            "area": "Serra de Tramuntana",
+            "lat": 39.797761,
+            "lng": 2.696415
+          },
           "kind": "transit",
           "notes": "Runs every half hour through the orange groves to Soller station, tickets bought on board. Sit on the right for the groves, stand on the back platform if it is full.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -354,81 +745,196 @@
       "ownerId": "dev-tomas",
       "visibility": "public",
       "keptOn": "2025-07-22T09:00:00.000Z",
-      "sourceTrip": { "name": "Aragonese Pyrenees, ten days" },
+      "sourceTrip": {
+        "name": "Aragonese Pyrenees, ten days"
+      },
       "addedBy": [
-        { "addedBy": "dev-alice" },
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-nadia" }
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
       ],
       "stops": [
         {
           "title": "First shuttle from Torla into the valley",
-          "timeWindow": { "start": "06:45", "end": "07:20" },
-          "location": { "name": "Torla-Ordesa shuttle terminal car park", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:20"
+          },
+          "location": {
+            "name": "Torla-Ordesa shuttle terminal car park",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.649893,
+            "lng": -0.101817
+          },
           "kind": "transit",
           "notes": "The valley road is closed to private cars from 19 June to 20 September and on the shoulder-season weekends listed on the park site. The shuttle is six euros return; it runs every fifteen to twenty minutes from eight, but only every half hour before that. Take the 06:45 - you want the Cazadores climb finished before the sun reaches the wall.",
-          "cost": { "amountMinor": 660, "currency": "USD" }
+          "cost": {
+            "amountMinor": 660,
+            "currency": "USD"
+          }
         },
         {
           "title": "Meet the guide at Pradera de Ordesa",
-          "timeWindow": { "start": "07:20", "end": "07:40" },
-          "location": { "name": "Pradera de Ordesa trailhead", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "07:20",
+            "end": "07:40"
+          },
+          "location": {
+            "name": "Pradera de Ordesa trailhead",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.649893,
+            "lng": -0.101817
+          },
           "kind": "booked",
           "notes": "An AEGM mountain guide for the day, split four ways. Worth paying for on this route specifically: the Cazadores has an exposed ladder-and-chain section near the top, and the weather over Monte Perdido turns by lunchtime far more often than the forecast admits.",
-          "cost": { "amountMinor": 21500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 21500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Senda de los Cazadores: 800 m straight up",
-          "timeWindow": { "start": "07:40", "end": "10:15" },
-          "location": { "name": "Senda de los Cazadores trailhead", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "07:40",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Senda de los Cazadores trailhead",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.649893,
+            "lng": -0.101817
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Unrelenting - 800 m of switchbacks in two and a half kilometres, in beech shade the whole way. Walk it UP and never down: the Faja is the reward and it has to come second, and the loose upper section is genuinely unpleasant descending.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Mirador de Calcilarruego",
-          "timeWindow": { "start": "10:15", "end": "10:45" },
-          "location": { "name": "Mirador de Calcilarruego", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "10:15",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Mirador de Calcilarruego",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.641415,
+            "lng": -0.054122
+          },
           "kind": "planned",
           "notes": "The balcony where the canyon suddenly drops 700 m below your boots. This is where the day stops being work and starts being a walk - sit down, eat something, everyone does.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Faja de Pelay: three flat hours on a ledge",
-          "timeWindow": { "start": "10:45", "end": "13:30" },
-          "location": { "name": "Faja de Pelay", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "10:45",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Faja de Pelay",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.63845,
+            "lng": -0.051459
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A natural terrace cut across the cliff face, almost dead level, with the whole canyon open on your right and the Cotatuero waterfalls opposite. No water and no shade for three hours - this is where the two litres go.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Picnic below the Cola de Caballo",
-          "timeWindow": { "start": "13:30", "end": "14:30" },
-          "location": { "name": "Circo de Soaso, Cola de Caballo falls", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "13:30",
+            "end": "14:30"
+          },
+          "location": {
+            "name": "Circo de Soaso, Cola de Caballo falls",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.649893,
+            "lng": -0.101817
+          },
           "kind": "planned",
-          "tags": ["meal", "outdoors"],
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
           "notes": "Buy the bocadillos at the Torla bakery the night before - the Pradera kiosk opens at nine, which is too late for this itinerary. Refugio de Goriz is 45 minutes further up and sells soup, but beds there are booked out months ahead and day walkers get short shrift.",
-          "cost": { "amountMinor": 1600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Valley floor home past the Gradas de Soaso",
-          "timeWindow": { "start": "14:30", "end": "17:30" },
-          "location": { "name": "Camino del Valle, Gradas de Soaso", "city": "Torla-Ordesa", "area": "Ordesa y Monte Perdido" },
+          "timeWindow": {
+            "start": "14:30",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Camino del Valle, Gradas de Soaso",
+            "city": "Torla-Ordesa",
+            "area": "Ordesa y Monte Perdido",
+            "lat": 42.649893,
+            "lng": -0.101817
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Easy river path with the stepped cascades the whole way down. Two hours if you push, three if you swim in the pools below the Gradas. Last shuttle out of the Pradera is seven in high season and it is a nine-kilometre road walk if you miss it.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ternasco at El Duende",
-          "timeWindow": { "start": "20:30", "end": "22:00" },
-          "location": { "name": "Restaurante El Duende", "city": "Torla-Ordesa", "area": "Valle de Broto" },
+          "timeWindow": {
+            "start": "20:30",
+            "end": "22:00"
+          },
+          "location": {
+            "name": "Restaurante El Duende",
+            "city": "Torla-Ordesa",
+            "area": "Valle de Broto",
+            "lat": 42.627701,
+            "lng": -0.111743
+          },
           "kind": "hold",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "A dozen tables in a stone house off the main street. Ring at breakfast to hold one; by the time you walk out of the park it is gone. Roast ternasco - Aragonese milk-fed lamb - is the thing here.",
-          "cost": { "amountMinor": 5800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5800,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -439,83 +945,201 @@
       "ownerId": "dev-maeve",
       "visibility": "public",
       "keptOn": "2024-10-24T09:00:00.000Z",
-      "sourceTrip": { "name": "Tenerife, above the clouds" },
+      "sourceTrip": {
+        "name": "Tenerife, above the clouds"
+      },
       "addedBy": [
-        { "addedBy": "dev-carlos" },
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-marco" },
-        { "addedBy": "dev-priya" }
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
       ],
       "stops": [
         {
           "title": "Up the TF-21 through the cloud sea",
-          "timeWindow": { "start": "07:00", "end": "08:20" },
-          "location": { "name": "TF-21 mirador above Aguamansa", "city": "La Orotava", "area": "Parque Nacional del Teide" },
+          "timeWindow": {
+            "start": "07:00",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "TF-21 mirador above Aguamansa",
+            "city": "La Orotava",
+            "area": "Parque Nacional del Teide",
+            "lat": 28.392131,
+            "lng": -16.52268
+          },
           "kind": "transit",
           "notes": "Leave before seven and you climb out through the mar de nubes at sunrise, which is half the reason to do this from the north side. There is no fuel inside the park - fill up in La Orotava, not Vilaflor.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Coffee at the Parador before anything opens",
-          "timeWindow": { "start": "08:20", "end": "08:50" },
-          "location": { "name": "Parador de Las Canadas del Teide", "city": "La Orotava", "area": "Las Canadas" },
+          "timeWindow": {
+            "start": "08:20",
+            "end": "08:50"
+          },
+          "location": {
+            "name": "Parador de Las Canadas del Teide",
+            "city": "La Orotava",
+            "area": "Las Canadas",
+            "lat": 28.224421,
+            "lng": -16.626973
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The only building for miles and the terrace looks straight across at the Roques de Garcia. It is also the last warm room before 3,555 m: it is often five degrees at the top station in October with wind on top of that.",
-          "cost": { "amountMinor": 750, "currency": "USD" }
+          "cost": {
+            "amountMinor": 750,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cable car up to La Rambleta",
-          "timeWindow": { "start": "08:50", "end": "09:15" },
-          "location": { "name": "Teleferico del Teide base station", "city": "La Orotava", "area": "Parque Nacional del Teide" },
+          "timeWindow": {
+            "start": "08:50",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Teleferico del Teide base station",
+            "city": "La Orotava",
+            "area": "Parque Nacional del Teide",
+            "lat": 28.270162,
+            "lng": -16.63872
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Book the earliest slot at volcanoteide.com. The cable car stops running when wind at the top passes about sixty km/h, and afternoons are reliably windier than mornings - the first departure is the one that actually goes.",
-          "cost": { "amountMinor": 5100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5100,
+            "currency": "USD"
+          }
         },
         {
           "title": "Show the Telesforo Bravo permit at 3,555 m",
-          "timeWindow": { "start": "09:15", "end": "09:30" },
-          "location": { "name": "La Rambleta permit control, PNT-10 gate", "city": "La Orotava", "area": "Pico del Teide" },
+          "timeWindow": {
+            "start": "09:15",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "La Rambleta permit control, PNT-10 gate",
+            "city": "La Orotava",
+            "area": "Pico del Teide",
+            "lat": 28.272693,
+            "lng": -16.642274
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "The summit permit stopped being free in 2026: fifteen euros for non-residents, six for other Canary residents, free for Tenerife residents and under-14s, booked on the TenerifeON platform. New places are released every Monday at 07:00 Canary time, 56 days out, and they go in minutes. The permit covers a two-hour window and the ranger checks the passport against the name.",
-          "cost": { "amountMinor": 1700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Sendero Telesforo Bravo to the crater rim",
-          "timeWindow": { "start": "09:30", "end": "11:00" },
-          "location": { "name": "Sendero PNT-10 Telesforo Bravo", "city": "La Orotava", "area": "Pico del Teide" },
+          "timeWindow": {
+            "start": "09:30",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Sendero PNT-10 Telesforo Bravo",
+            "city": "La Orotava",
+            "area": "Pico del Teide",
+            "lat": 28.392131,
+            "lng": -16.52268
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Only 163 m of climb to 3,715 m, but at this altitude it still takes an hour. The sulphur vents at the rim are hot enough to burn a hand. Half the people up here get a headache: walk absurdly slowly, drink before you feel thirsty, and turn around if it gets worse rather than better.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cable car down before the queue builds",
-          "timeWindow": { "start": "11:00", "end": "11:40" },
-          "location": { "name": "La Rambleta upper station", "city": "La Orotava", "area": "Parque Nacional del Teide" },
+          "timeWindow": {
+            "start": "11:00",
+            "end": "11:40"
+          },
+          "location": {
+            "name": "La Rambleta upper station",
+            "city": "La Orotava",
+            "area": "Parque Nacional del Teide",
+            "lat": 28.270162,
+            "lng": -16.63872
+          },
           "kind": "transit",
           "notes": "The queue at the top station is worse than the one at the bottom and gets ugly after noon. If you would rather walk, hand back the return leg and take PNT-07 down to Montana Blanca - 1,200 m of loose pumice, about three hours, and it only works if you left a second car at the Montana Blanca gate on the TF-21.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Puchero at the Parador's Restaurante El Refugio",
-          "timeWindow": { "start": "12:15", "end": "13:30" },
-          "location": { "name": "Restaurante El Refugio, Parador de Las Canadas del Teide", "city": "La Orotava", "area": "Las Canadas" },
+          "timeWindow": {
+            "start": "12:15",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Restaurante El Refugio, Parador de Las Canadas del Teide",
+            "city": "La Orotava",
+            "area": "Las Canadas",
+            "lat": 28.224286,
+            "lng": -16.627039
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The only proper meal inside the park boundary. Ask for a terrace table facing the Roques and order the conejo en salmorejo or the puchero canario; the papas arrugadas come with both mojos.",
-          "cost": { "amountMinor": 4600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bizcochon and coffee at Casa Egon",
-          "timeWindow": { "start": "15:00", "end": "15:45" },
-          "location": { "name": "Casa Egon, Calle Leon", "city": "La Orotava", "area": "Valle de La Orotava" },
+          "timeWindow": {
+            "start": "15:00",
+            "end": "15:45"
+          },
+          "location": {
+            "name": "Casa Egon, Calle Leon",
+            "city": "La Orotava",
+            "area": "Valle de La Orotava",
+            "lat": 28.389531,
+            "lng": -16.523623
+          },
           "kind": "idea",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "A 1916 pastry shop with a courtyard behind it. The drive down from 2,100 m to sea level takes 45 minutes and your ears will pop twice - this is the right place to stop while your head resettles.",
-          "cost": { "amountMinor": 900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -526,76 +1150,171 @@
       "ownerId": "dev-sofia",
       "visibility": "public",
       "keptOn": "2025-01-18T09:00:00.000Z",
-      "sourceTrip": { "name": "Cadiz province, walking week" },
+      "sourceTrip": {
+        "name": "Cadiz province, walking week"
+      },
       "addedBy": [],
       "stops": [
         {
           "title": "The CA-9104 over the pass to the trailhead",
-          "timeWindow": { "start": "08:40", "end": "09:20" },
-          "location": { "name": "Sendero Garganta Verde trailhead lay-by, CA-9104", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "08:40",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Sendero Garganta Verde trailhead lay-by, CA-9104",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema"
+          },
           "kind": "transit",
           "notes": "The lay-by holds maybe fifteen cars and there is nowhere else to leave one. The Grazalema-Zahara pass is the best drive in Andalucia and it is worth doing early for the light on Zahara's castle rock.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Show the Junta de Andalucia permit at the gate",
-          "timeWindow": { "start": "09:20", "end": "09:35" },
-          "location": { "name": "Garganta Verde control gate", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "09:20",
+            "end": "09:35"
+          },
+          "location": {
+            "name": "Garganta Verde control gate",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema"
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Free, but compulsory and genuinely enforced. Request it up to two months ahead through the Ventana del Visitante site; a PDF arrives by email and the forest guard reads it off your phone. The trail is closed 1 June to 15 October for griffon vulture nesting, which is what makes this a winter and spring walk rather than a summer one.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Down into the gorge to the Ermita cave",
-          "timeWindow": { "start": "09:35", "end": "12:30" },
-          "location": { "name": "Sendero SL-A 118 La Garganta Verde", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "09:35",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Sendero SL-A 118 La Garganta Verde",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Two and a half kilometres down, 400 m of descent, and every metre of it has to be climbed back out - budget the return at twice the descent. The griffon colony nests on the walls above and you hear them before you see them. The 'Ermita' at the bottom is a travertine cave the size of a chapel.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Mirador de los Buitres on the way out",
-          "timeWindow": { "start": "12:30", "end": "13:15" },
-          "location": { "name": "Mirador de los Buitres", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Mirador de los Buitres",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Five minutes off the path near the rim. At midday the vultures ride the thermals level with your head and close enough to hear the primaries."
         },
         {
           "title": "Lunch above the reservoir at Al Lago",
-          "timeWindow": { "start": "13:30", "end": "15:00" },
-          "location": { "name": "Restaurante Al Lago", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "13:30",
+            "end": "15:00"
+          },
+          "location": {
+            "name": "Restaurante Al Lago",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema",
+            "lat": 36.842132,
+            "lng": -5.389905
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Terrace over the turquoise embalse at the bottom of the village. Closed Mondays and it shortens its hours in deep winter, so ring the same morning. Ask for the lower terrace.",
-          "cost": { "amountMinor": 4800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Up to Zahara's Nasrid keep",
-          "timeWindow": { "start": "15:30", "end": "16:30" },
-          "location": { "name": "Torre del Homenaje, Castillo de Zahara", "city": "Zahara de la Sierra", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "15:30",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Torre del Homenaje, Castillo de Zahara",
+            "city": "Zahara de la Sierra",
+            "area": "Sierra de Grazalema"
+          },
           "kind": "planned",
           "notes": "Twenty minutes of steps up from the church, free, and the only spot where the reservoir and the Pinsapar ridge sit in the same frame.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "The blanket mill at Grazalema",
-          "timeWindow": { "start": "17:00", "end": "18:00" },
-          "location": { "name": "Mantas de Grazalema workshop", "city": "Grazalema", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Mantas de Grazalema workshop",
+            "city": "Grazalema",
+            "area": "Sierra de Grazalema",
+            "lat": 36.75808,
+            "lng": -5.366042
+          },
           "kind": "planned",
           "notes": "The last working wool mill in the sierra, on the edge of the village. Blankets run roughly ninety to a hundred and forty euros. Grazalema is the wettest place in Spain, which is exactly why the pinsapo firs and the wool trade are both here.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner at Cadiz El Chico",
-          "timeWindow": { "start": "20:00", "end": "21:30" },
-          "location": { "name": "Restaurante Cadiz El Chico, Plaza de Espana", "city": "Grazalema", "area": "Sierra de Grazalema" },
+          "timeWindow": {
+            "start": "20:00",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Restaurante Cadiz El Chico, Plaza de Espana",
+            "city": "Grazalema",
+            "area": "Sierra de Grazalema",
+            "lat": 36.757976,
+            "lng": -5.365279
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "On the plaza and the only serious kitchen in the village, so book. Sopa de tomate grazalemena first, then the payoyo goat cheese from the farms you drove past this morning.",
-          "cost": { "amountMinor": 5200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -606,80 +1325,185 @@
       "ownerId": "dev-tomas",
       "visibility": "public",
       "keptOn": "2025-10-09T09:00:00.000Z",
-      "sourceTrip": { "name": "Camino Frances, Leon to Santiago" },
+      "sourceTrip": {
+        "name": "Camino Frances, Leon to Santiago"
+      },
       "addedBy": [
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-alice" }
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-alice"
+        }
       ],
       "stops": [
         {
           "title": "Stamp the credencial and hand the pack to Jacotrans",
-          "timeWindow": { "start": "06:30", "end": "07:00" },
-          "location": { "name": "Albergue Ave Fenix", "city": "Villafranca del Bierzo", "area": "El Bierzo" },
+          "timeWindow": {
+            "start": "06:30",
+            "end": "07:00"
+          },
+          "location": {
+            "name": "Albergue Ave Fenix",
+            "city": "Villafranca del Bierzo",
+            "area": "El Bierzo",
+            "lat": 42.6039,
+            "lng": -6.808113
+          },
           "kind": "booked",
           "notes": "If you use the backpack transfer once on the whole Camino, use it today. Envelope with the cash left on the bag at the albergue before eight, and it is waiting at O Cebreiro. Seven hundred metres of climb at the end of twenty-eight kilometres is a completely different day with ten kilos on your back. Get the sello here too - the next one is twelve kilometres on.",
-          "cost": { "amountMinor": 800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
         },
         {
           "title": "The valley route along the Valcarce, not the Pradela hill",
-          "timeWindow": { "start": "07:00", "end": "09:30" },
-          "location": { "name": "Camino Frances, Rio Valcarce corridor", "city": "Trabadelo", "area": "El Bierzo" },
+          "timeWindow": {
+            "start": "07:00",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Camino Frances, Rio Valcarce corridor",
+            "city": "Trabadelo",
+            "area": "El Bierzo",
+            "lat": 42.655043,
+            "lng": -6.854838
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Two waymarked options leave Villafranca. The Pradela variant climbs 300 m for a view; the valley route hugs the river under the A-6 flyovers and is shorter and flatter. Take the valley - you need the legs for O Cebreiro, and the concrete viaducts arching over a chestnut river are far stranger and better than the guidebook photos suggest. Second breakfast at Casa Susi in Trabadelo if it is open.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Trabadelo to Herrerias past the Castillo de Sarracin",
-          "timeWindow": { "start": "09:30", "end": "12:30" },
-          "location": { "name": "Camino Frances via Vega de Valcarce", "city": "Vega de Valcarce", "area": "El Bierzo" },
+          "timeWindow": {
+            "start": "09:30",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Camino Frances via Vega de Valcarce",
+            "city": "Vega de Valcarce",
+            "area": "El Bierzo",
+            "lat": 42.66068,
+            "lng": -6.93784
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Chestnut woods, a ruined ninth-century castle on the hill above Vega, and the last flat ground you will see today. Fill water at the Vega fountain in the square.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Eat properly at Herrerias before the climb",
-          "timeWindow": { "start": "12:30", "end": "13:30" },
-          "location": { "name": "Herrerias village bar, by the bridge", "city": "Herrerias", "area": "El Bierzo" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Herrerias village bar, by the bridge",
+            "city": "Herrerias",
+            "area": "El Bierzo",
+            "lat": 42.670772,
+            "lng": -6.981012
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "This is the decision point of the day. La Faba is three and a half kilometres and 400 m straight up a stone-walled holloway with nothing in between, and after that it is another 300 m to the top. A full plate and twenty minutes off your feet here is worth an hour later.",
-          "cost": { "amountMinor": 1400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
         },
         {
           "title": "The climb: Herrerias, La Faba, Laguna de Castilla, O Cebreiro",
-          "timeWindow": { "start": "13:30", "end": "16:30" },
-          "location": { "name": "Camino Frances ascent to O Cebreiro", "city": "O Cebreiro", "area": "Serra dos Ancares" },
+          "timeWindow": {
+            "start": "13:30",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Camino Frances ascent to O Cebreiro",
+            "city": "O Cebreiro",
+            "area": "Serra dos Ancares"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Seven hundred metres of climb in eight kilometres, most of it on a sunken cattle track that is mud after rain. You cross into Galicia just past Laguna de Castilla and the first granite kilometre marker appears. In October the mist comes up the valley behind you as you climb, which is the view everybody remembers from the whole Camino.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bed at the Xunta albergue",
-          "timeWindow": { "start": "16:30", "end": "17:15" },
-          "location": { "name": "Albergue de Peregrinos da Xunta de Galicia", "city": "O Cebreiro", "area": "Serra dos Ancares" },
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Albergue de Peregrinos da Xunta de Galicia",
+            "city": "O Cebreiro",
+            "area": "Serra dos Ancares"
+          },
           "kind": "planned",
-          "tags": ["lodging"],
+          "tags": [
+            "lodging"
+          ],
           "notes": "Xunta albergues are first-come and cannot be reserved. Arrive by five in season or you are walking another five kilometres to Hospital da Condesa. Bring a sleeping bag: they issue a mattress and a disposable sheet, nothing warmer, and it is 1,300 m up.",
-          "cost": { "amountMinor": 1100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
         },
         {
           "title": "The pallozas and Santa Maria la Real",
-          "timeWindow": { "start": "17:15", "end": "18:15" },
-          "location": { "name": "Iglesia de Santa Maria la Real", "city": "O Cebreiro", "area": "Serra dos Ancares" },
+          "timeWindow": {
+            "start": "17:15",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Iglesia de Santa Maria la Real",
+            "city": "O Cebreiro",
+            "area": "Serra dos Ancares"
+          },
           "kind": "idea",
           "notes": "Ninth century and the oldest church still standing on the entire Camino Frances, with the pre-Roman thatched pallozas beside it. This is the reason to stop here rather than push on to Fonfria, and it takes twenty minutes."
         },
         {
           "title": "Caldo gallego at Meson Anton",
-          "timeWindow": { "start": "20:00", "end": "21:30" },
-          "location": { "name": "Meson Anton", "city": "O Cebreiro", "area": "Serra dos Ancares" },
+          "timeWindow": {
+            "start": "20:00",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Meson Anton",
+            "city": "O Cebreiro",
+            "area": "Serra dos Ancares",
+            "lat": 42.707837,
+            "lng": -7.044063
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "It is cold up here in every month of the year and the caldo is the entire point. Order the queso do Cebreiro as well - cone-shaped, made in this village, and effectively unavailable anywhere else on the route.",
-          "cost": { "amountMinor": 2200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
         }
       ]
     }

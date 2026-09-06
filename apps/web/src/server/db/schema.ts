@@ -278,6 +278,18 @@ export const savedDays = pgTable(
     // A future writer that forgets the field gets the truthful answer rather
     // than a claim nobody made.
     authorKind: text("author_kind").$type<SavedDayAuthorKind>().notNull().default("human"),
+    // Which content bundle imported this row, or null for a day a person saved.
+    //
+    // Re-import was already idempotent — ids derive from (bundle.id, key), so a
+    // write replaces exactly what it wrote before. What it could not see was a
+    // REMOVAL: a playbook deleted from a bundle left a row nothing could
+    // identify. This makes "everything from bundle X minus what X now declares"
+    // an answerable question, which is the whole of `--prune`.
+    //
+    // Nullable on purpose. Rows written by people have no bundle, and NULL says
+    // that rather than inventing a sentinel — which is also what keeps them out
+    // of the prune, since it only ever looks at rows where this is set.
+    sourceBundle: text("source_bundle"),
     // The denormalised counter over `saved_day_adds` (M11b link 4). The LEDGER
     // is the authority and this is recomputable from it
     // (`count(*) where saved_day_id = ?`) — it exists so the leaderboard and

@@ -141,7 +141,9 @@
           "location": {
             "name": "Huayna Picchu",
             "city": "Machu Picchu",
-            "area": "Santuario Histórico"
+            "area": "Santuario Histórico",
+            "lat": -13.15833,
+            "lng": -72.53139
           },
           "kind": "booked",
           "tags": [
@@ -240,7 +242,9 @@
           "location": {
             "name": "Plaza San Francisco taxi rank",
             "city": "Cusco",
-            "area": "Centro Histórico"
+            "area": "Centro Histórico",
+            "lat": -13.518053,
+            "lng": -71.981268
           },
           "kind": "transit",
           "tags": [],
@@ -259,7 +263,9 @@
           "location": {
             "name": "Moray",
             "city": "Maras",
-            "area": "Valle Sagrado"
+            "area": "Valle Sagrado",
+            "lat": -13.330655,
+            "lng": -72.193934
           },
           "kind": "booked",
           "tags": [
@@ -280,7 +286,9 @@
           "location": {
             "name": "Salineras de Maras",
             "city": "Maras",
-            "area": "Quebrada de Qaqawiñay"
+            "area": "Quebrada de Qaqawiñay",
+            "lat": -13.300082,
+            "lng": -72.156236
           },
           "kind": "booked",
           "tags": [
@@ -301,7 +309,9 @@
           "location": {
             "name": "Huacatay",
             "city": "Urubamba",
-            "area": "Calle Arica"
+            "area": "Calle Arica",
+            "lat": -13.307685,
+            "lng": -72.115006
           },
           "kind": "idea",
           "tags": [
@@ -322,7 +332,9 @@
           "location": {
             "name": "Mercado de Pisac",
             "city": "Pisac",
-            "area": "Plaza Constitución"
+            "area": "Plaza Constitución",
+            "lat": -13.421801,
+            "lng": -71.848968
           },
           "kind": "planned",
           "tags": [],
@@ -337,7 +349,9 @@
           "location": {
             "name": "Parque Arqueológico de Pisac",
             "city": "Pisac",
-            "area": "Valle Sagrado"
+            "area": "Valle Sagrado",
+            "lat": -13.388385,
+            "lng": -71.82642
           },
           "kind": "booked",
           "tags": [
@@ -355,7 +369,9 @@
           "location": {
             "name": "Vía Pisac–Cusco",
             "city": "Cusco",
-            "area": "Valle Sagrado"
+            "area": "Valle Sagrado",
+            "lat": -13.535331,
+            "lng": -71.93015
           },
           "kind": "transit",
           "tags": [],
@@ -391,7 +407,9 @@
           "location": {
             "name": "Mercado N.º 1 de Surquillo",
             "city": "Lima",
-            "area": "Surquillo"
+            "area": "Surquillo",
+            "lat": -12.005216,
+            "lng": -76.997615
           },
           "kind": "planned",
           "tags": [],
@@ -410,7 +428,9 @@
           "location": {
             "name": "Puente de los Suspiros",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.149173,
+            "lng": -77.022594
           },
           "kind": "planned",
           "tags": [],
@@ -425,7 +445,9 @@
           "location": {
             "name": "Canta Rana",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.146759,
+            "lng": -77.022318
           },
           "kind": "booked",
           "tags": [
@@ -446,7 +468,9 @@
           "location": {
             "name": "Museo Pedro de Osma",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.154638,
+            "lng": -77.022642
           },
           "kind": "planned",
           "tags": [
@@ -467,7 +491,9 @@
           "location": {
             "name": "Juanito de Barranco",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.149518,
+            "lng": -77.02068
           },
           "kind": "idea",
           "tags": [],
@@ -486,7 +512,9 @@
           "location": {
             "name": "Malecón Paul Harris",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.137175,
+            "lng": -77.025494
           },
           "kind": "planned",
           "tags": [
@@ -503,7 +531,9 @@
           "location": {
             "name": "Central, Av. Pedro de Osma 301",
             "city": "Lima",
-            "area": "Barranco"
+            "area": "Barranco",
+            "lat": -12.152571,
+            "lng": -77.02254
           },
           "kind": "booked",
           "tags": [
@@ -551,7 +581,9 @@
           "location": {
             "name": "Terminal Rodoviario",
             "city": "Puerto Natales",
-            "area": "Av. España"
+            "area": "Av. España",
+            "lat": -51.728525,
+            "lng": -72.488351
           },
           "kind": "transit",
           "tags": [
@@ -572,7 +604,9 @@
           "location": {
             "name": "Portería Laguna Amarga",
             "city": "Torres del Paine",
-            "area": "Parque Nacional Torres del Paine"
+            "area": "Parque Nacional Torres del Paine",
+            "lat": -50.972115,
+            "lng": -72.782352
           },
           "kind": "booked",
           "tags": [
@@ -612,7 +646,9 @@
           "location": {
             "name": "Valle Ascencio",
             "city": "Torres del Paine",
-            "area": "Parque Nacional Torres del Paine"
+            "area": "Parque Nacional Torres del Paine",
+            "lat": -51.17886,
+            "lng": -72.956932
           },
           "kind": "booked",
           "tags": [
@@ -633,7 +669,9 @@
           "location": {
             "name": "Refugio Chileno",
             "city": "Torres del Paine",
-            "area": "Valle Ascencio"
+            "area": "Valle Ascencio",
+            "lat": -50.957245,
+            "lng": -72.910648
           },
           "kind": "booked",
           "tags": [
@@ -654,7 +692,9 @@
           "location": {
             "name": "Mirador Base Las Torres",
             "city": "Torres del Paine",
-            "area": "Parque Nacional Torres del Paine"
+            "area": "Parque Nacional Torres del Paine",
+            "lat": -50.942668,
+            "lng": -72.949663
           },
           "kind": "hold",
           "tags": [
@@ -688,7 +728,9 @@
           "location": {
             "name": "Portería Laguna Amarga",
             "city": "Puerto Natales",
-            "area": "Ruta Y-150"
+            "area": "Ruta Y-150",
+            "lat": -35.021857,
+            "lng": -71.21366
           },
           "kind": "transit",
           "tags": [],
@@ -721,7 +763,9 @@
           "location": {
             "name": "Calle Caracoles",
             "city": "San Pedro de Atacama",
-            "area": "Centro"
+            "area": "Centro",
+            "lat": -22.917986,
+            "lng": -68.207472
           },
           "kind": "transit",
           "tags": [],
@@ -736,7 +780,9 @@
           "location": {
             "name": "Balloons Over Atacama launch site",
             "city": "San Pedro de Atacama",
-            "area": "Cordillera de la Sal"
+            "area": "Cordillera de la Sal",
+            "lat": -22.916828,
+            "lng": -68.240612
           },
           "kind": "booked",
           "tags": [
@@ -757,7 +803,9 @@
           "location": {
             "name": "Franchuteria",
             "city": "San Pedro de Atacama",
-            "area": "Calle Gustavo Le Paige"
+            "area": "Calle Gustavo Le Paige",
+            "lat": -22.910379,
+            "lng": -68.196842
           },
           "kind": "idea",
           "tags": [
@@ -778,7 +826,9 @@
           "location": {
             "name": "Pukará de Quitor",
             "city": "San Pedro de Atacama",
-            "area": "Valle de Catarpe"
+            "area": "Valle de Catarpe",
+            "lat": -22.891173,
+            "lng": -68.214854
           },
           "kind": "planned",
           "tags": [
@@ -799,7 +849,9 @@
           "location": {
             "name": "Valle de la Luna, Reserva Nacional Los Flamencos",
             "city": "San Pedro de Atacama",
-            "area": "Cordillera de la Sal"
+            "area": "Cordillera de la Sal",
+            "lat": -22.912639,
+            "lng": -68.2025
           },
           "kind": "booked",
           "tags": [
@@ -821,7 +873,9 @@
           "location": {
             "name": "Baltinache",
             "city": "San Pedro de Atacama",
-            "area": "Calle Domingo Atienza"
+            "area": "Calle Domingo Atienza",
+            "lat": -22.914034,
+            "lng": -68.203308
           },
           "kind": "booked",
           "tags": [
@@ -842,7 +896,9 @@
           "location": {
             "name": "Observatorio turístico, camino a Toconao",
             "city": "San Pedro de Atacama",
-            "area": "Ayllu de Solcor"
+            "area": "Ayllu de Solcor",
+            "lat": -22.921041,
+            "lng": -68.20026
           },
           "kind": "hold",
           "tags": [],
@@ -891,7 +947,9 @@
           "location": {
             "name": "Portal Senda al Fitz Roy",
             "city": "El Chaltén",
-            "area": "Parque Nacional Los Glaciares, Zona Norte"
+            "area": "Parque Nacional Los Glaciares, Zona Norte",
+            "lat": -49.3299,
+            "lng": -72.88605
           },
           "kind": "booked",
           "tags": [
@@ -912,7 +970,9 @@
           "location": {
             "name": "Mirador Fitz Roy",
             "city": "El Chaltén",
-            "area": "Senda Río Blanco"
+            "area": "Senda Río Blanco",
+            "lat": -49.300226,
+            "lng": -72.920067
           },
           "kind": "planned",
           "tags": [
@@ -1001,7 +1061,9 @@
           "location": {
             "name": "La Cervecería Chaltén",
             "city": "El Chaltén",
-            "area": "Av. San Martín"
+            "area": "Av. San Martín",
+            "lat": -49.327664,
+            "lng": -72.889406
           },
           "kind": "booked",
           "tags": [
@@ -1051,7 +1113,9 @@
           "location": {
             "name": "Av. del Libertador",
             "city": "El Calafate",
-            "area": "Centro"
+            "area": "Centro",
+            "lat": -50.341974,
+            "lng": -72.249635
           },
           "kind": "transit",
           "tags": [],
@@ -1070,7 +1134,9 @@
           "location": {
             "name": "Portada Los Glaciares",
             "city": "El Calafate",
-            "area": "Parque Nacional Los Glaciares, Zona Sur"
+            "area": "Parque Nacional Los Glaciares, Zona Sur",
+            "lat": -50.34075,
+            "lng": -72.27682
           },
           "kind": "booked",
           "tags": [
@@ -1091,7 +1157,9 @@
           "location": {
             "name": "Puerto Bajo las Sombras",
             "city": "El Calafate",
-            "area": "Brazo Rico"
+            "area": "Brazo Rico",
+            "lat": -50.34075,
+            "lng": -72.27682
           },
           "kind": "transit",
           "tags": [],
@@ -1106,7 +1174,9 @@
           "location": {
             "name": "Glaciar Perito Moreno",
             "city": "El Calafate",
-            "area": "Parque Nacional Los Glaciares, Zona Sur"
+            "area": "Parque Nacional Los Glaciares, Zona Sur",
+            "lat": -50.340548,
+            "lng": -72.245505
           },
           "kind": "booked",
           "tags": [
@@ -1128,7 +1198,9 @@
           "location": {
             "name": "Puerto Bajo las Sombras",
             "city": "El Calafate",
-            "area": "Canal de los Témpanos"
+            "area": "Canal de los Témpanos",
+            "lat": -50.34075,
+            "lng": -72.27682
           },
           "kind": "idea",
           "tags": [
@@ -1149,7 +1221,9 @@
           "location": {
             "name": "Pasarelas del Perito Moreno",
             "city": "El Calafate",
-            "area": "Península de Magallanes"
+            "area": "Península de Magallanes",
+            "lat": -50.34075,
+            "lng": -72.27682
           },
           "kind": "planned",
           "tags": [
@@ -1166,7 +1240,9 @@
           "location": {
             "name": "Glaciarium",
             "city": "El Calafate",
-            "area": "RP11 km 6"
+            "area": "RP11 km 6",
+            "lat": -50.336603,
+            "lng": -72.339834
           },
           "kind": "idea",
           "tags": [
@@ -1187,7 +1263,9 @@
           "location": {
             "name": "La Zaina",
             "city": "El Calafate",
-            "area": "Calle Gobernador Moyano"
+            "area": "Calle Gobernador Moyano",
+            "lat": -50.336982,
+            "lng": -72.263549
           },
           "kind": "booked",
           "tags": [
@@ -1232,7 +1310,9 @@
           "location": {
             "name": "Bar El Federal",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.619594,
+            "lng": -58.374159
           },
           "kind": "planned",
           "tags": [
@@ -1253,7 +1333,9 @@
           "location": {
             "name": "Feria de San Telmo, Calle Defensa",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.471093,
+            "lng": -58.648893
           },
           "kind": "planned",
           "tags": [],
@@ -1268,7 +1350,9 @@
           "location": {
             "name": "Mercado de San Telmo, Defensa 963",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.619049,
+            "lng": -58.372512
           },
           "kind": "idea",
           "tags": [
@@ -1289,7 +1373,9 @@
           "location": {
             "name": "La Brigada, Estados Unidos 465",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.618444,
+            "lng": -58.372742
           },
           "kind": "booked",
           "tags": [
@@ -1310,7 +1396,9 @@
           "location": {
             "name": "El Zanjón de Granados, Defensa 755",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.616686,
+            "lng": -58.371797
           },
           "kind": "booked",
           "tags": [
@@ -1331,7 +1419,9 @@
           "location": {
             "name": "Doppelgänger, Av. Juan de Garay 500",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.773883,
+            "lng": -58.377417
           },
           "kind": "idea",
           "tags": [],
@@ -1350,7 +1440,9 @@
           "location": {
             "name": "Plaza Dorrego",
             "city": "Buenos Aires",
-            "area": "San Telmo"
+            "area": "San Telmo",
+            "lat": -34.620492,
+            "lng": -58.371781
           },
           "kind": "planned",
           "tags": [],

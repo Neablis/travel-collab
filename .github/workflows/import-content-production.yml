@@ -1,0 +1,106 @@
+name: import-content-production
+
+# Imports `content/` into production. Dispatched by hand, never on a push —
+# the same posture as `migrate-production.yml`, and for the same reason: the
+# trigger is manual but the execution is not, so the connection string stays a
+# repo secret and never lands in a shell that also has a `.env.local` in scope.
+#
+# SAFE TO RE-RUN. Every id is derived from the file (ADR-041), so a second run
+# converges rather than duplicating:
+#   * playbook days are deleted and rewritten by derived id, so an edited day
+#     updates in place;
+#   * trips are create-if-absent — a trip is an event stream and re-creating one
+#     would mean discarding real history. To publish changed trip content,
+#     change that trip's `key` in the bundle.
+#
+# `prune` removes rows a bundle no longer declares, which plain re-import cannot
+# see. It only ever touches rows whose `source_bundle` is set (migration 0018),
+# so a day a person saved is not reachable by it. Default false: deleting
+# somebody's library content should be asked for, not defaulted into.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "import" to confirm writing content to production'
+        required: true
+        type: string
+      dry_run:
+        description: "Parse, lint and report; write nothing"
+        required: false
+        default: true
+        type: boolean
+      prune:
+        description: "Also remove rows the bundles no longer declare"
+        required: false
+        default: false
+        type: boolean
+      skip_trips:
+        description: "Playbook days only; leave the demo trips alone"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# Never let two imports overlap, and never cancel one mid-write: the playbook
+# write is transactional per bundle, but a run killed between bundles leaves the
+# library half-updated.
+concurrency:
+  group: import-content-production
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    # A runaway cap only. A real run is ~150 days and 4 trips against a remote
+    # database; this sits far above that so it can never fire mid-write.
+    timeout-minutes: 20
+    steps:
+      # The same two rails as the migration workflow: the wrong branch in the
+      # dropdown, and a stray click. `confirm` is read through the environment
+      # rather than interpolated into the script, so the input cannot inject
+      # shell.
+      - name: Guard the dispatch
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Refusing to import into production from ${{ github.ref }} — dispatch this from main."
+            exit 1
+          fi
+          if [ "$CONFIRM" != "import" ]; then
+            echo '::error::Type "import" in the confirm field to proceed.'
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # What this tree carries, for the run log. The importer parses and lints
+      # every bundle before writing anything, so a bad file fails here rather
+      # than half-way through the library.
+      - name: Bundles in this tree
+        run: ls -1 content/**/*.json | sed 's#^#  #'
+
+      - name: Import
+        run: |
+          cd apps/web
+          node --import ./scripts/lib/ts-resolve-register.mjs \
+            scripts/import-content-production.ts \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.prune && '--prune' || '' }} \
+            ${{ inputs.skip_trips && '--skip-trips' || '' }}
+        env:
+          # The direct connection string, as the migration workflow uses — this
+          # writes through the command pipeline and wants a real session, not a
+          # PgBouncer-pooled one (docs/guidelines/environments-and-deploys.md).
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          # The user id that owns the demo trips. A trip has an owner; these
+          # need one that is not a person's real account.
+          CONTENT_OWNER_ID: ${{ secrets.CONTENT_OWNER_ID }}

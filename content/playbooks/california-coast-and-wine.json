@@ -123,7 +123,9 @@
           "location": {
             "name": "Ferry Plaza Farmers Market",
             "city": "San Francisco",
-            "area": "Embarcadero"
+            "area": "Embarcadero",
+            "lat": 37.795275,
+            "lng": -122.39237
           },
           "kind": "planned",
           "tags": [
@@ -145,7 +147,9 @@
           "location": {
             "name": "Ferry Building Marketplace",
             "city": "San Francisco",
-            "area": "Embarcadero"
+            "area": "Embarcadero",
+            "lat": 37.7949,
+            "lng": -122.393789
           },
           "kind": "idea",
           "notes": "Acme bread and Cowgirl Creamery are the two counters worth carrying something out of. Do not eat a proper lunch here — you want to be hungry in North Beach at 14:45, and Hog Island at noon is a 40-minute wait for the same oysters you can get at 11:00 on a weekday.",
@@ -163,7 +167,9 @@
           "location": {
             "name": "The Embarcadero",
             "city": "San Francisco",
-            "area": "Embarcadero"
+            "area": "Embarcadero",
+            "lat": 37.790136,
+            "lng": -122.389371
           },
           "kind": "transit",
           "notes": "1.4 flat miles past Pier 7 and the historic F-line. Do not drive: Pier 33 parking is $40-plus for the day and the streetcar takes as long as walking because it shares the road. Boarding closes 15 minutes before departure and they genuinely do not hold the boat — a missed sailing is a forfeited ticket."
@@ -177,7 +183,9 @@
           "location": {
             "name": "Alcatraz Island",
             "city": "San Francisco",
-            "area": "San Francisco Bay"
+            "area": "San Francisco Bay",
+            "lat": 37.826721,
+            "lng": -122.422759
           },
           "kind": "booked",
           "tags": [
@@ -199,7 +207,9 @@
           "location": {
             "name": "Tony's Pizza Napoletana",
             "city": "San Francisco",
-            "area": "North Beach"
+            "area": "North Beach",
+            "lat": 37.800333,
+            "lng": -122.409051
           },
           "kind": "planned",
           "tags": [
@@ -220,7 +230,9 @@
           "location": {
             "name": "City Lights Booksellers",
             "city": "San Francisco",
-            "area": "North Beach"
+            "area": "North Beach",
+            "lat": 37.797652,
+            "lng": -122.406617
           },
           "kind": "idea",
           "tags": [],
@@ -239,7 +251,9 @@
           "location": {
             "name": "Filbert Street Steps",
             "city": "San Francisco",
-            "area": "Telegraph Hill"
+            "area": "Telegraph Hill",
+            "lat": 37.801813,
+            "lng": -122.405544
           },
           "kind": "planned",
           "tags": [
@@ -260,7 +274,9 @@
           "location": {
             "name": "R&G Lounge",
             "city": "San Francisco",
-            "area": "Chinatown"
+            "area": "Chinatown",
+            "lat": 37.794097,
+            "lng": -122.404903
           },
           "kind": "booked",
           "tags": [
@@ -308,7 +324,9 @@
           "location": {
             "name": "Tartine Bakery",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.761455,
+            "lng": -122.423945
           },
           "kind": "planned",
           "tags": [
@@ -329,7 +347,9 @@
           "location": {
             "name": "Mission San Francisco de Asis (Mission Dolores)",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.764177,
+            "lng": -122.425403
           },
           "kind": "planned",
           "tags": [],
@@ -348,7 +368,9 @@
           "location": {
             "name": "Mission Dolores Park",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.75972,
+            "lng": -122.427132
           },
           "kind": "idea",
           "tags": [
@@ -365,7 +387,9 @@
           "location": {
             "name": "La Taqueria",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.750874,
+            "lng": -122.418158
           },
           "kind": "planned",
           "tags": [
@@ -386,7 +410,9 @@
           "location": {
             "name": "Precita Eyes Mural Arts Center",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.752584,
+            "lng": -122.411665
           },
           "kind": "planned",
           "tags": [
@@ -408,7 +434,9 @@
           "location": {
             "name": "Balmy Alley",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.751816,
+            "lng": -122.412409
           },
           "kind": "planned",
           "tags": [
@@ -425,7 +453,9 @@
           "location": {
             "name": "Dandelion Chocolate",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.795727,
+            "lng": -122.393784
           },
           "kind": "idea",
           "tags": [],
@@ -444,7 +474,9 @@
           "location": {
             "name": "Foreign Cinema",
             "city": "San Francisco",
-            "area": "Mission District"
+            "area": "Mission District",
+            "lat": 37.75642,
+            "lng": -122.419137
           },
           "kind": "booked",
           "tags": [
@@ -486,7 +518,9 @@
           "location": {
             "name": "Sutro Baths",
             "city": "San Francisco",
-            "area": "Lands End"
+            "area": "Lands End",
+            "lat": 37.780252,
+            "lng": -122.513625
           },
           "kind": "planned",
           "tags": [
@@ -503,7 +537,9 @@
           "location": {
             "name": "Lands End Coastal Trail",
             "city": "San Francisco",
-            "area": "Lands End"
+            "area": "Lands End",
+            "lat": 37.78303,
+            "lng": -122.511417
           },
           "kind": "planned",
           "tags": [
@@ -520,7 +556,9 @@
           "location": {
             "name": "Legion of Honor",
             "city": "San Francisco",
-            "area": "Lincoln Park"
+            "area": "Lincoln Park",
+            "lat": 37.784558,
+            "lng": -122.500955
           },
           "kind": "idea",
           "tags": [
@@ -541,7 +579,9 @@
           "location": {
             "name": "Presidio of San Francisco",
             "city": "San Francisco",
-            "area": "Presidio"
+            "area": "Presidio",
+            "lat": 37.798746,
+            "lng": -122.464589
           },
           "kind": "transit",
           "notes": "The 29 Sunset runs from Lands End into the Presidio without a transfer, about 35 minutes. The free PresidiGo shuttle is only useful once you are already inside the park, and it does not come out to the ocean. Driving works too, but then you give up the parking space you queued for at 08:15."
@@ -555,7 +595,9 @@
           "location": {
             "name": "Presidio Tunnel Tops",
             "city": "San Francisco",
-            "area": "Presidio"
+            "area": "Presidio",
+            "lat": 37.802899,
+            "lng": -122.455911
           },
           "kind": "planned",
           "tags": [
@@ -577,7 +619,9 @@
           "location": {
             "name": "Battery Bluff",
             "city": "San Francisco",
-            "area": "Presidio"
+            "area": "Presidio",
+            "lat": 37.797934,
+            "lng": -122.401137
           },
           "kind": "planned",
           "tags": [
@@ -594,7 +638,9 @@
           "location": {
             "name": "Fort Point National Historic Site",
             "city": "San Francisco",
-            "area": "Presidio"
+            "area": "Presidio",
+            "lat": 37.810486,
+            "lng": -122.476882
           },
           "kind": "planned",
           "tags": [
@@ -611,7 +657,9 @@
           "location": {
             "name": "Burma Superstar",
             "city": "San Francisco",
-            "area": "Inner Richmond"
+            "area": "Inner Richmond",
+            "lat": 37.782913,
+            "lng": -122.462565
           },
           "kind": "planned",
           "tags": [
@@ -656,7 +704,9 @@
           "location": {
             "name": "Napa Valley Coffee Roasting Company",
             "city": "Napa",
-            "area": "Downtown Napa"
+            "area": "Downtown Napa",
+            "lat": 38.50475,
+            "lng": -122.471172
           },
           "kind": "planned",
           "tags": [
@@ -677,7 +727,9 @@
           "location": {
             "name": "Napa Valley Tours & Transportation",
             "city": "Napa",
-            "area": "Napa Valley"
+            "area": "Napa Valley",
+            "lat": 38.401105,
+            "lng": -122.359288
           },
           "kind": "transit",
           "notes": "This is not a luxury, it is the thing that makes the day possible. Three appointments are spread over 25 miles of Highway 29 and the Silverado Trail, and Napa County polices that exact road on that exact day extremely hard. A full-day private car runs $650-$1,500 per group — typically $85-$200 an hour with a five- or six-hour minimum, plus 18-20% gratuity — and the figure here is one seat of four in a $780 day including tip. Book two to three weeks ahead in harvest season. A driver also knows which tasting rooms will hold a case for you until the end of the day and which will not, which matters more than it sounds.",
@@ -695,7 +747,9 @@
           "location": {
             "name": "Schramsberg Vineyards",
             "city": "Calistoga",
-            "area": "Napa Valley"
+            "area": "Napa Valley",
+            "lat": 38.55024,
+            "lng": -122.537998
           },
           "kind": "booked",
           "tags": [
@@ -716,7 +770,9 @@
           "location": {
             "name": "Farmstead at Long Meadow Ranch",
             "city": "St. Helena",
-            "area": "Napa Valley"
+            "area": "Napa Valley",
+            "lat": 38.501021,
+            "lng": -122.462739
           },
           "kind": "booked",
           "tags": [
@@ -737,7 +793,9 @@
           "location": {
             "name": "Frog's Leap Winery",
             "city": "Rutherford",
-            "area": "Napa Valley"
+            "area": "Napa Valley",
+            "lat": 35.947933,
+            "lng": -86.577909
           },
           "kind": "booked",
           "tags": [],
@@ -756,7 +814,9 @@
           "location": {
             "name": "Stag's Leap Wine Cellars",
             "city": "Napa",
-            "area": "Stags Leap District"
+            "area": "Stags Leap District",
+            "lat": 38.398787,
+            "lng": -122.323208
           },
           "kind": "booked",
           "tags": [
@@ -777,7 +837,9 @@
           "location": {
             "name": "Oxbow Public Market",
             "city": "Napa",
-            "area": "Downtown Napa"
+            "area": "Downtown Napa",
+            "lat": 38.30174,
+            "lng": -122.28175
           },
           "kind": "idea",
           "tags": [
@@ -825,7 +887,9 @@
           "location": {
             "name": "Flying Goat Coffee, Healdsburg Plaza",
             "city": "Healdsburg",
-            "area": "Healdsburg Plaza"
+            "area": "Healdsburg Plaza",
+            "lat": 38.608176,
+            "lng": -122.869878
           },
           "tags": [
             "meal"
@@ -845,7 +909,9 @@
           "location": {
             "name": "Healdsburg Plaza pickup",
             "city": "Healdsburg",
-            "area": "Westside Road"
+            "area": "Westside Road",
+            "lat": 38.608176,
+            "lng": -122.869878
           },
           "kind": "transit",
           "notes": "The same rule as Napa and for the same reason, but a third of the cost: Russian River tasting rooms are 15 minutes apart instead of 25, so a four-hour booking covers the day. Split four ways this is $60 a head. If you are two people, the honest alternative is one taster and one driver, which nobody enjoys.",
@@ -863,7 +929,9 @@
           "location": {
             "name": "J. Rochioli Vineyards & Winery",
             "city": "Healdsburg",
-            "area": "Westside Road"
+            "area": "Westside Road",
+            "lat": 38.535173,
+            "lng": -122.867253
           },
           "kind": "booked",
           "tags": [
@@ -905,7 +973,9 @@
           "location": {
             "name": "Big John's Market",
             "city": "Healdsburg",
-            "area": "Healdsburg"
+            "area": "Healdsburg",
+            "lat": 38.626871,
+            "lng": -122.87377
           },
           "tags": [
             "meal"
@@ -925,7 +995,9 @@
           "location": {
             "name": "Dry Creek Vineyard",
             "city": "Healdsburg",
-            "area": "Dry Creek Valley"
+            "area": "Dry Creek Valley",
+            "lat": 38.610895,
+            "lng": -122.870926
           },
           "kind": "hold",
           "tags": [
@@ -946,7 +1018,9 @@
           "location": {
             "name": "Memorial Beach, Russian River",
             "city": "Healdsburg",
-            "area": "Russian River"
+            "area": "Russian River",
+            "lat": 38.603305,
+            "lng": -122.859331
           },
           "kind": "idea",
           "tags": [
@@ -963,7 +1037,9 @@
           "location": {
             "name": "The Matheson",
             "city": "Healdsburg",
-            "area": "Healdsburg Plaza"
+            "area": "Healdsburg Plaza",
+            "lat": 38.610189,
+            "lng": -122.870041
           },
           "kind": "booked",
           "tags": [
@@ -1005,7 +1081,9 @@
           "location": {
             "name": "Gayle's Bakery & Rosticceria",
             "city": "Capitola",
-            "area": "Capitola Village"
+            "area": "Capitola Village",
+            "lat": 36.972685,
+            "lng": -121.952137
           },
           "tags": [
             "meal"
@@ -1025,7 +1103,9 @@
           "location": {
             "name": "Capitola Wharf",
             "city": "Capitola",
-            "area": "Capitola Village"
+            "area": "Capitola Village",
+            "lat": 36.969749,
+            "lng": -121.953387
           },
           "tags": [
             "outdoors"
@@ -1041,7 +1121,9 @@
           "location": {
             "name": "Capitola Beach",
             "city": "Capitola",
-            "area": "Capitola Village"
+            "area": "Capitola Village",
+            "lat": 36.971398,
+            "lng": -121.951647
           },
           "tags": [
             "outdoors"
@@ -1057,7 +1139,9 @@
           "location": {
             "name": "Zelda's on the Beach",
             "city": "Capitola",
-            "area": "Capitola Village"
+            "area": "Capitola Village",
+            "lat": 36.972685,
+            "lng": -121.952137
           },
           "tags": [
             "meal"
@@ -1077,7 +1161,9 @@
           "location": {
             "name": "West Cliff Drive",
             "city": "Santa Cruz",
-            "area": "West Cliff"
+            "area": "West Cliff",
+            "lat": 36.953044,
+            "lng": -122.037847
           },
           "kind": "transit",
           "notes": "Ten minutes up the coast. Do the drive rather than the Boardwalk unless you have children with you — West Cliff is the reason people live here and the Boardwalk is a car park with a rollercoaster attached."
@@ -1091,7 +1177,9 @@
           "location": {
             "name": "Steamer Lane, Lighthouse Field State Beach",
             "city": "Santa Cruz",
-            "area": "West Cliff"
+            "area": "West Cliff",
+            "lat": 36.953239,
+            "lng": -122.026091
           },
           "tags": [
             "outdoors"
@@ -1107,7 +1195,9 @@
           "location": {
             "name": "Natural Bridges State Beach",
             "city": "Santa Cruz",
-            "area": "Westside"
+            "area": "Westside",
+            "lat": 36.952084,
+            "lng": -122.057125
           },
           "tags": [
             "outdoors"
@@ -1127,7 +1217,9 @@
           "location": {
             "name": "Shadowbrook Restaurant",
             "city": "Capitola",
-            "area": "Capitola Village"
+            "area": "Capitola Village",
+            "lat": 36.97464,
+            "lng": -121.955442
           },
           "kind": "booked",
           "tags": [
@@ -1172,7 +1264,9 @@
           "location": {
             "name": "Cannery Row garages, Monterey",
             "city": "Monterey",
-            "area": "Cannery Row"
+            "area": "Cannery Row",
+            "lat": 36.604465,
+            "lng": -121.894363
           },
           "kind": "transit",
           "notes": "The Aquarium does not sell tickets at the door — they are online only, and the 10:00 slot is the one to hold. Park in a Cannery Row garage rather than circling: the street spots near the Aquarium are two-hour and this is a three-hour visit.",
@@ -1190,7 +1284,9 @@
           "location": {
             "name": "Monterey Bay Aquarium",
             "city": "Monterey",
-            "area": "Cannery Row"
+            "area": "Cannery Row",
+            "lat": 36.618089,
+            "lng": -121.901672
           },
           "kind": "booked",
           "tags": [
@@ -1211,7 +1307,9 @@
           "location": {
             "name": "Pacific Grove gate, 17-Mile Drive",
             "city": "Pebble Beach",
-            "area": "17-Mile Drive"
+            "area": "17-Mile Drive",
+            "lat": 36.570283,
+            "lng": -121.9405
           },
           "kind": "transit",
           "notes": "$12.25 per vehicle, cash or card at the gate. Enter at Pacific Grove rather than Carmel and you drive the coast section with the ocean on your right and the pull-outs on your side of the road.",
@@ -1229,7 +1327,9 @@
           "location": {
             "name": "The Bench, The Lodge at Pebble Beach",
             "city": "Pebble Beach",
-            "area": "17-Mile Drive"
+            "area": "17-Mile Drive",
+            "lat": 36.570283,
+            "lng": -121.9405
           },
           "kind": "booked",
           "tags": [
@@ -1250,7 +1350,9 @@
           "location": {
             "name": "Lone Cypress, 17-Mile Drive",
             "city": "Pebble Beach",
-            "area": "17-Mile Drive"
+            "area": "17-Mile Drive",
+            "lat": 36.570283,
+            "lng": -121.9405
           },
           "tags": [
             "outdoors"
@@ -1266,7 +1368,9 @@
           "location": {
             "name": "Ocean Avenue and the courtyards",
             "city": "Carmel-by-the-Sea",
-            "area": "Carmel Village"
+            "area": "Carmel Village",
+            "lat": 36.554167,
+            "lng": -121.909285
           },
           "tags": [
             "outdoors"
@@ -1282,7 +1386,9 @@
           "location": {
             "name": "Carmel Beach",
             "city": "Carmel-by-the-Sea",
-            "area": "Carmel Beach"
+            "area": "Carmel Beach",
+            "lat": 36.551236,
+            "lng": -121.929441
           },
           "kind": "idea",
           "tags": [
@@ -1364,7 +1470,9 @@
           "location": {
             "name": "Bixby Creek Bridge",
             "city": "Big Sur",
-            "area": "Highway 1"
+            "area": "Highway 1",
+            "lat": 36.217302,
+            "lng": -121.749696
           },
           "tags": [
             "outdoors"
@@ -1380,7 +1488,9 @@
           "location": {
             "name": "Point Sur State Historic Park",
             "city": "Big Sur",
-            "area": "Highway 1"
+            "area": "Highway 1",
+            "lat": 36.25518,
+            "lng": -121.778588
           },
           "kind": "idea",
           "tags": [
@@ -1397,7 +1507,9 @@
           "location": {
             "name": "Pfeiffer Big Sur State Park",
             "city": "Big Sur",
-            "area": "Big Sur Valley"
+            "area": "Big Sur Valley",
+            "lat": 36.253306,
+            "lng": -121.783295
           },
           "kind": "idea",
           "tags": [
@@ -1414,7 +1526,9 @@
           "location": {
             "name": "Nepenthe",
             "city": "Big Sur",
-            "area": "Highway 1"
+            "area": "Highway 1",
+            "lat": 36.221812,
+            "lng": -121.759657
           },
           "tags": [
             "meal"
@@ -1434,7 +1548,9 @@
           "location": {
             "name": "McWay Falls Overlook Trail",
             "city": "Big Sur",
-            "area": "Julia Pfeiffer Burns State Park"
+            "area": "Julia Pfeiffer Burns State Park",
+            "lat": 36.25234,
+            "lng": -121.78267
           },
           "kind": "idea",
           "tags": [
@@ -1451,7 +1567,9 @@
           "location": {
             "name": "Pfeiffer Beach, Sycamore Canyon Road",
             "city": "Big Sur",
-            "area": "Sycamore Canyon"
+            "area": "Sycamore Canyon",
+            "lat": 36.23947,
+            "lng": -121.817862
           },
           "tags": [
             "outdoors"
@@ -1471,7 +1589,9 @@
           "location": {
             "name": "Post Ranch Inn",
             "city": "Big Sur",
-            "area": "Highway 1"
+            "area": "Highway 1",
+            "lat": 36.230252,
+            "lng": -121.771663
           },
           "kind": "booked",
           "tags": [
