@@ -72,9 +72,27 @@ export type PhoneAskContext = {
 };
 
 // Copy is design-supplied (§23 and `Trip Planner Redesign.dc.html`'s
-// `phoneAskHint`), not written here. Both hints key off the TAB alone — the
-// Notebook index and an open page share one, exactly as the design file does.
-const PAGE_HINT = "It reads the page you have open, its widgets and what they are pointed at.";
+// `phoneAskHint`) wherever the design's sentence is TRUE of the server that
+// answers the sheet. The Notebook's was not, so the two Notebook surfaces no
+// longer share the design's one hint.
+//
+// §23's hint — "It reads the page you have open, its widgets and what they are
+// pointed at" — describes a capability that does not exist. A page-scoped turn
+// is handed the page's TITLE and nothing else (`briefFor` in
+// `handleAskRequest.ts` returns `{ title }`), its page tools only INSERT
+// (`insert_text`, `insert_widget`), and the read tools it does get are the trip
+// itinerary (`read_trip`, `read_day`, `find_free_time`). On the index there is
+// no page open at all and the scope is trip-wide. So each surface now states
+// what it can actually do there: KI-2026-09-05-ad, and the design's sentence
+// becomes true again the day a page-read tool exists.
+const NOTEBOOK_INDEX_HINT =
+  "It reads this trip’s itinerary — the days, their stops and what is booked. It cannot read your pages.";
+// Worded "add to", not "ask about", for the reason `AssistantRail` words the
+// page composer that way: a page turn's answer lands in the DOCUMENT, and that
+// is the one thing a reader must not have to discover by trying.
+const PAGE_HINT =
+  "Ask it to add to this page and what it writes lands in the document. " +
+  "It reads this trip’s itinerary, not the page you have open.";
 const DAY_HINT =
   "It reads the day you have open — the stops, their times, what is booked and what is not. " +
   "Ask it to move something and you get a proposal to keep or discard.";
@@ -103,7 +121,7 @@ export function phoneAskContext(
     return {
       scope: page === null ? { kind: "trip" } : { kind: "page", pageId: page.pageId },
       contextLine: page === null ? "Asking about this trip’s Notebook" : `Asking about “${page.title}”`,
-      emptyHint: PAGE_HINT,
+      emptyHint: page === null ? NOTEBOOK_INDEX_HINT : PAGE_HINT,
       quickAsks: notebookQuickAsks(page),
     };
   }
@@ -145,19 +163,30 @@ function dayLabel(trip: TripDetail, dayIndex: number): string {
 }
 
 /**
- * Both Notebook asks name "this page", so both need one open.
+ * §23 lists two Notebook asks. One of them cannot be answered, so it is not
+ * offered.
  *
- * On the index there is none, and the sheet is trip-scoped — "Summarise this
- * page" there would be a chip pointing at nothing, and the assistant's refusal
- * would read as the assistant being broken rather than the chip being wrong.
- * §23's table lists both asks against the index anyway; that is design ahead of
- * this rule, not this rule ignoring the design, and the index deliberately ends
- * up with no asks until something honest exists to put there.
+ * **"Summarise this page" is not here, and putting it back is the regression.**
+ * The assistant is page-*scoped* but has no page-*read*: the turn is handed
+ * `{ title }` and a pair of insert-only tools, so a summary of the document
+ * could only be invented from its title. An ask whose honest answer would be
+ * fabricated is worse than no ask (`RULES.md` rule 2, and the rule
+ * `suggestedQuestions` exists to enforce) — a refusal, or a confident summary of
+ * a page it never read, both read as the assistant being broken rather than the
+ * chip being wrong. That is design ahead of the build, not this rule ignoring
+ * the design: KI-2026-09-05-ad carries what a fixer needs, and the ask returns
+ * the day a page-read tool does.
+ *
+ * "What is not set up?" survives only because it is gated on a caller-proven
+ * count. Nothing computes that count yet, so it is offered nowhere today — and
+ * the gate is what makes it honest about the PAGE, not about the assistant: a
+ * caller that starts computing it hands the model a question the same missing
+ * page-read cannot answer. Wire the count and the tool together, or not at all.
+ *
+ * On the index there is no page and the sheet is trip-scoped, so neither ask
+ * applies at all.
  */
 function notebookQuickAsks(page: PhoneAskPage | null): string[] {
   if (page === null) return [];
-  const asks: string[] = [];
-  if (page.unsetUpWidgets !== null && page.unsetUpWidgets > 0) asks.push("What is not set up?");
-  asks.push("Summarise this page");
-  return asks;
+  return page.unsetUpWidgets !== null && page.unsetUpWidgets > 0 ? ["What is not set up?"] : [];
 }

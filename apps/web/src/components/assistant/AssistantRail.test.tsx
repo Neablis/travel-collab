@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
 import type { AssistantTurn } from "./Transcript";
@@ -289,6 +290,209 @@ describe("AssistantRail — SPEC §23's sheet presentation", () => {
     expect(screen.getByText("◎")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Assistant" })).not.toBeNull();
     expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
+  });
+});
+
+// The half of build-check 4c the scrim was never able to keep (Copilot, PR
+// #148). A scrim stops a FINGER. It does not stop Tab, it does not stop
+// Escape, and it does not tell a screen reader that the plan behind it is
+// covered — so before this the pill kept focus behind the open sheet, the
+// phone tab bar was still in the tab order, and a keyboard user could switch
+// tabs mid-conversation and change its scope, which is the one failure §23
+// exists to prevent.
+//
+// Every assertion here is behavioural on purpose. jsdom applies no stylesheet,
+// so anything phrased as geometry or z-order would be asserting against
+// `globals.css` rules that never loaded; where focus IS, and what a role query
+// can still reach, are real in jsdom and are what the finding was about.
+//
+// The mechanism is Radix's Dialog — the same primitive `ui/sheet.tsx` uses.
+// Not `<dialog showModal>`: jsdom 29.1.1 implements neither `showModal` nor
+// `inert` (probed 2026-09-05), so the platform version of this would be a
+// modal claim with no test under it.
+describe("AssistantRail — the sheet is a real modal, not just a scrim", () => {
+  /**
+   * The sheet, its opener, and one control on either side of it.
+   *
+   * The opener is kept OUTSIDE the rail and mounted either side of it, which
+   * is what makes focus restoration testable at all — `unmount()` would detach
+   * the opener along with the sheet, and focus cannot return to a node that is
+   * no longer in the document. `After` exists so a Tab that ESCAPES the sheet
+   * has somewhere to land: without it the document's last control is the
+   * sheet's own, and an untrapped Tab would wrap back into the sheet by
+   * accident and pass a test meant to catch exactly that.
+   */
+  function Harness({
+    open,
+    presentation = "sheet",
+    onHide = vi.fn(),
+    onOpenerClick = vi.fn(),
+    onAfterClick = vi.fn(),
+  }: {
+    open: boolean;
+    presentation?: "sheet" | "docked" | "floating";
+    onHide?: () => void;
+    onOpenerClick?: () => void;
+    onAfterClick?: () => void;
+  }) {
+    return (
+      <>
+        <button type="button" onClick={onOpenerClick}>
+          Open the assistant
+        </button>
+        {open ? <AssistantRail {...baseProps} presentation={presentation} onHide={onHide} /> : null}
+        <button type="button" onClick={onAfterClick}>
+          After
+        </button>
+      </>
+    );
+  }
+
+  // Where focus IS, asserted through what a key press reaches rather than by
+  // reading `document.activeElement` — the test-quality wall bans that
+  // property and grandfathers only the two call sites that predate it
+  // (KI-2026-09-02-b, "do not add more"). TripHeader's tab-order test settled
+  // the same problem the same way, and the substitution is not a workaround:
+  // "the sheet has focus" is only worth asserting because it decides which
+  // control the next keystroke operates, so operating one says it directly.
+  //
+  // Space rather than Enter, for TripHeader's reason — a button activates on
+  // Space and a link does not, so a probe that lands on the wrong thing stays
+  // silent instead of quietly passing.
+  const pressSpace = () => userEvent.keyboard("[Space]");
+
+  it("closes on Escape, which the scrim could never do", () => {
+    const onHide = vi.fn();
+    renderRail({ presentation: "sheet", onHide });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  it("moves focus into the sheet when it opens, off the control behind it", async () => {
+    const onHide = vi.fn();
+    const onOpenerClick = vi.fn();
+    const { rerender } = render(<Harness open={false} onOpenerClick={onOpenerClick} />);
+    screen.getByRole("button", { name: "Open the assistant" }).focus();
+
+    rerender(<Harness open onHide={onHide} onOpenerClick={onOpenerClick} />);
+    await pressSpace();
+
+    // The sheet's ✕ took the keystroke, so focus is inside the sheet; the
+    // opener did not, so it is no longer where it was.
+    expect(onHide).toHaveBeenCalledOnce();
+    expect(onOpenerClick).not.toHaveBeenCalled();
+  });
+
+  // The restore is awaited, not synchronous: Radix's FocusScope defers its
+  // unmount handler by a `setTimeout(0)`, so at the instant the sheet is torn
+  // down focus has fallen to <body> and only lands back on the opener a tick
+  // later. Asserting it immediately reads as correct and fails against a
+  // working implementation — which is how this test first failed.
+  it("returns focus to the control that opened it when it closes", async () => {
+    const onOpenerClick = vi.fn();
+    const { rerender } = render(<Harness open={false} onOpenerClick={onOpenerClick} />);
+    screen.getByRole("button", { name: "Open the assistant" }).focus();
+    rerender(<Harness open onOpenerClick={onOpenerClick} />);
+
+    // Focus has to LEAVE before returning can mean anything. Without this the
+    // test passes against a build that never moved focus at all — measured,
+    // not guessed: it is the one assertion that stayed green when the whole
+    // modal wrapper was removed.
+    await pressSpace();
+    expect(onOpenerClick).not.toHaveBeenCalled();
+
+    rerender(<Harness open={false} onOpenerClick={onOpenerClick} />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await pressSpace();
+
+    expect(onOpenerClick).toHaveBeenCalledOnce();
+  });
+
+  // Typing first so the Ask button is enabled — a disabled control is not a
+  // tabbable candidate, so without it the sheet's last edge would be the
+  // composer and this would be asserting something weaker than it reads as.
+  it("contains Tab: from the last control it wraps to the first, rather than reaching the page", async () => {
+    const onHide = vi.fn();
+    const onAfterClick = vi.fn();
+    render(<Harness open onHide={onHide} onAfterClick={onAfterClick} />);
+    fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "anything" } });
+    screen.getByRole("button", { name: "Ask" }).focus();
+
+    await userEvent.tab();
+    await pressSpace();
+
+    // Round to the sheet's own first control, not out to the page behind it.
+    expect(onHide).toHaveBeenCalledOnce();
+    expect(onAfterClick).not.toHaveBeenCalled();
+  });
+
+  // The wrap above is only the SEQUENTIAL half of containment, and on its own
+  // it is weaker than it reads: Radix's FocusScope loops Tab whenever `loop`
+  // is set, trapped or not. What makes the page behind genuinely unreachable
+  // is the trap — focus that lands outside the scope by any route at all is
+  // pulled back. Worth its own test because the two are separate Radix flags
+  // and only one of them is what build-check 4c needs.
+  it("pulls focus back when something behind the sheet takes it", async () => {
+    const onHide = vi.fn();
+    const onAfterClick = vi.fn();
+    render(<Harness open onHide={onHide} onAfterClick={onAfterClick} />);
+
+    // `getByText`, not `getByRole`: the control behind an open sheet is
+    // `aria-hidden` by then (the test below is about exactly that), so a role
+    // query cannot reach it — and reaching it anyway is the point here. This
+    // is the route a mouse or a stray `.focus()` still has when the
+    // accessibility tree has already been told the page is covered.
+    screen.getByText("After").focus();
+    await pressSpace();
+
+    expect(onAfterClick).not.toHaveBeenCalled();
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  // The screen-reader half of the scrim. A role query skips `aria-hidden`
+  // subtrees, which is exactly the tree assistive tech walks — so a control
+  // that a role query can no longer find is a control a screen reader can no
+  // longer land on. This is what the scrim was only ever pretending to do.
+  it("hides the page behind it from assistive tech, tab bar included", () => {
+    render(
+      <>
+        <nav aria-label="Phone navigation">
+          <a href="/plan">Plan</a>
+        </nav>
+        <AssistantRail {...baseProps} presentation="sheet" />
+      </>,
+    );
+
+    expect(screen.queryByRole("link", { name: "Plan" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Phone navigation" })).toBeNull();
+    // Not a blanket hide — the sheet's own controls are still reachable, or
+    // this would pass just as well with the whole document hidden.
+    expect(screen.getByRole("button", { name: "Hide" })).not.toBeNull();
+  });
+
+  // The desktop presentations are NOT modal and must not become so: docked is
+  // a flex sibling of the plan and floating is a card beside it, and both
+  // leave the page live on purpose (§9). Asserted rather than assumed, because
+  // the modal wrapper above is one `isSheet` away from applying to all three.
+  it.each(["docked", "floating"] as const)("leaves the %s presentation unmodal", async (presentation) => {
+    const onHide = vi.fn();
+    const onAfterClick = vi.fn();
+    render(<Harness open presentation={presentation} onHide={onHide} onAfterClick={onAfterClick} />);
+
+    // Escape is the page's to handle, not this panel's.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onHide).not.toHaveBeenCalled();
+
+    // The page behind stays reachable, and keeps focus rather than losing it
+    // to a trap that should not exist here.
+    screen.getByRole("button", { name: "After" }).focus();
+    await pressSpace();
+    expect(onAfterClick).toHaveBeenCalledOnce();
+    expect(onHide).not.toHaveBeenCalled();
   });
 });
 

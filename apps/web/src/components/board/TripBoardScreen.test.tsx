@@ -1077,30 +1077,26 @@ describe("TripBoardScreen", () => {
   // This is the replacement, and it is the same claim from the other side —
   // the launcher costs the plan column no flow space — asserted against the
   // thing that is now true by construction rather than by measurement.
-  it("has no in-flow launcher on a phone, and publishes no height for one", async () => {
+  it("publishes no launcher height, because nothing is in flow to measure", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    // jsdom loads no stylesheet, so this asserts the CLASSES rather than a
-    // computed style — the same trade TripHeader.test.tsx's phone block makes,
-    // and the real geometry is pinned in a browser by
-    // e2e/m16-mobile-assistant.spec.ts. `hidden md:inline-flex` is the whole
-    // change: below 768px the launcher is `display: none`, so there is no
-    // second entry point beside the header pill and nothing in flow to measure.
-    const launcher = screen.getByRole("button", { name: "Assistant" });
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(launcher.className).toMatch(/(^| )hidden( |$)/);
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(launcher.className).toMatch(/(^| )md:inline-flex( |$)/);
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(launcher.className).toMatch(/(^| )fixed( |$)/);
-
-    // And the variable is gone rather than pinned at zero: a custom property
-    // that always publishes `0px` reads to the next person as a live
-    // measurement, which is what MapLens spent three comments believing.
+    // The `hidden md:inline-flex fixed` half of this — that the launcher is
+    // off screen below 768px and never in flow above it — is a media query,
+    // and jsdom loads no stylesheet, so there is nothing here that could
+    // evaluate it. It is pinned where it is real: at 411px by
+    // e2e/m16-mobile-assistant.spec.ts ("the entry point is the header's Ask
+    // pill", which asserts the `Assistant` launcher is hidden), and above the
+    // breakpoint by every desktop spec that clicks that same launcher
+    // (e2e/m16-assistant.spec.ts, e2e/m10-simulated-ai.spec.ts).
+    //
+    // What IS checkable here is the variable: gone rather than pinned at zero,
+    // because a custom property that always publishes `0px` reads to the next
+    // person as a live measurement, which is what MapLens spent three comments
+    // believing.
     const content = screen.getByTestId("trip-board-content");
     expect(content.style.getPropertyValue("--launcher-height")).toBe("");
     // The one measurement that IS still live on this element is untouched.
@@ -1142,10 +1138,15 @@ describe("TripBoardScreen", () => {
     fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" }));
 
     const panel = assistantPanel();
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(panel.className).toMatch(/(^| )assistant-sheet( |$)/);
-    // The scrim is the half DRIFT build-check 4c is about — it is what makes
-    // the phone tab bar untappable behind an open sheet.
+    // The scrim is what tells the two presentations apart here, and it is the
+    // right thing to reach for rather than `.assistant-sheet`: it is a rendered
+    // element, not a class whose meaning lives in a stylesheet jsdom never
+    // loads. The docked rail below asserts its absence. The sheet's actual
+    // geometry — fixed, full width, flush to the bottom, `max-height: 80dvh`,
+    // 18px on the top corners only — is measured in a browser by
+    // e2e/m16-mobile-assistant.spec.ts ("the sheet is at most 80% of the
+    // viewport, anchored to the bottom, with rounded top corners"), and the
+    // scrim's own job by "the scrim covers the tab bar" in the same file.
     expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
 
     // This fixture has NO days, so there is no day 1 for the arrival default
@@ -1226,8 +1227,12 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
 
     const panel = assistantPanel();
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(panel.className).toMatch(/(^| )assistant-rail( |$)/);
+    // No scrim: the docked rail is a flex sibling that shrinks the plan, not a
+    // layer over it, so there is nothing to dismiss it past. That it actually
+    // shrinks the plan — by exactly its own 356px, at 1280px and at 1100px —
+    // is measured in a browser by e2e/responsive.spec.ts ("docked contract"),
+    // and KI-16's click sink by the test above it in that file. Neither is
+    // something a class-name match here could have told us.
     expect(screen.queryByTestId("assistant-scrim")).toBeNull();
     expect(within(panel).getByText("Looking at Rome 2027")).toBeTruthy();
     // The desktop copy is unchanged by §23. Asserted here rather than only on

@@ -434,32 +434,47 @@ describe("TripHeader on a phone", () => {
 // md:inline-flex` in the same change), and the date line is the meta row's one
 // survivor coming back on its own.
 //
-// Same jsdom caveat as the block above — no stylesheet, so `md:hidden` is inert
-// and these assert the class. What is actually on screen at 411px is pinned in
-// a browser by e2e/m16-mobile-assistant.spec.ts.
+// `md:hidden` is not asserted here at all. jsdom loads no stylesheet, so the
+// breakpoint is inert and a class-name match would only prove a string is in an
+// attribute. The phone half is pinned in a browser by
+// e2e/m16-mobile-assistant.spec.ts, which has the pill visible at 411px and the
+// board's `Assistant` launcher hidden at the same width.
 describe("TripHeader — the phone Ask pill (SPEC §23)", () => {
-  it("puts the pill last in the top row, phone-only, and reports its open state", async () => {
+  it("puts the pill last in the top row, and reports its open state", async () => {
     const onOpen = vi.fn();
     await renderHeader(undefined, { open: false, onOpen });
 
     const nav = screen.getByRole("navigation");
     const pill = within(nav).getByRole("button", { name: "Ask" });
+
     // LAST in the row — "same pill, same label, same position, so it never
     // moves as you change tabs" only holds if it is pinned to one end, and
-    // `‹ Trips` … `Ask` is the order §23 draws. Reached by element position
-    // because ordering within a row is exactly what no role query can express.
-    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(nav.lastElementChild).toBe(pill);
-    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(nav.firstElementChild).toBe(within(nav).getByRole("link"));
-    // Phone-only, and by CSS: the desktop entry point is the board's own fixed
-    // launcher, and both on screen at once is what §23 removes.
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(pill.className).toMatch(/(^| )md:hidden( |$)/);
+    // `← Your trips` … `Ask` is the order §23 draws.
+    //
+    // Stated as TAB ORDER rather than `nav.lastElementChild`, and driven by
+    // the keyboard rather than by reading `document.activeElement` — the wall
+    // bans both node access and that property, and neither route was needed:
+    // a keyboard reader meets these controls in the order they are drawn in,
+    // so "the second stop is the one that opens the assistant, and the first
+    // is not" IS the position claim, said in what the user experiences.
+    //
+    // Space, not Enter, because the discrimination is the point: a link does
+    // not activate on Space and a button does. So the first probe fires only
+    // if the pill has moved to the front of the row, which is the regression
+    // this exists to catch, and it does not navigate away from the header on
+    // the way past.
+    expect(within(nav).getAllByRole("link")).toHaveLength(1);
+    expect(within(nav).getAllByRole("button")).toHaveLength(1);
+    await userEvent.tab();
+    await userEvent.keyboard("[Space]");
+    expect(onOpen).not.toHaveBeenCalled();
+    await userEvent.tab();
+    await userEvent.keyboard("[Space]");
+    expect(onOpen).toHaveBeenCalledTimes(1);
 
     expect(pill.getAttribute("aria-expanded")).toBe("false");
     await userEvent.click(pill);
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   it("says the assistant is open when it is", async () => {
@@ -478,12 +493,14 @@ describe("TripHeader — the phone Ask pill (SPEC §23)", () => {
 });
 
 describe("TripHeader — the phone date line (SPEC §23)", () => {
-  it("shows the trip's date range under the title, phone-only, and nothing else from the meta row", async () => {
+  // Phone-only is `md:hidden`, and it is not asserted here for the same reason
+  // as the pill above: no stylesheet in jsdom, so there is nothing to evaluate.
+  // What this pins is the half that is real without one — the line says the
+  // same range the desktop meta pill says, and none of what §23 trimmed.
+  it("shows the trip's date range under the title, and nothing else from the meta row", async () => {
     await renderHeader();
 
     const line = screen.getByTestId("trip-date-line");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(line.className).toMatch(/(^| )md:hidden( |$)/);
 
     // The same string the meta pill states, from the same `tripDateRange` —
     // asserted against the pill's own rendering rather than a literal, so the

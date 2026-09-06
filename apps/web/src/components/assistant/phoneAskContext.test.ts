@@ -102,7 +102,9 @@ describe("phoneAskContext", () => {
       const ctx = phoneAskContext(trip, 1, NOTEBOOK_INDEX);
       expect(ctx.contextLine).toBe("Asking about this trip’s Notebook");
       expect(ctx.scope).toEqual({ kind: "trip" });
-      expect(ctx.emptyHint).toBe("It reads the page you have open, its widgets and what they are pointed at.");
+      expect(ctx.emptyHint).toBe(
+        "It reads this trip’s itinerary — the days, their stops and what is booked. It cannot read your pages.",
+      );
     });
 
     // A focused day does NOT leak through the Notebook tab. The scope comes
@@ -120,6 +122,18 @@ describe("phoneAskContext", () => {
       const trip = tripWith({ dayCount: 2, activitiesPerDay: 1 });
       expect(phoneAskContext(trip, null, NOTEBOOK_INDEX).quickAsks).toEqual([]);
     });
+
+    // The index's hint is the one place the sheet could still imply the
+    // assistant reads pages, and on a screen listing nothing BUT pages that is
+    // the reading a user arrives with. The scope here is trip-wide and the
+    // tools behind it are the itinerary's, so the hint may not claim otherwise
+    // (KI-2026-09-05-ad).
+    it("does not promise to read pages on the surface made of them", () => {
+      const trip = tripWith({ dayCount: 2, activitiesPerDay: 1 });
+      const { emptyHint } = phoneAskContext(trip, null, NOTEBOOK_INDEX);
+      expect(emptyHint).toContain("itinerary");
+      expect(emptyHint).not.toMatch(/reads the page/i);
+    });
   });
 
   describe("an open page", () => {
@@ -129,14 +143,41 @@ describe("phoneAskContext", () => {
       const ctx = phoneAskContext(trip, 0, surface);
       expect(ctx.contextLine).toBe("Asking about “Kyoto — getting around”");
       expect(ctx.scope).toEqual({ kind: "page", pageId: pageFixture().id });
-      expect(ctx.quickAsks).toEqual(["Summarise this page"]);
+      expect(ctx.quickAsks).toEqual([]);
+    });
+
+    // The page turn is handed `{ title }` and two insert-only tools, so the
+    // honest hint says what an answer here DOES — it lands in the document —
+    // rather than claiming to have read what is already in it. Worded off the
+    // rail's own page composer ("Ask AI to add to this page…"), which is
+    // deliberately "add to" for exactly this reason.
+    it("says an answer lands in the document, and does not claim to read it", () => {
+      const trip = tripWith({ dayCount: 1, activitiesPerDay: 1 });
+      const { emptyHint } = phoneAskContext(trip, null, pageSurface());
+      expect(emptyHint).toBe(
+        "Ask it to add to this page and what it writes lands in the document. " +
+          "It reads this trip’s itinerary, not the page you have open.",
+      );
+    });
+
+    // §23's second Notebook ask, and the one this module refuses to offer:
+    // there is no page-read tool anywhere, so its only possible answer is
+    // invented from the title (KI-2026-09-05-ad). Pinned across every shape of
+    // page a caller can describe, because the failure would be re-adding it
+    // behind one of these conditions.
+    it("never offers to summarise the page, at any widget count", () => {
+      const trip = tripWith({ dayCount: 1, activitiesPerDay: 1 });
+      for (const unsetUpWidgets of [null, 0, 3]) {
+        expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets })).quickAsks).not.toContain(
+          "Summarise this page",
+        );
+      }
     });
 
     it("offers what is not set up when the page has widgets waiting", () => {
       const trip = tripWith({ dayCount: 1, activitiesPerDay: 1 });
       expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets: 2 })).quickAsks).toEqual([
         "What is not set up?",
-        "Summarise this page",
       ]);
     });
 
@@ -144,18 +185,14 @@ describe("phoneAskContext", () => {
     // question whose honest answer is "there isn't one".
     it("withholds it on a page where every widget is bound", () => {
       const trip = tripWith({ dayCount: 1, activitiesPerDay: 1 });
-      expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets: 0 })).quickAsks).toEqual([
-        "Summarise this page",
-      ]);
+      expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets: 0 })).quickAsks).toEqual([]);
     });
 
     // Unknown is not zero, and it is not "probably some" either. Nothing
     // computes this count yet, so today every real page takes this branch.
     it("withholds it when the caller cannot tell how many are unbound", () => {
       const trip = tripWith({ dayCount: 1, activitiesPerDay: 1 });
-      expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets: null })).quickAsks).toEqual([
-        "Summarise this page",
-      ]);
+      expect(phoneAskContext(trip, null, pageSurface({ unsetUpWidgets: null })).quickAsks).toEqual([]);
     });
   });
 
@@ -164,8 +201,16 @@ describe("phoneAskContext", () => {
   // is measured over them rather than over the shapes above. The floor is
   // measured, not guessed: this property has no guard clause, so it ticks once
   // per run — 300 runs, floor 150 (half), per witness.ts's rule.
+  //
+  // The second witness is the reason the first is not enough. Every Notebook
+  // ask is now conditional, so "no ask was ever wrong" would also hold on a
+  // run that offered NONE — and that is the shape this module keeps arriving
+  // at. `offered` counts the runs where a Notebook surface actually put a chip
+  // on screen; logged over five runs it observed 47-64, so the floor is 23 —
+  // half the observed minimum, per witness.ts's rule.
   it("never widens scope past the surface, and never offers an ask whose precondition is false", () => {
     const w = witness("phoneAskContext scope");
+    const offered = witness("phoneAskContext notebook ask offered");
     const surfaces: fc.Arbitrary<PhoneAskSurface> = fc.oneof(
       fc.constant(PLAN),
       fc.constant(MAP),
@@ -207,26 +252,35 @@ describe("phoneAskContext", () => {
           expect(ctx.contextLine.startsWith("Asking about ")).toBe(true);
           expect(ctx.contextLine.length).toBeGreaterThan("Asking about ".length);
 
-          // The hint is the design's, keyed off the TAB — the Notebook index
-          // and an open page share one. Pinned to the exact sentence rather
-          // than to "non-empty" because it is copy the rail now prints
-          // verbatim in place of its own trip-wide default: a hint that is
-          // merely present, but describes the wrong surface, is the defect.
+          // Three hints, not two: the Notebook index and an open page shared
+          // §23's one sentence until it turned out to describe a capability
+          // neither surface has. Pinned to the exact sentence rather than to
+          // "non-empty" because it is copy the rail prints verbatim in place
+          // of its own trip-wide default — a hint that is merely present, but
+          // describes the wrong surface, is the whole defect.
           expect(ctx.emptyHint).toBe(
-            surface.tab === "notebook"
-              ? "It reads the page you have open, its widgets and what they are pointed at."
-              : "It reads the day you have open — the stops, their times, what is booked and what is not. " +
-                  "Ask it to move something and you get a proposal to keep or discard.",
+            surface.tab !== "notebook"
+              ? "It reads the day you have open — the stops, their times, what is booked and what is not. " +
+                  "Ask it to move something and you get a proposal to keep or discard."
+              : page === null
+                ? "It reads this trip’s itinerary — the days, their stops and what is booked. It cannot read your pages."
+                : "Ask it to add to this page and what it writes lands in the document. " +
+                  "It reads this trip’s itinerary, not the page you have open.",
           );
 
           expect(ctx.quickAsks.every((a) => a.trim().length > 0)).toBe(true);
           expect(new Set(ctx.quickAsks).size).toBe(ctx.quickAsks.length);
-          // The two conditional asks, each gated on the condition it asserts.
-          if (ctx.quickAsks.includes("What is not set up?")) {
-            expect(page?.unsetUpWidgets ?? 0).toBeGreaterThan(0);
-          }
-          if (ctx.quickAsks.includes("Summarise this page")) {
-            expect(page).not.toBeNull();
+          if (surface.tab === "notebook") {
+            // Stated as the CLOSED set it is rather than as one `includes`
+            // check per ask: the regression is a new Notebook chip about the
+            // page's contents, and a per-ask check cannot see one it does not
+            // already name. "What is not set up?" is the only ask the server
+            // can serve here, and only where the caller proved the count.
+            for (const ask of ctx.quickAsks) expect(ask).toBe("What is not set up?");
+            if (ctx.quickAsks.length > 0) {
+              expect(page?.unsetUpWidgets ?? 0).toBeGreaterThan(0);
+              offered.tick();
+            }
           }
           w.tick();
         },
@@ -234,5 +288,6 @@ describe("phoneAskContext", () => {
       { numRuns: 300 },
     );
     w.atLeast(150);
+    offered.atLeast(23);
   });
 });

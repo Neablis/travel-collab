@@ -21,6 +21,7 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { useIsPhone } from "@/components/lenses/useIsPhone";
 
 type Status = "loading" | "ready" | "error";
 
@@ -187,6 +188,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     },
   });
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // The ONLY thing width decides on this screen — see the effect below. The
+  // entry point is not gated on it (`AskPill` carries its own `md:hidden`) and
+  // neither is the sheet's dress, which is unconditional because there is only
+  // one presentation here to have.
+  const isPhone = useIsPhone();
   // Closing hangs up on the turn in flight, the same as `PageScreen`: the
   // thread lives on this screen, so unmounting the sheet cancels nothing on its
   // own and a still-streaming answer would keep running against the server
@@ -195,6 +201,38 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     ask.cancel();
     setAssistantOpen(false);
   };
+
+  // **The sheet does not outlive the width that justifies it.** `assistantOpen`
+  // only proves the viewport was phone-sized when the pill was tapped; a 411×852
+  // phone turned landscape is 852px wide, so a rotation mid-conversation leaves a
+  // phone bottom sheet — with its tab-bar scrim — pinned to a desktop-width
+  // screen, and `AskPill`'s `md:hidden` has taken away the only control that
+  // could have put it back (Copilot, PR #148).
+  //
+  // It CLOSES rather than re-dressing, and that is the one place this screen
+  // differs from `PageScreen`: that screen has a desktop presentation to become
+  // (`isPhone ? "sheet" : "floating"`, plus a bubble to reopen from), and this
+  // one deliberately has none — see the rail below. A floating panel here would
+  // be a surface with no way back once dismissed. Closing is `closeAssistant`,
+  // not a render gate, because a gate would hide the sheet and leave the turn
+  // streaming against the server behind it. The thread survives: rotate back and
+  // the pill reopens the same conversation.
+  //
+  // **This cannot flash**, which is the standing objection to a JS width check
+  // (`useIsPhone` starts `false` on the server and on the first client paint).
+  // Nothing here gates what paints: `assistantOpen` is `false` on every load and
+  // only a tap on `AskPill` sets it, so the guard is unreachable until effects
+  // have run and `isPhone` is already correct. There is no frame in which it can
+  // close something a user opened.
+  useEffect(() => {
+    if (!assistantOpen || isPhone) return;
+    closeAssistant();
+    // `closeAssistant` is rebuilt every render and `ask` with it; both are
+    // deliberately out of the dependency list, which is the width transition
+    // alone. Re-running this on an unrelated render is harmless anyway — the
+    // guard above is false the moment it has fired once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistantOpen, isPhone]);
 
   if (status === "loading") return <PageContainer>Loading…</PageContainer>;
   if (status === "error" || pages === null || trip === null) {
@@ -438,21 +476,24 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         )}
       </section>
 
-      {/* **`presentation="sheet"` unconditionally, and no `useIsPhone` on this
-          screen at all.** The only control that can set `assistantOpen` here is
-          `AskPill`, which is `md:hidden` — so an open sheet is already proof of
-          a phone-width viewport, and asking a hook what width we are at would
-          be asking a question the open state has answered. That also settles
-          the first-paint flash `AssistantRail`'s `presentation` note warns
-          about: `useIsPhone` starts `false` and corrects in an effect, but the
-          rail cannot mount before a tap, and a tap cannot land before effects
-          have run. There is no frame in which the wrong presentation paints,
-          because there is no frame in which anything paints.
+      {/* **`presentation="sheet"` unconditionally, because the sheet is the
+          only presentation this screen has.** The one control that can set
+          `assistantOpen` is `AskPill`, which is `md:hidden`, so the sheet can
+          only ever be OPENED at phone width — and the width guard above is what
+          keeps that true afterwards, which is the half the open state cannot
+          answer on its own (a rotation is not a tap).
+
+          Nothing here can paint at the wrong width, which is the first-paint
+          flash `AssistantRail`'s `presentation` note warns about: the rail
+          cannot mount before a tap, and a tap cannot land before effects have
+          run. There is no frame in which the wrong presentation paints, because
+          there is no frame in which anything paints.
 
           The consequence, stated so it is not mistaken for an omission: this
           screen still has NO desktop assistant. It never had one, §23 adds the
           phone's entry point and not a desktop one, and inventing a bubble here
-          would be build ahead of design. */}
+          would be build ahead of design. That is exactly why the guard above
+          closes rather than swapping to `PageScreen`'s floating panel. */}
       {assistantOpen ? (
         <AssistantRail
           presentation="sheet"

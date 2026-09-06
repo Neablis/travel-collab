@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -217,6 +217,45 @@ describe("NotebookScreen", () => {
   // tests: each is a claim §23 or DRIFT build-check 4c makes that nothing else
   // in the suite holds.
   describe("SPEC §23's Ask pill and sheet", () => {
+    // A `matchMedia` that a test can actually MOVE. The suite-wide shim in
+    // `vitest.setup.ts` answers a fixed map and its listeners are no-ops, which
+    // is enough for "render at width X" and not enough for "the width changed
+    // while the sheet was open" — the case Copilot found on PR #148. Every test
+    // in this block starts phone-width, because that is the only width at which
+    // §23's pill exists at all.
+    let widen: () => void;
+
+    const originalMatchMedia = window.matchMedia;
+    beforeEach(() => {
+      const listeners = new Set<() => void>();
+      let phone = true;
+      window.matchMedia = ((query: string) =>
+        ({
+          // A getter, not a snapshot: `useIsPhone` calls `matchMedia` once and
+          // holds the result, so a fixed `matches` would freeze at open time
+          // and the test could never leave phone width.
+          get matches() {
+            return phone;
+          },
+          media: query,
+          onchange: null,
+          addEventListener: (_type: string, fn: () => void) => void listeners.add(fn),
+          removeEventListener: (_type: string, fn: () => void) => void listeners.delete(fn),
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList) as typeof window.matchMedia;
+      // 411×852 turned landscape: 852px wide, past the 768px line. A real
+      // device case, which is why the stranded sheet is worth a guard.
+      widen = () => {
+        phone = false;
+        for (const fn of listeners) fn();
+      };
+    });
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia;
+    });
+
     async function openSheet() {
       server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
       render(<NotebookScreen tripId={TRIP_ID} />);
@@ -252,11 +291,18 @@ describe("NotebookScreen", () => {
       expect(screen.getByText("Asking about this trip’s Notebook")).toBeTruthy();
 
       // DRIFT §2i asks for the empty-state hint to be derived from the surface
-      // too, not only the context line. The rail's default sentence — "Ask
-      // about this trip and the conversation stays here" — is the one that
-      // sounds nearly right on this screen and is still the wrong promise: the
-      // Notebook sheet reads pages, not the itinerary.
-      expect(screen.getByText(/It reads the page you have open/)).toBeTruthy();
+      // too, not only the context line. Two sentences are wrong on this screen
+      // and the hint has to be neither. The rail's default — "Ask about this
+      // trip and the conversation stays here" — sounds nearly right and says
+      // nothing about what the sheet can reach. The PAGE hint is worse: this
+      // screen's scope is `trip`, so a promise to read a page is a promise the
+      // server cannot keep (KI-2026-09-05-ad — `briefFor` sends the title only
+      // and no page-read tool exists).
+      expect(screen.getByText(/It cannot read your pages/)).toBeTruthy();
+      // Asserted as ABSENT, not merely "the other one is present": the two
+      // notebook hints are the pair most likely to be swapped, and a test that
+      // only checks its own string stays green through that swap.
+      expect(screen.queryByText(/lands in the document/)).toBeNull();
       expect(screen.queryByText(/the conversation stays here/)).toBeNull();
 
       await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
@@ -305,6 +351,44 @@ describe("NotebookScreen", () => {
       await userEvent.click(screen.getByRole("button", { name: "Hide" }));
 
       await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+      expect(signal!.aborted).toBe(true);
+    });
+
+    // **The sheet must not outlive the width that justifies it** (Copilot, PR
+    // #148). `assistantOpen` proves the viewport was phone-sized when the pill
+    // was tapped and nothing more; a 411×852 phone turned landscape is 852px
+    // wide, and before this the phone bottom sheet — scrim over the tab bar and
+    // all — stayed pinned to a desktop-width screen with `AskPill`'s `md:hidden`
+    // having removed the only control that could put it back.
+    //
+    // Unlike `PageScreen`, this screen closes rather than re-dressing, because
+    // it has no desktop presentation to become. Both halves are asserted: the
+    // sheet goes, AND the turn is hung up on. A render gate would satisfy the
+    // first and leave the request streaming against a server behind a surface
+    // that is gone, which is the failure the sibling test above exists for.
+    it("closes the sheet and hangs up when the viewport rotates past phone width", async () => {
+      let signal: AbortSignal | null = null;
+      askAssistantMock.mockImplementation(
+        async (
+          _t: string,
+          _m: AskWireMessage[],
+          _s: AskScope,
+          _onEvent: (e: AskEvent) => void,
+          abortSignal: AbortSignal,
+        ) => {
+          signal = abortSignal;
+          return await new Promise<never>(() => {});
+        },
+      );
+      await openSheet();
+      await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
+      await waitFor(() => expect(signal).not.toBeNull());
+      expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+
+      act(() => widen());
+
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+      expect(screen.queryByTestId("assistant-scrim")).toBeNull();
       expect(signal!.aborted).toBe(true);
     });
 

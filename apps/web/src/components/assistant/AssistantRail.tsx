@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import * as RadixDialog from "@radix-ui/react-dialog";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
@@ -247,6 +248,21 @@ export function AssistantRail({
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
 
+  // Where focus goes when the sheet closes. Radix's FocusScope already
+  // captures this, but `DialogContentModal` overrides `onCloseAutoFocus` to
+  // restore its `Dialog.Trigger` instead — and there is no Trigger here, since
+  // the pill that opens the sheet lives in another component and owns the
+  // `open` state itself. Its handler `preventDefault()`s FocusScope's restore
+  // unconditionally and then focuses a null ref, so without this the sheet
+  // closes onto nothing.
+  //
+  // Captured during render rather than in an effect: FocusScope's mount
+  // autofocus is a CHILD effect, and child effects run before this
+  // component's, so by the time an effect here could read `activeElement` the
+  // opener has already lost focus.
+  const openerRef = useRef<Element | null>(null);
+  if (isSheet && openerRef.current === null) openerRef.current = document.activeElement;
+
   useEffect(() => {
     if (restoreDraft !== null) setAsk(restoreDraft);
   }, [restoreDraft]);
@@ -259,7 +275,7 @@ export function AssistantRail({
     if (accepted !== false) setAsk("");
   };
 
-  return (
+  const panel = (
     <>
       {/* §23's scrim, and the reason it exists is not decoration: DRIFT.md
           build-check 4c requires the phone tab bar to be unreachable behind an
@@ -273,7 +289,15 @@ export function AssistantRail({
           it is a second route to the ✕ below rather than a second control, so
           announcing it would be announcing the same action twice. A plain
           <div> for the same reason — a real <button> here would sit in the tab
-          order in front of everything in the sheet. */}
+          order in front of everything in the sheet.
+
+          It sits INSIDE the `Dialog.Content` below rather than beside it, and
+          that placement is doing two jobs. Radix's modal layer sets
+          `pointer-events: none` on <body> and re-enables it only on the
+          content, so a scrim outside would be a dismissal surface that no
+          longer takes clicks; and a pointerdown on it would count as an
+          interaction OUTSIDE the dialog, so Radix would dismiss and then this
+          `onClick` would call `onHide` a second time. */}
       {isSheet && (
         <div aria-hidden data-testid="assistant-scrim" className="assistant-sheet-scrim" onClick={onHide} />
       )}
@@ -334,9 +358,21 @@ export function AssistantRail({
             >
               ◎
             </span>
-            <Heading level={4} className="font-semibold">
-              Assistant
-            </Heading>
+            {/* The same heading in all three presentations; in the sheet it
+                is additionally the dialog's accessible name, so the modal
+                announces itself with the words already on screen rather than
+                a second label invented for screen readers. */}
+            {isSheet ? (
+              <RadixDialog.Title asChild>
+                <Heading level={4} className="font-semibold">
+                  Assistant
+                </Heading>
+              </RadixDialog.Title>
+            ) : (
+              <Heading level={4} className="font-semibold">
+                Assistant
+              </Heading>
+            )}
             <div className="flex-1" />
             {turns.length > 0 && (
               <Button
@@ -515,5 +551,67 @@ export function AssistantRail({
         </div>
       </aside>
     </>
+  );
+
+  if (!isSheet) return panel;
+
+  // §23's sheet is a MODAL and the other two presentations are not, so only
+  // this one is wrapped. The scrim already covers the phone tab bar for a
+  // finger (DRIFT.md build-check 4c), but a scrim stops pointers and nothing
+  // else: before this, focus stayed on the pill behind the sheet, Tab reached
+  // the tab bar underneath it, and Escape did nothing — so a keyboard or
+  // screen-reader user could still switch tabs mid-conversation and change the
+  // scope out from under it, which is the single failure 4c exists to prevent
+  // (Copilot, PR #148).
+  //
+  // Radix rather than the platform, and that is a measured choice, not a
+  // preference: jsdom 29.1.1 ships neither `HTMLDialogElement.showModal` nor
+  // `HTMLElement.inert` (probed 2026-09-05), so a `<dialog showModal>` would
+  // be a modal claim no unit test in this repo could hold. Radix's FocusScope
+  // and DismissableLayer are plain JS and are exercised by the tests beside
+  // this file. It is the same primitive `ui/sheet.tsx` uses, which is why
+  // there is no second trap here to keep in step with that one.
+  //
+  // `Dialog.Content` wraps the <aside> instead of BEING it (`asChild`), which
+  // would have been the tidier tree. It cannot be: `Content` renders
+  // `role="dialog"`, and this element is addressed as
+  // `getByRole("complementary", { name: "Assistant" })` by five e2e specs and
+  // four screen suites, and as `[aria-label="Assistant"]` by the z-order and
+  // hit-test probes in `m16-mobile-assistant.spec.ts`. It also has to keep
+  // carrying `.assistant-sheet` itself, because that is the element those
+  // probes measure the 80dvh/bottom-anchored geometry on. `contents` gives the
+  // dialog no box of its own, so the sheet's geometry and the row it is
+  // mounted in are both untouched.
+  //
+  // `aria-modal` is set here rather than inherited: Radix relies on
+  // `hideOthers` (a real `aria-hidden` on everything outside this subtree) and
+  // does not set the attribute, but the two say the same thing to different
+  // assistive tech and the sheet should be legible to both.
+  return (
+    <RadixDialog.Root
+      open
+      onOpenChange={(next) => {
+        if (!next) onHide();
+      }}
+    >
+      <RadixDialog.Content
+        aria-modal
+        // Radix warns when a `Content` has no `Description`; this sheet has no
+        // one sentence that describes it — the context line names the scope
+        // and the transcript is the content. Opting out explicitly is Radix's
+        // own documented way of saying so.
+        aria-describedby={undefined}
+        className="contents"
+        onCloseAutoFocus={() => {
+          const opener = openerRef.current;
+          // `isConnected`: the surface that owned the pill can unmount with
+          // the sheet (a route change), and focusing a detached node silently
+          // sends focus to <body> instead of leaving it where it was.
+          if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+        }}
+      >
+        {panel}
+      </RadixDialog.Content>
+    </RadixDialog.Root>
   );
 }

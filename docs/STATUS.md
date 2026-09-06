@@ -27,10 +27,11 @@ general setup.
 pill last in the top row of all four in-trip phone screens, opening a bottom sheet
 (`max-height: 80dvh`, 18px top radius, scrim z-30 over the z-20 tab bar, sheet z-31). Scope
 is inherited from the surface and printed in the sheet, proposals reuse the desktop ghost
-path, and the Notebook index — which had **no** assistant at all — has one now. Evidence:
-`pnpm --filter web test:e2e:ci-like` **90 passed**, plus a browser walk at 412×855 where the
-pill measures 44px in flow, the sheet lands flush at x0/bottom, and `elementFromPoint` over
-the Plan tab returns the scrim (DRIFT build-check 4c).
+path, and the Notebook index — which had **no** assistant at all — has one now. **The phone
+Plan focuses day 1 on arrival**, so the sheet is day-scoped before any chip is tapped.
+Evidence: `pnpm --filter web test:e2e:ci-like` **91 passed**, plus a browser walk at 412×856
+where the pill measures 44px in flow, the sheet lands flush at x0/bottom, and
+`elementFromPoint` over the Plan tab returns the scrim (DRIFT build-check 4c).
 
 **The point of §23 is unification, and that is what it bought.** The assistant had drifted
 apart: three phone entry points, in three places, under two labels, with the Notebook index
@@ -40,15 +41,19 @@ pill, one label, one position, on all four in-trip screens. **A side effect wort
 that a modal *"breaks the entire website"*, and §23 specifies the modal sheet. The design
 does not mention the reversal because one sentence in it understates what already existed
 (`KI-2026-09-05-aa`). He was shown it on 2026-09-05 and chose §23 literally, so
-`e2e/m16-mobile-assistant.spec.ts`'s four assertions were rewritten (five now, the new one
-being 4c) with the KI-84 → KI-2026-08-30 → §23 sequence recorded in the file header.
+`e2e/m16-mobile-assistant.spec.ts`'s four tests were rewritten and two added — **six now**:
+the scrim test (build-check 4c) and the day-1-on-arrival regression, which is what took the
+lane from 90 to 91. The KI-84 → KI-2026-08-30 → §23 sequence is recorded in the file header.
 
-**Three things §23 does not settle, all open.** (1) The phone Plan focuses **no day** on
-arrival — 14 chips, none current — so the sheet opens trip-wide until you tap one, which is
-the scope loss §23 exists to prevent; the derivation itself is correct ("Asking about Thu 17
-· Tokyo" the moment a chip is picked). (2) Quick asks are **derived** from real trip state
-rather than §23's three fixed chips, and the placeholder stays **scope**-keyed rather than
-§23's tab-keyed — both deliberate, both reversible, both recorded where the code is. (3)
+**Found and FIXED on this branch:** the phone Plan focused **no day** on arrival — 14 chips,
+none current — so the sheet opened trip-wide until you tapped one, the exact scope loss §23
+exists to prevent. The derivation was always right ("Asking about Thu 17 · Tokyo" the moment
+a chip is picked); only the arrival default was wrong. It now defaults to day 1, pinned by a
+unit test and an e2e regression.
+
+**Two things §23 does not settle, both open.** (1) Quick asks are **derived** from real trip
+state rather than §23's three fixed chips, and the placeholder stays **scope**-keyed rather
+than §23's tab-keyed — both deliberate, both reversible, both recorded where the code is. (2)
 §23's "sync dot and avatar drop to the title row" is **not built**: it needs the phone to
 stop rendering the global `AppHeader`, which is the same unconfirmed architecture decision
 the Map chrome work is waiting on. Three KIs were filed: **`KI-2026-09-05-aa`** (§23's

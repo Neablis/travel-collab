@@ -559,6 +559,19 @@ test.describe("responsive (trip header on a phone)", () => {
     // makes the phone assertions above statements about the BREAKPOINT rather
     // than about a control that stopped rendering everywhere.
     await expect(page.getByTestId("trip-meta-row").getByText(/^\d+ cities$/)).toBeVisible();
+
+    // The CONVERSE, and it had no coverage until now. The two controls SPEC
+    // §23 adds are phone-only by CSS (`md:hidden`), and the unit tests that
+    // used to assert those class strings were deleted on PR #148 as
+    // presentation assertions — correctly, since jsdom cannot evaluate a media
+    // query, so they only ever checked that a string was in an attribute.
+    // Which left the property unasserted anywhere. It is real: if the date
+    // line leaked onto desktop it would print the range a second time, right
+    // above the meta pill that already carries it (project rule 4), and a
+    // leaked Ask pill would put two entry points to one assistant on screen at
+    // once — the exact thing §23 collapses.
+    await expect(page.getByTestId("trip-date-line")).toBeHidden();
+    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeHidden();
   });
 });
 

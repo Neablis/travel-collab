@@ -381,10 +381,24 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={editing ? "primary" : "secondary"}
+            aria-pressed={editing}
+            onClick={toggleEditing}
+          >
+            {editing ? "Done editing" : "Edit page"}
+          </Button>
           {/* The phone's entry to the assistant, and it is now the SAME control
               this app puts on Plan, Map and the Notebook index (SPEC §23) —
               this screen's own `◎ Assistant` button was one of the three
               different entry points §23 exists to collapse into one.
+
+              **After the mode toggle, because §23's claim is positional**:
+              *"last item in the top row… same pill, same label, same position,
+              so it never moves as you change tabs."* It shipped BEFORE the
+              toggle on this screen alone (Copilot, PR #148), which made the
+              open page the one surface of the four where the pill sat
+              somewhere else — the exact inconsistency §23 exists to end.
 
               It only OPENS. The button it replaces toggled, because it was the
               sheet's only dismissal; the sheet owns two of its own now (the ✕
@@ -393,13 +407,6 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
               still runs `closeAssistant`, so hanging up on a turn in flight is
               unchanged — `onHide` below is where it goes. */}
           <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
-          <Button
-            variant={editing ? "primary" : "secondary"}
-            aria-pressed={editing}
-            onClick={toggleEditing}
-          >
-            {editing ? "Done editing" : "Edit page"}
-          </Button>
         </div>
       </div>
       {unstorable ? (
