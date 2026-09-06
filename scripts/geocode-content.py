@@ -55,6 +55,7 @@ import sqlite3
 import statistics
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -549,6 +550,37 @@ def build_provider(args) -> Provider:
 SETTLEMENT_KEYS = ("city", "town", "village", "hamlet", "municipality", "county", "state")
 
 
+# Letters NFKD does not decompose, because they are not accented letters — they
+# are letters in their own right. A geocoder answering in the local script and a
+# bundle written in the English one disagree on every one of these.
+_LETTER_FOLD = str.maketrans({
+    "ð": "d", "Ð": "d", "þ": "th", "Þ": "th", "ø": "o", "Ø": "o",
+    "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe", "ß": "ss",
+    "ı": "i", "İ": "i", "ł": "l", "Ł": "l", "đ": "d", "Đ": "d",
+    "ʻ": "", "'": "", "’": "", "`": "",
+})
+
+
+def fold(text: str) -> str:
+    """Casefold and strip accents, so `Reykjavík` matches `Reykjavik`.
+
+    This exists because it was measured, not imagined: the first full run
+    rejected correct results for `Reykjavík` (matched "Reykjavik, Capital
+    Region, Iceland") and `Uluru-Kata Tjuta National Park` (matched
+    "Uluṟu-Kata Tjuṯa National Park"). The geocoder had found exactly the right
+    place and the city test threw it away over a diacritic. 141 of the 1,344
+    places sit in a city whose name carries a non-ASCII character, so this is
+    not an edge case.
+
+    NFKD handles the combining accents; the table above handles the letters it
+    leaves alone (ð, ø, ı, ł and friends), which are not decomposable because
+    they are distinct letters rather than decorated ones.
+    """
+    lowered = text.casefold().translate(_LETTER_FOLD)
+    return "".join(c for c in unicodedata.normalize("NFKD", lowered)
+                   if not unicodedata.combining(c))
+
+
 def judge(place: Place, row: dict) -> tuple[bool, str]:
     """Whether a result is good enough to write. Returns (accept, reason).
 
@@ -564,16 +596,18 @@ def judge(place: Place, row: dict) -> tuple[bool, str]:
     if not (-90 <= lat <= 90 and -180 <= lng <= 180):
         return False, f"coordinates out of range ({lat}, {lng})"
 
-    display = (row.get("display_name") or "").lower()
+    display = row.get("display_name") or ""
     address = row.get("address") or {}
 
     # The city test. A stop's `city` is the field Discover matches on and the
     # one thing about a place we are certain of, so a result that landed in a
     # different city is wrong however plausible it looks.
     if place.city:
-        wanted = place.city.lower()
-        returned = [str(address.get(k, "")).lower() for k in SETTLEMENT_KEYS]
-        if wanted not in display and not any(wanted == r or wanted in r for r in returned if r):
+        wanted = fold(place.city)
+        returned = [fold(str(address.get(k, ""))) for k in SETTLEMENT_KEYS]
+        if wanted not in fold(display) and not any(
+            wanted == r or wanted in r for r in returned if r
+        ):
             return False, f"result is not in {place.city} (got: {row.get('display_name', '?')[:90]})"
 
     return True, "ok"
@@ -1052,14 +1086,19 @@ def report(db: sqlite3.Connection) -> None:
     # WHY, not just how many. A wall of `failed` says nothing about whether the
     # provider is throttling, the network wobbled, or a key expired — and those
     # want completely different responses.
-    reasons = db.execute(
-        "select last_error, count(*) from places where status in ('failed','not_found') "
-        "and last_error is not null group by 1 order by 2 desc limit 6"
-    ).fetchall()
-    if reasons:
-        print("  why they did not settle —")
-        for why, n in reasons:
-            print(f"    {n:5d}  {str(why)[:88]}")
+    # Split them. `not_found` is the geocoder answering "nothing there" or the
+    # city test refusing a candidate; `failed` is the request itself breaking.
+    # Grouping them together hid exactly that distinction on the run that
+    # mattered, and they call for completely different responses.
+    for status, heading in (("not_found", "rejected or unmatched"),
+                            ("failed", "the request itself failed")):
+        rows = db.execute(
+            "select last_error, count(*) from places where status=? and last_error is not null "
+            "group by 1 order by 2 desc limit 5", (status,)).fetchall()
+        if rows:
+            print(f"  {heading} —")
+            for why, n in rows:
+                print(f"    {n:5d}  {str(why)[:86]}")
     stuck = db.execute(
         "select count(*) from places where status='failed' and attempts >= ?",
         (3,),
