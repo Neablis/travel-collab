@@ -25,7 +25,10 @@
       "name": "Northern Spain: San Sebastián → Bilbao → Picos → Santiago",
       "summary": "Nine days of eating and walking, driving west along the Cantabrian coast.",
       "currency": "USD",
-      "budget": { "amountMinor": 615000, "currency": "USD" },
+      "budget": {
+        "amountMinor": 615000,
+        "currency": "USD"
+      },
       "startsInDays": 52,
       "days": [
         {
@@ -33,48 +36,110 @@
           "stops": [
             {
               "title": "Flight into Bilbao (BIO)",
-              "timeWindow": { "start": "11:35", "end": "14:05" },
-              "location": { "name": "Bilbao Airport, Loiu", "city": "Bilbao", "area": "Loiu" },
+              "timeWindow": {
+                "start": "11:35",
+                "end": "14:05"
+              },
+              "location": {
+                "name": "Bilbao Airport, Loiu",
+                "city": "Bilbao",
+                "area": "Loiu",
+                "lat": 43.30513,
+                "lng": -2.90657
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Outbound leg only; the flight home from Santiago is priced on day nine. Flying into one end and out of the other is what makes this route work without a day of backtracking — the open-jaw fare is barely more than a return.",
-              "cost": { "amountMinor": 46000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 46000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Collect the hire car at the airport",
-              "timeWindow": { "start": "14:30", "end": "15:05" },
-              "location": { "name": "Bilbao Airport car hire desks", "city": "Bilbao", "area": "Loiu" },
+              "timeWindow": {
+                "start": "14:30",
+                "end": "15:05"
+              },
+              "location": {
+                "name": "Bilbao Airport car hire desks",
+                "city": "Bilbao",
+                "area": "Loiu",
+                "lat": 43.262408,
+                "lng": -2.934932
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Take it from the airport, not from central Bilbao: the city desks shut at 13:00 on Saturdays, and the Picos leg is impossible without a car. Booked a one-way drop at Santiago airport, which costs about €90 extra and saves two days.",
-              "cost": { "amountMinor": 38000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 38000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Drive the AP-8 to San Sebastián",
-              "timeWindow": { "start": "15:15", "end": "16:35" },
-              "location": { "name": "AP-8 motorway, Bilbao to Donostia", "city": "San Sebastián", "area": "Gros" },
+              "timeWindow": {
+                "start": "15:15",
+                "end": "16:35"
+              },
+              "location": {
+                "name": "AP-8 motorway, Bilbao to Donostia",
+                "city": "San Sebastián",
+                "area": "Gros",
+                "lat": 43.32401,
+                "lng": -1.973196
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Take the toll road and pay the €12. The free N-634 through the hills is an hour longer and full of trucks. Park in the underground at Okendo rather than hunting a street space in the Parte Vieja, which is resident-permit only.",
-              "cost": { "amountMinor": 1200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1200,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at Lasala Plaza Hotel",
-              "timeWindow": { "start": "16:45", "end": "17:30" },
-              "location": { "name": "Lasala Plaza Hotel, Plaza de Lasala", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "16:45",
+                "end": "17:30"
+              },
+              "location": {
+                "name": "Lasala Plaza Hotel, Plaza de Lasala",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.322291,
+                "lng": -1.986605
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Three nights on the harbour edge of the old town. Everything on the next two evenings is within four hundred metres, which matters more than the room: a pintxo crawl that ends in a taxi is not a pintxo crawl.",
-              "cost": { "amountMinor": 78000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 78000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Opening night: Bar Zeruko and Ganbara",
-              "timeWindow": { "start": "19:30", "end": "21:45" },
-              "location": { "name": "Bar Zeruko and Bar Ganbara, Calle Fermín Calbetón", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:45"
+              },
+              "location": {
+                "name": "Bar Zeruko and Bar Ganbara, Calle Fermín Calbetón",
+                "city": "San Sebastián",
+                "area": "Parte Vieja"
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Two bars, no more, on a night that started at an airport. Zeruko for the theatrical ones and Ganbara for the sautéed wild mushrooms with an egg yolk — the mushrooms are ordered from the barman, not taken off the counter, and this is the single most common mistake visitors make.",
-              "cost": { "amountMinor": 7000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 7000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -83,64 +148,154 @@
           "stops": [
             {
               "title": "Breakfast at Pastelería Otaegui",
-              "timeWindow": { "start": "08:30", "end": "09:15" },
-              "location": { "name": "Pastelería Otaegui, Calle Narrica", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "08:30",
+                "end": "09:15"
+              },
+              "location": {
+                "name": "Pastelería Otaegui, Calle Narrica",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.299253,
+                "lng": -1.991695
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "The old pastry shop on the edge of the Parte Vieja. Ask for a pantxineta, which is the local almond and cream thing and is what everyone is queuing for at eleven.",
-              "cost": { "amountMinor": 1600, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1600,
+                "currency": "USD"
+              }
             },
             {
               "title": "La Concha end to end, and the Peine del Viento",
-              "timeWindow": { "start": "09:30", "end": "11:00" },
-              "location": { "name": "Playa de la Concha and Peine del Viento", "city": "San Sebastián", "area": "Ondarreta" },
+              "timeWindow": {
+                "start": "09:30",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Playa de la Concha and Peine del Viento",
+                "city": "San Sebastián",
+                "area": "Ondarreta",
+                "lat": 43.31692,
+                "lng": -2.002854
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Go at high tide. Chillida's sculptures are the photograph, but the blowholes cut into the paving in front of them only fire when there is swell — at low water it is three lumps of iron and a puddle."
             },
             {
               "title": "Funicular up Monte Igueldo",
-              "timeWindow": { "start": "11:15", "end": "12:20" },
-              "location": { "name": "Funicular de Monte Igueldo", "city": "San Sebastián", "area": "Igueldo" },
+              "timeWindow": {
+                "start": "11:15",
+                "end": "12:20"
+              },
+              "location": {
+                "name": "Funicular de Monte Igueldo",
+                "city": "San Sebastián",
+                "area": "Igueldo",
+                "lat": 43.308976,
+                "lng": -2.036057
+              },
               "kind": "planned",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "1912 wooden funicular, four euros return, and the view down the whole shell of the bay that every postcard uses. The rickety amusement park at the top is genuinely 1920s and genuinely rickety.",
-              "cost": { "amountMinor": 1000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1000,
+                "currency": "USD"
+              }
             },
             {
               "title": "The tortilla at Bar Néstor",
-              "timeWindow": { "start": "13:00", "end": "14:30" },
-              "location": { "name": "Bar Néstor, Calle Arrandegi", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "13:00",
+                "end": "14:30"
+              },
+              "location": {
+                "name": "Bar Néstor, Calle Arrandegi",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.323888,
+                "lng": -1.983707
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Néstor makes one tortilla at 13:00 and one at 20:00, twelve slices each, and that is the entire supply. You put your name on the list at noon or you do not eat it. Order the tomato salad and a txuleta while you wait — that is the actual meal; the tortilla is a slice.",
-              "cost": { "amountMinor": 5000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 5000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Up Monte Urgull to the Mota castle",
-              "timeWindow": { "start": "16:00", "end": "17:30" },
-              "location": { "name": "Castillo de la Mota, Monte Urgull", "city": "San Sebastián", "area": "Urgull" },
+              "timeWindow": {
+                "start": "16:00",
+                "end": "17:30"
+              },
+              "location": {
+                "name": "Castillo de la Mota, Monte Urgull",
+                "city": "San Sebastián",
+                "area": "Urgull",
+                "lat": 43.325038,
+                "lng": -1.988891
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Twenty-five minutes up from behind the aquarium, free, and almost nobody does it. The 1813 siege museum inside the castle explains why the old town is entirely 19th-century — the answer is that the British and Portuguese burned it down."
             },
             {
               "title": "Txakoli and anchovies at Bar Txepetxa",
-              "timeWindow": { "start": "18:00", "end": "19:00" },
-              "location": { "name": "Bar Txepetxa, Calle Pescadería", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "18:00",
+                "end": "19:00"
+              },
+              "location": {
+                "name": "Bar Txepetxa, Calle Pescadería",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.323785,
+                "lng": -1.983991
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "One thing, done nine ways: anchovies, cured in-house, on bread, with a different topping each time. Have the one with sea urchin and the plain one, and let them pour the txakoli from height.",
-              "cost": { "amountMinor": 3000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3000,
+                "currency": "USD"
+              }
             },
             {
               "title": "The crawl: Cuchara de San Telmo, Gandarias, Borda Berri",
-              "timeWindow": { "start": "20:00", "end": "22:45" },
-              "location": { "name": "Calle 31 de Agosto and Calle Fermín Calbetón", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "20:00",
+                "end": "22:45"
+              },
+              "location": {
+                "name": "Calle 31 de Agosto and Calle Fermín Calbetón",
+                "city": "San Sebastián",
+                "area": "Parte Vieja"
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "One or two pintxos and one small glass per bar, then move — sitting down anywhere ends the crawl. Order the carrillera at Cuchara and the risotto de idiazábal at Borda Berri; both are cooked to order, so nothing on the counter is what you want.",
-              "cost": { "amountMinor": 11000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 11000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -149,55 +304,132 @@
           "stops": [
             {
               "title": "Breakfast at the hotel",
-              "timeWindow": { "start": "09:00", "end": "09:45" },
-              "location": { "name": "Lasala Plaza Hotel, Plaza de Lasala", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "09:00",
+                "end": "09:45"
+              },
+              "location": {
+                "name": "Lasala Plaza Hotel, Plaza de Lasala",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.322291,
+                "lng": -1.986605
+              },
               "kind": "planned",
-              "tags": ["meal"],
-              "cost": { "amountMinor": 1600, "currency": "USD" }
+              "tags": [
+                "meal"
+              ],
+              "cost": {
+                "amountMinor": 1600,
+                "currency": "USD"
+              }
             },
             {
               "title": "Coast road to Getaria via Zarautz",
-              "timeWindow": { "start": "10:00", "end": "10:40" },
-              "location": { "name": "N-634 coast road, Zarautz to Getaria", "city": "Getaria", "area": "Old harbour" },
+              "timeWindow": {
+                "start": "10:00",
+                "end": "10:40"
+              },
+              "location": {
+                "name": "N-634 coast road, Zarautz to Getaria",
+                "city": "Getaria",
+                "area": "Old harbour",
+                "lat": 43.294743,
+                "lng": -2.213267
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Take the coast road today, not the motorway — it runs along the cliff above the txakoli terraces and the last bend into Getaria is the view of the Mouse island. Park in the harbour car park; the village is one street and it is pedestrian."
             },
             {
               "title": "Cristóbal Balenciaga Museoa",
-              "timeWindow": { "start": "10:50", "end": "12:20" },
-              "location": { "name": "Cristóbal Balenciaga Museoa, Aldamar Parkea", "city": "Getaria", "area": "Aldamar" },
+              "timeWindow": {
+                "start": "10:50",
+                "end": "12:20"
+              },
+              "location": {
+                "name": "Cristóbal Balenciaga Museoa, Aldamar Parkea",
+                "city": "Getaria",
+                "area": "Aldamar",
+                "lat": 43.303148,
+                "lng": -2.203823
+              },
               "kind": "booked",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "He was born in this village and the collection is the actual garments, not photographs of them. Closed Mondays outside July and August, which catches people out. Booked the 11:00 slot to leave a clean hour before lunch.",
-              "cost": { "amountMinor": 2600, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2600,
+                "currency": "USD"
+              }
             },
             {
               "title": "Lunch at Elkano",
-              "timeWindow": { "start": "13:30", "end": "15:45" },
-              "location": { "name": "Elkano, Herrerieta Kalea", "city": "Getaria", "area": "Old harbour" },
+              "timeWindow": {
+                "start": "13:30",
+                "end": "15:45"
+              },
+              "location": {
+                "name": "Elkano, Herrerieta Kalea",
+                "city": "Getaria",
+                "area": "Old harbour",
+                "lat": 43.302996,
+                "lng": -2.204986
+              },
               "kind": "booked",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "The whole turbot off the charcoal is the reason to come and it is sold by weight for two — you will be quoted at the table, and it is not cheap. Booked six weeks out. Eat the cheeks and the gelatinous bits round the head; the waiter will show you how and it is the best part.",
-              "cost": { "amountMinor": 34000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 34000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Txakoli tasting at Txomin Etxaniz",
-              "timeWindow": { "start": "16:30", "end": "18:00" },
-              "location": { "name": "Bodega Txomin Etxaniz, Getaria", "city": "Getaria", "area": "Eitzaga" },
+              "timeWindow": {
+                "start": "16:30",
+                "end": "18:00"
+              },
+              "location": {
+                "name": "Bodega Txomin Etxaniz, Getaria",
+                "city": "Getaria",
+                "area": "Eitzaga",
+                "lat": 43.288097,
+                "lng": -2.192121
+              },
               "kind": "hold",
               "tags": [],
               "notes": "Provisional — visits must be booked and one of you has to not drink, because it is a switchback road back down to the N-634. The vines are trained high on wires so the sea wind dries them; that is the whole explanation of why the wine tastes like it does.",
-              "cost": { "amountMinor": 5000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 5000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Quiet dinner at Bodegón Alejandro",
-              "timeWindow": { "start": "20:30", "end": "22:15" },
-              "location": { "name": "Bodegón Alejandro, Calle Fermín Calbetón", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "20:30",
+                "end": "22:15"
+              },
+              "location": {
+                "name": "Bodegón Alejandro, Calle Fermín Calbetón",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.323575,
+                "lng": -1.983383
+              },
               "kind": "idea",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Floated as the antidote to two nights of standing up. A basement dining room and a fixed menu of classics; whether anyone wants dinner after turbot at two is a decision for about six o'clock.",
-              "cost": { "amountMinor": 12000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 12000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -206,64 +438,157 @@
           "stops": [
             {
               "title": "Breakfast, and check out of the Lasala",
-              "timeWindow": { "start": "08:45", "end": "09:35" },
-              "location": { "name": "Lasala Plaza Hotel, Plaza de Lasala", "city": "San Sebastián", "area": "Parte Vieja" },
+              "timeWindow": {
+                "start": "08:45",
+                "end": "09:35"
+              },
+              "location": {
+                "name": "Lasala Plaza Hotel, Plaza de Lasala",
+                "city": "San Sebastián",
+                "area": "Parte Vieja",
+                "lat": 43.322291,
+                "lng": -1.986605
+              },
               "kind": "planned",
-              "tags": ["meal"],
-              "cost": { "amountMinor": 1800, "currency": "USD" }
+              "tags": [
+                "meal"
+              ],
+              "cost": {
+                "amountMinor": 1800,
+                "currency": "USD"
+              }
             },
             {
               "title": "Drive San Sebastián to Bilbao",
-              "timeWindow": { "start": "10:00", "end": "11:20" },
-              "location": { "name": "AP-8 motorway, Donostia to Bilbao", "city": "Bilbao", "area": "Abando" },
+              "timeWindow": {
+                "start": "10:00",
+                "end": "11:20"
+              },
+              "location": {
+                "name": "AP-8 motorway, Donostia to Bilbao",
+                "city": "Bilbao",
+                "area": "Abando",
+                "lat": 43.25001,
+                "lng": -2.972463
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Eighty minutes on the toll road. Bilbao's centre is a low-emission zone — leave the car in the hotel garage on arrival and do not move it again until Saturday morning.",
-              "cost": { "amountMinor": 1400, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1400,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at Hotel Miró",
-              "timeWindow": { "start": "11:45", "end": "12:30" },
-              "location": { "name": "Hotel Miró, Alameda Mazarredo", "city": "Bilbao", "area": "Abando" },
+              "timeWindow": {
+                "start": "11:45",
+                "end": "12:30"
+              },
+              "location": {
+                "name": "Hotel Miró, Alameda Mazarredo",
+                "city": "Bilbao",
+                "area": "Abando",
+                "lat": 43.266884,
+                "lng": -2.936455
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights, directly opposite the Guggenheim and a fifteen-minute walk from the Casco Viejo — which is the right side of the river to be on for this trip.",
-              "cost": { "amountMinor": 46000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 46000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Pintxos in Plaza Nueva: Gure Toki and Víctor Montes",
-              "timeWindow": { "start": "13:00", "end": "14:20" },
-              "location": { "name": "Plaza Nueva", "city": "Bilbao", "area": "Casco Viejo" },
+              "timeWindow": {
+                "start": "13:00",
+                "end": "14:20"
+              },
+              "location": {
+                "name": "Plaza Nueva",
+                "city": "Bilbao",
+                "area": "Casco Viejo",
+                "lat": 43.259014,
+                "lng": -2.922689
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Bilbao's pintxos are bigger, cheaper and less clever than Donostia's and that is not a criticism. Gure Toki does the inventive ones; Víctor Montes is the belle-époque room with the counter you photograph. Sunday morning the square is a stamp and antiques market and the bars are heaving by eleven.",
-              "cost": { "amountMinor": 6000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 6000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Guggenheim Bilbao",
-              "timeWindow": { "start": "15:00", "end": "18:00" },
-              "location": { "name": "Museo Guggenheim Bilbao, Abandoibarra Etorbidea", "city": "Bilbao", "area": "Abandoibarra" },
+              "timeWindow": {
+                "start": "15:00",
+                "end": "18:00"
+              },
+              "location": {
+                "name": "Museo Guggenheim Bilbao, Abandoibarra Etorbidea",
+                "city": "Bilbao",
+                "area": "Abandoibarra",
+                "lat": 43.268555,
+                "lng": -2.933832
+              },
               "kind": "booked",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "Timed slot booked; closed Mondays except in August. Do the Richard Serra room first — it is on the ground floor and people walk past it looking for the stairs, then run out of attention before they come back. The audio guide is included and unusually good on the building itself.",
-              "cost": { "amountMinor": 3800, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3800,
+                "currency": "USD"
+              }
             },
             {
               "title": "Walk the Nervión: Zubizuri, the Deusto bank, back past Maman",
-              "timeWindow": { "start": "18:30", "end": "19:30" },
-              "location": { "name": "Nervión riverside walk and Zubizuri bridge", "city": "Bilbao", "area": "Abandoibarra" },
+              "timeWindow": {
+                "start": "18:30",
+                "end": "19:30"
+              },
+              "location": {
+                "name": "Nervión riverside walk and Zubizuri bridge",
+                "city": "Bilbao",
+                "area": "Abandoibarra",
+                "lat": 43.257332,
+                "lng": -2.933681
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Cross at the Zubizuri and come back down the far bank — the titanium reads completely differently from Deusto in evening light, and it is the only angle where the building looks like a ship rather than a flower."
             },
             {
               "title": "Dinner at Mina",
-              "timeWindow": { "start": "21:00", "end": "23:15" },
-              "location": { "name": "Restaurante Mina, Muelle Marzana", "city": "Bilbao", "area": "Bilbao la Vieja" },
+              "timeWindow": {
+                "start": "21:00",
+                "end": "23:15"
+              },
+              "location": {
+                "name": "Restaurante Mina, Muelle Marzana",
+                "city": "Bilbao",
+                "area": "Bilbao la Vieja",
+                "lat": 43.254908,
+                "lng": -2.924531
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Held, not confirmed — one Michelin star, twenty covers, and a tasting menu only. Across the river from the Casco Viejo on the old dockside; walk it, ten minutes, rather than getting a taxi to circle the one-way system.",
-              "cost": { "amountMinor": 30000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 30000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -272,29 +597,66 @@
           "stops": [
             {
               "title": "Mercado de la Ribera, before noon",
-              "timeWindow": { "start": "10:00", "end": "12:00" },
-              "location": { "name": "Mercado de la Ribera, Erribera Kalea", "city": "Bilbao", "area": "Casco Viejo" },
+              "timeWindow": {
+                "start": "10:00",
+                "end": "12:00"
+              },
+              "location": {
+                "name": "Mercado de la Ribera, Erribera Kalea",
+                "city": "Bilbao",
+                "area": "Casco Viejo",
+                "lat": 43.255551,
+                "lng": -2.924343
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "One of the largest covered markets in Europe and a working one — go before noon on a weekday, because by one the bar tables belong to people who work nearby and by two the fishmongers are packing up. Coffee and a pintxo at the counter inside is three or four euros.",
-              "cost": { "amountMinor": 2200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2200,
+                "currency": "USD"
+              }
             },
             {
               "title": "The Siete Calles, with nothing to see",
-              "timeWindow": { "start": "13:30", "end": "15:30" },
-              "location": { "name": "Siete Calles and Catedral de Santiago", "city": "Bilbao", "area": "Casco Viejo" },
+              "timeWindow": {
+                "start": "13:30",
+                "end": "15:30"
+              },
+              "location": {
+                "name": "Siete Calles and Catedral de Santiago",
+                "city": "Bilbao",
+                "area": "Casco Viejo",
+                "lat": 43.260011,
+                "lng": -2.92265
+              },
               "kind": "planned",
               "tags": [],
               "notes": "Deliberately unstructured. The seven streets are the original medieval town; the Catedral de Santiago on Calle Santiago is a stop on the coastal Camino and takes fifteen minutes. Everything else here is shops and that is fine."
             },
             {
               "title": "Txikiteo in Plaza Nueva, then dinner at Los Fueros",
-              "timeWindow": { "start": "20:00", "end": "22:45" },
-              "location": { "name": "Bar Restaurante Los Fueros, Calle Los Fueros", "city": "Bilbao", "area": "Casco Viejo" },
+              "timeWindow": {
+                "start": "20:00",
+                "end": "22:45"
+              },
+              "location": {
+                "name": "Bar Restaurante Los Fueros, Calle Los Fueros",
+                "city": "Bilbao",
+                "area": "Casco Viejo",
+                "lat": 43.260011,
+                "lng": -2.92265
+              },
               "kind": "booked",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Txikiteo is the Bilbao word for the crawl — small glasses, one bar at a time, standing. Los Fueros dates from 1878 and is the oldest bar in the city; it is small, it is booked, and it does the classics properly rather than cleverly.",
-              "cost": { "amountMinor": 14000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 14000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -303,56 +665,138 @@
           "stops": [
             {
               "title": "Breakfast, check out of the Miró",
-              "timeWindow": { "start": "08:15", "end": "09:00" },
-              "location": { "name": "Hotel Miró, Alameda Mazarredo", "city": "Bilbao", "area": "Abando" },
+              "timeWindow": {
+                "start": "08:15",
+                "end": "09:00"
+              },
+              "location": {
+                "name": "Hotel Miró, Alameda Mazarredo",
+                "city": "Bilbao",
+                "area": "Abando",
+                "lat": 43.266884,
+                "lng": -2.936455
+              },
               "kind": "planned",
-              "tags": ["meal"],
-              "cost": { "amountMinor": 1800, "currency": "USD" }
+              "tags": [
+                "meal"
+              ],
+              "cost": {
+                "amountMinor": 1800,
+                "currency": "USD"
+              }
             },
             {
               "title": "Drive the A-8 to Cangas de Onís",
-              "timeWindow": { "start": "09:15", "end": "12:15" },
-              "location": { "name": "A-8 motorway through Cantabria", "city": "Cangas de Onís", "area": "Centro" },
+              "timeWindow": {
+                "start": "09:15",
+                "end": "12:15"
+              },
+              "location": {
+                "name": "A-8 motorway through Cantabria",
+                "city": "Cangas de Onís",
+                "area": "Centro",
+                "lat": 43.352572,
+                "lng": -5.125343
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Three hours with one stop, and free the whole way. The viaducts near Unquera where the road crosses the Deva are the best part of the drive; the services at Torrelavega are the only decent ones.",
-              "cost": { "amountMinor": 4200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 4200,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at the Parador de Cangas de Onís",
-              "timeWindow": { "start": "12:45", "end": "13:30" },
-              "location": { "name": "Parador de Cangas de Onís, Villanueva", "city": "Cangas de Onís", "area": "Villanueva" },
+              "timeWindow": {
+                "start": "12:45",
+                "end": "13:30"
+              },
+              "location": {
+                "name": "Parador de Cangas de Onís, Villanueva",
+                "city": "Cangas de Onís",
+                "area": "Villanueva",
+                "lat": 43.366415,
+                "lng": -5.151553
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights in a 12th-century monastery on the Sella, three kilometres out of the town. Being outside Cangas is the point — the town is a car park in August and the river bank here is silent.",
-              "cost": { "amountMinor": 52000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 52000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Cider and lunch at El Molín de la Pedrera",
-              "timeWindow": { "start": "14:00", "end": "15:20" },
-              "location": { "name": "El Molín de la Pedrera, Calle Río Güeña", "city": "Cangas de Onís", "area": "Centro" },
+              "timeWindow": {
+                "start": "14:00",
+                "end": "15:20"
+              },
+              "location": {
+                "name": "El Molín de la Pedrera, Calle Río Güeña",
+                "city": "Cangas de Onís",
+                "area": "Centro",
+                "lat": 43.351551,
+                "lng": -5.129978
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Let the waiter pour the sidra from above his head — it is not showing off. Natural cider is flat and the fall aerates it, which is why you get a finger of it at a time and drink each pour straight down. Order the cachopo to share between two, never one each.",
-              "cost": { "amountMinor": 7000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 7000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Covadonga and the lakes, by shuttle bus",
-              "timeWindow": { "start": "16:00", "end": "19:15" },
-              "location": { "name": "Lagos de Covadonga (Enol and Ercina)", "city": "Cangas de Onís", "area": "Covadonga" },
+              "timeWindow": {
+                "start": "16:00",
+                "end": "19:15"
+              },
+              "location": {
+                "name": "Lagos de Covadonga (Enol and Ercina)",
+                "city": "Cangas de Onís",
+                "area": "Covadonga",
+                "lat": 43.304205,
+                "lng": -5.061541
+              },
               "kind": "booked",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "From Easter to October the mountain road is closed to private cars — you park at El Repelao or in Cangas and take the shuttle, and the combined ticket covers the basilica stop too. Go late: the last bus down is around 20:00 and the crowds thin after five, when the light on Enol is worth the whole day.",
-              "cost": { "amountMinor": 2400, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2400,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at the Parador",
-              "timeWindow": { "start": "21:00", "end": "22:30" },
-              "location": { "name": "Parador de Cangas de Onís, Villanueva", "city": "Cangas de Onís", "area": "Villanueva" },
+              "timeWindow": {
+                "start": "21:00",
+                "end": "22:30"
+              },
+              "location": {
+                "name": "Parador de Cangas de Onís, Villanueva",
+                "city": "Cangas de Onís",
+                "area": "Villanueva",
+                "lat": 43.366415,
+                "lng": -5.151553
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Eating in tonight because tomorrow starts at half past seven. Ask them at dinner for the packed lunch for the Cares — they do it for hikers and it needs a day's notice.",
-              "cost": { "amountMinor": 9000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 9000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -361,47 +805,110 @@
           "stops": [
             {
               "title": "Early breakfast, and collect the packed lunch",
-              "timeWindow": { "start": "07:30", "end": "08:05" },
-              "location": { "name": "Parador de Cangas de Onís, Villanueva", "city": "Cangas de Onís", "area": "Villanueva" },
+              "timeWindow": {
+                "start": "07:30",
+                "end": "08:05"
+              },
+              "location": {
+                "name": "Parador de Cangas de Onís, Villanueva",
+                "city": "Cangas de Onís",
+                "area": "Villanueva",
+                "lat": 43.366415,
+                "lng": -5.151553
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Two litres of water each, minimum. There is no water and no shade for eleven kilometres and the gorge holds heat like an oven.",
-              "cost": { "amountMinor": 2400, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2400,
+                "currency": "USD"
+              }
             },
             {
               "title": "Drive to Poncebos and park",
-              "timeWindow": { "start": "08:20", "end": "09:05" },
-              "location": { "name": "Poncebos trailhead car park", "city": "Cabrales", "area": "Poncebos" },
+              "timeWindow": {
+                "start": "08:20",
+                "end": "09:05"
+              },
+              "location": {
+                "name": "Poncebos trailhead car park",
+                "city": "Cabrales",
+                "area": "Poncebos",
+                "lat": 43.233926,
+                "lng": -4.747355
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Poncebos fills by nine in summer and the overflow is a kilometre back down the road, which adds twenty minutes at each end of an already long day. The road in from Arenas is single-track with passing places and a bus comes the other way.",
-              "cost": { "amountMinor": 900, "currency": "USD" }
+              "cost": {
+                "amountMinor": 900,
+                "currency": "USD"
+              }
             },
             {
               "title": "Poncebos to Caín and back through the gorge",
-              "timeWindow": { "start": "09:15", "end": "15:30" },
-              "location": { "name": "Ruta del Cares (PR-PNPE 3)", "city": "Cabrales", "area": "Garganta del Cares" },
+              "timeWindow": {
+                "start": "09:15",
+                "end": "15:30"
+              },
+              "location": {
+                "name": "Ruta del Cares (PR-PNPE 3)",
+                "city": "Cabrales",
+                "area": "Garganta del Cares",
+                "lat": 43.30388,
+                "lng": -4.8157
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "22 km out and back, six hours moving, and the whole climb is in the first three kilometres on the way out — which means the hard part happens while it is still cool and the return is downhill and shaded. The path is a maintenance ledge cut for a hydro canal: no railing, a long drop, and not a walk for anyone who does not like exposure. No phone signal inside the gorge."
             },
             {
               "title": "Cabrales cheese in Arenas",
-              "timeWindow": { "start": "16:30", "end": "17:20" },
-              "location": { "name": "Cueva Exposición del Queso de Cabrales, Arenas de Cabrales", "city": "Cabrales", "area": "Arenas de Cabrales" },
+              "timeWindow": {
+                "start": "16:30",
+                "end": "17:20"
+              },
+              "location": {
+                "name": "Cueva Exposición del Queso de Cabrales, Arenas de Cabrales",
+                "city": "Cabrales",
+                "area": "Arenas de Cabrales",
+                "lat": 43.303379,
+                "lng": -4.814715
+              },
               "kind": "idea",
               "tags": [],
               "notes": "Nobody has committed to this and after six hours of walking it may not survive. Twenty minutes inside an actual maturing cave, and they sell the cheese cheaper than the shops in Cangas do.",
-              "cost": { "amountMinor": 3000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at El Polesu",
-              "timeWindow": { "start": "20:30", "end": "22:00" },
-              "location": { "name": "Sidrería El Polesu, Avenida de Covadonga", "city": "Cangas de Onís", "area": "Centro" },
+              "timeWindow": {
+                "start": "20:30",
+                "end": "22:00"
+              },
+              "location": {
+                "name": "Sidrería El Polesu, Avenida de Covadonga",
+                "city": "Cangas de Onís",
+                "area": "Centro",
+                "lat": 43.352572,
+                "lng": -5.125343
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "A cider house rather than a restaurant: bottles by the bottle, cheese boards, and fabada if anyone can face it. Loud, tiled, and exactly right after a long day on a ledge.",
-              "cost": { "amountMinor": 8000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 8000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -410,64 +917,155 @@
           "stops": [
             {
               "title": "Breakfast, and check out of the Parador",
-              "timeWindow": { "start": "08:30", "end": "09:15" },
-              "location": { "name": "Parador de Cangas de Onís, Villanueva", "city": "Cangas de Onís", "area": "Villanueva" },
+              "timeWindow": {
+                "start": "08:30",
+                "end": "09:15"
+              },
+              "location": {
+                "name": "Parador de Cangas de Onís, Villanueva",
+                "city": "Cangas de Onís",
+                "area": "Villanueva",
+                "lat": 43.366415,
+                "lng": -5.151553
+              },
               "kind": "planned",
-              "tags": ["meal"],
-              "cost": { "amountMinor": 1800, "currency": "USD" }
+              "tags": [
+                "meal"
+              ],
+              "cost": {
+                "amountMinor": 1800,
+                "currency": "USD"
+              }
             },
             {
               "title": "A-8 west, and the walk down to Playa del Silencio",
-              "timeWindow": { "start": "09:30", "end": "11:45" },
-              "location": { "name": "Playa del Silencio, Castañeras", "city": "Cudillero", "area": "Castañeras" },
+              "timeWindow": {
+                "start": "09:30",
+                "end": "11:45"
+              },
+              "location": {
+                "name": "Playa del Silencio, Castañeras",
+                "city": "Cudillero",
+                "area": "Castañeras",
+                "lat": 43.567394,
+                "lng": -6.294871
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Park at the top and walk down the steps — it is a pebble cove inside a rock amphitheatre and there is nothing at the bottom, no bar, no toilet, no shade. Fifteen minutes down and twenty back up, and the only reason to stop between Asturias and Galicia.",
-              "cost": { "amountMinor": 2600, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2600,
+                "currency": "USD"
+              }
             },
             {
               "title": "Lunch on the harbour at Cudillero",
-              "timeWindow": { "start": "12:30", "end": "14:00" },
-              "location": { "name": "Cudillero harbour front", "city": "Cudillero", "area": "Puerto" },
+              "timeWindow": {
+                "start": "12:30",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "Cudillero harbour front",
+                "city": "Cudillero",
+                "area": "Puerto",
+                "lat": 43.586779,
+                "lng": -6.226545
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "The village is a stack of painted houses round a slipway and it is a hard place to eat badly. Park in the upper car park and walk down; the harbour itself is a turning circle and you will regret driving into it.",
-              "cost": { "amountMinor": 6000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 6000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Cudillero to Santiago de Compostela",
-              "timeWindow": { "start": "14:15", "end": "18:30" },
-              "location": { "name": "A-8 and AG-64, Asturias into Galicia", "city": "Santiago de Compostela", "area": "Ensanche" },
+              "timeWindow": {
+                "start": "14:15",
+                "end": "18:30"
+              },
+              "location": {
+                "name": "A-8 and AG-64, Asturias into Galicia",
+                "city": "Santiago de Compostela",
+                "area": "Ensanche",
+                "lat": 42.870734,
+                "lng": -8.544763
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Four hours. The A-8 turns inland after Ribadeo and the last stretch on the AG-64 is slower than the map suggests — leave Cudillero by two if you want to be checked in before dinner. Fuel is cheaper in Asturias than in Galicia; fill before Ribadeo.",
-              "cost": { "amountMinor": 5500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 5500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at the Hostal dos Reis Católicos",
-              "timeWindow": { "start": "19:00", "end": "19:45" },
-              "location": { "name": "Parador Hostal dos Reis Católicos, Praza do Obradoiro", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "19:00",
+                "end": "19:45"
+              },
+              "location": {
+                "name": "Parador Hostal dos Reis Católicos, Praza do Obradoiro",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.881457,
+                "lng": -8.54592
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights in the 1499 pilgrims' hospital on the cathedral square — arguably the oldest hotel in the world and the reason the last two days are worth planning around. Parking is a garage five minutes away, not the square; they give you a permit to unload.",
-              "cost": { "amountMinor": 44000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 44000,
+                "currency": "USD"
+              }
             },
             {
               "title": "First look at the Obradoiro at dusk",
-              "timeWindow": { "start": "20:00", "end": "20:45" },
-              "location": { "name": "Praza do Obradoiro", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "20:00",
+                "end": "20:45"
+              },
+              "location": {
+                "name": "Praza do Obradoiro",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.8805,
+                "lng": -8.54576
+              },
               "kind": "idea",
               "tags": [],
               "notes": "Unplanned and better for it. The square empties after eight when the day's pilgrims have gone to eat, the floodlights come on, and someone is usually playing a gaita under the arch into Praza da Quintana."
             },
             {
               "title": "Dinner at O Curro da Parra",
-              "timeWindow": { "start": "21:15", "end": "23:00" },
-              "location": { "name": "O Curro da Parra, Rúa do Curro da Parra", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "21:15",
+                "end": "23:00"
+              },
+              "location": {
+                "name": "O Curro da Parra, Rúa do Curro da Parra",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.879834,
+                "lng": -8.54526
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Held for two upstairs — the ground floor is the tapas bar and takes no bookings, the dining room above does. Galician cooking with a lighter hand than most of the old town; the weekday lunch menu is a third of the price if the plan changes.",
-              "cost": { "amountMinor": 13000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 13000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -476,64 +1074,148 @@
           "stops": [
             {
               "title": "Coffee and tarta de Santiago at Café Literarios",
-              "timeWindow": { "start": "08:30", "end": "09:10" },
-              "location": { "name": "Café Literarios, Praza da Quintana", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "08:30",
+                "end": "09:10"
+              },
+              "location": {
+                "name": "Café Literarios, Praza da Quintana",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.880913,
+                "lng": -8.543889
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Tables on the Quintana with the cathedral's Puerta Santa in front of you, and it opens before the tour groups arrive.",
-              "cost": { "amountMinor": 1200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1200,
+                "currency": "USD"
+              }
             },
             {
               "title": "Cathedral rooftop tour: the Cubiertas",
-              "timeWindow": { "start": "09:30", "end": "10:45" },
-              "location": { "name": "Catedral de Santiago, cubiertas visit", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "09:30",
+                "end": "10:45"
+              },
+              "location": {
+                "name": "Catedral de Santiago, cubiertas visit",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.88054,
+                "lng": -8.545186
+              },
               "kind": "booked",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "Booked online days ahead — it is the only way onto the granite roof and the slots genuinely sell out. Guided, an hour, and it goes ahead in rain, which in Santiago is the normal condition. Flat shoes, no exceptions at the door.",
-              "cost": { "amountMinor": 3400, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3400,
+                "currency": "USD"
+              }
             },
             {
               "title": "Mercado de Abastos",
-              "timeWindow": { "start": "11:00", "end": "11:50" },
-              "location": { "name": "Mercado de Abastos, Rúa das Ameas", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "11:00",
+                "end": "11:50"
+              },
+              "location": {
+                "name": "Mercado de Abastos, Rúa das Ameas",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.879834,
+                "lng": -8.54526
+              },
               "kind": "planned",
               "tags": [],
               "notes": "Buy at a stall — percebes, scallops, a wedge of tetilla — and carry it to one of the kitchens in the market that will cook what you bought for a few euros a plate. That is the trick here and almost no visitor uses it.",
-              "cost": { "amountMinor": 2500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Pilgrims' Mass at noon",
-              "timeWindow": { "start": "12:00", "end": "13:15" },
-              "location": { "name": "Catedral de Santiago de Compostela", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "12:00",
+                "end": "13:15"
+              },
+              "location": {
+                "name": "Catedral de Santiago de Compostela",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.8804,
+                "lng": -8.544628
+              },
               "kind": "planned",
               "tags": [],
               "notes": "Free, open to everyone, and full by 11:30. The Botafumeiro only swings when a group has paid for it — the cathedral publishes which masses have one the day before, so check that page rather than hoping. Bags go through a scanner at the door and large rucksacks are refused."
             },
             {
               "title": "Lunch at Abastos 2.0",
-              "timeWindow": { "start": "13:45", "end": "15:15" },
-              "location": { "name": "Abastos 2.0, Mercado de Abastos", "city": "Santiago de Compostela", "area": "Casco Histórico" },
+              "timeWindow": {
+                "start": "13:45",
+                "end": "15:15"
+              },
+              "location": {
+                "name": "Abastos 2.0, Mercado de Abastos",
+                "city": "Santiago de Compostela",
+                "area": "Casco Histórico",
+                "lat": 42.879834,
+                "lng": -8.54526
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "No menu; they cook what came into the market that morning and tell you what it is. Held two seats at the counter — it is a converted market stall with about a dozen places and it does not do a second sitting.",
-              "cost": { "amountMinor": 9000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 9000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Drop the hire car at Santiago airport",
-              "timeWindow": { "start": "16:00", "end": "16:50" },
-              "location": { "name": "Santiago–Rosalía de Castro Airport (SCQ), car hire returns", "city": "Santiago de Compostela", "area": "Lavacolla" },
+              "timeWindow": {
+                "start": "16:00",
+                "end": "16:50"
+              },
+              "location": {
+                "name": "Santiago–Rosalía de Castro Airport (SCQ), car hire returns",
+                "city": "Santiago de Compostela",
+                "area": "Lavacolla",
+                "lat": 42.900236,
+                "lng": -8.44654
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Fill up at the Repsol on the N-634 by the airport turn — the return desk charges a refuelling fee that is roughly double the pump. Twelve kilometres from the old town, twenty minutes."
             },
             {
               "title": "Flight home from Santiago (SCQ)",
-              "timeWindow": { "start": "18:40", "end": "20:15" },
-              "location": { "name": "Santiago–Rosalía de Castro Airport (SCQ), departures", "city": "Santiago de Compostela", "area": "Lavacolla" },
+              "timeWindow": {
+                "start": "18:40",
+                "end": "20:15"
+              },
+              "location": {
+                "name": "Santiago–Rosalía de Castro Airport (SCQ), departures",
+                "city": "Santiago de Compostela",
+                "area": "Lavacolla",
+                "lat": 42.896206,
+                "lng": -8.417669
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Return half of the open-jaw fare booked on day one. SCQ is small and the security queue is short, but there is almost nothing airside — do the eating in the market, not here.",
-              "cost": { "amountMinor": 46000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 46000,
+                "currency": "USD"
+              }
             }
           ]
         }
@@ -541,37 +1223,77 @@
       "backlog": [
         {
           "title": "Asador Etxebarri in Axpe",
-          "location": { "name": "Asador Etxebarri, Plaza San Juan, Atxondo", "city": "Atxondo", "area": "Axpe" },
+          "location": {
+            "name": "Asador Etxebarri, Plaza San Juan, Atxondo",
+            "city": "Atxondo",
+            "area": "Axpe",
+            "lat": 43.116237,
+            "lng": -2.598511
+          },
           "kind": "idea",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Everything cooked over wood, including the ice cream. An hour inland from Bilbao and it books out a year ahead — on the list because the list is where it will stay unless a cancellation appears."
         },
         {
           "title": "San Juan de Gaztelugatxe and the Bermeo coast",
-          "location": { "name": "San Juan de Gaztelugatxe", "city": "Bermeo", "area": "Bakio" },
+          "location": {
+            "name": "San Juan de Gaztelugatxe",
+            "city": "Bermeo",
+            "area": "Bakio",
+            "lat": 43.447119,
+            "lng": -2.78469
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "241 steps out to a hermitage on a rock. Free but timed-entry ticketed and the slots go weeks in advance; it would cost the light day in Bilbao, which is a bad trade."
         },
         {
           "title": "Fuente Dé cable car and the Cantabrian side of the Picos",
-          "location": { "name": "Teleférico de Fuente Dé", "city": "Camaleño", "area": "Fuente Dé" },
+          "location": {
+            "name": "Teleférico de Fuente Dé",
+            "city": "Camaleño",
+            "area": "Fuente Dé",
+            "lat": 43.148797,
+            "lng": -4.808756
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "750 m of ascent in four minutes and a high plateau at the top. It is on the far side of the massif from Cangas — two hours' drive each way, so it only works if the Cares gets rained off."
         },
         {
           "title": "Finisterre and the Costa da Morte",
-          "location": { "name": "Cabo Fisterra lighthouse", "city": "Fisterra", "area": "Cabo Fisterra" },
+          "location": {
+            "name": "Cabo Fisterra lighthouse",
+            "city": "Fisterra",
+            "area": "Cabo Fisterra",
+            "lat": 42.882405,
+            "lng": -9.271992
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Ninety minutes west of Santiago and the traditional end of the walk. Needs the hire car for one more day than currently booked, which is the only thing stopping it."
         },
         {
           "title": "An espicha in a Nava cider house",
-          "location": { "name": "Sidrerías of Nava", "city": "Nava", "area": "Centro" },
+          "location": {
+            "name": "Sidrerías of Nava",
+            "city": "Nava",
+            "area": "Centro",
+            "lat": 43.358675,
+            "lng": -5.509274
+          },
           "kind": "idea",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Standing, unlimited cider poured straight from the barrel, and food brought out in waves. Usually a weekend thing and needs a group; parked until someone finds one that takes two people."
         }
       ]

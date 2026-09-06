@@ -39,84 +39,199 @@
       "ownerId": "dev-kenji",
       "visibility": "public",
       "keptOn": "2025-03-18T13:20:00.000Z",
-      "sourceTrip": { "name": "North Vietnam, slowly" },
+      "sourceTrip": {
+        "name": "North Vietnam, slowly"
+      },
       "addedBy": [
-        { "addedBy": "dev-carlos" },
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-ruth" },
-        { "addedBy": "dev-marco" }
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
       ],
       "stops": [
         {
           "title": "Pho bo standing up at Pho Gia Truyen, 49 Bat Dan",
-          "timeWindow": { "start": "07:15", "end": "08:00" },
-          "location": { "name": "Pho Gia Truyen", "city": "Hanoi", "area": "Bat Dan, Hoan Kiem" },
+          "timeWindow": {
+            "start": "07:15",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Pho Gia Truyen",
+            "city": "Hanoi",
+            "area": "Bat Dan, Hoan Kiem",
+            "lat": 21.033672,
+            "lng": 105.847427
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Queue at the cauldron, pay first, carry your own bowl to a stool. It runs out somewhere between 10:00 and 10:30, so this is a breakfast address and not a lunch one. Say 'tai chin' for the half-rare, half-brisket bowl.",
-          "cost": { "amountMinor": 250, "currency": "USD" }
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ngoc Son Temple and the red bridge before the tour groups",
-          "timeWindow": { "start": "08:15", "end": "09:10" },
-          "location": { "name": "Ngoc Son Temple", "city": "Hanoi", "area": "Hoan Kiem Lake" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:10"
+          },
+          "location": {
+            "name": "Ngoc Son Temple",
+            "city": "Hanoi",
+            "area": "Hoan Kiem Lake",
+            "lat": 21.030727,
+            "lng": 105.852376
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "50,000 VND at the bridge. Before 09:00 you get the temple and the giant preserved turtle almost alone; the coaches from the Old Quarter hotels arrive in a block just after.",
-          "cost": { "amountMinor": 200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Walk Hang Bac to Hang Ma to Dong Xuan market",
-          "timeWindow": { "start": "09:15", "end": "11:30" },
-          "location": { "name": "Old Quarter guild streets", "city": "Hanoi", "area": "Hoan Kiem" },
+          "timeWindow": {
+            "start": "09:15",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Old Quarter guild streets",
+            "city": "Hanoi",
+            "area": "Hoan Kiem",
+            "lat": 21.036859,
+            "lng": 105.85242
+          },
           "kind": "planned",
           "tags": [],
           "notes": "The streets are still sorted by trade: Hang Bac is silver, Hang Ma is votive paper and lanterns, Hang Thiec is tinsmiths hammering in the street. Walk it north-west and finish inside Dong Xuan market rather than starting there."
         },
         {
           "title": "Bun cha at Bun Cha Dac Kim, 1 Hang Manh",
-          "timeWindow": { "start": "11:45", "end": "12:45" },
-          "location": { "name": "Bun Cha Dac Kim", "city": "Hanoi", "area": "Hang Manh, Hoan Kiem" },
+          "timeWindow": {
+            "start": "11:45",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Bun Cha Dac Kim",
+            "city": "Hanoi",
+            "area": "Hang Manh, Hoan Kiem",
+            "lat": 21.031965,
+            "lng": 105.848102
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Arrive before 12:00 or you eat standing. The bowl of warm broth with pickled kohlrabi is the dish, not a soup on the side: tear the herbs in, drop the patties and the belly slices in, then dip the noodles. The nem cua be (crab spring roll) is the thing to add. Huong Lien on Le Van Huu is the Obama one, twenty minutes south and worth it only if you want the photo.",
-          "cost": { "amountMinor": 300, "currency": "USD" }
+          "cost": {
+            "amountMinor": 300,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ca phe trung at Cafe Giang, 39 Nguyen Huu Huan",
-          "timeWindow": { "start": "13:00", "end": "13:45" },
-          "location": { "name": "Cafe Giang", "city": "Hanoi", "area": "Nguyen Huu Huan, Hoan Kiem" },
+          "timeWindow": {
+            "start": "13:00",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Cafe Giang",
+            "city": "Hanoi",
+            "area": "Nguyen Huu Huan, Hoan Kiem",
+            "lat": 21.033606,
+            "lng": 105.854622
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Down the alley and up the stairs; the ground floor looks like nothing. Giang's family invented egg coffee here in 1946. Ask for it hot, and drink it in the order they hand it to you before the foam falls.",
-          "cost": { "amountMinor": 140, "currency": "USD" }
+          "cost": {
+            "amountMinor": 140,
+            "currency": "USD"
+          }
         },
         {
           "title": "Train street coffee on the Phung Hung side",
-          "timeWindow": { "start": "14:15", "end": "15:30" },
-          "location": { "name": "Phung Hung railway alley", "city": "Hanoi", "area": "Phung Hung" },
+          "timeWindow": {
+            "start": "14:15",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Phung Hung railway alley",
+            "city": "Hanoi",
+            "area": "Phung Hung",
+            "lat": 21.0245,
+            "lng": 105.84117
+          },
           "kind": "idea",
           "tags": [],
           "notes": "Uncommitted because access keeps closing. Barricades and police at the Tran Phu end are normal; the cafes on the Phung Hung stretch usually let you in through their own door if you order. Trains pass roughly 15:20 and 19:30 on weekdays and the staff move everyone before it comes. Do not stand on the sleepers for a photo.",
-          "cost": { "amountMinor": 250, "currency": "USD" }
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
         },
         {
           "title": "Thang Long Water Puppet Theatre, 57B Dinh Tien Hoang",
-          "timeWindow": { "start": "17:00", "end": "18:00" },
-          "location": { "name": "Thang Long Water Puppet Theatre", "city": "Hanoi", "area": "Hoan Kiem Lake" },
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:00"
+          },
+          "location": {
+            "name": "Thang Long Water Puppet Theatre",
+            "city": "Hanoi",
+            "area": "Hoan Kiem Lake",
+            "lat": 21.031704,
+            "lng": 105.853455
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Book the day before at the box office; 100,000-200,000 VND by row and the cheap back rows are genuinely fine for a stage this small. Rows 1-3 get splashed. Fifty minutes, no interval, and the live cheo orchestra on the right is half the show.",
-          "cost": { "amountMinor": 600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bia hoi corner on Ta Hien, then cha ca on Cha Ca street",
-          "timeWindow": { "start": "18:30", "end": "20:15" },
-          "location": { "name": "Ta Hien beer corner", "city": "Hanoi", "area": "Ta Hien, Hoan Kiem" },
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "Ta Hien beer corner",
+            "city": "Hanoi",
+            "area": "Ta Hien, Hoan Kiem",
+            "lat": 21.035304,
+            "lng": 105.851985
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Bia hoi is brewed that morning and costs 10,000-20,000 VND a glass; it is gone by about 21:00 and the kegs are not refilled. Sit on the low stools at the Ta Hien and Luong Ngoc Quyen junction, then walk five minutes to Cha Ca Thang Long for turmeric fish cooked at the table with dill and mam tom.",
-          "cost": { "amountMinor": 1200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -127,81 +242,181 @@
       "ownerId": "dev-maeve",
       "visibility": "public",
       "keptOn": "2025-11-08T10:05:00.000Z",
-      "sourceTrip": { "name": "Anniversary fortnight, Vietnam" },
+      "sourceTrip": {
+        "name": "Anniversary fortnight, Vietnam"
+      },
       "addedBy": [
-        { "addedBy": "dev-alice" },
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-sofia" },
-        { "addedBy": "dev-tomas" }
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-tomas"
+        }
       ],
       "stops": [
         {
           "title": "Limousine van Hanoi to Got Pier, Hai Phong",
-          "timeWindow": { "start": "07:30", "end": "10:15" },
-          "location": { "name": "Got Pier", "city": "Hai Phong", "area": "Cat Hai" },
+          "timeWindow": {
+            "start": "07:30",
+            "end": "10:15"
+          },
+          "location": {
+            "name": "Got Pier",
+            "city": "Hai Phong",
+            "area": "Cat Hai",
+            "lat": 20.85765,
+            "lng": 106.683688
+          },
           "kind": "transit",
           "tags": [],
           "notes": "Got, not Tuan Chau. The CT04 expressway and the Tan Vu bridge put Got at about two hours forty from the Old Quarter, and boarding there drops you into Lan Ha instead of the Ha Long traffic jam of two hundred junks. Nine-seat limousine vans pick up from Old Quarter hotels between 07:15 and 07:45.",
-          "cost": { "amountMinor": 6500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 6500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Chartered speedboat tender out to the anchorage",
-          "timeWindow": { "start": "10:30", "end": "11:15" },
-          "location": { "name": "Lan Ha Bay anchorage", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "10:30",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Lan Ha Bay anchorage",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "transit",
           "tags": [],
           "notes": "The scheduled tender waits for the whole manifest and can idle at the pier for ninety minutes. A chartered speedboat leaves when you do and reaches the ship before the buffet queue forms. Arrange it with the cruise office when you book the cabin, not on the day.",
-          "cost": { "amountMinor": 32000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 32000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Check into the suite, Heritage Line Ginger",
-          "timeWindow": { "start": "11:30", "end": "12:15" },
-          "location": { "name": "Heritage Line Ginger", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "11:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Heritage Line Ginger",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "booked",
-          "tags": ["lodging"],
+          "tags": [
+            "lodging"
+          ],
           "notes": "Priced per cabin for the night, not per person, which is what makes the sums work for two. Ask for a stern cabin on the upper deck: the anchor chain runs through the bow cabins at 06:00. Private balcony baths are the point of the ship, so book a category with one or save the money and take a mid-range boat.",
-          "cost": { "amountMinor": 78000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 78000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch as the ship moves through the Cat Ba archipelago",
-          "timeWindow": { "start": "12:30", "end": "13:45" },
-          "location": { "name": "Ginger dining room", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Ginger dining room",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Included in the cabin rate. Eat on the aft deck rather than inside: the run out past Ba Trai Dao is the prettiest forty minutes of the cruise and everyone else is indoors looking at a set menu."
         },
         {
           "title": "Dark and Bright Cave by bamboo sampan, then kayaks",
-          "timeWindow": { "start": "14:15", "end": "16:15" },
-          "location": { "name": "Hang Sang Hang Toi (Dark and Bright Cave)", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "14:15",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Hang Sang Hang Toi (Dark and Bright Cave)",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The tunnel is only passable at low and mid tide; a boat that arrives at high water goes to the lagoon entrance and turns round, which is why the schedule shifts day to day. Take the rowed sampan through the dark section (you lie back to clear the ceiling) and the kayak for the lagoon on the far side. Tip the rower 50,000-100,000 VND directly; it is not in the fare.",
-          "cost": { "amountMinor": 2500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Swim at Ba Trai Dao, then sundeck cocktails",
-          "timeWindow": { "start": "16:30", "end": "17:45" },
-          "location": { "name": "Ba Trai Dao beach", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "16:30",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Ba Trai Dao beach",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay",
+            "lat": 20.72457,
+            "lng": 107.052292
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Three sand crescents that only exist at low tide and are underwater at high. Jellyfish are a real nuisance in June and July; the crew know and will say so if asked directly.",
-          "cost": { "amountMinor": 3000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Chef's table dinner with wine pairing",
-          "timeWindow": { "start": "19:00", "end": "21:00" },
-          "location": { "name": "Ginger chef's table", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "19:00",
+            "end": "21:00"
+          },
+          "location": {
+            "name": "Ginger chef's table",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "A separate booking from the cabin and the one upgrade actually worth its price on a bay cruise, because the standard dinner is a hotel buffet at anchor. Six courses of Hai Phong seafood with a pairing; request it 48 hours out, and say then if you want the cha muc squid cake course doubled instead of the beef.",
-          "cost": { "amountMinor": 14500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 14500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Squid fishing off the stern lights",
-          "timeWindow": { "start": "21:15", "end": "22:15" },
-          "location": { "name": "Ginger stern deck", "city": "Cat Ba", "area": "Lan Ha Bay" },
+          "timeWindow": {
+            "start": "21:15",
+            "end": "22:15"
+          },
+          "location": {
+            "name": "Ginger stern deck",
+            "city": "Cat Ba",
+            "area": "Lan Ha Bay"
+          },
           "kind": "idea",
           "tags": [],
           "notes": "Free, faintly ridiculous, and nobody catches anything most nights. Worth ten minutes for the water under the lamps even if you skip the rod."
@@ -215,79 +430,196 @@
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2026-01-24T08:40:00.000Z",
-      "sourceTrip": { "name": "Two weeks between Hanoi and Hue" },
-      "addedBy": [{ "addedBy": "dev-priya" }, { "addedBy": "dev-marco" }],
+      "sourceTrip": {
+        "name": "Two weeks between Hanoi and Hue"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
       "stops": [
         {
           "title": "Scooter pickup and banh mi at the Tam Coc crossroads",
-          "timeWindow": { "start": "06:20", "end": "06:50" },
-          "location": { "name": "Tam Coc village crossroads", "city": "Ninh Binh", "area": "Tam Coc" },
+          "timeWindow": {
+            "start": "06:20",
+            "end": "06:50"
+          },
+          "location": {
+            "name": "Tam Coc village crossroads",
+            "city": "Ninh Binh",
+            "area": "Tam Coc",
+            "lat": 20.217675,
+            "lng": 105.929481
+          },
           "kind": "transit",
           "tags": [],
           "notes": "Homestays rent semi-automatics for 120,000-150,000 VND a day plus about 50,000 in fuel, and everything on this day is within eight flat kilometres. Take the helmet that fits, photograph the scooter before you leave, and refuse the offer to keep your passport.",
-          "cost": { "amountMinor": 700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Tam Coc rowing boat from Van Lam pier",
-          "timeWindow": { "start": "07:00", "end": "08:40" },
-          "location": { "name": "Van Lam pier", "city": "Ninh Binh", "area": "Tam Coc" },
+          "timeWindow": {
+            "start": "07:00",
+            "end": "08:40"
+          },
+          "location": {
+            "name": "Van Lam pier",
+            "city": "Ninh Binh",
+            "area": "Tam Coc",
+            "lat": 20.212075,
+            "lng": 105.936875
+          },
           "kind": "booked",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "Buy the plain 250,000 VND ticket; the 340,000 combo just adds a car to Bich Dong you can ride to yourself in four minutes. Be at the ticket window when it opens and you are the first boat of the day through the three caves with nothing ahead of you. The rowers use their feet, and they will stop mid-river to sell embroidery: a firm no is fine, and 100,000-150,000 VND at the end as a tip is the honest going rate. Late May and early June is when the Ngo Dong rice is gold.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Hang Mua: 500 steps to the dragon ridge",
-          "timeWindow": { "start": "09:00", "end": "10:30" },
-          "location": { "name": "Hang Mua viewpoint", "city": "Ninh Binh", "area": "Khe Ha, Hoa Lu" },
+          "timeWindow": {
+            "start": "09:00",
+            "end": "10:30"
+          },
+          "location": {
+            "name": "Hang Mua viewpoint",
+            "city": "Ninh Binh",
+            "area": "Khe Ha, Hoa Lu",
+            "lat": 20.232761,
+            "lng": 105.941985
+          },
           "kind": "planned",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "100,000 VND, gates from 06:00. At the top of the stairs go right along the dragon spine for the view down over the Tam Coc river bend; the left-hand path to the seated Quan Am statue is the crowded one. There is no shade on the steps, so this stops being pleasant after about 09:30 in summer.",
-          "cost": { "amountMinor": 600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bich Dong Pagoda on the way back",
-          "timeWindow": { "start": "10:45", "end": "11:30" },
-          "location": { "name": "Bich Dong Pagoda", "city": "Ninh Binh", "area": "Ninh Hai" },
+          "timeWindow": {
+            "start": "10:45",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Bich Dong Pagoda",
+            "city": "Ninh Binh",
+            "area": "Ninh Hai",
+            "lat": 20.217462,
+            "lng": 105.915708
+          },
           "kind": "idea",
           "tags": [],
           "notes": "Free, two minutes off the Tam Coc road, three pagodas stacked up a cliff with a cave passage between the second and third. Skip it without guilt if the morning has run long."
         },
         {
           "title": "Goat and com chay lunch in Tam Coc",
-          "timeWindow": { "start": "12:00", "end": "13:00" },
-          "location": { "name": "Nha Hang De Nui", "city": "Ninh Binh", "area": "Tam Coc" },
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Nha Hang De Nui",
+            "city": "Ninh Binh",
+            "area": "Tam Coc",
+            "lat": 20.55431,
+            "lng": 105.793729
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Ninh Binh's two dishes are mountain goat (de nui, grilled or with lemon leaf) and com chay, scorched rice crust served with a thick meat gravy. Order one goat plate between two: the portions are for a table of Vietnamese families.",
-          "cost": { "amountMinor": 800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Trang An boat, route 3",
-          "timeWindow": { "start": "13:30", "end": "16:30" },
-          "location": { "name": "Trang An Landscape Complex", "city": "Ninh Binh", "area": "Trang An" },
+          "timeWindow": {
+            "start": "13:30",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Trang An Landscape Complex",
+            "city": "Ninh Binh",
+            "area": "Trang An",
+            "lat": 20.253783,
+            "lng": 105.900501
+          },
           "kind": "booked",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "250,000 VND for any route. Route 1 is the famous one, nine caves and three hours, and it is also the one every coach takes. Route 3 covers the Kong: Skull Island set and Suoi Tien temple with a fraction of the traffic. Last boats leave around 16:00, so a 13:30 start is the back edge of safe. Some cave ceilings are low enough that everyone lies flat; there is a hard hat under the seat and it is not decorative.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Am Tien valley at the end of the light",
-          "timeWindow": { "start": "17:00", "end": "18:15" },
-          "location": { "name": "Am Tien Cave and lake", "city": "Ninh Binh", "area": "Hoa Lu" },
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:15"
+          },
+          "location": {
+            "name": "Am Tien Cave and lake",
+            "city": "Ninh Binh",
+            "area": "Hoa Lu",
+            "lat": 20.242114,
+            "lng": 105.974621
+          },
           "kind": "idea",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "A walled lake in a bowl of karst behind the old Hoa Lu capital, reached through a tunnel in the rock. Late afternoon is the only time it is worth the ticket; midday it is a car park.",
-          "cost": { "amountMinor": 400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner and a Bia Hoi at Chookie's, Tam Coc",
-          "timeWindow": { "start": "19:00", "end": "20:30" },
-          "location": { "name": "Chookie's Beer Garden", "city": "Ninh Binh", "area": "Tam Coc" },
+          "timeWindow": {
+            "start": "19:00",
+            "end": "20:30"
+          },
+          "location": {
+            "name": "Chookie's Beer Garden",
+            "city": "Ninh Binh",
+            "area": "Tam Coc",
+            "lat": 20.216031,
+            "lng": 105.932078
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The village's default meeting point and the easiest place to find someone to share a car to Cat Ba or Phong Nha the next morning.",
-          "cost": { "amountMinor": 900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -298,86 +630,206 @@
       "ownerId": "dev-kenji",
       "visibility": "public",
       "keptOn": "2025-07-12T11:15:00.000Z",
-      "sourceTrip": { "name": "Central Vietnam on bicycles" },
+      "sourceTrip": {
+        "name": "Central Vietnam on bicycles"
+      },
       "addedBy": [
-        { "addedBy": "dev-alice" },
-        { "addedBy": "dev-carlos" },
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-ruth" },
-        { "addedBy": "dev-sofia" }
+        {
+          "addedBy": "dev-alice"
+        },
+        {
+          "addedBy": "dev-carlos"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-sofia"
+        }
       ],
       "stops": [
         {
           "title": "Banh mi at Banh Mi Phuong, 2B Phan Chu Trinh",
-          "timeWindow": { "start": "07:30", "end": "08:20" },
-          "location": { "name": "Banh Mi Phuong", "city": "Hoi An", "area": "Ancient Town" },
+          "timeWindow": {
+            "start": "07:30",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Banh Mi Phuong",
+            "city": "Hoi An",
+            "area": "Ancient Town",
+            "lat": 15.878484,
+            "lng": 108.332008
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Opens at 06:30 and the queue is out of the door by 09:00; at 07:30 it is two minutes. The one to order is the pate and cold cuts with everything, and the sauce is the reason. Madam Khanh, two streets away on Tran Cao Van, is the calmer alternative with an equally good claim.",
-          "cost": { "amountMinor": 250, "currency": "USD" }
+          "cost": {
+            "amountMinor": 250,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ancient Town ticket, Japanese Bridge and Tan Ky house",
-          "timeWindow": { "start": "08:30", "end": "09:45" },
-          "location": { "name": "Japanese Covered Bridge", "city": "Hoi An", "area": "Ancient Town" },
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Japanese Covered Bridge",
+            "city": "Hoi An",
+            "area": "Ancient Town",
+            "lat": 15.877117,
+            "lng": 108.32601
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "120,000 VND buys a booklet of five coupons good for five of twenty-two heritage sites; the bridge takes one, Tan Ky merchant house takes another. Ticket checkers work the street entrances between roughly 09:00 and 16:00 and are relaxed outside those hours. Tan Ky is the best-value coupon: the family still lives there and the flood marks are on the pillar by the courtyard.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Measuring and fabric at Yaly Couture, 47 Nguyen Thai Hoc",
-          "timeWindow": { "start": "10:00", "end": "11:15" },
-          "location": { "name": "Yaly Couture", "city": "Hoi An", "area": "Nguyen Thai Hoc" },
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Yaly Couture",
+            "city": "Hoi An",
+            "area": "Nguyen Thai Hoc",
+            "lat": 15.878135,
+            "lng": 108.333791
+          },
           "kind": "booked",
           "tags": [],
           "notes": "The whole trick is doing this on your FIRST morning in town: measured before noon, first fitting the same evening, second fitting next morning, collect that afternoon. A day less and you get one fitting, which is how people end up with a suit that does not fit. A two-piece in a real wool from the upstairs bolts is 2,400,000-3,500,000 VND; the cheap 800,000 suits are polyester and hang like it. Bring a photograph of what you want and shoes you will actually wear with it, for the hem.",
-          "cost": { "amountMinor": 9800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 9800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Cao lau at Ba Be in the central market",
-          "timeWindow": { "start": "11:30", "end": "12:30" },
-          "location": { "name": "Hoi An Central Market food hall", "city": "Hoi An", "area": "Bach Dang" },
+          "timeWindow": {
+            "start": "11:30",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Hoi An Central Market food hall",
+            "city": "Hoi An",
+            "area": "Bach Dang",
+            "lat": 15.876004,
+            "lng": 108.329848
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Cao lau exists in Hoi An and effectively nowhere else because the noodles are made with lye water from the Ba Le well and ash from Cham Island. Thick, chewy, almost no broth. Order white rose dumplings alongside — every restaurant in town buys them from the same one family.",
-          "cost": { "amountMinor": 200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bicycle out to An Bang",
-          "timeWindow": { "start": "13:45", "end": "14:10" },
-          "location": { "name": "Hai Ba Trung road", "city": "Hoi An", "area": "Cam An" },
+          "timeWindow": {
+            "start": "13:45",
+            "end": "14:10"
+          },
+          "location": {
+            "name": "Hai Ba Trung road",
+            "city": "Hoi An",
+            "area": "Cam An",
+            "lat": 15.877769,
+            "lng": 108.326756
+          },
           "kind": "transit",
           "tags": [],
           "notes": "Four flat kilometres straight up Hai Ba Trung and most hotels lend bikes free. Park in the paid lot at the beach entrance (10,000-20,000 VND) rather than against a cafe fence.",
-          "cost": { "amountMinor": 200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 200,
+            "currency": "USD"
+          }
         },
         {
           "title": "An Bang Beach afternoon",
-          "timeWindow": { "start": "14:15", "end": "17:30" },
-          "location": { "name": "An Bang Beach", "city": "Hoi An", "area": "An Bang Beach" },
+          "timeWindow": {
+            "start": "14:15",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "An Bang Beach",
+            "city": "Hoi An",
+            "area": "An Bang Beach",
+            "lat": 15.911663,
+            "lng": 108.340316
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Sunbeds are free if you eat or drink at the place that owns them; Soul Kitchen at the north end and Sound of Silence a little further on are the two worth walking to. Cua Dai, the closer beach, has largely been eaten by erosion and sandbags — An Bang is the one with sand left. Undertow is real from October to December.",
-          "cost": { "amountMinor": 700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lantern boat from the Bach Dang steps",
-          "timeWindow": { "start": "18:45", "end": "19:30" },
-          "location": { "name": "Bach Dang riverfront steps", "city": "Hoi An", "area": "Thu Bon riverfront" },
+          "timeWindow": {
+            "start": "18:45",
+            "end": "19:30"
+          },
+          "location": {
+            "name": "Bach Dang riverfront steps",
+            "city": "Hoi An",
+            "area": "Thu Bon riverfront",
+            "lat": 15.87944,
+            "lng": 108.335
+          },
           "kind": "booked",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The posted 2026 rate is 170,000 VND for one to three people and 220,000 for four to five, for a twenty-minute row with paper lanterns to float. Agree the price and the number of lanterns before you step in, because the boat-side quote doubles after dark. On the 14th night of the lunar month the town cuts its electric lights for the lantern festival and the river is worth being on; every other night, going out before the crowd at 18:45 beats waiting for full dark.",
-          "cost": { "amountMinor": 700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner at Morning Glory, 106 Nguyen Thai Hoc",
-          "timeWindow": { "start": "19:45", "end": "21:15" },
-          "location": { "name": "Morning Glory Original", "city": "Hoi An", "area": "Nguyen Thai Hoc" },
+          "timeWindow": {
+            "start": "19:45",
+            "end": "21:15"
+          },
+          "location": {
+            "name": "Morning Glory Original",
+            "city": "Hoi An",
+            "area": "Nguyen Thai Hoc",
+            "lat": 15.876618,
+            "lng": 108.327663
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Book a table, or expect an hour on the pavement. It is a street-food kitchen run properly rather than a fancy restaurant: the clay-pot fish, the banh xeo folded at the table, and the pork with betel leaf. Ask for the upstairs balcony over the lantern street.",
-          "cost": { "amountMinor": 1600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1600,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -388,80 +840,201 @@
       "ownerId": "dev-maeve",
       "visibility": "public",
       "keptOn": "2025-04-30T09:30:00.000Z",
-      "sourceTrip": { "name": "Bali with the in-laws" },
-      "addedBy": [{ "addedBy": "dev-bob" }, { "addedBy": "dev-tomas" }, { "addedBy": "dev-priya" }],
+      "sourceTrip": {
+        "name": "Bali with the in-laws"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
+      ],
       "stops": [
         {
           "title": "Driver pickup on Jalan Raya Ubud",
-          "timeWindow": { "start": "05:45", "end": "06:15" },
-          "location": { "name": "Jalan Raya Ubud", "city": "Ubud", "area": "Ubud centre" },
+          "timeWindow": {
+            "start": "05:45",
+            "end": "06:15"
+          },
+          "location": {
+            "name": "Jalan Raya Ubud",
+            "city": "Ubud",
+            "area": "Ubud centre",
+            "lat": -8.50769,
+            "lng": 115.264267
+          },
           "kind": "transit",
           "tags": [],
           "notes": "A car and driver for the whole day is 550,000-650,000 IDR and covers all three sites plus waiting time, which is cheaper than three Grab rides and the only way to make a 06:00 arrival at Tegallalang. Agree the itinerary and the price the night before in writing; a driver who wants to add a coffee-luwak plantation is being paid commission, and you can just say no.",
-          "cost": { "amountMinor": 3200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Tegallalang Rice Terrace before the coaches",
-          "timeWindow": { "start": "06:20", "end": "08:00" },
-          "location": { "name": "Tegallalang Rice Terrace", "city": "Tegallalang", "area": "Ceking" },
+          "timeWindow": {
+            "start": "06:20",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Tegallalang Rice Terrace",
+            "city": "Tegallalang",
+            "area": "Ceking",
+            "lat": -8.449513,
+            "lng": 115.280135
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Entry is 25,000 IDR plus parking at the main Ceking gate. Then be ready for the honesty boxes: individual farmers charge 10,000-20,000 IDR each to cross their own terrace, and it is legitimate — carry a stack of small notes. Walk DOWN into the valley and up the far side rather than photographing from the road; the far side is where the light lands at seven. Tour coaches start landing at 09:00 and it is over by 09:30.",
-          "cost": { "amountMinor": 160, "currency": "USD" }
+          "cost": {
+            "amountMinor": 160,
+            "currency": "USD"
+          }
         },
         {
           "title": "Breakfast over the valley at Alas Harum",
-          "timeWindow": { "start": "08:15", "end": "09:00" },
-          "location": { "name": "Alas Harum", "city": "Tegallalang", "area": "Ceking" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Alas Harum",
+            "city": "Tegallalang",
+            "area": "Ceking",
+            "lat": -8.449513,
+            "lng": 115.280135
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Coffee and nasi goreng on the terrace edge. The swings and the glass floor here are an extra 100,000-300,000 IDR and are entirely skippable; the point of stopping is a table and a bathroom before the temple.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Melukat at Tirta Empul, Tampaksiring",
-          "timeWindow": { "start": "09:20", "end": "11:20" },
-          "location": { "name": "Pura Tirta Empul", "city": "Tampaksiring", "area": "Manukaya" },
+          "timeWindow": {
+            "start": "09:20",
+            "end": "11:20"
+          },
+          "location": {
+            "name": "Pura Tirta Empul",
+            "city": "Tampaksiring",
+            "area": "Manukaya",
+            "lat": -8.414307,
+            "lng": 115.313147
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "75,000 IDR includes the sarong, which is compulsory in the inner courtyards and handed to you at the gate. If you enter the bathing pools: bring a change of clothes and a sarong you can get wet, use the lockers (20,000 IDR), and move left to right under each spout in order, washing face and head at each. Skip the last two spouts of the main row — those are for funeral purification and are not for visitors. Women who are menstruating may not enter the temple at all; the rule is posted and taken seriously. Arriving at 09:20 puts you in the pools before the Kintamani day tours arrive at 11:00.",
-          "cost": { "amountMinor": 460, "currency": "USD" }
+          "cost": {
+            "amountMinor": 460,
+            "currency": "USD"
+          }
         },
         {
           "title": "Gunung Kawi rock-cut shrines",
-          "timeWindow": { "start": "11:35", "end": "12:50" },
-          "location": { "name": "Gunung Kawi", "city": "Tampaksiring", "area": "Tampaksiring" },
+          "timeWindow": {
+            "start": "11:35",
+            "end": "12:50"
+          },
+          "location": {
+            "name": "Gunung Kawi",
+            "city": "Tampaksiring",
+            "area": "Tampaksiring",
+            "lat": -8.422963,
+            "lng": 115.312533
+          },
           "kind": "planned",
-          "tags": ["ticketed", "outdoors"],
+          "tags": [
+            "ticketed",
+            "outdoors"
+          ],
           "notes": "Ten minutes from Tirta Empul, 50,000 IDR with sarong. Three hundred-odd steps down through a rice-terrace ravine to eleventh-century shrines cut straight into the cliff face. The steps back up in midday heat are the real ticket price. Almost nobody comes here and it is the better temple of the two.",
-          "cost": { "amountMinor": 310, "currency": "USD" }
+          "cost": {
+            "amountMinor": 310,
+            "currency": "USD"
+          }
         },
         {
           "title": "Babi guling at Warung Ibu Oka 3",
-          "timeWindow": { "start": "13:20", "end": "14:20" },
-          "location": { "name": "Warung Babi Guling Ibu Oka 3", "city": "Ubud", "area": "Jalan Tegal Sari" },
+          "timeWindow": {
+            "start": "13:20",
+            "end": "14:20"
+          },
+          "location": {
+            "name": "Warung Babi Guling Ibu Oka 3",
+            "city": "Ubud",
+            "area": "Jalan Tegal Sari",
+            "lat": -8.505743,
+            "lng": 115.264068
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "One dish, ordered as the 'special' if you want the crackling and the sausage. They roast a fixed number of pigs and stop when it is gone, usually between 14:00 and 15:00. Branch 3 has seating; the original by the palace is standing room.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Massage at Karsa Spa on the Campuhan ridge",
-          "timeWindow": { "start": "14:45", "end": "16:15" },
-          "location": { "name": "Karsa Spa", "city": "Ubud", "area": "Bangkiang Sidem" },
+          "timeWindow": {
+            "start": "14:45",
+            "end": "16:15"
+          },
+          "location": {
+            "name": "Karsa Spa",
+            "city": "Ubud",
+            "area": "Bangkiang Sidem",
+            "lat": -8.48971,
+            "lng": 115.258042
+          },
           "kind": "hold",
           "tags": [],
           "notes": "Held rather than booked because it depends on how the morning has gone. Reached on foot along the Campuhan Ridge Walk — twenty-five minutes through elephant grass, no cars — or by scooter along the back lane. Book a slot by phone in the morning; walk-ins on a Saturday do not get one.",
-          "cost": { "amountMinor": 1500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Legong in the Ubud Palace courtyard",
-          "timeWindow": { "start": "19:30", "end": "20:45" },
-          "location": { "name": "Puri Saren Agung (Ubud Palace)", "city": "Ubud", "area": "Ubud centre" },
+          "timeWindow": {
+            "start": "19:30",
+            "end": "20:45"
+          },
+          "location": {
+            "name": "Puri Saren Agung (Ubud Palace)",
+            "city": "Ubud",
+            "area": "Ubud centre",
+            "lat": -8.506723,
+            "lng": 115.262707
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "100,000 IDR, sold at a table by the gate from about 18:00 for a 19:30 start; different troupes on different nights and the Legong is the one to pick. Plastic chairs, no raised stage, so sit in the first four rows or you watch the back of a head. The gamelan is live and loud and that is the whole reason to go.",
-          "cost": { "amountMinor": 610, "currency": "USD" }
+          "cost": {
+            "amountMinor": 610,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -472,71 +1045,170 @@
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2026-02-11T12:00:00.000Z",
-      "sourceTrip": { "name": "Bali, the south end" },
+      "sourceTrip": {
+        "name": "Bali, the south end"
+      },
       "addedBy": [],
       "stops": [
         {
           "title": "Scooter down the Bukit",
-          "timeWindow": { "start": "08:30", "end": "09:00" },
-          "location": { "name": "Jalan Labuansait", "city": "Uluwatu", "area": "Pecatu" },
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Jalan Labuansait",
+            "city": "Uluwatu",
+            "area": "Pecatu",
+            "lat": -8.8352,
+            "lng": 115.096789
+          },
           "kind": "transit",
           "tags": [],
           "notes": "70,000-80,000 IDR a day plus fuel. The Bukit's roads are steep, narrow and busy with surf traffic, and police checkpoints on Jalan Uluwatu do ask for an international permit. If you are not confident, a driver for the day is about 600,000 IDR and does the same loop.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Padang Padang Beach through the rock staircase",
-          "timeWindow": { "start": "09:00", "end": "11:30" },
-          "location": { "name": "Padang Padang Beach", "city": "Uluwatu", "area": "Labuan Sait" },
+          "timeWindow": {
+            "start": "09:00",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Padang Padang Beach",
+            "city": "Uluwatu",
+            "area": "Labuan Sait",
+            "lat": -8.828008,
+            "lng": 115.086903
+          },
           "kind": "planned",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "15,000 IDR at the top, then a narrow stone staircase down through a cleft in the cliff. It is a small beach and it effectively disappears at high tide, so check the tide table the night before and come on a falling tide. Monkeys on the stairs will take an unzipped bag. If the tide is wrong, Thomas Beach five minutes south stays usable all day and has almost nobody on it.",
-          "cost": { "amountMinor": 120, "currency": "USD" }
+          "cost": {
+            "amountMinor": 120,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch at Single Fin, Suluban",
-          "timeWindow": { "start": "12:00", "end": "13:15" },
-          "location": { "name": "Single Fin", "city": "Uluwatu", "area": "Suluban" },
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:15"
+          },
+          "location": {
+            "name": "Single Fin",
+            "city": "Uluwatu",
+            "area": "Suluban",
+            "lat": -8.815008,
+            "lng": 115.088921
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Sunday evening here is a full party with a queue for the road. On a weekday at noon you get the same cliff view over the Uluwatu break with a table you can just sit at. Go down the stairs past the bar to the Suluban sea cave afterwards — again, only at low tide.",
-          "cost": { "amountMinor": 1400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Balangan Beach and a warung nap",
-          "timeWindow": { "start": "13:45", "end": "15:30" },
-          "location": { "name": "Balangan Beach", "city": "Uluwatu", "area": "Balangan" },
+          "timeWindow": {
+            "start": "13:45",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Balangan Beach",
+            "city": "Uluwatu",
+            "area": "Balangan",
+            "lat": -8.812978,
+            "lng": 115.144883
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Twenty minutes north, a long strip of sand under the cliff with bamboo warungs selling cold Bintang and grilled corn. The alternative afternoon if Padang Padang was crowded or the tide was wrong.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Pura Luhur Uluwatu cliff path",
-          "timeWindow": { "start": "16:00", "end": "17:20" },
-          "location": { "name": "Pura Luhur Uluwatu", "city": "Uluwatu", "area": "Pecatu" },
+          "timeWindow": {
+            "start": "16:00",
+            "end": "17:20"
+          },
+          "location": {
+            "name": "Pura Luhur Uluwatu",
+            "city": "Uluwatu",
+            "area": "Pecatu",
+            "lat": -8.829369,
+            "lng": 115.084343
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "60,000 IDR for adults, 40,000 for children, and a sarong and sash are handed out with the ticket — purple if your legs are already covered, a full sarong if not. Walk the north cliff path first: it is longer, emptier and looks back at the temple on its headland. The macaques here are organised thieves who specifically take sunglasses, phones and hats; wear nothing loose, and if they take something, the temple staff will trade fruit for it — do not chase.",
-          "cost": { "amountMinor": 370, "currency": "USD" }
+          "cost": {
+            "amountMinor": 370,
+            "currency": "USD"
+          }
         },
         {
           "title": "Kecak and fire dance in the cliff amphitheatre",
-          "timeWindow": { "start": "18:00", "end": "19:00" },
-          "location": { "name": "Uluwatu kecak amphitheatre", "city": "Uluwatu", "area": "Pecatu" },
+          "timeWindow": {
+            "start": "18:00",
+            "end": "19:00"
+          },
+          "location": {
+            "name": "Uluwatu kecak amphitheatre",
+            "city": "Uluwatu",
+            "area": "Pecatu",
+            "lat": -8.8352,
+            "lng": 115.096789
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "A separate 150,000 IDR ticket from the temple entry, sold at the booth by the car park from about 17:00 — and it sells out in July, August and around New Year, so buy it when you arrive at 16:00 rather than at 17:45. Sixty minutes, no instruments, seventy men chanting 'cak' while the Ramayana is acted out and the sun goes into the sea behind the stage. Sit high on the left for the sea behind the fire. In peak months a second show is added at 19:00, which is the calmer ticket but loses the sunset.",
-          "cost": { "amountMinor": 920, "currency": "USD" }
+          "cost": {
+            "amountMinor": 920,
+            "currency": "USD"
+          }
         },
         {
           "title": "Seafood on the sand at Menega Cafe, Muaya Beach",
-          "timeWindow": { "start": "19:45", "end": "21:30" },
-          "location": { "name": "Menega Cafe", "city": "Jimbaran", "area": "Muaya Beach" },
+          "timeWindow": {
+            "start": "19:45",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Menega Cafe",
+            "city": "Jimbaran",
+            "area": "Muaya Beach",
+            "lat": -8.780719,
+            "lng": 115.164383
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Thirty minutes north of the temple. You pick from the tanks and it is priced by the kilogram: get the per-kilo price and the weight written on the slip BEFORE they cook, because the bill is where Jimbaran goes wrong for people. Grilled snapper, prawns and a plate of sambal matah is the order. Book a table on the sand for after the kecak — the front row goes at 19:00.",
-          "cost": { "amountMinor": 2800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -547,79 +1219,192 @@
       "ownerId": "dev-kenji",
       "visibility": "public",
       "keptOn": "2024-10-19T07:45:00.000Z",
-      "sourceTrip": { "name": "Java overland, Jakarta to Bali" },
-      "addedBy": [{ "addedBy": "dev-nadia" }],
+      "sourceTrip": {
+        "name": "Java overland, Jakarta to Bali"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-nadia"
+        }
+      ],
       "stops": [
         {
           "title": "Car from Yogyakarta to Borobudur in the dark",
-          "timeWindow": { "start": "03:30", "end": "04:15" },
-          "location": { "name": "Malioboro hotel pickup", "city": "Yogyakarta", "area": "Malioboro" },
+          "timeWindow": {
+            "start": "03:30",
+            "end": "04:15"
+          },
+          "location": {
+            "name": "Malioboro hotel pickup",
+            "city": "Yogyakarta",
+            "area": "Malioboro",
+            "lat": -7.794167,
+            "lng": 110.36684
+          },
           "kind": "transit",
           "tags": [],
           "notes": "An hour and ten from Malioboro at that hour against nearly two in daylight, so this is the only sane way to do the sunrise. A driver for the whole day, Borobudur then Prambanan, is 550,000-700,000 IDR and must be arranged the night before; there is no ride-hailing coverage at 03:30. Go to the Manohara gate inside the park, not the main ticket office — that is a different entrance and it is closed.",
-          "cost": { "amountMinor": 3700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Sunrise access on the Borobudur terraces",
-          "timeWindow": { "start": "04:30", "end": "06:45" },
-          "location": { "name": "Borobudur Temple", "city": "Magelang", "area": "Borobudur" },
+          "timeWindow": {
+            "start": "04:30",
+            "end": "06:45"
+          },
+          "location": {
+            "name": "Borobudur Temple",
+            "city": "Magelang",
+            "area": "Borobudur",
+            "lat": -7.607958,
+            "lng": 110.203824
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "1,000,000 IDR, capped at roughly 100 people a morning, and it CANNOT be bought on the day — there is no walk-up window, reservations go through the authorised channel in advance and sell out weeks ahead in the dry season. Registration is 04:00-04:30 at Manohara, they issue a torch and the compulsory upacala sandals (structural conservation rule: your own shoes may not touch the stone), and you go up in guided groups of about twenty. Cover shoulders and knees. Afterwards the ticket includes breakfast. If the quota is gone, Punthuk Setumbu hill is 30,000 IDR for the temple floating in mist from two kilometres away, then enter normally at 06:30 — honestly a fine substitute at a thirtieth of the price.",
-          "cost": { "amountMinor": 6100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 6100,
+            "currency": "USD"
+          }
         },
         {
           "title": "Breakfast at Manohara, in the garden under the temple",
-          "timeWindow": { "start": "07:00", "end": "07:50" },
-          "location": { "name": "Manohara Resort", "city": "Magelang", "area": "Borobudur" },
+          "timeWindow": {
+            "start": "07:00",
+            "end": "07:50"
+          },
+          "location": {
+            "name": "Manohara Resort",
+            "city": "Magelang",
+            "area": "Borobudur",
+            "lat": -7.604761,
+            "lng": 110.201343
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Included in the sunrise ticket, so do not walk out and buy breakfast elsewhere. This is also where you hand back the sandals."
         },
         {
           "title": "Candi Mendut and Candi Pawon on the way out",
-          "timeWindow": { "start": "08:15", "end": "09:15" },
-          "location": { "name": "Candi Mendut", "city": "Magelang", "area": "Mungkid" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Candi Mendut",
+            "city": "Magelang",
+            "area": "Mungkid",
+            "lat": -7.606128,
+            "lng": 110.21956
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Three kilometres east, and on the same dead-straight axis as Borobudur — the three were built as one pilgrimage route. 10,000-20,000 IDR each. The three-metre seated Buddha inside Mendut is the finest single statue in central Java and there will be perhaps four other people there.",
-          "cost": { "amountMinor": 80, "currency": "USD" }
+          "cost": {
+            "amountMinor": 80,
+            "currency": "USD"
+          }
         },
         {
           "title": "Gudeg at Yu Djum on Wijilan",
-          "timeWindow": { "start": "12:00", "end": "13:00" },
-          "location": { "name": "Gudeg Yu Djum", "city": "Yogyakarta", "area": "Wijilan" },
+          "timeWindow": {
+            "start": "12:00",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Gudeg Yu Djum",
+            "city": "Yogyakarta",
+            "area": "Wijilan",
+            "lat": -7.804537,
+            "lng": 110.366894
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Wijilan, just east of the kraton wall, is the gudeg street — young jackfruit stewed for hours in coconut milk and palm sugar, served with krecek, egg and chicken. Ask for gudeg kering, the drier version, which is the Yogya one. About 25,000-35,000 IDR a plate.",
-          "cost": { "amountMinor": 200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Prambanan in the late light",
-          "timeWindow": { "start": "15:30", "end": "17:45" },
-          "location": { "name": "Prambanan Temple Compounds", "city": "Sleman", "area": "Prambanan" },
+          "timeWindow": {
+            "start": "15:30",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Prambanan Temple Compounds",
+            "city": "Sleman",
+            "area": "Prambanan",
+            "lat": -7.785388,
+            "lng": 110.496075
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "400,000 IDR for foreign adults. The Borobudur + Prambanan combo at 575,000 saves 175,000 but does NOT apply if you bought the sunrise ticket, so buy this one on its own. Enter by the east gate and read the Ramayana reliefs clockwise from the Shiva temple's east stair, which is the order they were carved to be read in. From about 16:30 the stone goes orange and the day-trip buses have gone.",
-          "cost": { "amountMinor": 2450, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2450,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ramayana ballet at the Trimurti open-air stage",
-          "timeWindow": { "start": "19:30", "end": "21:30" },
-          "location": { "name": "Trimurti open-air theatre", "city": "Sleman", "area": "Prambanan" },
+          "timeWindow": {
+            "start": "19:30",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Trimurti open-air theatre",
+            "city": "Sleman",
+            "area": "Prambanan",
+            "lat": -7.785388,
+            "lng": 110.496075
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "The outdoor stage runs in the dry season, May to October, with the floodlit temples as the backdrop; in the wet season it moves indoors to the covered Trimurti theatre and loses most of the point. Book online a few days ahead and take the middle-price seats — the cheapest are far enough back that the temples and the dancers stop being one picture. Two hours, gamelan, no dialogue.",
-          "cost": { "amountMinor": 1550, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1550,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lesehan mats on Malioboro at the end of it",
-          "timeWindow": { "start": "22:15", "end": "23:00" },
-          "location": { "name": "Malioboro lesehan stalls", "city": "Yogyakarta", "area": "Malioboro" },
+          "timeWindow": {
+            "start": "22:15",
+            "end": "23:00"
+          },
+          "location": {
+            "name": "Malioboro lesehan stalls",
+            "city": "Yogyakarta",
+            "area": "Malioboro",
+            "lat": -7.795292,
+            "lng": 110.365727
+          },
           "kind": "idea",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Mats and low tables appear along the east pavement after about 18:00 and run late — nasi kucing, grilled chicken, kopi joss with a lump of glowing charcoal dropped in it. Prices are fixed and posted at most stalls now; ask anyway if there is no sign.",
-          "cost": { "amountMinor": 300, "currency": "USD" }
+          "cost": {
+            "amountMinor": 300,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -630,78 +1415,189 @@
       "ownerId": "dev-maeve",
       "visibility": "public",
       "keptOn": "2025-08-09T06:30:00.000Z",
-      "sourceTrip": { "name": "Flores and the eastern islands" },
-      "addedBy": [{ "addedBy": "dev-marco" }, { "addedBy": "dev-ruth" }, { "addedBy": "dev-alice" }],
+      "sourceTrip": {
+        "name": "Flores and the eastern islands"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-marco"
+        },
+        {
+          "addedBy": "dev-ruth"
+        },
+        {
+          "addedBy": "dev-alice"
+        }
+      ],
       "stops": [
         {
           "title": "Ojek down to Labuan Bajo harbour",
-          "timeWindow": { "start": "05:00", "end": "05:25" },
-          "location": { "name": "Labuan Bajo harbour", "city": "Labuan Bajo", "area": "Waterfront" },
+          "timeWindow": {
+            "start": "05:00",
+            "end": "05:25"
+          },
+          "location": {
+            "name": "Labuan Bajo harbour",
+            "city": "Labuan Bajo",
+            "area": "Waterfront",
+            "lat": -8.493441,
+            "lng": 119.876308
+          },
           "kind": "transit",
           "tags": [],
           "notes": "The town harbour on the main waterfront, not the Marina to the north — confirm which jetty with the operator by message the night before, because the two are a twenty-minute drive apart and boats do not wait. Ojek 20,000-30,000 IDR.",
-          "cost": { "amountMinor": 200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Private fast boat charter, cast off at 05:30",
-          "timeWindow": { "start": "05:30", "end": "06:40" },
-          "location": { "name": "Komodo National Park waters", "city": "Labuan Bajo", "area": "Komodo National Park" },
+          "timeWindow": {
+            "start": "05:30",
+            "end": "06:40"
+          },
+          "location": {
+            "name": "Komodo National Park waters",
+            "city": "Labuan Bajo",
+            "area": "Komodo National Park",
+            "lat": -8.498355,
+            "lng": 119.88316
+          },
           "kind": "booked",
           "tags": [],
           "notes": "A shared speedboat is 50-90 USD a head, leaves at 06:00-06:30 and reaches Padar with fifteen other boats. A private charter for up to five people is roughly 3.5-4.5 million IDR for the day and its entire value is leaving at 05:30 and choosing your own order of stops. Split three or four ways it is barely more than the shared seat. Confirm in writing that fuel, crew, lunch and snorkel gear are included and that park fees are not.",
-          "cost": { "amountMinor": 24000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 24000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Padar Island: the climb to the three bays",
-          "timeWindow": { "start": "06:45", "end": "08:20" },
-          "location": { "name": "Padar Island", "city": "Labuan Bajo", "area": "Padar Island" },
+          "timeWindow": {
+            "start": "06:45",
+            "end": "08:20"
+          },
+          "location": {
+            "name": "Padar Island",
+            "city": "Labuan Bajo",
+            "area": "Padar Island"
+          },
           "kind": "planned",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "Park entry and ranger fees are collected per person per day at the jetty, in cash, and are higher at weekends and on public holidays — budget around 450,000-550,000 IDR and bring notes, not a card. Eight hundred-odd steps, now mostly boarded, with zero shade: take 1.5 litres each and do it before eight. The famous three-bay photograph is from the SECOND platform, not the summit; most people grind to the top and get a worse picture.",
-          "cost": { "amountMinor": 3400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Manta Point at Karang Makassar, then the Taka Makassar sandbar",
-          "timeWindow": { "start": "08:45", "end": "10:45" },
-          "location": { "name": "Karang Makassar (Manta Point)", "city": "Labuan Bajo", "area": "Komodo National Park" },
+          "timeWindow": {
+            "start": "08:45",
+            "end": "10:45"
+          },
+          "location": {
+            "name": "Karang Makassar (Manta Point)",
+            "city": "Labuan Bajo",
+            "area": "Komodo National Park",
+            "lat": -8.498355,
+            "lng": 119.88316
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Gear is on the boat. The current here runs hard: drop in upstream of the cleaning station, drift, and let the tender pick you up — do not try to swim back. Mantas are most reliable December to February but present year-round. Stay above them and never touch. Taka Makassar, ten minutes on, is a crescent of sand that only exists at low tide."
         },
         {
           "title": "Pink Beach and lunch cooked on board",
-          "timeWindow": { "start": "11:15", "end": "12:45" },
-          "location": { "name": "Pantai Merah (Pink Beach)", "city": "Labuan Bajo", "area": "Komodo Island" },
+          "timeWindow": {
+            "start": "11:15",
+            "end": "12:45"
+          },
+          "location": {
+            "name": "Pantai Merah (Pink Beach)",
+            "city": "Labuan Bajo",
+            "area": "Komodo Island"
+          },
           "kind": "planned",
-          "tags": ["meal", "outdoors"],
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
           "notes": "The pink is crushed red organ-pipe coral in the sand and it reads pink at the waterline in strong light, not in photographs taken at noon from a boat. Snorkelling straight off the beach is better than the beach itself. Crew grill fish and rice on board while you are in the water.",
-          "cost": { "amountMinor": 1200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ranger trek at Loh Liang, Komodo Island",
-          "timeWindow": { "start": "13:15", "end": "14:45" },
-          "location": { "name": "Loh Liang ranger post", "city": "Labuan Bajo", "area": "Komodo Island" },
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Loh Liang ranger post",
+            "city": "Labuan Bajo",
+            "area": "Komodo Island"
+          },
           "kind": "planned",
-          "tags": ["outdoors", "ticketed"],
+          "tags": [
+            "outdoors",
+            "ticketed"
+          ],
           "notes": "The short trek is about 1.5 km and forty-five minutes; medium and long add heat, not dragons. A ranger with a forked stick goes with every group of five and the guide fee is separate from park entry, paid at the post. Dragons gather near the kitchen and the water tank at Loh Liang in the middle of the day, which is exactly why the short loop works. Do not go if you have an open cut; they track blood, and the rangers will ask.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Flying foxes off Kalong Island at dusk",
-          "timeWindow": { "start": "17:45", "end": "18:45" },
-          "location": { "name": "Kalong Island mangroves", "city": "Labuan Bajo", "area": "Komodo National Park" },
+          "timeWindow": {
+            "start": "17:45",
+            "end": "18:45"
+          },
+          "location": {
+            "name": "Kalong Island mangroves",
+            "city": "Labuan Bajo",
+            "area": "Komodo National Park",
+            "lat": -8.498355,
+            "lng": 119.88316
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Thousands of fruit bats lift out of the mangroves in one stream between about 18:10 and 18:30 in the dry season, later when it is overcast. Ask the skipper to cut the engine and drift; the boats that keep motoring get the bats but not the sound."
         },
         {
           "title": "Dinner back on the waterfront",
-          "timeWindow": { "start": "19:45", "end": "21:15" },
-          "location": { "name": "Made in Italy", "city": "Labuan Bajo", "area": "Waterfront" },
+          "timeWindow": {
+            "start": "19:45",
+            "end": "21:15"
+          },
+          "location": {
+            "name": "Made in Italy",
+            "city": "Labuan Bajo",
+            "area": "Waterfront",
+            "lat": -8.493441,
+            "lng": 119.876308
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Wood-fired pizza on a terrace over the harbour, which after eleven hours of sun and salt is exactly the right thing. The night market grills two streets along are the cheaper version and the fish is straight off the boats.",
-          "cost": { "amountMinor": 1800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
         }
       ]
     }

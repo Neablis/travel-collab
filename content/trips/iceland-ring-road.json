@@ -24,7 +24,10 @@
       "name": "Iceland: Reykjavík, the South Coast, Jökulsárlón and the Golden Circle",
       "summary": "Eight winter days, four beds, about 1,100 km, and one night spent standing in a car park looking up.",
       "currency": "USD",
-      "budget": { "amountMinor": 750000, "currency": "USD" },
+      "budget": {
+        "amountMinor": 750000,
+        "currency": "USD"
+      },
       "startsInDays": 140,
       "days": [
         {
@@ -32,48 +35,112 @@
           "stops": [
             {
               "title": "Land at Keflavík",
-              "timeWindow": { "start": "15:20", "end": "16:05" },
-              "location": { "name": "Keflavík International Airport (KEF)", "city": "Keflavík", "area": "Reykjanesbær" },
+              "timeWindow": {
+                "start": "15:20",
+                "end": "16:05"
+              },
+              "location": {
+                "name": "Keflavík International Airport (KEF)",
+                "city": "Keflavík",
+                "area": "Reykjanesbær",
+                "lat": 63.999769,
+                "lng": -22.556537
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Outbound leg; the flight home on day eight is priced separately. In midwinter it is dark by four, so this arrival means the whole first drive is in the dark — which is fine, it is 45 minutes of straight dual carriageway.",
-              "cost": { "amountMinor": 58000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 58000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Collect the 4x4 hire car",
-              "timeWindow": { "start": "16:15", "end": "16:55" },
-              "location": { "name": "Keflavík Airport car hire, Blikavöllur", "city": "Keflavík", "area": "Reykjanesbær" },
+              "timeWindow": {
+                "start": "16:15",
+                "end": "16:55"
+              },
+              "location": {
+                "name": "Keflavík Airport car hire, Blikavöllur",
+                "city": "Keflavík",
+                "area": "Reykjanesbær",
+                "lat": 63.999769,
+                "lng": -22.556537
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Take the sand-and-ash cover. It is the insurance that actually gets claimed on the south coast, where a spring wind off the Skeiðarársandur can strip the paint off a car in ten minutes, and no credit card policy covers it. Photograph all four sides in the bay before you drive off — the light is bad and the damage claims are not.",
-              "cost": { "amountMinor": 96000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 96000,
+                "currency": "USD"
+              }
             },
             {
               "title": "The week's food, at Bónus in Fitjar",
-              "timeWindow": { "start": "17:10", "end": "17:50" },
-              "location": { "name": "Bónus supermarket, Fitjar", "city": "Reykjanesbær", "area": "Njarðvík" },
+              "timeWindow": {
+                "start": "17:10",
+                "end": "17:50"
+              },
+              "location": {
+                "name": "Bónus supermarket, Fitjar",
+                "city": "Reykjanesbær",
+                "area": "Njarðvík",
+                "lat": 63.972765,
+                "lng": -22.543609
+              },
               "kind": "planned",
               "tags": [],
               "notes": "Five minutes off the airport road and the last cheap supermarket before the capital. Buy the breakfasts, the lunches and the flask coffee here: petrol stations east of Vík sell hot dogs, crisps and very little else, and they close early in winter.",
-              "cost": { "amountMinor": 9000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 9000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at Hotel Borg",
-              "timeWindow": { "start": "18:20", "end": "19:00" },
-              "location": { "name": "Hotel Borg, Pósthússtræti", "city": "Reykjavík", "area": "Miðborg" },
+              "timeWindow": {
+                "start": "18:20",
+                "end": "19:00"
+              },
+              "location": {
+                "name": "Hotel Borg, Pósthússtræti",
+                "city": "Reykjavík",
+                "area": "Miðborg",
+                "lat": 64.147008,
+                "lng": -21.938378
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights on Austurvöllur square, so tomorrow is entirely on foot. Street parking downtown is paid 09:00–18:00 on weekdays and free at weekends; the hotel garage is worth it for one night rather than moving the car at nine.",
-              "cost": { "amountMinor": 62000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 62000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at Skál! in Hlemmur Mathöll",
-              "timeWindow": { "start": "20:00", "end": "22:00" },
-              "location": { "name": "Skál!, Hlemmur Mathöll, Laugavegur 107", "city": "Reykjavík", "area": "Hlemmur" },
+              "timeWindow": {
+                "start": "20:00",
+                "end": "22:00"
+              },
+              "location": {
+                "name": "Skál!, Hlemmur Mathöll, Laugavegur 107",
+                "city": "Reykjavík",
+                "area": "Hlemmur",
+                "lat": 64.143391,
+                "lng": -21.914154
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "A food hall in the old bus station, which sounds worse than it is — Skál! is a proper kitchen doing Icelandic ingredients in small plates, and you can eat well for half what a Laugavegur restaurant charges. Fifteen minutes' walk uphill from the hotel.",
-              "cost": { "amountMinor": 11000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 11000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -82,57 +149,139 @@
           "stops": [
             {
               "title": "Cinnamon buns at Brauð & Co",
-              "timeWindow": { "start": "08:30", "end": "09:10" },
-              "location": { "name": "Brauð & Co, Frakkastígur", "city": "Reykjavík", "area": "Skólavörðuholt" },
+              "timeWindow": {
+                "start": "08:30",
+                "end": "09:10"
+              },
+              "location": {
+                "name": "Brauð & Co, Frakkastígur",
+                "city": "Reykjavík",
+                "area": "Skólavörðuholt",
+                "lat": 64.14399,
+                "lng": -21.926073
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "It is a counter, not a café — there is nowhere to sit and nothing to drink. Buy the cinnamon buns and eat them on the church steps a hundred metres up the hill. Open from six and sold out by ten on a Saturday.",
-              "cost": { "amountMinor": 1800, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1800,
+                "currency": "USD"
+              }
             },
             {
               "title": "Up the Hallgrímskirkja tower",
-              "timeWindow": { "start": "09:20", "end": "10:20" },
-              "location": { "name": "Hallgrímskirkja, Skólavörðustígur", "city": "Reykjavík", "area": "Skólavörðuholt" },
+              "timeWindow": {
+                "start": "09:20",
+                "end": "10:20"
+              },
+              "location": {
+                "name": "Hallgrímskirkja, Skólavörðustígur",
+                "city": "Reykjavík",
+                "area": "Skólavörðuholt"
+              },
               "kind": "planned",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "The church is free, the lift up the tower is about 1,400 ISK and is the whole point. Go at opening: it is one small lift and by eleven the queue is down the nave. The coloured roofs read best on a grey day, not a blue one.",
-              "cost": { "amountMinor": 2000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2000,
+                "currency": "USD"
+              }
             },
             {
               "title": "The Settlement Exhibition",
-              "timeWindow": { "start": "10:45", "end": "12:30" },
-              "location": { "name": "The Settlement Exhibition, Aðalstræti 16", "city": "Reykjavík", "area": "Miðborg" },
+              "timeWindow": {
+                "start": "10:45",
+                "end": "12:30"
+              },
+              "location": {
+                "name": "The Settlement Exhibition, Aðalstræti 16",
+                "city": "Reykjavík",
+                "area": "Miðborg",
+                "lat": 64.136983,
+                "lng": -21.938396
+              },
               "kind": "idea",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "Unclaimed — someone put it on the list as the rainy-morning option. It is a 10th-century longhouse left where it was found, under a modern building, and it takes 45 minutes rather than the two hours the ticket price suggests.",
-              "cost": { "amountMinor": 4000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 4000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Lobster soup at Sægreifinn",
-              "timeWindow": { "start": "13:00", "end": "14:15" },
-              "location": { "name": "Sægreifinn (Sea Baron), Geirsgata", "city": "Reykjavík", "area": "Old Harbour" },
+              "timeWindow": {
+                "start": "13:00",
+                "end": "14:15"
+              },
+              "location": {
+                "name": "Sægreifinn (Sea Baron), Geirsgata",
+                "city": "Reykjavík",
+                "area": "Old Harbour",
+                "lat": 64.151669,
+                "lng": -21.942103
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "A shed on the harbour with oilcloth tables and one thing worth ordering. The skewers in the chiller are picked by hand and grilled while you wait; the langoustine soup is the reason for the queue.",
-              "cost": { "amountMinor": 6500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 6500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Sky Lagoon, and the seven-step ritual",
-              "timeWindow": { "start": "16:00", "end": "19:00" },
-              "location": { "name": "Sky Lagoon, Vesturvör, Kópavogur", "city": "Kópavogur", "area": "Kársnes" },
+              "timeWindow": {
+                "start": "16:00",
+                "end": "19:00"
+              },
+              "location": {
+                "name": "Sky Lagoon, Vesturvör, Kópavogur",
+                "city": "Kópavogur",
+                "area": "Kársnes",
+                "lat": 64.116465,
+                "lng": -21.946435
+              },
               "kind": "booked",
-              "tags": ["ticketed"],
+              "tags": [
+                "ticketed"
+              ],
               "notes": "Booked the Sér package for the private changing rooms — the alternative is a communal room, and you shower naked and thoroughly before you get in either way, which is posted and enforced. Take the last slot before dark and do the ritual in the order on the wall: the cold plunge before the sauna is the part everyone skips and the part that works. Leave the phone in the locker; it will not survive the steam.",
-              "cost": { "amountMinor": 26000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 26000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at Sumac",
-              "timeWindow": { "start": "20:30", "end": "22:30" },
-              "location": { "name": "Sumac Grill + Drinks, Laugavegur 28", "city": "Reykjavík", "area": "Miðborg" },
+              "timeWindow": {
+                "start": "20:30",
+                "end": "22:30"
+              },
+              "location": {
+                "name": "Sumac Grill + Drinks, Laugavegur 28",
+                "city": "Reykjavík",
+                "area": "Miðborg",
+                "lat": 64.136983,
+                "lng": -21.938396
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Held for two at 20:30 and not yet confirmed. Levantine grill rather than anything Icelandic, which after two days of fish is the point. Reykjavík restaurants stop seating at 21:30 midweek in winter — this is not a city where you decide at ten.",
-              "cost": { "amountMinor": 16000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 16000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -141,65 +290,152 @@
           "stops": [
             {
               "title": "Route 1 east to Seljalandsfoss",
-              "timeWindow": { "start": "08:00", "end": "09:30" },
-              "location": { "name": "Route 1 (Hringvegur), Reykjavík to Seljalandsfoss", "city": "Hvolsvöllur", "area": "Route 1" },
+              "timeWindow": {
+                "start": "08:00",
+                "end": "09:30"
+              },
+              "location": {
+                "name": "Route 1 (Hringvegur), Reykjavík to Seljalandsfoss",
+                "city": "Hvolsvöllur",
+                "area": "Route 1"
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Check road.is and vedur.is before you turn the key, every single morning of this trip. The colour on road.is changes hourly and a yellow warning for wind on the open stretch past Hvolsvöllur means car doors get ripped off their hinges — hold them with both hands when you open them.",
-              "cost": { "amountMinor": 3000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Seljalandsfoss, and the hidden one next door",
-              "timeWindow": { "start": "09:30", "end": "10:45" },
-              "location": { "name": "Seljalandsfoss and Gljúfrabúi", "city": "Hvolsvöllur", "area": "Seljalandsfoss" },
+              "timeWindow": {
+                "start": "09:30",
+                "end": "10:45"
+              },
+              "location": {
+                "name": "Seljalandsfoss and Gljúfrabúi",
+                "city": "Hvolsvöllur",
+                "area": "Seljalandsfoss"
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Parking is about 1,000 ISK, paid at the machine and enforced by plate camera. The path behind the falls is closed in ice and you will get soaked when it is open. Then walk 500 m north to Gljúfrabúi — it is a waterfall inside a slot canyon, it is free, you wade the last few metres, and nine coach parties out of ten never see it.",
-              "cost": { "amountMinor": 1600, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1600,
+                "currency": "USD"
+              }
             },
             {
               "title": "Skógafoss, and the first flight of the Fimmvörðuháls steps",
-              "timeWindow": { "start": "11:15", "end": "12:30" },
-              "location": { "name": "Skógafoss", "city": "Skógar", "area": "Skógafoss" },
+              "timeWindow": {
+                "start": "11:15",
+                "end": "12:30"
+              },
+              "location": {
+                "name": "Skógafoss",
+                "city": "Skógar",
+                "area": "Skógafoss",
+                "lat": 63.525243,
+                "lng": -19.507761
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Climb the 527 steps on the east side. Fifteen minutes up, and above the lip the river runs through a series of smaller falls that almost nobody walks to — the crowd stays at the bottom taking the same photograph."
             },
             {
               "title": "Lunch at Mia's Country Van",
-              "timeWindow": { "start": "12:45", "end": "13:45" },
-              "location": { "name": "Mia's Country Van, Skógar", "city": "Skógar", "area": "Skógafoss car park" },
+              "timeWindow": {
+                "start": "12:45",
+                "end": "13:45"
+              },
+              "location": {
+                "name": "Mia's Country Van, Skógar",
+                "city": "Skógar",
+                "area": "Skógafoss car park",
+                "lat": 63.524315,
+                "lng": -19.504866
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "A van in the Skógafoss car park doing lamb and fish tacos, and better than anything with a roof between Hvolsvöllur and Vík. Winter hours are short and weather-dependent — the fallback is the café at the Skógar folk museum.",
-              "cost": { "amountMinor": 4500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 4500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Reynisfjara, from the safe end",
-              "timeWindow": { "start": "14:30", "end": "16:00" },
-              "location": { "name": "Reynisfjara black sand beach", "city": "Vík í Mýrdal", "area": "Reynisfjara" },
+              "timeWindow": {
+                "start": "14:30",
+                "end": "16:00"
+              },
+              "location": {
+                "name": "Reynisfjara black sand beach",
+                "city": "Vík í Mýrdal",
+                "area": "Reynisfjara"
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Read the warning-light board at the car park before you walk down; it is a real forecast, not decoration. Sneaker waves here kill visitors most years. Stay above the wet line on the sand, never turn your back on the sea, and do not go near the water to take a photograph of someone standing near the water.",
-              "cost": { "amountMinor": 1000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at Hótel Kría",
-              "timeWindow": { "start": "16:30", "end": "17:15" },
-              "location": { "name": "Hótel Kría, Suðurvíkurvegur", "city": "Vík í Mýrdal", "area": "Vík" },
+              "timeWindow": {
+                "start": "16:30",
+                "end": "17:15"
+              },
+              "location": {
+                "name": "Hótel Kría, Suðurvíkurvegur",
+                "city": "Vík í Mýrdal",
+                "area": "Vík",
+                "lat": 63.417719,
+                "lng": -19.001372
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights in Vík rather than one. Everything from Seljalandsfoss to Jökulsárlón is a day's driving from here and the village has the only fuel, food and pharmacy for eighty kilometres in either direction.",
-              "cost": { "amountMinor": 74000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 74000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at Suður-Vík",
-              "timeWindow": { "start": "19:30", "end": "21:00" },
-              "location": { "name": "Suður-Vík Restaurant, Suðurvíkurvegur", "city": "Vík í Mýrdal", "area": "Vík" },
+              "timeWindow": {
+                "start": "19:30",
+                "end": "21:00"
+              },
+              "location": {
+                "name": "Suður-Vík Restaurant, Suðurvíkurvegur",
+                "city": "Vík í Mýrdal",
+                "area": "Vík",
+                "lat": 63.417719,
+                "lng": -19.001372
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Held but not confirmed. It is an old house on the hill and it is one of three places to eat in the village, so it fills with everyone whose day ended here — ring at four and they will keep a table.",
-              "cost": { "amountMinor": 12000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 12000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -208,29 +444,66 @@
           "stops": [
             {
               "title": "Late breakfast at Skool Beans",
-              "timeWindow": { "start": "10:00", "end": "11:00" },
-              "location": { "name": "Skool Beans, Klettsvegur", "city": "Vík í Mýrdal", "area": "Vík" },
+              "timeWindow": {
+                "start": "10:00",
+                "end": "11:00"
+              },
+              "location": {
+                "name": "Skool Beans, Klettsvegur",
+                "city": "Vík í Mýrdal",
+                "area": "Vík",
+                "lat": 63.417719,
+                "lng": -19.001372
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "A converted school bus behind the campsite, and the best coffee for a very long way in any direction. Winter opening is whatever the owner decides — if the lights are off, the N1 has filter coffee and no charm.",
-              "cost": { "amountMinor": 2200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2200,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dyrhólaey and the walk along the cliff",
-              "timeWindow": { "start": "12:00", "end": "15:00" },
-              "location": { "name": "Dyrhólaey promontory and lighthouse", "city": "Vík í Mýrdal", "area": "Dyrhólaey" },
+              "timeWindow": {
+                "start": "12:00",
+                "end": "15:00"
+              },
+              "location": {
+                "name": "Dyrhólaey promontory and lighthouse",
+                "city": "Vík í Mýrdal",
+                "area": "Dyrhólaey"
+              },
               "kind": "idea",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Nothing booked and nothing needed. The upper road to the lighthouse is 4x4-only and closed outright in the puffin nesting season from May to late June; in winter it is open and empty. The arch and the whole black coast back to Reynisdrangar from one place, and an hour is plenty."
             },
             {
               "title": "The village pool, then dinner at Suður-Vík",
-              "timeWindow": { "start": "17:00", "end": "20:30" },
-              "location": { "name": "Sundlaugin í Vík and Suður-Vík Restaurant", "city": "Vík í Mýrdal", "area": "Vík" },
+              "timeWindow": {
+                "start": "17:00",
+                "end": "20:30"
+              },
+              "location": {
+                "name": "Sundlaugin í Vík and Suður-Vík Restaurant",
+                "city": "Vík í Mýrdal",
+                "area": "Vík",
+                "lat": 63.417634,
+                "lng": -19.000563
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Every Icelandic village has a geothermal pool and a hot pot, and it is where the village actually is at six in the evening. About 1,000 ISK. You shower naked and thoroughly before you get in — it is posted in five languages and the attendant does check.",
-              "cost": { "amountMinor": 14000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 14000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -239,62 +512,139 @@
           "stops": [
             {
               "title": "Breakfast, and check out of Hótel Kría",
-              "timeWindow": { "start": "08:15", "end": "08:50" },
-              "location": { "name": "Hótel Kría, Suðurvíkurvegur", "city": "Vík í Mýrdal", "area": "Vík" },
+              "timeWindow": {
+                "start": "08:15",
+                "end": "08:50"
+              },
+              "location": {
+                "name": "Hótel Kría, Suðurvíkurvegur",
+                "city": "Vík í Mýrdal",
+                "area": "Vík",
+                "lat": 63.417719,
+                "lng": -19.001372
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Fill the flasks. Between Vík and Höfn there are two petrol stations and one of them is unmanned."
             },
             {
               "title": "Drive east, and the Fjaðrárgljúfur canyon rim",
-              "timeWindow": { "start": "09:20", "end": "10:50" },
-              "location": { "name": "Fjaðrárgljúfur canyon", "city": "Kirkjubæjarklaustur", "area": "Fjaðrárgljúfur" },
+              "timeWindow": {
+                "start": "09:20",
+                "end": "10:50"
+              },
+              "location": {
+                "name": "Fjaðrárgljúfur canyon",
+                "city": "Kirkjubæjarklaustur",
+                "area": "Fjaðrárgljúfur"
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "The rim path is closed for weeks at a time in the spring thaw to let the moss recover — check the Environment Agency page the morning you go, not the week before, and if the gate is shut it is shut. The gravel access road is fine in a 2WD in summer and not in February.",
-              "cost": { "amountMinor": 4000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 4000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Skaftafell: Svartifoss and the glacier viewpoint",
-              "timeWindow": { "start": "11:45", "end": "14:00" },
-              "location": { "name": "Skaftafell, Vatnajökull National Park", "city": "Öræfi", "area": "Skaftafell" },
+              "timeWindow": {
+                "start": "11:45",
+                "end": "14:00"
+              },
+              "location": {
+                "name": "Skaftafell, Vatnajökull National Park",
+                "city": "Öræfi",
+                "area": "Skaftafell"
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Parking is 1,000 ISK for the day, paid by app or machine and checked by plate. Svartifoss is 45 minutes up on a made path and 25 back down; the basalt columns behind it are the ones Hallgrímskirkja is copying. Take the loop back past the Skaftafellsjökull viewpoint rather than retracing.",
-              "cost": { "amountMinor": 1300, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1300,
+                "currency": "USD"
+              }
             },
             {
               "title": "Jökulsárlón, and Diamond Beach in the last light",
-              "timeWindow": { "start": "14:45", "end": "16:30" },
-              "location": { "name": "Jökulsárlón glacier lagoon and Breiðamerkursandur", "city": "Öræfi", "area": "Jökulsárlón" },
+              "timeWindow": {
+                "start": "14:45",
+                "end": "16:30"
+              },
+              "location": {
+                "name": "Jökulsárlón glacier lagoon and Breiðamerkursandur",
+                "city": "Öræfi",
+                "area": "Jökulsárlón"
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Cross the road to the beach side in the last hour of daylight — the ice on the black sand catches low sun and the lagoon itself is in shadow by then. The amphibian and zodiac boats only run May to October, so in winter this is a walk, which is no loss. Do not stand on a beached iceberg; they roll."
             },
             {
               "title": "Check in at Fosshotel Glacier Lagoon",
-              "timeWindow": { "start": "17:15", "end": "18:00" },
-              "location": { "name": "Fosshotel Glacier Lagoon, Hnappavellir", "city": "Öræfi", "area": "Hnappavellir" },
+              "timeWindow": {
+                "start": "17:15",
+                "end": "18:00"
+              },
+              "location": {
+                "name": "Fosshotel Glacier Lagoon, Hnappavellir",
+                "city": "Öræfi",
+                "area": "Hnappavellir"
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "One night, twenty minutes west of the lagoon and the only real hotel in this stretch. It is on the sandur with no other light for miles, which is exactly why the aurora plan below works from the car park.",
-              "cost": { "amountMinor": 46000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 46000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at the hotel",
-              "timeWindow": { "start": "19:00", "end": "20:30" },
-              "location": { "name": "Fosshotel Glacier Lagoon restaurant", "city": "Öræfi", "area": "Hnappavellir" },
+              "timeWindow": {
+                "start": "19:00",
+                "end": "20:30"
+              },
+              "location": {
+                "name": "Fosshotel Glacier Lagoon restaurant",
+                "city": "Öræfi",
+                "area": "Hnappavellir"
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Expensive and unavoidable — the nearest alternative is Höfn, an hour east. Eat early so the aurora window is not a decision about whether to abandon a main course.",
-              "cost": { "amountMinor": 14000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 14000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Northern Lights: wait it out",
-              "timeWindow": { "start": "22:15", "end": "23:55" },
-              "location": { "name": "Fosshotel car park and the Jökulsárlón lagoon road", "city": "Öræfi", "area": "Breiðamerkursandur" },
+              "timeWindow": {
+                "start": "22:15",
+                "end": "23:55"
+              },
+              "location": {
+                "name": "Fosshotel car park and the Jökulsárlón lagoon road",
+                "city": "Öræfi",
+                "area": "Breiðamerkursandur"
+              },
               "kind": "hold",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Check the aurora page on vedur.is at about eight: it gives cloud cover as well as activity, and cloud is what actually stops you seeing anything. Kp 3 under a clear sky beats Kp 6 under overcast every time. Peak window is roughly 22:00–01:00. Dress as though you will stand still for an hour, because you will — and kill the car headlights, not just the engine."
             }
           ]
@@ -304,55 +654,128 @@
           "stops": [
             {
               "title": "Breakfast, check out of the Fosshotel",
-              "timeWindow": { "start": "08:15", "end": "08:55" },
-              "location": { "name": "Fosshotel Glacier Lagoon, Hnappavellir", "city": "Öræfi", "area": "Hnappavellir" },
+              "timeWindow": {
+                "start": "08:15",
+                "end": "08:55"
+              },
+              "location": {
+                "name": "Fosshotel Glacier Lagoon, Hnappavellir",
+                "city": "Öræfi",
+                "area": "Hnappavellir"
+              },
               "kind": "planned",
-              "tags": ["meal"]
+              "tags": [
+                "meal"
+              ]
             },
             {
               "title": "Ice cave under Vatnajökull",
-              "timeWindow": { "start": "09:30", "end": "13:00" },
-              "location": { "name": "Vatnajökull ice cave tour, from the Jökulsárlón car park", "city": "Öræfi", "area": "Breiðamerkurjökull" },
+              "timeWindow": {
+                "start": "09:30",
+                "end": "13:00"
+              },
+              "location": {
+                "name": "Vatnajökull ice cave tour, from the Jökulsárlón car park",
+                "city": "Öræfi",
+                "area": "Breiðamerkurjökull"
+              },
               "kind": "booked",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "You cannot do this alone — only the operators' modified trucks get to the caves, and the caves move every winter, so a January booking is for an ice cave, not for the photograph that sold you the idea. Guides call it off at eight in the morning if the glacier is unsafe and refund in full. Crampons and helmet are provided; boots that take a crampon binding are not.",
-              "cost": { "amountMinor": 42000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 42000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Lunch at Systrakaffi",
-              "timeWindow": { "start": "13:45", "end": "14:45" },
-              "location": { "name": "Systrakaffi, Klausturvegur", "city": "Kirkjubæjarklaustur", "area": "Klaustur" },
+              "timeWindow": {
+                "start": "13:45",
+                "end": "14:45"
+              },
+              "location": {
+                "name": "Systrakaffi, Klausturvegur",
+                "city": "Kirkjubæjarklaustur",
+                "area": "Klaustur",
+                "lat": 63.79038,
+                "lng": -18.047497
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "The one proper kitchen in Klaustur and the natural halfway stop on this leg. Soup and bread, and it is open in winter when the seasonal places are not.",
-              "cost": { "amountMinor": 5500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 5500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Across the sandur to Hvolsvöllur",
-              "timeWindow": { "start": "15:00", "end": "17:40" },
-              "location": { "name": "Route 1 across Skeiðarársandur", "city": "Hella", "area": "Route 1" },
+              "timeWindow": {
+                "start": "15:00",
+                "end": "17:40"
+              },
+              "location": {
+                "name": "Route 1 across Skeiðarársandur",
+                "city": "Hella",
+                "area": "Route 1",
+                "lat": 63.836585,
+                "lng": -20.399218
+              },
               "kind": "transit",
               "tags": [],
               "notes": "This is the leg where winter takes the day off you. road.is grades every stretch of Route 1 by colour and it changes hourly; if the sandur goes orange for wind, stop in Klaustur and eat again rather than pressing on. The single-lane bridges are still single-lane in the dark and the car already on them has right of way.",
-              "cost": { "amountMinor": 5000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 5000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Check in at Hótel Rangá",
-              "timeWindow": { "start": "18:05", "end": "18:50" },
-              "location": { "name": "Hótel Rangá, Suðurlandsvegur", "city": "Hella", "area": "Rangárvellir" },
+              "timeWindow": {
+                "start": "18:05",
+                "end": "18:50"
+              },
+              "location": {
+                "name": "Hótel Rangá, Suðurlandsvegur",
+                "city": "Hella",
+                "area": "Rangárvellir",
+                "lat": 63.833935,
+                "lng": -20.401416
+              },
               "kind": "booked",
-              "tags": ["lodging"],
+              "tags": [
+                "lodging"
+              ],
               "notes": "Two nights, a log hotel on the river with an observatory and no light pollution. They will ring your room if the aurora comes out — leave the wake-up call switched on even if you are certain you would notice.",
-              "cost": { "amountMinor": 68000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 68000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Dinner at Hótel Rangá",
-              "timeWindow": { "start": "20:00", "end": "22:00" },
-              "location": { "name": "Hótel Rangá restaurant", "city": "Hella", "area": "Rangárvellir" },
+              "timeWindow": {
+                "start": "20:00",
+                "end": "22:00"
+              },
+              "location": {
+                "name": "Hótel Rangá restaurant",
+                "city": "Hella",
+                "area": "Rangárvellir"
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Nothing else within twenty minutes, and it is genuinely good — reindeer and Arctic char, and a wine list that has no business being in a field in south Iceland.",
-              "cost": { "amountMinor": 18000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 18000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -361,62 +784,147 @@
           "stops": [
             {
               "title": "Breakfast at Hótel Rangá",
-              "timeWindow": { "start": "08:00", "end": "08:45" },
-              "location": { "name": "Hótel Rangá, Suðurlandsvegur", "city": "Hella", "area": "Rangárvellir" },
+              "timeWindow": {
+                "start": "08:00",
+                "end": "08:45"
+              },
+              "location": {
+                "name": "Hótel Rangá, Suðurlandsvegur",
+                "city": "Hella",
+                "area": "Rangárvellir",
+                "lat": 63.833935,
+                "lng": -20.401416
+              },
               "kind": "planned",
-              "tags": ["meal"]
+              "tags": [
+                "meal"
+              ]
             },
             {
               "title": "North to Gullfoss first, against the traffic",
-              "timeWindow": { "start": "09:00", "end": "10:30" },
-              "location": { "name": "Route 30 and Route 35 to Gullfoss", "city": "Bláskógabyggð", "area": "Haukadalur" },
+              "timeWindow": {
+                "start": "09:00",
+                "end": "10:30"
+              },
+              "location": {
+                "name": "Route 30 and Route 35 to Gullfoss",
+                "city": "Bláskógabyggð",
+                "area": "Haukadalur",
+                "lat": 64.324134,
+                "lng": -20.285776
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Run the circle backwards. Every coach out of Reykjavík does Þingvellir, then Geysir, then Gullfoss, arriving in that order all morning — so Gullfoss at ten is nearly empty and Þingvellir at three is nearly empty, and you pass the convoy going the other way at lunchtime.",
-              "cost": { "amountMinor": 3200, "currency": "USD" }
+              "cost": {
+                "amountMinor": 3200,
+                "currency": "USD"
+              }
             },
             {
               "title": "Gullfoss from the lower path",
-              "timeWindow": { "start": "10:30", "end": "11:30" },
-              "location": { "name": "Gullfoss waterfall", "city": "Bláskógabyggð", "area": "Haukadalur" },
+              "timeWindow": {
+                "start": "10:30",
+                "end": "11:30"
+              },
+              "location": {
+                "name": "Gullfoss waterfall",
+                "city": "Bláskógabyggð",
+                "area": "Haukadalur",
+                "lat": 64.32661,
+                "lng": -20.121682
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "The upper viewing platform by the café is the postcard; the lower path along the lip is where you feel it. It ices over hard and they close it without notice — the handrail is the only thing between the path and the canyon, so if it is roped off, it is roped off."
             },
             {
               "title": "Geysir and Strokkur",
-              "timeWindow": { "start": "11:45", "end": "12:45" },
-              "location": { "name": "Geysir geothermal area, Haukadalur", "city": "Bláskógabyggð", "area": "Haukadalur" },
+              "timeWindow": {
+                "start": "11:45",
+                "end": "12:45"
+              },
+              "location": {
+                "name": "Geysir geothermal area, Haukadalur",
+                "city": "Bláskógabyggð",
+                "area": "Haukadalur",
+                "lat": 64.324134,
+                "lng": -20.285776
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Geysir itself has been dormant for years; Strokkur next to it goes every five to ten minutes and is the one everyone is photographing. Stand upwind — the water is 80–100 °C when it lands and the wind decides where it lands."
             },
             {
               "title": "Greenhouse lunch at Friðheimar",
-              "timeWindow": { "start": "13:15", "end": "14:30" },
-              "location": { "name": "Friðheimar tomato farm, Reykholt", "city": "Bláskógabyggð", "area": "Reykholt" },
+              "timeWindow": {
+                "start": "13:15",
+                "end": "14:30"
+              },
+              "location": {
+                "name": "Friðheimar tomato farm, Reykholt",
+                "city": "Bláskógabyggð",
+                "area": "Reykholt",
+                "lat": 64.178341,
+                "lng": -20.446134
+              },
               "kind": "hold",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Tomato soup, unlimited bread, eaten among the vines under grow lights in a geothermally heated greenhouse. They only seat 12:00–16:00 and they book out a week ahead in season — this is held, not confirmed, and it is the one thing on this day that cannot be improvised.",
-              "cost": { "amountMinor": 9000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 9000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Þingvellir: the rift walk from Hakið to Öxarárfoss",
-              "timeWindow": { "start": "15:15", "end": "17:00" },
-              "location": { "name": "Þingvellir National Park, Almannagjá", "city": "Bláskógabyggð", "area": "Þingvellir" },
+              "timeWindow": {
+                "start": "15:15",
+                "end": "17:00"
+              },
+              "location": {
+                "name": "Þingvellir National Park, Almannagjá",
+                "city": "Bláskógabyggð",
+                "area": "Þingvellir",
+                "lat": 64.278608,
+                "lng": -21.081941
+              },
               "kind": "planned",
-              "tags": ["outdoors"],
+              "tags": [
+                "outdoors"
+              ],
               "notes": "Park at P1 by the visitor centre, 1,000 ISK, plate-read. Walk down through the Almannagjá rift and back rather than looking at it from the viewing deck — the deck is the photograph, the floor of the rift is the place. This is where the Alþingi met from 930 and where the North American plate ends.",
-              "cost": { "amountMinor": 1500, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1500,
+                "currency": "USD"
+              }
             },
             {
               "title": "Back at Rangá: dinner, and the forecast at the bar",
-              "timeWindow": { "start": "18:30", "end": "21:00" },
-              "location": { "name": "Hótel Rangá restaurant and observatory", "city": "Hella", "area": "Rangárvellir" },
+              "timeWindow": {
+                "start": "18:30",
+                "end": "21:00"
+              },
+              "location": {
+                "name": "Hótel Rangá restaurant and observatory",
+                "city": "Hella",
+                "area": "Rangárvellir"
+              },
               "kind": "planned",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Second and last aurora chance of the trip. The hotel's observatory is opened for guests on clear nights and someone on the staff will be reading the forecast out loud at the bar by nine.",
-              "cost": { "amountMinor": 18000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 18000,
+                "currency": "USD"
+              }
             }
           ]
         },
@@ -425,46 +933,107 @@
           "stops": [
             {
               "title": "Breakfast, and check out of Hótel Rangá",
-              "timeWindow": { "start": "08:30", "end": "09:15" },
-              "location": { "name": "Hótel Rangá, Suðurlandsvegur", "city": "Hella", "area": "Rangárvellir" },
+              "timeWindow": {
+                "start": "08:30",
+                "end": "09:15"
+              },
+              "location": {
+                "name": "Hótel Rangá, Suðurlandsvegur",
+                "city": "Hella",
+                "area": "Rangárvellir",
+                "lat": 63.833935,
+                "lng": -20.401416
+              },
               "kind": "planned",
-              "tags": ["meal"]
+              "tags": [
+                "meal"
+              ]
             },
             {
               "title": "Over Hellisheiði into Reykjavík",
-              "timeWindow": { "start": "09:45", "end": "11:15" },
-              "location": { "name": "Route 1 over the Hellisheiði pass", "city": "Reykjavík", "area": "Miðborg" },
+              "timeWindow": {
+                "start": "09:45",
+                "end": "11:15"
+              },
+              "location": {
+                "name": "Route 1 over the Hellisheiði pass",
+                "city": "Reykjavík",
+                "area": "Miðborg",
+                "lat": 64.136983,
+                "lng": -21.938396
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Hellisheiði is the one pass on this whole itinerary that genuinely closes, and it closes with no warning in a blizzard. If road.is shows it red on a departure morning, the coast road via Þorlákshöfn is longer and lower and usually open — build the flight time around that possibility, not around the good case.",
-              "cost": { "amountMinor": 2600, "currency": "USD" }
+              "cost": {
+                "amountMinor": 2600,
+                "currency": "USD"
+              }
             },
             {
               "title": "A hot dog at Bæjarins Beztu, and Kolaportið if it is a weekend",
-              "timeWindow": { "start": "11:45", "end": "13:00" },
-              "location": { "name": "Bæjarins Beztu Pylsur, Tryggvagata", "city": "Reykjavík", "area": "Old Harbour" },
+              "timeWindow": {
+                "start": "11:45",
+                "end": "13:00"
+              },
+              "location": {
+                "name": "Bæjarins Beztu Pylsur, Tryggvagata",
+                "city": "Reykjavík",
+                "area": "Old Harbour",
+                "lat": 64.151669,
+                "lng": -21.942103
+              },
               "kind": "idea",
-              "tags": ["meal"],
+              "tags": [
+                "meal"
+              ],
               "notes": "Ask for it eina með öllu — one with everything, which means both onions, ketchup, sweet mustard and remoulade. The flea market next door is weekends only; on a weekday the Harpa foyer is free, warm and ten minutes away.",
-              "cost": { "amountMinor": 1800, "currency": "USD" }
+              "cost": {
+                "amountMinor": 1800,
+                "currency": "USD"
+              }
             },
             {
               "title": "Return the car at Keflavík, refuelled",
-              "timeWindow": { "start": "13:30", "end": "14:20" },
-              "location": { "name": "Keflavík Airport car hire returns", "city": "Keflavík", "area": "Reykjanesbær" },
+              "timeWindow": {
+                "start": "13:30",
+                "end": "14:20"
+              },
+              "location": {
+                "name": "Keflavík Airport car hire returns",
+                "city": "Keflavík",
+                "area": "Reykjanesbær",
+                "lat": 63.999769,
+                "lng": -22.556537
+              },
               "kind": "transit",
               "tags": [],
               "notes": "Fill up at the N1 in Njarðvík, not at the airport. The airport pump is the most expensive fuel in the country and the hire desk's own refuelling charge is worse again. Keep the receipt; they ask.",
-              "cost": { "amountMinor": 8000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 8000,
+                "currency": "USD"
+              }
             },
             {
               "title": "Flight home from Keflavík",
-              "timeWindow": { "start": "16:45", "end": "18:20" },
-              "location": { "name": "Keflavík International Airport (KEF), departures", "city": "Keflavík", "area": "Reykjanesbær" },
+              "timeWindow": {
+                "start": "16:45",
+                "end": "18:20"
+              },
+              "location": {
+                "name": "Keflavík International Airport (KEF), departures",
+                "city": "Keflavík",
+                "area": "Reykjanesbær",
+                "lat": 63.999769,
+                "lng": -22.556537
+              },
               "kind": "booked",
               "tags": [],
               "notes": "Return leg. KEF's departure gates are a long walk and the duty-free is before security, not after — the last chance to buy anything is the moment you walk in the door.",
-              "cost": { "amountMinor": 58000, "currency": "USD" }
+              "cost": {
+                "amountMinor": 58000,
+                "currency": "USD"
+              }
             }
           ]
         }
@@ -472,37 +1041,69 @@
       "backlog": [
         {
           "title": "The Sólheimasandur DC-3 wreck",
-          "location": { "name": "Sólheimasandur plane wreck", "city": "Vík í Mýrdal", "area": "Sólheimasandur" },
+          "location": {
+            "name": "Sólheimasandur plane wreck",
+            "city": "Vík í Mýrdal",
+            "area": "Sólheimasandur"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Eight kilometres round trip across flat black sand with no shelter, or a shuttle bus from the car park for people who read that sentence twice. Two hours of a short winter day for a photograph everyone already has."
         },
         {
           "title": "Snæfellsnes as a two-day add-on",
-          "location": { "name": "Snæfellsnes peninsula", "city": "Grundarfjörður", "area": "Kirkjufell" },
+          "location": {
+            "name": "Snæfellsnes peninsula",
+            "city": "Grundarfjörður",
+            "area": "Kirkjufell"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Called Iceland in miniature and it is the honest version of that phrase. It is two days minimum from Reykjavík and this trip does not have them — the note is here so the next version of it does."
         },
         {
           "title": "Secret Lagoon at Flúðir on the Golden Circle day",
-          "location": { "name": "Secret Lagoon (Gamla Laugin), Flúðir", "city": "Flúðir", "area": "Hrunamannahreppur" },
+          "location": {
+            "name": "Secret Lagoon (Gamla Laugin), Flúðir",
+            "city": "Flúðir",
+            "area": "Hrunamannahreppur",
+            "lat": 64.130638,
+            "lng": -20.320929
+          },
           "kind": "idea",
           "tags": [],
           "notes": "Older, cheaper and far quieter than the Blue Lagoon; the pool sits at 38–40 °C and a small geyser goes off every few minutes at the far end. It is a twenty-minute detour off the circle and the day is already full."
         },
         {
           "title": "Whale watching from the Old Harbour",
-          "location": { "name": "Old Harbour whale-watching docks", "city": "Reykjavík", "area": "Old Harbour" },
+          "location": {
+            "name": "Old Harbour whale-watching docks",
+            "city": "Reykjavík",
+            "area": "Old Harbour",
+            "lat": 64.151669,
+            "lng": -21.942103
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Winter sailings run but get cancelled for swell more often than they go, and three hours in Faxaflói in January is a serious undertaking. Only if a flat calm day appears."
         },
         {
           "title": "Þórsmörk by super-jeep",
-          "location": { "name": "Þórsmörk valley, road F249", "city": "Hvolsvöllur", "area": "Þórsmörk" },
+          "location": {
+            "name": "Þórsmörk valley, road F249",
+            "city": "Hvolsvöllur",
+            "area": "Þórsmörk"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "F249 fords the Krossá and no hire car of any size is insured on it — this is a guided super-jeep day or nothing, and the hire agreement is void the moment you try it yourself."
         }
       ]

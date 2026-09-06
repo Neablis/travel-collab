@@ -41,85 +41,199 @@
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2026-04-18T18:40:00.000Z",
-      "sourceTrip": { "name": "Cyclades on foot, April" },
+      "sourceTrip": {
+        "name": "Cyclades on foot, April"
+      },
       "addedBy": [
-        { "addedBy": "dev-maeve" },
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-tomas" },
-        { "addedBy": "dev-nadia" }
+        {
+          "addedBy": "dev-maeve"
+        },
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-nadia"
+        }
       ],
       "stops": [
         {
           "title": "Coffee and a bougatsa before the trailhead",
-          "timeWindow": { "start": "06:40", "end": "07:00" },
-          "location": { "name": "Svoronos Bakery", "city": "Fira", "area": "Ypapantis" },
+          "timeWindow": {
+            "start": "06:40",
+            "end": "07:00"
+          },
+          "location": {
+            "name": "Svoronos Bakery",
+            "city": "Fira",
+            "area": "Ypapantis",
+            "lat": 36.41906,
+            "lng": 25.432147
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Nothing else in Fira is open at this hour and there is no water, no shade and no shop between Imerovigli and Oia. Buy two litres here as well as the coffee — this is the last chance for four hours.",
-          "cost": { "amountMinor": 450, "currency": "USD" }
+          "cost": {
+            "amountMinor": 450,
+            "currency": "USD"
+          }
         },
         {
           "title": "Fira to Imerovigli on the paved half of the path",
-          "timeWindow": { "start": "07:05", "end": "08:05" },
-          "location": { "name": "Caldera footpath, Fira to Imerovigli", "city": "Fira", "area": "Firostefani" },
+          "timeWindow": {
+            "start": "07:05",
+            "end": "08:05"
+          },
+          "location": {
+            "name": "Caldera footpath, Fira to Imerovigli",
+            "city": "Fira",
+            "area": "Firostefani",
+            "lat": 36.418164,
+            "lng": 25.43103
+          },
           "kind": "transit",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The trail leaves from behind the cable-car station on Ypapantis. This first hour is paved, flat-ish and lined with hotel terraces — it is not the walk, it is the warm-up, so do not judge the day by it.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Down onto Skaros Rock while the light is still low",
-          "timeWindow": { "start": "08:10", "end": "09:20" },
-          "location": { "name": "Skaros Rock", "city": "Imerovigli", "area": "Skaros" },
+          "timeWindow": {
+            "start": "08:10",
+            "end": "09:20"
+          },
+          "location": {
+            "name": "Skaros Rock",
+            "city": "Imerovigli",
+            "area": "Skaros",
+            "lat": 36.431215,
+            "lng": 25.425042
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Everyone does Skaros at sunset and then walks the loose scramble back up in the dark. Do it now: same rock, same caldera, nobody on it, and the chapel of Theoskepasti on the far side is worth the extra ten minutes. Twenty minutes down, thirty back up.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Imerovigli to Oia — the rough half",
-          "timeWindow": { "start": "09:30", "end": "12:15" },
-          "location": { "name": "Caldera footpath, Imerovigli to Oia", "city": "Imerovigli", "area": "Caldera path" },
+          "timeWindow": {
+            "start": "09:30",
+            "end": "12:15"
+          },
+          "location": {
+            "name": "Caldera footpath, Imerovigli to Oia",
+            "city": "Imerovigli",
+            "area": "Caldera path"
+          },
           "kind": "transit",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "This is where the day is won or lost. Loose volcanic scree, two long climbs, zero shade and zero water. If you are past Imerovigli after 10:00 in summer you have made a mistake — in April it is fine until noon. Trainers slide; wear something with a lug.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch off the main lane at Melitini",
-          "timeWindow": { "start": "12:30", "end": "13:45" },
-          "location": { "name": "Melitini", "city": "Oia", "area": "Main Street" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:45"
+          },
+          "location": {
+            "name": "Melitini",
+            "city": "Oia",
+            "area": "Main Street"
+          },
           "kind": "hold",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Small plates, no reservations, and a queue from 13:00 — arriving sweaty at 12:30 is the whole advantage of having walked. Hold the slot loosely; if there is a line, Karma two doors down is the same idea without the wait.",
-          "cost": { "amountMinor": 2600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
         },
         {
           "title": "KTEL bus back to Fira",
-          "timeWindow": { "start": "14:00", "end": "14:40" },
-          "location": { "name": "Oia bus terminal", "city": "Oia", "area": "Bus square" },
+          "timeWindow": {
+            "start": "14:00",
+            "end": "14:40"
+          },
+          "location": {
+            "name": "Oia bus terminal",
+            "city": "Oia",
+            "area": "Bus square"
+          },
           "kind": "transit",
           "notes": "Runs roughly every 30 minutes, cash to the conductor on board, and it is standing room after 16:00. Going back now rather than at 18:00 means you skip the sunset-bound scrum entirely.",
-          "cost": { "amountMinor": 220, "currency": "USD" }
+          "cost": {
+            "amountMinor": 220,
+            "currency": "USD"
+          }
         },
         {
           "title": "Sunset from the Imerovigli path, not Oia castle",
-          "timeWindow": { "start": "19:15", "end": "20:25" },
-          "location": { "name": "Agios Georgios path viewpoint", "city": "Imerovigli", "area": "Caldera path" },
+          "timeWindow": {
+            "start": "19:15",
+            "end": "20:25"
+          },
+          "location": {
+            "name": "Agios Georgios path viewpoint",
+            "city": "Imerovigli",
+            "area": "Caldera path"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Oia's castle fills ninety minutes before the sun goes and then applauds. The path north of Imerovigli looks at the same sun setting into the same caldera, with Skaros in silhouette in the foreground, and there will be twenty people rather than three thousand. Arrive fifteen minutes ahead, not ninety.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner at Anogi, once the light has gone",
-          "timeWindow": { "start": "20:40", "end": "22:30" },
-          "location": { "name": "Anogi", "city": "Imerovigli", "area": "Imerovigli village" },
+          "timeWindow": {
+            "start": "20:40",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Anogi",
+            "city": "Imerovigli",
+            "area": "Imerovigli village",
+            "lat": 36.433472,
+            "lng": 25.42319
+          },
           "kind": "hold",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Book for after sunset, not during it — the caldera-view tables cost double at 20:00 and the food is the same at 20:40. Confirm by phone the afternoon of; unconfirmed holds get released in season.",
-          "cost": { "amountMinor": 5200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -130,68 +244,164 @@
       "ownerId": "dev-alice",
       "visibility": "public",
       "keptOn": "2025-07-22T21:10:00.000Z",
-      "sourceTrip": { "name": "The one big day, Santorini" },
-      "addedBy": [{ "addedBy": "dev-marco" }],
+      "sourceTrip": {
+        "name": "The one big day, Santorini"
+      },
+      "addedBy": [
+        {
+          "addedBy": "dev-marco"
+        }
+      ],
       "stops": [
         {
           "title": "Taxi down the Ammoudi switchbacks",
-          "timeWindow": { "start": "09:15", "end": "09:45" },
-          "location": { "name": "Ammoudi Bay pier", "city": "Oia", "area": "Ammoudi" },
+          "timeWindow": {
+            "start": "09:15",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Ammoudi Bay pier",
+            "city": "Oia",
+            "area": "Ammoudi",
+            "lat": 36.460411,
+            "lng": 25.371071
+          },
           "kind": "transit",
           "notes": "You can walk the 300 steps down, but not carrying a cool bag, and the donkeys are not a serious option in July. Book the taxi the night before — Oia's rank is empty between 09:00 and 10:00 because every driver is on an airport run.",
-          "cost": { "amountMinor": 2200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Board the private catamaran, skipper and host aboard",
-          "timeWindow": { "start": "10:00", "end": "12:30" },
-          "location": { "name": "Ammoudi Bay", "city": "Oia", "area": "Ammoudi" },
+          "timeWindow": {
+            "start": "10:00",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Ammoudi Bay",
+            "city": "Oia",
+            "area": "Ammoudi",
+            "lat": 36.459962,
+            "lng": 25.370574
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "This price is the boat for the day, not a seat — a 45-46 ft catamaran with skipper and host takes eight comfortably, so split eight ways it lands near what a crowded shared cruise charges per head, and you choose where it stops. Take the 10:00 departure rather than the sunset one: every sunset charter on the island anchors in the same water off Ammoudi at 18:30.",
-          "cost": { "amountMinor": 195000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 195000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch at anchor off Palea Kameni",
-          "timeWindow": { "start": "12:30", "end": "13:30" },
-          "location": { "name": "Palea Kameni hot springs", "city": "Thira", "area": "Caldera" },
+          "timeWindow": {
+            "start": "12:30",
+            "end": "13:30"
+          },
+          "location": {
+            "name": "Palea Kameni hot springs",
+            "city": "Thira",
+            "area": "Caldera",
+            "lat": 36.394407,
+            "lng": 25.438224
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Lunch is aboard and included in the charter — say at booking if anyone does not eat fish, because the standard spread is a Greek grill and it is decided the day before, not on the water. Swim to the warm sulphur water before you eat, not after: it stains pale swimwear rust-orange permanently, so wear something dark.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Red Beach, White Beach and the long way back up the cliffs",
-          "timeWindow": { "start": "13:30", "end": "17:00" },
-          "location": { "name": "Red Beach", "city": "Akrotiri", "area": "Southern caldera coast" },
+          "timeWindow": {
+            "start": "13:30",
+            "end": "17:00"
+          },
+          "location": {
+            "name": "Red Beach",
+            "city": "Akrotiri",
+            "area": "Southern caldera coast",
+            "lat": 36.348835,
+            "lng": 25.394121
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "White Beach is only reachable by boat and is the stop the shared cruises skip. Ask the skipper to run the return along the cliff face rather than straight across — the caldera wall from the water is the view you actually came for, and it is free.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Taxi back up to Oia and a shower",
-          "timeWindow": { "start": "17:15", "end": "17:45" },
-          "location": { "name": "Oia main square", "city": "Oia", "area": "Main Street" },
+          "timeWindow": {
+            "start": "17:15",
+            "end": "17:45"
+          },
+          "location": {
+            "name": "Oia main square",
+            "city": "Oia",
+            "area": "Main Street",
+            "lat": 36.46295,
+            "lng": 25.37773
+          },
           "kind": "transit",
           "notes": "Arrange the pickup with the same driver who brought you down; Ammoudi at 17:00 has thirty people and two cars.",
-          "cost": { "amountMinor": 2200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Caldera-edge dinner at Ambrosia",
-          "timeWindow": { "start": "20:00", "end": "22:30" },
-          "location": { "name": "Ambrosia Restaurant", "city": "Oia", "area": "Caldera edge, Main Street" },
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Ambrosia Restaurant",
+            "city": "Oia",
+            "area": "Caldera edge, Main Street",
+            "lat": 36.46295,
+            "lng": 25.37773
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Ask for the front row explicitly when you book, and book weeks out for July — the second row is a view of other people's shoulders at the same price. A 20:00 sitting means you are seated before the sunset crowd walks past and gone before the second sitting arrives.",
-          "cost": { "amountMinor": 17500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 17500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Nightcap somewhere the sunset crowd has left",
-          "timeWindow": { "start": "22:45", "end": "23:30" },
-          "location": { "name": "Kastro Oia terrace", "city": "Oia", "area": "Byzantine Castle ruins" },
+          "timeWindow": {
+            "start": "22:45",
+            "end": "23:30"
+          },
+          "location": {
+            "name": "Kastro Oia terrace",
+            "city": "Oia",
+            "area": "Byzantine Castle ruins"
+          },
           "kind": "idea",
           "notes": "Uncommitted — but the castle ruins that were unusable at 20:30 are empty by 22:45, and Oia after the buses leave is the version of the village in the photographs.",
-          "cost": { "amountMinor": 2400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -202,83 +412,189 @@
       "ownerId": "dev-carlos",
       "visibility": "public",
       "keptOn": "2025-08-09T07:05:00.000Z",
-      "sourceTrip": { "name": "Milos and Polyaigos, August" },
+      "sourceTrip": {
+        "name": "Milos and Polyaigos, August"
+      },
       "addedBy": [
-        { "addedBy": "dev-priya" },
-        { "addedBy": "dev-sofia" },
-        { "addedBy": "dev-tomas" },
-        { "addedBy": "dev-maeve" }
+        {
+          "addedBy": "dev-priya"
+        },
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-maeve"
+        }
       ],
       "stops": [
         {
           "title": "Collect the quad you rented the night before",
-          "timeWindow": { "start": "06:00", "end": "06:15" },
-          "location": { "name": "Adamas rental strip", "city": "Adamas", "area": "Port road" },
+          "timeWindow": {
+            "start": "06:00",
+            "end": "06:15"
+          },
+          "location": {
+            "name": "Adamas rental strip",
+            "city": "Adamas",
+            "area": "Port road"
+          },
           "kind": "transit",
           "notes": "This is the trick that makes the rest of the day work. Nothing in Adamas opens before 09:00, so rent from about 18:00 the evening before on a 24-hour rate and keep the keys overnight — otherwise Sarakiniko at dawn is impossible without a taxi you cannot book.",
-          "cost": { "amountMinor": 4500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Sarakiniko to yourself",
-          "timeWindow": { "start": "06:20", "end": "08:00" },
-          "location": { "name": "Sarakiniko", "city": "Adamas", "area": "Sarakiniko" },
+          "timeWindow": {
+            "start": "06:20",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Sarakiniko",
+            "city": "Adamas",
+            "area": "Sarakiniko"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Five kilometres from Adamas and empty at 06:20; by 11:00 there are several hundred people on white rock with no shade anywhere on it and the light is flat and blinding. Walk left past the inlet to the shipwreck side — almost nobody does, and that is where the rock is strangest.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Breakfast at Kivotos ton Gefseon",
-          "timeWindow": { "start": "08:15", "end": "09:05" },
-          "location": { "name": "Kivotos ton Gefseon", "city": "Adamas", "area": "Adamas waterfront" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:05"
+          },
+          "location": {
+            "name": "Kivotos ton Gefseon",
+            "city": "Adamas",
+            "area": "Adamas waterfront"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Bakery on the Adamas front that opens early for the boat crews. Buy lunch-adjacent extras here too if the cruise you booked is a bring-your-own — several of the smaller boats are.",
-          "cost": { "amountMinor": 900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
         },
         {
           "title": "Sail west out of Adamas with Thalassitra Sea Cruises",
-          "timeWindow": { "start": "09:30", "end": "13:00" },
-          "location": { "name": "Adamas port", "city": "Adamas", "area": "Main quay" },
+          "timeWindow": {
+            "start": "09:30",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Adamas port",
+            "city": "Adamas",
+            "area": "Main quay"
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Wind decides this day, not the timetable. Big wooden kaikia (Thalassitra, Kapetan Yiangos) are steady and sail the whole west coast; the small RIBs get right inside Kleftiko's arches but bounce hard in a meltemi. Call the operator at 08:00 on the day — if the north wind is up they reverse and run the east coast instead, and that is a different, lesser day. Lunch aboard is included on the full-day boats.",
-          "cost": { "amountMinor": 13000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 13000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Kleftiko, the caves, and the run home past Sykia",
-          "timeWindow": { "start": "13:05", "end": "17:30" },
-          "location": { "name": "Kleftiko", "city": "Adamas", "area": "South-west coast" },
+          "timeWindow": {
+            "start": "13:05",
+            "end": "17:30"
+          },
+          "location": {
+            "name": "Kleftiko",
+            "city": "Adamas",
+            "area": "South-west coast"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Kleftiko is a pirate anchorage of white arches you swim through, not a beach — there is nowhere to stand, so it is mask-and-fins or nothing. Ask to stop at Sykia on the way back: the cave roof collapsed and it is lit from above like a skylight, and half the boats skip it to keep to schedule.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Up to Plaka's castle for the sunset",
-          "timeWindow": { "start": "19:45", "end": "20:40" },
-          "location": { "name": "Kastro of Plaka", "city": "Plaka", "area": "Kastro" },
+          "timeWindow": {
+            "start": "19:45",
+            "end": "20:40"
+          },
+          "location": {
+            "name": "Kastro of Plaka",
+            "city": "Plaka",
+            "area": "Kastro",
+            "lat": 36.743822,
+            "lng": 24.424894
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Ten minutes of steps from the top car park and you are on the highest point of the island looking down the whole gulf. Go up first and drink afterwards — the terraces below fill from 19:00 and you will spend the sunset waiting for a table instead of watching it.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Drink at Utopia",
-          "timeWindow": { "start": "20:45", "end": "21:30" },
-          "location": { "name": "Utopia Café", "city": "Plaka", "area": "Plaka village" },
+          "timeWindow": {
+            "start": "20:45",
+            "end": "21:30"
+          },
+          "location": {
+            "name": "Utopia Café",
+            "city": "Plaka",
+            "area": "Plaka village",
+            "lat": 36.744131,
+            "lng": 24.421575
+          },
           "kind": "idea",
           "notes": "Same cliff edge, twenty minutes after everyone else has left it. Not a plan, just the obvious thing to do on the way back to the quad.",
-          "cost": { "amountMinor": 1400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner at Medusa in Mandrakia",
-          "timeWindow": { "start": "21:45", "end": "23:30" },
-          "location": { "name": "Medusa", "city": "Mandrakia", "area": "Mandrakia fishing harbour" },
+          "timeWindow": {
+            "start": "21:45",
+            "end": "23:30"
+          },
+          "location": {
+            "name": "Medusa",
+            "city": "Mandrakia",
+            "area": "Mandrakia fishing harbour"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Book the late seating and ask for the lower terrace, which sits directly over the syrmata — the painted boat-house doors cut into the rock. Ten minutes on the quad from Plaka on an unlit road, so take the coast route out and back rather than the shortcut.",
-          "cost": { "amountMinor": 4800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4800,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -289,82 +605,186 @@
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2025-10-05T20:15:00.000Z",
-      "sourceTrip": { "name": "Naxos, the inland week" },
+      "sourceTrip": {
+        "name": "Naxos, the inland week"
+      },
       "addedBy": [
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-marco" }
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
       ],
       "stops": [
         {
           "title": "Drive up to Filoti and park by the square",
-          "timeWindow": { "start": "06:45", "end": "07:30" },
-          "location": { "name": "Filoti main square", "city": "Filoti", "area": "Village square" },
+          "timeWindow": {
+            "start": "06:45",
+            "end": "07:30"
+          },
+          "location": {
+            "name": "Filoti main square",
+            "city": "Filoti",
+            "area": "Village square"
+          },
           "kind": "transit",
           "notes": "Day rate for a small car — Naxos is the one Cycladic island where a car beats a quad, because the mountain road is long and cold at 07:00. The trail starts on the steps opposite Taverna Baboulas on the square. You can also drive on to the tiny Aria Spring car park and save 40 minutes of road walking, but it holds six cars and fills by 08:00.",
-          "cost": { "amountMinor": 3800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Fill both bottles at the Aria Spring",
-          "timeWindow": { "start": "07:35", "end": "08:05" },
-          "location": { "name": "Aria Spring", "city": "Filoti", "area": "Aria" },
+          "timeWindow": {
+            "start": "07:35",
+            "end": "08:05"
+          },
+          "location": {
+            "name": "Aria Spring",
+            "city": "Filoti",
+            "area": "Aria"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A stone well under a plane tree, running cold straight out of the mountain and safe to drink. It is the last water on the route in both directions — two litres each, and it is also the best-placed drink on the whole descent.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Zas Cave and the push to 1,003 m",
-          "timeWindow": { "start": "08:10", "end": "11:00" },
-          "location": { "name": "Mount Zas summit", "city": "Filoti", "area": "Mount Zas" },
+          "timeWindow": {
+            "start": "08:10",
+            "end": "11:00"
+          },
+          "location": {
+            "name": "Mount Zas summit",
+            "city": "Filoti",
+            "area": "Mount Zas"
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The cave where Zeus was supposedly hidden is twenty minutes above the spring and worth the detour; take a torch, it goes back further than it looks. From there the route is cairns rather than signs and the last half hour is loose scree — if the cloud is down on the summit the cairns are genuinely hard to follow, so turn round rather than guess.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Down the Agia Marina side to close the loop",
-          "timeWindow": { "start": "11:05", "end": "12:30" },
-          "location": { "name": "Agia Marina chapel", "city": "Filoti", "area": "Agia Marina" },
+          "timeWindow": {
+            "start": "11:05",
+            "end": "12:30"
+          },
+          "location": {
+            "name": "Agia Marina chapel",
+            "city": "Filoti",
+            "area": "Agia Marina",
+            "lat": 37.044701,
+            "lng": 25.507188
+          },
           "kind": "transit",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Retracing your steps is faster; the loop down past the Agia Marina chapel and back along the contour to Filoti is the better half of the walk and costs about 40 extra minutes. Roughly 12.8 km all in.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch at Lefteris in Apeiranthos",
-          "timeWindow": { "start": "13:00", "end": "14:30" },
-          "location": { "name": "Lefteris", "city": "Apeiranthos", "area": "Marble village" },
+          "timeWindow": {
+            "start": "13:00",
+            "end": "14:30"
+          },
+          "location": {
+            "name": "Lefteris",
+            "city": "Apeiranthos",
+            "area": "Marble village"
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Apeiranthos is entirely paved in marble and has five small museums nobody visits. Ask for the goat in lemon and take the back terrace — it looks straight down the valley you spent the morning walking out of, which is the only way to make sense of the shape of the island.",
-          "cost": { "amountMinor": 2400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2400,
+            "currency": "USD"
+          }
         },
         {
           "title": "Citron tasting at the Vallindras distillery, Halki",
-          "timeWindow": { "start": "14:45", "end": "15:30" },
-          "location": { "name": "Vallindras Distillery", "city": "Halki", "area": "Halki village" },
+          "timeWindow": {
+            "start": "14:45",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Vallindras Distillery",
+            "city": "Halki",
+            "area": "Halki village",
+            "lat": 37.063013,
+            "lng": 25.482285
+          },
           "kind": "idea",
           "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Plaka Beach, ten minutes south of the last sunbed",
-          "timeWindow": { "start": "16:15", "end": "18:30" },
-          "location": { "name": "Plaka Beach", "city": "Plaka", "area": "Southern dunes" },
+          "timeWindow": {
+            "start": "16:15",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Plaka Beach",
+            "city": "Plaka",
+            "area": "Southern dunes"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A pair of beds and an umbrella at the beach clubs at the north end runs about what is priced here. Walk ten minutes south past the last row instead and it is empty sand and dune all the way to Kastraki for nothing — this cost is the version where you give in, and it is fine either way.",
-          "cost": { "amountMinor": 1800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1800,
+            "currency": "USD"
+          }
         },
         {
           "title": "The Portara at sunset, dinner in the old market after",
-          "timeWindow": { "start": "19:15", "end": "21:45" },
-          "location": { "name": "Portara and the Kastro lanes", "city": "Naxos Town", "area": "Palatia and Kastro" },
+          "timeWindow": {
+            "start": "19:15",
+            "end": "21:45"
+          },
+          "location": {
+            "name": "Portara and the Kastro lanes",
+            "city": "Naxos Town",
+            "area": "Palatia and Kastro"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "The marble door frame on the islet is a five-minute causeway walk from the port and is the one sunset on Naxos worth planning around. Then go up into the Kastro rather than eating on the waterfront — the port tavernas have the view and the village ones have the food. Book, because the good ones inside the walls have eight tables.",
-          "cost": { "amountMinor": 3200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -375,81 +795,191 @@
       "ownerId": "dev-alice",
       "visibility": "public",
       "keptOn": "2024-10-19T22:50:00.000Z",
-      "sourceTrip": { "name": "West Crete on foot" },
+      "sourceTrip": {
+        "name": "West Crete on foot"
+      },
       "addedBy": [
-        { "addedBy": "dev-tomas" },
-        { "addedBy": "dev-priya" }
+        {
+          "addedBy": "dev-tomas"
+        },
+        {
+          "addedBy": "dev-priya"
+        }
       ],
       "stops": [
         {
           "title": "The 06:15 KTEL bus to Xyloskalo",
-          "timeWindow": { "start": "06:15", "end": "08:00" },
-          "location": { "name": "Chania KTEL bus station", "city": "Chania", "area": "Kydonias" },
+          "timeWindow": {
+            "start": "06:15",
+            "end": "08:00"
+          },
+          "location": {
+            "name": "Chania KTEL bus station",
+            "city": "Chania",
+            "area": "Kydonias",
+            "lat": 35.511836,
+            "lng": 24.01689
+          },
           "kind": "transit",
           "notes": "Buy this ticket the day before at the station. The 06:15 sells out in season and the next departures put you into the hottest part of the gorge; it is also the only one that comfortably makes the afternoon boat. Sit on the right for the climb onto the Omalos plateau.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Pay in at the park gate",
-          "timeWindow": { "start": "08:05", "end": "08:25" },
-          "location": { "name": "Samaria National Park gate, Xyloskalo", "city": "Omalos", "area": "Xyloskalo" },
+          "timeWindow": {
+            "start": "08:05",
+            "end": "08:25"
+          },
+          "location": {
+            "name": "Samaria National Park gate, Xyloskalo",
+            "city": "Omalos",
+            "area": "Xyloskalo"
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "They log every walker in and out and the stub is checked again at Agia Roumeli, so keep it somewhere dry. Park is open May to late October only — outside that the whole day is impossible, not merely quiet.",
-          "cost": { "amountMinor": 550, "currency": "USD" }
+          "cost": {
+            "amountMinor": 550,
+            "currency": "USD"
+          }
         },
         {
           "title": "The wooden staircase down, and on to the Iron Gates",
-          "timeWindow": { "start": "08:30", "end": "13:00" },
-          "location": { "name": "Samaria Gorge, Xyloskalo to Sideroportes", "city": "Samaria", "area": "Samaria Gorge" },
+          "timeWindow": {
+            "start": "08:30",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Samaria Gorge, Xyloskalo to Sideroportes",
+            "city": "Samaria",
+            "area": "Samaria Gorge",
+            "lat": 35.245342,
+            "lng": 23.966123
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A thousand metres of descent in the first three kilometres, and it being downhill is exactly the trap — this wrecks knees, not lungs, so bring poles even if you never use them. There are spring taps the whole way, so carry one litre and refill rather than three. The Iron Gates are three metres wide and three hundred high and everybody stops dead there; walk on twenty minutes and you get the riverbed to yourself.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "The last flat stretch into Agia Roumeli",
-          "timeWindow": { "start": "13:05", "end": "14:45" },
-          "location": { "name": "Agia Roumeli", "city": "Agia Roumeli", "area": "Old village road" },
+          "timeWindow": {
+            "start": "13:05",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Agia Roumeli",
+            "city": "Agia Roumeli",
+            "area": "Old village road",
+            "lat": 35.228447,
+            "lng": 23.952978
+          },
           "kind": "transit",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The park gate is not the sea. There is another two to three kilometres of open, shadeless gravel to the village and it is the part people are unprepared for. Nothing drives out of Agia Roumeli — no road reaches it — so the boat is not one option, it is the only one.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Black pebbles, cold water, one beer",
-          "timeWindow": { "start": "14:50", "end": "16:55" },
-          "location": { "name": "Agia Roumeli beach", "city": "Agia Roumeli", "area": "Beachfront" },
+          "timeWindow": {
+            "start": "14:50",
+            "end": "16:55"
+          },
+          "location": {
+            "name": "Agia Roumeli beach",
+            "city": "Agia Roumeli",
+            "area": "Beachfront",
+            "lat": 35.228447,
+            "lng": 23.952978
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Swim before you sit down or you will not get up again. The Libyan Sea here is colder than the north coast and it is exactly what six hours of descent needs.",
-          "cost": { "amountMinor": 900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
         },
         {
           "title": "ANENDYK ferry to Chora Sfakion",
-          "timeWindow": { "start": "17:00", "end": "18:10" },
-          "location": { "name": "Agia Roumeli quay", "city": "Agia Roumeli", "area": "Ferry quay" },
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:10"
+          },
+          "location": {
+            "name": "Agia Roumeli quay",
+            "city": "Agia Roumeli",
+            "area": "Ferry quay",
+            "lat": 35.23027,
+            "lng": 23.95985
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Tickets on the quay, cash, an hour before. This is the sailing that connects with the Chania bus; the later one does not always, and if you miss the last boat you are staying the night in a village with four rooms.",
-          "cost": { "amountMinor": 1500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Bus over the Sfakia mountains to Chania",
-          "timeWindow": { "start": "18:30", "end": "20:15" },
-          "location": { "name": "Chora Sfakion bus stop", "city": "Chora Sfakion", "area": "Harbour front" },
+          "timeWindow": {
+            "start": "18:30",
+            "end": "20:15"
+          },
+          "location": {
+            "name": "Chora Sfakion bus stop",
+            "city": "Chora Sfakion",
+            "area": "Harbour front",
+            "lat": 35.201218,
+            "lng": 24.137343
+          },
           "kind": "transit",
           "notes": "It waits for the boat — the driver counts the ferry off. Sit on the left going up out of Sfakia for the drop to the sea, then sleep.",
-          "cost": { "amountMinor": 1100, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1100,
+            "currency": "USD"
+          }
         },
         {
           "title": "Late dinner at Chrisostomos",
-          "timeWindow": { "start": "21:00", "end": "22:45" },
-          "location": { "name": "Chrisostomos", "city": "Chania", "area": "Splantzia and the east harbour" },
+          "timeWindow": {
+            "start": "21:00",
+            "end": "22:45"
+          },
+          "location": {
+            "name": "Chrisostomos",
+            "city": "Chania",
+            "area": "Splantzia and the east harbour"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Eleven hours on your feet ends five minutes' walk from where the bus drops you. Old-school Cretan cooking at the quiet east end of the harbour — order the gamopilafo, the wedding rice cooked in goat stock, which is the thing to eat in Chania and almost never on menus aimed at visitors. Book from the bus; it is small and it fills at 21:00.",
-          "cost": { "amountMinor": 3400, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3400,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -460,74 +990,173 @@
       "ownerId": "dev-carlos",
       "visibility": "public",
       "keptOn": "2024-12-14T11:30:00.000Z",
-      "sourceTrip": { "name": "Paros, slowly" },
+      "sourceTrip": {
+        "name": "Paros, slowly"
+      },
       "addedBy": [],
       "stops": [
         {
           "title": "Ride down from Naoussa to Pounta",
-          "timeWindow": { "start": "08:30", "end": "09:15" },
-          "location": { "name": "Pounta ferry ramp", "city": "Pounta", "area": "South-west Paros" },
+          "timeWindow": {
+            "start": "08:30",
+            "end": "09:15"
+          },
+          "location": {
+            "name": "Pounta ferry ramp",
+            "city": "Pounta",
+            "area": "South-west Paros",
+            "lat": 37.03832,
+            "lng": 25.10445
+          },
           "kind": "transit",
           "notes": "About 18 km and 25 minutes on a quad. Take the vehicle across rather than crossing on foot — Antiparos has one bus and the cave is eight kilometres from the town, so on foot the day collapses into taxis.",
-          "cost": { "amountMinor": 3500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3500,
+            "currency": "USD"
+          }
         },
         {
           "title": "The Pounta car ferry",
-          "timeWindow": { "start": "09:20", "end": "09:35" },
-          "location": { "name": "Pounta–Antiparos ferry", "city": "Pounta", "area": "Ferry ramp" },
+          "timeWindow": {
+            "start": "09:20",
+            "end": "09:35"
+          },
+          "location": {
+            "name": "Pounta–Antiparos ferry",
+            "city": "Pounta",
+            "area": "Ferry ramp"
+          },
           "kind": "transit",
           "notes": "Every half hour through summer, no booking, no timetable to memorise: drive on, pay the deckhand, seven minutes. The crossing that matters is the last one back, which runs very late in high season and very early out of it — check the board on the ramp on the way over.",
-          "cost": { "amountMinor": 800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Antiparos Cave, first entry",
-          "timeWindow": { "start": "10:00", "end": "11:15" },
-          "location": { "name": "Cave of Antiparos", "city": "Antiparos", "area": "Agios Ioannis hill" },
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Cave of Antiparos",
+            "city": "Antiparos",
+            "area": "Agios Ioannis hill",
+            "lat": 36.990683,
+            "lng": 25.059997
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Opens at 10:00, last entry 15:30. It is a vertical cave — 411 concrete steps down and the same back up, which is the whole visit, and it is the reason to be on the first entry rather than behind two coach groups on a single staircase. Around 15C inside whatever it is doing outside; take a layer and shoes with grip, the steps run wet.",
-          "cost": { "amountMinor": 700, "currency": "USD" }
+          "cost": {
+            "amountMinor": 700,
+            "currency": "USD"
+          }
         },
         {
           "title": "Soros: the south end, not the beach club",
-          "timeWindow": { "start": "11:45", "end": "15:30" },
-          "location": { "name": "Soros Beach", "city": "Antiparos", "area": "Soros, south end" },
+          "timeWindow": {
+            "start": "11:45",
+            "end": "15:30"
+          },
+          "location": {
+            "name": "Soros Beach",
+            "city": "Antiparos",
+            "area": "Soros, south end",
+            "lat": 36.971402,
+            "lng": 25.059362
+          },
           "kind": "idea",
-          "tags": ["meal", "outdoors"],
+          "tags": [
+            "meal",
+            "outdoors"
+          ],
           "notes": "Two long-running tavernas anchor the two ends of the bay and they are completely different days: the north end is loungers, playlists and a younger crowd, the south end is Greek families eating for three hours. The inland ridge shelters this bay from the meltemi, which is why it is swimmable on days the north coast is not, and the water stays shallow for forty metres.",
-          "cost": { "amountMinor": 2600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Across to the Despotiko dig from Agios Georgios",
-          "timeWindow": { "start": "16:00", "end": "17:15" },
-          "location": { "name": "Despotiko, sanctuary of Apollo", "city": "Antiparos", "area": "Agios Georgios" },
+          "timeWindow": {
+            "start": "16:00",
+            "end": "17:15"
+          },
+          "location": {
+            "name": "Despotiko, sanctuary of Apollo",
+            "city": "Antiparos",
+            "area": "Agios Georgios",
+            "lat": 36.976909,
+            "lng": 25.029159
+          },
           "kind": "idea",
           "notes": "A five-minute boat from the beach at Agios Georgios to an uninhabited island with an active excavation of an archaic Apollo sanctuary. It is not a museum — access depends on whether the dig team is working, so ask at the taverna on the Agios Georgios beach before committing the afternoon to it.",
-          "cost": { "amountMinor": 1200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Ferry back to Pounta",
-          "timeWindow": { "start": "18:15", "end": "18:30" },
-          "location": { "name": "Antiparos ferry ramp", "city": "Antiparos", "area": "Ferry ramp" },
+          "timeWindow": {
+            "start": "18:15",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Antiparos ferry ramp",
+            "city": "Antiparos",
+            "area": "Ferry ramp",
+            "lat": 37.041881,
+            "lng": 25.081787
+          },
           "kind": "transit",
-          "cost": { "amountMinor": 800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Drink in the old fishing harbour",
-          "timeWindow": { "start": "19:00", "end": "20:00" },
-          "location": { "name": "Naoussa old harbour", "city": "Naoussa", "area": "Old fishing harbour" },
+          "timeWindow": {
+            "start": "19:00",
+            "end": "20:00"
+          },
+          "location": {
+            "name": "Naoussa old harbour",
+            "city": "Naoussa",
+            "area": "Old fishing harbour"
+          },
           "kind": "idea",
           "notes": "The half-sunken Venetian kastelli in the water is a thirty-second walk out along the mole and nearly everyone photographs it from the wrong side — go out on it and look back at the harbour instead.",
-          "cost": { "amountMinor": 1300, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1300,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner at Barbarossa on the quay",
-          "timeWindow": { "start": "20:30", "end": "22:30" },
-          "location": { "name": "Barbarossa Ouzeri", "city": "Naoussa", "area": "Harbour quay" },
+          "timeWindow": {
+            "start": "20:30",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Barbarossa Ouzeri",
+            "city": "Naoussa",
+            "area": "Harbour quay"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Tables literally on the quay among the moored caiques, and it books out — call in the morning, not on the way. Order the octopus, which is drying on a line beside you, and let them bring the mezedes rather than reading the menu.",
-          "cost": { "amountMinor": 4200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 4200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -538,82 +1167,196 @@
       "ownerId": "dev-elena",
       "visibility": "public",
       "keptOn": "2026-01-24T19:05:00.000Z",
-      "sourceTrip": { "name": "Saronic, two days out of Athens" },
+      "sourceTrip": {
+        "name": "Saronic, two days out of Athens"
+      },
       "addedBy": [
-        { "addedBy": "dev-sofia" },
-        { "addedBy": "dev-maeve" }
+        {
+          "addedBy": "dev-sofia"
+        },
+        {
+          "addedBy": "dev-maeve"
+        }
       ],
       "stops": [
         {
           "title": "Flyingcat out of Piraeus, Gate E8",
-          "timeWindow": { "start": "08:00", "end": "09:10" },
-          "location": { "name": "Piraeus port, Gate E8", "city": "Piraeus", "area": "Gate E8" },
+          "timeWindow": {
+            "start": "08:00",
+            "end": "09:10"
+          },
+          "location": {
+            "name": "Piraeus port, Gate E8",
+            "city": "Piraeus",
+            "area": "Gate E8",
+            "lat": 37.945584,
+            "lng": 23.641158
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Gate E8 is a fifteen-minute walk from the metro and is not signposted well — allow for that, because the hydrofoil closes boarding thirty minutes ahead and leaves exactly on time. Book both legs together: the return everyone wants is the late-afternoon one and it sells out first. Fast craft cancel in strong wind where a conventional ferry would sail, so have a plan B in winter.",
-          "cost": { "amountMinor": 5200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Coffee on the harbour while the mules unload the boat",
-          "timeWindow": { "start": "09:15", "end": "09:45" },
-          "location": { "name": "Hydra port waterfront", "city": "Hydra", "area": "Hydra Port" },
+          "timeWindow": {
+            "start": "09:15",
+            "end": "09:45"
+          },
+          "location": {
+            "name": "Hydra port waterfront",
+            "city": "Hydra",
+            "area": "Hydra Port",
+            "lat": 37.350804,
+            "lng": 23.466728
+          },
           "kind": "planned",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "No cars, motorbikes or scooters anywhere on the island since the 1950s, and the ban is genuinely enforced. Sit for twenty minutes and watch the entire day's freight — luggage, crates, a fridge — go up the lanes by mule. It is the thing that makes Hydra different and it happens in the first half hour after each boat.",
-          "cost": { "amountMinor": 600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Up to Kala Pigadia and the lanes above the port",
-          "timeWindow": { "start": "10:00", "end": "11:15" },
-          "location": { "name": "Kala Pigadia", "city": "Hydra", "area": "Kala Pigadia" },
+          "timeWindow": {
+            "start": "10:00",
+            "end": "11:15"
+          },
+          "location": {
+            "name": "Kala Pigadia",
+            "city": "Hydra",
+            "area": "Kala Pigadia"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Five minutes of climbing empties the town completely. The captains' mansions on the west slope are the point of Hydra architecturally, and the twin wells at Kala Pigadia are as far up as most day-trippers ever go — which is not far.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "The coast path west to Kamini",
-          "timeWindow": { "start": "11:30", "end": "13:10" },
-          "location": { "name": "Hydra coastal path", "city": "Hydra", "area": "Kamini" },
+          "timeWindow": {
+            "start": "11:30",
+            "end": "13:10"
+          },
+          "location": {
+            "name": "Hydra coastal path",
+            "city": "Hydra",
+            "area": "Kamini",
+            "lat": 37.349827,
+            "lng": 23.46508
+          },
           "kind": "transit",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Stone and gravel, no shade, and about fifteen minutes to Kamini then another twenty-five on to Vlychos. It is flat but the surface is loose in places — this is not a sandals walk. Do it before the middle of the afternoon.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Lunch at Kodylenia's above Kamini harbour",
-          "timeWindow": { "start": "13:15", "end": "14:45" },
-          "location": { "name": "Kodylenia's Taverna", "city": "Hydra", "area": "Kamini" },
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Kodylenia's Taverna",
+            "city": "Hydra",
+            "area": "Kamini",
+            "lat": 37.349435,
+            "lng": 23.45138
+          },
           "kind": "hold",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "On the headland over the little fishing port, with the outside terrace hanging above the water. Fish is sold by the kilo and a whole sea bream will be past sixty euro before the salad arrives — ask the price per kilo and see the fish weighed before you nod, which is normal here and not rude. Hold the table by phone in the morning; they do not take bookings far ahead.",
-          "cost": { "amountMinor": 6800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 6800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Last swim off Vlychos Plakes",
-          "timeWindow": { "start": "15:00", "end": "16:30" },
-          "location": { "name": "Vlychos Plakes", "city": "Hydra", "area": "Vlychos" },
+          "timeWindow": {
+            "start": "15:00",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Vlychos Plakes",
+            "city": "Hydra",
+            "area": "Vlychos",
+            "lat": 37.332108,
+            "lng": 23.466424
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "There is no sand on Hydra at all — you swim off slabs and ladders, and these are the best of them. Bring something on your feet for the rock, and go in off the flat stone to the left rather than the crowded steps.",
-          "cost": { "amountMinor": 1200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1200,
+            "currency": "USD"
+          }
         },
         {
           "title": "Water taxi back round to the port",
-          "timeWindow": { "start": "16:35", "end": "16:55" },
-          "location": { "name": "Vlychos jetty", "city": "Hydra", "area": "Vlychos" },
+          "timeWindow": {
+            "start": "16:35",
+            "end": "16:55"
+          },
+          "location": {
+            "name": "Vlychos jetty",
+            "city": "Hydra",
+            "area": "Vlychos",
+            "lat": 37.332108,
+            "lng": 23.466424
+          },
           "kind": "transit",
           "notes": "Rates are posted on a board at the quay and are per boat, not per head — split four ways it costs less than a cold drink each and saves forty minutes of walking back into the sun with a hydrofoil to catch. Flag one from the jetty, or the taverna will call it.",
-          "cost": { "amountMinor": 2800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 2800,
+            "currency": "USD"
+          }
         },
         {
           "title": "Hydrofoil back to Piraeus",
-          "timeWindow": { "start": "17:30", "end": "18:40" },
-          "location": { "name": "Hydra port quay", "city": "Hydra", "area": "Ferry quay" },
+          "timeWindow": {
+            "start": "17:30",
+            "end": "18:40"
+          },
+          "location": {
+            "name": "Hydra port quay",
+            "city": "Hydra",
+            "area": "Ferry quay",
+            "lat": 37.349827,
+            "lng": 23.46508
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Be on the quay twenty minutes early; the boat swings in, loads and is gone in about six minutes and it does not come back. Sit inside on the return — the deck is closed at speed.",
-          "cost": { "amountMinor": 5200, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5200,
+            "currency": "USD"
+          }
         }
       ]
     },
@@ -624,82 +1367,184 @@
       "ownerId": "dev-alice",
       "visibility": "public",
       "keptOn": "2025-03-29T23:15:00.000Z",
-      "sourceTrip": { "name": "Dodecanese in the shoulder season" },
+      "sourceTrip": {
+        "name": "Dodecanese in the shoulder season"
+      },
       "addedBy": [
-        { "addedBy": "dev-nadia" },
-        { "addedBy": "dev-bob" },
-        { "addedBy": "dev-marco" }
+        {
+          "addedBy": "dev-nadia"
+        },
+        {
+          "addedBy": "dev-bob"
+        },
+        {
+          "addedBy": "dev-marco"
+        }
       ],
       "stops": [
         {
           "title": "Mandraki and the deer columns before the ships tie up",
-          "timeWindow": { "start": "08:15", "end": "09:00" },
-          "location": { "name": "Mandraki Harbour", "city": "Rhodes Town", "area": "Mandraki" },
+          "timeWindow": {
+            "start": "08:15",
+            "end": "09:00"
+          },
+          "location": {
+            "name": "Mandraki Harbour",
+            "city": "Rhodes Town",
+            "area": "Mandraki",
+            "lat": 36.448895,
+            "lng": 28.225924
+          },
           "kind": "planned",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The two cruise berths are working by 09:00 and several thousand people walk into the old town in the hour after. This half hour outside the walls is the buffer that makes the rest of the morning possible — and the windmills on the mole are better lit early anyway.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "In through d'Amboise Gate, not Freedom Gate",
-          "timeWindow": { "start": "09:05", "end": "09:30" },
-          "location": { "name": "Gate of d'Amboise", "city": "Rhodes Town", "area": "Old Town walls" },
+          "timeWindow": {
+            "start": "09:05",
+            "end": "09:30"
+          },
+          "location": {
+            "name": "Gate of d'Amboise",
+            "city": "Rhodes Town",
+            "area": "Old Town walls"
+          },
           "kind": "transit",
           "notes": "This is the whole trick of the day. The north-west gates put you straight at the top of the Street of the Knights beside the palace, so you walk the medieval spine downhill and empty. Everyone arriving off a ship enters at the bottom and walks up it into you.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Palace of the Grand Master at opening",
-          "timeWindow": { "start": "09:35", "end": "11:30" },
-          "location": { "name": "Palace of the Grand Master", "city": "Rhodes Town", "area": "Collachium" },
+          "timeWindow": {
+            "start": "09:35",
+            "end": "11:30"
+          },
+          "location": {
+            "name": "Palace of the Grand Master",
+            "city": "Rhodes Town",
+            "area": "Collachium"
+          },
           "kind": "booked",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Two things almost nobody uses: the mosaic floors upstairs were lifted from Kos and shipped here in the 1930s, and the two ground-floor exhibitions on medieval and ancient Rhodes are included in the same ticket and are usually empty. Budget the extra hour for them rather than a second museum.",
-          "cost": { "amountMinor": 900, "currency": "USD" }
+          "cost": {
+            "amountMinor": 900,
+            "currency": "USD"
+          }
         },
         {
           "title": "Street of the Knights downhill to the Archaeological Museum",
-          "timeWindow": { "start": "11:40", "end": "13:00" },
-          "location": { "name": "Street of the Knights", "city": "Rhodes Town", "area": "Ippoton" },
+          "timeWindow": {
+            "start": "11:40",
+            "end": "13:00"
+          },
+          "location": {
+            "name": "Street of the Knights",
+            "city": "Rhodes Town",
+            "area": "Ippoton"
+          },
           "kind": "planned",
-          "tags": ["ticketed"],
+          "tags": [
+            "ticketed"
+          ],
           "notes": "Each inn on the street belonged to a different 'tongue' of the order and carries its coat of arms — France is the ornate one, Spain the plain one. The museum at the bottom is the Knights' hospital itself and the courtyard is worth the ticket on its own; the small Aphrodite everyone comes for is in a side room and is about the size of a cat.",
-          "cost": { "amountMinor": 1000, "currency": "USD" }
+          "cost": {
+            "amountMinor": 1000,
+            "currency": "USD"
+          }
         },
         {
           "title": "Long lunch at Nireas",
-          "timeWindow": { "start": "13:15", "end": "14:45" },
-          "location": { "name": "Nireas", "city": "Rhodes Town", "area": "Sofokleous, Old Town" },
+          "timeWindow": {
+            "start": "13:15",
+            "end": "14:45"
+          },
+          "location": {
+            "name": "Nireas",
+            "city": "Rhodes Town",
+            "area": "Sofokleous, Old Town"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "Tables out under the bougainvillea on a lane wide enough for two chairs. Ask what came in that morning instead of ordering from the printed fish list — the list is the same all season and the answer is not.",
-          "cost": { "amountMinor": 3600, "currency": "USD" }
+          "cost": {
+            "amountMinor": 3600,
+            "currency": "USD"
+          }
         },
         {
           "title": "Kahal Shalom and the Square of the Jewish Martyrs",
-          "timeWindow": { "start": "15:00", "end": "16:30" },
-          "location": { "name": "Kahal Shalom Synagogue", "city": "Rhodes Town", "area": "Plateia Martyron Evraion" },
+          "timeWindow": {
+            "start": "15:00",
+            "end": "16:30"
+          },
+          "location": {
+            "name": "Kahal Shalom Synagogue",
+            "city": "Rhodes Town",
+            "area": "Plateia Martyron Evraion"
+          },
           "kind": "planned",
           "notes": "The oldest synagogue still standing in Greece, with a small and very sobering museum behind it about the 1944 deportation of the island's community. The seahorse-fountain square outside is the quietest corner inside the walls in mid-afternoon. Closed Saturdays.",
-          "cost": { "amountMinor": 500, "currency": "USD" }
+          "cost": {
+            "amountMinor": 500,
+            "currency": "USD"
+          }
         },
         {
           "title": "Walk the dry moat, the whole way round",
-          "timeWindow": { "start": "17:00", "end": "18:30" },
-          "location": { "name": "Old Town moat", "city": "Rhodes Town", "area": "Moat walk" },
+          "timeWindow": {
+            "start": "17:00",
+            "end": "18:30"
+          },
+          "location": {
+            "name": "Old Town moat",
+            "city": "Rhodes Town",
+            "area": "Moat walk"
+          },
           "kind": "idea",
-          "tags": ["outdoors"],
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Free, flat, dry, and about two and a half kilometres of grass and stacked cannonballs beneath the walls. Drop in near Koskinou Gate. It is the only serious length of the fortifications you can walk without the ticketed rampart tour, and almost nobody does it.",
-          "cost": { "amountMinor": 0, "currency": "USD" }
+          "cost": {
+            "amountMinor": 0,
+            "currency": "USD"
+          }
         },
         {
           "title": "Dinner in the Marco Polo Mansion courtyard",
-          "timeWindow": { "start": "20:00", "end": "22:30" },
-          "location": { "name": "Marco Polo Café", "city": "Rhodes Town", "area": "Agiou Fanouriou, Turkish quarter" },
+          "timeWindow": {
+            "start": "20:00",
+            "end": "22:30"
+          },
+          "location": {
+            "name": "Marco Polo Café",
+            "city": "Rhodes Town",
+            "area": "Agiou Fanouriou, Turkish quarter"
+          },
           "kind": "booked",
-          "tags": ["meal"],
+          "tags": [
+            "meal"
+          ],
           "notes": "A fifteenth-century mansion in the old Turkish quarter that opens only in the evening; the courtyard holds about a dozen tables and they go a week ahead in season, so email rather than turning up. Ask for directions to the hotel entrance when you book — the lane door is unmarked and the alley is genuinely hard to find after dark.",
-          "cost": { "amountMinor": 5800, "currency": "USD" }
+          "cost": {
+            "amountMinor": 5800,
+            "currency": "USD"
+          }
         }
       ]
     }

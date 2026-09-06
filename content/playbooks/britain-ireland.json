@@ -73,7 +73,9 @@
           "location": {
             "name": "Columbia Road",
             "city": "London",
-            "area": "Bethnal Green"
+            "area": "Bethnal Green",
+            "lat": 51.528616,
+            "lng": -0.070691
           },
           "kind": "planned",
           "tags": [
@@ -90,7 +92,9 @@
           "location": {
             "name": "Ezra Street and Lily Vanilli Bakery",
             "city": "London",
-            "area": "Bethnal Green"
+            "area": "Bethnal Green",
+            "lat": 51.530346,
+            "lng": -0.056163
           },
           "kind": "planned",
           "tags": [
@@ -111,7 +115,9 @@
           "location": {
             "name": "Arnold Circus bandstand",
             "city": "London",
-            "area": "Shoreditch"
+            "area": "Shoreditch",
+            "lat": 51.526042,
+            "lng": -0.074906
           },
           "kind": "idea",
           "notes": "Two minutes off Columbia Road and almost nobody makes the detour. The mound under the bandstand is the rubble of the slum that stood here, and the estate built on top of it in 1900 was the first council housing in the country. Free, takes twenty minutes, and it is the one thing on this day that explains the rest of it."
@@ -125,7 +131,9 @@
           "location": {
             "name": "Old Truman Brewery",
             "city": "London",
-            "area": "Spitalfields"
+            "area": "Spitalfields",
+            "lat": 51.521423,
+            "lng": -0.072605
           },
           "kind": "planned",
           "notes": "Sunday is the only day all of the Brick Lane markets run together. Backyard Market is the vintage one and the Sunday UpMarket is food and makers; both are in the Truman Brewery yards on the west side, signposted badly. Skip the northern end of Brick Lane where the curry-house touts work the pavement — the good end is south of the railway bridge. Old Spitalfields Market is 400m west if this is too much of a crush.",
@@ -143,7 +151,9 @@
           "location": {
             "name": "Beigel Bake, 159 Brick Lane",
             "city": "London",
-            "area": "Brick Lane"
+            "area": "Brick Lane",
+            "lat": 51.524512,
+            "lng": -0.071753
           },
           "kind": "planned",
           "tags": [
@@ -164,7 +174,9 @@
           "location": {
             "name": "Dennis Severs House, 18 Folgate Street",
             "city": "London",
-            "area": "Spitalfields"
+            "area": "Spitalfields",
+            "lat": 51.520943,
+            "lng": -0.07779
           },
           "kind": "booked",
           "tags": [
@@ -185,7 +197,9 @@
           "location": {
             "name": "The Carpenters Arms, Cheshire Street",
             "city": "London",
-            "area": "Bethnal Green"
+            "area": "Bethnal Green",
+            "lat": 51.51477,
+            "lng": -0.160943
           },
           "kind": "planned",
           "notes": "A back-street pub the Kray twins once bought for their mother, now simply a very good one — long beer list, no music loud enough to shout over. It is a five-minute walk north from Brick Lane up Cheshire Street, which on a Sunday is still half a market itself. If it is rammed, The Royal Oak on the corner of Columbia Road does the same job and puts you back where the day started.",
@@ -221,7 +235,9 @@
           "location": {
             "name": "Daunt Books, 84 Marylebone High Street",
             "city": "London",
-            "area": "Marylebone"
+            "area": "Marylebone",
+            "lat": 51.524371,
+            "lng": -0.163592
           },
           "kind": "planned",
           "notes": "The Edwardian galleried room at the back is the reason to come, and it is shelved by country rather than by genre, so the novels, histories and guidebooks for one place stand together. Go before 10:30 and you get it nearly empty. If it is a Sunday, the Marylebone farmers market runs in the Cramer Street car park behind Waitrose — worth ten minutes.",
@@ -239,7 +255,9 @@
           "location": {
             "name": "Hertford House, Manchester Square",
             "city": "London",
-            "area": "Marylebone"
+            "area": "Marylebone",
+            "lat": 51.541225,
+            "lng": 0.067589
           },
           "kind": "planned",
           "notes": "Free, open every day from 10:00, and ten minutes from Oxford Street with none of the crowd. The terms of the bequest forbid anything leaving or joining the collection, which means nothing here ever travels to a blockbuster show somewhere else — you see it in this house or not at all. Everyone stops at the Laughing Cavalier and the Fragonard and then leaves; the arms and armour in the basement is one of the best collections in Europe and is usually empty. Verified 2026-09-06: open seven days a week, 10:00–17:00, free, and no advance booking is needed for general admission; the only regular closures are 24–26 December."
@@ -253,7 +271,9 @@
           "location": {
             "name": "The Golden Hind, 73 Marylebone Lane",
             "city": "London",
-            "area": "Marylebone"
+            "area": "Marylebone",
+            "lat": 51.524371,
+            "lng": -0.163592
           },
           "kind": "planned",
           "tags": [
@@ -274,7 +294,9 @@
           "location": {
             "name": "Bond Street to Covent Garden",
             "city": "London",
-            "area": "Covent Garden"
+            "area": "Covent Garden",
+            "lat": 51.509648,
+            "lng": -0.099076
           },
           "kind": "transit",
           "notes": "Twenty-five minutes on foot down through Mayfair, or two stops on the Jubilee and Piccadilly with a change at Green Park — the walk is faster than it looks and far more pleasant. Tap in and out with the same card; there is no need for a paper ticket or an Oyster any more.",
@@ -292,7 +314,9 @@
           "location": {
             "name": "Covent Garden theatres",
             "city": "London",
-            "area": "Covent Garden"
+            "area": "Covent Garden",
+            "lat": 51.510004,
+            "lng": -0.126232
           },
           "kind": "booked",
           "tags": [
@@ -313,7 +337,9 @@
           "location": {
             "name": "American Bar, The Savoy",
             "city": "London",
-            "area": "Strand"
+            "area": "Strand",
+            "lat": 51.505873,
+            "lng": -0.13992
           },
           "kind": "planned",
           "notes": "No reservations, so the trick is to arrive before 18:00 — after that there is a queue in the lobby and it does not move. One cocktail costs what a bottle costs elsewhere and you are paying for the room and the piano, which is a fair trade once. Dress is smart; no sportswear, and they mean it. Beaufort Bar across the hall takes bookings if you would rather not gamble.",
@@ -331,7 +357,9 @@
           "location": {
             "name": "Ikoyi, 180 Strand",
             "city": "London",
-            "area": "Strand"
+            "area": "Strand",
+            "lat": 51.512429,
+            "lng": -0.115147
           },
           "kind": "booked",
           "tags": [
@@ -352,7 +380,9 @@
           "location": {
             "name": "One Aldwych",
             "city": "London",
-            "area": "Aldwych"
+            "area": "Aldwych",
+            "lat": 51.511766,
+            "lng": -0.119395
           },
           "kind": "booked",
           "tags": [
@@ -403,7 +433,9 @@
           "location": {
             "name": "Holyrood Park",
             "city": "Edinburgh",
-            "area": "Holyrood"
+            "area": "Holyrood",
+            "lat": 55.94564,
+            "lng": -3.1638
           },
           "kind": "hold",
           "tags": [
@@ -420,7 +452,9 @@
           "location": {
             "name": "Canongate",
             "city": "Edinburgh",
-            "area": "Old Town"
+            "area": "Old Town",
+            "lat": 55.951533,
+            "lng": -3.179198
           },
           "kind": "planned",
           "tags": [
@@ -441,7 +475,9 @@
           "location": {
             "name": "Edinburgh Castle",
             "city": "Edinburgh",
-            "area": "Castlehill"
+            "area": "Castlehill",
+            "lat": 55.948687,
+            "lng": -3.200417
           },
           "kind": "booked",
           "tags": [
@@ -462,7 +498,9 @@
           "location": {
             "name": "Oink, Victoria Street",
             "city": "Edinburgh",
-            "area": "Grassmarket"
+            "area": "Grassmarket",
+            "lat": 55.948589,
+            "lng": -3.194246
           },
           "kind": "planned",
           "tags": [
@@ -483,7 +521,9 @@
           "location": {
             "name": "The Real Mary King's Close, 2 Warriston's Close",
             "city": "Edinburgh",
-            "area": "Royal Mile"
+            "area": "Royal Mile",
+            "lat": 55.949961,
+            "lng": -3.190446
           },
           "kind": "booked",
           "tags": [
@@ -504,7 +544,9 @@
           "location": {
             "name": "The Bow Bar, 80 West Bow",
             "city": "Edinburgh",
-            "area": "West Bow"
+            "area": "West Bow",
+            "lat": 55.948461,
+            "lng": -3.194194
           },
           "kind": "planned",
           "notes": "Several hundred bottles behind the bar, no music, no television and no cocktails — the room is built for conversation and the staff will talk you through a region for as long as you like if you are not in a hurry. Ask for something you cannot buy at home rather than the name you already know; the independent bottlings on the top shelves are the reason to be here. Order a half measure and water on the side. If it is full, Kay's Bar off Jamaica Street in the New Town is fifteen minutes downhill and is the other answer to the same question.",
@@ -522,7 +564,9 @@
           "location": {
             "name": "The Cottage at Royal Terrace, 1 Royal Terrace Gardens",
             "city": "Edinburgh",
-            "area": "Royal Terrace"
+            "area": "Royal Terrace",
+            "lat": 55.957508,
+            "lng": -3.180687
           },
           "kind": "booked",
           "tags": [
@@ -567,7 +611,9 @@
           "location": {
             "name": "Somerled Square, Portree",
             "city": "Portree",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.413065,
+            "lng": -6.194414
           },
           "kind": "transit",
           "notes": "A private driver-guide for the day is roughly the cost of the car divided by however many of you there are — split four ways it is comparable to hiring a car and cheaper than hiring one badly. What you are actually buying is the parking problem going away and somebody who knows which passing place to sit in. The one rule visitors break constantly on Skye: passing places are for passing, not for photographs, and a car parked in one on the Staffin road blocks the whole glen.",
@@ -606,7 +652,9 @@
           "location": {
             "name": "Kilt Rock and Mealt Falls viewpoint",
             "city": "Staffin",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.55758,
+            "lng": -6.265247
           },
           "kind": "planned",
           "notes": "Two roadside stops fifteen minutes apart, ten minutes each, free. Kilt Rock is the one on every postcard — a waterfall going straight off a basalt cliff into the sea. Stand at the fence for thirty seconds and listen: the railings hum in the wind, which is a genuinely strange noise and the thing people remember. Lealt, just south, has the better short walk and a quarter of the people."
@@ -620,7 +668,9 @@
           "location": {
             "name": "Quiraing car park, Staffin to Uig road",
             "city": "Staffin",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.55758,
+            "lng": -6.265247
           },
           "kind": "hold",
           "tags": [
@@ -641,7 +691,9 @@
           "location": {
             "name": "Single Track, Kilmaluag",
             "city": "Kilmaluag",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.683155,
+            "lng": -6.299274
           },
           "kind": "planned",
           "tags": [
@@ -662,7 +714,9 @@
           "location": {
             "name": "Fairy Glen, Balnaknock",
             "city": "Uig",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.584829,
+            "lng": -6.333017
           },
           "kind": "idea",
           "tags": [
@@ -679,7 +733,9 @@
           "location": {
             "name": "Skye Museum of Island Life",
             "city": "Kilmuir",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "lat": 57.660275,
+            "lng": -6.368983
           },
           "kind": "planned",
           "tags": [
@@ -700,7 +756,9 @@
           "location": {
             "name": "Scorrybreac, Bosville Terrace",
             "city": "Portree",
-            "area": "Portree Harbour"
+            "area": "Portree Harbour",
+            "lat": 57.412984,
+            "lng": -6.191227
           },
           "kind": "booked",
           "tags": [
@@ -735,7 +793,9 @@
           "location": {
             "name": "London Paddington",
             "city": "London",
-            "area": "Paddington"
+            "area": "Paddington",
+            "lat": 51.517095,
+            "lng": -0.177317
           },
           "kind": "transit",
           "notes": "About ninety minutes on the fast service and the station is a five-minute walk from the Abbey, which is why this works as a day at all. Advance singles released twelve weeks out are a third of the walk-up fare — booking on the morning is the single most expensive mistake available in British travel. Sit on the left going down for the Avon valley. Anything later than the 08:00 puts you into the Roman Baths behind the coach parties, and the whole shape of this day depends on not being.",
@@ -753,7 +813,9 @@
           "location": {
             "name": "The Roman Baths, Abbey Church Yard",
             "city": "Bath",
-            "area": "Abbey Church Yard"
+            "area": "Abbey Church Yard",
+            "lat": 51.381349,
+            "lng": -2.359801
           },
           "kind": "booked",
           "tags": [
@@ -774,7 +836,9 @@
           "location": {
             "name": "Bath Abbey and Sally Lunn's, North Parade Passage",
             "city": "Bath",
-            "area": "Abbey Church Yard"
+            "area": "Abbey Church Yard",
+            "lat": 51.380694,
+            "lng": -2.358343
           },
           "kind": "planned",
           "tags": [
@@ -795,7 +859,9 @@
           "location": {
             "name": "No.1 Royal Crescent",
             "city": "Bath",
-            "area": "Royal Crescent"
+            "area": "Royal Crescent",
+            "lat": 51.386629,
+            "lng": -2.36713
           },
           "kind": "planned",
           "tags": [
@@ -837,7 +903,9 @@
           "location": {
             "name": "Thermae Bath Spa, Hot Bath Street",
             "city": "Bath",
-            "area": "Hot Bath Street"
+            "area": "Hot Bath Street",
+            "lat": 51.380573,
+            "lng": -2.361028
           },
           "kind": "booked",
           "tags": [
@@ -858,7 +926,9 @@
           "location": {
             "name": "The Olive Tree, The Queensberry Hotel, Russel Street",
             "city": "Bath",
-            "area": "Russel Street"
+            "area": "Russel Street",
+            "lat": 51.387016,
+            "lng": -2.362878
           },
           "kind": "booked",
           "tags": [
@@ -879,7 +949,9 @@
           "location": {
             "name": "The Royal Crescent Hotel",
             "city": "Bath",
-            "area": "Royal Crescent"
+            "area": "Royal Crescent",
+            "lat": 51.387711,
+            "lng": -2.367938
           },
           "kind": "booked",
           "tags": [
@@ -921,7 +993,9 @@
           "location": {
             "name": "St Erth station",
             "city": "St Erth",
-            "area": "Hayle Estuary"
+            "area": "Hayle Estuary",
+            "lat": 50.170572,
+            "lng": -5.443921
           },
           "kind": "transit",
           "notes": "St Ives in August is a town with three car parks and about four thousand cars looking for them; Trenwith fills by 09:30 and the queue down into the town does not move. The branch line from St Erth is twelve minutes along the Hayle estuary and over Carbis Bay, all-day parking at the station is a few pounds, and it is one of the best short railway rides in Britain. It runs every half hour and is the answer even in February. Cost here covers the day's car and the station parking.",
@@ -939,7 +1013,9 @@
           "location": {
             "name": "South West Coast Path, St Ives Head to Zennor Head",
             "city": "St Ives",
-            "area": "West Penwith"
+            "area": "West Penwith",
+            "lat": 50.21084,
+            "lng": -5.484393
           },
           "kind": "hold",
           "tags": [
@@ -956,7 +1032,9 @@
           "location": {
             "name": "The Gurnard's Head, Treen",
             "city": "Zennor",
-            "area": "Treen"
+            "area": "Treen",
+            "lat": 50.182637,
+            "lng": -5.593268
           },
           "kind": "booked",
           "tags": [
@@ -995,7 +1073,9 @@
           "location": {
             "name": "Porthcurno beach",
             "city": "Porthcurno",
-            "area": "West Penwith"
+            "area": "West Penwith",
+            "lat": 50.042844,
+            "lng": -5.650433
           },
           "kind": "hold",
           "tags": [
@@ -1078,7 +1158,9 @@
           "location": {
             "name": "Nant Peris park-and-ride",
             "city": "Nant Peris",
-            "area": "Eryri"
+            "area": "Eryri",
+            "lat": 53.102902,
+            "lng": -4.082743
           },
           "kind": "transit",
           "notes": "Pen-y-Pass has about a hundred spaces, it is pre-book only, and the slots go weeks ahead in summer — driving up there on spec means driving back down again. Everyone local uses Nant Peris instead: cheap all-day parking at the bottom of the pass and the Sherpa'r Wyddfa S1 up the hill for a couple of pounds. Verified 2026-09-06: the high-season Sherpa'r Wyddfa timetable runs through to Sunday 1 November 2026, the first S1 leaves the Nant Peris Park & Ride for Pen-y-Pass at 07:15, and the last bus back down from Pen-y-Pass is 19:30. S1, S2 and S5 between them give a bus every 15 minutes at weekends and in school holidays, every 30 minutes otherwise. The Park & Ride itself cannot be pre-booked — it is Pen-y-Pass that is pre-book only. This window has been set to 06:50–07:25 to match that 07:15 departure. Verges on the A4086 are double-yellowed and actively ticketed.",
@@ -1113,7 +1195,9 @@
           "location": {
             "name": "Yr Wyddfa summit",
             "city": "Llanberis",
-            "area": "Yr Wyddfa"
+            "area": "Yr Wyddfa",
+            "lat": 53.084444,
+            "lng": -4.042237
           },
           "kind": "planned",
           "tags": [
@@ -1134,7 +1218,9 @@
           "location": {
             "name": "Miners' Track",
             "city": "Pen-y-Pass",
-            "area": "Eryri"
+            "area": "Eryri",
+            "lat": 53.080655,
+            "lng": -4.021024
           },
           "kind": "planned",
           "tags": [
@@ -1151,7 +1237,9 @@
           "location": {
             "name": "Pen-y-Pass bus stop",
             "city": "Pen-y-Pass",
-            "area": "Eryri"
+            "area": "Eryri",
+            "lat": 53.080655,
+            "lng": -4.021024
           },
           "kind": "transit",
           "notes": "The Sherpa runs on through to Llanberis, so you can stay on past your car, spend the afternoon in the town and pick the bus back up to Nant Peris in the evening. Buses fill from the Pen-y-Pass end in the afternoon and standing is not allowed on the mountain road — if two go past full, walking down the old road to Nant Peris takes about fifty minutes and is pleasant.",
@@ -1169,7 +1257,9 @@
           "location": {
             "name": "Pete's Eats, 40 High Street",
             "city": "Llanberis",
-            "area": "High Street"
+            "area": "High Street",
+            "lat": 53.121786,
+            "lng": -4.127351
           },
           "kind": "planned",
           "tags": [
@@ -1190,7 +1280,9 @@
           "location": {
             "name": "Dolbadarn Castle, Llyn Padarn",
             "city": "Llanberis",
-            "area": "Padarn Country Park"
+            "area": "Padarn Country Park",
+            "lat": 53.118181,
+            "lng": -4.128161
           },
           "kind": "idea",
           "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the National Slate Museum has been closed since November 2024 for a redevelopment now costed at about £25m, construction only started on site in November 2025, and the reopening has slipped from 2026 to 2027. There is nothing to walk into: no slate-splitting demonstration, no workshops, no cafe, no free entry, because there is no open museum. Amgueddfa Cymru is running the collection as 'Museum on the Move' out of partner venues across the slate World Heritage Site while the work goes on, so check where it is showing if the slate story is why you came. What is still here, still free and still open is Dolbadarn Castle — a single Welsh round tower from the 1200s on the knoll above Llyn Padarn, ten minutes on foot from the village — and the path round the lake below it, which is the better hour anyway with a day on the mountain behind you."
@@ -1204,7 +1296,9 @@
           "location": {
             "name": "Gallt y Glyn",
             "city": "Llanberis",
-            "area": "High Street"
+            "area": "High Street",
+            "lat": 53.126497,
+            "lng": -4.136769
           },
           "kind": "planned",
           "tags": [
@@ -1255,7 +1349,9 @@
           "location": {
             "name": "Corkscrew Hill, N67 and R480",
             "city": "Ballyvaughan",
-            "area": "The Burren"
+            "area": "The Burren",
+            "lat": 53.115503,
+            "lng": -9.149244
           },
           "kind": "transit",
           "notes": "The whole trick of this day is direction. Every coach out of Galway does the Cliffs of Moher first, at eleven, and then the Burren; going the other way round means empty limestone all morning and empty cliffs all evening. Corkscrew Hill climbs out of Ballyvaughan in a set of hairpins built as famine relief work, and the pull-in at the top looks back over the whole bay. Fuel up before you leave the coast — there is nothing on the R480.",
@@ -1273,7 +1369,9 @@
           "location": {
             "name": "Poulnabrone Portal Tomb",
             "city": "Carran",
-            "area": "The Burren"
+            "area": "The Burren",
+            "lat": 53.043972,
+            "lng": -9.046591
           },
           "kind": "planned",
           "tags": [
@@ -1290,7 +1388,9 @@
           "location": {
             "name": "Caherconnell Stone Fort",
             "city": "Carran",
-            "area": "The Burren"
+            "area": "The Burren",
+            "lat": 53.043972,
+            "lng": -9.046591
           },
           "kind": "booked",
           "tags": [
@@ -1311,7 +1411,9 @@
           "location": {
             "name": "Burren Perfumery, Carran",
             "city": "Carran",
-            "area": "The Burren"
+            "area": "The Burren",
+            "lat": 53.043293,
+            "lng": -9.047301
           },
           "kind": "planned",
           "tags": [
@@ -1349,7 +1451,9 @@
           "location": {
             "name": "Doolin Pier",
             "city": "Doolin",
-            "area": "North Clare"
+            "area": "North Clare",
+            "lat": 53.014898,
+            "lng": -9.404653
           },
           "kind": "hold",
           "tags": [
@@ -1371,7 +1475,9 @@
           "location": {
             "name": "Cliffs of Moher Visitor Experience",
             "city": "Liscannor",
-            "area": "North Clare"
+            "area": "North Clare",
+            "lat": 52.979249,
+            "lng": -9.390693
           },
           "kind": "booked",
           "tags": [
@@ -1393,7 +1499,9 @@
           "location": {
             "name": "Gus O'Connor's Pub, Fisherstreet",
             "city": "Doolin",
-            "area": "Fisherstreet"
+            "area": "Fisherstreet",
+            "lat": 53.012549,
+            "lng": -9.386621
           },
           "kind": "planned",
           "notes": "Doolin has three session pubs within four hundred metres — O'Connor's in Fisherstreet, McGann's and McDermott's up in Roadford — and the honest advice is to look in all three. If one is a coach-party crush the other two will not be. Sessions start when the players arrive, which is nearer 21:45 than the time chalked on the board, and the first half hour is the tuning. Do not talk over a slow air; nobody will tell you to stop and everybody will notice.",

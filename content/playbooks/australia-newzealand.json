@@ -73,7 +73,9 @@
           "location": {
             "name": "Bondi Icebergs Club, Notts Avenue",
             "city": "Sydney",
-            "area": "Bondi Beach"
+            "area": "Bondi Beach",
+            "lat": -33.835951,
+            "lng": 151.204972
           },
           "kind": "planned",
           "tags": [
@@ -94,7 +96,9 @@
           "location": {
             "name": "Lox, Stock and Barrel",
             "city": "Sydney",
-            "area": "Bondi Beach"
+            "area": "Bondi Beach",
+            "lat": -33.890698,
+            "lng": 151.272412
           },
           "kind": "planned",
           "tags": [
@@ -115,7 +119,9 @@
           "location": {
             "name": "Bondi to Bronte coastal path via Marks Park",
             "city": "Sydney",
-            "area": "Tamarama"
+            "area": "Tamarama",
+            "lat": -33.868633,
+            "lng": 151.209421
           },
           "kind": "planned",
           "tags": [
@@ -136,7 +142,9 @@
           "location": {
             "name": "Clovelly Bay",
             "city": "Sydney",
-            "area": "Clovelly"
+            "area": "Clovelly",
+            "lat": -33.914384,
+            "lng": 151.2677
           },
           "kind": "planned",
           "tags": [
@@ -157,7 +165,9 @@
           "location": {
             "name": "Wylie's Baths",
             "city": "Sydney",
-            "area": "Coogee"
+            "area": "Coogee",
+            "lat": -33.925584,
+            "lng": 151.259411
           },
           "kind": "planned",
           "tags": [
@@ -178,7 +188,9 @@
           "location": {
             "name": "Coogee Pavilion",
             "city": "Sydney",
-            "area": "Coogee"
+            "area": "Coogee",
+            "lat": -33.918673,
+            "lng": 151.258257
           },
           "kind": "planned",
           "tags": [
@@ -199,7 +211,9 @@
           "location": {
             "name": "Coogee Beach bus interchange, Arden Street",
             "city": "Sydney",
-            "area": "Coogee"
+            "area": "Coogee",
+            "lat": -33.919286,
+            "lng": 151.25585
           },
           "kind": "transit",
           "notes": "Tap on with a credit card or phone — no Opal card needed, and the daily cap applies to contactless the same way. The 373 runs Coogee to the CBD; the X73 is the express in peak. Do not try to do this walk and then drive: parking at both ends is metered, patrolled and full by nine.",
@@ -217,7 +231,9 @@
           "location": {
             "name": "Firedoor, Mary Street",
             "city": "Sydney",
-            "area": "Surry Hills"
+            "area": "Surry Hills",
+            "lat": -33.882117,
+            "lng": 151.210096
           },
           "kind": "booked",
           "tags": [
@@ -263,7 +279,9 @@
           "location": {
             "name": "Patricia Coffee Brewers, cnr Little Bourke and Little William",
             "city": "Melbourne",
-            "area": "CBD"
+            "area": "CBD",
+            "lat": -37.803547,
+            "lng": 144.966567
           },
           "kind": "planned",
           "notes": "There are no seats. That is the whole design — you stand at the shelf, drink it, and leave, which is why the queue moves even when it is out the door at 08:15. Weekdays only: Patricia is shut Saturday and Sunday, and a laneway coffee day planned for a weekend has to start at Market Lane instead. The magic in a glass is what to order; the white chocolate mendiant comes with it.",
@@ -281,7 +299,9 @@
           "location": {
             "name": "Queen Victoria Market, Therry Street",
             "city": "Melbourne",
-            "area": "North Melbourne"
+            "area": "North Melbourne",
+            "lat": -37.806916,
+            "lng": 144.958949
           },
           "kind": "planned",
           "tags": [
@@ -302,7 +322,9 @@
           "location": {
             "name": "Hosier Lane and the Flinders Lane arcades",
             "city": "Melbourne",
-            "area": "CBD"
+            "area": "CBD",
+            "lat": -37.825071,
+            "lng": 144.978682
           },
           "kind": "planned",
           "notes": "Hosier Lane before 10:30 or not at all — the walking tours land on the half hour and the lane is 3 m wide. The walls are repainted constantly, so nothing you saw in a photo is still there; that is the point rather than a disappointment. Then cut through Centre Place and Degraves for the cafe-table version, and find Presgrave Place off Howey Place, which is the one nobody photographs: a lane hung with framed miniatures and tiny installations. Cathedral Arcade in the Nicholas Building has the leadlight dome worth a lift ride.",
@@ -320,7 +342,9 @@
           "location": {
             "name": "NGV International, St Kilda Road",
             "city": "Melbourne",
-            "area": "Southbank"
+            "area": "Southbank",
+            "lat": -37.822925,
+            "lng": 144.968656
           },
           "kind": "planned",
           "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies. Verified 2026-09-06: NGV International is open daily 10:00-17:00 and entry to the permanent collection is free, so a 10:40 arrival is fine and the building closes well before this day needs it to.",
@@ -338,7 +362,9 @@
           "location": {
             "name": "Supernormal, Flinders Lane",
             "city": "Melbourne",
-            "area": "CBD"
+            "area": "CBD",
+            "lat": -37.815947,
+            "lng": 144.968312
           },
           "kind": "planned",
           "tags": [
@@ -359,7 +385,9 @@
           "location": {
             "name": "Proud Mary, Oxford Street",
             "city": "Melbourne",
-            "area": "Collingwood"
+            "area": "Collingwood",
+            "lat": -37.802337,
+            "lng": 144.985247
           },
           "kind": "transit",
           "notes": "The Free Tram Zone stops at the edge of the CBD — the moment you cross into Collingwood you need a Myki, and the daily cap is a few dollars, so buy the card and stop thinking about it. Proud Mary roasts its own and is the reason half of Melbourne's other cafes taste the way they do. Weekend brunch there is a 45-minute wait; a Tuesday at two, you walk in. Walk back down Smith Street rather than taking the tram — it is 20 minutes of the best browsing in the city.",
@@ -377,7 +405,9 @@
           "location": {
             "name": "Bar Americano, Presgrave Place",
             "city": "Melbourne",
-            "area": "CBD"
+            "area": "CBD",
+            "lat": -37.815007,
+            "lng": 144.965427
           },
           "kind": "idea",
           "notes": "A tiled room the size of a bathroom that fits about ten people standing, hidden in the lane you found this morning. Cash used to be the rule and the no-photos house style still is. The drinks are expensive and correct. If it is full — it is often full by six — Siglo's terrace above the Supper Club has the Parliament view and a fireplace.",
@@ -395,7 +425,9 @@
           "location": {
             "name": "Cumulus Inc, Flinders Lane",
             "city": "Melbourne",
-            "area": "CBD"
+            "area": "CBD",
+            "lat": -37.814815,
+            "lng": 144.973027
           },
           "kind": "booked",
           "tags": [
@@ -443,7 +475,9 @@
           "location": {
             "name": "Origin Espresso, Macrossan Street",
             "city": "Port Douglas",
-            "area": "Macrossan Street"
+            "area": "Macrossan Street",
+            "lat": -16.483654,
+            "lng": 145.462909
           },
           "kind": "planned",
           "tags": [
@@ -464,7 +498,9 @@
           "location": {
             "name": "Crystalbrook Superyacht Marina, Wharf Street",
             "city": "Port Douglas",
-            "area": "Marina Mirage"
+            "area": "Marina Mirage",
+            "lat": -16.485228,
+            "lng": 145.461139
           },
           "kind": "transit",
           "notes": "Check-in is 30 minutes before departure and the boats leave on the hour they say they leave — Wavelength at 08:30, Poseidon at 08:30, Quicksilver's pontoon run later at 10:00. The marina car park is free and fills; a 12-minute walk from anywhere in town beats circling. Reef-safe sunscreen only, and a rash vest saves more skin than any bottle. Verified 2026-09-06: boarding for Wavelength is from 08:10 at the Crystalbrook Superyacht Marina (the marina formerly branded Marina Mirage) and the boat is back in Port Douglas about 16:00; the Wavelength shop itself is in the Reef Marina building, not at the berth, so go to the boat.",
@@ -482,7 +518,9 @@
           "location": {
             "name": "Wavelength Reef Cruises catamaran",
             "city": "Port Douglas",
-            "area": "Coral Sea"
+            "area": "Coral Sea",
+            "lat": -16.522298,
+            "lng": 145.473486
           },
           "kind": "booked",
           "tags": [
@@ -547,7 +585,9 @@
           "location": {
             "name": "Return crossing to Port Douglas",
             "city": "Port Douglas",
-            "area": "Coral Sea"
+            "area": "Coral Sea",
+            "lat": -16.499911,
+            "lng": 145.462419
           },
           "kind": "transit",
           "notes": "The run home is usually downwind and faster than the run out. Sit outside and at the back if your stomach is uncertain, and look for the low outline of the Low Isles on the port side. Boats are alongside about 16:30, which leaves the whole evening — do not book anything before 17:30 in case the swell adds half an hour. Verified 2026-09-06: Wavelength quotes a return to Port Douglas of approximately 16:00, not 16:30, so this window has been pulled back an hour earlier at the end. Still do not book anything before 17:30 in case the swell adds half an hour.",
@@ -565,7 +605,9 @@
           "location": {
             "name": "Four Mile Beach, southern end",
             "city": "Port Douglas",
-            "area": "Four Mile Beach"
+            "area": "Four Mile Beach",
+            "lat": -16.507078,
+            "lng": 145.467382
           },
           "kind": "idea",
           "tags": [
@@ -586,7 +628,9 @@
           "location": {
             "name": "Salsa Bar and Grill, Wharf Street",
             "city": "Port Douglas",
-            "area": "Macrossan Street"
+            "area": "Macrossan Street",
+            "lat": -16.485228,
+            "lng": 145.461139
           },
           "kind": "booked",
           "tags": [
@@ -719,7 +763,9 @@
           "location": {
             "name": "Kulata Academy Cafe, Town Square",
             "city": "Yulara",
-            "area": "Ayers Rock Resort"
+            "area": "Ayers Rock Resort",
+            "lat": -25.241302,
+            "lng": 130.983565
           },
           "kind": "idea",
           "tags": [
@@ -740,7 +786,9 @@
           "location": {
             "name": "Ayers Rock Airport helipad",
             "city": "Yulara",
-            "area": "Connellan Airport"
+            "area": "Connellan Airport",
+            "lat": -25.183395,
+            "lng": 130.978422
           },
           "kind": "booked",
           "tags": [
@@ -783,7 +831,9 @@
           "location": {
             "name": "Field of Light, Bruce Munro installation",
             "city": "Yulara",
-            "area": "Ayers Rock Resort"
+            "area": "Ayers Rock Resort",
+            "lat": -25.253621,
+            "lng": 130.997032
           },
           "kind": "booked",
           "tags": [
@@ -822,7 +872,9 @@
           "location": {
             "name": "Vudu Cafe and Larder, Beach Street",
             "city": "Queenstown",
-            "area": "Town Centre"
+            "area": "Town Centre",
+            "lat": -45.033599,
+            "lng": 168.656697
           },
           "kind": "planned",
           "tags": [
@@ -843,7 +895,9 @@
           "location": {
             "name": "The Station, cnr Camp and Shotover Streets",
             "city": "Queenstown",
-            "area": "Town Centre"
+            "area": "Town Centre",
+            "lat": -45.03091,
+            "lng": 168.659653
           },
           "kind": "transit",
           "notes": "You cannot drive yourself to the Nevis — it is 40 minutes up a private 4WD farm track and the transfer is part of the ticket, leaving from The Station in town. Check in 30 minutes before your slot. Weigh-in happens here and the number goes on your hand in marker, which is how they set the cord; there is a minimum and a maximum weight and it is not negotiable. Verified 2026-09-06: the Bungy Bus leaves from the AJ Hackett Queenstown Bungy Centre on the corner of Camp and Shotover Streets, the first departure of the day is 08:40 and they run every 40 minutes to 14:40, and check-in is 30 minutes before your bus. The old 08:15 departure in this day was not a real bus time - this window is now check-in for the 08:40.",
@@ -861,7 +915,9 @@
           "location": {
             "name": "Nevis Bungy, Nevis Valley",
             "city": "Queenstown",
-            "area": "Nevis Valley"
+            "area": "Nevis Valley",
+            "lat": -45.332772,
+            "lng": 168.740262
           },
           "kind": "booked",
           "tags": [
@@ -883,7 +939,9 @@
           "location": {
             "name": "Fergburger, Shotover Street",
             "city": "Queenstown",
-            "area": "Town Centre"
+            "area": "Town Centre",
+            "lat": -45.031742,
+            "lng": 168.659462
           },
           "kind": "idea",
           "tags": [
@@ -904,7 +962,9 @@
           "location": {
             "name": "NZONE Skydive drop zone",
             "city": "Queenstown",
-            "area": "Frankton"
+            "area": "Frankton",
+            "lat": -45.0193,
+            "lng": 168.74344
           },
           "kind": "booked",
           "tags": [
@@ -926,7 +986,9 @@
           "location": {
             "name": "Glacier Southern Lakes Helicopters, Lucas Place",
             "city": "Queenstown",
-            "area": "Frankton"
+            "area": "Frankton",
+            "lat": -45.021468,
+            "lng": 168.734672
           },
           "kind": "hold",
           "tags": [
@@ -948,7 +1010,9 @@
           "location": {
             "name": "Onsen Hot Pools, Arthurs Point",
             "city": "Queenstown",
-            "area": "Arthurs Point"
+            "area": "Arthurs Point",
+            "lat": -44.980995,
+            "lng": 168.685428
           },
           "kind": "booked",
           "tags": [
@@ -969,7 +1033,9 @@
           "location": {
             "name": "Amisfield Bistro, Lake Hayes",
             "city": "Queenstown",
-            "area": "Lake Hayes"
+            "area": "Lake Hayes",
+            "lat": -44.986578,
+            "lng": 168.815846
           },
           "kind": "booked",
           "tags": [
@@ -1012,7 +1078,9 @@
           "location": {
             "name": "Sandfly Cafe, The Lane",
             "city": "Te Anau",
-            "area": "Town Centre"
+            "area": "Town Centre",
+            "lat": -45.41444,
+            "lng": 167.71563
           },
           "kind": "planned",
           "tags": [
@@ -1033,7 +1101,9 @@
           "location": {
             "name": "Milford Road, Eglinton Valley",
             "city": "Te Anau",
-            "area": "Fiordland National Park"
+            "area": "Fiordland National Park",
+            "lat": -45.410246,
+            "lng": 167.729404
           },
           "kind": "transit",
           "notes": "Two hours without stopping, and you will stop, so give it two and a quarter. In order: the Eglinton flats where the beech forest opens out, Mirror Lakes (a five-minute boardwalk, only mirrors on a still morning, which is another argument for going early rather than at midday), Knobs Flat toilets, Pop's View, and Monkey Creek where you can drink straight from the stream and the kea will strip the rubber off your windscreen wipers while you do. Do not feed them. The road is single lane in places with no barrier, and the coaches from Queenstown come the other way from about 09:30 — being ahead of them is the entire trick of this day. Verified 2026-09-06: the stretch between the Hollyford Road junction and The Chasm is a signposted Restricted No Stopping Zone because it is avalanche path - the roadside stops on this list are all south of it, so keep driving through that section rather than pulling over for a photo.",
@@ -1051,7 +1121,9 @@
           "location": {
             "name": "Homer Tunnel east portal and The Chasm walk",
             "city": "Milford Sound",
-            "area": "Fiordland National Park"
+            "area": "Fiordland National Park",
+            "lat": -44.66836,
+            "lng": 167.92005
           },
           "kind": "planned",
           "tags": [
@@ -1072,7 +1144,9 @@
           "location": {
             "name": "Milford Sound Visitor Terminal",
             "city": "Milford Sound",
-            "area": "Deepwater Basin"
+            "area": "Deepwater Basin",
+            "lat": -44.668201,
+            "lng": 167.926978
           },
           "kind": "planned",
           "notes": "Parking at the terminal is paid and enforced, the machine wants a card, and there is no phone signal to fix it if the machine dislikes you, so keep a card that works. It is a ten-minute walk from the car park to the wharf along the foreshore. Check in 20 minutes before departure — boats leave on time and there is no second one for an hour. Verified 2026-09-06: the terminal car park is NZ$10 an hour after the first 20 minutes free (NZ$5 an hour if you arrive after 15:00), the machine wants a card and there is no signal to argue with it; free parking exists at Deepwater Basin Road about 1.5 km back. In high season the main car park is full by about 09:00, which is another reason to be early even for a later sailing.",
@@ -1090,7 +1164,9 @@
           "location": {
             "name": "Mitre Peak Cruises wharf",
             "city": "Milford Sound",
-            "area": "Milford Sound / Piopiotahi"
+            "area": "Milford Sound / Piopiotahi",
+            "lat": -44.671475,
+            "lng": 167.923739
           },
           "kind": "hold",
           "tags": [
@@ -1133,7 +1209,9 @@
           "location": {
             "name": "Milford Road southbound, Hollyford turnoff to Te Anau",
             "city": "Te Anau",
-            "area": "Fiordland National Park"
+            "area": "Fiordland National Park",
+            "lat": -45.410246,
+            "lng": 167.729404
           },
           "kind": "transit",
           "notes": "Southbound in the afternoon is the good direction — the sun is on the Darran Mountains behind you and the coaches have all gone. Two worthwhile stops if the legs allow: the Lake Marian falls boardwalk off the Hollyford Road (20 minutes return; the full lake is four hours and not today), and Mirror Lakes again, which is a different place with the light from the other side. Watch for keas on the road at the tunnel and for one-lane bridges the whole way.",
@@ -1151,7 +1229,9 @@
           "location": {
             "name": "Redcliff Cafe, Mokonui Street",
             "city": "Te Anau",
-            "area": "Town Centre"
+            "area": "Town Centre",
+            "lat": -45.415671,
+            "lng": 167.712538
           },
           "kind": "booked",
           "tags": [
@@ -1207,7 +1287,9 @@
           "location": {
             "name": "Mangatepopo car park trailhead",
             "city": "Tongariro National Park",
-            "area": "Mangatepopo Valley"
+            "area": "Mangatepopo Valley",
+            "lat": -39.13901,
+            "lng": 175.552526
           },
           "kind": "booked",
           "tags": [
@@ -1228,7 +1310,9 @@
           "location": {
             "name": "Mangatepopo Valley track",
             "city": "Tongariro National Park",
-            "area": "Mangatepopo Valley"
+            "area": "Mangatepopo Valley",
+            "lat": -39.168538,
+            "lng": 175.569501
           },
           "kind": "planned",
           "tags": [
@@ -1378,7 +1462,9 @@
           "location": {
             "name": "Okere Falls Store",
             "city": "Rotorua",
-            "area": "Okere Falls"
+            "area": "Okere Falls",
+            "lat": -38.018028,
+            "lng": 176.343217
           },
           "kind": "planned",
           "tags": [
@@ -1399,7 +1485,9 @@
           "location": {
             "name": "Hobbiton Movie Set, Buckland Road",
             "city": "Matamata",
-            "area": "Hinuera"
+            "area": "Hinuera",
+            "lat": -37.87273,
+            "lng": 175.683564
           },
           "kind": "transit",
           "notes": "Drive to the farm, not to the town. Tours depart from the Shire's Rest on Buckland Road, about 10 minutes outside Matamata; the i-SITE in town is only a pick-up point for people without a car and sending yourself there costs you 20 minutes. Cost here is the day's fuel out of Rotorua and back. Roads are rural and the fog sits in these valleys until nine in winter. Verified 2026-09-06: tours do depart from the Shire's Rest, 501 Buckland Road, Hinuera - but it is about a 20-minute drive from Matamata township, not 10, so leave the margin. Shire's Rest departures run every 30 minutes from 09:30 to 16:00; the Matamata i-SITE version leaves every 45 minutes from 09:30 to 15:30 and is a four-hour trip because it includes the coach both ways.",
@@ -1417,7 +1505,9 @@
           "location": {
             "name": "Hobbiton Movie Set",
             "city": "Matamata",
-            "area": "Alexander Farm"
+            "area": "Alexander Farm",
+            "lat": -37.857945,
+            "lng": 175.680909
           },
           "kind": "booked",
           "tags": [
@@ -1438,7 +1528,9 @@
           "location": {
             "name": "Shire's Rest Cafe",
             "city": "Matamata",
-            "area": "Buckland Road"
+            "area": "Buckland Road",
+            "lat": -37.872096,
+            "lng": 175.682945
           },
           "kind": "idea",
           "tags": [
@@ -1459,7 +1551,9 @@
           "location": {
             "name": "SH5 south to Rotorua",
             "city": "Rotorua",
-            "area": "Ngongotaha"
+            "area": "Ngongotaha",
+            "lat": -38.145007,
+            "lng": 176.223432
           },
           "kind": "transit",
           "notes": "An hour back, and the smell tells you when you have arrived — hydrogen sulphide, everywhere, and you stop noticing it by dinner. Wai-O-Tapu is a further 25 minutes south of the city on SH5, so do not drive into town first and then back out; go straight past the turnoff.",
@@ -1477,7 +1571,9 @@
           "location": {
             "name": "Wai-O-Tapu Thermal Wonderland",
             "city": "Rotorua",
-            "area": "Waiotapu"
+            "area": "Waiotapu",
+            "lat": -38.355898,
+            "lng": 176.367513
           },
           "kind": "planned",
           "tags": [
@@ -1499,7 +1595,9 @@
           "location": {
             "name": "Redwoods Treewalk, Whakarewarewa Forest",
             "city": "Rotorua",
-            "area": "Whakarewarewa"
+            "area": "Whakarewarewa",
+            "lat": -38.201973,
+            "lng": 176.328242
           },
           "kind": "planned",
           "tags": [
@@ -1521,7 +1619,9 @@
           "location": {
             "name": "Te Pa Tu, Tarawera Road",
             "city": "Rotorua",
-            "area": "Tikitere"
+            "area": "Tikitere",
+            "lat": -38.136905,
+            "lng": 176.256083
           },
           "kind": "booked",
           "tags": [

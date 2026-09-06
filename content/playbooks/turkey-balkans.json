@@ -79,7 +79,9 @@
           "location": {
             "name": "Çiğdem Pastanesi",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.008299,
+            "lng": 28.97448
           },
           "kind": "planned",
           "tags": [
@@ -100,7 +102,9 @@
           "location": {
             "name": "Topkapı Sarayı, Imperial Gate",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.011344,
+            "lng": 28.983203
           },
           "kind": "booked",
           "tags": [
@@ -121,7 +125,9 @@
           "location": {
             "name": "Ayasofya-i Kebir Camii, visitors' entrance",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.004114,
+            "lng": 28.976909
           },
           "kind": "booked",
           "tags": [
@@ -142,7 +148,9 @@
           "location": {
             "name": "Sultanahmet Köftecisi Selim Usta",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.008003,
+            "lng": 28.976967
           },
           "kind": "planned",
           "tags": [
@@ -163,7 +171,9 @@
           "location": {
             "name": "Yerebatan Sarnıcı",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.008403,
+            "lng": 28.977923
           },
           "kind": "booked",
           "tags": [
@@ -184,7 +194,9 @@
           "location": {
             "name": "Sultanahmet Camii",
             "city": "Istanbul",
-            "area": "Sultanahmet"
+            "area": "Sultanahmet",
+            "lat": 41.005384,
+            "lng": 28.976853
           },
           "kind": "planned",
           "tags": [],
@@ -203,7 +215,9 @@
           "location": {
             "name": "Çemberlitaş Hamamı",
             "city": "Istanbul",
-            "area": "Çemberlitaş"
+            "area": "Çemberlitaş",
+            "lat": 41.008542,
+            "lng": 28.971624
           },
           "kind": "booked",
           "tags": [],
@@ -222,7 +236,9 @@
           "location": {
             "name": "Hafız Mustafa 1864",
             "city": "Istanbul",
-            "area": "Sirkeci"
+            "area": "Sirkeci",
+            "lat": 41.027196,
+            "lng": 28.984918
           },
           "kind": "idea",
           "tags": [
@@ -264,7 +280,9 @@
           "location": {
             "name": "Eminönü Boğaz İskelesi",
             "city": "Istanbul",
-            "area": "Eminönü"
+            "area": "Eminönü",
+            "lat": 40.995767,
+            "lng": 29.018794
           },
           "kind": "transit",
           "tags": [],
@@ -283,7 +301,9 @@
           "location": {
             "name": "Anadolu Kavağı quayside",
             "city": "Istanbul",
-            "area": "Anadolu Kavağı"
+            "area": "Anadolu Kavağı",
+            "lat": 41.173428,
+            "lng": 29.08787
           },
           "kind": "planned",
           "tags": [
@@ -304,7 +324,9 @@
           "location": {
             "name": "Yoros Kalesi",
             "city": "Istanbul",
-            "area": "Anadolu Kavağı"
+            "area": "Anadolu Kavağı",
+            "lat": 41.178574,
+            "lng": 29.094919
           },
           "kind": "planned",
           "tags": [
@@ -325,7 +347,9 @@
           "location": {
             "name": "Anadolu Kavağı iskelesi",
             "city": "Istanbul",
-            "area": "Anadolu Kavağı"
+            "area": "Anadolu Kavağı",
+            "lat": 41.173428,
+            "lng": 29.08787
           },
           "kind": "transit",
           "tags": [],
@@ -344,7 +368,9 @@
           "location": {
             "name": "Eminönü–Kadıköy vapur iskelesi",
             "city": "Istanbul",
-            "area": "Eminönü"
+            "area": "Eminönü",
+            "lat": 40.910558,
+            "lng": 29.055587
           },
           "kind": "transit",
           "tags": [],
@@ -363,7 +389,9 @@
           "location": {
             "name": "Fazıl Bey'in Türk Kahvesi",
             "city": "Istanbul",
-            "area": "Kadıköy"
+            "area": "Kadıköy",
+            "lat": 40.986491,
+            "lng": 29.027946
           },
           "kind": "planned",
           "tags": [],
@@ -382,7 +410,9 @@
           "location": {
             "name": "Çiya Sofrası",
             "city": "Istanbul",
-            "area": "Kadıköy"
+            "area": "Kadıköy",
+            "lat": 40.989347,
+            "lng": 29.024429
           },
           "kind": "booked",
           "tags": [
@@ -403,7 +433,9 @@
           "location": {
             "name": "Baylan Pastanesi",
             "city": "Istanbul",
-            "area": "Kadıköy"
+            "area": "Kadıköy",
+            "lat": 40.990372,
+            "lng": 29.02378
           },
           "kind": "idea",
           "tags": [
@@ -491,7 +523,9 @@
           "location": {
             "name": "Nazar Börek & Cafe",
             "city": "Göreme",
-            "area": "Müze Caddesi"
+            "area": "Müze Caddesi",
+            "lat": 38.643925,
+            "lng": 34.822007
           },
           "kind": "planned",
           "tags": [
@@ -533,7 +567,9 @@
           "location": {
             "name": "Seten Anatolian Cuisine",
             "city": "Göreme",
-            "area": "Aydınlı Sokak"
+            "area": "Aydınlı Sokak",
+            "lat": 38.64095,
+            "lng": 34.826668
           },
           "kind": "planned",
           "tags": [
@@ -554,7 +590,9 @@
           "location": {
             "name": "Kaymaklı Yeraltı Şehri",
             "city": "Kaymaklı",
-            "area": "Nevşehir"
+            "area": "Nevşehir",
+            "lat": 38.459927,
+            "lng": 34.752488
           },
           "kind": "booked",
           "tags": [
@@ -575,7 +613,9 @@
           "location": {
             "name": "Uçhisar Kalesi",
             "city": "Uçhisar",
-            "area": "Uçhisar"
+            "area": "Uçhisar",
+            "lat": 38.630443,
+            "lng": 34.805323
           },
           "kind": "idea",
           "tags": [
@@ -597,7 +637,9 @@
           "location": {
             "name": "Topdeck Cave Restaurant",
             "city": "Göreme",
-            "area": "Hafız Abdullah Efendi Sokak"
+            "area": "Hafız Abdullah Efendi Sokak",
+            "lat": 38.641756,
+            "lng": 34.827656
           },
           "kind": "booked",
           "tags": [
@@ -632,7 +674,9 @@
           "location": {
             "name": "Selçuk otogar",
             "city": "Selçuk",
-            "area": "Selçuk centre"
+            "area": "Selçuk centre",
+            "lat": 37.948262,
+            "lng": 27.369694
           },
           "kind": "booked",
           "tags": [],
@@ -651,7 +695,9 @@
           "location": {
             "name": "Ephesus Archaeological Site, Upper Gate",
             "city": "Selçuk",
-            "area": "Efes"
+            "area": "Efes",
+            "lat": 37.939313,
+            "lng": 27.34105
           },
           "kind": "booked",
           "tags": [
@@ -672,7 +718,9 @@
           "location": {
             "name": "Terrace Houses (Yamaç Evler)",
             "city": "Selçuk",
-            "area": "Efes"
+            "area": "Efes",
+            "lat": 37.940446,
+            "lng": 27.339319
           },
           "kind": "booked",
           "tags": [
@@ -714,7 +762,9 @@
           "location": {
             "name": "Selçuk to Pamukkale road",
             "city": "Denizli",
-            "area": "Aydın–Denizli corridor"
+            "area": "Aydın–Denizli corridor",
+            "lat": 37.77417,
+            "lng": 29.0875
           },
           "kind": "transit",
           "tags": [],
@@ -733,7 +783,9 @@
           "location": {
             "name": "Pamukkale travertines, South Gate",
             "city": "Pamukkale",
-            "area": "Hierapolis"
+            "area": "Hierapolis",
+            "lat": 37.930955,
+            "lng": 29.126363
           },
           "kind": "booked",
           "tags": [
@@ -755,7 +807,9 @@
           "location": {
             "name": "Hierapolis Roman theatre",
             "city": "Pamukkale",
-            "area": "Hierapolis"
+            "area": "Hierapolis",
+            "lat": 37.926772,
+            "lng": 29.129177
           },
           "kind": "planned",
           "tags": [
@@ -776,7 +830,9 @@
           "location": {
             "name": "Upper travertine terraces",
             "city": "Pamukkale",
-            "area": "Hierapolis"
+            "area": "Hierapolis",
+            "lat": 37.930955,
+            "lng": 29.126363
           },
           "kind": "idea",
           "tags": [
@@ -821,7 +877,9 @@
           "location": {
             "name": "Kavana Dubravka 1836",
             "city": "Dubrovnik",
-            "area": "Pile"
+            "area": "Pile",
+            "lat": 42.72764,
+            "lng": 17.862717
           },
           "kind": "planned",
           "tags": [
@@ -842,7 +900,9 @@
           "location": {
             "name": "City Walls, Pile entrance",
             "city": "Dubrovnik",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.639528,
+            "lng": 18.108114
           },
           "kind": "booked",
           "tags": [
@@ -864,7 +924,9 @@
           "location": {
             "name": "Tvrđava Lovrijenac",
             "city": "Dubrovnik",
-            "area": "Pile"
+            "area": "Pile",
+            "lat": 42.640912,
+            "lng": 18.104363
           },
           "kind": "planned",
           "tags": [
@@ -885,7 +947,9 @@
           "location": {
             "name": "Lokrum island boat, Old Port",
             "city": "Dubrovnik",
-            "area": "Ploče"
+            "area": "Ploče",
+            "lat": 42.642951,
+            "lng": 18.115979
           },
           "kind": "booked",
           "tags": [
@@ -907,7 +971,9 @@
           "location": {
             "name": "Barba",
             "city": "Dubrovnik",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.641501,
+            "lng": 18.10991
           },
           "kind": "planned",
           "tags": [
@@ -928,7 +994,9 @@
           "location": {
             "name": "Dubrovnik Cable Car, Ploče station",
             "city": "Dubrovnik",
-            "area": "Ploče"
+            "area": "Ploče",
+            "lat": 42.642951,
+            "lng": 18.115979
           },
           "kind": "booked",
           "tags": [
@@ -949,7 +1017,9 @@
           "location": {
             "name": "Buža",
             "city": "Dubrovnik",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.639339,
+            "lng": 18.10859
           },
           "kind": "idea",
           "tags": [],
@@ -968,7 +1038,9 @@
           "location": {
             "name": "Konoba Dalmatino",
             "city": "Dubrovnik",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.640977,
+            "lng": 18.109093
           },
           "kind": "booked",
           "tags": [
@@ -1007,7 +1079,9 @@
           "location": {
             "name": "Rastoke mill village",
             "city": "Slunj",
-            "area": "Rastoke"
+            "area": "Rastoke",
+            "lat": 45.114666,
+            "lng": 15.582353
           },
           "kind": "idea",
           "tags": [
@@ -1028,7 +1102,9 @@
           "location": {
             "name": "Entrance 2 (Hladovina) car park",
             "city": "Plitvička Jezera",
-            "area": "Entrance 2"
+            "area": "Entrance 2",
+            "lat": 44.882214,
+            "lng": 15.618255
           },
           "kind": "transit",
           "tags": [],
@@ -1069,7 +1145,9 @@
           "location": {
             "name": "Kozjak boat landing kiosk",
             "city": "Plitvička Jezera",
-            "area": "Jezero Kozjak"
+            "area": "Jezero Kozjak",
+            "lat": 44.884707,
+            "lng": 15.613596
           },
           "kind": "planned",
           "tags": [
@@ -1090,7 +1168,9 @@
           "location": {
             "name": "Lake Kozjak ferry, P2 to P1",
             "city": "Plitvička Jezera",
-            "area": "Jezero Kozjak"
+            "area": "Jezero Kozjak",
+            "lat": 44.8825,
+            "lng": 15.62028
           },
           "kind": "transit",
           "tags": [],
@@ -1109,7 +1189,9 @@
           "location": {
             "name": "Lower Lakes boardwalks",
             "city": "Plitvička Jezera",
-            "area": "Donja Jezera"
+            "area": "Donja Jezera",
+            "lat": 44.897281,
+            "lng": 15.611202
           },
           "kind": "planned",
           "tags": [
@@ -1130,7 +1212,9 @@
           "location": {
             "name": "Veliki Slap",
             "city": "Plitvička Jezera",
-            "area": "Donja Jezera"
+            "area": "Donja Jezera",
+            "lat": 44.877905,
+            "lng": 15.608427
           },
           "kind": "planned",
           "tags": [
@@ -1151,7 +1235,9 @@
           "location": {
             "name": "Lička Kuća",
             "city": "Plitvička Jezera",
-            "area": "Entrance 1"
+            "area": "Entrance 1",
+            "lat": 44.905833,
+            "lng": 15.613645
           },
           "kind": "booked",
           "tags": [
@@ -1202,7 +1288,9 @@
           "location": {
             "name": "Nonica",
             "city": "Hvar",
-            "area": "Groda"
+            "area": "Groda",
+            "lat": 43.171631,
+            "lng": 16.441634
           },
           "kind": "planned",
           "tags": [
@@ -1223,7 +1311,9 @@
           "location": {
             "name": "Hvar Riva, west end",
             "city": "Hvar",
-            "area": "Riva"
+            "area": "Riva",
+            "lat": 43.170955,
+            "lng": 16.441307
           },
           "kind": "booked",
           "tags": [],
@@ -1242,7 +1332,9 @@
           "location": {
             "name": "Jerolim and Marinkovac coves",
             "city": "Hvar",
-            "area": "Pakleni otoci"
+            "area": "Pakleni otoci",
+            "lat": 43.164717,
+            "lng": 16.364266
           },
           "kind": "planned",
           "tags": [
@@ -1263,7 +1355,9 @@
           "location": {
             "name": "Vlaka bay, Sveti Klement",
             "city": "Hvar",
-            "area": "Pakleni otoci"
+            "area": "Pakleni otoci",
+            "lat": 43.164717,
+            "lng": 16.364266
           },
           "kind": "planned",
           "tags": [
@@ -1284,7 +1378,9 @@
           "location": {
             "name": "Zori",
             "city": "Hvar",
-            "area": "Palmižana"
+            "area": "Palmižana",
+            "lat": 43.159052,
+            "lng": 16.3909
           },
           "kind": "booked",
           "tags": [
@@ -1305,7 +1401,9 @@
           "location": {
             "name": "Milna and the south coast",
             "city": "Hvar",
-            "area": "Milna"
+            "area": "Milna",
+            "lat": 43.162715,
+            "lng": 16.486508
           },
           "kind": "planned",
           "tags": [
@@ -1326,7 +1424,9 @@
           "location": {
             "name": "Fortica (Španjola)",
             "city": "Hvar",
-            "area": "Groda"
+            "area": "Groda",
+            "lat": 43.174738,
+            "lng": 16.442098
           },
           "kind": "planned",
           "tags": [
@@ -1348,7 +1448,9 @@
           "location": {
             "name": "Konoba Menego",
             "city": "Hvar",
-            "area": "Groda"
+            "area": "Groda",
+            "lat": 43.17325,
+            "lng": 16.442305
           },
           "kind": "booked",
           "tags": [
@@ -1393,7 +1495,9 @@
           "location": {
             "name": "Trg od oružja and St Tryphon's",
             "city": "Kotor",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.425548,
+            "lng": 18.771615
           },
           "kind": "planned",
           "tags": [],
@@ -1412,7 +1516,9 @@
           "location": {
             "name": "Kotor fortress walls, San Giovanni",
             "city": "Kotor",
-            "area": "Stari Grad"
+            "area": "Stari Grad",
+            "lat": 42.42067,
+            "lng": 18.76825
           },
           "kind": "booked",
           "tags": [
@@ -1434,7 +1540,9 @@
           "location": {
             "name": "Kotor marina",
             "city": "Kotor",
-            "area": "Kotor waterfront"
+            "area": "Kotor waterfront",
+            "lat": 42.426105,
+            "lng": 18.76677
           },
           "kind": "booked",
           "tags": [],
@@ -1453,7 +1561,9 @@
           "location": {
             "name": "Gospa od Škrpjela",
             "city": "Perast",
-            "area": "Boka Kotorska"
+            "area": "Boka Kotorska",
+            "lat": 42.486867,
+            "lng": 18.68859
           },
           "kind": "planned",
           "tags": [
@@ -1474,7 +1584,9 @@
           "location": {
             "name": "Konoba Ćatovića Mlini",
             "city": "Morinj",
-            "area": "Boka Kotorska"
+            "area": "Boka Kotorska",
+            "lat": 42.486611,
+            "lng": 18.649122
           },
           "kind": "booked",
           "tags": [
@@ -1495,7 +1607,9 @@
           "location": {
             "name": "Plava Špilja, Luštica",
             "city": "Herceg Novi",
-            "area": "Luštica"
+            "area": "Luštica",
+            "lat": 42.374011,
+            "lng": 18.595986
           },
           "kind": "planned",
           "tags": [
@@ -1516,7 +1630,9 @@
           "location": {
             "name": "St Nicholas bell tower",
             "city": "Perast",
-            "area": "Perast waterfront"
+            "area": "Perast waterfront",
+            "lat": 42.48809,
+            "lng": 18.695252
           },
           "kind": "idea",
           "tags": [
@@ -1537,7 +1653,9 @@
           "location": {
             "name": "Restaurant Školji",
             "city": "Perast",
-            "area": "Perast waterfront"
+            "area": "Perast waterfront",
+            "lat": 42.48809,
+            "lng": 18.695252
           },
           "kind": "booked",
           "tags": [

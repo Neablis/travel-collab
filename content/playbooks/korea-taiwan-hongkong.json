@@ -53,7 +53,9 @@
           "location": {
             "name": "Hanbok rental shops on Yulgok-ro, Gyeongbokgung side",
             "city": "Seoul",
-            "area": "Jongno"
+            "area": "Jongno",
+            "lat": 37.576556,
+            "lng": 126.985574
           },
           "kind": "booked",
           "tags": [],
@@ -72,7 +74,9 @@
           "location": {
             "name": "Gyeongbokgung Palace",
             "city": "Seoul",
-            "area": "Jongno"
+            "area": "Jongno",
+            "lat": 37.579754,
+            "lng": 126.976682
           },
           "kind": "planned",
           "tags": [
@@ -93,7 +97,9 @@
           "location": {
             "name": "Bukchon Hanok Village",
             "city": "Seoul",
-            "area": "Bukchon"
+            "area": "Bukchon",
+            "lat": 37.57956,
+            "lng": 126.983163
           },
           "kind": "planned",
           "tags": [],
@@ -112,7 +118,9 @@
           "location": {
             "name": "Tongin Market dosirak cafe",
             "city": "Seoul",
-            "area": "Seochon"
+            "area": "Seochon",
+            "lat": 37.57931,
+            "lng": 126.97303
           },
           "kind": "planned",
           "tags": [
@@ -133,7 +141,9 @@
           "location": {
             "name": "Changdeokgung Palace and Huwon",
             "city": "Seoul",
-            "area": "Jongno"
+            "area": "Jongno",
+            "lat": 37.580695,
+            "lng": 126.982799
           },
           "kind": "booked",
           "tags": [
@@ -154,7 +164,9 @@
           "location": {
             "name": "Ikseon-dong hanok alleys",
             "city": "Seoul",
-            "area": "Ikseon-dong"
+            "area": "Ikseon-dong",
+            "lat": 37.573392,
+            "lng": 126.989839
           },
           "kind": "planned",
           "tags": [],
@@ -173,7 +185,9 @@
           "location": {
             "name": "Euljiro Nogari Alley",
             "city": "Seoul",
-            "area": "Euljiro"
+            "area": "Euljiro",
+            "lat": 37.539619,
+            "lng": 127.009676
           },
           "kind": "planned",
           "tags": [
@@ -194,7 +208,9 @@
           "location": {
             "name": "Euljiro 3-ga backstreets",
             "city": "Seoul",
-            "area": "Euljiro"
+            "area": "Euljiro",
+            "lat": 37.566643,
+            "lng": 126.998169
           },
           "kind": "idea",
           "tags": [],
@@ -243,7 +259,9 @@
           "location": {
             "name": "Gwangjang Market",
             "city": "Seoul",
-            "area": "Jongno"
+            "area": "Jongno",
+            "lat": 37.569783,
+            "lng": 127.000655
           },
           "kind": "planned",
           "tags": [
@@ -264,7 +282,9 @@
           "location": {
             "name": "Jongno 5-ga Station, Line 1",
             "city": "Seoul",
-            "area": "Jongno"
+            "area": "Jongno",
+            "lat": 37.567446,
+            "lng": 127.074901
           },
           "kind": "transit",
           "tags": [],
@@ -283,7 +303,9 @@
           "location": {
             "name": "Dragon Hill Spa",
             "city": "Seoul",
-            "area": "Yongsan"
+            "area": "Yongsan",
+            "lat": 37.52776,
+            "lng": 126.96397
           },
           "kind": "planned",
           "tags": [],
@@ -302,7 +324,9 @@
           "location": {
             "name": "Leeum Museum of Art",
             "city": "Seoul",
-            "area": "Hannam-dong"
+            "area": "Hannam-dong",
+            "lat": 37.569935,
+            "lng": 126.97751
           },
           "kind": "planned",
           "tags": [],
@@ -321,7 +345,9 @@
           "location": {
             "name": "Mosu Seoul",
             "city": "Seoul",
-            "area": "Hannam-dong"
+            "area": "Hannam-dong",
+            "lat": 37.53822,
+            "lng": 127.0074
           },
           "kind": "booked",
           "tags": [
@@ -342,7 +368,9 @@
           "location": {
             "name": "Zest",
             "city": "Seoul",
-            "area": "Gangnam"
+            "area": "Gangnam",
+            "lat": 37.525963,
+            "lng": 127.040709
           },
           "kind": "hold",
           "tags": [],
@@ -382,7 +410,9 @@
           "location": {
             "name": "Seomyeon dwaeji gukbap alley",
             "city": "Busan",
-            "area": "Seomyeon"
+            "area": "Seomyeon",
+            "lat": 35.11741,
+            "lng": 129.002102
           },
           "kind": "planned",
           "tags": [
@@ -403,7 +433,9 @@
           "location": {
             "name": "Toseong Station exit 6",
             "city": "Busan",
-            "area": "Toseong-dong"
+            "area": "Toseong-dong",
+            "lat": 35.11741,
+            "lng": 129.002102
           },
           "kind": "transit",
           "tags": [],
@@ -422,7 +454,9 @@
           "location": {
             "name": "Gamcheon Culture Village",
             "city": "Busan",
-            "area": "Gamcheon"
+            "area": "Gamcheon",
+            "lat": 35.096337,
+            "lng": 129.00879
           },
           "kind": "planned",
           "tags": [
@@ -443,7 +477,9 @@
           "location": {
             "name": "Jagalchi Fish Market",
             "city": "Busan",
-            "area": "Jagalchi"
+            "area": "Jagalchi",
+            "lat": 35.096628,
+            "lng": 129.030688
           },
           "kind": "planned",
           "tags": [
@@ -464,7 +500,9 @@
           "location": {
             "name": "BIFF Square and Gukje Market",
             "city": "Busan",
-            "area": "Nampo-dong"
+            "area": "Nampo-dong",
+            "lat": 35.0976,
+            "lng": 129.030645
           },
           "kind": "planned",
           "tags": [
@@ -485,7 +523,9 @@
           "location": {
             "name": "Huinnyeoul Culture Village coastal path",
             "city": "Busan",
-            "area": "Yeongdo"
+            "area": "Yeongdo",
+            "lat": 35.107084,
+            "lng": 128.951927
           },
           "kind": "idea",
           "tags": [
@@ -506,7 +546,9 @@
           "location": {
             "name": "Millak Raw Fish Town",
             "city": "Busan",
-            "area": "Gwangalli"
+            "area": "Gwangalli",
+            "lat": 35.159697,
+            "lng": 129.128893
           },
           "kind": "hold",
           "tags": [
@@ -527,7 +569,9 @@
           "location": {
             "name": "Gwangalli Beach",
             "city": "Busan",
-            "area": "Gwangalli"
+            "area": "Gwangalli",
+            "lat": 35.150888,
+            "lng": 129.116655
           },
           "kind": "planned",
           "tags": [
@@ -572,7 +616,9 @@
           "location": {
             "name": "Xinbeitou Station",
             "city": "Taipei",
-            "area": "Beitou"
+            "area": "Beitou",
+            "lat": 25.136964,
+            "lng": 121.503169
           },
           "kind": "transit",
           "tags": [],
@@ -591,7 +637,9 @@
           "location": {
             "name": "Beitou Park hot spring area and Beitou Hot Spring Museum",
             "city": "Taipei",
-            "area": "Beitou"
+            "area": "Beitou",
+            "lat": 25.132419,
+            "lng": 121.501379
           },
           "kind": "booked",
           "tags": [
@@ -612,7 +660,9 @@
           "location": {
             "name": "Beitou Thermal Valley",
             "city": "Taipei",
-            "area": "Beitou"
+            "area": "Beitou",
+            "lat": 25.13805,
+            "lng": 121.511806
           },
           "kind": "idea",
           "tags": [],
@@ -631,7 +681,9 @@
           "location": {
             "name": "Yongkang Street",
             "city": "Taipei",
-            "area": "Da'an"
+            "area": "Da'an",
+            "lat": 25.032464,
+            "lng": 121.52973
           },
           "kind": "planned",
           "tags": [
@@ -652,7 +704,9 @@
           "location": {
             "name": "Smoothie House, Yongkang Street",
             "city": "Taipei",
-            "area": "Da'an"
+            "area": "Da'an",
+            "lat": 25.032526,
+            "lng": 121.52982
           },
           "kind": "idea",
           "tags": [
@@ -673,7 +727,9 @@
           "location": {
             "name": "Chiang Kai-shek Memorial Hall",
             "city": "Taipei",
-            "area": "Zhongzheng"
+            "area": "Zhongzheng",
+            "lat": 25.034576,
+            "lng": 121.521781
           },
           "kind": "planned",
           "tags": [],
@@ -692,7 +748,9 @@
           "location": {
             "name": "Xiangshan (Elephant Mountain) Trail",
             "city": "Taipei",
-            "area": "Xinyi"
+            "area": "Xinyi",
+            "lat": 25.04776,
+            "lng": 121.53185
           },
           "kind": "planned",
           "tags": [
@@ -713,7 +771,9 @@
           "location": {
             "name": "Raohe Street Night Market",
             "city": "Taipei",
-            "area": "Songshan"
+            "area": "Songshan",
+            "lat": 24.99194,
+            "lng": 121.426966
           },
           "kind": "planned",
           "tags": [
