@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status: four fixed, three open.** This file exists so Mitchell has a preview
+**Status: eight fixed, two answered, two filed.** This file exists so Mitchell has a preview
 deployment to comment on and a place for those comments to land. Findings 1, 2,
 3 and 7 are fixed on this branch; 4, 5 and 6 are open and each needs a decision
 before anyone starts it — see their entries for why.
@@ -82,8 +82,8 @@ branch is no longer prose-only.
 | 2 | `/signup?error=MISSING_INVITE_CODE` | 1728×836 | Error copy is one dense line; wants two, and the em dash dropped | **Fixed** |
 | 3 | `/` — first-trip card | 1728×836 | "Look around an example trip" doesn't read as a button | **Fixed** |
 | 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | **Fixed** |
-| 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open — **needs a decision** |
-| 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
+| 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | **Filed** — KI-2026-09-06-c |
+| 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | **Filed** — KI-2026-09-06-d |
 | 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | **Fixed** |
 | 8 | Schedule / Timeline — attributee | 1728×836 | A raw internal user id is printed on every timed card | **Fixed** |
 | 9 | Schedule / Timeline — avatar | 1728×836 | Avatar initials read "0D" — derived from that same raw id | **Fixed** |
@@ -450,3 +450,39 @@ The symmetry across both ends favours the first; the magnitude favours the
 second. Left open rather than guessed: this is a functional regression and
 deserves a real repro at 1728×836 with fourteen days, plus an e2e test that
 reaches the first and last column, since nothing currently covers it.
+
+## Outcome
+
+Twelve threads. **Eight fixed** on this branch, **two answered** as
+preview-registry shells needing no code, and **two filed** as known issues
+because each is blocked on a decision rather than on effort.
+
+| Outcome | Findings |
+| ------- | -------- |
+| Fixed | 1 dev-login prominence · 2 signup copy · 3 home link · 4 map travel legs · 7 page top spacing · 8 + 9 raw user id and its initials · 12 the day scroller |
+| Answered | 10 `timeline-ghost` (M9) · 11 `cost-estimate-state` (M19) |
+| Filed | 5 → `KI-2026-09-06-c` · 6 → `KI-2026-09-06-d` |
+
+**The two filed ones were built or scoped before being filed, not waved off.**
+
+- **5** had a working implementation — a `top-full` popover on a `relative`
+  wrapper, gated to the selected widget. It was reverted because it fails
+  `PageScreen.test.tsx:379`, the test carrying ADR-037 open question 1: a
+  notebook showing day 1, day 3 and day 9 could no longer show where its three
+  widgets point without clicking each. The request collides with an earlier
+  decision by the same person, and that collision is the finding.
+- **6** is blocked twice over, and the first blocker was not in the original
+  triage: a widget node is inline inside a `<p>`, where `MacroView` has already
+  measured that a block element causes a hydration error — so a literal
+  `<table>` is unavailable for the same reason `<div>` is, before the missing
+  cell model is even reached.
+
+**Two fixes went wider than reported**, both because the reported surface was
+one instance of a defect rather than the whole of it: the raw-id avatar was also
+on `home/TripCard` and `home/NextTripHero`, and finding 1's `ghost` variant was
+the same bug as finding 3.
+
+**Still not seen in a browser.** Every fix here is proven by tests, types and —
+for the day scroller — a real-browser e2e run. None has been looked at on the
+preview, because this container is blocked at Vercel's bot checkpoint. That
+walk is the one thing still owed.
