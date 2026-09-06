@@ -26,12 +26,39 @@ export type SignInIdentity = {
   image: string | null;
 };
 
-/** The structural subset of Auth.js's `User`/`AdapterUser` that we read. */
+/**
+ * The structural subset of Auth.js's `User`/`AdapterUser` that we read.
+ *
+ * `id` is deliberately ABSENT. Auth.js does supply one, and it is worthless:
+ * `getUserAndAccount` overwrites it with a fresh `crypto.randomUUID()` on
+ * every OAuth sign-in (`@auth/core@0.41.3`
+ * `lib/actions/callback/oauth/callback.js:216-236`). Leaving the field off the
+ * type is what makes the mistake this module made for a week — reading the id
+ * from here — fail to compile rather than fail in production.
+ */
 type SignInUser = {
-  id?: string | null;
   email?: string | null;
   name?: string | null;
   image?: string | null;
+};
+
+/**
+ * The structural subset of Auth.js's `Account` that we read: the provider's
+ * own subject for this person, and the only stable identifier in the payload.
+ *
+ * For Google this is `google-<sub>`, namespaced by `googleProfile`; for dev
+ * login it is `dev-<username>`, namespaced by the provider itself. Both are
+ * therefore already distinct across providers, which is why nothing here
+ * branches on `account.provider`.
+ */
+type SignInAccount = {
+  providerAccountId?: string | null;
+};
+
+/** What Auth.js hands the `signIn` callback, reduced to what identity needs. */
+export type SignInPayload = {
+  user?: SignInUser | null;
+  account?: SignInAccount | null;
 };
 
 function blankToNull(value: string | null | undefined): string | null {
@@ -42,21 +69,32 @@ function blankToNull(value: string | null | undefined): string | null {
 /**
  * Pure: what an Auth.js sign-in payload means as durable identity.
  *
+ * **The id comes from the ACCOUNT, the profile fields from the USER.** That
+ * split is the whole point of taking one payload rather than two arguments:
+ * `account.providerAccountId` is the provider's own subject and is the string
+ * already stored in `events.actor_id`, `pages.actor_id` and
+ * `TripMember.userId`, while `user.id` is a per-sign-in UUID Auth.js mints and
+ * discards (see `SignInUser` above, and `googleProfile` in `lib/authConfig`).
+ * Reading the id from the user is the 2026-09-05 bug; `SignInUser` has no `id`
+ * field so that this cannot be written again.
+ *
+ * No subject means no identity, and no identity means no row: there is
+ * deliberately no fallback to anything else in the payload, because every
+ * candidate fallback is exactly the value that caused the incident.
+ *
  * Email is lowercased because it is the only field a human will later type to
  * invite someone (link 3), and "Ana@Example.com" inviting "ana@example.com"
- * must not produce two people. The id is kept verbatim — it is the provider's
- * own subject (`sub`, or `dev-<username>`) and is the string already stored in
- * `events.actor_id`, `pages.actor_id` and `TripMember.userId`.
+ * must not produce two people.
  */
-export function normalizeIdentity(user: SignInUser | null | undefined): SignInIdentity | null {
-  const id = blankToNull(user?.id);
+export function normalizeIdentity(payload: SignInPayload | null | undefined): SignInIdentity | null {
+  const id = blankToNull(payload?.account?.providerAccountId);
   if (id === null) return null;
-  const email = blankToNull(user?.email);
+  const email = blankToNull(payload?.user?.email);
   return {
     id,
     email: email === null ? null : email.toLowerCase(),
-    name: blankToNull(user?.name),
-    image: blankToNull(user?.image),
+    name: blankToNull(payload?.user?.name),
+    image: blankToNull(payload?.user?.image),
   };
 }
 
@@ -219,10 +257,13 @@ async function hasUserRow(id: string): Promise<boolean> {
  * used it, and that includes a sign-in that turned out not to need it.
  */
 export async function recordSignIn(
-  { user }: { user?: SignInUser | null },
+  payload: SignInPayload,
   pending: PendingAdmission = cookiePendingAdmission(),
 ): Promise<boolean | string> {
-  const identity = normalizeIdentity(user);
+  // Refused here means refused before the gate is consulted and before any row
+  // exists — including a payload carrying no account, which after 2026-09-05
+  // is the shape that must never be admitted rather than quietly given an id.
+  const identity = normalizeIdentity(payload);
   if (identity === null) return false;
 
   const returning = await hasUserRow(identity.id);

@@ -124,10 +124,58 @@ export function authEnvironment(): string {
   return process.env.VERCEL_ENV ?? "development";
 }
 
+/** The Google OIDC claims we actually consume. `sub` is the only guaranteed one. */
+export type GoogleClaims = {
+  sub: string;
+  name?: string | null;
+  email?: string | null;
+  picture?: string | null;
+};
+
+/**
+ * Google's OIDC claims → the identity Auth.js carries for this sign-in.
+ *
+ * This override exists for one reason: to make the Google provider NAMESPACE
+ * its own subject, exactly as `devLoginIdentity` above namespaces a username
+ * as `dev-<username>`. Auth.js's `defaultProfile` maps a bare `profile.sub`
+ * (`@auth/core/lib/utils/providers.js:80`), and with both providers
+ * namespacing themselves, the identity seam in `server/users.ts` can read one
+ * field — `account.providerAccountId` — with no per-provider branching at all.
+ *
+ * **Do not key durable identity off the `user` object Auth.js builds from
+ * this.** The `id` returned here survives ONLY as `account.providerAccountId`:
+ * `getUserAndAccount` overwrites `user.id` with a fresh `crypto.randomUUID()`
+ * on every OAuth sign-in (`@auth/core@0.41.3`
+ * `lib/actions/callback/oauth/callback.js:216-236`), deliberately, because
+ * with an adapter the durable row is recovered by `getUserByAccount` instead
+ * (`lib/actions/callback/index.js:55-66`). ADR-025 has no adapter, so nothing
+ * recovers it for us and that UUID is pure per-sign-in noise. Keying off it
+ * minted a new account on every single Google sign-in and sent the person back
+ * through the M11a invite gate as a stranger — 13 `users` rows for one address
+ * in production before this was found (2026-09-05).
+ *
+ * `sub` is the only claim OIDC guarantees; the rest are optional and map to
+ * `null` rather than `undefined`, which is the same "absent, not blank"
+ * discipline `normalizeIdentity` applies on the way to the row.
+ */
+export function googleProfile(profile: GoogleClaims): {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+} {
+  return {
+    id: `google-${profile.sub}`,
+    name: profile.name ?? null,
+    email: profile.email ?? null,
+    image: profile.picture ?? null,
+  };
+}
+
 const providers: Provider[] = [];
 
 if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
-  providers.push(Google);
+  providers.push(Google({ profile: googleProfile }));
 }
 
 // Gate shared with the sign-in/sign-up pages rather than repeated here: the
@@ -155,9 +203,22 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     // Called with `user` exactly once, on sign-in; with the decoded token
     // alone on every subsequent session read, in both runtimes.
-    jwt: ({ token, user }) => {
+    jwt: ({ token, user, account }) => {
       if (user) {
-        if (user.id) token.userId = user.id;
+        // From the ACCOUNT, never from `user.id` — see `googleProfile` above.
+        // `user.id` is a fresh UUID per OAuth sign-in, so minting the claim
+        // from it made every request for the whole 30-day life of the cookie
+        // act as an account that existed only for that one sign-in. This must
+        // agree with `recordSignIn`'s reading of the same field, or the gate
+        // admits one identity and the session then carries another.
+        const subject = account?.providerAccountId?.trim();
+        // Fail-closed, and unreachable in practice: `recordSignIn` has already
+        // refused a sign-in with no durable subject. Null is Auth.js's "this
+        // session is over" signal, so no cookie is issued at all — the one
+        // thing that must not happen here is quietly falling back to `user.id`
+        // and reviving the bug behind a gate that just passed.
+        if (!subject) return null;
+        token.userId = subject;
         // Stamped at mint time, so the claim describes where the credential
         // was actually issued rather than where it is being presented.
         token.env = authEnvironment();
@@ -178,7 +239,14 @@ export const authConfig: NextAuthConfig = {
       return token;
     },
     session: ({ session, token }) => {
-      session.user.id = (token.userId as string | undefined) ?? token.sub ?? "";
+      // `token.userId` only. The `?? token.sub` fallback that used to sit here
+      // was not a safety net but a second copy of the bug: for an OAuth
+      // sign-in Auth.js sets `sub` from the same throwaway `user.id`
+      // (`lib/actions/callback/index.js:74`), so any token that fell through
+      // to it named an account that no longer exists. The claim is always
+      // stamped above or no token is issued, which leaves nothing to fall
+      // back FOR — and an empty id is caught by every owner-scoped read.
+      session.user.id = (token.userId as string | undefined) ?? "";
       // Overrides `sendDefaultPii: false` deliberately (Mitchell, 2026-08-30):
       // this is the one seam every `auth()` call in both runtimes passes
       // through, so it's the single place to attach identity to whatever

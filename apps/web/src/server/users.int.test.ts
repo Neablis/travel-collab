@@ -15,6 +15,19 @@ import { getTripDetail } from "./projections";
 // docs/testing-baseline.md).
 const signInId = () => `dev-${randomUUID()}`;
 
+/**
+ * The payload Auth.js actually delivers for a sign-in by `subject`.
+ *
+ * The subject goes on the ACCOUNT, which is the only place a durable id ever
+ * comes from (`normalizeIdentity`). Every call here used to pass it as
+ * `user.id` instead — modelling the assumption rather than the reality, which
+ * is why this suite stayed green through the 2026-09-05 incident.
+ */
+const signInAs = (
+  subject: string | null,
+  user: { name?: string; email?: string; image?: string | null } = {},
+) => ({ user, account: { providerAccountId: subject } });
+
 async function readUser(id: string) {
   const [row] = await db.select().from(users).where(eq(users.id, id));
   return row ?? null;
@@ -198,7 +211,7 @@ describe("account preferences (M17)", () => {
     await writePreferences(id, { displayName: "Ana", homeAirport: "SFO", distanceUnit: "mi" });
 
     // The real callback, driven for real — not a second `upsertUser` call.
-    await expect(recordSignIn({ user: { id, name: "Ana Provider", email: "ana@example.com" } }, admitting())).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(id, { name: "Ana Provider", email: "ana@example.com" }), admitting())).resolves.toBe(true);
 
     expect(await readPreferences(id)).toEqual({
       displayName: "Ana",
@@ -215,7 +228,7 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
   it("admits a sign-in and leaves the user durable behind it", async () => {
     const id = signInId();
     await expect(
-      recordSignIn({ user: { id, name: "  Alice  ", email: "ALICE@Example.com" } }, admitting()),
+      recordSignIn(signInAs(id, { name: "  Alice  ", email: "ALICE@Example.com" }), admitting()),
     ).resolves.toBe(true);
 
     expect(await readUser(id)).toMatchObject({ id, name: "Alice", email: "alice@example.com" });
@@ -223,17 +236,59 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
 
   it("is idempotent across repeated sign-ins, which is the normal case", async () => {
     const id = signInId();
-    await recordSignIn({ user: { id, name: "Alice" } }, admitting());
-    await recordSignIn({ user: { id, name: "Alice" } }, admitting());
+    await recordSignIn(signInAs(id, { name: "Alice" }), admitting());
+    await recordSignIn(signInAs(id, { name: "Alice" }), admitting());
 
     expect(await db.select().from(users).where(eq(users.id, id))).toHaveLength(1);
+  });
+
+  // THE 2026-09-05 REGRESSION, at the seam where it actually happened.
+  //
+  // The test above could not catch it, because it hands the same id twice —
+  // which is exactly what Auth.js does NOT do. On a real Google sign-in the
+  // `user` object carries a fresh `crypto.randomUUID()` every time and only
+  // `account.providerAccountId` is stable, so this drives the payload the way
+  // production delivers it: a different user each time, one Google account.
+  //
+  // Both halves matter. One row is the account not being duplicated; `true`
+  // from a jar holding NOTHING is the person not being sent back through the
+  // M11a invite gate as a stranger — the screen that was actually reported.
+  it("treats every sign-in by one Google account as the same person, though Auth.js re-rolls the user", async () => {
+    const subject = `google-${randomUUID()}`;
+    const email = `${subject}@example.com`;
+
+    await expect(recordSignIn(signInAs(subject, { name: "Mitchell", email }), admitting())).resolves.toBe(true);
+
+    // Second sign-in: same Google account, and no admission credential at all.
+    await expect(recordSignIn(signInAs(subject, { name: "Mitchell", email }), fakeJar(null))).resolves.toBe(true);
+    // A third, because "a few times now" is the shape of the report.
+    await expect(recordSignIn(signInAs(subject, { name: "Mitchell", email }), fakeJar(null))).resolves.toBe(true);
+
+    expect(await db.select().from(users).where(eq(users.email, email))).toHaveLength(1);
+    expect(await readUser(subject)).toMatchObject({ id: subject, email });
+  });
+
+  // The other half of what production showed: preferences stranded on a row
+  // nobody could sign back into. One account means the settings survive.
+  it("keeps a returning Google account's preferences across sign-ins", async () => {
+    const subject = `google-${randomUUID()}`;
+    await recordSignIn(signInAs(subject, { name: "Mitchell" }), admitting());
+    await writePreferences(subject, { displayName: "Mitchell", homeAirport: "OAK", distanceUnit: "mi" });
+
+    await recordSignIn(signInAs(subject, { name: "Mitchell" }), fakeJar(null));
+
+    expect(await readPreferences(subject)).toEqual({
+      displayName: "Mitchell",
+      homeAirport: "OAK",
+      distanceUnit: "mi",
+    });
   });
 
   // Unchanged by M11a and deliberately so: the no-id path is refused with
   // `false`, before the gate is even consulted, and `false` still means the
   // designed /signup?error= screen. Fail-closed was widened, not weakened.
   it("refuses a payload with no usable id rather than creating an anonymous row", async () => {
-    await expect(recordSignIn({ user: { id: "  ", name: "Nobody" } })).resolves.toBe(false);
+    await expect(recordSignIn(signInAs("  ", { name: "Nobody" }))).resolves.toBe(false);
     await expect(recordSignIn({ user: null })).resolves.toBe(false);
   });
 });
@@ -248,7 +303,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     const id = signInId();
     await upsertUser({ id, email: "ana@example.com", name: "Ana", image: null });
 
-    await expect(recordSignIn({ user: { id, name: "Ana" } }, fakeJar(null))).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(id, { name: "Ana" }), fakeJar(null))).resolves.toBe(true);
   });
 
   it("spends no code for someone who was already here", async () => {
@@ -256,7 +311,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     await upsertUser({ id, email: null, name: "Ana", image: null });
     const code = await mintCode(id);
 
-    await expect(recordSignIn({ user: { id, name: "Ana" } }, fakeJar(code))).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(id, { name: "Ana" }), fakeJar(code))).resolves.toBe(true);
 
     const [row] = await db.select().from(inviteCodes).where(eq(inviteCodes.code, code));
     expect(row?.redeemedBy).toBeNull();
@@ -267,7 +322,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
   it("refuses a newcomer who presents nothing, and creates no row", async () => {
     const id = signInId();
 
-    await expect(recordSignIn({ user: { id, name: "Nobody" } }, fakeJar(null))).resolves.toBe(
+    await expect(recordSignIn(signInAs(id, { name: "Nobody" }), fakeJar(null))).resolves.toBe(
       `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
     );
     expect(await readUser(id)).toBeNull();
@@ -277,7 +332,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     const id = signInId();
 
     await expect(
-      recordSignIn({ user: { id, name: "Nobody" } }, fakeJar(`code-${randomUUID()}`)),
+      recordSignIn(signInAs(id, { name: "Nobody" }), fakeJar(`code-${randomUUID()}`)),
     ).resolves.toBe(`/signup?error=${AdmissionRefusal.enum.INVALID_INVITE_CODE}`);
     expect(await readUser(id)).toBeNull();
   });
@@ -286,9 +341,9 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     const first = signInId();
     const second = signInId();
     const code = await mintCode(first);
-    await recordSignIn({ user: { id: first, name: "First" } }, fakeJar(code));
+    await recordSignIn(signInAs(first, { name: "First" }), fakeJar(code));
 
-    await expect(recordSignIn({ user: { id: second, name: "Second" } }, fakeJar(code))).resolves.toBe(
+    await expect(recordSignIn(signInAs(second, { name: "Second" }), fakeJar(code))).resolves.toBe(
       `/signup?error=${AdmissionRefusal.enum.SPENT_INVITE_CODE}`,
     );
     expect(await readUser(second)).toBeNull();
@@ -299,7 +354,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     const id = signInId();
     const code = await mintCode(id);
 
-    await expect(recordSignIn({ user: { id, name: "New" } }, fakeJar(code))).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(id, { name: "New" }), fakeJar(code))).resolves.toBe(true);
 
     expect(await readUser(id)).not.toBeNull();
     const [row] = await db.select().from(inviteCodes).where(eq(inviteCodes.code, code));
@@ -311,18 +366,18 @@ describe("recordSignIn is the invite gate (M11a)", () => {
   // needed it.
   it("clears the pending credential on success, on refusal, and for a returning user", async () => {
     const admittedJar = fakeJar(SUPER_CODE);
-    await expect(recordSignIn({ user: { id: signInId() } }, admittedJar)).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(signInId()), admittedJar)).resolves.toBe(true);
     expect(admittedJar.cleared).toBe(true);
 
     const refusedJar = fakeJar(`code-${randomUUID()}`);
-    const refused = await recordSignIn({ user: { id: signInId() } }, refusedJar);
+    const refused = await recordSignIn(signInAs(signInId()), refusedJar);
     expect(refused).not.toBe(true);
     expect(refusedJar.cleared).toBe(true);
 
     const returning = signInId();
     await upsertUser({ id: returning, email: null, name: null, image: null });
     const returningJar = fakeJar(SUPER_CODE);
-    await expect(recordSignIn({ user: { id: returning } }, returningJar)).resolves.toBe(true);
+    await expect(recordSignIn(signInAs(returning), returningJar)).resolves.toBe(true);
     expect(returningJar.cleared).toBe(true);
   });
 
@@ -330,12 +385,12 @@ describe("recordSignIn is the invite gate (M11a)", () => {
   // string that happens to look like one.
   it("returns only refusals the AdmissionRefusal contract recognises", async () => {
     const spent = await mintCode(signInId());
-    await recordSignIn({ user: { id: signInId() } }, fakeJar(spent));
+    await recordSignIn(signInAs(signInId()), fakeJar(spent));
 
     const refusals = await Promise.all([
-      recordSignIn({ user: { id: signInId() } }, fakeJar(null)),
-      recordSignIn({ user: { id: signInId() } }, fakeJar(`code-${randomUUID()}`)),
-      recordSignIn({ user: { id: signInId() } }, fakeJar(spent)),
+      recordSignIn(signInAs(signInId()), fakeJar(null)),
+      recordSignIn(signInAs(signInId()), fakeJar(`code-${randomUUID()}`)),
+      recordSignIn(signInAs(signInId()), fakeJar(spent)),
     ]);
 
     for (const refusal of refusals) {
@@ -354,7 +409,7 @@ describe("recordSignIn is the invite gate (M11a)", () => {
 describe("actorId refers to a user row (ADR-025)", () => {
   it("every actor id a signed-in session can produce already has a users row behind it", async () => {
     const id = signInId();
-    await recordSignIn({ user: { id, name: "Ana", email: "ana@example.com" } }, admitting());
+    await recordSignIn(signInAs(id, { name: "Ana", email: "ana@example.com" }), admitting());
 
     const tripId = randomUUID();
     const result = await executeTripCommand({ type: "CreateTrip", tripId, name: "Rome 2027" }, id);
