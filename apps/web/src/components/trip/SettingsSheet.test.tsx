@@ -486,10 +486,11 @@ describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
 });
 
 describe("SettingsSheet share", () => {
-  // The whole point of mounting it here: below 768px this is the ONLY Share
-  // in the app for the trip you are looking at (ShareButton has exactly two
-  // mount points, this sheet and TripHeader, and the header's is hidden on a
-  // phone).
+  // The whole point of mounting it here: this is the ONLY Share in the app for
+  // the trip you are looking at, at every width. It used to be the only one
+  // *below 768px* — the header carried a second copy for desktop — until
+  // Mitchell, 2026-09-06: *"Put share in the trip settings under invite
+  // someone, both here and in mobile"*.
   it("offers Share, and it opens its own panel inside the sheet", async () => {
     renderSheet();
 
@@ -501,12 +502,39 @@ describe("SettingsSheet share", () => {
     expect(screen.getByRole("button", { name: "Create a share link" })).toBeTruthy();
   });
 
+  // **Under the invite controls, not above them.** Mitchell, 2026-09-06: *"Put
+  // share in the trip settings under invite someone"*. The two are the same
+  // question at different strengths — who can see this trip — and reading down
+  // the section should go: who is already here, invite a named person, or hand
+  // out a link that needs no name. On the heading row Share read as a control
+  // for the heading, and someone looking for it found it above the thing it
+  // belongs with.
+  //
+  // **Read off the sheet's text, not off `getAllByRole("button")`.** The first
+  // cut of this compared the index of "Share" against the index of "Invite
+  // someone" among the sheet's buttons — and `TravelersPanel` is MOCKED in this
+  // file (top of the file, deliberately: it owns its own suite), so "Invite
+  // someone" was never in that list at all. `indexOf` returned -1, every index
+  // beat it, and the assertion passed with Share put straight back on the
+  // heading row. Text order is document order, and the mock renders the tripId,
+  // which is a position in the sheet that actually exists here.
+  it("puts Share below the invite controls, not above them", () => {
+    renderSheet();
+
+    const sheet = screen.getByRole("dialog").textContent ?? "";
+    const panelAt = sheet.indexOf(tripId);
+    const shareAt = sheet.indexOf("Share");
+    expect(panelAt).toBeGreaterThan(-1);
+    expect(shareAt).toBeGreaterThan(-1);
+    expect(shareAt).toBeGreaterThan(panelAt);
+  });
+
   // Same rule as the header's `!readOnly`, which is TripProvider's identical
   // `myRole === "viewer"` — withheld, not disabled, exactly as Delete is for a
   // non-owner (a disabled Share still reads as an offer, KI-64). This is also
   // what keeps /demo honest: a demo visitor resolves as a `viewer`
   // server-side (ADR-031, server/access/trip-access.ts), so they lose Share in
-  // the sheet exactly as they already lose it in the header.
+  // the sheet — which is now the only place it could have been lost from.
   it("withholds Share from a viewer and offers it to an editor and an owner", () => {
     renderSheet(vi.fn(), { myRole: "viewer" });
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();

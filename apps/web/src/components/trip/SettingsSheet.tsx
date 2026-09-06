@@ -409,10 +409,7 @@ export function SettingsSheet({
               is the same nesting, already proven by e2e
               (m3-place-and-time.spec.ts opens Trip settings, then Dates, then
               drives TripDateControl inside the popover). */}
-          <div className="flex items-center justify-between">
-            <SectionHeading>Who is invited</SectionHeading>
-            {!readOnly && <ShareButton tripId={tripId} size="sm" />}
-          </div>
+          <SectionHeading>Who is invited</SectionHeading>
           {/* Real as of M11 link 3: TravelersPanel lists the effective members
               (the log's owner plus everyone who accepted an invite), and — for
               the owner — creates, copies and revokes invite links. The
@@ -425,6 +422,17 @@ export function SettingsSheet({
               live on TripDetail, and none of which should (they are Identity
               and Access data — packages/contracts/src/access.ts). */}
           <TravelersPanel tripId={tripId} />
+          {/* **Share goes UNDER the invite controls, not beside the heading.**
+              Mitchell, 2026-09-06: *"Put share in the trip settings under
+              invite someone, both here and in mobile"*.
+
+              The two are the same question at different strengths — who can see
+              this trip — and reading down the section now goes: who is already
+              here, invite a named person, or hand out a link that needs no
+              name. On the heading row it read as a control for the heading, and
+              someone looking for "share" found it above the thing it belongs
+              with. */}
+          {!readOnly && <ShareButton tripId={tripId} size="sm" />}
         </div>
 
         {/* The visible half of clone-with-lineage. The ancestor's name is a

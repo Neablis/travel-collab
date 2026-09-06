@@ -442,11 +442,15 @@ test.describe("responsive (trip header on a phone)", () => {
 
     // Hidden, not removed: these are CSS-gated (`hidden md:…`), so they are
     // still in the DOM and `toBeHidden` is the assertion that means anything.
-    // Both testids name the HEADER's copy specifically — there is a second
-    // Share in the settings sheet now, and an unscoped "Share" would be
-    // ambiguous under strict mode for exactly that reason.
-    await expect(page.getByTestId("trip-header-share")).toBeHidden();
+    // The testid names the HEADER's copy specifically — an unscoped
+    // "trip-meta-row" would be ambiguous with the sheet's own counts.
     await expect(page.getByTestId("trip-meta-row")).toBeHidden();
+    // Share is not merely hidden here — it is not in the header at any width
+    // (Mitchell, 2026-09-06: *"Put share in the trip settings under invite
+    // someone, both here and in mobile"*), so the assertion is a count on the
+    // header rather than a `toBeHidden` on a CSS-gated wrapper that no longer
+    // exists.
+    await expect(page.getByLabel("Trip", { exact: true }).getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 
     // What deliberately stays. Actions are not information: "Add stop" and
     // History have no equivalent in Trip settings, and the tab strip and day
@@ -548,13 +552,18 @@ test.describe("responsive (trip header on a phone)", () => {
     await expect(page.getByRole("button", { name: "Create a share link" })).toBeEnabled();
   });
 
-  test("keeps all three in the header at desktop width", async ({ page }) => {
+  test("keeps the meta pill and budget in the header at desktop width, and Share nowhere in it", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("HeaderDesktop"), 3);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`/trips/${tripId}`);
 
-    await expect(page.getByTestId("trip-header-share")).toBeVisible();
     await expect(page.getByTestId("trip-meta-row")).toBeVisible();
+    // **Share is not in the header at desktop width either**, which is the half
+    // of Mitchell's 2026-09-06 note that a phone-only assertion would miss:
+    // *"Put share in the trip settings under invite someone, both here and in
+    // mobile"*. It was `hidden md:block` before — present here, absent there —
+    // and this test asserted exactly that, so it is the one that had to change.
+    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
     // The pill's own counts, where they have always been — the mirror that
     // makes the phone assertions above statements about the BREAKPOINT rather
     // than about a control that stopped rendering everywhere.

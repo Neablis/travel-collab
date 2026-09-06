@@ -25,11 +25,17 @@ async function addDay(page: Page, tripId: string): Promise<void> {
 }
 
 async function shareLinkFor(page: Page, tripName: string): Promise<string> {
-  // `exact: true` is load-bearing, not tidiness — the same trap helpers.ts
-  // documents for /history/i. Playwright's name matching is
-  // substring-and-case-insensitive, and the trip title button's accessible
-  // name is "<trip name> — Trip settings", so a trip called "Shared 1787…"
-  // makes a loose "Share" match ambiguous and trips strict mode.
+  // **Through Trip settings, because that is where Share lives now.** It used
+  // to be a header button at desktop width; Mitchell moved it into the sheet on
+  // 2026-09-06 — *"Put share in the trip settings under invite someone, both
+  // here and in mobile"* — so the header has no Share at any width.
+  //
+  // `exact: true` on the Share click is still load-bearing, and for the reason
+  // the old comment gave: Playwright's name matching is substring-and-
+  // case-insensitive, and the trip title button's accessible name is
+  // "<trip name> — Trip settings", so a trip called "Shared 1787…" makes a
+  // loose "Share" match ambiguous and trips strict mode.
+  await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(page.getByTestId("share-panel")).toBeVisible();
   await Promise.all([

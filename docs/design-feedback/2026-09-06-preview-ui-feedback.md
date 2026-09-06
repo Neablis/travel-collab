@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 17:45: twenty-seven threads — twenty-two fixed, two answered,
+**Status, as of 18:05: twenty-eight threads — twenty-three fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -831,3 +831,35 @@ The test reads the regions off `getAllByRole`, which returns them in document
 order, and asserts the two names in sequence. Counting them would pass with the
 order reversed, which is the entire finding. Seen red with the sections swapped
 back.
+
+
+## Thread 28, 17:57 — Share leaves the header entirely
+
+> "Put share in the trip settings under invite someone, both here and in mobile"
+
+- Thread: `T3snEMRo5Mjx`, `/trips/081f2e6d-…?lens=Map&view=Calendar`, Chrome 151 on macOS, 1728×836
+- Selector: `… > header.sticky > … > div.hidden > button.inline-flex`
+- Maps to: `TripHeader.tsx` (the header copy), `SettingsSheet.tsx` (where it lands)
+
+**Fixed, in two parts.**
+
+Share was `hidden md:block` in the header — off the phone only, because of an
+earlier report that these controls were *"really crowded and ugly on mobile"*.
+Desktop kept it on the reasoning that there was room. Room is not the argument:
+"both here and in mobile" says the placement is wrong at every width, and having
+it in two places meant a reader had to know which one this build put it in. The
+header copy is gone; `SettingsSheet` mounts the only `ShareButton` on a trip
+now.
+
+Inside the sheet it moved from the "Who is invited" heading row to below
+`TravelersPanel`. Reading down the section now goes: who is already here,
+invite a named person, or hand out a link that needs no name. On the heading row
+it read as a control for the heading.
+
+**The ordering test caught itself, which is the third time today.** The first
+cut compared the index of "Share" against the index of "Invite someone" among
+the sheet's buttons — and `TravelersPanel` is *mocked* in that file, so "Invite
+someone" was never in the list. `indexOf` returned `-1`, every index beat it,
+and the assertion passed with Share put straight back on the heading row. It
+reads the sheet's text order now, against the position the mock actually
+renders. Seen red: `expected 296 to be greater than 301`.
