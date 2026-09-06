@@ -22,6 +22,27 @@ general setup.
 
 ## Where the work is right now
 
+**THE CONTENT HAS COORDINATES, AND A WAY TO PRODUCTION, 2026-09-06.** Branch
+`claude/serialize-and-seed-data-66f8tb`. 1,091 of 1,375 stops now carry `lat`/`lng` — 827 on
+the venue itself — from `scripts/geocode-content.py`, which took five attempts. The four
+failures all looked like *"the API cannot find these places"* and none of them was: an
+over-specified query missing **97%** of the time, a city test rejecting `Reykjavik` for
+`Reykjavík`, anchors resolved *before* the venues that could say which country they were in,
+and a quota-capped run that skipped its database write and so reported success while changing
+nothing. `scripts/geocode-test/replay.py` ended that cycle — the script against a fake
+provider, no network, about a minute — and it found the last one immediately. **Run it after
+any change to the geocoder.**
+
+Content can now reach production. `apps/web/scripts/import-content-production.ts` writes
+through the same command pipeline and derivations the app uses (invariant 1 holds), and
+`.github/workflows/import-content-production.yml` dispatches it from `main` the way
+`migrate-production` does. Idempotent by derived id, with `--prune` for content a bundle has
+stopped declaring — `saved_days.source_bundle` (migration **0018**) is what makes that
+answerable, and it is **not yet applied to production**. Verified against a real Postgres: 148
+days, 4 trips, coordinates carried through, identical state across consecutive runs.
+
+The runbook for both is in `docs/guidelines/content-bundles.md`; **KI-2026-09-06-c** is resolved.
+
 **THE LIBRARY GOT ITS CONTENT, 2026-09-06.** Branch
 `claude/serialize-and-seed-data-66f8tb`, off `dee0c67`. Mitchell asked for a JSON format for
 notebooks, activities and trips, an importer for it, and *"a large amount of seed data … the

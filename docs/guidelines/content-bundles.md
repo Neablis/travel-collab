@@ -286,3 +286,104 @@ the repo root or from `apps/web`.
 whether or not anybody remembers step 2. That test also asserts the whole set
 still fills every season and every budget band Discover filters on, and that no
 two derived ids collide.
+
+## Coordinates
+
+Nothing above asks for `lat`/`lng`, and a bundle without them is complete and
+importable. A stop with no coordinate is a real product state — the Map lens
+says "N stops have no place yet" — and it is a much better one than a pin in the
+wrong country, which is what KI-39 cost the Japan seed.
+
+So coordinates arrive afterwards, from `scripts/geocode-content.py`, and the
+script's job is to NARROW what a person has to look at rather than replace them.
+
+```
+python3 scripts/geocode-content.py --status                 # what is queued; no network
+python3 scripts/geocode-content.py --sample 40              # measure the hit rate first
+python3 scripts/geocode-content.py                          # the run; Ctrl-C is safe
+python3 scripts/geocode-content.py --review                 # READ THIS
+python3 scripts/geocode-content.py --apply
+pnpm content:verify
+```
+
+Reads `LOCATIONIQ_API_KEY` from `apps/web/.env.local`; `--provider nominatim`
+ignores any key and uses OpenStreetMap's own service, which is slower (~1.1s per
+request) but has **no daily cap**. That distinction decides which to use: when
+the constraint is rate, LocationIQ; when it is a spent daily quota, Nominatim.
+
+It commits after every request, so Ctrl-C, a closed laptop or a dead battery
+costs at most one lookup and a re-run resumes exactly where it stopped.
+
+**The review is not optional.** Three tiers of answer come back and they are not
+equally good:
+
+| precision | query | written by `--apply` |
+| --- | --- | --- |
+| `venue` | `name, city` | yes |
+| `area` | `area, city` | yes — but it only means "something in the right city" |
+| `city` | the city centre | **no**, unless `--include-city-level` |
+
+City pins are withheld because putting every stop of a day on one point draws a
+map that says something false about the day.
+
+`--review` writes `content/.geocode-review.json` with what to actually look at:
+
+* **`cityDisagreements`** — cities where the anchor and the pins disagree, with
+  a verdict saying WHICH half is wrong. `bad-pins` (the anchor is corroborated,
+  the listed pins are wrong), `bad-anchor` (the pins agree with each other and
+  beat one lookup), `split` (no agreement — everything withheld). Each pin
+  carries what was matched and a map link.
+* **`farFromCityCentre`** — pins far from their own city, with the match. A
+  remote trailhead and a same-named town in the next country produce the same
+  number, and only the match tells them apart.
+* **`unresolved`** — no result. Often correct: an activity is not a place, and
+  "Return crossing to Port Douglas" was never going to geocode.
+
+**A coordinate already in the file always wins.** `--apply` skips any stop that
+has a `lat`, so anything authored by hand is permanent and survives every future
+run — the Japan pattern, where the geocoder is a proposal and the hand-authored
+value is the reference. The cost is that a coordinate written before a defect
+was found is equally permanent, which is what `--retract` is for: it removes
+coordinates the audit now condemns, and only ones that still match the cache, so
+it can never delete somebody's correction.
+
+Changing how a result is JUDGED invalidates the answers already recorded, so
+`STRATEGY` in the script is bumped whenever the query or the verdict changes and
+stale rows are re-queued automatically.
+
+`scripts/geocode-test/replay.py` runs the script against a fake provider across
+every way a real one misbehaves, plus every command that reads the cache. No
+network, no quota, about a minute. **Run it after any change to the geocoder** —
+the alternative was measured at twenty minutes and several hundred API calls per
+attempt, three times over.
+
+## Publishing to production
+
+`pnpm content:import` talks to a dev server through the dev-login route, which
+fails closed to a 404 in production. Production goes through a dispatched
+workflow instead, in two steps from `main`:
+
+1. **`migrate-production`** — `confirm: migrate`. Only when a migration is
+   pending; `source_bundle` (0018) is one.
+2. **`import-content-production`** — `confirm: import`, `dry_run` **on** first.
+   Re-dispatch with it off once the plan looks right.
+
+Needs two secrets: `PRODUCTION_DATABASE_URL` (the migration workflow already
+uses it) and `CONTENT_OWNER_ID`, a user id to own the demo trips — a dedicated
+account, not a person's.
+
+**It is safe to re-run**, because every id derives from the file:
+
+* playbook days are deleted and rewritten by derived id, so an edited day
+  updates in place and a person's saved days are never touched;
+* trips are **create-if-absent** — a trip is an event stream and re-creating one
+  would discard real history. To publish changed trip content, change that
+  trip's `key`;
+* `prune` removes rows a bundle no longer declares, which plain re-import cannot
+  see. It only considers rows whose `source_bundle` is set, so a day somebody
+  saved is not reachable by it. Off by default: deleting library content should
+  be asked for.
+
+A run that dies between `CreateTrip` and the content after it leaves a trip with
+no days. That is not silent and not permanent — the next run resumes it rather
+than skipping it, and says so.

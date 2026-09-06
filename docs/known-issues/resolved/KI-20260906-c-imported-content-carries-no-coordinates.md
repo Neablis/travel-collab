@@ -1,4 +1,4 @@
-### KI-2026-09-06-c — every stop imported from `content/` carries no coordinates, so the Map lens on the four demo trips reads "N stops have no place yet"
+### KI-2026-09-06-c — every stop imported from `content/` carries no coordinates, so the Map lens on the four demo trips reads "N stops have no place yet" — RESOLVED
 
 - **Severity:** demo quality, not correctness. Nothing is wrong; a real product state (a stop whose place has not been resolved) is simply the state of every imported stop, on trips whose whole job is to look like a finished plan.
 - **Area:** `content/trips/*.json` and `content/playbooks/*.json` — 905 stops, none with `lat`/`lng`. The surfaces that notice: `apps/web/src/components/lenses/mapRailData.ts` (builds `locatedStops` from `day.activityIds`, requiring both `lat` and `lng`, and flags any day with a shortfall), and the shared-day map when SPEC §16's half of it lands.
@@ -65,3 +65,53 @@
   `--review` is the step that is not optional, and it is the whole reason this is a separate piece of work: the script's job is to *narrow* what a person has to look at, not to replace them. It writes nothing into `content/` until `--apply`, and `--apply` skips every rejected and every geographic-outlier result, so the bundles only ever gain coordinates that survived both the city check and a distance check against the median of their own city.
 
 - **First noted:** 2026-09-06, while writing the content importer.
+
+- **RESOLVED 2026-09-06. 1,091 of 1,375 stops now carry coordinates**, committed
+  in `content: coordinates from the geocoding pass`. Of the 1,344 distinct
+  places: 827 resolved to the venue itself, 284 to its neighbourhood, 216 to a
+  city centre (withheld from `--apply` by default — one point for a whole day
+  draws a map that lies about it), and 11 returned nothing.
+
+  The run that produced them was the fifth attempt, and the first four failed
+  for reasons worth recording, because every one of them looked like "the API
+  cannot find these places" and none of them was:
+
+  1. **The query was over-specified.** `name, area, city` is read as an address
+     hierarchy, and every place in this content has an `area` that is prose
+     ("camino a Toconao", "Mala car park trailhead"). One unmatchable component
+     empties the result: **97% missed** over 265 lookups. Replaced by a ladder —
+     `name, city`, then `area, city`, then the city itself resolved once and
+     shared.
+  2. **The city test rejected correct answers.** `Reykjavík` did not match
+     `Reykjavik`, `Uluru` did not match `Uluṟu`, `Hanoi` did not match `Hà Nội`,
+     `Filoti` did not match `Φιλότι`. 141 places sit in a city whose name is not
+     ASCII. Now folded and compared as word sets — which also stopped `Oia`
+     (Santorini) being accepted for `Oiartzun` (Spain), a live wrong pin nobody
+     had noticed.
+  3. **A bare city name is globally ambiguous.** The anchors were resolved
+     before the venues, so `Santa Cruz` answered with Bolivia and then reported
+     the correct California venue as 8,107km out. Anchors now run AFTER the
+     venues and inherit the country those venues landed in.
+  4. **A quota-capped run was a silent no-op.** `DailyCapReached` skipped the
+     database write, so a run reported "318/318 processed" and changed nothing —
+     indistinguishable from a fix that did not work, which is exactly how three
+     runs were read.
+
+  What ended the cycle was `scripts/geocode-test/replay.py`: the script against
+  a fake provider across every way a real one misbehaves, plus every command
+  that reads the cache. No network, no quota, about a minute. It found (4)
+  immediately, and later caught a `NameError` in `--apply` that had shipped
+  green. **The cost of not having it was measured at twenty minutes and several
+  hundred API calls per attempt, three times over.**
+
+- **What is deliberately still unpinned, and is not a defect:** the 216
+  city-centre fallbacks, 42 pins far enough from their city to want eyes, 16
+  withheld by the anchor audit, and 11 with no result — several of which are
+  activities rather than places ("Return crossing to Port Douglas") and never
+  had a coordinate to find. `--review` reports each with what the geocoder
+  actually matched and a map link. A stop with no coordinate remains a real
+  product state, and the bar this entry set — that a confidently wrong pin costs
+  more than a missing one — is the reason those are absent rather than guessed.
+- **The runbook now lives in `docs/guidelines/content-bundles.md`** ("Coordinates"),
+  which is where somebody adding content will look, rather than in a known-issue
+  entry that is now closed.
