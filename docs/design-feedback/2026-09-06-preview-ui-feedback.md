@@ -71,7 +71,7 @@ silence:
 
 ## Findings
 
-Six threads, in the order left. Detail below the table. **Nothing is fixed
+Seven threads, in the order left. Detail below the table. **Nothing is fixed
 yet** — the branch is still prose-only and awaiting a decision on scope.
 
 | # | Route / surface | Viewport | What's wrong | Outcome |
@@ -82,11 +82,12 @@ yet** — the branch is still prose-only and awaiting a decision on scope.
 | 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | Open — **behaviour, not cosmetics** |
 | 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open |
 | 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
+| 7 | Notebook page — header row | 1728×836 | "Edit page" row sits flush against the global top bar | Open |
 
-**Two pairs worth reading together.** 1 and 3 are the same complaint about the
-same thing: `variant="ghost"` does not read as an actionable control. 5 and 6
-are both the Notebook's widget rendering, and 6 is the only item here that
-cannot be done as a styling change.
+**Groupings worth reading together.** 1 and 3 are the same complaint about the
+same thing: `variant="ghost"` does not read as an actionable control. 5, 6 and 7
+are all the same Notebook page, and 6 is the only item here that cannot be done
+as a styling change. **Four of the seven (1, 3, 2, 7) are small and local.**
 
 ### 1. `/signin` — "Sign in with dev login" prominence
 
@@ -230,3 +231,31 @@ explicitly rejects pushing "a grouping concept through the render seam and into
 model — which is exactly the concept that seam was designed not to carry. So
 this is a change to the widget render contract, plausibly an ADR-039 follow-up,
 not a CSS pass. It should be scoped and decided before anyone starts it.
+
+### 7. Notebook — "Edit page" row is flush against the top bar
+
+> "Edit page is up against the top bar"
+
+- Thread: `U0lAwel6iyz9` (neablis, 2026-09-06)
+- Route: same Notebook page as findings 5 and 6
+- Selector: `body > div.phone-tab-bar-inset > div.mx-auto > div.mb-3 > div.flex > button.inline-flex`
+- Component tree: the page component → `<div className="mx-auto w-full px-6
+  max-w-content">` → `<div className="mb-3 flex flex-wrap items-center
+  justify-between gap-3">` → `<div className="flex flex-wrap items-center
+  gap-2">` → the `Button variant="secondary" aria-pressed={false}` ("Edit page").
+- Maps to: `apps/web/src/components/pages/PageScreen.tsx:381`.
+
+**Confirmed in the source rather than inferred.** That row carries `mb-3` —
+bottom margin only, nothing above it — and it is the first child of
+`PageContainer`, which is `cn("mx-auto w-full px-6", …)`: horizontal padding
+only, no vertical. So there is genuinely no top spacing anywhere in the chain,
+and the row lands hard against the global `AppHeader`. For contrast, `/signin`'s
+`<main>` carries `pt-3`.
+
+The narrow fix is top spacing on this row or on `PageContainer`. Worth noting
+before picking: `PageContainer` is shared with the trip board, the Notebook
+index, the demo screen, the invite screen and Home, so changing it there is a
+change to six surfaces, not one. There is also a live architecture question in
+`docs/STATUS.md` about the phone continuing to render the global `AppHeader` —
+this is a symptom adjacent to it, though the desktop viewport here shows the
+spacing gap is not phone-specific.
