@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { TripGlobals } from "./globals";
+import { TripGlobals } from "./globals.ts";
 // `unwrapSchema` is shared with `valueKindOf` rather than kept here: the label
 // lookup and the kind lookup must agree about what "the same field" means, and
 // while they were two walks they did not (Copilot, PR 139).
-import { VALUE_KINDS, unwrapSchema as unwrap, valueKindOf, type ValueKind } from "./valueKind";
+import { VALUE_KINDS, unwrapSchema as unwrap, valueKindOf, type ValueKind } from "./valueKind.ts";
 
 // The attribute manifest — ADR-037 open question 4, and the mechanism behind
 // *"a developer adding a new global attribute gets it for free"*.

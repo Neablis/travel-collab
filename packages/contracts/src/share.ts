@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ActivityView } from "./detail";
-import { Money } from "./money";
+import { ActivityView } from "./detail.ts";
+import { Money } from "./money.ts";
 
 // Pinned read-only shares (M11 link 4, ADR-027).
 //

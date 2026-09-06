@@ -1,0 +1,711 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "nordic-landscapes",
+    "name": "Iceland and Norway: big landscape days",
+    "description": "Eight day-shaped playbooks from Iceland's South Coast, Golden Circle, Snæfellsnes and Reykjavík, and from Lofoten, the Bergen fjords, Lysefjord and Arctic Tromsø. Priced at what these two countries actually cost, with the light, road and weather constraints that decide whether a day works at all.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "https://www.iceland.org/driving/south-coast",
+      "https://guidetoiceland.is/nature-info/the-ultimate-guide-to-the-south-coast-of-iceland",
+      "https://icelagoon.is/prices/",
+      "https://adventures.is/iceland/day-tours/ice-caves/crystal-ice-cave/",
+      "https://pakkhus.is/",
+      "https://www.goldencircledaytours.is/tours/snorkeling-silfra-tour-with-pick-up",
+      "https://www.fridheimar.is/en",
+      "https://skylagoon.com/",
+      "https://hvammsvik.com/hot-springs/",
+      "https://www.alltrails.com/trail/iceland/southern/reykjadalur-hot-spring-thermal-river",
+      "https://guidetoiceland.is/book-holiday-trips/cave-vatnshellir",
+      "https://www.west.is/en/service/bjargarsteinn-house-of-food",
+      "https://en.vedur.is/weather/forecasts/aurora/",
+      "https://www.road.is/travel-info/road-conditions-and-weather/",
+      "https://visitlofoten.com/en/parking-for-kvalvika-og-ryten/",
+      "https://www.68north.com/lofoten-hikes/hiking-reinebringen/",
+      "https://xxlofoten.no/en/experiences/private-rib-trollfjorden",
+      "https://sakrisoy.no/seafood/",
+      "https://en.flamsbana.no/billettkjop",
+      "https://www.norwaysbest.com/en/flam/flam-railway-timetable-and-fares",
+      "https://www.thefjords.no/",
+      "https://www.floyen.no/en/floibanen/prices-and-ticket-types",
+      "https://preikestolen.no/how-to-get-to-preikestolen/?lang=en",
+      "https://www.rodne.no/en/lysefjord-cruise/",
+      "https://www.trolltunga.com/en/parking-and-transport/shuttle-busses",
+      "https://www.villmarkssenter.no/",
+      "https://www.visittromso.no/winter",
+      "https://www.fjellheisen.no/",
+      "https://www.visittromso.no/northern-lights/tours"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "south-coast-waterfalls-to-vik",
+      "name": "South Coast: three waterfalls, a black beach, and dinner in Vík",
+      "summary": "Reykjavík to Vík the way it should be done — out the door before the coach fleet, Seljalandsfoss and Skógafoss to yourself, and the beach visited when the sea is behaving.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2025-07-14T18:20:00.000Z",
+      "sourceTrip": { "name": "Ring Road, anticlockwise, two weeks" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-tomas" }
+      ],
+      "stops": [
+        {
+          "title": "Out of Reykjavík on Route 1 before the coaches",
+          "timeWindow": { "start": "07:15", "end": "08:35" },
+          "location": { "name": "Route 1 east via Hveragerði and Selfoss", "city": "Reykjavík", "area": "Suðurland" },
+          "kind": "transit",
+          "notes": "128 km, about 80 minutes with no stops. The whole day turns on this: day-tour coaches leave Reykjavík at 08:00–09:00 and reach Seljalandsfoss at 10:00, so a 07:15 departure buys you an hour of empty waterfall. Fill the tank in Selfoss — it is the last cheap fuel before Vík. Cost here is the day's fuel for a small 2WD; no F-roads are involved, so you do not need the 4x4.",
+          "cost": { "amountMinor": 6800, "currency": "USD" }
+        },
+        {
+          "title": "Seljalandsfoss, then squeeze into Gljúfrabúi",
+          "timeWindow": { "start": "08:45", "end": "09:45" },
+          "location": { "name": "Seljalandsfoss and Gljúfrabúi", "city": "Hvolsvöllur", "area": "Rangárþing eystra" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Parking is 1000 ISK at the machine — the falls are free, the tarmac is not. You walk behind Seljalandsfoss on a wet, slick path: full rain shell, hood up, and a dry bag or the phone gets soaked, not damp. Then walk 5 minutes north to Gljúfrabúi, which almost nobody does: wade the stream into the canyon in waterproof boots and the waterfall is inside a chamber of rock. In deep winter the path behind Seljalandsfoss is roped off for ice.",
+          "cost": { "amountMinor": 730, "currency": "USD" }
+        },
+        {
+          "title": "Skógafoss and the 527 steps",
+          "timeWindow": { "start": "10:05", "end": "11:15" },
+          "location": { "name": "Skógafoss", "city": "Skógar", "area": "Rangárþing eystra" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "60 m of water hitting a flat plain, so you can walk right to the base — and get drenched by the spray on a windy day. Climb the staircase on the right for the top view, then keep going 10 minutes along the Fimmvörðuháls trail: the river above the falls has a string of smaller cascades and the crowd stops at the platform. Parking 1000 ISK, same system as Seljalandsfoss.",
+          "cost": { "amountMinor": 750, "currency": "USD" }
+        },
+        {
+          "title": "Kvernufoss, the one the buses skip",
+          "timeWindow": { "start": "11:30", "end": "12:15" },
+          "location": { "name": "Kvernufoss, behind Skógar Museum", "city": "Skógar", "area": "Rangárþing eystra" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Park free at Skógasafn (the turf-house museum), walk 15 minutes up the gorge behind it. Same trick as Seljalandsfoss — you can get behind the curtain — with a tenth of the people. Skip it if the wind is above 15 m/s; the gorge funnels it."
+        },
+        {
+          "title": "Lunch at the Black Beach Restaurant",
+          "timeWindow": { "start": "12:45", "end": "13:45" },
+          "location": { "name": "Black Beach Restaurant, Reynisfjara car park", "city": "Vík í Mýrdal", "area": "Mýrdalur" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The concrete bunker at the Reynisfjara car park, and better than it looks: lamb soup with bread refills, big windows onto the beach. Eat first and look at the sea while you do — you get a free ten-minute read on how the surf is behaving before you walk down.",
+          "cost": { "amountMinor": 3400, "currency": "USD" }
+        },
+        {
+          "title": "Reynisfjara: basalt columns, and stay off the water line",
+          "timeWindow": { "start": "13:50", "end": "15:20" },
+          "location": { "name": "Reynisfjara black sand beach and Hálsanefshellir cave", "city": "Vík í Mýrdal", "area": "Mýrdalur" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Parking 1000 ISK. Read the traffic-light danger sign in the car park before you step onto the sand — this beach kills people every few years. Sneaker waves run 30 m further up than the previous twenty waves did, the shelf is steep, and the undertow is unsurvivable. Stay well back from the wet sand, never turn your back on the sea, and do not go into Hálsanefshellir cave when the light is amber or red. Puffins nest on the Reynisfjall cliffs above from mid-May to early August.",
+          "cost": { "amountMinor": 730, "currency": "USD" }
+        },
+        {
+          "title": "Dyrhólaey arch and the lighthouse road",
+          "timeWindow": { "start": "15:40", "end": "16:40" },
+          "location": { "name": "Dyrhólaey promontory", "city": "Vík í Mýrdal", "area": "Mýrdalur" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "A hold, not a plan, for two reasons. The upper road to the lighthouse (Road 218 to the high plateau) closes entirely for puffin nesting, typically 1 May to around 24 June, and it also closes on short notice in high wind — it is a steep gravel switchback. Check the gate before you commit the 20-minute detour. When it is open, the arch view back over Reynisfjara is the best on this coast."
+        },
+        {
+          "title": "Dinner at Suður-Vík",
+          "timeWindow": { "start": "17:15", "end": "18:45" },
+          "location": { "name": "Suður-Vík restaurant", "city": "Vík í Mýrdal", "area": "Mýrdalur" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The old house on the hill above the village. Arctic char, lamb, and a decent vegetarian plate; walk-ins are fine before 18:00 and a wait after that in July. Vík is the last real dinner for 70 km east, so if you are pushing on to Kirkjubæjarklaustur tonight, eat here and not on hope.",
+          "cost": { "amountMinor": 4600, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "jokulsarlon-ice-cave-and-hofn",
+      "name": "Jökulsárlón, a crystal ice cave, and langoustine in Höfn",
+      "summary": "The winter-only day: a blue cave under Vatnajökull that will not exist next year, icebergs on a black beach at first light, and the best langoustine in Iceland at the end of it.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-02-11T21:05:00.000Z",
+      "sourceTrip": { "name": "Iceland in February, on purpose" },
+      "addedBy": [{ "addedBy": "dev-alice" }, { "addedBy": "dev-elena" }],
+      "stops": [
+        {
+          "title": "Vík to the glacier lagoon in the dark",
+          "timeWindow": { "start": "07:30", "end": "09:30" },
+          "location": { "name": "Route 1 across Mýrdalssandur and Skeiðarársandur", "city": "Vík í Mýrdal", "area": "Suðurland" },
+          "kind": "transit",
+          "notes": "190 km, and in February you drive the first 90 minutes of it in the dark. Check road.is and vedur.is before you turn the key, every single morning — the two sand plains east of Vík are where Route 1 gets closed for wind, and gusts over 25 m/s will strip paint off a rental and void the insurance. If the wind board is orange, do not start; the tour will rebook you. Studded tyres are standard on winter rentals here and you want them.",
+          "cost": { "amountMinor": 5500, "currency": "USD" }
+        },
+        {
+          "title": "Jökulsárlón at sunrise",
+          "timeWindow": { "start": "09:40", "end": "10:40" },
+          "location": { "name": "Jökulsárlón glacier lagoon, west shore", "city": "Höfn í Hornafirði", "area": "Vatnajökull National Park" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Mid-February sunrise is around 09:15 and the light stays low and pink for an hour — the single best window of the day, and you get it because the coach tours from Reykjavík cannot arrive before noon. Walk left from the car park along the shore away from the bridge; the icebergs stack up there and nobody follows. The boats (amphibian and zodiac) do not run in winter at all — they are a mid-May to October thing, so do not plan around them."
+        },
+        {
+          "title": "Diamond Beach, opposite side of the bridge",
+          "timeWindow": { "start": "10:45", "end": "11:30" },
+          "location": { "name": "Breiðamerkursandur / Diamond Beach", "city": "Höfn í Hornafirði", "area": "Vatnajökull National Park" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Cross the bridge and park on the seaward side — the west lot is quieter than the east one. What is on the sand depends entirely on the tide and last night's calving: sometimes a field of clear boulders, sometimes almost nothing. Same sneaker-wave rule as Reynisfjara, and here the ice itself will knock you over. Do not climb on a berg."
+        },
+        {
+          "title": "Crystal ice cave under Vatnajökull, by super-jeep",
+          "timeWindow": { "start": "11:45", "end": "15:15" },
+          "location": { "name": "Meeting point at the Jökulsárlón café car park", "city": "Höfn í Hornafirði", "area": "Vatnajökull National Park" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "Roughly 29,900 ISK with the established operators (Arctic Adventures, Glacier Adventure, Local Guide of Vatnajökull) — about $215. Book it weeks ahead; February is the peak of the season. Non-negotiables: the natural blue caves only exist roughly November to March, they are new every winter because the glacier moves, and a mild wet spell floods them and the tour is cancelled the same morning — take the refund, do not argue for a substitute. You get crampons, a helmet and a headlamp; you bring genuinely waterproof trousers, because you will be kneeling in meltwater. There is no self-guided version of this and people who try it die.",
+          "cost": { "amountMinor": 21500, "currency": "USD" }
+        },
+        {
+          "title": "Vestrahorn from the Stokksnes gate",
+          "timeWindow": { "start": "16:45", "end": "17:45" },
+          "location": { "name": "Stokksnes peninsula and Viking Café", "city": "Höfn í Hornafirði", "area": "Stokksnes" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "900 ISK at the Viking Café, which owns the land and the gate — pay inside, the coffee is part of the deal. Held rather than planned because it is only worth the detour in two conditions: low wind so the tidal flats mirror the peak, and enough light left. In February you have until about 18:00. In a gale the black sand blasts sideways and you will not want the camera out.",
+          "cost": { "amountMinor": 700, "currency": "USD" }
+        },
+        {
+          "title": "Langoustine at Pakkhús, on the harbour",
+          "timeWindow": { "start": "18:15", "end": "19:45" },
+          "location": { "name": "Pakkhús Restaurant", "city": "Höfn í Hornafirði", "area": "Höfn harbour" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Höfn is Iceland's langoustine town and Pakkhús is the reason to sleep here. Two floors of an old harbour warehouse; the langoustine tails in garlic butter and the langoustine soup are the order. They do not take reservations, so arrive at 18:00 or queue at 19:30. Around 8,900 ISK a head with a beer — this is what a good dinner costs in Iceland and no amount of shopping around changes it.",
+          "cost": { "amountMinor": 8900, "currency": "USD" }
+        },
+        {
+          "title": "Hoffell hot tubs in the dark",
+          "timeWindow": { "start": "20:15", "end": "21:30" },
+          "location": { "name": "Hoffell geothermal baths", "city": "Höfn í Hornafirði", "area": "Hoffell" },
+          "kind": "idea",
+          "notes": "Five concrete tubs in a field 15 minutes inland from Höfn, about 1,500 ISK, honesty-box simple. No music, no ritual, no queue — the anti-Blue Lagoon. On a clear night you are sitting in 39°C water looking at the Vatnajökull icefield, and this is as good an aurora seat as any paid tour. Bring your own towel; the changing hut is a hut.",
+          "cost": { "amountMinor": 1200, "currency": "USD" }
+        },
+        {
+          "title": "Bed in Höfn, aurora alarm set",
+          "timeWindow": { "start": "22:00", "end": "23:30" },
+          "location": { "name": "Hótel Höfn", "city": "Höfn í Hornafirði", "area": "Höfn" },
+          "kind": "booked",
+          "tags": ["lodging"],
+          "notes": "About 26,000 ISK for a double in February, which is the low-season price — the same room in July is half again. Ask reception for an aurora wake-up; most hotels on this coast will do it informally. Check en.vedur.is/weather/forecasts/aurora for the cloud-cover map, not just the KP number: KP 2 under a clear sky beats KP 5 under overcast every time.",
+          "cost": { "amountMinor": 26000, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "golden-circle-the-unhurried-loop",
+      "name": "The Golden Circle, unhurried — Silfra, Friðheimar, and Sky Lagoon at dusk",
+      "summary": "The three famous stops with two things bolted on that make the day worth the drive: snorkelling between two continents at 09:45, and a tomato greenhouse lunch you have to book.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2026-05-06T20:40:00.000Z",
+      "sourceTrip": { "name": "Five days out of Reykjavík" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-sofia" }
+      ],
+      "stops": [
+        {
+          "title": "Reykjavík to Þingvellir",
+          "timeWindow": { "start": "07:45", "end": "08:15" },
+          "location": { "name": "Road 36 over Mosfellsheiði", "city": "Reykjavík", "area": "Höfuðborgarsvæðið" },
+          "kind": "transit",
+          "notes": "48 km, half an hour. Leaving at 07:45 rather than 09:00 is the entire difference between this day and the one everyone complains about: the coach wave hits Þingvellir at 10:00, Geysir at 11:30 and Gullfoss at 13:00, and if you stay an hour and a half ahead of it you never see it."
+        },
+        {
+          "title": "Þingvellir: Almannagjá and Öxarárfoss",
+          "timeWindow": { "start": "08:20", "end": "09:30" },
+          "location": { "name": "Þingvellir National Park, P1 Hakið", "city": "Þingvellir", "area": "Bláskógabyggð" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Parking is 1000 ISK, paid at the machine or online at parka.is within 24 hours — rangers do check plates, and the fine is not worth the saving. Walk down through the Almannagjá rift from the Hakið viewpoint (you are walking on the North American plate, with Eurasia across the valley) to Öxarárfoss and the Lögberg, where the Alþingi met from 930. Twenty minutes down, thirty back up.",
+          "cost": { "amountMinor": 730, "currency": "USD" }
+        },
+        {
+          "title": "Silfra: snorkelling the continental rift in a dry suit",
+          "timeWindow": { "start": "09:45", "end": "12:15" },
+          "location": { "name": "Silfra fissure, Þingvellir dive site", "city": "Þingvellir", "area": "Bláskógabyggð" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "About 21,000 ISK ($150) for a meet-on-site snorkel; more with Reykjavík pickup. The water is glacial meltwater filtered through lava for decades: 2°C year-round, and visibility past 100 m, which is why people fly here for it. You float, you do not swim, and the dry suit means only your lips and hands get cold. Requirements are real and enforced: over 16 (or 12 with a parent), able to swim, no diving in the 24 hours before, and you must declare height and weight in advance so the suit fits. Book two weeks out in summer. It runs year-round — winter is arguably better because the site is empty.",
+          "cost": { "amountMinor": 15000, "currency": "USD" }
+        },
+        {
+          "title": "Lunch inside the tomato greenhouse at Friðheimar",
+          "timeWindow": { "start": "13:00", "end": "14:05" },
+          "location": { "name": "Friðheimar, Reykholt", "city": "Reykholt", "area": "Bláskógabyggð" },
+          "kind": "booked",
+          "tags": ["meal", "ticketed"],
+          "notes": "You eat at a table among the vines, under grow lights, with bumblebees working overhead. Endless tomato soup with fresh-baked bread, plus a Bloody Mary made from the fruit two metres away — around 4,200 ISK. This has to be reserved, weeks ahead in summer: they seat a fixed number per hour and turning up hopeful gets you the gift shop and nothing else. Their horse show is a separate booking.",
+          "cost": { "amountMinor": 4200, "currency": "USD" }
+        },
+        {
+          "title": "Strokkur at Geysir",
+          "timeWindow": { "start": "14:25", "end": "15:15" },
+          "location": { "name": "Haukadalur geothermal field", "city": "Geysir", "area": "Bláskógabyggð" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Geysir itself has been effectively dormant for years — the one that actually erupts is Strokkur, every 6 to 10 minutes, 20 to 30 m. Stand upwind: the spray is near-boiling and the wind here changes its mind constantly. Free to visit; the car park and its café are the only paid part. Forty minutes is plenty unless you want the walk up to the overlook.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Gullfoss from the lower path",
+          "timeWindow": { "start": "15:35", "end": "16:35" },
+          "location": { "name": "Gullfoss, Hvítá canyon", "city": "Gullfoss", "area": "Bláskógabyggð" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Free, and there are two viewpoints that are not the same experience. The upper deck by the café shows you the shape; the lower path takes you out onto the ledge beside the first drop where the ground shakes and the spray soaks you. That lower path is closed whenever it is iced — typically November to March — so in summer take it, in winter accept the upper one and stop fighting the wind.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Kerið crater on the way home",
+          "timeWindow": { "start": "17:30", "end": "18:00" },
+          "location": { "name": "Kerið volcanic crater", "city": "Selfoss", "area": "Grímsnes" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "600 ISK, privately owned, cash or card at the hut. Red scoria rim around an opaque blue-green lake — a 20-minute walk around the top, or steps down to the water. It is a genuine idea rather than a fixture: if you are running late, drop it without regret, it is the smallest thing on this list.",
+          "cost": { "amountMinor": 440, "currency": "USD" }
+        },
+        {
+          "title": "Sky Lagoon, Sér pass, at last light",
+          "timeWindow": { "start": "19:30", "end": "21:30" },
+          "location": { "name": "Sky Lagoon, Kársnes", "city": "Kópavogur", "area": "Kársnes harbour" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Not the Blue Lagoon and 10 minutes from downtown Reykjavík instead of 50. The Sér pass is about 13,990 ISK ($133) and buys a private changing room — worth it over the Saman's communal one. The seven-step ritual (hot water, cold plunge, sauna with a glass wall onto the Atlantic, cold mist, salt scrub, steam, back in) takes an hour if you are not rushed. Book a time slot; walk-ups get turned away on cruise days. Take the pool bar drink out to the infinity edge and watch the light go.",
+          "cost": { "amountMinor": 13300, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "snaefellsnes-loop-and-aurora-at-kirkjufell",
+      "name": "Snæfellsnes in one loop, ending under the aurora at Kirkjufell",
+      "summary": "Iceland in miniature — lava coast, a black church, a cave under a volcano, and a shipwreck on a pebble beach — then a dinner with a view of the mountain you photograph at midnight.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2024-10-19T23:15:00.000Z",
+      "sourceTrip": { "name": "West Iceland, before the snow" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Reykjavík to Búðir under Hvalfjörður",
+          "timeWindow": { "start": "07:30", "end": "09:45" },
+          "location": { "name": "Route 1 and Road 54 via the Hvalfjörður tunnel", "city": "Reykjavík", "area": "Vesturland" },
+          "kind": "transit",
+          "notes": "About 170 km. Take the Hvalfjörður tunnel — it has been toll-free since 2018 and saves 45 minutes over the fjord road, though the old fjord road is the prettier drive if you have the time. Doing the peninsula clockwise (south coast first) means the afternoon light is behind you at Djúpalónssandur and the aurora spot at Kirkjufell is on the way home, not a backtrack. Fuel up in Borgarnes; there is very little on the south shore.",
+          "cost": { "amountMinor": 6500, "currency": "USD" }
+        },
+        {
+          "title": "Búðakirkja, the black church on the lava",
+          "timeWindow": { "start": "10:00", "end": "10:45" },
+          "location": { "name": "Búðakirkja and Búðahraun lava field", "city": "Búðir", "area": "Staðarsveit" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "A small tarred timber church alone in an 8,000-year-old lava field, with the graveyard wall and nothing else for kilometres. Free, but it is an active church and a burial ground: stay outside the wall unless it is open, and do not fly a drone over it. The lava path behind it toward the beach is ten minutes and worth it.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Arnarstapi to Hellnar along the cliff path",
+          "timeWindow": { "start": "11:00", "end": "12:15" },
+          "location": { "name": "Arnarstapi–Hellnar coastal trail and Gatklettur arch", "city": "Arnarstapi", "area": "Snæfellsjökull National Park" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "2.5 km each way over a protected lava shore, mostly level, about 45 minutes one way. Gatklettur — the circular stone arch — is 10 minutes from the Arnarstapi car park, along with blowholes and ravines full of nesting kittiwakes and fulmars from May to August. The cliff edges are undercut and unfenced; the grass ends before the rock does. Walk out and back rather than shuttling cars.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Coffee and cake at Fjöruhúsið, Hellnar",
+          "timeWindow": { "start": "12:25", "end": "13:10" },
+          "location": { "name": "Fjöruhúsið café", "city": "Hellnar", "area": "Snæfellsjökull National Park" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "A tiny wooden house right on the cove at the Hellnar end of the walk — fish soup, rhubarb pie, twelve seats and a view of the surf. Cash-free, summer season only (roughly May to September); out of season, eat in Hellissandur or Ólafsvík instead.",
+          "cost": { "amountMinor": 2400, "currency": "USD" }
+        },
+        {
+          "title": "Down into Vatnshellir lava tube",
+          "timeWindow": { "start": "13:40", "end": "14:30" },
+          "location": { "name": "Vatnshellir cave", "city": "Hellissandur", "area": "Snæfellsjökull National Park" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "About 5,400 ISK. A guided 45 minutes down a spiral staircase 35 m below the surface into an 8,000-year-old lava tube, 200 m in — helmet and torch provided, and it is the only way in, the gate is locked otherwise. Tours run on the hour; in summer buy the next slot on arrival, in winter check the day's departures first. Constant 5°C inside, so keep the jacket, and it is not for anyone unhappy in the dark or on stairs.",
+          "cost": { "amountMinor": 5000, "currency": "USD" }
+        },
+        {
+          "title": "Djúpalónssandur and the lifting stones",
+          "timeWindow": { "start": "14:50", "end": "15:45" },
+          "location": { "name": "Djúpalónssandur and Dritvík", "city": "Hellissandur", "area": "Snæfellsjökull National Park" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Black pebbles rather than sand, reached by a path down through lava pinnacles. Four stones sit on the beach — Fullsterkur at 154 kg down to Amlóði at 23 kg — the old test for a place in a fishing crew; lift them if you like, they are not roped off. The rusted iron scattered over the beach is the wreck of the English trawler Epine, lost in 1948 with 14 men, and it is a protected memorial: look, photograph, leave every piece where it is. Big Atlantic swell, no lifeguard, stay high on the beach.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Bjargarsteinn, with Kirkjufell in the window",
+          "timeWindow": { "start": "18:00", "end": "19:30" },
+          "location": { "name": "Bjargarsteinn Mathús", "city": "Grundarfjörður", "area": "Grundarfjörður harbour" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "The best restaurant on the peninsula, in a house that was physically moved 140 km from Akranes to this spot on the water. Book weeks ahead and ask for a window table: it looks straight across the fjord at Kirkjufell. Around 7,800 ISK a head for two courses. The drive up from Djúpalónssandur via Ólafsvík takes an hour, so this gap is real, not padding — stop at Svöðufoss on the way if you have twenty spare minutes.",
+          "cost": { "amountMinor": 7800, "currency": "USD" }
+        },
+        {
+          "title": "Aurora over Kirkjufellsfoss",
+          "timeWindow": { "start": "21:00", "end": "23:30" },
+          "location": { "name": "Kirkjufellsfoss car park", "city": "Grundarfjörður", "area": "Snæfellsnes" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "Held, because nobody can plan an aurora. The conditions to check by 19:00 are on en.vedur.is/weather/forecasts/aurora: you need clear sky to the north far more than a high KP number, and this coast clouds over fast. The car park at the falls is paid (about 1000 ISK) and floodlit at the road end — walk past the lights. Two tripod facts worth knowing: the classic composition puts the falls in the foreground and the mountain behind, and it needs a wide lens and roughly 8 seconds at f/2.8, ISO 1600. Do not attempt to climb Kirkjufell in the dark; the standard route has killed hikers and needs a guide and a rope even in daylight.",
+          "cost": { "amountMinor": 730, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "lofoten-ryten-reine-and-a-trollfjord-rib",
+      "name": "Lofoten: Ryten at dawn, Reine, and a private RIB into Trollfjord",
+      "summary": "The midnight-sun day that uses the light properly — a summit over Kvalvika before breakfast, a fish burger at Sakrisøy, and a two-hour RIB charter into a fjord 100 m wide.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-08-03T22:30:00.000Z",
+      "sourceTrip": { "name": "Nordland by rental car, midnight sun" },
+      "addedBy": [{ "addedBy": "dev-tomas" }, { "addedBy": "dev-sofia" }, { "addedBy": "dev-marco" }],
+      "stops": [
+        {
+          "title": "Reine and Hamnøy while the E10 is empty",
+          "timeWindow": { "start": "05:45", "end": "06:30" },
+          "location": { "name": "Hamnøy bridge and Reine harbour", "city": "Reine", "area": "Moskenesøy" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Between roughly 25 May and 17 July the sun never sets here, so 05:45 is full daylight and the difference from 10:00 is only that the road is yours. The postcard view of the red rorbuer under Festvågtind is from the pavement on the Hamnøy bridge, not from Reine itself. Park in a marked bay: the E10 shoulders are ticketed at around 900 NOK and the locals report offenders, fairly.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Drive to the Innersand trailhead at Fredvang",
+          "timeWindow": { "start": "06:45", "end": "07:15" },
+          "location": { "name": "Innersand parking, Fredvang", "city": "Fredvang", "area": "Flakstadøy" },
+          "kind": "transit",
+          "notes": "About 25 minutes from Reine over the two Fredvang bridges. The farmer's field at Innersand is the closest lot — 100 NOK, Vipps or an honesty box, and worth paying, since the free lot at Fredvang skole adds 3 km each way. It fills by 09:00 in July. Do not park on the verge; this is someone's farm.",
+          "cost": { "amountMinor": 930, "currency": "USD" }
+        },
+        {
+          "title": "Ryten summit and down to Kvalvika beach",
+          "timeWindow": { "start": "07:20", "end": "11:15" },
+          "location": { "name": "Ryten (543 m) and Kvalvika beach", "city": "Fredvang", "area": "Flakstadøy" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "About 9 km round trip with 500 m of ascent, 4 hours at a normal pace with photo stops. The first half is a boardwalked bog that is still a bog after rain — proper waterproof boots, not trainers. From the summit you look straight down onto Kvalvika; the famous overhanging rock is a few minutes below the top on the seaward side and there is no fence, no barrier and a very long drop, so do not do the sitting-on-the-edge photo in wind. Add an hour if you drop down to the beach itself. Go early: by 11:00 in July this trail is a queue, and the Lofoten weather changes inside 30 minutes — carry a shell even under a blue sky.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Fish burger at Anita's Sjømat, Sakrisøy",
+          "timeWindow": { "start": "11:45", "end": "12:30" },
+          "location": { "name": "Anita's Sjømat, Sakrisøy", "city": "Reine", "area": "Sakrisøy" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The yellow building on the little island between Reine and Hamnøy. Order the fish burger and a slice of the juniper-smoked salmon; they also sell stockfish, roe and their own aioli to take away. Counter service, eat outside on the wharf, roughly 300 NOK for lunch, which in Norway counts as cheap. Closed outside the season, so check in shoulder months.",
+          "cost": { "amountMinor": 2800, "currency": "USD" }
+        },
+        {
+          "title": "East along the E10 to Svolvær",
+          "timeWindow": { "start": "12:45", "end": "14:45" },
+          "location": { "name": "E10 via Flakstad, Vestvågøy and Gimsøy", "city": "Svolvær", "area": "Austvågøy" },
+          "kind": "transit",
+          "notes": "About 130 km and genuinely two hours, not the 95 minutes the map claims: single-lane tunnels, campervans that will not use the pull-outs, and sheep. Stop at Flakstad church or Haukland beach if you are ahead. Fuel is expensive and stations thin out west of Leknes — fill in Leknes.",
+          "cost": { "amountMinor": 4200, "currency": "USD" }
+        },
+        {
+          "title": "Private RIB into Trollfjorden from Svinøya",
+          "timeWindow": { "start": "15:15", "end": "17:15" },
+          "location": { "name": "XXLofoten dock, Svinøya", "city": "Svolvær", "area": "Svinøya" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "The headline number is 16,200 NOK — and that is the boat for two hours, not the price per head. Six of us split it to about $250 each, which is why this is worth doing privately: you set the departure, you stop where the sea eagles are, and you go into the fjord when the Hurtigruten is not filling it. Trollfjorden is 2 km long and about 100 m wide at the mouth with 1,000 m walls, and the RIB turning inside it is the whole point. Full flotation suits, gloves and goggles are provided and you need them at 50 km/h; anything not zipped in will leave. Cancels for swell, and they will call you.",
+          "cost": { "amountMinor": 150700, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Børsen Spiseri",
+          "timeWindow": { "start": "18:30", "end": "20:30" },
+          "location": { "name": "Børsen Spiseri, Svinøya Rorbuer", "city": "Svolvær", "area": "Svinøya" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "An 1828 fish warehouse on the wharf, sloping plank floors and cod hanging from the rafters. Stockfish, cured whale, and Arctic char done properly; around 1,050 NOK a head for three courses without wine, and wine in Norway doubles a bill fast. Book — it is small and it is the best table in Svolvær.",
+          "cost": { "amountMinor": 9800, "currency": "USD" }
+        },
+        {
+          "title": "Rorbu on stilts, and the sun refusing to set",
+          "timeWindow": { "start": "21:00", "end": "23:00" },
+          "location": { "name": "Svinøya Rorbuer", "city": "Svolvær", "area": "Svinøya" },
+          "kind": "booked",
+          "tags": ["lodging"],
+          "notes": "A converted fisherman's cabin over the water, about 3,400 NOK in high season — Lofoten lodging in July is the single biggest line in the budget and booking in January is not early. Bring an eye mask: with the midnight sun there are no curtains thick enough, and the low orange light at 23:00 on the harbour is better than anything you saw at noon.",
+          "cost": { "amountMinor": 32000, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "bergen-naeroyfjord-and-the-flam-railway",
+      "name": "Bergen out and back: the Nærøyfjord and the Flåm railway in one day",
+      "summary": "The Nutshell loop done from Bergen with an early start — train to Voss, bus over Stalheim, a silent electric boat down a UNESCO fjord, and 866 m of climb on the Flåmsbana.",
+      "ownerId": "dev-nadia",
+      "visibility": "public",
+      "keptOn": "2025-05-22T19:50:00.000Z",
+      "sourceTrip": { "name": "Fjord Norway by train" },
+      "addedBy": [{ "addedBy": "dev-elena" }],
+      "stops": [
+        {
+          "title": "Bryggen before the cruise ships wake up",
+          "timeWindow": { "start": "07:00", "end": "07:45" },
+          "location": { "name": "Bryggen Hanseatic wharf and Torget fish market", "city": "Bergen", "area": "Bryggen" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The wooden Hanseatic wharf is a UNESCO site and by 10:00 it belongs to four cruise ships. At 07:00 you can walk the crooked alleys behind the façade — Bellgården, Jacobsfjorden — alone, and the boards move under you. Free. The fish market opens around 07:00 in summer; the outdoor stalls are a tourist price, the indoor Mathallen is the real one. Fløibanen (200 NOK return) is the obvious evening alternative if you land back early.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Bergen Line to Voss",
+          "timeWindow": { "start": "08:40", "end": "09:55" },
+          "location": { "name": "Bergen stasjon to Voss", "city": "Bergen", "area": "Bergen sentrum" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "About 249 NOK if you buy the single leg on vy.no as a minipris, weeks ahead; walk-up is nearly double. The alternative is the bundled Norway in a Nutshell ticket at roughly 1,790 NOK, which covers all four legs — worth it for the guaranteed connections, not for the price. Doing this loop from Bergen out and back is a 12-hour day; doing it Bergen→Oslo is the same legs with luggage and no return train to catch.",
+          "cost": { "amountMinor": 2300, "currency": "USD" }
+        },
+        {
+          "title": "Bus over Stalheimskleiva to Gudvangen",
+          "timeWindow": { "start": "10:15", "end": "11:20" },
+          "location": { "name": "Voss to Gudvangen via Stalheim", "city": "Voss", "area": "Nærøydalen" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "About 235 NOK. The reason this leg matters is Stalheimskleiva: 13 hairpins at up to 18% down into the Nærøydalen, with the Stalheimsfossen falling beside them. It is one-way descent only, it is seasonal — roughly mid-May to September, weather permitting — and outside that window the bus takes the tunnels and you get a normal road. Sit on the right.",
+          "cost": { "amountMinor": 2200, "currency": "USD" }
+        },
+        {
+          "title": "Nærøyfjord by electric boat, Gudvangen to Flåm",
+          "timeWindow": { "start": "11:30", "end": "13:30" },
+          "location": { "name": "Nærøyfjord, Gudvangen quay", "city": "Gudvangen", "area": "Aurland" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "About 595 NOK one way. Nærøyfjord is UNESCO-listed and 250 m across at its narrowest with 1,700 m walls — a scale photographs refuse to carry. The Fjords' vessels are fully electric, so on the open bow you hear waterfalls and nothing else; the heated saloon is where the view goes to die, so dress for two hours outside, including in July when the wind off the water is cold. Sit forward on the port side leaving Gudvangen.",
+          "cost": { "amountMinor": 5500, "currency": "USD" }
+        },
+        {
+          "title": "Lunch at Ægir BryggeriPub, Flåm",
+          "timeWindow": { "start": "13:45", "end": "14:45" },
+          "location": { "name": "Ægir BryggeriPub", "city": "Flåm", "area": "Aurlandsfjord" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "A stave-church-shaped brewpub two minutes from the railway platform, so it survives a tight connection. Their own beers plus a Viking board of smoked meats and flatbread; roughly 480 NOK. Flåm is a village of 350 people that handles a million visitors a year, so everything here is priced accordingly and this is still the best of it.",
+          "cost": { "amountMinor": 4500, "currency": "USD" }
+        },
+        {
+          "title": "Flåmsbana up to Myrdal",
+          "timeWindow": { "start": "15:10", "end": "16:10" },
+          "location": { "name": "Flåm station to Myrdal", "city": "Flåm", "area": "Flåmsdalen" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "20 km, 866 m of climb, one of the steepest adhesion railways in the world, about 510 NOK one way in high season and 430 in low. Sit on the left going up (right coming down) — that is the valley side. There is one scheduled photo stop at Kjosfossen where everyone piles out for five minutes and, in summer, a costumed huldra dances on the rocks; it is silly and you will take the photo anyway. Book a specific departure in July or you will stand.",
+          "cost": { "amountMinor": 4700, "currency": "USD" }
+        },
+        {
+          "title": "Myrdal back down to Bergen",
+          "timeWindow": { "start": "16:35", "end": "18:45" },
+          "location": { "name": "Myrdal to Bergen on the Bergen Line", "city": "Myrdal", "area": "Hardangervidda edge" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "About 389 NOK, roughly two hours. Myrdal sits at 866 m on the edge of the plateau and can have snow beside the platform in June — the 20-minute connection is exposed and there is nothing there but the station. This is the leg where the loop stops being scenery and becomes a commute; take the window seat and doze.",
+          "cost": { "amountMinor": 3600, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Bryggeloftet & Stuene",
+          "timeWindow": { "start": "19:30", "end": "21:00" },
+          "location": { "name": "Bryggeloftet & Stuene", "city": "Bergen", "area": "Bryggen" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Upstairs on Bryggen, wood panelling and white tablecloths, doing Norwegian classics without irony: fresh cod, reindeer, and their fish soup. Around 590 NOK a head for a main and a beer, which is a normal Bergen dinner price. Book if it is a Friday or a cruise day; otherwise walking in at 19:30 is fine.",
+          "cost": { "amountMinor": 5500, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "preikestolen-and-the-lysefjord",
+      "name": "Preikestolen from above, then the Lysefjord from underneath",
+      "summary": "On the rock by 10:00 before the day queue starts, back down by lunch, and on a boat in the afternoon looking 604 m up at where you stood.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2025-09-28T17:35:00.000Z",
+      "sourceTrip": { "name": "Rogaland, late September" },
+      "addedBy": [{ "addedBy": "dev-marco" }, { "addedBy": "dev-carlos" }],
+      "stops": [
+        {
+          "title": "Stavanger to Preikestolen Basecamp through the Ryfylke tunnel",
+          "timeWindow": { "start": "06:45", "end": "07:45" },
+          "location": { "name": "Preikestolen Basecamp car park", "city": "Jørpeland", "area": "Ryfylke" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "There is no Tau ferry any more — Ryfast opened in 2019 and the 14.4 km Ryfylke tunnel goes under the fjord, 292 m below sea level, so the drive is continuous and takes about 40 minutes. The toll is roughly 150 NOK and is read off the plate and billed to the rental; parking at Basecamp is 250 NOK, card at the barrier. Buses from Stavanger also run in season if you have no car. The cost here is toll plus parking.",
+          "cost": { "amountMinor": 3700, "currency": "USD" }
+        },
+        {
+          "title": "Up the trail: boardwalk, boulders, and Sherpa steps",
+          "timeWindow": { "start": "07:50", "end": "09:50" },
+          "location": { "name": "Preikestolen trail from Basecamp", "city": "Jørpeland", "area": "Ryfylke" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "4 km each way, 350 m of ascent, about two hours up at an unhurried pace. It is not technical but it is not a stroll either — the middle third is bare boulder and stone staircase laid by Nepalese Sherpas, and it is slick when wet, which it often is. The season without special gear is roughly April to October; in winter the slabs near the top ice over and you want a guided group with a rope, which people underestimate every year. Two litres of water; there is nothing on the trail.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "An hour on the pulpit itself",
+          "timeWindow": { "start": "09:50", "end": "10:50" },
+          "location": { "name": "Preikestolen, 604 m above Lysefjord", "city": "Jørpeland", "area": "Lysefjord" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "A flat 25 by 25 m slab, 604 m straight down to the water, and there is no railing and never will be — the Norwegian position is that a fence would change what the place is. Arrive before 11:00 and you share it with a few dozen people; arrive at 13:00 in July and it is a thousand. Sit well back from the edge in wind, keep hold of children, and be aware the fissure across the back of the slab is normal geology and not a countdown. Bring a layer: it is 10°C colder up here with the fjord wind.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Back down against the traffic",
+          "timeWindow": { "start": "10:50", "end": "12:30" },
+          "location": { "name": "Preikestolen trail, descent", "city": "Jørpeland", "area": "Ryfylke" },
+          "kind": "transit",
+          "tags": ["outdoors"],
+          "notes": "Ninety minutes down, and it is harder on the knees than the climb was on the lungs — poles help on the boulder sections. You will pass the entire day's crowd coming up, which is the quiet reward for the early start."
+        },
+        {
+          "title": "Lunch at Basecamp",
+          "timeWindow": { "start": "12:45", "end": "13:45" },
+          "location": { "name": "Preikestolen Basecamp café", "city": "Jørpeland", "area": "Ryfylke" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Soup, waffles and coffee in the lodge at the trailhead, around 280 NOK. Not a destination, but it is the only food between the trail and Stavanger and it lets you change out of wet socks before the drive back.",
+          "cost": { "amountMinor": 2600, "currency": "USD" }
+        },
+        {
+          "title": "Rødne Lysefjord cruise from Stavanger",
+          "timeWindow": { "start": "15:30", "end": "17:30" },
+          "location": { "name": "Rødne Fjord Cruise quay, Skagenkaien", "city": "Stavanger", "area": "Vågen harbour" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "About 690 NOK for the three-hour Lysefjord trip; the boat leaves from the harbour in the middle of Stavanger, so no transfer. It sails under Preikestolen and the skipper holds position beneath it — seeing the slab you stood on from 604 m below is the reason to do both halves on the same day. They also nose into the Hengjane waterfall and past the goats at Fantahålå. Open deck at the front, heated cabin behind; dress for the deck.",
+          "cost": { "amountMinor": 6450, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Fisketorget Stavanger",
+          "timeWindow": { "start": "19:00", "end": "20:30" },
+          "location": { "name": "Fisketorget, Strandkaien", "city": "Stavanger", "area": "Vågen" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Fishmonger downstairs, restaurant upstairs, and the menu is whatever the counter has — the fish soup and the halibut are the safe orders. Around 700 NOK a head with a beer, which is what a plain sit-down dinner costs in Norway; a 0.5 l beer alone is 110–130 NOK, and this is the single biggest surprise on most first Norwegian trips.",
+          "cost": { "amountMinor": 6500, "currency": "USD" }
+        },
+        {
+          "title": "A pint on Øvre Holmegate",
+          "timeWindow": { "start": "21:00", "end": "22:00" },
+          "location": { "name": "Bøker og Børst, Øvre Holmegate", "city": "Stavanger", "area": "Øvre Holmegate" },
+          "kind": "idea",
+          "notes": "The painted street — every timber house a different colour, the result of one hairdresser talking the whole block into it. Bøker og Børst is the bookshop-bar in the middle of it with a back courtyard. Purely optional after a 20 km day on your legs, which is why it is an idea and not a plan.",
+          "cost": { "amountMinor": 1400, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "tromso-polar-night-huskies-and-aurora",
+      "name": "Tromsø in the polar night: huskies at noon, aurora chase at midnight",
+      "summary": "A day with no sunrise at all, built around four hours of blue light and a minibus that will drive 200 km to find a hole in the cloud.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2026-01-13T02:10:00.000Z",
+      "sourceTrip": { "name": "Arctic Norway in January" },
+      "addedBy": [
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-elena" }
+      ],
+      "stops": [
+        {
+          "title": "Coffee at Risø while it is still dark",
+          "timeWindow": { "start": "09:45", "end": "10:30" },
+          "location": { "name": "Risø Mat & Kaffebar, Strandgata", "city": "Tromsø", "area": "Sentrum" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Understand the light before you plan anything here: the sun stays below the horizon from about 27 November to 15 January, and the mountains around the city stretch that to roughly 21 November–21 January in practice. There is no sunrise. What you get instead is four hours of deep blue twilight from about 10:00 to 14:00, and it is genuinely beautiful — plan every outdoor thing inside it. Risø opens early and does the best coffee in town; about 240 NOK for coffee and something baked.",
+          "cost": { "amountMinor": 2200, "currency": "USD" }
+        },
+        {
+          "title": "Dog sledding at Tromsø Villmarkssenter, Kvaløya",
+          "timeWindow": { "start": "11:00", "end": "15:00" },
+          "location": { "name": "Tromsø Villmarkssenter", "city": "Tromsø", "area": "Kvaløya" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "About 3,900 NOK per adult in the December–March high season (2,690 in November and April), including transfer from town, thermal suit, boots, mittens and a lavvo lunch of bidos stew by the fire. Roughly an hour on the sled, two to a sled, one driving and one under the blanket — swap halfway. Two hundred huskies, and the kennel visit with the puppies is not the filler it sounds like. Book this before you book flights in the dark season: the good operators sell out in November. It runs in a snowstorm; it does not run in rain, which is now a real January risk on the coast.",
+          "cost": { "amountMinor": 36300, "currency": "USD" }
+        },
+        {
+          "title": "Polar Museum, if the weather has turned",
+          "timeWindow": { "start": "15:20", "end": "16:10" },
+          "location": { "name": "Polarmuseet, Søndre Tollbodgate", "city": "Tromsø", "area": "Sentrum harbour" },
+          "kind": "idea",
+          "tags": ["ticketed"],
+          "notes": "About 90 NOK, in an 1830s customs warehouse on the wharf. Amundsen, Nansen, and an unsentimental account of the trapping and sealing that actually built this town. The right thing to have in your back pocket for a whiteout afternoon; skip it if the sky is clear and go up the cable car instead.",
+          "cost": { "amountMinor": 2100, "currency": "USD" }
+        },
+        {
+          "title": "Fjellheisen up to Storsteinen",
+          "timeWindow": { "start": "16:30", "end": "17:45" },
+          "location": { "name": "Fjellheisen cable car, Storsteinen (421 m)", "city": "Tromsø", "area": "Tromsdalen" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "495 NOK return (320 one way). Four minutes up to a platform above the whole island — city lights, the Arctic Cathedral below, and the mountains of Kvaløya across the sound. In winter the aurora sometimes appears from right here, which makes this the cheapest lottery ticket in Tromsø. It closes in high wind, and the platform is icy and unheated; the café up top keeps short winter hours. Bus 26 from the centre or a 25-minute walk over the bridge.",
+          "cost": { "amountMinor": 4600, "currency": "USD" }
+        },
+        {
+          "title": "Tasting menu at Emmas Drømmekjøkken",
+          "timeWindow": { "start": "18:15", "end": "19:45" },
+          "location": { "name": "Emmas Drømmekjøkken, Kirkegata", "city": "Tromsø", "area": "Sentrum" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "The red house opposite the cathedral, doing five-, seven- and nine-course seasonal menus of Arctic ingredients — king crab, skrei in season, reindeer. Around 1,240 NOK for the five-course without wine. It has been closed for renovation at points, so confirm before you build the evening on it; Bardus Bistro and Fiskekompaniet are the fallbacks and neither is a step down by much. Eat before the aurora bus, not after — you will get back at 02:00.",
+          "cost": { "amountMinor": 11500, "currency": "USD" }
+        },
+        {
+          "title": "Reindeer hot dog at Raketten before the bus",
+          "timeWindow": { "start": "20:00", "end": "20:20" },
+          "location": { "name": "Raketten Bar & Pølse, Storgata", "city": "Tromsø", "area": "Storgata" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "A kiosk from 1911 in the middle of the main street, claimed as Norway's smallest bar. Reindeer sausage in a lompe for about 95 NOK. Twenty minutes, standing in the cold, and it is the thing you will remember about Tromsø's street life.",
+          "cost": { "amountMinor": 900, "currency": "USD" }
+        },
+        {
+          "title": "Aurora chase by minibus",
+          "timeWindow": { "start": "20:30", "end": "23:59" },
+          "location": { "name": "Small-group aurora chase, pickup in Tromsø sentrum", "city": "Tromsø", "area": "Troms og Finnmark" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "1,300–1,950 NOK depending on group size; this one was about 1,890. Ends around 01:30–02:00, not the 23:59 shown here — the window is padded out because that is what the operators sell. The point of a chase over standing on a beach is the driving: a good guide will run to Skibotn, the Lyngen fjords or over the Finnish border to find clear sky, and 200–300 km in a night is normal. Six clear-ish nights in ten is a fair January expectation, so build in two attempts if the aurora is the reason you came. They provide thermal suits, hot drinks and, on most tours, photographs of you under it — do not buy a tripod for this trip. Book with a small-group operator, not a 50-seat coach.",
+          "cost": { "amountMinor": 17500, "currency": "USD" }
+        }
+      ]
+    }
+  ]
+}

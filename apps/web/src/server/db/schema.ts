@@ -14,6 +14,7 @@ import {
 import type {
   DistanceUnit,
   Origin,
+  SavedDayAuthorKind,
   SavedDayVisibility,
   SavedStop,
   TripDetail,
@@ -258,6 +259,25 @@ export const savedDays = pgTable(
     // boolean; the column follows the contract's spelling so the two never
     // need a mapping table between them.
     visibility: text("visibility").$type<SavedDayVisibility>().notNull().default("private"),
+    // **Who wrote this day** — `"human"` or `"ai"` (Mitchell, 2026-09-06:
+    // *"we will need to indicate in the database when its a human playbook or a
+    // AI seed data"*). See `SavedDayAuthorKind` in packages/contracts for why
+    // the contract is an enum rather than a boolean, why the two values are
+    // about AUTHORSHIP rather than about how the row got here, and why it is
+    // not called `origin` — `events.origin` above already means something else
+    // entirely.
+    //
+    // `text` with a `$type` rather than a pg enum, following `visibility`
+    // directly above and `trip_invites.status` before it — the column follows
+    // the contract's spelling so the two never need a mapping between them.
+    //
+    // **Defaulted to `'human'`, and the default is the guarantee.** Every row
+    // that existed before this column did was written by a person through
+    // `POST /api/saved-days`, and so is every row that route writes now; only
+    // the content importer passes anything else, and it passes it explicitly.
+    // A future writer that forgets the field gets the truthful answer rather
+    // than a claim nobody made.
+    authorKind: text("author_kind").$type<SavedDayAuthorKind>().notNull().default("human"),
     // The denormalised counter over `saved_day_adds` (M11b link 4). The LEDGER
     // is the authority and this is recomputable from it
     // (`count(*) where saved_day_id = ?`) — it exists so the leaderboard and

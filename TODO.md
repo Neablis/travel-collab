@@ -847,6 +847,23 @@ marked "history", so nothing live surfaced it and nobody resumed.
 
 ## Live, and previously hidden inside a closed-out plan
 
+- ~~**Seed content is code, so there is not much of it**~~ — **done 2026-09-06**,
+  branch `claude/serialize-and-seed-data-66f8tb`, **ADR-041**. Mitchell asked for
+  a JSON serialization for notebooks, activities and trips, an importer, and *"a
+  lot of believable playbooks"*. `travel-collab/content-bundle/v1` +
+  `pnpm --filter web content:import` + 88 playbook days over eleven regions and
+  four demo trips, all in `content/`. `saved_days.author_kind` (migration `0017`)
+  is the human-vs-AI flag he asked for, surfaced as an "AI starter" badge.
+  **It closed a real gap**: Discover's budget filter had no occupant in three of
+  its four bands anywhere in the seed — the thing `starterDays.ts`' own header
+  flagged and said it was too small to fix. All four are populated now.
+  What it left open, on purpose: **`KI-2026-09-06-c`** — imported stops carry no
+  coordinates (a wrong pin is worse than none; KI-39 measured that once already),
+  so the four demo trips read "N stops have no place yet" on the Map lens until
+  somebody runs an offline geocoding pass on the model of
+  `scripts/geocode-japan-seed.mts`. The playbook days are unaffected — Discover
+  matches on `location.city` and all 905 stops carry one.
+
 - ~~`docs/guidelines/testing.md` does not exist~~ (7.2) — **done 2026-09-02.**
 - ~~No `write-a-test` skill~~ (7.4) — **done 2026-09-02.**
 - ~~Task 7.1's lint rules~~ — **done 2026-09-02**, and the reason it was still

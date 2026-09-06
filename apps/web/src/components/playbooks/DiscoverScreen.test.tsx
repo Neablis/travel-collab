@@ -25,6 +25,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     visibility: "public",
+    authorKind: "human",
     sourceTripName: "Japan",
     createdAt: "2026-08-01T00:00:00.000Z",
     publishedAt: "2026-08-02T00:00:00.000Z",
@@ -63,6 +64,28 @@ describe("Discover", () => {
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
+  });
+
+  // ADR-041 decision 5: the library mixes days people kept out of their own
+  // trips with generated starter content, and the card is where somebody
+  // chooses between thirty of them. **Only "ai" renders** — "human" is the
+  // absence of a claim, not a claim, and a mark on almost every card marks
+  // nothing.
+  it("marks a generated day as an AI starter, and says nothing about a human one", async () => {
+    searchPlaybooksMock.mockResolvedValue(
+      ok(
+        response({
+          days: [
+            day({ savedDayId: "aa000000-0000-4000-8000-000000000009", name: "Railay at first light", authorKind: "ai" }),
+            day({ name: "Kyoto temples on foot", authorKind: "human" }),
+          ],
+        }),
+      ),
+    );
+    render(<DiscoverScreen />);
+    expect(await screen.findByText("Railay at first light")).toBeTruthy();
+    // One badge for two cards: the human day carries none.
+    expect(screen.getAllByText("AI starter")).toHaveLength(1);
   });
 
   it("shows a skeleton grid before the first answer arrives, and never after", async () => {

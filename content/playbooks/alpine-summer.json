@@ -1,0 +1,720 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "alpine-summer",
+    "name": "The Alps in summer: Switzerland, Austria and French Savoie",
+    "description": "Eight cloneable summer days built around real cable cars, real cog railways, real huts and real guides — Schilthorn and the Northface Trail, the 07:00 Gornergrat train, the Faulhorn ridge, the Vallée Blanche on foot, a first 4000er above Zermatt, the Salzkammergut, the Nordkette and the Grossglockner road.",
+    "origin": "ai",
+    "generatedAt": "2026-09-06",
+    "sources": [
+      "https://schilthorn.ch/en/Infos/Timetable__and__Tariff",
+      "https://www.myswissalps.com/activity/schilthorn/",
+      "https://airtime-paragliding.com/",
+      "https://gimmelwald.ch/?page_id=83&lang=en",
+      "https://www.gornergrat.ch/en/pages/timetable-gornergrat-bahn",
+      "https://www.myswissalps.com/activity/gornergrat/",
+      "https://www.matterhornparadise.ch/en/experience/hiking/5-lakes-walk",
+      "https://www.matterhornparadise.ch/en/information/tickets-prices/sightseeing-tickets",
+      "https://www.zermatters.ch/en/activities/climb/summit-tour/article/breithorn/",
+      "https://hoernlihuette.ch/sleep/?lang=en",
+      "https://www.myswissalps.com/activity/grindelwald-first/",
+      "https://www.jungfrau.ch/en-gb/schynige-platte/",
+      "https://en.chamonix.com/activities/practical-information-about-the-lifts/aiguille-du-midi-cable-car",
+      "https://montenversmerdeglace.montblancnaturalresort.com/en/timetables-rates",
+      "https://www.chamonix-guides.com/en/activities/details/biodiversity-excursion-around-mer-de-glace-glacier",
+      "https://www.dachstein-salzkammergut.com/en/tickets-offers/tickets-summer/single-tariffs",
+      "https://www.salzwelten.at/en/hallstatt",
+      "https://www.hallstattaustria.eu/hallstatt-boat-station-where-to-catch-the-ferry-lake-hallstatt",
+      "https://nordkette.com/en/service/tariffs/",
+      "https://nordkette.com/en/hiking-trails/the-goetheweg/",
+      "https://www.grossglockner.at/en/for-your-visit/prices-opening-times"
+    ]
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "murren-schilthorn-northface-trail",
+      "name": "Mürren: the first Schilthorn car, the Northface Trail, and a flight down",
+      "summary": "Up the world's steepest cable car at 09:00, breakfast turning slowly at 2970 m, then the Eiger–Mönch–Jungfrau balcony trail back through the alps, and a tandem glider off Mürren into the Lauterbrunnen valley.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2025-07-21T18:40:00.000Z",
+      "sourceTrip": { "name": "Bernese Oberland, two weeks on lifts" },
+      "addedBy": [
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-kenji" }
+      ],
+      "stops": [
+        {
+          "title": "Train to Lauterbrunnen, Postbus 141 to Stechelberg",
+          "timeWindow": { "start": "07:32", "end": "08:20" },
+          "location": { "name": "Interlaken Ost to Stechelberg Schilthornbahn", "city": "Lauterbrunnen", "area": "Lauterbrunnen valley" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "Interlaken Ost 07:32 gets you to Lauterbrunnen at 07:52 and onto the 08:04 Postbus with room to spare. Drive instead and you park in Stechelberg (Lauterbrunnen's multi-storey is the fallback) — Mürren and Gimmelwald are car-free, so the car stops here either way.",
+          "cost": { "amountMinor": 1550, "currency": "USD" }
+        },
+        {
+          "title": "Schilthornbahn: Stechelberg → Mürren → Birg → Schilthorn",
+          "timeWindow": { "start": "09:00", "end": "09:35" },
+          "location": { "name": "Schilthornbahn valley station", "city": "Stechelberg", "area": "Schilthorn" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Cars run every 20 minutes from 09:00 to 17:00 and the 17:00 is the genuine last one down — miss it and you are walking to Mürren. CHF 108 return from Stechelberg; halve it with a Swiss Travel Pass or Half Fare Card, which pays for itself on this day alone. Be on the 09:00: by 11:00 the queue at Stechelberg is two cars deep.",
+          "cost": { "amountMinor": 13500, "currency": "USD" }
+        },
+        {
+          "title": "Breakfast in Piz Gloria, the revolving restaurant",
+          "timeWindow": { "start": "09:40", "end": "10:40" },
+          "location": { "name": "Piz Gloria, Schilthorn summit", "city": "Mürren", "area": "Schilthorn" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "One full rotation takes 45 minutes, so order and then stay put — the Eiger, Mönch and Jungfrau come round to you. Breakfast is the cheap sitting; the same view at lunch costs three times as much. The Bond exhibition next door is free and takes fifteen minutes.",
+          "cost": { "amountMinor": 4000, "currency": "USD" }
+        },
+        {
+          "title": "Birg: Thrill Walk and the Skyline Walk cantilever",
+          "timeWindow": { "start": "10:45", "end": "11:30" },
+          "location": { "name": "Birg station", "city": "Mürren", "area": "Schilthorn" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Included in the cable car ticket, which almost nobody realises — get off at Birg on the way down rather than buying anything extra. The metal-grate section over the drop is the point; go early in the day while it is still in shade and the grate is not slick with meltwater."
+        },
+        {
+          "title": "Down to Mürren, funicular up to Allmendhubel",
+          "timeWindow": { "start": "11:40", "end": "12:10" },
+          "location": { "name": "Allmendhubelbahn", "city": "Mürren", "area": "Blumental" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "Walk the Northface Trail from Allmendhubel and it is downhill-ish the whole way; start it from Mürren itself and you climb 400 m before the views begin. CHF 12 one way to skip that climb is the best money spent today.",
+          "cost": { "amountMinor": 1500, "currency": "USD" }
+        },
+        {
+          "title": "Lunch on the Suppenalp terrace",
+          "timeWindow": { "start": "12:15", "end": "13:00" },
+          "location": { "name": "Berggasthaus Suppenalp", "city": "Mürren", "area": "Blumental" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Open roughly late June to early October and it lives up to the name — the soup is the order. Ten minutes off the trail below Allmendhubel; if it is shut, Schiltalp further along has an honesty box with cheese, bread and beer.",
+          "cost": { "amountMinor": 3000, "currency": "USD" }
+        },
+        {
+          "title": "Northface Trail: Schiltalp, Spielbodenalp, the Sprutz waterfall",
+          "timeWindow": { "start": "13:05", "end": "16:00" },
+          "location": { "name": "Northface Trail", "city": "Gimmelwald", "area": "Blumental" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Follow the small green Northface squares on the yellow posts, not the general Mürren signs — they diverge twice. Walk it westward from Allmendhubel so the Eiger north face stays in front of you rather than behind. Take the Sprutz detour: the path goes behind the waterfall, and it is the only wet twenty metres of the day. Ends in Gimmelwald; the cable car back up to Mürren runs every 30 minutes.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Tandem paraglide off Mürren into the valley",
+          "timeWindow": { "start": "16:30", "end": "17:30" },
+          "location": { "name": "Airtime Paragliding, beside the Schilthornbahn station", "city": "Mürren", "area": "Lauterbrunnen valley" },
+          "kind": "hold",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "CHF 199 for the standard flight and it is weather-called on the morning, so hold the slot rather than booking around it. Late afternoon air over Lauterbrunnen is calmer than midday thermals if you are nervous. Landing is on the valley floor in Lauterbrunnen, which conveniently is where your train home leaves from — do not buy a return cable car ticket you will not use.",
+          "cost": { "amountMinor": 24875, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "zermatt-gornergrat-and-five-lakes",
+      "name": "Zermatt: the 07:00 Gornergrat train, then the Five Lakes down to Sunnegga",
+      "summary": "Two mountains on opposite sides of the valley in one day — the cog railway to 3089 m before the Matterhorn clouds over, the Riffelsee reflection on foot, then the 5-Seenweg across to Sunnegga with a swim in the Grünsee.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-09-28T19:10:00.000Z",
+      "sourceTrip": { "name": "Valais on foot" },
+      "addedBy": [
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-nadia" },
+        { "addedBy": "dev-sofia" },
+        { "addedBy": "dev-elena" }
+      ],
+      "stops": [
+        {
+          "title": "Gornergrat Bahn, the 07:00 — sit on the right",
+          "timeWindow": { "start": "07:00", "end": "07:50" },
+          "location": { "name": "Gornergrat Bahn station, Bahnhofplatz", "city": "Zermatt", "area": "Gornergrat" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "The 07:00 is the whole trick. From 08:00 trains go every 24 minutes and every one of them is full, and the Matterhorn reliably grows a cloud cap by 10:00. CHF 132 return in summer, CHF 66 with a Swiss Travel Pass or Half Fare Card. Sit on the right going up — the Matterhorn appears above Riffelberg and stays there.",
+          "cost": { "amountMinor": 16500, "currency": "USD" }
+        },
+        {
+          "title": "Gornergrat summit terrace and the Gorner glacier",
+          "timeWindow": { "start": "07:50", "end": "08:40" },
+          "location": { "name": "Gornergrat, 3089 m", "city": "Zermatt", "area": "Gornergrat" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Twenty-nine four-thousanders from one platform, and the Gorner glacier below is the second largest in the Alps. Walk five minutes past the hotel to the far viewpoint and the tripods thin out completely. It is 3089 m and about ten degrees colder than the village — the fleece you left in the hotel is the thing you will regret."
+        },
+        {
+          "title": "Walk down: Gornergrat → Rotenboden → Riffelsee → Riffelberg",
+          "timeWindow": { "start": "08:45", "end": "10:30" },
+          "location": { "name": "Riffelsee", "city": "Zermatt", "area": "Riffelberg" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "Ride up, walk down — the reflection in the Riffelsee only works before the wind picks up, so this has to be the morning half of the day. It is fifteen minutes down from Rotenboden station to the lake and about an hour more to Riffelberg on an easy graded path. Your Gornergrat ticket lets you rejoin the train at any station, so there is no penalty for stopping early."
+        },
+        {
+          "title": "Train down to Zermatt and a pause at Bäckerei Fuchs",
+          "timeWindow": { "start": "10:45", "end": "11:30" },
+          "location": { "name": "Bäckerei Fuchs, Getwingstrasse", "city": "Zermatt", "area": "Zermatt village" },
+          "kind": "transit",
+          "tags": ["meal"],
+          "notes": "Included in the return ticket. Fuchs does the Walliser rye bread and an apricot tart worth twenty minutes; it is also two minutes from the Sunnegga funicular entrance, which is a tunnel mouth on the river side of the village and easy to walk past.",
+          "cost": { "amountMinor": 1125, "currency": "USD" }
+        },
+        {
+          "title": "Sunnegga funicular and the Blauherd gondola",
+          "timeWindow": { "start": "11:40", "end": "12:10" },
+          "location": { "name": "Sunnegga Express to Blauherd", "city": "Zermatt", "area": "Sunnegga-Rothorn" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Buy to Blauherd, not to Rothorn: the Five Lakes walk starts at Blauherd and the extra stage to Rothorn is a viewpoint you have already had from Gornergrat. About CHF 44 return, and you only need the up half — the walk finishes at Sunnegga where the funicular takes you back down.",
+          "cost": { "amountMinor": 5500, "currency": "USD" }
+        },
+        {
+          "title": "Stellisee first, then rösti on the Fluhalp terrace",
+          "timeWindow": { "start": "12:20", "end": "13:30" },
+          "location": { "name": "Berghaus Fluhalp", "city": "Zermatt", "area": "Sunnegga-Rothorn" },
+          "kind": "planned",
+          "tags": ["meal", "outdoors"],
+          "notes": "Stellisee is fifteen minutes from Blauherd and is the reflection everyone has seen; Fluhalp is another ten beyond it. Do the lake before lunch — the water goes choppy after about 13:00 most days. Fluhalp's rösti and their own Fluhalp beer, on a terrace pointed straight at the Matterhorn; they do not take reservations for the terrace.",
+          "cost": { "amountMinor": 4750, "currency": "USD" }
+        },
+        {
+          "title": "5-Seenweg: Grindjisee, Grünsee, Moosjisee, Leisee",
+          "timeWindow": { "start": "13:40", "end": "16:20" },
+          "location": { "name": "5-Seenweg", "city": "Zermatt", "area": "Sunnegga-Rothorn" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "About 9.8 km and mostly downhill from Blauherd to Sunnegga; walking it the other way is a 700 m climb for the same lakes. Only two of the five actually reflect the Matterhorn — Stellisee and Grindjisee — so do not wait for the others to perform. Grünsee is the swim: it warms up more than the rest and has flat rock to get out onto. Leisee at the end is shallow, roped and full of children, which is charming or not depending."
+        },
+        {
+          "title": "Dinner at the Whymperstube",
+          "timeWindow": { "start": "19:00", "end": "20:45" },
+          "location": { "name": "Whymperstube, Monte Rosa Hotel", "city": "Zermatt", "area": "Bahnhofstrasse" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "In the hotel Whymper left from for the first Matterhorn ascent in 1865, and it is a fondue and raclette room rather than a shrine. Book it — twelve tables, and it fills by 18:00 in July and August. Two people can share one cheese fondue and add a salad; the portions are aimed at people who have been on a glacier.",
+          "cost": { "amountMinor": 6875, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "grindelwald-first-faulhorn-schynige-platte",
+      "name": "Grindelwald First to Schynige Platte: Bachalpsee, the Faulhorn and six hours of ridge",
+      "summary": "The best long ridge walk in the Bernese Oberland, done in the direction that keeps the Eiger, Mönch and Jungfrau in front of you all day — gondola up, one-way, and a cog railway down the far end.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2026-06-14T20:05:00.000Z",
+      "sourceTrip": { "name": "Bernese Oberland, two weeks on lifts" },
+      "addedBy": [
+        { "addedBy": "dev-marco" },
+        { "addedBy": "dev-priya" }
+      ],
+      "stops": [
+        {
+          "title": "Early train Interlaken Ost → Grindelwald",
+          "timeWindow": { "start": "07:05", "end": "07:40" },
+          "location": { "name": "Berner Oberland-Bahn", "city": "Grindelwald", "area": "Lütschine valley" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "This is a point-to-point day that ends 25 km from where it starts, so leave the car wherever you are sleeping and take trains at both ends. The Grindelwald half of the BOB train splits at Zweilütschinen — get in the front carriages or you will arrive in Lauterbrunnen.",
+          "cost": { "amountMinor": 1475, "currency": "USD" }
+        },
+        {
+          "title": "First gondola, one way only",
+          "timeWindow": { "start": "08:00", "end": "08:30" },
+          "location": { "name": "Firstbahn valley station", "city": "Grindelwald", "area": "First" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Buy the single, about CHF 42, not the CHF 76 return — you are not coming back this way. The gondola is 25 minutes in three stages via Bort and Schreckfeld and starts around 08:00 in summer. Skip the Cliff Walk queue at the top today; the ridge is the reason you are here and daylight is the constraint.",
+          "cost": { "amountMinor": 5250, "currency": "USD" }
+        },
+        {
+          "title": "First → Bachalpsee → the Faulhorn",
+          "timeWindow": { "start": "08:35", "end": "11:40" },
+          "location": { "name": "Bachalpsee and the Faulhorn", "city": "Grindelwald", "area": "First" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "An hour of nearly flat gravel to Bachalpsee — this is the stretch every day-tripper does, and before 09:30 you will have the mirror to yourself. Past the lake the crowd evaporates and it becomes a real climb: about 700 m more to the Faulhorn at 2681 m. There is no water on the ridge after Bachalpsee, so fill up at the lake outflow."
+        },
+        {
+          "title": "Lunch at Berghotel Faulhorn",
+          "timeWindow": { "start": "11:45", "end": "12:30" },
+          "location": { "name": "Berghotel Faulhorn, 2681 m", "city": "Grindelwald", "area": "Faulhorn" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Open since 1830 and the oldest mountain hotel in Europe; everything on the menu arrived by helicopter, which is why soup and a Rivella costs what a proper meal costs in the valley. Cash and cards both fine. If you would rather see it at dawn, they take overnight bookings and the sunrise off this summit is the one people come back for.",
+          "cost": { "amountMinor": 3500, "currency": "USD" }
+        },
+        {
+          "title": "Faulhorn → Männdlenen → Schynige Platte",
+          "timeWindow": { "start": "12:35", "end": "16:15" },
+          "location": { "name": "Faulhorn ridge trail", "city": "Wilderswil", "area": "Faulhorn ridge" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "About 16 km end to end, 6 hours moving and closer to 8 with stops — the reason to start at First and not at Schynige Platte is that this direction gives you the Eiger-Mönch-Jungfrau wall dead ahead for four hours and 600 m less climbing. Weisse Fluh above Männdlenen is the exposed section: fine in dry weather, genuinely unpleasant in wet cloud. Turn back at Männdlenen if the weather has closed in; there is no escape route after it.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Alpine garden and a beer before the train",
+          "timeWindow": { "start": "16:20", "end": "17:10" },
+          "location": { "name": "Alpengarten Schynige Platte", "city": "Wilderswil", "area": "Schynige Platte" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Free with a rail ticket and about 750 alpine species in a hillside enclosure — twenty minutes is plenty after six hours of the real thing. The Berghotel terrace pours a beer at 1967 m looking down at Lake Thun, which is the correct end to this day.",
+          "cost": { "amountMinor": 1125, "currency": "USD" }
+        },
+        {
+          "title": "Schynige Platte Bahn down, then BOB to Interlaken Ost",
+          "timeWindow": { "start": "17:12", "end": "18:30" },
+          "location": { "name": "Schynige Platte Bahn", "city": "Wilderswil", "area": "Schynige Platte" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "Check the last departure before you commit to the ridge — the 1893 cog railway typically runs its final train down around 17:45 to 18:00 and there is no road off the top. 52 minutes at walking pace to Wilderswil, then five more minutes on the BOB. About CHF 32 one way.",
+          "cost": { "amountMinor": 4450, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Restaurant Alpenblick, Wilderswil",
+          "timeWindow": { "start": "19:15", "end": "20:45" },
+          "location": { "name": "Restaurant Alpenblick", "city": "Wilderswil", "area": "Wilderswil" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Four minutes' walk from the Schynige Platte station and far better than anything on Interlaken's main strip. Their thing is fire-grilled meat and Oberland lamb; the garden is where you want to be after a ridge day.",
+          "cost": { "amountMinor": 5250, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "chamonix-aiguille-du-midi-vallee-blanche",
+      "name": "Chamonix: first cable car to the Aiguille du Midi, then walk the glacier down to Montenvers",
+      "summary": "3842 m before breakfast, roped to a Compagnie des Guides guide down the arête and across the Vallée Blanche, lunch at the Refuge du Requin and out via the Mer de Glace ladders to the Montenvers train.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2026-02-09T21:15:00.000Z",
+      "sourceTrip": { "name": "Mont Blanc massif, a week with guides" },
+      "addedBy": [
+        { "addedBy": "dev-nadia" },
+        { "addedBy": "dev-elena" },
+        { "addedBy": "dev-bob" }
+      ],
+      "stops": [
+        {
+          "title": "Maison de la Montagne: meet the guide, gear check",
+          "timeWindow": { "start": "06:20", "end": "06:50" },
+          "location": { "name": "Maison de la Montagne, place de l'Église", "city": "Chamonix", "area": "Chamonix centre" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Collect rented mountain boots, crampons and harness from Sanglard Sports the evening before — nothing in Chamonix opens at 06:00 and the guide will not wait. The price here is the kit hire; the guide's day is billed separately. Bring sunglasses rated category 4, not sunglasses you like.",
+          "cost": { "amountMinor": 3850, "currency": "USD" }
+        },
+        {
+          "title": "Aiguille du Midi cable car, first departure",
+          "timeWindow": { "start": "06:55", "end": "07:40" },
+          "location": { "name": "Téléphérique de l'Aiguille du Midi", "city": "Chamonix", "area": "Aiguille du Midi" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "First car is 06:10 in high season (roughly 1 July to 23 August) and later the rest of the summer; slots are timed and sell out days ahead online. Around €83 return with dynamic pricing from about €60. You are only using the up half today — say so, the single is cheaper. It is 20 minutes and 2800 vertical metres from the valley, which is the fastest altitude gain in Europe and exactly why people get headaches at the top.",
+          "cost": { "amountMinor": 9130, "currency": "USD" }
+        },
+        {
+          "title": "The 3842 m terrace and the Pas dans le Vide, empty",
+          "timeWindow": { "start": "07:45", "end": "08:20" },
+          "location": { "name": "Aiguille du Midi summit terraces", "city": "Chamonix", "area": "Aiguille du Midi" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The glass box over the 1000 m drop has a forty-minute queue by 10:00 and none at all before 08:00 — this is the only reason the early car matters for non-climbers too. Move slowly; at 3842 m with no acclimatisation, stairs feel absurd. The tube to the north terrace is where the Mont Blanc view actually is."
+        },
+        {
+          "title": "Roped down the arête and across the Vallée Blanche",
+          "timeWindow": { "start": "08:30", "end": "12:30" },
+          "location": { "name": "Arête de l'Aiguille du Midi and the Vallée Blanche", "city": "Chamonix", "area": "Vallée Blanche" },
+          "kind": "booked",
+          "tags": ["outdoors", "ticketed"],
+          "notes": "A private Compagnie des Guides day is around €500 and this is not a place to economise: the arête down from the lift is a knife-edge with a fixed line, and the glacier below is crevassed under snow bridges all summer. Group departures exist and are roughly a third of the price if your dates are flexible. The guide sets the turnaround; if the refreeze was poor overnight they will call it, and that call is what you are paying for.",
+          "cost": { "amountMinor": 55000, "currency": "USD" }
+        },
+        {
+          "title": "Lunch on the Refuge du Requin terrace",
+          "timeWindow": { "start": "12:40", "end": "13:30" },
+          "location": { "name": "Refuge du Requin, 2516 m", "city": "Chamonix", "area": "Vallée Blanche" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Perched above the icefall halfway down the Vallée Blanche and reachable on foot only across the glacier, which keeps it honest. Soup, charcuterie, tarte — order at the counter, cash is safest. They also take overnight bookings if you want to split the traverse over two days.",
+          "cost": { "amountMinor": 2420, "currency": "USD" }
+        },
+        {
+          "title": "Mer de Glace to the Montenvers ladders",
+          "timeWindow": { "start": "13:40", "end": "16:00" },
+          "location": { "name": "Mer de Glace", "city": "Chamonix", "area": "Mer de Glace" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The last hour is the education: a staircase and a series of ladders up the flank, with year markers showing where the ice surface used to be. It has lost well over 100 m of thickness since the 1990s and you climb every one of them. The ice cave is at the bottom of the gondola from Montenvers and is worth the twenty minutes if your legs have anything left."
+        },
+        {
+          "title": "Montenvers cog railway back down to Chamonix",
+          "timeWindow": { "start": "16:15", "end": "16:50" },
+          "location": { "name": "Gare du Montenvers", "city": "Chamonix", "area": "Montenvers" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "The little red rack railway has run since 1908; first train up is 08:30 in summer and they go every 15 to 60 minutes depending on demand. Buy the single down — around €30 — you arrived on foot. It lands you at Chamonix's main station, five minutes from the téléphérique you left this morning.",
+          "cost": { "amountMinor": 3300, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at Le Panier des 4 Saisons",
+          "timeWindow": { "start": "19:30", "end": "21:15" },
+          "location": { "name": "Le Panier des 4 Saisons, passage Mont-Blanc", "city": "Chamonix", "area": "Chamonix centre" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Down an alley off the main street, small, and booked out most of the summer — reserve the day you book the guide. Savoyard cooking that is not just melted cheese. If it is full, La Maison Carrier out toward Les Praz does the same register with more room.",
+          "cost": { "amountMinor": 4180, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "zermatt-breithorn-first-four-thousander",
+      "name": "Zermatt: a guided first 4000er on the Breithorn, then a bed at the Hörnlihütte",
+      "summary": "The most accessible 4000-metre summit in the Alps done properly — kit fitted at 06:15, the first lift to Klein Matterhorn, roped up for the Breithorn by mid-morning, and the night at the Matterhorn's base camp among people leaving at 04:00.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2025-11-16T17:30:00.000Z",
+      "sourceTrip": { "name": "Valais on foot" },
+      "addedBy": [{ "addedBy": "dev-kenji" }],
+      "stops": [
+        {
+          "title": "Bayard Sport: boots, crampons, harness, ice axe",
+          "timeWindow": { "start": "06:15", "end": "06:45" },
+          "location": { "name": "Bayard Sport, Bahnhofstrasse", "city": "Zermatt", "area": "Zermatt village" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Reserve the kit online the week before and it is bagged and waiting; walk in cold in August and there are no size 45 boots left. Around CHF 55 for the full set for the day. Your own broken-in hiking boots will not take a crampon — this is the item people try to skip and cannot.",
+          "cost": { "amountMinor": 6875, "currency": "USD" }
+        },
+        {
+          "title": "Matterhorn Glacier Paradise: Zermatt → Trockener Steg → Klein Matterhorn",
+          "timeWindow": { "start": "07:00", "end": "08:00" },
+          "location": { "name": "Matterhorn Glacier Paradise", "city": "Zermatt", "area": "Klein Matterhorn" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "About CHF 120 return, halved with a Swiss Travel Pass or Half Fare Card, and it delivers you to 3883 m — the highest cable car station in Europe, and higher than the summit you are about to climb starts from. Take the first departures: afternoon snow on the Breithorn plateau turns to slush and the guides want you down by early afternoon anyway.",
+          "cost": { "amountMinor": 15000, "currency": "USD" }
+        },
+        {
+          "title": "Breithorn half traverse with a Zermatters guide",
+          "timeWindow": { "start": "08:15", "end": "11:30" },
+          "location": { "name": "Breithorn, 4164 m", "city": "Zermatt", "area": "Breithorn plateau" },
+          "kind": "booked",
+          "tags": ["outdoors", "ticketed"],
+          "notes": "A private guide through Zermatters or Alpin Center runs roughly CHF 800 to 1200 for the day; a group departure with kit included is around CHF 240 per person if you can join one. Technically it is a snow plod — but it is a glacier plod at 4000 m with crevasses under the trail and no fitness reference most people have. The half traverse adds the ridge line over the western summit and is worth asking for. Roughly 90 minutes up from the Klein Matterhorn tunnel exit if you are moving well.",
+          "cost": { "amountMinor": 118750, "currency": "USD" }
+        },
+        {
+          "title": "Back across the plateau and the lift to Trockener Steg",
+          "timeWindow": { "start": "11:40", "end": "12:40" },
+          "location": { "name": "Klein Matterhorn to Trockener Steg", "city": "Zermatt", "area": "Klein Matterhorn" },
+          "kind": "transit",
+          "tags": [],
+          "notes": "Included in the morning's ticket. Take the crampons off inside the tunnel, not on the platform — the floor is polished ice and everyone learns this the same way."
+        },
+        {
+          "title": "Lunch on the Gandegghütte terrace",
+          "timeWindow": { "start": "12:50", "end": "13:50" },
+          "location": { "name": "Gandegghütte, 3029 m", "city": "Zermatt", "area": "Theodul glacier" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Twenty minutes' walk from Trockener Steg on a marked path, which is why almost nobody on the cable car goes. Family-run, huge portions, and the terrace looks straight down the Theodul glacier at the Matterhorn's east face. Cash is easiest.",
+          "cost": { "amountMinor": 4250, "currency": "USD" }
+        },
+        {
+          "title": "Down to Furi, across to the Schwarzsee gondola",
+          "timeWindow": { "start": "14:10", "end": "15:05" },
+          "location": { "name": "Furi to Schwarzsee", "city": "Zermatt", "area": "Schwarzsee" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "You have to come back down to Furi and change lines — there is no link across at altitude, and the connection eats 40 minutes people forget to budget. Last gondola down from Schwarzsee is around 17:00 in summer, which does not matter tonight but matters enormously tomorrow.",
+          "cost": { "amountMinor": 5875, "currency": "USD" }
+        },
+        {
+          "title": "Schwarzsee to the Hörnlihütte",
+          "timeWindow": { "start": "15:15", "end": "16:45" },
+          "location": { "name": "Hörnli ridge approach path", "city": "Zermatt", "area": "Hörnligrat" },
+          "kind": "hold",
+          "tags": ["outdoors"],
+          "notes": "About 600 m of climbing over 90 minutes to two hours on a good path with a couple of cabled sections near the top. It is exposed to weather with nowhere to shelter — turn round at the chapel if there is thunder forecast, this ridge collects lightning. The hut appears only in the last five minutes.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Hörnlihütte: half board at 3260 m",
+          "timeWindow": { "start": "17:00", "end": "21:00" },
+          "location": { "name": "Hörnlihütte, 3260 m", "city": "Zermatt", "area": "Hörnligrat" },
+          "kind": "booked",
+          "tags": ["lodging", "meal"],
+          "notes": "From about CHF 150 per person half board, CHF 50 deposit, and the guides book it a year out — four weeks ahead is the realistic minimum for a bed and you should expect to be turned away in August. Bring a sleeping bag liner or buy one at reception for CHF 43. Dinner is at 18:00, lights out early, and the Matterhorn parties are woken at 03:30 and gone by 04:15 — you will hear all of it, which is most of the point of staying.",
+          "cost": { "amountMinor": 20625, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "hallstatt-krippenstein-salzkammergut",
+      "name": "Hallstatt: the 5fingers before the coaches, the salt mine, and a cold swim at Obertraun",
+      "summary": "Beat the day-trip buses by being on the far side of the lake at 09:00 — the Dachstein cable car to the 5fingers platform, the oldest salt mine in the world, and an afternoon in the Hallstättersee.",
+      "ownerId": "dev-ruth",
+      "visibility": "public",
+      "keptOn": "2025-04-27T16:20:00.000Z",
+      "sourceTrip": { "name": "Salzkammergut, lake to lake" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "The Marktplatz before the coach parks fill",
+          "timeWindow": { "start": "07:30", "end": "08:10" },
+          "location": { "name": "Marktplatz", "city": "Hallstatt", "area": "Hallstättersee" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Hallstatt gets around a million visitors a year into a village of 750 people, and essentially all of them arrive between 10:00 and 16:00. Before 08:30 the square is genuinely empty and the classic view from the northern lane is yours. Sleep in the village or Obertraun rather than day-tripping from Salzburg and this costs you nothing.",
+          "cost": { "amountMinor": 880, "currency": "USD" }
+        },
+        {
+          "title": "Round the lake to the Dachstein cable car",
+          "timeWindow": { "start": "08:20", "end": "08:50" },
+          "location": { "name": "Obertraun Dachsteinseilbahn valley station", "city": "Obertraun", "area": "Hallstättersee" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "Bus 543 runs the shore road in about fifteen minutes. The Stefanie ferry is the prettier option — €2.50 each way, timed to meet the trains at Hallstatt Bahnhof on the far shore, running since 1881 — but it goes to the station, not to Obertraun, so use it on the way in or out rather than for this hop.",
+          "cost": { "amountMinor": 550, "currency": "USD" }
+        },
+        {
+          "title": "Dachstein Krippenstein cable car, sections I to III",
+          "timeWindow": { "start": "09:00", "end": "09:40" },
+          "location": { "name": "Dachstein Krippenstein", "city": "Obertraun", "area": "Dachstein" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "The Panorama ticket for all three sections is about €47.90 at the desk, €46.70 online. It also covers the ice caves at the middle station — if you want those, do them on the way down, because the 5fingers is what empties out later in the day and the caves do not.",
+          "cost": { "amountMinor": 5269, "currency": "USD" }
+        },
+        {
+          "title": "5fingers, the Welterbespirale and the Heilbronner loop",
+          "timeWindow": { "start": "09:45", "end": "11:45" },
+          "location": { "name": "5fingers viewing platform", "city": "Obertraun", "area": "Krippenstein" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Fifteen minutes' walk from the top station, five steel fingers cantilevered over a 500 m drop — the one with the glass floor is the fifth. The Welterbespirale further along has loungers and a fraction of the people. Add the Heilbronner Kreuz circuit for an hour of karst limestone and dwarf pine and you will lose the crowd entirely."
+        },
+        {
+          "title": "Lunch at the Lodge am Krippenstein",
+          "timeWindow": { "start": "11:50", "end": "12:40" },
+          "location": { "name": "Lodge am Krippenstein", "city": "Obertraun", "area": "Krippenstein" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Right by the top station, sun terrace over the Dachstein plateau, and the Kaspressknödelsuppe is the correct order. They do beds too if you want the plateau at dusk.",
+          "cost": { "amountMinor": 2420, "currency": "USD" }
+        },
+        {
+          "title": "Swim at Strandbad Obertraun",
+          "timeWindow": { "start": "13:30", "end": "14:20" },
+          "location": { "name": "Strandbad Obertraun", "city": "Obertraun", "area": "Hallstättersee" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Free, grass, a jetty, and water that peaks around 20°C in August and is bracing at any other time. The Obertraun end of the lake is shallower and warmer than the Hallstatt shore, and there is no one there. Ten minutes' walk from the cable car station."
+        },
+        {
+          "title": "Salzwelten Hallstatt: funicular, Skywalk and the miners' slides",
+          "timeWindow": { "start": "15:00", "end": "16:30" },
+          "location": { "name": "Salzwelten Hallstatt", "city": "Hallstatt", "area": "Salzberg" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "About €49 including the funicular up the Salzberg. Seven thousand years of salt mining and the oldest working mine in the world — the two wooden miners' slides are the reason children rate this above the lake. Check opening before you go: the mine has been through a long renovation and reopened for daily tours from 29 August 2026. Last tour is mid-afternoon, so this cannot be pushed later.",
+          "cost": { "amountMinor": 5390, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at the Seehotel Grüner Baum",
+          "timeWindow": { "start": "19:00", "end": "20:45" },
+          "location": { "name": "Seehotel Grüner Baum", "city": "Hallstatt", "area": "Marktplatz" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "On the Marktplatz with a terrace directly over the water, and by 19:00 the last bus has gone and the village belongs to whoever stayed. Reinanke, the lake whitefish, is the local order and only appears on menus that get it fresh.",
+          "cost": { "amountMinor": 3740, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "innsbruck-nordkette-goetheweg",
+      "name": "Innsbruck: twenty minutes from the old town to 2334 m, then the Goetheweg",
+      "summary": "The only city in the Alps where you can drink coffee under a gothic arcade and be on a limestone ridge before 10:00 — Hadid's funicular, two cable cars, and the balcony trail across the Karwendel to the Pfeishütte.",
+      "ownerId": "dev-tomas",
+      "visibility": "public",
+      "keptOn": "2024-12-08T19:45:00.000Z",
+      "sourceTrip": { "name": "Tyrol by train" },
+      "addedBy": [
+        { "addedBy": "dev-sofia" },
+        { "addedBy": "dev-marco" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Coffee under the arcades, and the Goldenes Dachl",
+          "timeWindow": { "start": "08:00", "end": "08:30" },
+          "location": { "name": "Herzog-Friedrich-Strasse", "city": "Innsbruck", "area": "Altstadt" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "2657 gilded copper tiles on a balcony Maximilian I built to watch the square from, and it takes four minutes to look at. Café Munding, Austria's oldest confectioner, is around the corner and opens at 08:00. The whole old town is nine minutes' walk from the Congress funicular station, which is the point of this day.",
+          "cost": { "amountMinor": 715, "currency": "USD" }
+        },
+        {
+          "title": "Hungerburgbahn and the Seegrubenbahn",
+          "timeWindow": { "start": "08:40", "end": "09:20" },
+          "location": { "name": "Nordkettenbahnen, Congress station", "city": "Innsbruck", "area": "Nordkette" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "About €44 return Congress to Hafelekar; buy the through ticket rather than three separate stages. The Hungerburg funicular runs through Zaha Hadid's shell-shaped stations and takes eight minutes; then the big cable car to Seegrube. Summer season runs roughly late April to 1 November — outside that the top stage closes and the day does not exist.",
+          "cost": { "amountMinor": 4840, "currency": "USD" }
+        },
+        {
+          "title": "Seegrube terrace, then the Hafelekarbahn to the top",
+          "timeWindow": { "start": "09:25", "end": "09:50" },
+          "location": { "name": "Seegrube, 1905 m", "city": "Innsbruck", "area": "Nordkette" },
+          "kind": "transit",
+          "tags": ["meal"],
+          "notes": "The Hafelekar stage runs 09:00 to 17:00 and the last one down is the hard stop on the whole day — the Goetheweg is a five-hour round trip and there is no evening service. Have the coffee on the Seegrube terrace looking 1400 m straight down onto the Inn and the city grid.",
+          "cost": { "amountMinor": 990, "currency": "USD" }
+        },
+        {
+          "title": "Goetheweg: Hafelekar → Mühlkarscharte → Pfeishütte",
+          "timeWindow": { "start": "10:00", "end": "12:30" },
+          "location": { "name": "Goetheweg", "city": "Innsbruck", "area": "Karwendel" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Starts at the Hafelekar top station and runs the ridge north into the Karwendel, about 2.5 hours each way with a few short climbs and descents rather than one long one. The city drops out of sight after the first saddle and the landscape changes completely. Snow lies on parts of it into June — check with the lift staff at the top before committing, they know today's conditions and the trail sign does not."
+        },
+        {
+          "title": "Kaiserschmarrn at the Pfeishütte",
+          "timeWindow": { "start": "12:35", "end": "13:30" },
+          "location": { "name": "Pfeishütte, 1922 m", "city": "Innsbruck", "area": "Karwendel" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Open mid-June to mid-October, run by the Alpenverein, and they take overnight guests — a bed here turns this into a two-day Karwendel crossing out to Scharnitz. Kaiserschmarrn and a Radler, cash preferred. Watch the clock: leaving after 14:00 puts you at Hafelekar uncomfortably close to the last cable car.",
+          "cost": { "amountMinor": 2310, "currency": "USD" }
+        },
+        {
+          "title": "Back along the Goetheweg",
+          "timeWindow": { "start": "13:40", "end": "16:00" },
+          "location": { "name": "Goetheweg", "city": "Innsbruck", "area": "Karwendel" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The return is the better direction for views — Innsbruck reappears below you through the Mühlkarscharte and the whole Stubai chain lines up beyond it. Afternoon light on the limestone is worth deliberately not hurrying, within the constraint of the 17:00 lift."
+        },
+        {
+          "title": "Hafelekarspitze, ten minutes above the station",
+          "timeWindow": { "start": "16:05", "end": "16:35" },
+          "location": { "name": "Hafelekarspitze, 2334 m", "city": "Innsbruck", "area": "Nordkette" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "A short steep scramble on a made path from the top station to a proper summit cross, and most people who ride up never do it. From here you see the Karwendel behind and the Alpine main ridge in front in a single turn."
+        },
+        {
+          "title": "Dinner at Die Wilderin",
+          "timeWindow": { "start": "19:30", "end": "21:00" },
+          "location": { "name": "Die Wilderin, Seilergasse", "city": "Innsbruck", "area": "Altstadt" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Game, foraged things and Tyrolean produce, in the old town, and it is small enough that a walk-in at 19:30 in summer will not work — book it in the morning before you go up. Ask for the courtyard.",
+          "cost": { "amountMinor": 3740, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "grossglockner-hochalpenstrasse",
+      "name": "The Grossglockner High Alpine Road: 36 bends, the Pasterze and the Gamsgrubenweg",
+      "summary": "Austria's highest peak from a road built in 1935 — the cobbled spur to Edelweissspitze, the Hochtor tunnel at 2504 m, and the funicular down to a glacier that is visibly retreating year on year.",
+      "ownerId": "dev-carlos",
+      "visibility": "public",
+      "keptOn": "2026-05-03T15:55:00.000Z",
+      "sourceTrip": { "name": "Hohe Tauern loop" },
+      "addedBy": [
+        { "addedBy": "dev-bob" },
+        { "addedBy": "dev-maeve" }
+      ],
+      "stops": [
+        {
+          "title": "Toll gate at Ferleiten",
+          "timeWindow": { "start": "07:30", "end": "08:10" },
+          "location": { "name": "Mautstelle Ferleiten", "city": "Fusch an der Grossglocknerstrasse", "area": "Hohe Tauern" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "€46.50 for a car day ticket in 2026, less for motorcycles and electric vehicles, and reduced to €36.50 after 18:00. The gate opens around 05:00 in high summer and the road closes for the night — it is not a public road, it is a toll attraction with hours. Enter early: the ticket lets you exit and re-enter at Ferleiten or Heiligenblut the same day at no extra cost, and the light before 09:00 is the reason to be here.",
+          "cost": { "amountMinor": 5115, "currency": "USD" }
+        },
+        {
+          "title": "The cobbled spur up to Edelweissspitze",
+          "timeWindow": { "start": "08:20", "end": "09:00" },
+          "location": { "name": "Edelweissspitze, 2571 m", "city": "Fusch an der Grossglocknerstrasse", "area": "Hohe Tauern" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "A 1.6 km cobbled dead-end off the main road and the highest point you can drive to — thirty-seven summits over 3000 m from the tower at the top. The cobbles are original 1935 and rattle; take it slowly and it is fine in any car. Do it first thing, the small car park fills by 10:00 and there is nowhere to turn round."
+        },
+        {
+          "title": "Fuscher Törl and the Hochtor tunnel",
+          "timeWindow": { "start": "09:15", "end": "10:00" },
+          "location": { "name": "Fuscher Törl and Hochtor pass", "city": "Fusch an der Grossglocknerstrasse", "area": "Hohe Tauern" },
+          "kind": "transit",
+          "tags": ["outdoors"],
+          "notes": "Fuscher Törl has the memorial to the road's builders and the best view back down the northern hairpins. Hochtor at 2504 m is the watershed and the old Roman crossing — the tunnel is unlit and short, and the far side is a different climate. Expect snow banks at the roadside into June."
+        },
+        {
+          "title": "Coffee at the Glocknerhaus, above the Margaritze reservoir",
+          "timeWindow": { "start": "10:15", "end": "11:00" },
+          "location": { "name": "Glocknerhaus", "city": "Heiligenblut", "area": "Glocknerstrasse" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "On the branch road toward Franz-Josefs-Höhe, looking down at the turquoise Margaritze reservoir with the Glockner behind it. This is also the trailhead for the Gletscherweg down to the Pasterze if you would rather walk than ride the funicular.",
+          "cost": { "amountMinor": 880, "currency": "USD" }
+        },
+        {
+          "title": "Kaiser-Franz-Josefs-Höhe and the Gamsgrubenweg",
+          "timeWindow": { "start": "11:15", "end": "12:15" },
+          "location": { "name": "Kaiser-Franz-Josefs-Höhe, 2369 m", "city": "Heiligenblut", "area": "Pasterze" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The Grossglockner at 3798 m and the Pasterze, Austria's longest glacier, from one terrace. Note the hard rule: you may only drive up to Franz-Josefs-Höhe until 15:30. The Gamsgrubenweg runs level from the car park through a series of galleries and is where the ibex and marmots actually are — twenty minutes out is enough."
+        },
+        {
+          "title": "Gletscherbahn funicular down to the glacier floor",
+          "timeWindow": { "start": "12:20", "end": "13:20" },
+          "location": { "name": "Gletscherbahn Pasterze", "city": "Heiligenblut", "area": "Pasterze" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "About €12 return for a 143 m drop that saves a steep climb back out. What you get at the bottom is not the glacier any more but the ground it has left behind since 1963 — the markers on the walk down are dated and the distance between them is the story. Bring a layer; it is materially colder on the moraine.",
+          "cost": { "amountMinor": 1320, "currency": "USD" }
+        },
+        {
+          "title": "Lunch back up at the Alpengasthaus Schareck",
+          "timeWindow": { "start": "13:40", "end": "14:40" },
+          "location": { "name": "Alpengasthaus Schareck", "city": "Heiligenblut", "area": "Glocknerstrasse" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Roadside on the descent to Heiligenblut, unfussy, and the Gulaschsuppe and Apfelstrudel do the job. Sitting outside you can watch cyclists arriving at the pass having earned it considerably harder than you.",
+          "cost": { "amountMinor": 2420, "currency": "USD" }
+        },
+        {
+          "title": "Dinner in Heiligenblut under the church spire",
+          "timeWindow": { "start": "17:30", "end": "19:00" },
+          "location": { "name": "Heiligenblut am Grossglockner", "city": "Heiligenblut", "area": "Mölltal" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The gothic pilgrimage church with the Glockner directly behind it is the photograph everyone takes of this village, and it works best in evening light from the meadow below the road. Exit the toll road here and you are already past the southern gate — no second charge, and the Mölltal road onward is free.",
+          "cost": { "amountMinor": 3410, "currency": "USD" }
+        }
+      ]
+    }
+  ]
+}

@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-06 — `SavedDay.authorKind`: a playbook says who wrote it
+- Added: `SavedDayAuthorKind` (`"human"` · `"ai"`) and `SavedDay.authorKind`,
+  defaulted to `"human"`, in `packages/contracts/src/saved.ts`
+- Why: Mitchell, 2026-09-06 — *"we will need to indicate in the database when
+  its a human playbook or a AI seed data"*. The content importer
+  (`travel-collab/content-bundle/v1`, ADR-041) seeds a library of generated
+  playbook days beside days people kept out of their own trips, and the two have
+  to be distinguishable from a row, not from a commit message
+- Named `authorKind`, not `origin`: `Origin` in `history.ts` already means the
+  provenance of a batch of EVENTS (user / undo / redo / revert) and
+  `events.origin` is a real column carrying it. It is also not an id — `ownerId`
+  is who owns the day, this is what sort of author wrote it
+- Consumers updated: `apps/web` (`saved_days.author_kind` + migration
+  `0017_saved_day_author_kind`, `newSavedDayRow`, `fromRow`, `toDiscoverDay`,
+  the local `DiscoverDay` response shape, and `AuthorKindBadge` on the Discover
+  card and the shared-day screen), `@tc/fixtures` (the bundle schema's
+  `bundle.origin`, and `resolvePlaybook`)
+- Read path: an unparseable stored value falls back to `"human"` and LOGS,
+  rather than dropping the row the way an unparseable `stops` or `visibility`
+  does. That asymmetry is deliberate and is argued in `fromRow`: those two
+  decide what a reader may see, this decides a label — and only `"ai"` is ever
+  rendered, so a value we cannot read asserts nothing about the author, which is
+  the truth
+- Breaking? **no.** The column is `NOT NULL DEFAULT 'human'`, so the migration
+  lands on existing rows with no backfill; the contract field is `.default()`,
+  so a producer that omits it still parses. Every route except the importer
+  writes `"human"` by not saying anything
+
 ## 2026-09-04 — `PageDoc` v2: the seventeen widget names become twelve primitives
 - Added: `AttributeFieldRef` in `packages/contracts/src/pages.ts` — the closed
   list of fields `attribute` may read (`trip.name`, `trip.budgetRemaining`,

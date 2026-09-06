@@ -51,6 +51,7 @@ function savedDay(over: Partial<SavedDay> = {}): SavedDay {
     stops: [stop(), stop({ title: "Tofuku-ji gardens", timeWindow: { start: "10:15", end: "11:30" }, notes: null, cost: { amountMinor: 1_800, currency: "USD" } })],
     cities: ["Kyoto"],
     visibility: "public",
+    authorKind: "human",
     adds: 2,
     sourceTripId: "00000000-0000-4000-8000-00000000f000",
     sourceTripName: "Japan",
@@ -97,6 +98,21 @@ describe("a shared day", () => {
   });
 
   // The facts §15 names, minus the ones M12 owns.
+  // The screen somebody reads before deciding to take a day into their own
+  // trip, so "who wrote it" belongs beside the title (ADR-041 decision 5).
+  // Only "ai" renders: "human" is the absence of a claim.
+  it("marks a generated day as an AI starter beside its title, and says nothing about a human one", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "ai" }), isAuthor: false }));
+    renderDay();
+    expect(await screen.findByText("AI starter")).toBeTruthy();
+
+    cleanup();
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "human" }), isAuthor: false }));
+    renderDay();
+    expect(await screen.findByRole("heading", { name: savedDay().name })).toBeTruthy();
+    expect(screen.queryByText("AI starter")).toBeNull();
+  });
+
   it("states the facts in the rail, derived from the stops", async () => {
     renderDay();
     const rail = await screen.findByTestId("day-facts");

@@ -1,0 +1,13 @@
+-- `saved_days.author_kind` — whether a playbook day was written by a person or
+-- generated (Mitchell, 2026-09-06: "we will need to indicate in the database
+-- when its a human playbook or a AI seed data").
+--
+-- Defaulted to 'human' and NOT NULL, so this lands on the existing rows with no
+-- backfill and no rewrite: every row that predates the column was written by a
+-- person through POST /api/saved-days, which is exactly what the default says.
+-- Only the content importer passes 'ai', and it passes it explicitly.
+--
+-- Not called `origin`: `events.origin` already means the provenance of a batch
+-- of events (user / undo / redo / revert). See `SavedDayAuthorKind` in
+-- packages/contracts/src/saved.ts.
+ALTER TABLE "saved_days" ADD COLUMN "author_kind" text DEFAULT 'human' NOT NULL;

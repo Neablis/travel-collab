@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import {
+  SavedDayAuthorKind,
   SavedDayVisibility,
   SavedStop,
   type BatchableCommand,
@@ -47,6 +48,7 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
     stops,
     cities: row.cities,
     visibility: row.visibility,
+    authorKind: row.authorKind,
     adds: row.adds,
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
@@ -105,7 +107,32 @@ function fromRow(row: SavedDayRow): SavedDay | null {
     });
     return null;
   }
-  return toDto(row, stops.data);
+  // `author_kind` gets a parse too, and deliberately NOT the same consequence.
+  //
+  // `stops` and `visibility` above drop the row, because an unreadable fragment
+  // cannot be rendered and an unknown visibility is a value no access check has
+  // a branch for — both fail closed on a question that decides what the reader
+  // is allowed to see. This one decides a LABEL. Losing a day out of somebody's
+  // library because a provenance string is wrong would be wildly out of
+  // proportion to what the field is for.
+  //
+  // So an unparseable value falls back to "human", and that is honest rather
+  // than a guess, for one specific reason: only "ai" is ever RENDERED (see
+  // `AuthorKindBadge`). "human" is the absence of a claim, so a row we cannot
+  // read the label off says nothing about its author — which is exactly the
+  // truth. If a future value ever renders its own badge, this fallback has to
+  // be revisited with it.
+  const authorKind = SavedDayAuthorKind.safeParse(row.authorKind);
+  if (!authorKind.success) {
+    console.error("saved_days.author_kind is not a SavedDayAuthorKind", {
+      savedDayId: row.id,
+      value: row.authorKind,
+    });
+  }
+  return toDto(
+    { ...row, authorKind: authorKind.success ? authorKind.data : SavedDayAuthorKind.enum.human },
+    stops.data,
+  );
 }
 
 export async function saveDay(
@@ -179,6 +206,13 @@ export function newSavedDayRow(input: {
   createdAt: Date;
   /** Defaults to private — see below. Only the seed ever passes anything else. */
   visibility?: SavedDayVisibility;
+  /**
+   * Defaults to "human". Only the content importer passes anything else, and it
+   * passes it explicitly — see `SavedDayAuthorKind`. A route that forgets this
+   * argument is claiming a person wrote the day, which is what every route
+   * except the importer is in fact doing.
+   */
+  authorKind?: SavedDayAuthorKind;
   /** The seed declares its own ids so re-seeding is idempotent. */
   savedDayId?: string;
 }): SavedDayRow {
@@ -213,6 +247,10 @@ export function newSavedDayRow(input: {
     // it back yet — the restore path the column exists for is a future button,
     // not a code path (see the schema note).
     deletedAt: null,
+    // A person wrote it unless the caller says otherwise. See the column's own
+    // note: the default IS the guarantee, not a convention every writer has to
+    // remember.
+    authorKind: input.authorKind ?? SavedDayAuthorKind.enum.human,
     sourceTripId: input.sourceTripId,
     sourceTripName: input.sourceTripName,
     createdAt: input.createdAt,

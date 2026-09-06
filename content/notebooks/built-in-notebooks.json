@@ -1,0 +1,1158 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "built-in-notebooks",
+    "name": "The notebook templates that ship with the product",
+    "description": "A serialised copy of @tc/pages' TEMPLATE_LIBRARY. Checked against the code by templates.test.ts, so the format demonstrably carries the notebooks the product itself uses.",
+    "origin": "human",
+    "sources": [
+      "packages/pages/src/templates.ts"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "playbooks": [],
+  "notebooks": [
+    {
+      "key": "trip-overview",
+      "title": "Trip Overview",
+      "description": "The whole trip in one place — the why, the shape, the money.",
+      "seedIntoNewTrips": true,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Overview"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What's this trip about? Jot down the highlights, the why, who's coming."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "dates",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "city",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "The shape of it"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Sketch the arc — arrival, the days that matter, departure."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.rows",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Money"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is worth spending on, and what isn't."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "attribute",
+                  "params": {
+                    "field": "trip.budgetRemaining"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.rows",
+                  "params": {}
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "day-overview",
+      "title": "Day overview",
+      "description": "One day, close up. What's booked, what it costs, what's still loose.",
+      "seedIntoNewTrips": true,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "The day"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Point the widgets below at a day — click one, then pick the day from its chrome row. Unpointed they read the whole trip, which is also a fine way to use this page."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "hours",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Every stop"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.detail",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Still to sort"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is not booked yet, and who is chasing it."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "hold"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "full-trip-breakdown",
+      "title": "Full trip breakdown",
+      "description": "Every day, every city and every cost, laid out end to end.",
+      "seedIntoNewTrips": false,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 1
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "The whole trip"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "This page is built out of widgets, so it is never out of date — move a stop on the board and it moves here."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "dates",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Days: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {
+                    "of": "day"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": " · Stops: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {}
+                }
+              },
+              {
+                "type": "text",
+                "text": " · Cities: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {
+                    "of": "city"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "horizontalRule"
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Where it goes"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "city.detail",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "horizontalRule"
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Day by day"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.detail",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "horizontalRule"
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "What it costs"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "attribute",
+                  "params": {
+                    "field": "trip.budgetRemaining"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.rows",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Notes"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Anything the plan cannot carry: why a day is shaped the way it is, what to do if the weather turns, what you would cut first."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "dinner-tracker",
+      "title": "Dinner tracker",
+      "description": "Every meal on the trip, what it costs, and which ones still need a table.",
+      "seedIntoNewTrips": false,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 1
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Eating"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Tag a stop "
+              },
+              {
+                "type": "text",
+                "text": "meal"
+              },
+              {
+                "type": "text",
+                "text": " on the board and it appears here. Nothing on this page is typed twice."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Meals planned: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {
+                    "tag": "meal"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": " · Booked: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {
+                    "tag": "meal",
+                    "kind": "booked"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Booked"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Tables that exist. Confirmation numbers go in the stop's notes, not here."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "meal",
+                    "kind": "booked"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Still to book"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "The ones that need a phone call. A restaurant that takes reservations a month out is a stop that should be booked, not held."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "meal",
+                    "kind": "hold"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Ideas"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Places somebody mentioned. Move one onto a day when it earns a slot."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "meal",
+                    "kind": "idea"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "What eating costs"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost",
+                  "params": {
+                    "tag": "meal"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.rows",
+                  "params": {
+                    "tag": "meal"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "bookings-and-confirmations",
+      "title": "Bookings",
+      "description": "Everything that is confirmed, in one list — flights, rooms, tickets, tables.",
+      "seedIntoNewTrips": false,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 1
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Confirmed"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Booked: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {
+                    "kind": "booked"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": " of "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "count",
+                  "params": {}
+                }
+              },
+              {
+                "type": "text",
+                "text": " stops."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "booked"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Where we sleep"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Every stop tagged lodging, in order. A gap between two rooms is a night nobody has booked."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "lodging"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Getting between places"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "transit"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Not booked yet"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "On hold — held in the plan, not held by anybody."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "hold"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "What is already paid for"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost",
+                  "params": {
+                    "kind": "booked"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "before-you-go",
+      "title": "Before you go",
+      "description": "The list that stops a trip starting badly — packing, documents, the first day.",
+      "seedIntoNewTrips": false,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 1
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Leaving"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Flying from "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "attribute",
+                  "params": {
+                    "field": "account.homeAirport"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": " on "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "dates",
+                  "params": {}
+                }
+              },
+              {
+                "type": "text",
+                "text": "."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Documents"
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Passport — check the expiry against the return date, not the outbound one."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Visa or entry authorisation, and the printout if the border wants paper."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Travel insurance policy number, somewhere reachable without signal."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Driving licence and the international permit, if anybody is driving."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Packing"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Write the list once and it is yours for every trip after this one."
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Whatever the weather actually does, not what the average says."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Chargers and one adapter per person who will not share."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "The medication that is hard to buy where you are going."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "The first day"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Arriving tired is the single most common way a good plan comes apart. What is already booked for day one:"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.detail",
+                  "params": {
+                    "day": {
+                      "kind": "index",
+                      "index": 0
+                    },
+                    "kind": "booked"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Money"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Budget left before you spend anything: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "attribute",
+                  "params": {
+                    "field": "trip.budgetRemaining"
+                  }
+                }
+              },
+              {
+                "type": "text",
+                "text": "."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

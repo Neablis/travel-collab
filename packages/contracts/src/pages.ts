@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ActivityKind, ActivityTag } from "./activity";
-import { PageDoc } from "./pageDoc";
+import { ActivityKind, ActivityTag } from "./activity.ts";
+import { PageDoc } from "./pageDoc.ts";
 
 // A day binding: the value shape of a `day` input inside ONE WIDGET's params
 // (ADR-035 decision 3 / SPEC §18). "index" = the Nth day (0-based) of the trip;

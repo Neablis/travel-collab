@@ -1,0 +1,708 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "italy-skiing",
+    "name": "The Italian Alps: ski and winter days",
+    "description": "Eight cloneable winter days across the Dolomites, Valtellina and the Aosta Valley — the Sellaronda loop, first-lift breakfasts, rifugio lunches that run two hours, a thermal afternoon and one honestly expensive glacier descent.",
+    "origin": "ai",
+    "sources": [
+      "https://www.dolomitisuperski.com/en/experiences/winteractivities/ski-circuits/sellaronda",
+      "https://www.val-gardena.com/en/winter/sella-ronda/",
+      "https://www.sellaronda-ski.com/en/counterclockwise/",
+      "https://www.dolomitisuperski.com/en/plan-and-book/skipassandprices",
+      "https://www.dolomiti.it/en/arabba/huts/rifugio-bec-de-roces",
+      "https://becderoces.it/en/",
+      "https://www.freccianelcielo.com/en/what-to-do-in-winter/lifts-and-slopes/",
+      "https://www.dolomiti.it/en/skiarea/cortina-d-ampezzo",
+      "https://www.ultimateluxurychalets.com/blog/5-best-ski-runs-of-cortina/",
+      "https://www.azzurracortina.com/en/winter-activities/rates/",
+      "https://www.altabadia.org/en/alta-badia-events/detail/event/sunrisa-skiing-at-sunrise",
+      "https://www.bioch.it/en/",
+      "https://www.altabadia.org/en/info/restaurants/detail/gastronomy/las-vegas-lodge",
+      "https://lagazuoi.it/EN/Experience-Winter-page32-The-Armentarola-Piste",
+      "https://cortinadelicious.it/EN/p111-The-Lagazuoi-and-Armentarola-ski-runs",
+      "https://www.campigliodolomiti.it/en/skiarea/inverno/skiarea-madonna-di-campiglio",
+      "https://www.hotel-alpina-campiglio.it/en/8-mountain-hut-madonna-di-campiglio",
+      "https://www.bormio.eu/en/activities-and-attractions/ski-winter-outdoor/ski-area/bormio",
+      "https://www.qcterme.com/it/destinazioni/bormio/qc-spa-bagni-vecchi/orari-e-prezzi-bbv",
+      "https://www.courmayeur-montblanc.com/en/winter-activities/skyway/",
+      "https://www.espritmontagne.com/en/d_154_the-descent-of-the-vallee-blanche-chamonix-mont-blanc-courmayeur-aiguille-du-midi-punta-helbronner.php",
+      "https://www.chamonix.net/english/leisure/sightseeing/skyway-monte-bianco",
+      "https://www.suedtirol.info/en/en/experiences-and-events/events-south-tyrol/pdp-event.275A47E08063470BA8EA95C682110E5E.christmas-market-of-bolzano--26.bolzano-bozen",
+      "https://www.idealista.it/en/news/lifestyle-in-italy/2025/12/03/296018-bolzano-christmas-markets-2025-dates-opening-times-how-to-get-there",
+      "https://www.rifugiocomici.com/en/",
+      "https://www.skipasslivigno.com/en/livigno-skipass-rates/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "playbooks": [
+    {
+      "key": "sellaronda-green-counter-clockwise",
+      "name": "The Sellaronda green, counter-clockwise, with the lunch booked before you leave",
+      "summary": "Four Dolomite passes around the Sella massif in one day, ridden anticlockwise from Selva so the queues are behind you.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2026-01-18T09:00:00.000Z",
+      "sourceTrip": { "name": "Dolomiti Superski, six days on one pass" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-priya" }
+      ],
+      "stops": [
+        {
+          "title": "Collect the Dolomiti Superski day pass at the Ciampinoi base",
+          "timeWindow": { "start": "08:00", "end": "08:20" },
+          "location": { "name": "Ciampinoi cable car valley station", "city": "Selva di Val Gardena", "area": "Val Gardena" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Buy the pass online the night before and collect from the machine, not the window — the window queue at 08:15 is the single biggest reason people miss the loop. One Dolomiti Superski pass covers every lift on the circuit; you never pay again all day.",
+          "cost": { "amountMinor": 9460, "currency": "USD" }
+        },
+        {
+          "title": "Ciampinoi cable car, first or second cabin",
+          "timeWindow": { "start": "08:25", "end": "08:45" },
+          "location": { "name": "Ciampinoi cable car", "city": "Selva di Val Gardena", "area": "Ciampinoi" },
+          "kind": "transit",
+          "notes": "Green (anticlockwise) is the direction to ride if you start from Selva: you hit Passo Sella early while the orange crowd is still stacking up at Dantercepies. Be moving before 09:00 — the whole circuit is only comfortable if the last pass is behind you by 15:30."
+        },
+        {
+          "title": "Down to Plan de Gralba and up over Passo Sella",
+          "timeWindow": { "start": "09:00", "end": "10:05" },
+          "location": { "name": "Plan de Gralba and Passo Sella lifts", "city": "Selva di Val Gardena", "area": "Passo Sella" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Follow the green arrows and nothing else — the signage is genuinely good and the moment you start navigating by piste map you lose twenty minutes. Sassolungo is on your right the whole way; this is the prettiest quarter of the loop and the one everyone skis too fast."
+        },
+        {
+          "title": "Lupo Bianco across to Belvedere, then down to Passo Pordoi",
+          "timeWindow": { "start": "10:15", "end": "11:35" },
+          "location": { "name": "Belvedere ski area above Canazei", "city": "Canazei", "area": "Val di Fassa" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The Belvedere sector is the sunniest stretch and softens first. If it is already slushy here at 11:00, you are running late for the whole day — skip the detours and keep pressing east."
+        },
+        {
+          "title": "Arabba: down the Portados side and up the Burz chair",
+          "timeWindow": { "start": "11:45", "end": "12:20" },
+          "location": { "name": "Arabba lift base", "city": "Arabba", "area": "Arabba-Marmolada" },
+          "kind": "transit",
+          "notes": "Arabba is the steepest ground on the circuit and the one place a nervous skier can get stuck. If anyone in the group is wobbling, take the Porta Vescovo cable car down rather than the black — it costs nothing extra on the pass."
+        },
+        {
+          "title": "Long lunch at Rifugio Bec de Roces above Passo Campolongo",
+          "timeWindow": { "start": "12:30", "end": "13:50" },
+          "location": { "name": "Rifugio Bec de Roces", "city": "Arabba", "area": "Passo Campolongo" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Book this table when you buy the pass, not on the morning of — it sits at the top of the Le Pale and Campolongo chairs, exactly where every Sellaronda skier arrives hungry at 12:30. Order the casunziei and one glass, not two: the last two passes are the ones people fall on.",
+          "cost": { "amountMinor": 4180, "currency": "USD" }
+        },
+        {
+          "title": "Corvara: the Boè gondola and across to Colfosco",
+          "timeWindow": { "start": "14:00", "end": "15:00" },
+          "location": { "name": "Boè gondola, Corvara", "city": "Corvara in Badia", "area": "Alta Badia" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "This is the decision point. If it is past 15:00 when you reach Corvara, stop the loop and take the bus home from here — the Val Setus chair closes early and being on the wrong side of Passo Gardena at 16:15 is a taxi around three passes."
+        },
+        {
+          "title": "Val Setus to Passo Gardena, Dantercepies, and the run home",
+          "timeWindow": { "start": "15:10", "end": "16:20" },
+          "location": { "name": "Dantercepies gondola top station", "city": "Selva di Val Gardena", "area": "Passo Gardena" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The Dantercepies descent back into Selva is the best-earned run in the Dolomites and it faces west, so you finish the loop skiing into the light. Do not stop at the halfway bar — finish the run first, then walk back up to it."
+        }
+      ]
+    },
+    {
+      "key": "cortina-ra-valles-and-cinque-torri",
+      "name": "Cortina with an instructor: Ra Valles at opening, Cinque Torri for lunch",
+      "summary": "Hire a local instructor for the whole day, get Forcella Rossa before it bumps up, and eat at 2,413 m under the Cinque Torri.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2025-03-09T10:30:00.000Z",
+      "sourceTrip": { "name": "Cortina before the Olympic circus" },
+      "addedBy": [
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Meet the instructor outside Scuola Sci Cortina",
+          "timeWindow": { "start": "08:15", "end": "08:40" },
+          "location": { "name": "Scuola Sci Cortina meeting point, Corso Italia", "city": "Cortina d'Ampezzo", "area": "Centro" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "A full private day is roughly the price of three separate half-days and buys you the thing you actually want in Cortina: someone who knows which of the three disconnected sectors has good snow today. Book weeks out for February — the local schools sell out before the hotels do. Price is for the instructor, not per person, so split it across up to four.",
+          "cost": { "amountMinor": 43450, "currency": "USD" }
+        },
+        {
+          "title": "Freccia nel Cielo: town to Col Drusciè to Ra Valles",
+          "timeWindow": { "start": "08:45", "end": "09:10" },
+          "location": { "name": "Freccia nel Cielo cable car", "city": "Cortina d'Ampezzo", "area": "Tofana" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "The Freccia leaves from the middle of town at 1,216 m and lands you at Ra Valles at 2,470 m — no car, no ski bus, no parking. The cost here is the Cortina d'Ampezzo day pass, which covers the cable car; a full Dolomiti Superski pass is only worth it if you plan to cross to Alta Badia.",
+          "cost": { "amountMinor": 8250, "currency": "USD" }
+        },
+        {
+          "title": "Ra Valles at opening, and the top stage to Cima Tofana",
+          "timeWindow": { "start": "09:15", "end": "10:20" },
+          "location": { "name": "Ra Valles and Cima Tofana", "city": "Cortina d'Ampezzo", "area": "Tofana di Mezzo" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Ra Valles faces north and holds cold snow when everything else in the valley has turned to soup by eleven — that is the whole argument for starting up here. Ride the top stage to 3,244 m once even if you then ski back down from Ra Valles; the view over the Marmolada is the reason people come to Cortina."
+        },
+        {
+          "title": "Forcella Rossa while it is still cord",
+          "timeWindow": { "start": "10:30", "end": "11:50" },
+          "location": { "name": "Forcella Rossa, piste 51", "city": "Cortina d'Ampezzo", "area": "Tofana" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The steepest piste in Cortina, up to about 72% in the pitch below the gully. It is a completely different run at 10:30 than at 14:00 — after lunch it is a bump field with a queue at the top. Do it early, do it twice, then leave it."
+        },
+        {
+          "title": "Ski bus to Bai de Dones and the 5 Torri chairlift",
+          "timeWindow": { "start": "12:00", "end": "12:40" },
+          "location": { "name": "Bai de Dones lift base", "city": "Cortina d'Ampezzo", "area": "Cinque Torri" },
+          "kind": "transit",
+          "notes": "Cortina's three sectors are not linked by lift, so the ski bus is part of the day and not a failure of planning. It is free with the pass; the 12:00 departure is the one that gets you to a table on time."
+        },
+        {
+          "title": "Lunch at Rifugio Averau, under the five towers",
+          "timeWindow": { "start": "12:45", "end": "14:20" },
+          "location": { "name": "Rifugio Averau", "city": "Cortina d'Ampezzo", "area": "Cinque Torri" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Ring the rifugio directly — they answer, and a table on the terrace at 13:00 in high season is a phone call made a week ahead, not a walk-up. Ninety minutes is the correct length: this is the Italian part of Italian skiing and cutting it to forty minutes means you flew here to eat a sandwich.",
+          "cost": { "amountMinor": 6380, "currency": "USD" }
+        },
+        {
+          "title": "Coffee on the Rifugio Scoiattoli terrace",
+          "timeWindow": { "start": "14:30", "end": "15:10" },
+          "location": { "name": "Rifugio Scoiattoli", "city": "Cortina d'Ampezzo", "area": "Cinque Torri" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Optional, and the first thing to drop if the light is good — Scoiattoli sits right under the towers at 2,255 m and the deckchairs are the photograph everyone takes home. Skip it if you would rather ski the WWI open-air museum runs below.",
+          "cost": { "amountMinor": 1760, "currency": "USD" }
+        },
+        {
+          "title": "Passeggiata and an aperitivo on Corso Italia",
+          "timeWindow": { "start": "16:15", "end": "17:30" },
+          "location": { "name": "Corso Italia", "city": "Cortina d'Ampezzo", "area": "Centro" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Cortina does not really do slopeside après — the ritual is boots off, town clothes on, and a slow walk up Corso Italia between 17:00 and 19:00. Get back and changed rather than sitting at a valley-station bar in ski boots.",
+          "cost": { "amountMinor": 2420, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "alta-badia-sunrisa-and-gran-risa",
+      "name": "SunRisa: lifts at 07:15, breakfast at 2,079 m, Gran Risa before the crowd",
+      "summary": "Alta Badia opens a handful of lifts before dawn for a hut breakfast — the best two hours of empty piste in the Dolomites.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-07-21T16:45:00.000Z",
+      "sourceTrip": { "name": "Alta Badia, World Cup week" },
+      "addedBy": [
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-tomas" }
+      ],
+      "stops": [
+        {
+          "title": "Pass in hand at the Col Alt base, in the dark",
+          "timeWindow": { "start": "06:50", "end": "07:10" },
+          "location": { "name": "Col Alt chairlift valley station", "city": "Corvara in Badia", "area": "Alta Badia" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "SunRisa needs nothing but an ordinary Dolomiti Superski pass — there is no separate ticket and no sign-up, which is why people assume it must be booked and then miss it. Have the pass already in your pocket the night before; nothing sells passes at 06:50.",
+          "cost": { "amountMinor": 9460, "currency": "USD" }
+        },
+        {
+          "title": "Col Alt chairlift, first cabin up",
+          "timeWindow": { "start": "07:15", "end": "07:40" },
+          "location": { "name": "Col Alt chairlift", "city": "Corvara in Badia", "area": "Alta Badia" },
+          "kind": "transit",
+          "notes": "Only a named handful open early — Col Alt, Costes dal Ega, Arlara and Piz Sorega from 07:15, then the plateau lifts (Bamby, La Fraina, Ciampai, Bioch, La Brancia, Braia Fraida) at 07:30. The Piz La Ila cable car does not open early at all, so do not stand at it. Check the Alta Badia events page for the exact date; it usually falls on the Monday of Ski World Cup week."
+        },
+        {
+          "title": "Breakfast at Ütia de Bioch on the Pralongià",
+          "timeWindow": { "start": "07:45", "end": "08:50" },
+          "location": { "name": "Ütia de Bioch", "city": "Corvara in Badia", "area": "Pralongià" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Five huts take part — Club Moritzino, I Tablá, Las Vegas Lodge, Ütia Bioch and Piz Arlara — and each is paired with one breakfast ingredient, so pick the hut by what you want to eat rather than by the map. Bioch cooks Niederkofler-influenced food and takes bookings on +39 329 5914008; call, do not email.",
+          "cost": { "amountMinor": 3520, "currency": "USD" }
+        },
+        {
+          "title": "The empty Pralongià plateau at first light",
+          "timeWindow": { "start": "09:00", "end": "10:20" },
+          "location": { "name": "Pralongià plateau", "city": "Corvara in Badia", "area": "Pralongià" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "This is the payoff and it lasts about ninety minutes: wide, gentle, east-facing corduroy with the Sella pink behind you and nobody on it. Ski laps of Bioch and Braia Fraida rather than covering ground — the point is empty pistes, not distance."
+        },
+        {
+          "title": "Gran Risa, La Villa — the World Cup giant slalom hill",
+          "timeWindow": { "start": "10:30", "end": "12:20" },
+          "location": { "name": "Gran Risa piste", "city": "La Villa", "area": "Alta Badia" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Steeper than it looks from the bottom and much icier in the morning shade. Ski the top pitch, then move right onto the parallel red if your legs go — the mistake is committing to the full line on tired legs at the end of the day instead of doing it fresh at 10:30."
+        },
+        {
+          "title": "Lunch at Las Vegas Lodge above San Cassiano",
+          "timeWindow": { "start": "12:30", "end": "14:20" },
+          "location": { "name": "Rifugio Las Vegas Lodge", "city": "San Cassiano", "area": "Alta Badia" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "The Alta Badia huts run a proper wine list, not a ski-lunch one — ask for the Alto Adige whites by the glass rather than defaulting to beer. Reserve; the sun terrace is fully committed by 12:15 on any clear day in February.",
+          "cost": { "amountMinor": 5280, "currency": "USD" }
+        },
+        {
+          "title": "Piz La Ila and the Movimënt slopes",
+          "timeWindow": { "start": "14:30", "end": "15:50" },
+          "location": { "name": "Piz La Ila", "city": "La Villa", "area": "Alta Badia" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Uncommitted — after a 06:50 start most people are finished by 14:30 and should say so. If you do keep going, Piz La Ila is the soft option and links straight back to La Villa for the bus."
+        },
+        {
+          "title": "Aperitivo in Corvara before the legs seize",
+          "timeWindow": { "start": "16:00", "end": "17:15" },
+          "location": { "name": "Bar Posta, Strada Col Alt", "city": "Corvara in Badia", "area": "Alta Badia" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "One spritz and go — a 07:15 lift day ends with an early dinner, and the Ladin restaurants in Corvara seat their first sitting at 19:00. Book that table at breakfast, not at 18:30.",
+          "cost": { "amountMinor": 1540, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "hidden-valley-lagazuoi-armentarola",
+      "name": "The Hidden Valley: Lagazuoi cable car, Rifugio Scotoni, and the horse tow home",
+      "summary": "Ten kilometres of red piste through the Fanis walls, a grilled-meat lunch halfway, and a rope behind a horse at the end.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-10-12T11:15:00.000Z",
+      "sourceTrip": { "name": "Alta Badia and the Cortina side" },
+      "addedBy": [
+        { "addedBy": "dev-nadia" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-carlos" }
+      ],
+      "stops": [
+        {
+          "title": "Dolomiti Superski day pass, San Cassiano",
+          "timeWindow": { "start": "08:00", "end": "08:30" },
+          "location": { "name": "Piz Sorega gondola base", "city": "San Cassiano", "area": "Alta Badia" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "This day needs the full Dolomiti Superski pass, not the Alta Badia valley pass — the Lagazuoi cable car sits on the Cortina side of Passo Falzarego. Also draw cash now: the ski taxi and the horse tow are both cash-only and there is no machine at Passo Falzarego.",
+          "cost": { "amountMinor": 9460, "currency": "USD" }
+        },
+        {
+          "title": "Ski taxi from Hotel Armentarola up to Passo Falzarego",
+          "timeWindow": { "start": "08:40", "end": "09:05" },
+          "location": { "name": "Hotel Armentarola ski taxi stand", "city": "San Cassiano", "area": "Armentarola" },
+          "kind": "transit",
+          "notes": "Minibuses leave when full from outside the Hotel Armentarola. Be on one of the first two of the day: by 10:30 the queue for the taxi and then again for the cable car can eat an hour, which is exactly what ruins this run.",
+          "cost": { "amountMinor": 660, "currency": "USD" }
+        },
+        {
+          "title": "Lagazuoi cable car to 2,778 m",
+          "timeWindow": { "start": "09:15", "end": "09:35" },
+          "location": { "name": "Lagazuoi cable car, Passo Falzarego", "city": "Cortina d'Ampezzo", "area": "Passo Falzarego" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "One small cabin, one route down — this is the bottleneck of the whole day and the reason the early start matters more here than anywhere else in the Dolomites."
+        },
+        {
+          "title": "Coffee on the Rifugio Lagazuoi terrace",
+          "timeWindow": { "start": "09:40", "end": "10:10" },
+          "location": { "name": "Rifugio Lagazuoi", "city": "Cortina d'Ampezzo", "area": "Piccolo Lagazuoi" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Twenty minutes, standing, for the panorama over the Marmolada and Tofane and the mouths of the WWI tunnels cut into the mountain under your feet. Do not sit down for a full breakfast — the run below is the point and it gets busy behind you.",
+          "cost": { "amountMinor": 660, "currency": "USD" }
+        },
+        {
+          "title": "The Armentarola piste through the Fanis walls",
+          "timeWindow": { "start": "10:15", "end": "12:10" },
+          "location": { "name": "Armentarola piste (Hidden Valley)", "city": "San Cassiano", "area": "Val Badia" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Graded red but it is a rolling cruise with flat sections, not a steep run — the actual skill is carrying speed across the flats so you do not end up skating. Frozen waterfalls on the left about a third of the way down; stop for them, everyone does. Usually opens only after Christmas."
+        },
+        {
+          "title": "Lunch at Rifugio Scotoni",
+          "timeWindow": { "start": "12:15", "end": "13:50" },
+          "location": { "name": "Rifugio Scotoni", "city": "San Cassiano", "area": "Lagazuoi–Armentarola" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "The grill is what to order — lamb chops, ribs, anything off the coals — and everything else on the menu is a distraction. It is on the run, so there is no such thing as arriving separately: reserve, then time the descent to land at your booking rather than an hour before it.",
+          "cost": { "amountMinor": 5060, "currency": "USD" }
+        },
+        {
+          "title": "The horse tow back along the valley floor",
+          "timeWindow": { "start": "14:00", "end": "14:25" },
+          "location": { "name": "Armentarola horse tow", "city": "San Cassiano", "area": "Armentarola" },
+          "kind": "transit",
+          "notes": "The last two kilometres are dead flat, so you grab a rope and a horse pulls you out. Roughly four euros, cash in hand, coins and notes only — no card. It does not run in heavy snow or if the route is shut, in which case it is a long skate: keep some energy.",
+          "cost": { "amountMinor": 440, "currency": "USD" }
+        },
+        {
+          "title": "Piz Sorega for a couple of last runs into San Cassiano",
+          "timeWindow": { "start": "15:00", "end": "16:20" },
+          "location": { "name": "Piz Sorega", "city": "San Cassiano", "area": "Alta Badia" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Only if the group still has legs — the Hidden Valley is a complete day on its own and there is no shame in finishing at two."
+        }
+      ]
+    },
+    {
+      "key": "madonna-di-campiglio-groste-to-zeledria",
+      "name": "Madonna di Campiglio: Grostè to Spinale, then hot rock at Zeledria after dark",
+      "summary": "The Brenta side in the morning, the World Cup night-slalom pitch in the afternoon, and a snowcat up to dinner.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2025-12-06T08:20:00.000Z",
+      "sourceTrip": { "name": "Trentino: Campiglio and the Brenta Dolomites" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Skipass Campiglio Dolomiti di Brenta, day ticket",
+          "timeWindow": { "start": "08:30", "end": "08:45" },
+          "location": { "name": "Grostè gondola ticket office, Campo Carlo Magno", "city": "Madonna di Campiglio", "area": "Campo Carlo Magno" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Campiglio is on the Skirama Dolomiti pass, not Dolomiti Superski — a Val Gardena pass is worth nothing here, which catches people who resort-hop. Park at Campo Carlo Magno rather than in town if you are driving; the Grostè lot empties last.",
+          "cost": { "amountMinor": 7920, "currency": "USD" }
+        },
+        {
+          "title": "Grostè gondola from Campo Carlo Magno",
+          "timeWindow": { "start": "08:50", "end": "09:20" },
+          "location": { "name": "Grostè cable car", "city": "Madonna di Campiglio", "area": "Grostè" },
+          "kind": "transit",
+          "notes": "Four cabin lifts leave the valley — Cinque Laghi, Pradalago, Grostè and Spinale — and they do not all serve the same snow. Grostè is the highest and holds the best morning cold; go there first every time and work back down the valley through the day."
+        },
+        {
+          "title": "The high Grostè reds under the Brenta towers",
+          "timeWindow": { "start": "09:30", "end": "10:55" },
+          "location": { "name": "Passo del Grostè slopes", "city": "Madonna di Campiglio", "area": "Grostè" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Wide, sunny, mostly easy reds with the Brenta group standing up on your left — this is the sector to do laps in rather than cross once. It is also exposed: if the wind is up at the top station, drop straight to Spinale instead."
+        },
+        {
+          "title": "Coffee at Rifugio Boch, Grostè mid-station",
+          "timeWindow": { "start": "11:00", "end": "11:25" },
+          "location": { "name": "Rifugio Boch", "city": "Madonna di Campiglio", "area": "Grostè" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Sits right at the mid-station, so it is a stand-at-the-bar espresso and a slice of strudel, not a sit-down. Save the appetite for Chalet Fiat.",
+          "cost": { "amountMinor": 990, "currency": "USD" }
+        },
+        {
+          "title": "Lunch at Chalet Fiat, top of Spinale",
+          "timeWindow": { "start": "12:30", "end": "14:05" },
+          "location": { "name": "Chalet Fiat", "city": "Madonna di Campiglio", "area": "Monte Spinale" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "There are two operations under one roof — a big self-service and a proper restaurant with a view straight across at the Grostè. Book the restaurant side; the self-service is fine but it is not why you flew to Trentino. Ask for a window table facing the Brenta.",
+          "cost": { "amountMinor": 5720, "currency": "USD" }
+        },
+        {
+          "title": "Canalone Miramonti, the 3Tre night-slalom pitch",
+          "timeWindow": { "start": "14:15", "end": "15:20" },
+          "location": { "name": "Canalone Miramonti", "city": "Madonna di Campiglio", "area": "Pradalago" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The World Cup slalom is raced down this under floodlights every winter and it drops you straight into the middle of town. Ski it in the afternoon shade when the surface firms back up — at midday it is a mess of soft ruts."
+        },
+        {
+          "title": "Cinque Laghi for the last laps",
+          "timeWindow": { "start": "15:30", "end": "16:30" },
+          "location": { "name": "Cinque Laghi ski area", "city": "Madonna di Campiglio", "area": "Pancugolo" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The steepest sector and the least busy at the end of the day. Skip it entirely if you want a bath before dinner — the Zeledria snowcat does not wait."
+        },
+        {
+          "title": "Snowcat up to Cascina Zeledria for the hot rock",
+          "timeWindow": { "start": "19:00", "end": "22:00" },
+          "location": { "name": "Cascina Zeledria", "city": "Madonna di Campiglio", "area": "Zeledria" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "You are collected by snowcat in the dark and driven up to a farmhouse off the Pradalago Facile piste, where meat arrives raw on a searing stone and you cook it at the table. Book several days ahead and confirm the pickup point when you do — it is a locals' institution, not a tourist show, and the transfer is the part people get wrong.",
+          "cost": { "amountMinor": 8580, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "bormio-stelvio-then-bagni-vecchi",
+      "name": "Bormio: the Stelvio before it softens, Roman baths before dinner",
+      "summary": "A thousand metres of Olympic downhill in the morning, then a thermal cave carved into the mountain in the afternoon.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2026-06-14T13:05:00.000Z",
+      "sourceTrip": { "name": "Valtellina: Bormio, Livigno, and the passes" },
+      "addedBy": [
+        { "addedBy": "dev-priya" }
+      ],
+      "stops": [
+        {
+          "title": "Bormio day pass at the Bormio 2000 cable car",
+          "timeWindow": { "start": "08:20", "end": "08:35" },
+          "location": { "name": "Bormio cable car valley station", "city": "Bormio", "area": "Bormio 2000" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Bormio is one mountain with one main descent line, so a valley pass is all you need — the Alta Valtellina pass only pays off if you are driving to Livigno or Santa Caterina the same week.",
+          "cost": { "amountMinor": 6820, "currency": "USD" }
+        },
+        {
+          "title": "Cable car from town up to Bormio 2000",
+          "timeWindow": { "start": "08:40", "end": "09:05" },
+          "location": { "name": "Bormio–Bormio 2000 cable car", "city": "Bormio", "area": "Bormio 2000" },
+          "kind": "transit",
+          "notes": "The lift starts in the town, so you can walk from the old centre in boots. Get the first or second car: the Stelvio is south-facing low down and the whole plan depends on being on it before eleven."
+        },
+        {
+          "title": "The Stelvio, top to bottom, while it is still cord",
+          "timeWindow": { "start": "09:10", "end": "11:05" },
+          "location": { "name": "Pista Stelvio", "city": "Bormio", "area": "Bormio 2000" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "A thousand metres of vertical in one run, with pitches over 50% and no flat sections to rest on — this is a World Cup downhill and the men's Milano Cortina 2026 course. Ski it twice in the first two hours and accept that your legs are then done; trying to save it for the afternoon means skiing slush over ice."
+        },
+        {
+          "title": "Up to Cima Bianca at 3,012 m",
+          "timeWindow": { "start": "11:15", "end": "12:20" },
+          "location": { "name": "Cima Bianca", "city": "Bormio", "area": "Cima Bianca" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The top of the mountain and the coldest snow of the day — worth going up even if you only ski the one run back down. On a clear morning you can see the Ortler group from the ridge."
+        },
+        {
+          "title": "Lunch at Heaven 3000",
+          "timeWindow": { "start": "12:30", "end": "14:15" },
+          "location": { "name": "Heaven 3000", "city": "Bormio", "area": "Cima Bianca" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Order the Valtellina plates rather than pasta — pizzoccheri, sciatt, bresaola — because this is one of the few valleys in the Alps with a genuinely distinct kitchen and you will not find it in the Dolomites. Book the table before you get on the first lift.",
+          "cost": { "amountMinor": 4620, "currency": "USD" }
+        },
+        {
+          "title": "Last runs down the Genziana line into town",
+          "timeWindow": { "start": "14:30", "end": "15:30" },
+          "location": { "name": "Bormio ski area lower slopes", "city": "Bormio", "area": "Bormio 2000" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Finish early on purpose. The afternoon plan below is the reason this day is worth cloning and it does not work if you ski until the lifts shut."
+        },
+        {
+          "title": "QC Terme Bagni Vecchi, the thermal cave above Bormio",
+          "timeWindow": { "start": "15:45", "end": "19:00" },
+          "location": { "name": "QC Terme Bagni Vecchi", "city": "Valdidentro", "area": "Bagni Vecchi" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Roman-era baths cut into the rock, a natural steam grotto in a tunnel, and an outdoor pool looking straight down the valley — go in ski clothes, everything else (robe, towel, slippers) is included, and so is the evening Aperiterme. Take the five-hour Escape entry rather than the full day; nobody lasts longer than that. Book the slot, they cap numbers, and note that under-14s are not admitted here.",
+          "cost": { "amountMinor": 6820, "currency": "USD" }
+        },
+        {
+          "title": "Pizzoccheri in the old town",
+          "timeWindow": { "start": "19:30", "end": "21:15" },
+          "location": { "name": "Via Roma restaurants", "city": "Bormio", "area": "Centro Storico" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Bormio's centre is a medieval village, not a purpose-built resort street, and the good tables are small. Walk in before 19:45 or book at lunchtime — after the baths you will not want to negotiate.",
+          "cost": { "amountMinor": 3740, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "courmayeur-vallee-blanche-italian-side",
+      "name": "The Vallée Blanche from the Italian side, with a guide and a taxi through the tunnel",
+      "summary": "Skyway up to Punta Helbronner at 3,466 m, twenty kilometres of glacier down to Chamonix, and the expensive ride home.",
+      "ownerId": "dev-marco",
+      "visibility": "public",
+      "keptOn": "2025-05-04T07:40:00.000Z",
+      "sourceTrip": { "name": "Aosta Valley, the Mont Blanc side" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-maeve" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Kit check and glacier gear with the guide in Courmayeur",
+          "timeWindow": { "start": "07:15", "end": "07:50" },
+          "location": { "name": "Società delle Guide di Courmayeur, Strada Villair", "city": "Courmayeur", "area": "Dolonne" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Harness, transceiver, shovel and probe are not optional and are usually rented here rather than at a ski shop. Take wider skis than your piste pair — the glacier is soft, crusted or tracked and never groomed. If the guide says the conditions are wrong, that is the answer; the route reschedules, it does not get argued with.",
+          "cost": { "amountMinor": 7920, "currency": "USD" }
+        },
+        {
+          "title": "Skyway Monte Bianco: Pontal to Pavillon to Punta Helbronner",
+          "timeWindow": { "start": "08:00", "end": "08:40" },
+          "location": { "name": "Skyway Monte Bianco", "city": "Courmayeur", "area": "Punta Helbronner" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "The rotating cabins climb from 1,300 m to 3,466 m in two stages with a change at Pavillon du Mont Fréty. Book the first departure online days ahead — it is cheaper than the ticket office and, more importantly, the early slots sell out and a late start on the glacier is a bad start. The Italian approach is the civilised one: no knife-edge arête walk down from the Aiguille du Midi.",
+          "cost": { "amountMinor": 7480, "currency": "USD" }
+        },
+        {
+          "title": "Espresso at Rifugio Torino before roping up",
+          "timeWindow": { "start": "08:45", "end": "09:10" },
+          "location": { "name": "Rifugio Torino", "city": "Courmayeur", "area": "Colle del Gigante" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Last coffee, last toilet and last mobile signal for four hours. Drink water here too — 3,400 m dehydrates you faster than the skiing does.",
+          "cost": { "amountMinor": 1320, "currency": "USD" }
+        },
+        {
+          "title": "Vallée Blanche descent with a UIAGM guide",
+          "timeWindow": { "start": "09:15", "end": "12:20" },
+          "location": { "name": "Vallée Blanche glacier route", "city": "Courmayeur", "area": "Mont Blanc massif" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "Twenty-plus kilometres through crevasse fields and seracs — a guide is not a nicety, it is the only sane way down, and the price is per guide, not per head. A private guide from the Italian side runs around €590; with three or four in the party the per-person figure drops to roughly a third of that, so fill the rope. It is not steep, but it is long and unrelenting: if you cannot ski a red comfortably for an hour without stopping, do this next year.",
+          "cost": { "amountMinor": 64900, "currency": "USD" }
+        },
+        {
+          "title": "Lunch at Refuge du Requin on the glacier",
+          "timeWindow": { "start": "12:30", "end": "13:40" },
+          "location": { "name": "Refuge du Requin", "city": "Chamonix-Mont-Blanc", "area": "Mer de Glace" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "A hut in the middle of a glacier with a terrace over the icefall. Cash and patience — one kitchen, forty skiers, no rush. Your guide will call ahead on the radio if you want a table rather than a bench.",
+          "cost": { "amountMinor": 4180, "currency": "USD" }
+        },
+        {
+          "title": "The steps and the Montenvers rack railway out",
+          "timeWindow": { "start": "14:30", "end": "15:10" },
+          "location": { "name": "Montenvers – Mer de Glace railway", "city": "Chamonix-Mont-Blanc", "area": "Montenvers" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "The glacier has retreated far enough that the day ends with several hundred metal steps up from the ice, carrying your skis, at the point where you are most tired. That is the hardest part of the whole route and nobody warns you. Then a red train down to Chamonix.",
+          "cost": { "amountMinor": 4400, "currency": "USD" }
+        },
+        {
+          "title": "A beer in Chamonix while the taxi is arranged",
+          "timeWindow": { "start": "15:30", "end": "16:30" },
+          "location": { "name": "Rue du Docteur Paccard bars", "city": "Chamonix-Mont-Blanc", "area": "Centre" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "You have just skied from Italy to France, which is worth a sit-down. Do not linger past 16:45 — the tunnel queues at the end of the afternoon.",
+          "cost": { "amountMinor": 1210, "currency": "USD" }
+        },
+        {
+          "title": "Private taxi back through the Mont Blanc tunnel",
+          "timeWindow": { "start": "17:00", "end": "18:15" },
+          "location": { "name": "Mont Blanc tunnel road transfer", "city": "Courmayeur", "area": "Entrèves" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "This is the cost everybody forgets, and it is the difference between a €700 day and a €950 one: the tunnel toll alone is steep and a car for four is well over a hundred euros. Book it in the morning with a return time, not from a Chamonix pavement at five o'clock. A public bus exists and is far cheaper but runs infrequently and will not wait for a late descent.",
+          "cost": { "amountMinor": 15400, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "bolzano-christmas-market-and-renon",
+      "name": "Bolzano in Advent: Ötzi in the morning, the Renon at midday, vin brulé after dark",
+      "summary": "A no-skis winter day in South Tyrol's capital — the oldest Christmas market in Italy, plus the cable car that gets you above it.",
+      "ownerId": "dev-elena",
+      "visibility": "public",
+      "keptOn": "2024-11-23T15:00:00.000Z",
+      "sourceTrip": { "name": "South Tyrol at Advent, no ski boots" },
+      "addedBy": [
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-maeve" }
+      ],
+      "stops": [
+        {
+          "title": "Ötzi at the South Tyrol Museum of Archaeology",
+          "timeWindow": { "start": "09:30", "end": "10:45" },
+          "location": { "name": "South Tyrol Museum of Archaeology", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Go at opening, before the market crowd wakes up — by noon in December the queue is out onto Via Museo. Book the timed slot online; the 5,300-year-old man himself takes ten minutes, the clothing and tools are the part worth the hour.",
+          "cost": { "amountMinor": 1540, "currency": "USD" }
+        },
+        {
+          "title": "Piazza delle Erbe: the actual food market, not the Christmas one",
+          "timeWindow": { "start": "11:00", "end": "12:05" },
+          "location": { "name": "Piazza delle Erbe", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "The year-round produce market two streets from Walther Square, where locals buy speck and mountain cheese at a third of the stall price. Buy the speck here to take home, not from the Christmas huts.",
+          "cost": { "amountMinor": 880, "currency": "USD" }
+        },
+        {
+          "title": "Lunch at Hopfen & Co., the brewpub on Piazza delle Erbe",
+          "timeWindow": { "start": "12:15", "end": "13:45" },
+          "location": { "name": "Hopfen & Co.", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "A house-brewed beer and a plate of canederli, which is what a South Tyrolean lunch actually looks like — the market huts sell snacks, not meals, and eating properly at midday is what stops you spending forty euros on sausages by six. It fills at 12:30 in December; book or arrive at noon.",
+          "cost": { "amountMinor": 2860, "currency": "USD" }
+        },
+        {
+          "title": "Renon cable car to Soprabolzano and the narrow-gauge train",
+          "timeWindow": { "start": "14:00", "end": "16:20" },
+          "location": { "name": "Renon/Ritten cable car and Rittner Bahn", "city": "Bolzano", "area": "Renon" },
+          "kind": "transit",
+          "tags": ["ticketed"],
+          "notes": "Twelve minutes from the middle of the city to a sunlit plateau at 1,200 m, then a hundred-year-old narrow-gauge train along the top to Collalbo. This is the escape valve of the day: Bolzano sits in a bowl and is grey and cold in December, while the Renon is usually above the inversion in full sun with the Dolomites laid out in front of it.",
+          "cost": { "amountMinor": 1320, "currency": "USD" }
+        },
+        {
+          "title": "Down into Walther Square as the lights come on",
+          "timeWindow": { "start": "16:30", "end": "16:55" },
+          "location": { "name": "Piazza Walther Christmas market", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Entry is free and the market runs from the end of November to 6 January, 11:00–19:00 on weekdays and from 10:00 at weekends. The half hour after dusk is the whole point — get down for it rather than arriving at eleven in the morning when it is a car park with huts on it."
+        },
+        {
+          "title": "Vin brulé and Strauben at the stalls",
+          "timeWindow": { "start": "17:00", "end": "17:50" },
+          "location": { "name": "Piazza Walther stalls", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Two things to eat here and neither is a bratwurst: Strauben, the fried spiral funnel cake with lingonberry jam, and the mulled wine, which in Alto Adige is made with real local red rather than syrup. There is a deposit on the mug — keep it as the souvenir or hand it back for the coins.",
+          "cost": { "amountMinor": 1540, "currency": "USD" }
+        },
+        {
+          "title": "Zelten to carry home, from the Christmas Park stalls",
+          "timeWindow": { "start": "18:00", "end": "19:00" },
+          "location": { "name": "Christmas Park, via dell'Isarco to Parco dei Cappuccini", "city": "Bolzano", "area": "Lungotalvera" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The market spills well beyond Walther Square and the stalls along the river are quieter and cheaper. Zelten — the dense rye Christmas loaf full of figs, walnuts and pine nuts — travels for weeks and is the one edible worth suitcase space.",
+          "cost": { "amountMinor": 2420, "currency": "USD" }
+        },
+        {
+          "title": "Dinner under the vaults at Löwengrube",
+          "timeWindow": { "start": "19:30", "end": "21:00" },
+          "location": { "name": "Löwengrube", "city": "Bolzano", "area": "Centro Storico" },
+          "kind": "hold",
+          "tags": ["meal"],
+          "notes": "Held, not booked — if the market food has done its job you will not want this. If you do keep it, this is the Austrian-Italian hinge of the city on a plate, and December tables need calling ahead by two or three days.",
+          "cost": { "amountMinor": 4180, "currency": "USD" }
+        }
+      ]
+    }
+  ]
+}

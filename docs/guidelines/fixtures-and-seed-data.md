@@ -3,7 +3,26 @@
 > You added a feature. Where does its sample data go, so the demo trip, the
 > preview branch and the tests all keep exercising it?
 
-There are two vocabularies and they are not interchangeable.
+There are **three** vocabularies and they are not interchangeable. The first two
+are code; the third is JSON, and it is where most new content now goes.
+
+| | `content/` bundles |
+|---|---|
+| Answers | "*eighty* good days somebody might clone" |
+| Built from | hand-written / researched JSON, `travel-collab/content-bundle/v1` |
+| Content is | specific, narratively real, and **not code** |
+| Used by | `pnpm --filter web content:import`, and `db:reseed` through it |
+| Costs | nothing to add a file; a schema and a lint refuse a bad one |
+| May depend on | nothing — it is data |
+
+Reach for a bundle when the content is *more of the same kind of thing*: another
+playbook day, another demo trip, another notebook template. Reach for
+`@tc/fixtures` when a surface's correctness depends on the exact content (the
+Japan trip's counts are an exit gate). Reach for `@tc/factories` when the content
+is beside the point. Full spec: **`docs/guidelines/content-bundles.md`**,
+decision record: **ADR-041**.
+
+The two code vocabularies:
 
 | | `@tc/factories` | `@tc/fixtures` |
 |---|---|---|
@@ -85,6 +104,11 @@ fixture presence:
   `uuidFrom`, never `crypto.randomUUID` (ADR-020's determinism rule).
 - **`@tc/fixtures`** if the demo trip would look wrong or thin without it —
   i.e. if a reviewer opening the preview would notice its absence.
+
+If the new thing is CONTENT rather than a new kind of field — another good day,
+another trip — it belongs in a `content/` bundle and not in either package. The
+test for which: does anything *assert* on its numbers? A gate resting on a count
+means `@tc/fixtures`; "there should be more of these" means a bundle.
 
 If it belongs to a module other than Trip Planning (Access, Identity,
 Community), it does **not** go on the trip rows. `who` is the worked example:

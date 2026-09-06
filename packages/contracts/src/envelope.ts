@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Origin } from "./history";
+import { Origin } from "./history.ts";
 
 export const EventEnvelope = z.object({
   streamId: z.string().uuid(),

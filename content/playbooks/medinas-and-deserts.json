@@ -1,0 +1,704 @@
+{
+  "$schema": "travel-collab/content-bundle/v1",
+  "bundle": {
+    "id": "medinas-and-deserts",
+    "name": "Morocco, Jordan and Egypt: medinas and deserts",
+    "description": "Eight day-shaped playbooks from the Moroccan medinas and the Sahara, Petra and Wadi Rum, and the Nile — written around opening hours, gates and the hour the tour buses land.",
+    "origin": "ai",
+    "sources": [
+      "https://www.visitpetra.jo/en/Thingstodo/75",
+      "https://petrapass.pdtra.gov.jo/",
+      "https://www.experiencejordan.com/jordan-pass-the-complete-guide-prices/",
+      "https://www.wadirumnomads.com/wadi-rum-tours/1-day-wadi-rum-jeep-tour/",
+      "https://www.suncitycamp.com/journal/wadi-rum-jeep-tour",
+      "https://pyramids-of-giza.org/entrance-fee/",
+      "https://pyramidsofgiza-guide.com/plan-your-visit/opening-hours/",
+      "https://anywhereweroam.com/egyptian-pyramids/",
+      "https://www.cairotourism.org/giza-pyramid-complex-map-and-layout-navigation-guide/",
+      "https://egyptdaytours.com/gem-tickets-entry-guide/",
+      "https://discoverytoursegypt.com/guides/grand-egyptian-museum-ticket-price/",
+      "https://valleyofthekingsegypt.org/entrance-fee/",
+      "https://www.earthtrekkers.com/how-to-visit-valley-of-the-kings-luxor-egypt/",
+      "https://www.earthtrekkers.com/west-bank-of-luxor-best-things-to-do/",
+      "https://www.toursluxor.com/hot-air-balloon/",
+      "https://medersabenyoussef.com/entrance-fee/",
+      "https://bahiapalace.com/entrance-fee/",
+      "https://www.introducingmarrakech.com/bahia-palace",
+      "https://lesalamamarrakech.com/",
+      "https://bewilderedinmorocco.com/fes-medina-walking-tour-guide/",
+      "https://theabroadguide.com/fes-museum-al-attarine-madrasa-tannery-and-medina-tour/",
+      "https://www.morocco-escape.com/guides/ait-benhaddou-day-trip-from-marrakech/",
+      "https://www.marrakech4x4.com/marrakech-day-trips",
+      "https://www.timbuktutravel.com/hotel/merzouga-luxury-desert-camp",
+      "https://saharadesertluxurycamp.com/"
+    ],
+    "generatedAt": "2026-09-06"
+  },
+  "trips": [],
+  "notebooks": [],
+  "playbooks": [
+    {
+      "key": "marrakech-medina-and-the-adhan-rooftop",
+      "name": "Marrakech: the medina done slowly, ending on a rooftop at the adhan",
+      "summary": "Two monuments at opening, the souks in the dead hour, Bahia when the buses have gone, and a terrace above Jemaa el-Fna as the muezzins start.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2025-04-12T18:40:00.000Z",
+      "sourceTrip": { "name": "Morocco, north to south" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-nadia" }
+      ],
+      "stops": [
+        {
+          "title": "Mint tea on the terrace at Cafe des Epices",
+          "timeWindow": { "start": "08:30", "end": "09:15" },
+          "location": { "name": "Cafe des Epices", "city": "Marrakech", "area": "Rahba Kedima, Medina" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Rahba Kedima is the spice-and-apothecary square and it belongs to the traders until about ten. Take the top terrace, not the street tables. Nothing here needs to be bought yet; you are learning the square so that later, when a man tells you the souk is closed today for a Berber festival, you already know he is lying.",
+          "cost": { "amountMinor": 420, "currency": "USD" }
+        },
+        {
+          "title": "Ben Youssef Madrasa in the first half hour it is open",
+          "timeWindow": { "start": "09:30", "end": "10:30" },
+          "location": { "name": "Medersa Ben Youssef", "city": "Marrakech", "area": "Kaat Benahid, Medina" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Doors at 09:00, 50 MAD. The reason to be here at 09:30 rather than 11:00 is the central courtyard: the pool reflects the whole zellige wall until the first coach group breaks the water's stillness by leaning on the edge. Then go up the narrow stair to the students' cells on the first floor - almost nobody does, and the cell windows frame the courtyard better than the courtyard does.",
+          "cost": { "amountMinor": 525, "currency": "USD" }
+        },
+        {
+          "title": "Souk Semmarine up to the dyers' lane, with nobody attached to you",
+          "timeWindow": { "start": "10:40", "end": "11:45" },
+          "location": { "name": "Souk Semmarine and Souk Sebbaghine", "city": "Marrakech", "area": "Souks, Medina" },
+          "kind": "planned",
+          "notes": "How to shed a faux guide: do not answer, do not say no thank you, do not slow down, and never let him name a destination for you. The ones who attach themselves are working on the fact that a polite tourist will engage. Keep walking north with the flow of handcarts and you will surface at the dyers' lane where the wool hangs to dry. If you do get lost, ask a shopkeeper standing inside his own shop - he has nowhere to lead you.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Le Jardin Secret and the view from its tower",
+          "timeWindow": { "start": "12:00", "end": "13:00" },
+          "location": { "name": "Le Jardin Secret", "city": "Marrakech", "area": "Rue Mouassine, Medina" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "100 MAD for the two gardens; the tower is a separate small supplement and is the only reason to bother in the middle of the day - it is the one place in the old town where you can see how the medina is built out of courtyards you never get to see into. Sit in the Islamic garden afterwards; the exotic garden is the one everyone photographs and the quieter one is better.",
+          "cost": { "amountMinor": 1050, "currency": "USD" }
+        },
+        {
+          "title": "Lunch on the fourth floor at Nomad",
+          "timeWindow": { "start": "13:15", "end": "14:30" },
+          "location": { "name": "Nomad", "city": "Marrakech", "area": "Rahba Kedima, Medina" },
+          "kind": "hold",
+          "tags": ["meal"],
+          "notes": "Book the day before or you will be told 21:00. Ask for the top terrace rather than the covered floors. Modern Moroccan rather than a tagine you will get four more times this week, and the calamari and the sardine dish are the ones to have. Sun hits the terrace hard at 13:00 - ask for the far corner under the reeds.",
+          "cost": { "amountMinor": 2100, "currency": "USD" }
+        },
+        {
+          "title": "Bahia Palace after the coaches leave",
+          "timeWindow": { "start": "15:00", "end": "16:30" },
+          "location": { "name": "Bahia Palace", "city": "Marrakech", "area": "Riad Zitoun el Jdid, Mellah" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "100 MAD, open to 17:00. The tour buses run Bahia between 10:00 and 13:00 because it slots between the two other palaces; from 15:00 the small riad courtyard and the harem apartments empty out. Go anticlockwise from the entrance so you finish in the great courtyard rather than starting in it. The painted cedar ceilings are the point and they need the low afternoon light.",
+          "cost": { "amountMinor": 1050, "currency": "USD" }
+        },
+        {
+          "title": "Saadian Tombs, then out through Bab Agnaou",
+          "timeWindow": { "start": "17:00", "end": "18:00" },
+          "location": { "name": "Saadian Tombs", "city": "Marrakech", "area": "Kasbah" },
+          "kind": "idea",
+          "tags": ["ticketed"],
+          "notes": "Ten minutes' walk from Bahia. The queue for the Chamber of the Twelve Columns is single file and it is the whole visit, so if it is thirty deep at the door, skip it - the garden of tiled graves outside is genuinely the better half and costs the same. Leave through Bab Agnaou, the carved blue-grey gate, rather than back the way you came.",
+          "cost": { "amountMinor": 1050, "currency": "USD" }
+        },
+        {
+          "title": "Le Salama's roof as the muezzins start",
+          "timeWindow": { "start": "18:45", "end": "20:15" },
+          "location": { "name": "Le Salama Rooftop & Sky Bar", "city": "Marrakech", "area": "Jemaa el-Fna" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "This is the whole reason the day is ordered this way. Aim to be seated fifteen minutes before maghrib - roughly 18:20 in winter, past 20:30 in midsummer, so check the day's time and move this stop with it. The Koutoubia minaret calls first and the smaller mosques answer it across the square, one after another, while the food stalls below light their gas. Ask for a table on the parapet side; the interior tables see nothing.",
+          "cost": { "amountMinor": 1800, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "fes-tanneries-and-the-andalusian-quarter",
+      "name": "Fes el-Bali: down the Talaa Kebira to the tanneries, over the river to al-Andalus",
+      "summary": "A guide for the first three hours to learn the spine of the medina, then the far bank on your own, and the Merenid tombs for the sunset call.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2025-06-22T17:10:00.000Z",
+      "sourceTrip": { "name": "Morocco, north to south" },
+      "addedBy": [
+        { "addedBy": "dev-elena" },
+        { "addedBy": "dev-marco" }
+      ],
+      "stops": [
+        {
+          "title": "Meet a licensed guide at Bab Bou Jeloud, 07:30",
+          "timeWindow": { "start": "07:30", "end": "08:15" },
+          "location": { "name": "Bab Bou Jeloud (the Blue Gate)", "city": "Fes", "area": "Fes el-Bali" },
+          "kind": "booked",
+          "notes": "Around 300 MAD for a half day through your riad, and in Fes it is worth it in a way it is not in Marrakech - 9,000 lanes, no grid, and the hills mean you cannot navigate by the sun. Agree up front: three hours, no shops, no cooperative, no carpet. A guide who resists that clause will resist it all morning. Ask for his licence card; the real ones carry a brass badge. Start at 07:30 and you get the mule deliveries, which is the medina actually working.",
+          "cost": { "amountMinor": 3150, "currency": "USD" }
+        },
+        {
+          "title": "Bou Inania Madrasa before the light gets flat",
+          "timeWindow": { "start": "08:30", "end": "09:30" },
+          "location": { "name": "Bou Inania Madrasa", "city": "Fes", "area": "Talaa Kebira" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "20 MAD, cash only, and it closes to visitors around the midday prayer - the morning slot is not optional. It is the only madrasa in Fes with a working minaret and a full mosque, so parts are roped off. Look up at the carved cedar frieze above the zellige rather than at the courtyard floor everyone photographs. Across the lane, the ruined water clock is worth two minutes.",
+          "cost": { "amountMinor": 210, "currency": "USD" }
+        },
+        {
+          "title": "Down the Talaa Kebira to Nejjarine square",
+          "timeWindow": { "start": "09:45", "end": "11:00" },
+          "location": { "name": "Place Nejjarine and the Nejjarine Museum", "city": "Fes", "area": "Talaa Kebira" },
+          "kind": "planned",
+          "tags": ["ticketed"],
+          "notes": "The Talaa Kebira runs downhill from the Blue Gate all the way to the Qarawiyyin, so as long as you are descending you are on it. Museum of Wooden Arts, 20 MAD, and honestly the exhibits are secondary: pay it for the roof terrace, which is the only clean overhead view of the carpenters' square and its mosaic fountain. When a mule comes, get flat against the wall on the uphill side, not the downhill.",
+          "cost": { "amountMinor": 210, "currency": "USD" }
+        },
+        {
+          "title": "Al-Attarine Madrasa, and the door of the Qarawiyyin",
+          "timeWindow": { "start": "11:15", "end": "12:00" },
+          "location": { "name": "Al-Attarine Madrasa", "city": "Fes", "area": "Souk el-Attarine" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "20 MAD, cash. Smaller than Bou Inania and better: the zellige is finer and there are usually six people in it. Take the stairs to the student cells and the roof. Non-Muslims cannot enter the Qarawiyyin mosque and university next door, but the doorways on Place Seffarine are open and you can stand and look straight down the prayer hall from the threshold, which is most of it.",
+          "cost": { "amountMinor": 210, "currency": "USD" }
+        },
+        {
+          "title": "Chouara tannery from a leather shop's terrace",
+          "timeWindow": { "start": "12:15", "end": "13:15" },
+          "location": { "name": "Chouara Tannery", "city": "Fes", "area": "Blida" },
+          "kind": "planned",
+          "notes": "There is no ticket. Every terrace over the pits belongs to a leather shop, and the deal is honest if you name it: you go up, you look, you come down, you leave 50 MAD and you do not buy a jacket. They will hand you a sprig of mint at the stairs - hold it under your nose, the white pits are pigeon droppings and quicklime and it is not a joke. Late morning is when the dyers are actually in the vats; by 15:00 you are looking at coloured water.",
+          "cost": { "amountMinor": 525, "currency": "USD" }
+        },
+        {
+          "title": "Lunch in the courtyard at The Ruined Garden",
+          "timeWindow": { "start": "13:30", "end": "14:45" },
+          "location": { "name": "The Ruined Garden", "city": "Fes", "area": "Sidi Ahmed Chaoui" },
+          "kind": "hold",
+          "tags": ["meal"],
+          "notes": "Built in the ruins of a collapsed house, open to the sky, and the shade in there is about eight degrees cooler than the lane outside - which in June is the difference between a good afternoon and going back to the riad. The Moroccan small plates rather than the tagine. If you want the slow-cooked lamb mechoui you have to order it a day ahead.",
+          "cost": { "amountMinor": 1800, "currency": "USD" }
+        },
+        {
+          "title": "Across the river into the Andalusian quarter",
+          "timeWindow": { "start": "15:30", "end": "17:00" },
+          "location": { "name": "Al-Andalus Mosque and the lanes above it", "city": "Fes", "area": "Adwat al-Andalus" },
+          "kind": "idea",
+          "notes": "Cross the Oued Fes at Rcif and climb. This half of the old city was settled by families from Cordoba and it is residential, steeper and almost empty of visitors - no souvenir lane, no touts, just doors and children and the odd bakery oven. The Andalusian mosque's monumental gate is the landmark to climb toward. Go up until the lanes stop, then look back over the whole medina from someone's roofline.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        },
+        {
+          "title": "Petit taxi to the Merenid Tombs for the sunset call",
+          "timeWindow": { "start": "18:30", "end": "19:45" },
+          "location": { "name": "Merenid Tombs", "city": "Fes", "area": "Borj Nord hillside" },
+          "kind": "idea",
+          "notes": "Red petit taxi from Bab Guissa, about 30 MAD, and tell him to wait or agree a pickup - there is nothing up there. The tombs themselves are broken walls. What you came for is the moment the light goes and the adhan comes up off the medina from every minaret at once, out of sync, from below you. Bring a layer; the hill has wind the medina does not.",
+          "cost": { "amountMinor": 315, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "tizi-n-tichka-to-ait-benhaddou",
+      "name": "Over the Tizi n'Tichka: Telouet, the ksar at Ait Benhaddou, and back in the dark",
+      "summary": "A private driver for the day, the old road to Telouet instead of the new tunnel, and the ksar climbed in the hour the coaches are eating lunch.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2026-03-28T19:20:00.000Z",
+      "sourceTrip": { "name": "High Atlas and the road to the south" },
+      "addedBy": [
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-alice" },
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-nadia" },
+        { "addedBy": "dev-ruth" }
+      ],
+      "stops": [
+        {
+          "title": "Private car and driver out of Marrakech over the pass",
+          "timeWindow": { "start": "07:15", "end": "10:00" },
+          "location": { "name": "Tizi n'Tichka, 2,260 m", "city": "Marrakech", "area": "High Atlas, N9" },
+          "kind": "transit",
+          "notes": "Roughly 1,400 MAD for the car for the day, not per person, and that is the difference between this day and the 300 MAD minibus: you stop where you want and you are not on someone else's schedule. Leave by 07:15 - the switchbacks above Taddert fill with trucks after 09:00 and you lose an hour behind them. The new tunnel shortens the pass; ask your driver to take the old road over the top anyway, it is twenty minutes and the whole view. Take something for motion sickness before Taddert, not after.",
+          "cost": { "amountMinor": 14700, "currency": "USD" }
+        },
+        {
+          "title": "Telouet Kasbah, off the pass on the old caravan road",
+          "timeWindow": { "start": "10:15", "end": "11:15" },
+          "location": { "name": "Kasbah Telouet", "city": "Telouet", "area": "Ounila valley" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Twenty minutes off the N9 and most day tours skip it, which is why you should not. From the outside it is a collapsing mud fort; inside, two rooms of the Glaoui pashas' apartments still have their painted ceilings and zellige intact and there is nobody in them. 60 MAD. The caretaker will unlock the roof if you ask, and from up there you can see the old salt road running south.",
+          "cost": { "amountMinor": 630, "currency": "USD" }
+        },
+        {
+          "title": "Argan cooperative on the Ounila road",
+          "timeWindow": { "start": "11:30", "end": "12:15" },
+          "location": { "name": "Women's argan cooperative", "city": "Telouet", "area": "Ounila valley" },
+          "kind": "idea",
+          "notes": "Every driver has one and gets a cut, so treat it as a tea stop that you may or may not spend at. The test for a real cooperative rather than a shopfront: women are actually cracking nuts on the floor, and the price of culinary versus cosmetic oil is posted. 100 MAD for a small bottle of culinary is fair. Say no comfortably; a good driver will not sulk.",
+          "cost": { "amountMinor": 1050, "currency": "USD" }
+        },
+        {
+          "title": "Lunch on the far bank, looking at the ksar",
+          "timeWindow": { "start": "12:45", "end": "14:00" },
+          "location": { "name": "Terrace restaurant opposite the ksar", "city": "Ait Benhaddou", "area": "New village, east bank" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Eat before you cross, not after. The coach groups arrive between 11:00 and 13:00, walk the ksar, then take over every terrace at 13:00 - so you want to be sitting down at 12:45 and climbing at 14:00, which is the exact inverse of the crowd. Tagine and a bottle of water each; the climb is exposed the whole way.",
+          "cost": { "amountMinor": 1600, "currency": "USD" }
+        },
+        {
+          "title": "Cross the Ounila and climb the ksar to the agadir",
+          "timeWindow": { "start": "14:15", "end": "16:00" },
+          "location": { "name": "Ksar of Ait Benhaddou", "city": "Ait Benhaddou", "area": "UNESCO ksar, west bank" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "About 30 MAD for the granary at the top plus a local guide at the bridge for around 300 MAD, and here a guide earns it - he knows which of the eight families still live inside, which walls are film set and which are 17th century pisé. In spring the river runs and you cross the concrete stepping-stones; in flood they charge for a mule. Climb the back lanes on the way up and take the wide stair down, not the other way round: the crowd does it in reverse and you will meet nobody.",
+          "cost": { "amountMinor": 3100, "currency": "USD" }
+        },
+        {
+          "title": "Atlas Studios in Ouarzazate",
+          "timeWindow": { "start": "16:30", "end": "17:30" },
+          "location": { "name": "Atlas Corporation Studios", "city": "Ouarzazate", "area": "Route de Marrakech" },
+          "kind": "idea",
+          "tags": ["ticketed"],
+          "notes": "About 8 EUR, cash at the gate, guided in fixed groups every half hour. It is plywood Egypt and a Tibetan monastery from Kundun baking in the sun - fun if you like knowing where Gladiator was shot, entirely skippable if you would rather have the extra hour at the ksar. Decide at 16:00, not in advance.",
+          "cost": { "amountMinor": 860, "currency": "USD" }
+        },
+        {
+          "title": "Kasbah Taourirt before the light goes",
+          "timeWindow": { "start": "17:45", "end": "18:30" },
+          "location": { "name": "Kasbah Taourirt", "city": "Ouarzazate", "area": "Avenue Mohammed V" },
+          "kind": "idea",
+          "tags": ["ticketed"],
+          "notes": "60 MAD, in the middle of town, and the restored Glaoui apartments upstairs take twenty minutes. The reason to come at 17:45 is the outside: the whole earth-red mass turns the colour of a brick kiln for about ten minutes before sunset and then goes grey.",
+          "cost": { "amountMinor": 630, "currency": "USD" }
+        },
+        {
+          "title": "The drive back over the pass in the dark",
+          "timeWindow": { "start": "19:00", "end": "21:45" },
+          "location": { "name": "N9 over the Tizi n'Tichka", "city": "Marrakech", "area": "High Atlas" },
+          "kind": "transit",
+          "notes": "Nearly three hours and it is the honest cost of doing this as a day trip rather than sleeping in Ouarzazate - say it out loud before you book. Trucks run without full lights on the descent and Moroccan drivers overtake on the bends, so this is not the leg to hire the cheapest quote. If anyone in the car is fragile, sit them in front and stop at Taddert for tea.",
+          "cost": { "amountMinor": 0, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "erg-chebbi-a-night-on-the-sand",
+      "name": "Erg Chebbi: a private 4x4, Gnawa drums at Khamlia, and a night out on the erg",
+      "summary": "The desert day priced honestly - a car of your own, a camp with real beds and a bathroom, and the part that costs nothing, which is dragging a mattress outside at midnight.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2025-11-09T16:05:00.000Z",
+      "sourceTrip": { "name": "High Atlas and the road to the south" },
+      "addedBy": [
+        { "addedBy": "dev-kenji" },
+        { "addedBy": "dev-ruth" },
+        { "addedBy": "dev-elena" }
+      ],
+      "stops": [
+        {
+          "title": "Rissani souk on a market morning",
+          "timeWindow": { "start": "08:45", "end": "09:30" },
+          "location": { "name": "Rissani souk", "city": "Rissani", "area": "Old caravan town" },
+          "kind": "idea",
+          "tags": ["meal"],
+          "notes": "Sunday, Tuesday and Thursday are market days and the donkey park alone is worth the detour - rows of them, parked like cars, while their owners trade dates. This is where the desert camps buy their food. Eat a medfouna, the stuffed flatbread everyone calls Berber pizza, from a bakery on the square; twenty minutes to make, so order it before you walk around.",
+          "cost": { "amountMinor": 1200, "currency": "USD" }
+        },
+        {
+          "title": "Private 4x4 out to the fossil beds and Dayet Srji",
+          "timeWindow": { "start": "10:00", "end": "12:00" },
+          "location": { "name": "Dayet Srji lake bed and the hamada east of the erg", "city": "Merzouga", "area": "Erg Chebbi, north end" },
+          "kind": "transit",
+          "notes": "About 160 USD for the vehicle and driver for the day. A shared 4x4 is half that and you will spend it stopping where six other people want to stop. Dayet Srji is a seasonal lake - full of flamingos after winter rain, a cracked white pan in autumn, and worth seeing either way. The black stony ground on the way is the hamada, the real Sahara; the dunes are only about two per cent of it, which is the thing nobody tells you.",
+          "cost": { "amountMinor": 16000, "currency": "USD" }
+        },
+        {
+          "title": "Gnawa drums at Khamlia",
+          "timeWindow": { "start": "12:30", "end": "13:30" },
+          "location": { "name": "Village of Khamlia", "city": "Merzouga", "area": "Khamlia" },
+          "kind": "idea",
+          "notes": "A village of descendants of enslaved people brought north across the Sahara, and the Gnawa groups here play for visitors in a plain room with tea. It is short, loud, and completely unlike the hotel-lobby version. There is no ticket - leave 100 MAD per person in the box, and buy the CD if they have one, because that is the actual point of the visit.",
+          "cost": { "amountMinor": 1050, "currency": "USD" }
+        },
+        {
+          "title": "Check in and sit out the heat under the camp awning",
+          "timeWindow": { "start": "14:00", "end": "16:00" },
+          "location": { "name": "Luxury camp in the dunes", "city": "Merzouga", "area": "Erg Chebbi" },
+          "kind": "booked",
+          "tags": ["lodging"],
+          "notes": "Around 420 USD for a private tent for two with an ensuite bathroom and actual beds, dinner and breakfast included. The 40 USD camps exist and they are a shared canvas tent and a latrine - fine at 25, miserable at 45 degrees. Two questions that separate the honest camps from the photographs: is there a bathroom in the tent, and is there power at night or only until the generator goes off at 23:00. Ask both in writing.",
+          "cost": { "amountMinor": 42000, "currency": "USD" }
+        },
+        {
+          "title": "Camels over the erg to the high dune for sunset",
+          "timeWindow": { "start": "16:30", "end": "18:15" },
+          "location": { "name": "The high dune behind camp", "city": "Merzouga", "area": "Erg Chebbi" },
+          "kind": "booked",
+          "tags": ["outdoors"],
+          "notes": "Ninety minutes on a dromedary is enough for anybody; if your camp offers three hours, decline. Wear long trousers - the saddle wooden pommel plus bare calves against camel hair is the classic mistake. Lean back hard when it stands up and again when it kneels. Take the walk back rather than the ride if the light is good; you cannot photograph anything from up there.",
+          "cost": { "amountMinor": 3500, "currency": "USD" }
+        },
+        {
+          "title": "Sandboarding down the face behind camp",
+          "timeWindow": { "start": "18:30", "end": "19:15" },
+          "location": { "name": "Slipface behind the camp", "city": "Merzouga", "area": "Erg Chebbi" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The boards are free at most camps and terrible; wax matters more than technique and nobody has any. You will get four good runs and a lot of sand in places you will find for a week. Do it before dinner while the sand is still warm rather than at dawn when it is packed and damp.",
+          "cost": { "amountMinor": 800, "currency": "USD" }
+        },
+        {
+          "title": "Dinner and drums in the big tent",
+          "timeWindow": { "start": "19:45", "end": "21:30" },
+          "location": { "name": "Camp mess tent", "city": "Merzouga", "area": "Erg Chebbi" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Included in the camp rate. Harira, then a tagine that has been in the ground or on coals since mid-afternoon, then the staff bring out the darbuka and the tea. Stay for it - the drumming is genuinely for them as much as for you, and it winds down by itself around 21:30."
+        },
+        {
+          "title": "Mattress dragged out past the tent lights",
+          "timeWindow": { "start": "22:00", "end": "23:30" },
+          "location": { "name": "The open sand beyond the camp", "city": "Merzouga", "area": "Erg Chebbi" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Ask at dinner and they will carry a mattress out for you; every camp does this and almost no guest asks. Walk far enough that the camp's solar lamps are behind a dune. New moon and no haze gives you the Milky Way flat overhead and satellites every couple of minutes. It gets genuinely cold after midnight even in November - take the blanket off the bed, not just a jacket."
+        }
+      ]
+    },
+    {
+      "key": "petra-gate-to-monastery-to-candles",
+      "name": "Petra: through the gate at six, the Monastery by noon, candles at half past eight",
+      "summary": "One long day that uses the two hours Petra is empty, spends the hot middle climbing away from the crowd, and comes back after dark for the Siq by candlelight.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2024-10-26T15:45:00.000Z",
+      "sourceTrip": { "name": "Jordan end to end" },
+      "addedBy": [
+        { "addedBy": "dev-alice" }
+      ],
+      "stops": [
+        {
+          "title": "Ticket window at 06:00 and straight down the Bab as-Siq",
+          "timeWindow": { "start": "06:00", "end": "06:15" },
+          "location": { "name": "Petra Visitor Centre", "city": "Wadi Musa", "area": "Petra Visitor Centre" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "50 JD for a one-day ticket if you are sleeping in Jordan, 55 for two days - and if you have not already bought a Jordan Pass online before you flew, you have overpaid, because the Pass covers Petra and waives the visa fee. Day-trippers who cross from Israel and leave the same day pay 90 JD, which is the rule catching people out. Gate opens at 06:00 and the ticket is scanned, so bring the QR and your passport. Decline every horse offer; the ride to the Siq is nominally included in your ticket and is not, and the tip demanded at the end is the whole business model.",
+          "cost": { "amountMinor": 7050, "currency": "USD" }
+        },
+        {
+          "title": "The Siq on foot, before the carriages start running",
+          "timeWindow": { "start": "06:15", "end": "07:15" },
+          "location": { "name": "The Siq", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "planned",
+          "notes": "A kilometre and a bit of 100-metre walls, and until about 07:30 you will hear your own footsteps. After that the horse carriages come through at a trot in a space two metres wide and the sound never stops. Look for the carved camel caravan at knee height on the left about two thirds down, and the Nabataean water channels cut along both walls - the whole canyon was a plumbed aqueduct."
+        },
+        {
+          "title": "Al-Khazneh with a guide and about nine other people",
+          "timeWindow": { "start": "07:15", "end": "08:15" },
+          "location": { "name": "Al-Khazneh (the Treasury)", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "booked",
+          "notes": "50 JD for a licensed guide from the desk at the Visitor Centre, for two to three hours, and it is the money that turns a photograph into a city - which tombs are Nabataean and which Roman, why the facades erode from the bottom, what the Bedouin who lived in them until 1985 used each cave for. Take the guide for the morning only and do the Monastery yourself. Sun reaches into the Treasury bowl around 09:00 in autumn; before that it is in blue shade, which most people think is worse and is actually better.",
+          "cost": { "amountMinor": 7050, "currency": "USD" }
+        },
+        {
+          "title": "Street of Facades, the Theatre and the Royal Tombs",
+          "timeWindow": { "start": "08:30", "end": "10:00" },
+          "location": { "name": "Royal Tombs and the Roman theatre", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "planned",
+          "notes": "Climb the stairs up to the Urn Tomb and walk the terrace along the four royal facades rather than photographing them from the valley floor - the whole basin opens up behind you. The Silk Tomb's streaked sandstone is the one worth standing in front of. This is also where you buy the last cold water at a sane price before the Monastery climb."
+        },
+        {
+          "title": "The 800 steps up to Ad Deir, the Monastery",
+          "timeWindow": { "start": "10:30", "end": "13:00" },
+          "location": { "name": "Ad Deir (the Monastery)", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Around 800 rock-cut steps, 45 to 60 minutes up at a steady pace, and it thins the crowd out by about nine tenths - the coach groups turn round at the Colonnaded Street. Go up the middle of the day precisely because the gorge is shaded on one side and the crowd is not there. Say no to the donkeys: they are driven hard, the steps are polished, and people are thrown every season. Two litres of water each, minimum. At the top, the cafe opposite the facade sells tea for about 5 JD and has the only shade.",
+          "cost": { "amountMinor": 705, "currency": "USD" }
+        },
+        {
+          "title": "Late lunch at the Basin",
+          "timeWindow": { "start": "13:15", "end": "14:15" },
+          "location": { "name": "The Basin Restaurant", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "About 20 JD for the buffet, at the far end of the valley under the trees. It is the only real food inside the park and by 13:15 the buses have gone back up, so you get the shaded tables. Eating here rather than walking out and back saves you two hours and is the reason the Monastery and Al-Khubtha fit in one day.",
+          "cost": { "amountMinor": 2820, "currency": "USD" }
+        },
+        {
+          "title": "Al-Khubtha trail to the ledge above the Treasury",
+          "timeWindow": { "start": "15:30", "end": "17:00" },
+          "location": { "name": "Al-Khubtha trail viewpoint", "city": "Wadi Musa", "area": "Petra archaeological park" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "The legitimate Treasury overlook, signposted from behind the Royal Tombs, about 600 steps. It is not the one touts offer you from the Siq for 20 JD - those are unofficial scrambles and people fall off them. Late afternoon puts the Treasury facade in full sun while you are on a shaded ledge. Budget an hour to get back to the gate afterwards; rangers start sweeping the valley at 17:00 and you do not want to be running the Siq."
+        },
+        {
+          "title": "Petra by Night: candles the whole length of the Siq",
+          "timeWindow": { "start": "20:30", "end": "22:30" },
+          "location": { "name": "The Siq and the Treasury by candlelight", "city": "Wadi Musa", "area": "Petra Visitor Centre" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Sunday to Thursday only, 30 JD on top of a valid day ticket or Jordan Pass, sold at the Visitor Centre kiosk rather than online - buy it in the morning when you collect your day ticket, not at 20:00. Gather from about 20:00, walk in at 20:30. Two thousand paper lanterns down the canyon floor and then the Treasury lit from the ground. Two honest warnings: it is silent only if the crowd cooperates, and hanging back thirty seconds behind the group is what buys you a dark, empty Siq. No tripods, no flash, and a phone will do better than you expect.",
+          "cost": { "amountMinor": 4230, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "wadi-rum-afternoon-into-night",
+      "name": "Wadi Rum: an afternoon in the back of a pickup, and a night with no light in it",
+      "summary": "Arrive after lunch rather than at nine, take the jeep run in the good light, eat zarb out of the sand, and walk far enough from camp to lose the last lamp.",
+      "ownerId": "dev-bob",
+      "visibility": "public",
+      "keptOn": "2025-12-06T14:30:00.000Z",
+      "sourceTrip": { "name": "Jordan end to end" },
+      "addedBy": [],
+      "stops": [
+        {
+          "title": "Visitor Centre: protected-area fee, then meet your Bedouin driver",
+          "timeWindow": { "start": "13:30", "end": "14:00" },
+          "location": { "name": "Wadi Rum Visitor Centre", "city": "Wadi Rum", "area": "Protected area entrance" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "7 JD entry, covered if you hold a Jordan Pass, and this is where your camp's driver collects you - your own car stays in the lot, no private vehicles go into the reserve. Book direct with a camp rather than through an agency: the same night is routinely half the price and the money stays in Rum village. Get the driver's WhatsApp before you set off; phone signal is patchy past the Seven Pillars.",
+          "cost": { "amountMinor": 987, "currency": "USD" }
+        },
+        {
+          "title": "Pickup bed out to Lawrence's Spring and Khazali canyon",
+          "timeWindow": { "start": "14:00", "end": "15:00" },
+          "location": { "name": "Lawrence's Spring and Khazali Canyon", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "transit",
+          "notes": "Around 60 JD a head for the afternoon run plus the overnight. Sit in the open bed, not the cab, and wear something over your face - the sand off the track is constant. Khazali is a narrow slot you can walk 100 metres into, with Thamudic and Nabataean inscriptions cut at eye height on both walls; ask your driver to point out the camel and the pair of feet before you go in or you will walk past all of them.",
+          "cost": { "amountMinor": 8460, "currency": "USD" }
+        },
+        {
+          "title": "Um Fruth rock bridge, and the climb everybody does badly",
+          "timeWindow": { "start": "15:00", "end": "16:00" },
+          "location": { "name": "Um Fruth rock bridge", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "idea",
+          "tags": ["outdoors"],
+          "notes": "Fifteen metres of free-standing sandstone arch you can walk up onto. Going up is easy and coming down is not, which is the whole problem - a Bedouin will spot you for a couple of dinars and it is worth it. Grippy shoes; the polished bits are polished because thousands of people have slid on exactly those bits."
+        },
+        {
+          "title": "Red dune at the north end for the last hour of light",
+          "timeWindow": { "start": "16:15", "end": "17:15" },
+          "location": { "name": "The red dune below Jebel Umm Ishrin", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "In December the sun is gone by about 16:45, so this stop moves an hour and a half later in June - fix it off actual sunset, not off the clock. Climb the dune and sit on the ridge; the drivers park below and make tea on a fire while you are up there, and that is a set piece they do every day and it is still good."
+        },
+        {
+          "title": "Camp, tea, and the zarb comes out of the sand",
+          "timeWindow": { "start": "17:45", "end": "19:00" },
+          "location": { "name": "Bedouin camp", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "booked",
+          "tags": ["lodging"],
+          "notes": "Around 60 JD per person for a tent, dinner and breakfast at a traditional Bedouin camp; the bubble domes with glass roofs run three to four times that and you sleep with light pollution from the camp's own lamps, which is a strange thing to pay extra for. Nights in December drop near freezing - ask how many blankets and whether there is a gas heater, because the answer varies wildly between camps at the same price.",
+          "cost": { "amountMinor": 8460, "currency": "USD" }
+        },
+        {
+          "title": "Dinner in the big tent",
+          "timeWindow": { "start": "19:00", "end": "20:30" },
+          "location": { "name": "Camp mess tent", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The zarb is chicken and vegetables buried over coals for a few hours and lifted out in front of everyone - go and watch them dig it up at about 18:45, that is the part worth seeing. Included in the camp price. There is no alcohol in Rum village; if you want a beer, buy it in Aqaba and ask the camp first."
+        },
+        {
+          "title": "Out past the last lamp for the stars",
+          "timeWindow": { "start": "21:00", "end": "22:30" },
+          "location": { "name": "Open desert beyond the camp", "city": "Wadi Rum", "area": "Wadi Rum protected area" },
+          "kind": "planned",
+          "tags": ["outdoors"],
+          "notes": "Walk ten minutes on the flat sand until the camp's string lights are behind a rock, then sit and give your eyes twenty full minutes with the phone in your pocket. That waiting is the whole thing and almost nobody does it. Take a bearing on a cliff shape before you set off - flat sand at night looks identical in every direction and people genuinely get turned around."
+        }
+      ]
+    },
+    {
+      "key": "giza-great-gate-then-the-gem",
+      "name": "Cairo: through the Great Gate at seven, the Grand Egyptian Museum by eleven",
+      "summary": "The plateau in the cool two hours before the coaches, inside Khufu with no queue, then the new museum's timed slot and the walk back into Khan el-Khalili at dusk.",
+      "ownerId": "dev-maeve",
+      "visibility": "public",
+      "keptOn": "2026-02-14T18:15:00.000Z",
+      "sourceTrip": { "name": "Cairo and up the Nile" },
+      "addedBy": [
+        { "addedBy": "dev-marco" },
+        { "addedBy": "dev-kenji" },
+        { "addedBy": "dev-tomas" },
+        { "addedBy": "dev-alice" }
+      ],
+      "stops": [
+        {
+          "title": "Great Gate on the Fayoum road, at opening",
+          "timeWindow": { "start": "07:00", "end": "07:20" },
+          "location": { "name": "Giza Plateau Great Gate visitor centre", "city": "Cairo", "area": "Giza plateau" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "700 EGP for the plateau. Two things changed here and both catch people: the main entrance is now the Great Gate on the Cairo-Fayoum road, not the old Sphinx gate in Nazlet el-Samman, and the plateau is card-only with buses and private cars banned inside. The Sphinx gate still opens but has no ticket office, so you can only use it with a ticket already bought online. Gates at 07:00 in summer, 08:00 in Ramadan. Anyone who approaches you outside the gate saying the site opens late or is closed is selling a camel.",
+          "cost": { "amountMinor": 1449, "currency": "USD" }
+        },
+        {
+          "title": "Electric shuttle straight out to the panorama point",
+          "timeWindow": { "start": "07:20", "end": "08:00" },
+          "location": { "name": "Panorama viewpoint", "city": "Cairo", "area": "Giza plateau" },
+          "kind": "transit",
+          "notes": "The shuttle is included and loops between the visitor centre, the panorama, the three pyramids and the Sphinx. Ride it to the far end first and work back - everyone else walks up to Khufu from the gate, so the panorama with all three pyramids in line is empty at 07:30 and mobbed by 10:00. Camel and horse touts work the panorama hard; the going rate if you want it is agreed before you sit down, in writing on a phone screen, and the getting-off fee is the scam."
+        },
+        {
+          "title": "Inside Khufu, before there is a queue to be in",
+          "timeWindow": { "start": "08:00", "end": "09:15" },
+          "location": { "name": "Great Pyramid of Khufu, interior", "city": "Cairo", "area": "Giza plateau" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "A separate ticket on top of the plateau entry - posted at 1,500 EGP in 2026, and capped at a few hundred a day, so buy it the moment you are through the gate. It is a stooped climb up the Grand Gallery in still, hot air with no ventilation and an empty granite box at the end; if you are claustrophobic take Khafre instead for a fraction of the price. Nothing to photograph and cameras are meant to stay in your bag anyway.",
+          "cost": { "amountMinor": 3105, "currency": "USD" }
+        },
+        {
+          "title": "Down to the Sphinx and the Valley Temple",
+          "timeWindow": { "start": "09:30", "end": "10:30" },
+          "location": { "name": "Great Sphinx and Khafre's Valley Temple", "city": "Cairo", "area": "Giza plateau" },
+          "kind": "planned",
+          "notes": "Take the shuttle down. Enter through the Valley Temple - the huge unadorned granite blocks are the oldest thing you will touch all day - and come out onto the viewing terrace beside the Sphinx's paw. Morning light is behind the Sphinx from this angle; the honest photograph is the one with the pyramid over its shoulder, taken from the terrace's far right corner."
+        },
+        {
+          "title": "Grand Egyptian Museum, the 11:00 slot",
+          "timeWindow": { "start": "11:00", "end": "13:30" },
+          "location": { "name": "Grand Egyptian Museum", "city": "Cairo", "area": "Giza, Alexandria desert road" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "Around 1,450 EGP for foreign adults, timed entry booked online at visit-gem.com - on-site sales for foreigners have ended, so turning up without a slot means turning round. Two kilometres from the plateau. Do the Grand Staircase and the Tutankhamun galleries first and the chronological halls after; all 5,000-odd objects from the tomb are shown together for the first time since 1922 and it takes ninety minutes on its own. Wednesdays and Saturdays run to 21:00 if you would rather flip this day and do the museum in the evening.",
+          "cost": { "amountMinor": 3002, "currency": "USD" }
+        },
+        {
+          "title": "Late lunch on the museum terrace, facing the pyramids",
+          "timeWindow": { "start": "13:30", "end": "14:30" },
+          "location": { "name": "GEM terrace restaurants", "city": "Cairo", "area": "Giza, Alexandria desert road" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "The whole west face of the building is glass aimed at the plateau, and the terrace is the one place in Cairo you eat lunch looking at all three pyramids without a tout. Prices are museum prices. Card only, like everything else on this day.",
+          "cost": { "amountMinor": 1800, "currency": "USD" }
+        },
+        {
+          "title": "Khan el-Khalili and a shisha at El Fishawy",
+          "timeWindow": { "start": "16:00", "end": "17:30" },
+          "location": { "name": "Khan el-Khalili and El Fishawy cafe", "city": "Cairo", "area": "Islamic Cairo" },
+          "kind": "idea",
+          "notes": "Allow an hour in traffic from Giza; leave at 15:00 if it is a weekday. The tourist lanes off Al-Hussein square are a gauntlet - walk one street further into the coppersmiths and the gold souk and the tone changes completely. El Fishawy has been open since the 1770s, is deliberately touristy, and is still the right place to sit for forty minutes with a mint tea while the alley works around you.",
+          "cost": { "amountMinor": 800, "currency": "USD" }
+        },
+        {
+          "title": "Sunset over the city from Al-Azhar Park",
+          "timeWindow": { "start": "18:00", "end": "19:30" },
+          "location": { "name": "Al-Azhar Park", "city": "Cairo", "area": "Darb al-Ahmar" },
+          "kind": "planned",
+          "tags": ["meal"],
+          "notes": "Ten minutes from the Khan, small entry fee, and it is where Cairenes go rather than visitors. Built on what was a 500-year rubbish mound; the restored Ayyubid city wall runs along one edge. Walk to the lakeside terrace on the west side - the whole medieval skyline of minarets is between you and the sunset, and the Citadel is lit behind you. Eat at the hilltop restaurant rather than the lakeside one; same view, better food.",
+          "cost": { "amountMinor": 2200, "currency": "USD" }
+        }
+      ]
+    },
+    {
+      "key": "luxor-balloon-west-bank-and-a-felucca",
+      "name": "Luxor: a balloon at first light, an Egyptologist on the West Bank, a felucca at dusk",
+      "summary": "The expensive day, priced as it actually costs - a private basket over Dra Abu el-Naga, Seti I and Nefertari with a proper guide, and the Nile at sunset to slow it all down.",
+      "ownerId": "dev-sofia",
+      "visibility": "public",
+      "keptOn": "2026-01-24T20:00:00.000Z",
+      "sourceTrip": { "name": "Cairo and up the Nile" },
+      "addedBy": [
+        { "addedBy": "dev-priya" },
+        { "addedBy": "dev-carlos" },
+        { "addedBy": "dev-nadia" },
+        { "addedBy": "dev-elena" },
+        { "addedBy": "dev-ruth" }
+      ],
+      "stops": [
+        {
+          "title": "Pickup at 04:15 and the ferry across in the dark",
+          "timeWindow": { "start": "04:15", "end": "04:50" },
+          "location": { "name": "Corniche ferry landing", "city": "Luxor", "area": "East Bank corniche" },
+          "kind": "transit",
+          "notes": "Balloon operators collect between 04:00 and 04:30 depending on sunrise, so this shifts by an hour across the year - confirm the pickup time by WhatsApp the night before, every time. Included in the flight price. The crossing is a small motor launch, ten minutes, freezing in January; take the layer you will want at 1,000 feet."
+        },
+        {
+          "title": "Private basket over Dra Abu el-Naga at first light",
+          "timeWindow": { "start": "05:00", "end": "06:30" },
+          "location": { "name": "West Bank balloon launch field", "city": "Luxor", "area": "Dra Abu el-Naga" },
+          "kind": "booked",
+          "tags": ["ticketed", "outdoors"],
+          "notes": "A seat in a 24-person basket is 80 to 100 USD; a private basket for two is around 600 and it is the difference between craning over shoulders and turning wherever you like. Flights launch at sunrise and last 45 to 60 minutes. Check the operator has current civil aviation certification and ask what their cancellation-for-wind policy is - Luxor scrubs flights regularly and reputable outfits refund or rebook without argument. The inflation on the ground, with fifteen envelopes lighting up at once in the dark, is half the show. You drift over Hatshepsut's terraces, the Colossi and the sugarcane, and land in a farmer's field.",
+          "cost": { "amountMinor": 60000, "currency": "USD" }
+        },
+        {
+          "title": "Breakfast at Marsam, and the car for the day",
+          "timeWindow": { "start": "07:00", "end": "08:00" },
+          "location": { "name": "Marsam Hotel", "city": "Luxor", "area": "West Bank, Qurna" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Mudbrick hotel built for the Chicago House archaeologists, in the fields between the Ramesseum and the Valley of the Nobles, and breakfast under the trees there is the calmest hour of the day. Around 45 USD gets you a car and driver for the whole West Bank until evening, which you want - the sites are kilometres apart and taxis at Valley of the Kings gate charge by desperation.",
+          "cost": { "amountMinor": 6900, "currency": "USD" }
+        },
+        {
+          "title": "Valley of the Kings, plus Seti I, with a private Egyptologist",
+          "timeWindow": { "start": "08:15", "end": "11:15" },
+          "location": { "name": "Valley of the Kings", "city": "Luxor", "area": "West Bank, Biban el-Muluk" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "750 EGP covers three tombs of your choice; Seti I is 2,000 EGP extra per person and it is the finest painted tomb in Egypt, 137 metres of it, so pay it and skip Tutankhamun's, which is a small bare room with a mummy. About 120 USD for a licensed Egyptologist for the day - a real one reads the hieroglyphs to you and cannot come inside the tombs, because guiding inside is banned, so they brief you at the door and debrief you outside. Everything on the West Bank is cashless now: EGP notes will not get you through the gate. Take the tram up the valley, walk down.",
+          "cost": { "amountMinor": 23385, "currency": "USD" }
+        },
+        {
+          "title": "Deir el-Bahari, Hatshepsut's terraces",
+          "timeWindow": { "start": "11:30", "end": "12:30" },
+          "location": { "name": "Temple of Hatshepsut", "city": "Luxor", "area": "West Bank, Deir el-Bahari" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "200 EGP. There is no shade anywhere on the three terraces and the stone reflects everything back at you - in January that is pleasant and in June it is dangerous. Go up to the top colonnade for the Punt expedition reliefs and the chapel of Anubis at the north end, which most people miss because it is behind a corner. From up there you can see the ridge you would walk over to reach the Valley of the Kings, which is how the workmen got to work.",
+          "cost": { "amountMinor": 828, "currency": "USD" }
+        },
+        {
+          "title": "Nefertari, ten minutes and no longer",
+          "timeWindow": { "start": "12:45", "end": "13:30" },
+          "location": { "name": "Tomb of Nefertari, Valley of the Queens", "city": "Luxor", "area": "West Bank, Biban el-Harim" },
+          "kind": "booked",
+          "tags": ["ticketed"],
+          "notes": "1,400 EGP a head, 150 visitors a day, and the visit is capped at ten minutes to control humidity - which sounds like a swindle until you are in there. The most intensely coloured painted surfaces to survive from the ancient world, blue ceilings with gold stars. It closes for conservation at short notice, so check the day before rather than the month before. No photography, and they mean it here.",
+          "cost": { "amountMinor": 5796, "currency": "USD" }
+        },
+        {
+          "title": "Felucca off the corniche as the sun goes",
+          "timeWindow": { "start": "17:30", "end": "19:15" },
+          "location": { "name": "Felucca landing below the Winter Palace", "city": "Luxor", "area": "East Bank corniche" },
+          "kind": "transit",
+          "notes": "Hire the whole boat, not a seat - about 2,000 EGP for two hours with a captain, negotiated down from roughly double that, which is the opening price everywhere on the corniche. Say clearly that you want to sail up and cross, not go to Banana Island, unless you actually want the banana farm. No motor: if there is no wind you drift, and drifting is the point. The sun sets behind the Theban hills you were flying over at dawn, and the light on the west cliffs at 18:00 is the best thing in Luxor.",
+          "cost": { "amountMinor": 2000, "currency": "USD" }
+        },
+        {
+          "title": "Dinner at 1886, in the Winter Palace",
+          "timeWindow": { "start": "19:45", "end": "21:45" },
+          "location": { "name": "1886 Restaurant, Sofitel Winter Palace", "city": "Luxor", "area": "East Bank corniche" },
+          "kind": "booked",
+          "tags": ["meal"],
+          "notes": "Around 160 USD for two with wine, in a 1907 dining room where Howard Carter announced he had found the tomb. Jacket expected for men and they will turn you away in shorts. Book a day ahead. If that is more than the day deserves, walk two minutes to Sofra in the back streets instead - a fraction of the price and arguably the better Egyptian food; this stop is here because a day that started in a balloon can carry it.",
+          "cost": { "amountMinor": 16000, "currency": "USD" }
+        }
+      ]
+    }
+  ]
+}

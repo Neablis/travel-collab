@@ -8,7 +8,7 @@ import {
   MoveActivity,
   RemoveActivity,
   UpdateActivity,
-} from "./activity";
+} from "./activity.ts";
 import {
   ConflictDismissedV1,
   ConflictUndismissedV1,
@@ -16,8 +16,8 @@ import {
   RedoChange,
   RevertToState,
   UndoLastChange,
-} from "./history";
-import { Money } from "./money";
+} from "./history.ts";
+import { Money } from "./money.ts";
 
 // Where a trip came from, when it came from somewhere (M11 link 5, ADR-028).
 //

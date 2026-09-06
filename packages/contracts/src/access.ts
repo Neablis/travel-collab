@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TripRole } from "./trip";
+import { TripRole } from "./trip.ts";
 
 // The Access & Membership module's cross-boundary types (AGENTS.md module map).
 //

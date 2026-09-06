@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity";
-import { Money } from "./money";
+import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { Money } from "./money.ts";
 
 // Saved parts (M11 link 6, ADR-029) — "select parts of my trip and save them
 // for reuse".
@@ -62,6 +62,42 @@ export type SavedStop = z.infer<typeof SavedStop>;
 export const SavedDayVisibility = z.enum(["private", "public"]);
 export type SavedDayVisibility = z.infer<typeof SavedDayVisibility>;
 
+/**
+ * **Who wrote this day** — a person keeping a day out of their own trip, or a
+ * generated seed.
+ *
+ * Mitchell, 2026-09-06: *"we will need to indicate in the database when its a
+ * human playbook or a AI seed data"*. It is a column rather than a naming
+ * convention or a reserved owner id for the same reason `visibility` is an
+ * enum: the question gets asked by surfaces that have a row and nothing else,
+ * and "is the owner one of the five dev-* accounts" is a rule that stops being
+ * true the first time a real person signs up with a seeded day in their name.
+ *
+ * `"human"` is the DEFAULT, in the contract and in the column, and that
+ * direction is deliberate: everything written before this field existed was
+ * written by a person through `POST /api/saved-days`, and everything written
+ * after it by that same route still is. Only the content importer says
+ * otherwise, and it says so explicitly.
+ *
+ * `"ai"`, not `"seed"`: the distinction Mitchell asked for is about *who wrote
+ * the content*, not about how it got into the database. A day a person wrote
+ * that ships in the starter library is a human playbook that happens to be
+ * seeded, and the two must not collapse into one word.
+ *
+ * What it is NOT: a moderation state. `visibility` owns discoverability and
+ * `deleted_at` owns removal; this says only where the words came from.
+ *
+ * **Named `authorKind`, not `origin`.** `Origin` is already taken, one file
+ * over in `history.ts`, for the provenance of a batch of EVENTS — user, undo,
+ * redo, revert — and `events.origin` is a real jsonb column carrying it. Two
+ * columns called `origin` on two tables, meaning two unrelated things, is the
+ * kind of ambiguity this codebase pays down rather than adds to. `authorKind`
+ * also refuses the other misreading: it holds a KIND, never a `users.id` —
+ * `owner_id` is who owns the day, and this is what sort of author wrote it.
+ */
+export const SavedDayAuthorKind = z.enum(["human", "ai"]);
+export type SavedDayAuthorKind = z.infer<typeof SavedDayAuthorKind>;
+
 export const SavedDay = z.object({
   savedDayId: z.string().uuid(),
   ownerId: z.string().min(1),
@@ -85,6 +121,8 @@ export const SavedDay = z.object({
    */
   cities: z.array(z.string().min(1)),
   visibility: SavedDayVisibility,
+  /** Who wrote it — see `SavedDayAuthorKind`. Defaulted so a row written before the column existed reads as human. */
+  authorKind: SavedDayAuthorKind.default("human"),
   /**
    * How many times this day has been added to a trip — the denormalised
    * counter over the adds ledger (M11b link 4), and what the leaderboard
