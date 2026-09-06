@@ -43,6 +43,23 @@ export function tripCounts(detail: TripDetail): TripCounts {
  * Takes the detail, not two dates, because the range is derived from the DAYS:
  * `detail.startDate` is only the fallback for a trip whose days have not been
  * laid out yet.
+ *
+ * **Why `??` is safe on `days[0]?.date`, which is nullable.** It reads as
+ * though an undated day 0 would borrow `startDate` and print a date for a trip
+ * that shows none — CodeRabbit read it exactly that way on PR #148. The state
+ * is not producible: `deriveDayDates` (`packages/domain/src/trip/dates.ts:86`)
+ * returns all-null when `startDate` is null and a date for EVERY day when it is
+ * not, so `days[0].date === null` implies `startDate === null` and the fallback
+ * yields null either way. The contract says the same
+ * (`packages/contracts/src/globals.ts:43` — "the day's date, or nothing if the
+ * trip has no start date").
+ *
+ * Narrowing this to `days.length === 0 ? detail.startDate : …` would be a
+ * regression rather than a tightening: in the one case it changes it prints
+ * "No dates set" for a trip that HAS a start date, which is what
+ * `SettingsSheet`'s `datesLabel` renders as the date. The header and the sheet
+ * would then disagree about the same trip — the thing lifting this helper out
+ * of the pill was meant to stop.
  */
 export function tripDateRange(detail: TripDetail): string {
   const days = detail.days;

@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { TripMetaPill } from "./TripMetaPill";
+import { TripMetaPill, tripDateRange } from "./TripMetaPill";
 
 function fixture(): TripDetail {
   const day1 = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
@@ -70,5 +70,43 @@ describe("TripMetaPill", () => {
     expect(screen.queryByText("DA")).toBeNull();
     expect(screen.queryByText("DB")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+// `tripDateRange` gained a second reader on PR #148 — SPEC §23's phone date
+// line — and its undated branch was asserted nowhere, by either reader. That
+// gap is what let CodeRabbit read the `??` on a nullable `days[0].date` as a
+// trip borrowing `startDate` and printing a date it should not have.
+//
+// The borrow is not producible: `deriveDayDates`
+// (`packages/domain/src/trip/dates.ts:86`) returns all-null when `startDate` is
+// null and a date for EVERY day when it is not, so an undated day 0 implies an
+// undated trip. These pin the two states that ARE producible, which is what was
+// missing.
+describe("tripDateRange", () => {
+  it("says the trip has no dates when the trip has no start date", () => {
+    const detail = fixture();
+    // The producible undated shape, and the only one: `deriveDayDates` nulls
+    // every day together with the trip. A fixture with a null `startDate` but
+    // dated days would be testing a state the domain cannot emit.
+    const undated: TripDetail = {
+      ...detail,
+      startDate: null,
+      days: detail.days.map((d) => ({ ...d, date: null })),
+    };
+    expect(tripDateRange(undated)).toBe("No dates set");
+  });
+
+  it("reads the range off the days, not off startDate", () => {
+    // Deliberately disagreeing: if the helper read `startDate` first this would
+    // open on Jun 1. The days are what the trip actually shows.
+    const detail = fixture();
+    const shifted: TripDetail = {
+      ...detail,
+      startDate: "2027-06-01",
+      days: detail.days.map((d, i) => ({ ...d, date: i === 0 ? "2027-07-04" : "2027-07-05" })),
+    };
+    expect(tripDateRange(shifted)).toContain("Jul 4");
+    expect(tripDateRange(shifted)).not.toContain("Jun 1");
   });
 });
