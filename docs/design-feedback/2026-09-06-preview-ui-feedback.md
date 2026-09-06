@@ -534,3 +534,29 @@ same 2026-08-30 pass fixed as its finding 8.
 **Not fixed here**, because the loop needs a browser with a dynamic toolbar and
 Playwright's desktop Chromium has none: `dvh`, `svh` and `lvh` are one number
 in this harness, so no test written here could tell the fix from the bug.
+
+## Correction, 06:55 — finding 4 was implemented too narrowly
+
+> "what happened to on map view removing stops on the days you arent looking at. I asked for that change"
+
+Finding 4's comment was *"Lets try the UI in the designs. Remove the travel
+lines from all days that are not currently selected"*, and it was implemented
+as the dashed `travel` route variant only — `rest` legs stayed ghosted at 0.25
+and every pin stayed at 0.35. The interpretation was flagged at the time as an
+interpretation, which is not the same as getting it right.
+
+**The correct reading is the whole day.** A day you are not looking at is now
+not drawn at all: both route variants at opacity 0, its pins at 0, and
+`pointer-events: none` on those pins so an invisible marker cannot still be
+tapped.
+
+**What this does NOT change: the tag axis.** M18b's *"dim, never hide"* is
+about tag focus, and an off-tag stop on the focused day still fades to 0.32.
+Day focus and tag focus were being weighed against each other as two dims; the
+day axis is no longer a dim, so `MapLens.test.tsx`'s "fainter of the two, never
+their product" test has been re-scoped rather than deleted — the rule it
+protected still holds for the axis that still has one.
+
+`ghostRouteColor()` went with the behaviour it served: the neutral tone existed
+so a faint line would not still read as its day's colour, and nothing is faint
+any more.

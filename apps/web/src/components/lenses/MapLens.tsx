@@ -29,9 +29,6 @@ function accentVar(accent: MapDay["accent"]): string {
 // "ghosted", once checked live. A shared grey (matching the legend's own
 // "rest of trip" swatch) reads as de-emphasized the way the focused day's
 // pins already do.
-function ghostRouteColor(): string {
-  return getComputedStyle(document.documentElement).getPropertyValue("--color-slate").trim();
-}
 
 // A day draws up to two route layers: its ordinary legs, and the legs that
 // touch a `transit` stop, which are dashed. They have to be separate layers
@@ -365,18 +362,23 @@ export function MapLens({
           // A day with no travel legs (or nothing but travel legs) never had
           // the other layer added.
           if (map.getLayer(layerId) === undefined) continue;
-          // A non-focused day's TRAVEL legs go away entirely, rather than
-          // ghosting with the rest of its route (Mitchell, 2026-09-06 preview:
-          // "Remove the travel lines from all days that are not currently
-          // selected"). The two variants differ in what they cost the reader:
-          // a `rest` leg is local to one city and stays inside that day's own
-          // cluster, while a `travel` leg spans the distance between cities, so
-          // thirteen ghosted ones still rake across the whole map and cross
-          // every other day's pins. Ghosting reduces their contrast; it does
-          // not reduce the number of lines drawn over the day you are reading.
-          const hidden = variant === "travel" && !focused;
-          map.setPaintProperty(layerId, "line-opacity", hidden ? 0 : focused ? 1 : 0.25);
-          map.setPaintProperty(layerId, "line-color", focused ? accentVar(day.accent) : ghostRouteColor());
+          // **A day you are not looking at is not on the map at all.**
+          //
+          // Mitchell asked this twice and the first reading was too narrow.
+          // 2026-09-06 preview: *"Lets try the UI in the designs. Remove the
+          // travel lines from all days that are not currently selected"* — read
+          // then as the dashed `travel` variant only, leaving `rest` legs and
+          // every pin ghosted. He corrected it the same day: *"what happened to
+          // on map view removing stops on the days you arent looking at. I
+          // asked for that change"*. So it is the whole day: both route
+          // variants and the day's pins below.
+          //
+          // Ghosting was the wrong tool for this axis. It lowers contrast
+          // without lowering the number of things drawn over the day you are
+          // reading — on a fourteen-day trip that is thirteen days of pins and
+          // lines still competing for the same pixels.
+          map.setPaintProperty(layerId, "line-opacity", focused ? 1 : 0);
+          map.setPaintProperty(layerId, "line-color", accentVar(day.accent));
         }
       }
 
@@ -392,7 +394,10 @@ export function MapLens({
       // write visibly took effect for a frame and then silently reverted to
       // full strength once the map's next render pass ran. setOpacity feeds
       // the value maplibre itself re-applies, so it survives those renders.
-      const dayOpacity = focused ? 1 : 0.35;
+      // Zero, not a dim: see the note on the routes above. This is the DAY
+      // axis; M18b's "dim, never hide" is the TAG axis and is untouched below,
+      // where an off-tag pin on the focused day still only fades.
+      const dayOpacity = focused ? 1 : 0;
       for (const { activityId, marker } of markersByDayRef.current.get(day.index) ?? []) {
         // Two independent dims can apply to the same pin — its day is not the
         // focused one (0.35), and it does not carry the focused tag (0.32) —
@@ -403,6 +408,10 @@ export function MapLens({
         const tags = detail.activities[activityId]?.tags ?? [];
         const markerOpacity = isOffTag(tags, focusedTag) ? Math.min(dayOpacity, TAG_DIM_OPACITY) : dayOpacity;
         marker.setOpacity(String(markerOpacity));
+        // An invisible pin must not still be clickable: opacity alone leaves
+        // the element in the hit-test, so a tap on empty map would open a stop
+        // from a day that is not on screen.
+        marker.getElement().style.pointerEvents = markerOpacity === 0 ? "none" : "";
       }
     }
 
