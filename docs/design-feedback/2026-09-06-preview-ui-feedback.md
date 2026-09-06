@@ -71,11 +71,22 @@ silence:
 
 ## Findings
 
-One row per toolbar thread, in the order left. Detail below the table.
+Six threads, in the order left. Detail below the table. **Nothing is fixed
+yet** — the branch is still prose-only and awaiting a decision on scope.
 
 | # | Route / surface | Viewport | What's wrong | Outcome |
 | - | --------------- | -------- | ------------ | ------- |
-| 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | **Open — awaiting decision** |
+| 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | Open |
+| 2 | `/signup?error=MISSING_INVITE_CODE` | 1728×836 | Error copy is one dense line; wants two, and the em dash dropped | Open |
+| 3 | `/` — first-trip card | 1728×836 | "Look around an example trip" doesn't read as a button | Open |
+| 4 | `/demo?lens=Map&view=Calendar` | 1728×836 | Travel lines drawn for every day; should be the selected day only | Open — **behaviour, not cosmetics** |
+| 5 | Notebook page — widget chrome | 1728×836 | Widget option select is inline, pushing content; should overlay | Open |
+| 6 | Notebook page — `day.rows` | 1728×836 | Renders as stacked spans; the design says a real table | Open — **architectural** |
+
+**Two pairs worth reading together.** 1 and 3 are the same complaint about the
+same thing: `variant="ghost"` does not read as an actionable control. 5 and 6
+are both the Notebook's widget rendering, and 6 is the only item here that
+cannot be done as a styling change.
 
 ### 1. `/signin` — "Sign in with dev login" prominence
 
@@ -109,3 +120,113 @@ it is the fix for finding 1 of the 2026-08-30 pass ("Enter appeared to do
 nothing"), which deliberately shows a disabled control pre-hydration rather than
 failing silently. The toolbar snapshotted before hydration. Noted so it is not
 re-reported as a bug.
+
+### 2. `/signup` — MISSING_INVITE_CODE copy
+
+> "Move this to two lines, and drop the em dash
+>
+> \"
+> Caesura is invite-only while it is small, so we are requiring invite codes at this time
+>
+>  Follow Create an account below and enter your invite code. If someone invited you to their trip, open that invite link instead and it admits you on its own.
+> \""
+
+- Thread: `QnYE9jfJ5ufi` (neablis, 2026-09-06)
+- Route: `/signup?error=MISSING_INVITE_CODE` ("Start planning — Caesura")
+- Selector: `body > div.flex > main.grid > div.flex > div.flex:nth-of-type(2) > div.flex-1`
+- Component tree: `AuthScreen` (`mode="signup"`) → the `variant="danger"`
+  `<div role="status">` → its `<div className="flex-1">`.
+- Maps to: `apps/web/src/components/front/authCopy.ts:116-117`.
+
+The replacement text is given verbatim in the comment, so this is a copy edit
+with the wording already decided, not a judgement call. Two things it implies
+beyond a find-and-replace: the string becomes **two paragraphs**, so the banner
+has to render them as separate blocks rather than one string, and
+`AuthScreen.test.tsx:226` asserts on `/Caesura is invite-only while it is
+small/`, which the new first line still satisfies — worth confirming rather
+than assuming when the change is made.
+
+### 3. `/` — "Look around an example trip" doesn't read as a button
+
+> "Make this look like a button"
+
+- Thread: `xg47DCyoWH1F` (neablis, 2026-09-06)
+- Route: `/` ("Caesura")
+- Selector: `body > div.phone-tab-bar-inset > main.mx-auto > div.home-stack > div:nth-of-type(2) > div.rounded-md > div.flex:nth-of-type(2) > a.inline-flex:nth-of-type(2)`
+- Component tree: inside `FirstTripStart` (`data-testid="first-trip-start"`) →
+  the `<div className="flex flex-wrap items-center gap-2">` → the second `<a>`,
+  `href="/demo"`.
+- Maps to: `apps/web/src/components/home/FirstTripStart.tsx:100`.
+
+**Same root cause as finding 1.** The row holds three controls in descending
+weight — `Button variant="primary"` ("Name your trip"), `Link` with
+`buttonVariants({ variant: "secondary" })` ("Start from a Playbook"), then this
+one with `buttonVariants({ variant: "ghost" })`. It already uses the button
+class helper, so it *is* styled as a button; the ask is that `ghost` is too
+faint to read as one. That makes this and finding 1 a single question about the
+`ghost` variant rather than two local tweaks — worth settling once in the
+design system instead of patching two call sites.
+
+### 4. `/demo` Map + Calendar — travel lines on unselected days
+
+> "Lets try the UI in the designs. Remove the travel lines from all days that are not currently selected."
+
+- Thread: `WiuIzofRY-p_` (neablis, 2026-09-06)
+- Route: `/demo?lens=Map&view=Calendar` ("An example trip — Caesura")
+- Selector: `… > div.map-lens > div.map-lens-canvas > div.h-full > div.maplibregl-canvas-container > div.maplibregl-marker:nth-of-type(8) > svg > g > g:nth-of-type(2) > path`
+- Component tree: **none captured** — "Could not find React fiber for this
+  element", because the selected element is inside MapLibre's own canvas
+  container rather than the React tree. Expected for a map marker, not a defect.
+
+**This one is not cosmetics.** Every other item here changes how something
+looks; this changes what is drawn, keyed on selection state, so it needs the
+map lens to know the selected day and re-render its legs when that changes. It
+also cites "the designs" as the target, which means the design source should be
+read before implementing rather than inferring the intended end state from the
+comment.
+
+### 5. Notebook — widget option select is inline
+
+> "The widget option select is still inline and not hovering over or blocking the existing elements."
+
+- Thread: `5n5sS3H7MJcJ` (neablis, 2026-09-06)
+- Route: `/trips/164138c7-…/pages/e36cc8fc-…` ("Caesura")
+- Selector: `… > div.tc-page-editor > div.tiptap > p:nth-of-type(4) > span.react-renderer > span.block > span.mt-1 > span:nth-of-type(2) > #widget-chrome-day\.rows-city`
+- Component tree: the selected `Macro` (`data-macro-name="day.rows"`, ringed
+  `className="block ring-2 ring-primary rounded"`) → `<span className="mt-1 flex
+  flex-wrap items-center gap-1">` → the widget chrome at `layout="inline"`,
+  `idPrefix="widget-chrome-day.rows"` → `<select id="widget-chrome-day.rows-city">`.
+- Maps to: `apps/web/src/components/pages/editor/WidgetChrome.tsx` — the
+  `layout` split around lines 133-163.
+
+**"Still" is the important word**, and the code says why. `WidgetChrome` chose
+this deliberately: `const inline = def?.shape === "single"` at line 133, under a
+comment reading "**A block's chrome gets its own row; a single value's stays
+inline**" — because "an inline row that cannot wrap pushes the paragraph it sits
+in". So the current behaviour is a considered fix for a different problem, and
+the ask is to replace it with an overlay rather than to restore something that
+regressed. `day.rows` is not `shape === "single"`, so it should already be
+taking the `stacked` branch — worth checking on the live page which branch it
+actually renders before changing the rule.
+
+### 6. Notebook — `day.rows` should be a real table
+
+> "This also doesnt look like the design, these should literally be a table"
+
+- Thread: `FTPrMnvG8U0v` (neablis, 2026-09-06)
+- Route: same Notebook page as finding 5
+- Selector: `… > div.tiptap > p:nth-of-type(4) > span.react-renderer > span.block > span.flex > span.flex:nth-of-type(4) > span.text-ink`
+- Component tree: `Macro` (`data-macro-name="day.rows"`) → `<span role="list"
+  className="flex flex-col gap-0.5">` → `<span role="listitem" className="flex
+  flex-wrap items-baseline gap-x-2">` → a segment `<span className="text-ink">`.
+- Maps to: `packages/pages/src/macros/primitives/rows.ts` (the row model) and
+  `MacroView` (which turns it into spans).
+
+**This is the one item that cannot be done as styling.** The reason is written
+into `rows.ts:127-131`: `Rendered.rows` is typed `Seg[][]`, "a repeat renders N
+lines and `MacroView` maps them to `role="listitem"` spans", and the comment
+explicitly rejects pushing "a grouping concept through the render seam and into
+`apps/web` for one widget's benefit". A real `<table>` needs columns — a cell
+model — which is exactly the concept that seam was designed not to carry. So
+this is a change to the widget render contract, plausibly an ADR-039 follow-up,
+not a CSS pass. It should be scoped and decided before anyone starts it.
