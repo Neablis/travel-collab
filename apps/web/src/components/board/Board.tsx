@@ -102,6 +102,21 @@ export type BoardCallbacks = {
   onDismissConflict: (conflictId: string) => void;
 };
 
+/**
+ * Renders a horizontally scrollable board of trip day columns.
+ *
+ * Supports day selection, activity editing and removal, conflict handling,
+ * drag-and-drop activity scheduling, optional tag focus, and read-only
+ * presentation.
+ *
+ * @param trip - The trip data displayed by the board
+ * @param callbacks - Handlers for board interactions
+ * @param focusedDay - Index of the selected day
+ * @param focusedTag - Tag used to focus matching activities
+ * @param onToggleTag - Handler for toggling tag focus
+ * @param readOnly - Whether to hide controls that modify the trip
+ * @param sync - Optional handle for synchronizing scrolling with day selection
+ */
 export function Board({
   trip,
   callbacks,

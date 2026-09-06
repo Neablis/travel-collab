@@ -64,6 +64,16 @@ const CELEBRATION_MS = 2600;
  */
 const RESERVED_WIDTH = "88px";
 
+/**
+ * Provides a flag control for saving a trip day and displays save confirmation feedback.
+ *
+ * @param dayIndex - The zero-based index of the day.
+ * @param accent - The accent family used to style the control.
+ * @param tripId - The identifier of the trip containing the day.
+ * @param dayId - The identifier of the day to save.
+ * @param tripName - The name of the trip.
+ * @param stops - The stops included in the day.
+ */
 export function KeepDayFlag({
   dayIndex,
   accent,

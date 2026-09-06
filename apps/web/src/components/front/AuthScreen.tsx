@@ -40,7 +40,12 @@ import { PENDING_ADMISSION_MAX_LENGTH, normalizePendingAdmission } from "@/lib/p
 // Suspense boundary, in the static shell), so it's lifted to the parent via
 // `onCallbackUrl` and applied through an effect — the buttons read the
 // resulting `callbackUrl` state instead of calling `useSearchParams()`
-// themselves.
+/**
+ * Displays authentication failure messages and reports the normalized callback URL.
+ *
+ * @param onCallbackUrl - Callback invoked with the normalized callback URL.
+ * @returns An authentication error banner when a failure message exists; otherwise, `null`.
+ */
 function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => void }) {
   const params = useSearchParams();
   const failure = errorMessage(params.get("error"));
@@ -94,7 +99,15 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
 // comes back from Google with no memory of this form (the milestone's link
 // 5). Awaiting the action is what orders those two: its `Set-Cookie` is in
 // the jar before the browser leaves. Optional, because `/signin` has no code
-// field and passes nothing.
+/**
+ * Renders the sign-in or sign-up screen with the configured authentication options.
+ *
+ * @param mode - Whether to display sign-in or sign-up content.
+ * @param devLoginEnabled - Whether to show the development login form.
+ * @param googleAvailable - Whether Google authentication is configured and available.
+ * @param storeAdmissionCode - Optional callback that stores a submitted invite code before authentication.
+ * @param initialCallbackUrl - The safe destination to preserve when switching between authentication modes.
+ */
 export function AuthScreen({
   mode,
   devLoginEnabled,

@@ -56,7 +56,14 @@ function statusLabel(status: TripStatus): string {
 // same accent across renders/reloads, just not a per-city one. This card
 // colors independently of any other card in the grid (Task 8.2, Group B), so
 // it resolves as a single-element dayAccents() call rather than batching
-// against the rest of the list.
+/**
+ * Renders a trip summary card with traveler information, status, creation date, and optional cost details.
+ *
+ * @param trip - The trip data displayed by the card
+ * @param menuSlot - Optional actions menu content
+ * @param plannedOfBudget - Optional preformatted planned-cost and budget text
+ * @returns The rendered trip summary card
+ */
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
 

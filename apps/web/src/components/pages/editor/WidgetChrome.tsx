@@ -30,7 +30,13 @@ import { WidgetBindControls, bindSummary, bindableInputs } from "./widgetBind";
 // The controls themselves, the option lists and the merge-don't-replace rule all
 // live in `widgetBind.tsx` now: SPEC §19 gives the phone a bind *sheet* and the
 // insert flow a bind *step*, and three surfaces building their own option list
-// is how a phone ends up offering a day the desktop does not.
+/**
+ * Renders binding controls for a widget in phone or desktop layouts.
+ *
+ * @param name - The widget name used to determine its bindable inputs.
+ * @param selected - Whether the widget is currently selected.
+ * @returns The widget binding controls, or `null` when the widget has no bindable inputs.
+ */
 
 export function WidgetChrome({
   name,

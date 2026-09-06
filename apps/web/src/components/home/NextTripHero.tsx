@@ -62,7 +62,13 @@ type SparklineFetchState =
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
 // primary Open plan + secondary Share (via shareSlot). Right: --color-moss
-// panel with the "shape of the trip" sparkline.
+/**
+ * Displays a trip overview with key statistics, budget information, and a trip-shape sparkline.
+ *
+ * @param trip - Summary data for the trip and its travelers
+ * @param shareSlot - Optional sharing control rendered beside the plan link
+ * @returns The rendered trip overview hero
+ */
 export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   const created = new Date(trip.createdAt);
   const createdLabel = Number.isNaN(created.getTime())

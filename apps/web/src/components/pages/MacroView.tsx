@@ -80,6 +80,14 @@ function Segs({ segs, accents }: { segs: readonly Seg[]; accents: CityAccents })
   );
 }
 
+/**
+ * Renders a macro widget for the supplied trip and page context.
+ *
+ * @param name - The macro name to render
+ * @param params - Parameters passed to the macro
+ * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
+ * @returns The rendered macro widget or an appropriate status chip
+ */
 export function MacroView({ detail, context, user = null, globals = null, name, params, onBindDay }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; name: string;
