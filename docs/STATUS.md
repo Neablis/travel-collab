@@ -58,13 +58,23 @@ size:** Discover's budget filter now has occupants in all four bands (`under200`
 `500to1000` 12, `over1000` 17) where three of the four had none anywhere in the seed, and all four
 seasons are filled.
 
-**Not all of it is equally researched, and that is written down rather than glossed.** The first
-eleven bundles (88 days) and the four trips were built against live pages. The second and third
-waves ran after the session's search budget was spent and while outbound fetches were blocked, so
-sixty-odd days are model knowledge with canonical reference URLs rather than checked ones. Every
-affected file opens its `bundle.sources` with a `PROVENANCE:` line saying so, and
-**`KI-2026-09-06-d`** carries the verification pass they still owe. `pnpm content:verify` cannot
-catch this — it checks structure, not whether a price is true.
+**The second wave was written without live web access, and has since been verified — the gating
+facts, not the prices.** A pass over all 60 of those days (~150 live searches, official sources)
+checked opening days, hours, seasonal operation, closures, and permit and booking rules. It found
+**at least fourteen days that were impossible as written**, and every single failure was
+*staleness* rather than invention: two venues that no longer exist (Edinburgh's Gardener's
+Cottage, the National Slate Museum), three headline stops no longer deliverable (Etna's summit
+under a post-eruption cap, Beitou's pool closed for renovation, Big Sur's parks still shut after
+Highway 1 reopened), a day on the wrong reef, four departures that do not exist, six days starting
+before their venue opened, and several day-of-week constraints nobody had noticed. Two corrections
+ran the other way, which is the half worth having: the Louvre does **not** allow re-entry, and
+Halles de Lyon is **not** closed Mondays.
+
+**Prices are still unverified**, deliberately — only the ~20 that an authoritative page happened
+to state while a gating fact was being checked. Each file's `bundle.sources` opens with a
+`PARTIALLY VERIFIED 2026-09-06` line naming what was and was not checked, and lists its own
+remaining worklist. **`KI-2026-09-06-d`** carries the narrowed scope. `pnpm content:verify` cannot
+catch any of it — it checks structure, not whether a price is true.
 
 **Notebook templates are a library again.** `@tc/pages` splits `DEFAULT_TEMPLATES` (what a new
 trip is seeded with — still two) from `TEMPLATE_LIBRARY` (what "Start from a template" offers
