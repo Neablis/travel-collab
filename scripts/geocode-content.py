@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import math
 import os
 import random
 import re
@@ -691,10 +692,52 @@ def judge_best(place: Place, rows: list[dict]) -> tuple[dict | None, str]:
 
 
 def distance_km(alat: float, alng: float, blat: float, blng: float) -> float:
-    """Equirectangular approximation — plenty for "is this tens of km out"."""
-    dx = (blng - alng) * 111.32 * max(0.01, abs(1 - abs(alat) / 90))
-    dy = (blat - alat) * 110.57
-    return (dx * dx + dy * dy) ** 0.5
+    """Great-circle distance, haversine.
+
+    The previous approximation scaled longitude by `1 - |lat|/90` where the
+    correct factor is `cos(lat)`. Measured against known pairs it ran 8-34%
+    SHORT — Reykjavík to Vík came out 124km against a real 187 — so every
+    reported outlier distance was an underestimate and some real ones fell under
+    the threshold entirely. Haversine costs two trig calls and removes the whole
+    class of question.
+    """
+    r = 6371.0088
+    p1, p2 = math.radians(alat), math.radians(blat)
+    dp, dl = p2 - p1, math.radians(blng - alng)
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(min(1.0, math.sqrt(h)))
+
+
+def audit_anchors(db: sqlite3.Connection, km: float = 50.0) -> dict[str, tuple]:
+    """City anchors that disagree with the venues found in that same city.
+
+    An anchor is one lookup; a city's venue pins are many, independently
+    resolved and independently agreeing with its name. So when the two
+    disagree, the anchor is the thing that is wrong — and a wrong anchor is
+    not a harmless error, because it manufactures phantom outliers: every
+    correct venue in that city then measures as hundreds of kilometres out.
+
+    The signature of it in the first real review was distances REPEATING
+    exactly — Fuente De's three venues all at 652.6km, Watkins Glen's two both
+    at 2357.1. Independently wrong venues do not land on identical distances;
+    correct venues measured against one wrong point do.
+
+    Needs three pins to say anything: a median of two is not a cluster.
+    """
+    out: dict[str, tuple] = {}
+    anchors = db.execute("select city, lat, lng from cities where status='ok' and lat is not null")
+    for city, alat, alng in anchors.fetchall():
+        pins = db.execute(
+            "select lat, lng from places where status='ok' and city=? and lat is not null "
+            "and coalesce(precision,'venue') in ('venue','area')", (city,)).fetchall()
+        if len(pins) < 3:
+            continue
+        mlat = statistics.median(p[0] for p in pins)
+        mlng = statistics.median(p[1] for p in pins)
+        d = distance_km(alat, alng, mlat, mlng)
+        if d > km:
+            out[city] = (round(d, 1), len(pins), (alat, alng), (round(mlat, 4), round(mlng, 4)))
+    return out
 
 
 def far_from_anchor(db: sqlite3.Connection, km: float = 40.0) -> list[tuple]:
@@ -706,8 +749,13 @@ def far_from_anchor(db: sqlite3.Connection, km: float = 40.0) -> list[tuple]:
     read when judging whether an `area` hit — "something in the right city that
     matched a prose string" — actually landed anywhere sensible.
     """
+    # Skip cities whose anchor failed the audit. Measuring a correct venue
+    # against a wrong anchor produces an outlier report full of places that are
+    # not outliers, which is exactly what the first real review looked like.
+    suspect = set(audit_anchors(db))
     anchors = {c: (la, ln) for c, la, ln
-               in db.execute("select city, lat, lng from cities where status='ok'")}
+               in db.execute("select city, lat, lng from cities where status='ok'")
+               if c not in suspect}
     out = []
     for q, city, lat, lng, prec in db.execute(
         "select query, city, lat, lng, coalesce(precision,'venue') from places "
@@ -1232,6 +1280,13 @@ def write_review(db: sqlite3.Connection) -> dict:
         # own resolved centre is the cheapest signal that it landed somewhere
         # absurd — and unlike the median check this exists for every city, not
         # only those with three or more results.
+        # Anchors the evidence says are wrong. Read this BEFORE the outlier
+        # list: a bad anchor puts correct venues in it.
+        "badCityAnchors": [
+            {"city": c, "kmFromItsOwnVenues": d, "venuesCompared": n,
+             "anchor": {"lat": a[0], "lng": a[1]}, "venueMedian": {"lat": m[0], "lng": m[1]}}
+            for c, (d, n, a, m) in sorted(audit_anchors(db).items(), key=lambda kv: -kv[1][0])
+        ],
         "farFromCityCentre": [
             {"query": q, "city": c, "kmFromCentre": d, "precision": pr}
             for q, c, d, pr in far
@@ -1264,6 +1319,20 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
     if held_city and not include_city:
         print(f"  holding back {held_city} city-centre fallback(s) — "
               f"--include-city-level writes them too")
+
+    # A city pin is only as good as its anchor, and the audit says which anchors
+    # are not. These are dropped even under --include-city-level: the flag says
+    # "a city centre is good enough here", not "write a point the evidence says
+    # is in the wrong place".
+    bad_anchor = audit_anchors(db)
+    if bad_anchor:
+        blocked = db.execute(
+            "select key from places where status='ok' and precision='city' and city in "
+            f"({','.join('?' * len(bad_anchor))})", tuple(bad_anchor)).fetchall()
+        for (key,) in blocked:
+            good.pop(key, None)
+        print(f"  {len(bad_anchor)} city anchor(s) disagree with their own venues — "
+              f"{len(blocked)} pin(s) from them withheld (see --review)")
     outlier_keys = {q.strip().lower() for q, _, _ in flag_outliers(db)}
     if outlier_keys:
         print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
@@ -1388,6 +1457,7 @@ def main() -> None:
     if args.review:
         review = write_review(db)
         print(f"  {len(review['rejected'])} rejected · {len(review['unresolved'])} unresolved · "
+              f"{len(review['badCityAnchors'])} bad anchor(s) · "
               f"{len(review['farFromCityCentre'])} far from their city centre")
         print(f"  written to {REVIEW.relative_to(REPO)}")
         return
