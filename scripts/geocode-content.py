@@ -1359,6 +1359,61 @@ def write_review(db: sqlite3.Connection) -> dict:
     return review
 
 
+def retract(db: sqlite3.Connection, dry_run: bool) -> None:
+    """Removes coordinates already written that this pass would now refuse.
+
+    `apply` skips a stop that already has a `lat` — the rule that makes a
+    hand-authored coordinate permanent. The cost is that a coordinate written
+    before a defect was found is equally permanent, and every fix to the audit
+    arrives too late for the runs it should have prevented. Watkins Glen State
+    Park went into a bundle pointing at a street in Paradise, Nevada, and no
+    amount of re-running would take it back out.
+
+    Only a coordinate that MATCHES what the cache holds is removed. A value that
+    differs was put there by a person, and the whole point of the skip rule is
+    that a person's coordinate outranks this script's — so the one thing this
+    must never do is delete somebody's correction because the tool now disagrees
+    with it.
+    """
+    audit = audit_cities(db)
+    condemned = {k for v in audit.values() for k in v["withhold"]}
+    if not condemned:
+        print("  nothing to retract — no written pin is condemned by the audit.")
+        return
+    cached = {
+        key: (lat, lng)
+        for key, lat, lng in db.execute(
+            "select key, lat, lng from places where lat is not null")
+    }
+
+    removed = kept = 0
+    for path in bundle_files():
+        bundle = json.loads(path.read_text(encoding="utf-8"))
+        changed = False
+        for stop in stops_of(bundle):
+            loc = stop.get("location") or {}
+            name = (loc.get("name") or "").strip()
+            if not name or "lat" not in loc:
+                continue
+            place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
+            if place.key not in condemned:
+                continue
+            was = cached.get(place.key)
+            if not was or abs(loc["lat"] - was[0]) > 1e-6 or abs(loc["lng"] - was[1]) > 1e-6:
+                kept += 1  # a person's value, not this script's
+                continue
+            del loc["lat"], loc["lng"]
+            changed = True
+            removed += 1
+        if changed and not dry_run:
+            path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    verb = "would remove" if dry_run else "removed"
+    print(f"  {verb} {removed} coordinate(s) the audit condemns")
+    if kept:
+        print(f"  left {kept} alone — they differ from the cache, so a person wrote them")
+
+
 def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> None:
     """Writes accepted coordinates into the bundles. Never writes a rejected one.
 
@@ -1456,6 +1511,8 @@ def main() -> None:
                     help="explain the failed/not_found buckets from the cache; no network")
     ap.add_argument("--review", action="store_true", help="write and summarise the review file")
     ap.add_argument("--apply", action="store_true", help="write accepted coordinates into the bundles")
+    ap.add_argument("--retract", action="store_true",
+                    help="remove already-written coordinates the audit now condemns")
     ap.add_argument("--dry-run", action="store_true", help="with --apply, report without writing")
     ap.add_argument("--retry-failed", action="store_true", help="reset failed rows so the next run retries them")
     ap.add_argument("--redo", action="store_true", help="reset EVERYTHING, including answers already paid for")
@@ -1486,6 +1543,17 @@ def main() -> None:
     args = ap.parse_args()
 
     db = connect()
+    # Both of these READ the cache and write to `content/`. Neither belongs
+    # after `apply_strategy`, which deletes the cities table on a strategy
+    # change — that would destroy the anchors the audit reasons from, and
+    # silently change what --apply withholds. Nothing here re-queues anything.
+    if args.retract:
+        retract(db, args.dry_run)
+        return
+    if args.apply:
+        apply(db, args.dry_run, args.include_city_level)
+        return
+
     if args.diagnose:
         # Reads the cache only. No network, no quota — the answer to "what are
         # these failures" is already on disk after any run.
@@ -1538,10 +1606,6 @@ def main() -> None:
               f"{len(review['farFromCityCentre'])} far from their city centre")
         print(f"  written to {REVIEW.relative_to(REPO)}")
         return
-    if args.apply:
-        apply(db, args.dry_run, args.include_city_level)
-        return
-
     work(db, build_provider(args), args)
     write_review(db)
     print(f"  review written to {REVIEW.relative_to(REPO)}")
