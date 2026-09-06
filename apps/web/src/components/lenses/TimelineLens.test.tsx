@@ -67,6 +67,41 @@ function renderLens(detail = detailFixture(), onSelectActivity = vi.fn(), readOn
 // setFocusedDay directly, the same shape as FocusProvider.test.tsx's own
 // Probe, so the ghost-card-appears-when-focused behavior can be exercised
 // without pulling DayChips into this test.
+describe("the activity description", () => {
+  // 2026-09-06 preview feedback, on a phone: "move the activity description
+  // down under the header sub elements so it can be full width". It used to sit
+  // inside the left box, so the attributee-and-cost box beside it took width
+  // away from the one field that is free prose.
+  //
+  // Asserted structurally rather than by class, and rather than by measuring:
+  // jsdom computes no layout, so "full width" is only checkable as "no longer a
+  // child of the box that was narrowing it".
+  const withNotes = (): TripDetail => {
+    const detail = detailFixture();
+    const timed = detail.activities.timed1!;
+    return {
+      ...detail,
+      members: [{ userId: "dev-alice", role: "owner" as const }],
+      activities: { ...detail.activities, timed1: { ...timed, notes: "Book ahead, the queue is long." } },
+    };
+  };
+
+  it("follows the heading row instead of sitting inside it", () => {
+    renderLens(withNotes());
+    const notes = screen.getByText("Book ahead, the queue is long.");
+    const title = screen.getByText("Colosseum tour");
+
+    // The row above it holds BOTH the title and the attributee — so the notes
+    // are a sibling of that whole row, not of the title alone.
+    const row = notes.previousElementSibling;
+    expect(row).not.toBeNull();
+    expect(row!.contains(title)).toBe(true);
+    expect(row!.textContent).toContain("Alice");
+    // And the notes are outside it, which is the actual move.
+    expect(row!.contains(notes)).toBe(false);
+  });
+});
+
 describe("the attributee beside a timed stop", () => {
   // 2026-09-06 preview feedback, asked as two questions on the same card:
   // "Whats this long id string?" and "Whats 0D?". The label printed

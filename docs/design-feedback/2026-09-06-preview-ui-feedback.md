@@ -486,3 +486,29 @@ the same bug as finding 3.
 for the day scroller — a real-browser e2e run. None has been looked at on the
 preview, because this container is blocked at Vercel's bot checkpoint. That
 walk is the one thing still owed.
+
+## Second batch — four more threads, 2026-09-06 05:56–06:00
+
+All four on a phone (411–412px), on a real trip rather than `/demo`.
+
+| # | Route / surface | What | Outcome |
+| - | --------------- | ---- | ------- |
+| 13 | Map lens day strip | "day 1 and 2 and the last two days are not scrollable to" | **Fixed** |
+| 14 | Timeline day head | "add stop goes briefly to the second line when the flag button is clicked" | **Filed** — KI-2026-09-06-f |
+| 15 | Assistant sheet | "you are still scrolling the background rather than the assistant chat" | **Filed** — KI-2026-09-06-e |
+| 16 | Timeline card | "move the activity description down under the header sub elements" | **Fixed** |
+
+**13 is the same defect as 12, in a component the first fix did not touch.**
+`centralDayIndex` is shared by three horizontal day scrollers; only `Board` got
+the scroll-edge state, and the Map strip and `DayChips` were left. "Day 1 **and
+2**" rather than day 1 alone is the strip's chips being far narrower than a day
+column, so more of them fit between the track's edge and its centre. All three
+now pass the same edges.
+
+**15 is the one place a claimed reproduction was wrong**, and the entry records
+why: the first probe drove `document.scrollingElement.scrollBy`, which passes
+through `overflow: hidden` by design and so moves the page with or without a
+lock. A wheel gesture does not move it — with or without the lock that was
+written for it — so Radix's modal lock is already doing that job and the fix was
+deleted rather than shipped as decoration. Only `overscroll-contain` shipped,
+labelled as unverified.

@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { ActivityTag, ActivityView, TripCommand, TripDetail, TripMember } from "@tc/contracts";
+import type {
+  ActivityTag,
+  ActivityView,
+  TripCommand,
+  TripDetail,
+  TripMember,
+} from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
@@ -28,7 +34,13 @@ import { dayAccents, type AccentFamily, type DayAccent } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { shortPlace } from "@/lib/place";
-import { DAY_END_MIN, formatDuration, toClockLabel, toMinutes, toTimeString } from "@/lib/time";
+import {
+  DAY_END_MIN,
+  formatDuration,
+  toClockLabel,
+  toMinutes,
+  toTimeString,
+} from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 import { daySpend } from "@/lib/cost";
 import { stopsForDay } from "@/lib/savedStops";
@@ -36,7 +48,11 @@ import { cn } from "@/lib/cn";
 import { tagFocusOpacity } from "@/components/board/activityTags";
 import { formatMoney } from "./formatMoney";
 import { timelineRows, type TimelineRow } from "./timelineData";
-import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "./overlapData";
+import {
+  badgeableConflictSubjects,
+  overlapsForDay,
+  type Overlap,
+} from "./overlapData";
 import { OverlapWarning } from "./OverlapWarning";
 
 // Tailwind (v4, `@theme`-driven) only emits utilities it can see as literal
@@ -74,7 +90,11 @@ const INK_TEXT: Record<AccentFamily, string> = {
 // Fallback DayAccent for an index dayAccents() didn't cover (shouldn't
 // happen — `days`/`accents` are always built from the same array — but keeps
 // the render loop total rather than risking a crash on a stale index).
-const NEUTRAL_ACCENT: DayAccent = { tint: "neutral", ink: "neutral", solid: "neutral" };
+const NEUTRAL_ACCENT: DayAccent = {
+  tint: "neutral",
+  ink: "neutral",
+  solid: "neutral",
+};
 
 // 09:00 on a day with nothing timed on it yet. This replaces the old
 // DAY_START_MIN (06:00), which was a leftover from when the timeline drew a
@@ -94,7 +114,8 @@ const DEFAULT_SLOT_MIN = 60; // default duration for a freshly-suggested slot
 function lastEndTime(row: TimelineRow): string | null {
   let latest: string | null = null;
   for (const item of row.timed) {
-    if (latest === null || toMinutes(item.end) > toMinutes(latest)) latest = item.end;
+    if (latest === null || toMinutes(item.end) > toMinutes(latest))
+      latest = item.end;
   }
   return latest;
 }
@@ -123,14 +144,22 @@ function lastEndTime(row: TimelineRow): string | null {
  * affordance is WITHHELD — not degraded — exactly as a null `suggestedEnd`
  * makes OverlapWarning render no fix button at all.
  */
-export function nextSlot(row: TimelineRow): { start: string; end: string } | null {
+export function nextSlot(
+  row: TimelineRow,
+): { start: string; end: string } | null {
   const lastEnd = lastEndTime(row);
   if (lastEnd === null) {
-    return { start: toTimeString(EMPTY_DAY_START_MIN), end: toTimeString(EMPTY_DAY_START_MIN + DEFAULT_SLOT_MIN) };
+    return {
+      start: toTimeString(EMPTY_DAY_START_MIN),
+      end: toTimeString(EMPTY_DAY_START_MIN + DEFAULT_SLOT_MIN),
+    };
   }
   const start = toMinutes(lastEnd);
   if (start >= DAY_END_MIN) return null;
-  return { start: toTimeString(start), end: toTimeString(Math.min(start + DEFAULT_SLOT_MIN, DAY_END_MIN)) };
+  return {
+    start: toTimeString(start),
+    end: toTimeString(Math.min(start + DEFAULT_SLOT_MIN, DAY_END_MIN)),
+  };
 }
 
 // Copy table (phase-6-growth.md), verbatim: "Add a stop after {last end time}"
@@ -144,18 +173,25 @@ export function nextSlot(row: TimelineRow): { start: string; end: string } | nul
 // table offers no third string and this phase does not invent one.
 function addRowLabel(row: TimelineRow): string {
   const lastEnd = lastEndTime(row);
-  return lastEnd === null ? "Add the first stop" : `Add a stop after ${toClockLabel(lastEnd)}`;
+  return lastEnd === null
+    ? "Add the first stop"
+    : `Add a stop after ${toClockLabel(lastEnd)}`;
 }
 
 // Shown on the day-header "Add stop" button when nextSlot() withholds a slot,
 // so the disabled control says why rather than just going grey.
-const NO_ROOM_LEFT = "This day already runs to midnight — there is no free time left to add a stop.";
+const NO_ROOM_LEFT =
+  "This day already runs to midnight — there is no free time left to add a stop.";
 
 // Real, honest sum of each timed activity's own duration (end − start) —
 // NOT the elapsed span from first start to last end, which would count idle
 // gaps as "out" time. This is the stop-meter's mono "Xh Ym out" figure.
 function totalScheduledMinutes(row: TimelineRow): number {
-  return row.timed.reduce((sum, item) => sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)), 0);
+  return row.timed.reduce(
+    (sum, item) =>
+      sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)),
+    0,
+  );
 }
 
 // A day's route line (day-header row 2): the distinct short place names
@@ -171,7 +207,10 @@ function totalScheduledMinutes(row: TimelineRow): number {
 // simply omitted rather than fabricated; individual legs (below) no longer
 // attempt one either (Phase 8 Task 8.1) — they name real free time instead.
 const ROUTE_MAX_STOPS = 3;
-function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): string | null {
+function routeSummary(
+  row: TimelineRow,
+  activities: TripDetail["activities"],
+): string | null {
   const names: string[] = [];
   for (const item of [...row.timed, ...row.untimed]) {
     const name = shortPlace(activities[item.activityId]?.location);
@@ -180,7 +219,9 @@ function routeSummary(row: TimelineRow, activities: TripDetail["activities"]): s
   if (names.length === 0) return null;
   const shown = names.slice(0, ROUTE_MAX_STOPS);
   const extra = names.length - shown.length;
-  return extra > 0 ? `${shown.join(" → ")} → +${extra} more` : shown.join(" → ");
+  return extra > 0
+    ? `${shown.join(" → ")} → +${extra} more`
+    : shown.join(" → ");
 }
 
 // Handoff README §2 "Legs": past this much free time before the next stop,
@@ -233,7 +274,18 @@ function Leg({ prevEnd, nextStart }: { prevEnd: string; nextStart: string }) {
 // with a 4px full-height accent rail, title, optional conflict Badge, place
 // line, optional note block, and a right column with an attributee avatar +
 // ghost "Ask" (Preview, M9) / "Edit" (real, unchanged behavior).
-function ActivityRow({ start, end, activity, accent, hasConflict, member, currency, focusedTag = null, onSelectActivity, readOnly = false }: {
+function ActivityRow({
+  start,
+  end,
+  activity,
+  accent,
+  hasConflict,
+  member,
+  currency,
+  focusedTag = null,
+  onSelectActivity,
+  readOnly = false,
+}: {
   start: string | null;
   end: string | null;
   activity: ActivityView;
@@ -257,7 +309,11 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       className="grid items-start gap-4"
       // eslint-disable-next-line no-restricted-syntax -- fixed time-column width has no token equivalent (matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern), and the tag-focus dim is a shared constant with no token class
-      style={{ gridTemplateColumns: "92px 1fr", opacity: dimOpacity, transition: "opacity 150ms" }}
+      style={{
+        gridTemplateColumns: "92px 1fr",
+        opacity: dimOpacity,
+        transition: "opacity 150ms",
+      }}
     >
       {/* 12-hour, via lib/time's toClockLabel — the rail stacks start over end
           rather than showing a range, so it takes the single-time formatter and
@@ -268,65 +324,86 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
             {toClockLabel(start)}
           </DataText>
         )}
-        {end && <DataText size="xs" className="block">{toClockLabel(end)}</DataText>}
+        {end && (
+          <DataText size="xs" className="block">
+            {toClockLabel(end)}
+          </DataText>
+        )}
       </div>
       <Card className="flex items-stretch gap-3 rounded-lg p-4">
-        <div aria-hidden className={cn("w-1 shrink-0 self-stretch rounded-full", SOLID_BG[accent])} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span
-              className="font-semibold text-ink"
-              // eslint-disable-next-line no-restricted-syntax -- 15px activity title has no token equivalent (between text-md/16px and text-base/14px)
-              style={{ fontSize: "15px" }}
-            >
-              {activity.title}
-            </span>
-            {hasConflict && (
-              <Badge variant="warning" role="img" aria-label="conflict" title="This activity has conflicts">
-                <AlertTriangle className="size-3" aria-hidden />
-              </Badge>
-            )}
-          </div>
-          {/* ActivityView has no separate "area" field (packages/contracts
+        <div
+          aria-hidden
+          className={cn(
+            "w-1 shrink-0 self-stretch rounded-full",
+            SOLID_BG[accent],
+          )}
+        />
+        {/* A column, not the two side-by-side boxes this used to be. Mitchell,
+            2026-09-06 preview, on a phone: *"move the activity description down
+            under the header sub elements so it can be full width"*. The notes
+            block used to live inside the left box, so it was squeezed by the
+            attributee-and-cost box beside it — at 412px that leaves it a
+            fraction of the card for the one field that is free prose. The
+            heading row keeps the two boxes; the notes now sit under both. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex items-stretch gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span
+                  className="font-semibold text-ink"
+                  // eslint-disable-next-line no-restricted-syntax -- 15px activity title has no token equivalent (between text-md/16px and text-base/14px)
+                  style={{ fontSize: "15px" }}
+                >
+                  {activity.title}
+                </span>
+                {hasConflict && (
+                  <Badge
+                    variant="warning"
+                    role="img"
+                    aria-label="conflict"
+                    title="This activity has conflicts"
+                  >
+                    <AlertTriangle className="size-3" aria-hidden />
+                  </Badge>
+                )}
+              </div>
+              {/* ActivityView has no separate "area" field (packages/contracts
               src/activity.ts) — this is shortPlace() (lib/place.ts), the same
               city-or-first-segment proxy DayChips.tsx's cityFor documents,
               applied per stop instead of per day. The `activity.location &&`
               guard here already ensures a real, defined Location, so this is
               always shortPlace's honest first-segment fallback at worst. */}
-          {activity.location && (
-            <Text as="span" variant="secondary" className="mt-1 block">
-              {shortPlace(activity.location)}
-            </Text>
-          )}
-          {activity.notes && (
-            <div className="mt-1.5 rounded-sm bg-paper px-2 py-1.5 text-sm text-slate">{activity.notes}</div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          {/* TripMember (packages/contracts src/trip.ts) carries only a
+              {activity.location && (
+                <Text as="span" variant="secondary" className="mt-1 block">
+                  {shortPlace(activity.location)}
+                </Text>
+              )}
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              {/* TripMember (packages/contracts src/trip.ts) carries only a
               userId, no display name and no per-activity "who's this for"
               field — the trip's first member is a generic, reasonable stand-in
               for "attributee avatar" rather than fabricated assignment data. */}
-          {member && (
-            <div className="flex items-center gap-1.5">
-              <span
-                className="text-slate"
-                // eslint-disable-next-line no-restricted-syntax -- 11px attributee label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-                style={{ fontSize: "11px" }}
-              >
-                {displayNameFor(member)}
-              </span>
-              <span
-                aria-hidden
-                className="grid shrink-0 place-items-center rounded-full bg-moss font-semibold text-slate"
-                // eslint-disable-next-line no-restricted-syntax -- 22px avatar circle / 10px initials have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-                style={{ height: "22px", width: "22px", fontSize: "10px" }}
-              >
-                {initialsFor(displayNameFor(member))}
-              </span>
-            </div>
-          )}
-          {/* Design values table, "timeline card cost": right column, under
+              {member && (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="text-slate"
+                    // eslint-disable-next-line no-restricted-syntax -- 11px attributee label has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                    style={{ fontSize: "11px" }}
+                  >
+                    {displayNameFor(member)}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="grid shrink-0 place-items-center rounded-full bg-moss font-semibold text-slate"
+                    // eslint-disable-next-line no-restricted-syntax -- 22px avatar circle / 10px initials have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                    style={{ height: "22px", width: "22px", fontSize: "10px" }}
+                  >
+                    {initialsFor(displayNameFor(member))}
+                  </span>
+                </div>
+              )}
+              {/* Design values table, "timeline card cost": right column, under
               the attributee, mono, --color-slate. Money always routes
               through formatMoney (KI-2) keyed off the trip's own currency
               (Money is trip-level, never per-event — decision, 2026-08-14),
@@ -334,41 +411,53 @@ function ActivityRow({ start, end, activity, accent, hasConflict, member, curren
               already covers both `null` (explicitly unset) and `undefined`
               (the contract asymmetry noted on ActivityView.cost) as "no
               cost" — no separate branch needed for the two. */}
-          {activity.cost ? (
-            <span className="flex items-center gap-1">
-              <DataText size="xs">{formatMoney(activity.cost.amountMinor, currency)}</DataText>
-              {/* Confirmed-vs-estimate cost state isn't modelled anywhere
+              {activity.cost ? (
+                <span className="flex items-center gap-1">
+                  <DataText size="xs">
+                    {formatMoney(activity.cost.amountMinor, currency)}
+                  </DataText>
+                  {/* Confirmed-vs-estimate cost state isn't modelled anywhere
                   (no field distinguishes a firm price from a guess) — an
                   inert Preview shell for the design's uppercase "est" badge,
                   M11. */}
-              <Preview id="cost-estimate-state" size="compact">
-                <span
-                  className="rounded-full bg-moss px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide text-slate"
-                  // eslint-disable-next-line no-restricted-syntax -- 10px "est" badge text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-                  style={{ fontSize: "10px" }}
-                >
-                  est
+                  <Preview id="cost-estimate-state" size="compact">
+                    <span
+                      className="rounded-full bg-moss px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide text-slate"
+                      // eslint-disable-next-line no-restricted-syntax -- 10px "est" badge text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+                      style={{ fontSize: "10px" }}
+                    >
+                      est
+                    </span>
+                  </Preview>
                 </span>
-              </Preview>
-            </span>
-          ) : (
-            <DataText size="xs">No cost yet</DataText>
-          )}
-          {!readOnly && (
-            <div className="flex gap-0.5">
-              <Preview id="timeline-ghost" size="compact">
-                <Button variant="ghost" size="sm">
-                  Ask
-                </Button>
-              </Preview>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid={`timeline-edit-${activity.activityId}`}
-                onClick={() => onSelectActivity?.(activity.activityId)}
-              >
-                Edit
-              </Button>
+              ) : (
+                <DataText size="xs">No cost yet</DataText>
+              )}
+              {!readOnly && (
+                <div className="flex gap-0.5">
+                  <Preview id="timeline-ghost" size="compact">
+                    <Button variant="ghost" size="sm">
+                      Ask
+                    </Button>
+                  </Preview>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`timeline-edit-${activity.activityId}`}
+                    onClick={() => onSelectActivity?.(activity.activityId)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Full width: the whole card less the accent bar, rather than the
+              left box's share of it. `mt-1.5` is gone because the column's own
+              `gap-1.5` now owns that spacing. */}
+          {activity.notes && (
+            <div className="rounded-sm bg-paper px-2 py-1.5 text-sm text-slate">
+              {activity.notes}
             </div>
           )}
         </div>
@@ -425,7 +514,9 @@ export function TimelineLens({
       badgeableConflictSubjects(
         detail,
         new Set(
-          detail.days.flatMap((day) => overlapsForDay(detail, day.dayId).map((o) => o.conflictId)),
+          detail.days.flatMap((day) =>
+            overlapsForDay(detail, day.dayId).map((o) => o.conflictId),
+          ),
         ),
       ),
     [detail],
@@ -454,7 +545,11 @@ export function TimelineLens({
   // already the design's "dismissals are per stop-pair", with no new command
   // and no trip data changed.
   const dismissOverlap = (overlap: Overlap) => {
-    onCommand?.({ type: "DismissConflict", tripId: detail.tripId, conflictId: overlap.conflictId });
+    onCommand?.({
+      type: "DismissConflict",
+      tripId: detail.tripId,
+      conflictId: overlap.conflictId,
+    });
   };
 
   // Appending a day is a real command (contracts' AddDay — already in the
@@ -467,7 +562,11 @@ export function TimelineLens({
   // the same way (client-minted ids, AGENTS.md invariant 4, the same reason
   // AddDay carries its own dayId at all).
   const addDay = () => {
-    onCommand?.({ type: "AddDay", tripId: detail.tripId, dayId: crypto.randomUUID() });
+    onCommand?.({
+      type: "AddDay",
+      tripId: detail.tripId,
+      dayId: crypto.randomUUID(),
+    });
     // Scroll-to-the-new-day reuses the focus effect below instead of inventing
     // a second scroll mechanism: a day is always APPENDED, so the new day's
     // index is the current day count. Its header ref only attaches on the
@@ -488,9 +587,15 @@ export function TimelineLens({
   // is the one day container that scrolls the WINDOW rather than a box of its
   // own, so there is no page-scroll side effect to avoid here — centring the
   // day header IS the intended page scroll.
-  useFollowFocusedDay(sync, focusedDay, rows.length, (index) => headerRefs.current[index], {
-    block: "center",
-  });
+  useFollowFocusedDay(
+    sync,
+    focusedDay,
+    rows.length,
+    (index) => headerRefs.current[index],
+    {
+      block: "center",
+    },
+  );
 
   /**
    * The day the reader is on, from where the page is scrolled to.
@@ -511,7 +616,11 @@ export function TimelineLens({
       if (rect === undefined) return null;
       spans.push({ start: rect.top, size: rect.height });
     }
-    return centralDayIndex({ start: 0, size: window.innerHeight }, spans, READING_LINE.vertical);
+    return centralDayIndex(
+      { start: 0, size: window.innerHeight },
+      spans,
+      READING_LINE.vertical,
+    );
   });
 
   useEffect(() => {
@@ -532,9 +641,14 @@ export function TimelineLens({
       // moves these day headers contains them; one that does not, does not.
       // The document itself is the window scroll, which is this lens's own.
       const target = event.target;
-      const anchor = headerRefs.current.find((header): header is HTMLDivElement => header !== null);
+      const anchor = headerRefs.current.find(
+        (header): header is HTMLDivElement => header !== null,
+      );
       const isOurs =
-        target === document || (anchor !== undefined && target instanceof Node && target.contains(anchor));
+        target === document ||
+        (anchor !== undefined &&
+          target instanceof Node &&
+          target.contains(anchor));
       if (isOurs) onScroll();
     };
     // Capture, because the scroll may come from the window OR from an ancestor
@@ -573,7 +687,8 @@ export function TimelineLens({
         // weren't travel days at all, harmless only because isTravelDay
         // gated the render).
         const fromCity = chip?.transitionFrom ?? null;
-        const isTravelDay = chip?.transitionTo !== null && chip?.transitionTo !== undefined;
+        const isTravelDay =
+          chip?.transitionTo !== null && chip?.transitionTo !== undefined;
         // Day-header cost chip (design values table): the day's own real
         // total, read via daySpend, which itself reads the server-computed
         // `days[].costSubtotal` rather than re-summing activity costs
@@ -595,7 +710,11 @@ export function TimelineLens({
         const isEmptyDay = stopCount === 0;
 
         return (
-          <div key={row.dayId} data-testid={`timeline-row-${row.dayId}`} className="flex flex-col">
+          <div
+            key={row.dayId}
+            data-testid={`timeline-row-${row.dayId}`}
+            className="flex flex-col"
+          >
             <div
               ref={(el) => {
                 headerRefs.current[index] = el;
@@ -608,17 +727,24 @@ export function TimelineLens({
               )}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Heading level={3} className={cn("shrink-0", INK_TEXT[accent.ink])}>
+                <Heading
+                  level={3}
+                  className={cn("shrink-0", INK_TEXT[accent.ink])}
+                >
                   Day {row.ordinal}
                 </Heading>
                 {row.date && (
-                  <DataText size="sm" className={cn("shrink-0", INK_TEXT[accent.ink])}>
+                  <DataText
+                    size="sm"
+                    className={cn("shrink-0", INK_TEXT[accent.ink])}
+                  >
                     {formatTripDate(row.date)}
                   </DataText>
                 )}
                 {isTravelDay ? (
                   <span className="shrink-0 rounded-full bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink">
-                    {fromCity ?? "?"} <span className="text-slate">→</span> {chip?.transitionTo}
+                    {fromCity ?? "?"} <span className="text-slate">→</span>{" "}
+                    {chip?.transitionTo}
                   </span>
                 ) : (
                   chip?.city && (
@@ -640,7 +766,13 @@ export function TimelineLens({
                 <span className="flex shrink-0 items-center gap-2 rounded-full bg-surface px-2.5 py-1">
                   <span className="flex items-center gap-0.5" aria-hidden>
                     {Array.from({ length: stopCount }, (_, dotIndex) => (
-                      <span key={dotIndex} className={cn("h-1.5 w-1.5 rounded-full", SOLID_BG[accent.solid])} />
+                      <span
+                        key={dotIndex}
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          SOLID_BG[accent.solid],
+                        )}
+                      />
                     ))}
                   </span>
                   <DataText size="xs" className="text-ink">
@@ -651,7 +783,10 @@ export function TimelineLens({
                 <DataText
                   size="xs"
                   data-testid={`day-cost-${row.dayId}`}
-                  className={cn("shrink-0 rounded-full bg-surface px-2.5 py-1", INK_TEXT[accent.ink])}
+                  className={cn(
+                    "shrink-0 rounded-full bg-surface px-2.5 py-1",
+                    INK_TEXT[accent.ink],
+                  )}
                 >
                   {formatMoney(dayTotal, detail.currency)}
                 </DataText>
@@ -675,7 +810,10 @@ export function TimelineLens({
                       data-testid={`timeline-add-${row.dayId}`}
                       disabled={addSlot === null}
                       title={addSlot === null ? NO_ROOM_LEFT : undefined}
-                      onClick={() => addSlot !== null && openCreate({ dayId: row.dayId, timeWindow: addSlot })}
+                      onClick={() =>
+                        addSlot !== null &&
+                        openCreate({ dayId: row.dayId, timeWindow: addSlot })
+                      }
                     >
                       Add stop
                     </Button>
@@ -688,10 +826,15 @@ export function TimelineLens({
                   — same place, same type treatment, no extra row invented. */}
               <div
                 data-testid={`day-meta-${row.dayId}`}
-                className={cn("flex flex-wrap items-baseline gap-1.5 font-mono text-xs", INK_TEXT[accent.ink])}
+                className={cn(
+                  "flex flex-wrap items-baseline gap-1.5 font-mono text-xs",
+                  INK_TEXT[accent.ink],
+                )}
               >
                 {isEmptyDay ? (
-                  <span>No stops yet — add one, or drop a saved day onto it</span>
+                  <span>
+                    No stops yet — add one, or drop a saved day onto it
+                  </span>
                 ) : (
                   <>
                     <span>
@@ -720,7 +863,11 @@ export function TimelineLens({
                   style={{ gridTemplateColumns: "92px 1fr" }}
                 >
                   <div />
-                  <Text as="span" variant="secondary" data-testid={`timeline-empty-${row.dayId}`}>
+                  <Text
+                    as="span"
+                    variant="secondary"
+                    data-testid={`timeline-empty-${row.dayId}`}
+                  >
                     Nothing planned yet
                   </Text>
                 </div>
@@ -750,7 +897,10 @@ export function TimelineLens({
                         readOnly={readOnly}
                       />
                       {overlaps
-                        .filter((overlap) => overlap.laterActivityId === item.activityId)
+                        .filter(
+                          (overlap) =>
+                            overlap.laterActivityId === item.activityId,
+                        )
                         .map((overlap) => (
                           <OverlapWarning
                             key={overlap.conflictId}
@@ -792,7 +942,11 @@ export function TimelineLens({
                   registry allows one id to back multiple surfaces. */}
               {isFocused && (
                 <Preview id="timeline-ghost" size="container">
-                  <GhostProposal proposal={PREVIEW_GHOST_PROPOSAL} onKeep={() => {}} onDiscard={() => {}} />
+                  <GhostProposal
+                    proposal={PREVIEW_GHOST_PROPOSAL}
+                    onKeep={() => {}}
+                    onDiscard={() => {}}
+                  />
                 </Preview>
               )}
               {/* The per-day add row: the day's own closing affordance, last
@@ -807,7 +961,9 @@ export function TimelineLens({
                   variant="ghost"
                   size="sm"
                   data-testid={`timeline-add-row-${row.dayId}`}
-                  onClick={() => openCreate({ dayId: row.dayId, timeWindow: addSlot })}
+                  onClick={() =>
+                    openCreate({ dayId: row.dayId, timeWindow: addSlot })
+                  }
                   className="w-full justify-center rounded-lg border border-dashed border-border-strong p-2 text-slate"
                   // eslint-disable-next-line no-restricted-syntax -- 13px add-row label (phase-6-growth.md design values) has no token equivalent (between text-xs/12px and text-sm/14px); `height: auto` releases Button size="sm"'s fixed h-7 so the specified 8px padding is what sets the height
                   style={{ fontSize: "13px", height: "auto" }}
