@@ -53,6 +53,15 @@ which git merges with no conflict at all.
   day, the slug already distinguishes them; if you genuinely collide on both,
   add a discriminator (`-b`).
 
+  **Past `-z`, discriminators go to two letters** — `-aa`, `-ab`, `-ac`. That is
+  not hypothetical: 2026-09-05 filed all of `a`–`z` and then needed three more.
+  Two letters are accepted on the **date** form only. On the legacy numeric form
+  a discriminator stays one letter, because seventeen numeric entries open their
+  slug with a two-letter word (`KI-009-ai-model-outputs-…`,
+  `KI-044-tc-page-editor-…`, `KI-068-db-reset-mjs-…`) and a wider parse reads
+  `ai`, `tc`, `db` as the discriminator. `scripts/check-ki-filenames.mjs`
+  enforces both halves and its tests pin the asymmetry.
+
   Sequential ids needed an allocator and parallel agents have none: on the
   2026-08-29 sweep, five branches independently allocated **KI-77** the same
   night, and two more collided on KI-78. A date needs no allocator, so that

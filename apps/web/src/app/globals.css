@@ -445,6 +445,71 @@
     z-index: 30;
   }
 
+  /* SPEC §23's SHEET presentation — the phone's, and a deliberate REVERSAL of
+     KI-84's geometry. Say that plainly rather than let the next reader find it:
+     KI-84 is Mitchell's own report, from his own phone, that the assistant "on
+     mobile breaks the entire website, it probably shouldn't be a modal but a
+     full page experience", and `.assistant-rail`'s `max-width: 767px` block
+     above is that direction built. §23 then specifies the phone assistant as a
+     bottom sheet over what you were already looking at — which is the modal
+     shape that report ruled out. Mitchell was shown the conflict on 2026-09-05
+     and chose to build §23 literally, sheet and all. So this is a decision
+     reversed on the record, not a rule quietly forgotten.
+
+     Nothing above is deleted, and that is not hedging: `docked` is still what
+     every call site asks for, and on a phone `docked` is still KI-84's
+     full-screen surface. This class only applies where a caller asks for
+     `presentation="sheet"`.
+
+     Geometry is the design's (`…dc.html:889-938`), with two translations:
+
+     - **z-index 30/31, not the design's 6/7.** The design's artboard puts its
+       tab bar at 4; ours is `z-20` (PhoneTabBar.tsx, which explains at length
+       why it is not 30). Artboard numbers do not transfer — the ORDER does,
+       and the order is DRIFT.md build-check 4c: scrim above the bar, sheet
+       above the scrim, so tabs cannot be tapped behind an open sheet.
+       Switching tabs under one would change its scope mid-conversation, which
+       is the single thing §23 exists to prevent ("the pill inherits the
+       surface's scope"). 30/31 is the takeover tier `.assistant-rail` and
+       `.assistant-float` already occupy — clear of TripHeader's 10 and of the
+       rack's and the bar's 20, and still under `.overlay-layer`'s 60, so a
+       Radix dialog opened from inside the sheet lands over it rather than
+       under.
+     - **`80dvh`, not the design's `80%`.** A percentage on a `position: fixed`
+       element resolves against the initial containing block, which a phone's
+       on-screen keyboard does not resize — so a keyboard could push the
+       composer below the visible area while the sheet still measured itself as
+       80% of "the viewport". That is exactly the reading of "the input is
+       unselectable" `.assistant-rail` records above, and the reason it uses
+       `dvh` too. With no keyboard open the two are the same number.
+
+     The 18px top radius and the upward shadow are design literals with no
+     token: the radius scale stops at 16px, and `--shadow-overlay` throws
+     downward — a sheet rising from the bottom edge needs it mirrored, the same
+     way `.unscheduled-rack` mirrors `--shadow-raised`. */
+  .assistant-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 80dvh;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -14px 44px rgb(21 29 46 / 0.22);
+    z-index: 31;
+  }
+  /* The design's own `rgba(21, 29, 46, 0.34)` — `--color-ink` at 34%. It could
+     have been `bg-ink/34` on the element (`ui/sheet.tsx`'s Radix overlay uses
+     `bg-ink/40`), and that would have been legal; it lives here because the
+     scrim's z-index has to be one line away from the sheet's to stay readable
+     as a pair, and splitting one surface across two files is how the pair
+     drifts. */
+  .assistant-sheet-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgb(21 29 46 / 0.34);
+    z-index: 30;
+  }
+
   /* Radix portals render outside the React tree, appended to the end of
      <body> — so an overlay surface needs an explicit layer above whatever
      else is stacked on the page (KI-17: before this existed, sheets and

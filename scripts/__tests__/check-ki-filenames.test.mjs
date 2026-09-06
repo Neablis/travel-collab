@@ -70,6 +70,33 @@ test("does not mistake a slug's first word for a discriminator", () => {
   assert.equal(status, 0, stdout);
 });
 
+// 2026-09-05 filed all of a-z and needed three more. Two letters is the
+// smallest fix, and it applies to the DATE form only.
+test("accepts a two-letter discriminator on a date id, once a-z are spent", () => {
+  const { status, stdout } = runWall({
+    "open/KI-20260905-z-maxlisteners-in-the-e2e-server-output.md": body("KI-2026-09-05-z"),
+    "open/KI-20260905-aa-spec23-understates-the-assistants-it-unifies.md": body("KI-2026-09-05-aa"),
+    "open/KI-20260905-ab-page-assistant-second-turn-keystrokes.md": body("KI-2026-09-05-ab"),
+  });
+  assert.equal(status, 0, stdout);
+  assert.match(stdout, /3 entries scanned/);
+});
+
+// The asymmetry is load-bearing, not an oversight. Seventeen NUMERIC entries
+// open their slug with a two-letter word — `ai`, `no`, `tc`, `db` — and reading
+// those as discriminators breaches every one of them. All four below are real
+// filenames from the register.
+test("does not read a numeric id's two-letter first slug word as a discriminator", () => {
+  const { status, stdout } = runWall({
+    "open/KI-009-ai-model-outputs-validated-ad-hoc.md": body("KI-9"),
+    "resolved/KI-035-no-true-area-field-route-place.md": body("KI-35"),
+    "resolved/KI-044-tc-page-editor-applied-every-notebook.md": body("KI-44"),
+    "resolved/KI-068-db-reset-mjs-truncates-hardcoded-three.md": body("KI-68"),
+  });
+  assert.equal(status, 0, stdout);
+  assert.match(stdout, /4 entries scanned/);
+});
+
 test("skips the register's own README rather than reading it as an entry", () => {
   const { status } = runWall({
     "open/README.md": "# not an entry\n",

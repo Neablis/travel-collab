@@ -379,16 +379,27 @@ test.describe("responsive (Map lens on a phone)", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
 
-    // Why there is no `--launcher-height` assertion here, though this screen is
-    // exactly where that variable is spent: one was written and then removed.
-    // It stayed GREEN with the production fix reverted — at 3 days and at 14 —
-    // because the bug needs the render volume of the seeded 14-day/68-stop trip
-    // to reproduce, and it also had to reach for `.trip-board-content` and
-    // `.flow-root` by class, which are implementation details rather than
-    // anything a reader can see. A test that cannot go red is a claim, not a
-    // control (CLAUDE.md rule 3), so it is gone. The guard is the unit test —
-    // TripBoardScreen.test.tsx, "publishes the launcher's flow height on
-    // attach" — which does fail without the fix. (Copilot, PR #143.)
+    // The `overflow` assertion above is the whole of what this screen still
+    // owes on that subject, and there is **no `--launcher-height` assertion
+    // because there is no such variable any more.** Both halves of the note
+    // that used to be here are now history, kept because they are the reason
+    // the assertion is absent rather than merely missing:
+    //
+    // 1. One was written and then removed. It stayed GREEN with the production
+    //    fix reverted — at 3 days and at 14 — because the bug needed the render
+    //    volume of the seeded 14-day/68-stop trip to reproduce, and it also had
+    //    to reach for `.trip-board-content` and `.flow-root` by class. A test
+    //    that cannot go red is a claim, not a control (CLAUDE.md rule 3).
+    //    (Copilot, PR #143.)
+    // 2. Its replacement guard, the unit test "publishes the launcher's flow
+    //    height on attach", is gone too — with what it measured. SPEC §23
+    //    deleted the phone's in-flow launcher (the entry point is the trip
+    //    header's Ask pill now), so the launcher is `position: fixed` at every
+    //    width it renders at and costs the plan column no flow space by
+    //    construction. `TripBoardScreen.test.tsx`'s "has no in-flow launcher on
+    //    a phone, and publishes no height for one" asserts that from the other
+    //    side, including that the custom property is absent rather than pinned
+    //    at `0px`.
   });
 
   test("keeps the rail and legend at desktop width", async ({ page }) => {
@@ -548,6 +559,19 @@ test.describe("responsive (trip header on a phone)", () => {
     // makes the phone assertions above statements about the BREAKPOINT rather
     // than about a control that stopped rendering everywhere.
     await expect(page.getByTestId("trip-meta-row").getByText(/^\d+ cities$/)).toBeVisible();
+
+    // The CONVERSE, and it had no coverage until now. The two controls SPEC
+    // §23 adds are phone-only by CSS (`md:hidden`), and the unit tests that
+    // used to assert those class strings were deleted on PR #148 as
+    // presentation assertions — correctly, since jsdom cannot evaluate a media
+    // query, so they only ever checked that a string was in an attribute.
+    // Which left the property unasserted anywhere. It is real: if the date
+    // line leaked onto desktop it would print the range a second time, right
+    // above the meta pill that already carries it (project rule 4), and a
+    // leaked Ask pill would put two entry points to one assistant on screen at
+    // once — the exact thing §23 collapses.
+    await expect(page.getByTestId("trip-date-line")).toBeHidden();
+    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeHidden();
   });
 });
 

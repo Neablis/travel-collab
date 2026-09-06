@@ -485,18 +485,16 @@ export function MapLens({
             // window showing a usable map (and scrolling) rather than a
             // sliver.
             //
-            // `--launcher-height` is the same subtraction for the assistant
-            // launcher, and is set on the same element for the same reason.
-            // Below 768px the launcher is not a `position: fixed` pill but an
-            // in-flow button at the end of the plan column (SPEC §13.5 allows
-            // no phone FAB — KI-2026-08-30), so it costs real flow space
-            // *after* this canvas. Without subtracting it the canvas still
-            // measured a full viewport and the launcher pushed the document
-            // 56px past it, so the page scrolled on a lens whose whole
-            // premise is that the canvas owns the viewport
-            // (responsive.spec.ts, "Map lens on a phone"). It is 0px at
-            // >=768px, where the launcher is out of flow and reserves
-            // nothing, so the desktop canvas is unchanged.
+            // There was a `--launcher-height` here too, for the assistant
+            // launcher, and it is gone with the thing it measured. Below 768px
+            // that launcher used to be an in-flow button at the end of the plan
+            // column (SPEC §13.5 allows no phone FAB — KI-2026-08-30), so it
+            // cost real flow space *after* this canvas and pushed the document
+            // 56px past a viewport the canvas had already claimed. SPEC §23
+            // replaced it with the trip header's Ask pill, so the launcher is a
+            // `position: fixed` desktop pill and nothing else: out of flow at
+            // every width, costing this canvas zero by construction. The
+            // subtraction was of a variable that could only publish `0px`.
             //
             // `--phone-tab-bar-height` is the third of exactly the same
             // subtraction, and it is here for exactly the same measured
@@ -518,7 +516,7 @@ export function MapLens({
             height:
               canvasTop === null
                 ? "70vh"
-                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px) - var(--launcher-height, 0px) - var(--phone-tab-bar-height, 0px))`,
+                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px) - var(--phone-tab-bar-height, 0px))`,
           }}
         >
           <div ref={containerRef} className="h-full w-full" />
