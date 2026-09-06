@@ -1,6 +1,6 @@
 # UI feedback round — 2026-09-06 (live preview)
 
-**Status, as of 19:50: thirty-one threads — twenty-six fixed, two answered,
+**Status, as of 20:10: thirty-two threads — twenty-seven fixed, two answered,
 three open.** This file exists so Mitchell has a preview deployment to comment on
 and a place for those comments to land.
 
@@ -1026,3 +1026,31 @@ test the same inequality. Seen red before the rule existed:
 list on commas before parsing and is left with `h6):has([data-widget-value])`.
 `PageEditor.test.tsx` reads these rules against a real editor DOM (KI-44) and
 caught it; the CSS carries a note so the next reader does not re-shorten it.
+
+
+## Thread 32, 20:02 — the same collision in prose, and the general rule
+
+> "This is overlapping to, lets just make sure that all widgets that do inline text consider the border touching the text above or below. expectially if theres another inline text above or below it"
+
+- Thread: `ZdA5Fr5rNGaR`, `/trips/081f2e6d-…/pages/60ec2eae-…`, Chrome 151 on macOS, 1728×836
+- Selector: `… > div.tiptap > p:nth-of-type(3) > span.react-renderer:nth-of-type(5) > span > span.mx-0.5`, an `hours` widget
+- Maps to: `apps/web/src/app/globals.css` — the `.tc-page-editor` block rules
+
+**Fixed, and thread 31's fix was too narrow.** That one loosened headings only.
+Prose has the same defect at a smaller scale and it does not look like an
+overlap in a screenshot: `--text-base` is 14px at 1.45, a 20.3px line holding a
+**20px** chip, so the tint cleared the line above by three tenths of a pixel.
+That is exactly *"the border touching the text above or below"*. Paragraphs and
+list items holding a value now get `line-height: 1.7` — 23.8px against 20px, a
+gap you can see. Headings keep 1.4 (30px chip, 33.6px line): the 2px rule costs
+more relative to a small font than a large one, so the two need different
+numbers.
+
+**The walk had to be strengthened before it could see this.** Its claim was
+`chip <= line`, which the 0.3px case satisfies — so the prose half PASSED on
+first run and the assertion was worth nothing. It asserts **2px of clearance**
+now, and covers a chip in prose as well as one in a heading. Seen red with the
+prose rule removed: `the chip has no room in P — expected >= 2, received 0.3`.
+
+That makes five assertions this round that were green over a live defect, and
+the second of them found by tightening a test I had just written.

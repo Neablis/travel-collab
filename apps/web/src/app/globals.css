@@ -1006,9 +1006,13 @@
   .tc-page-editor h6 {
     @apply font-display text-md font-medium text-ink mt-4 mb-1;
   }
-  /* A heading holding a widget value needs room for it. Mitchell, 2026-09-06,
-     on a heading full of city chips: *"The second line is overtop the top
-     line"*.
+  /* A BLOCK holding a widget value needs room for it. Mitchell, 2026-09-06, on
+     a heading full of city chips: *"The second line is overtop the top line"*.
+     Then, thirty-five minutes later, on an `hours` chip in an ordinary
+     paragraph: *"lets just make sure that all widgets that do inline text
+     consider the border touching the text above or below"* — so this covers
+     prose and list items too, and the measurement below is why prose needed it
+     even though nothing technically overlapped there.
 
      A chip is inline, so its tint and its `border-b-2` are painted over the
      font's content area plus 2px, and vertical padding on an inline box adds
@@ -1017,11 +1021,18 @@
      than the box a chip paints (measured: a 30px chip on a 28.8px line in an
      `h2`), so a second line of chips was drawn over the first.
 
-     `:has()` rather than loosening every heading: the leading is right for a
-     heading of words, and only one carrying a chip has anything to make room
-     for. 1.4 clears the tallest case with margin — the 2px rule costs more
-     relative to a small heading than a large one, so `h4` at 16px needs the
-     most (1.325) and gets it.
+     `:has()` rather than loosening every block: the leading is right for text
+     of words, and only a block carrying a chip has anything to make room for.
+
+     Two values, because the 2px rule costs more relative to a small font than a
+     large one. **Headings: 1.4.** Measured in the walk, an `h2` chip is 30px
+     against a 33.6px line — 3.6px of air. **Prose and list items: 1.7.** This
+     is the half the second report was about and it does not look like an
+     overlap in a screenshot: a 14px paragraph at 1.45 is a 20.3px line holding
+     a 20px chip, so the tint cleared the line above it by three tenths of a
+     pixel and read as touching it. 1.7 makes that 23.8px against 20px — a gap
+     you can see. The e2e walk asserts 2px of clearance rather than merely "no
+     overlap", because "no overlap" is what the 0.3px case already satisfied.
 
      Written out six times rather than as `:is(h1, …, h6):has(…)`, which is the
      obvious shortening and breaks the suite: jsdom's selector engine splits a
@@ -1036,6 +1047,11 @@
   .tc-page-editor h6:has([data-widget-value]) {
     line-height: 1.4;
   }
+  .tc-page-editor p:has([data-widget-value]),
+  .tc-page-editor li:has([data-widget-value]) {
+    line-height: 1.7;
+  }
+
   .tc-page-editor p {
     @apply text-base text-ink my-3;
   }
