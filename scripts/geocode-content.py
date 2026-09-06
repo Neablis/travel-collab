@@ -46,6 +46,7 @@ THE ONE THING TO UNDERSTAND BEFORE TRUSTING IT
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 import random
@@ -228,7 +229,7 @@ def connect() -> sqlite3.Connection:
 # Bump when the QUESTION changes, not when the code does. A place recorded as
 # not_found was asked a question this version no longer asks, so its answer is
 # not evidence about the new one and the row is re-queued automatically.
-STRATEGY = "2-ladder"
+STRATEGY = "3-anchored-cities"
 
 
 def apply_strategy(db: sqlite3.Connection) -> int:
@@ -240,6 +241,13 @@ def apply_strategy(db: sqlite3.Connection) -> int:
         "update places set status='pending', attempts=0, last_error=null "
         "where status in ('not_found','rejected')"
     ).rowcount
+    # City-precision answers came from a bare-city query that could not say
+    # WHICH Santa Cruz, so they and their anchors are discarded outright.
+    n += db.execute(
+        "update places set status='pending', attempts=0, lat=null, lng=null, "
+        "precision=null where precision='city'"
+    ).rowcount
+    db.execute("delete from cities")
     db.execute("insert or replace into meta (k,v) values ('strategy',?)", (STRATEGY,))
     db.commit()
     return n
@@ -350,7 +358,7 @@ class Provider:
     def key(self) -> str | None:
         return self.keys.current
 
-    def request_url(self, query: str) -> str:
+    def request_url(self, query: str, countrycodes: str | None = None) -> str:
         params = {
             "q": query,
             "format": "json",
@@ -364,14 +372,19 @@ class Provider:
             # is how a place is SPELLED IN STORAGE, not how one reader sees it.
             "accept-language": "en",
         }
+        if countrycodes:
+            # Both Nominatim and LocationIQ take this. A bare city name is
+            # globally ambiguous — "Santa Cruz" alone answers with Bolivia —
+            # and this is the supported way to say which one we mean.
+            params["countrycodes"] = countrycodes.lower()
         key = self.key
         if key:
             params["key"] = key
         return f"{self.url}?{urllib.parse.urlencode(params)}"
 
-    def lookup(self, query: str) -> list[dict]:
+    def lookup(self, query: str, countrycodes: str | None = None) -> list[dict]:
         req = urllib.request.Request(
-            self.request_url(query),
+            self.request_url(query, countrycodes),
             headers={"Accept": "application/json", "User-Agent": self.user_agent},
         )
         try:
@@ -744,14 +757,15 @@ class Stopping:
         print("\n  stopping after this request — press Ctrl-C again to abandon it", flush=True)
 
 
-def one_request(provider, place: Place, query: str, stopping, db, args, progress):
+def one_request(provider, place: Place, query: str, stopping, db, args, progress,
+                countrycodes: str | None = None):
     """One lookup, with the shared 429/backoff handling. Returns (rows, err).
 
     Raises DailyCapReached upward — that one is not this function's to absorb.
     """
     while True:
         try:
-            return provider.lookup(query), None
+            return provider.lookup(query, countrycodes), None
         except RateLimited as exc:
             wait = exc.retry_after or provider.min_interval * 4
             wait = min(max(wait, provider.min_interval * 2), args.max_backoff)
@@ -767,18 +781,40 @@ def one_request(provider, place: Place, query: str, stopping, db, args, progress
             return None, str(exc)[:200]
 
 
-def city_anchors(db, provider, args, stopping, progress) -> dict:
-    """Resolve each distinct city once, and reuse it everywhere.
+def learned_countries(db) -> dict[str, str]:
+    """city -> ISO2, by majority vote of the venue hits already accepted in it.
 
-    327 cities stand behind 1344 places, so this is the cheap rung: one request
-    per city buys the bottom of the ladder for every stop in it, plus a centre
-    to measure "is this result absurdly far from its own city" against.
+    The bundles carry no country (`countryCode` is something the geocoder
+    POPULATES, per ADR-007), so it has to be learned. A venue that resolved and
+    passed the city test is the strongest evidence available about which
+    country a city name means, and it costs nothing — it is already in the row.
     """
-    db.executemany("insert or ignore into cities (city) values (?)",
-                   [(c,) for c in {p.city for p in places().values() if p.city}])
+    votes: dict[str, collections.Counter] = {}
+    for city, cc in db.execute(
+        "select city, country_code from places where status='ok' and country_code is not null "
+        "and coalesce(precision,'venue') in ('venue','area')"
+    ):
+        votes.setdefault(city, collections.Counter())[cc] += 1
+    return {c: v.most_common(1)[0][0] for c, v in votes.items() if v}
+
+
+def city_anchors(db, provider, args, stopping, progress, only: set[str] | None = None) -> dict:
+    """Resolve a city centre once, scoped to the country its venues landed in.
+
+    Runs AFTER the places, not before, and that ordering is the whole point. A
+    bare city name is globally ambiguous — the first real run anchored "Santa
+    Cruz" in Bolivia and then flagged the correct California venue as 8,107km
+    out — and the only thing that disambiguates it here is where that city's own
+    venues actually resolved. So the venues go first and the anchors inherit
+    their country.
+    """
+    wanted = only if only is not None else {p.city for p in places().values() if p.city}
+    db.executemany("insert or ignore into cities (city) values (?)", [(c,) for c in wanted])
     db.commit()
-    todo = db.execute("select city from cities where status in ('pending','failed') "
-                      "and attempts < ? order by city", (args.max_attempts,)).fetchall()
+    countries = learned_countries(db)
+    todo = [r for r in db.execute(
+        "select city from cities where status in ('pending','failed') and attempts < ? "
+        "order by city", (args.max_attempts,)).fetchall() if r[0] in wanted]
     if not todo:
         return {c: (la, ln) for c, la, ln
                 in db.execute("select city, lat, lng from cities where status='ok'")}
@@ -801,7 +837,8 @@ def city_anchors(db, provider, args, stopping, progress) -> dict:
         if stopping.now:
             break
         place = Place(city, "", city)
-        rows, err = one_request(provider, place, city, stopping, db, args, progress)
+        cc = countries.get(city)
+        rows, err = one_request(provider, place, city, stopping, db, args, progress, cc)
         if err == "stopped":
             break
         status, lat, lng, disp = "failed", None, None, None
@@ -869,16 +906,7 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     backoff = provider.min_interval
     processed = 0
 
-    try:
-        anchors = city_anchors(db, provider, args, stopping, progress)
-        # Restart the clock. The city pass can be several minutes, and counting
-        # it as elapsed time against zero processed places deflated the rate and
-        # multiplied the ETA by ~9 on the first real run.
-        progress.started = time.monotonic()
-    except DailyCapReached as exc:
-        progress.done()
-        print(f"  out of quota while resolving cities ({str(exc)[:60]}). Re-run tomorrow.")
-        return
+    anchors: dict = {}
 
     for key, query, name, area, city, attempts in todo:
       try:
@@ -912,12 +940,6 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
             status, err, used = "not_found", reason, q
             time.sleep(provider.min_interval + random.uniform(0, 0.25))
 
-        # The bottom rung costs nothing: the city was resolved once, up front.
-        if status == "not_found" and city in anchors:
-            lat, lng = anchors[city]
-            status, precision, used = "ok", "city", city
-            display, err = f"(city centre) {city}", None
-
         db.execute(
             """update places set status=?, lat=?, lng=?, display_name=?, country_code=?,
                                  result_city=?, provider=?, attempts=attempts+1,
@@ -943,6 +965,39 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
         continue
 
     progress.done()
+
+    # Phase 2: anchor only the cities that still have an unresolved place, now
+    # that their venues can say which country they are in.
+    need = {c for (c,) in db.execute(
+        "select distinct city from places where status='not_found' and city != ''")}
+    if need and not stopping.now:
+        try:
+            anchors = city_anchors(db, provider, args, stopping, progress, only=need)
+        except DailyCapReached:
+            print("  out of quota before the city fallbacks. Re-run to finish them.")
+            anchors = {}
+    else:
+        anchors = {c: (la, ln) for c, la, ln
+                   in db.execute("select city, lat, lng from cities where status='ok'")}
+
+    # Phase 3: hand the leftovers their city centre. Pure bookkeeping — every
+    # coordinate here was already paid for in phase 2.
+    filled = 0
+    for key, city in db.execute(
+        "select key, city from places where status='not_found' and city != ''").fetchall():
+        hit = anchors.get(city)
+        if not hit:
+            continue
+        db.execute("update places set status='ok', lat=?, lng=?, precision='city', "
+                   "query_used=?, display_name=?, last_error=null, updated_at=? where key=?",
+                   (hit[0], hit[1], city, f"(city centre) {city}",
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), key))
+        filled += 1
+    if filled:
+        db.commit()
+        print(f"  {filled} place(s) fell back to their city centre "
+              f"(held back by --apply unless --include-city-level)")
+
     if len(provider.keys.keys) > 1:
         print(f"  requests per key — {provider.keys.summary()}")
     print()
