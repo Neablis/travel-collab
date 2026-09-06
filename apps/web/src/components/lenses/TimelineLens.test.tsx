@@ -86,19 +86,19 @@ describe("the activity description", () => {
     };
   };
 
-  it("follows the heading row instead of sitting inside it", () => {
+  it("sits outside the heading row, not inside it", () => {
     renderLens(withNotes());
-    const notes = screen.getByText("Book ahead, the queue is long.");
-    const title = screen.getByText("Colosseum tour");
+    const card = screen.getByTestId("timeline-item-timed1");
+    const head = screen.getByTestId("timeline-head-timed1");
 
-    // The row above it holds BOTH the title and the attributee — so the notes
-    // are a sibling of that whole row, not of the title alone.
-    const row = notes.previousElementSibling;
-    expect(row).not.toBeNull();
-    expect(row!.contains(title)).toBe(true);
-    expect(row!.textContent).toContain("Alice");
-    // And the notes are outside it, which is the actual move.
-    expect(row!.contains(notes)).toBe(false);
+    // The heading row holds the title AND the attributee — the two boxes that
+    // used to squeeze the description between them.
+    expect(within(head).getByText("Colosseum tour")).toBeTruthy();
+    expect(within(head).getByText(/Alice/)).toBeTruthy();
+
+    // The description is in the card but NOT in that row: that is the move.
+    expect(within(card).getByText("Book ahead, the queue is long.")).toBeTruthy();
+    expect(within(head).queryByText("Book ahead, the queue is long.")).toBeNull();
   });
 });
 

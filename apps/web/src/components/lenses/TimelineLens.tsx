@@ -346,7 +346,11 @@ function ActivityRow({
             fraction of the card for the one field that is free prose. The
             heading row keeps the two boxes; the notes now sit under both. */}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="flex items-stretch gap-3">
+          {/* `data-testid` so the description's placement is assertable without
+              reaching for parentNode/previousElementSibling — the repo's lint
+              forbids direct node access in tests, and "the notes are outside
+              this row" is otherwise only expressible that way. */}
+          <div data-testid={`timeline-head-${activity.activityId}`} className="flex items-stretch gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-2">
                 <span
