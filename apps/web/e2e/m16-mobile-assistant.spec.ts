@@ -267,6 +267,31 @@ test.describe("mobile assistant (phone viewport)", () => {
     expect(layers.sheet).toBeGreaterThan(layers.scrim!);
   });
 
+  // 2026-09-06 preview feedback, on an Android phone: "when the assistant
+  // overlay is open, you are still scrolling the background rather than the
+  // assistant chat". The sheet is `max-height: 80dvh` anchored to the bottom,
+  // so a fifth of the screen above it is still the plan — and a drag there, or
+  // one that runs off the end of the transcript, must not move the page behind.
+  test("an open sheet does not let the plan behind it scroll", async ({ page }) => {
+    await seedTrip(page);
+    await askPill(page).click();
+    await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+
+    const scrollTop = () => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
+    const before = await scrollTop();
+
+    // A real wheel gesture, NOT `scrollingElement.scrollBy`. `overflow: hidden`
+    // — which is what a scroll lock is — still permits programmatic scrolling;
+    // it only refuses the user. A `scrollBy` probe therefore moves the page
+    // whether the lock is there or not, and would report this fixed while it
+    // was still broken. The first draft of this test did exactly that.
+    await page.mouse.move(206, 120); // above the 80dvh sheet: the plan behind it
+    await page.mouse.wheel(0, 400);
+    await expect
+      .poll(scrollTop, { message: "the plan behind an open sheet moved" })
+      .toBe(before);
+  });
+
   test("the composer is clickable and typeable — the reported 'unselectable' input", async ({ page }) => {
     await seedTrip(page);
 

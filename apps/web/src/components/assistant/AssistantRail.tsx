@@ -248,6 +248,20 @@ export function AssistantRail({
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
 
+  // NOTE on scroll-through, 2026-09-06. Mitchell, on an Android phone: *"when
+  // the assistant overlay is open, you are still scrolling the background
+  // rather than the assistant chat"*. A document-level lock was written here
+  // and REMOVED again, because it could not be shown to do anything: with it
+  // deleted, the wheel test below still passes, so `RadixDialog.Root`'s modal
+  // `react-remove-scroll` is already refusing wheel over the plan behind.
+  //
+  // What the first probe "reproduced" was an artefact — it drove
+  // `document.scrollingElement.scrollBy`, and programmatic scrolling works
+  // through `overflow: hidden` by design, so it moved the page with or without
+  // a lock. The real report is a TOUCH drag on a physical device, which this
+  // harness has no way to reproduce. See KI-2026-09-06-e; the `overscroll-contain`
+  // below is the one part of the hypothesis that stands on its own.
+
   // Where focus goes when the sheet closes. Radix's FocusScope already
   // captures this, but `DialogContentModal` overrides `onCloseAutoFocus` to
   // restore its `Dialog.Trigger` instead — and there is no Trigger here, since
@@ -429,7 +443,14 @@ export function AssistantRail({
             drops the "drag the header to park it anywhere" copy the other two
             presentations use — dragging is off while docked (SPEC §9), and
             this rail is always docked. */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-3.5">
+        {/* `overscroll-contain`: a fling that reaches the end of the transcript
+            must not chain out into whatever scrolls behind it. This is the part
+            of the 2026-09-06 scroll-through report that stands on its own — it
+            is correct for any scrollable panel inside an overlay regardless of
+            what the modal lock does, and it is the mechanism most likely to
+            produce that symptom under touch. It is NOT verified against the
+            report: see the note by `isSheet` and KI-2026-09-06-e. */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
           {turns.length === 0 ? (
             <>
               <p className="text-sm leading-relaxed text-slate">{emptyHint}</p>
