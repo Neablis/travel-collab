@@ -1214,6 +1214,8 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--status", action="store_true", help="print progress and exit; touches no network")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="explain the failed/not_found buckets from the cache; no network")
     ap.add_argument("--review", action="store_true", help="write and summarise the review file")
     ap.add_argument("--apply", action="store_true", help="write accepted coordinates into the bundles")
     ap.add_argument("--dry-run", action="store_true", help="with --apply, report without writing")
@@ -1240,6 +1242,31 @@ def main() -> None:
     args = ap.parse_args()
 
     db = connect()
+    if args.diagnose:
+        # Reads the cache only. No network, no quota — the answer to "what are
+        # these failures" is already on disk after any run.
+        for status in ("failed", "not_found", "rejected"):
+            rows = db.execute(
+                "select coalesce(last_error,'(no reason recorded)'), count(*) from places "
+                "where status=? group by 1 order by 2 desc limit 12", (status,)).fetchall()
+            total = sum(n for _, n in rows)
+            if not total:
+                continue
+            print(f"\n  {status.upper()} — {total} place(s), by reason:")
+            for why, n in rows:
+                print(f"    {n:5d}  {str(why)[:100]}")
+        stuck = db.execute(
+            "select query, attempts, coalesce(last_error,'') from places "
+            "where status='failed' order by attempts desc limit 8").fetchall()
+        if stuck:
+            print("\n  a sample of failed rows, most-attempted first:")
+            for q, a, e in stuck:
+                print(f"    attempts={a}  {q[:52]}\n              {e[:88]}")
+        print(f"\n  attempt spread: " + ", ".join(
+            f"{a}x:{n}" for a, n in db.execute(
+                "select attempts, count(*) from places where status='failed' "
+                "group by 1 order by 1")))
+        return
     if args.redo:
         db.execute("update places set status='pending', attempts=0, last_error=null")
         db.commit()
