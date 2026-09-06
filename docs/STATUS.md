@@ -57,13 +57,22 @@ size:** Discover's budget filter now has occupants in all four bands (`under200`
 `200to500` 23, `500to1000` 7, `over1000` 10) where three of the four had none anywhere in the
 seed, and all four seasons are filled.
 
-**Notebook templates are a library again.** `@tc/pages` now splits `DEFAULT_TEMPLATES` (what a
-new trip is seeded with — still two) from `TEMPLATE_LIBRARY` (what "Start from a template"
-offers — six: Trip Overview, Day overview, Full trip breakdown, Dinner tracker, Bookings,
-Before you go), and **the templates plant widgets again**: the M8-era note forbidding it was
-written in the window between macro authoring leaving the editing surface and M14 putting it
-back. `content/notebooks/built-in-notebooks.json` is a serialised copy, kept honest by
-`templates.test.ts`.
+**Notebook templates are a library again.** `@tc/pages` splits `DEFAULT_TEMPLATES` (what a new
+trip is seeded with — still two) from `TEMPLATE_LIBRARY` (what "Start from a template" offers
+— seven: Trip Overview, Day overview, A day in detail, Full trip breakdown, Dinner tracker,
+Bookings, Before you go), and **the gallery templates plant widgets again**: the M8-era note
+forbidding it was written in the window between macro authoring leaving the editing surface
+and M14 putting it back. `content/notebooks/built-in-notebooks.json` is a serialised copy,
+kept honest by `templates.test.ts`.
+
+**The seeded pair stays prose, and that line was learned the hard way on this branch.**
+*A template planted before there is a plan prompts writing; a template you choose once you
+have one builds itself.* Widgets went onto Trip Overview first and the e2e lane refused it in
+three places: `m14-notebook-widgets` and `m14-mobile-notebook` both open Trip Overview when
+they need **a page with nothing on it**, and started counting the template's own widgets
+alongside the inserted ones. The product argument agrees — a brand-new trip has no dates and
+no stops, so that page would open as five grey "no dates set" chips. `templates.test.ts`
+asserts the split in both directions now.
 
 **Evidence.** Ran end to end against local Postgres and a real dev server: 88 playbook days +
 245 ledger rows imported, re-import proved idempotent, `cities` derived server-side,

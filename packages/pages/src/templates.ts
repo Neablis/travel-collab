@@ -19,16 +19,33 @@ import type {
 // something the editor can open. Now a template that drifts out of the
 // vocabulary fails to compile, which is where that should fail.
 //
-// --- Widgets are back in the seeds (2026-09-06) ---
+// --- Widgets are back — in the templates you CHOOSE, not the ones you are given ---
 // This file used to carry a note saying seeded templates "no longer plant macro
 // nodes a reader can't add, edit, or remove themselves" — true when it was
 // written, in the window between M8 taking macro authoring off the editing
-// surface and M14 putting it back. It is not true now: the slash menu, the
+// surface and M14 putting it back. It is out of date now: the slash menu, the
 // widget picker, drag-and-drop and the chrome row all exist
-// (`components/pages/editor/`), so every widget below is one a reader can add,
-// rebind or delete by hand. Removing the constraint is what makes a template
-// worth having — "Costs, broken down" as a widget stays true when a stop moves;
-// as a prompt to write a table it is stale by the second day.
+// (`components/pages/editor/`), so a template CAN plant a widget a reader is
+// able to rebind or delete by hand, and the templates below do.
+//
+// **The two seeded ones deliberately do not, and that is a product line rather
+// than a leftover:**
+//
+//   *A template planted before there is a plan prompts writing; a template you
+//   choose once you have one builds itself.*
+//
+// A brand-new trip has no dates, no cities and no stops, so a widget-bearing
+// Trip Overview opens as five grey "no dates set" chips — which is the honest
+// empty state and a poor first page. The prose version asks the question the
+// person is actually in a position to answer. The moment they have a plan,
+// "Full trip breakdown" is one click away in the gallery and is the same idea
+// done in widgets.
+//
+// It is also what makes these two the NEUTRAL CANVAS the rest of the product
+// leans on: `m14-notebook-widgets.spec.ts`, `m14-mobile-notebook.spec.ts` and
+// the phone insert walk all open Trip Overview when they need "a page with
+// nothing on it", and three of them broke the day it stopped being one. That is
+// a signal about what the page IS, not a test to work around.
 //
 // --- Two lists, and the split is the point ---
 // `DEFAULT_TEMPLATES` is what a new trip is SEEDED with; `TEMPLATE_LIBRARY` is
@@ -110,22 +127,15 @@ const tripOverview: TemplateSeed = {
   description: "The whole trip in one place — the why, the shape, the money.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId }),
+  // Prose, and no widgets — see the header. This is the first page of every
+  // trip and the one the rest of the product treats as a blank sheet.
   content: newPageDoc([
     heading("Overview"),
     para(text("What's this trip about? Jot down the highlights, the why, who's coming.")),
-    // The three facts that answer "what trip is this" without anybody typing
-    // them, and that stay right when the dates move. Unbound on purpose: no
-    // day filter means the whole trip, which is what makes this template work
-    // in any trip it is started from.
-    block("dates"),
-    block("city"),
-    heading("The shape of it"),
-    para(text("Sketch the arc — arrival, the days that matter, departure.")),
-    block("day.rows"),
-    heading("Money"),
-    para(text("What is worth spending on, and what isn't.")),
-    block("attribute", { field: "trip.budgetRemaining" }),
-    block("cost.rows"),
+    heading("Itinerary"),
+    para(text("Sketch the shape of the trip here — arrival, key days, departure.")),
+    heading("Costs"),
+    para(text("Track budget notes, splurges, and who's paying for what.")),
   ]),
 };
 
@@ -137,25 +147,46 @@ const dayOverview: TemplateSeed = {
   // migrates: `listPages` seeds only into a trip with zero pages, so a trip
   // that already has a "Day Sheet" keeps it under its own name.
   title: "Day overview",
-  description: "One day, close up. What's booked, what it costs, what's still loose.",
+  description: "One day, close up. Times, reservations, notes for the group.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId }),
+  // Prose, for the same reason as Trip Overview above. The widget-bearing
+  // version of this page is "A day in detail" in the gallery.
   content: newPageDoc([
-    heading("The day"),
-    para(text("Point the widgets below at a day — click one, then pick the day from its chrome row. Unpointed they read the whole trip, which is also a fine way to use this page.")),
-    block("hours"),
-    block("cost"),
-    heading("Every stop"),
-    block("day.detail"),
-    heading("Still to sort"),
-    para(text("What is not booked yet, and who is chasing it.")),
-    block("stop.rows", { kind: "hold" }),
+    heading("Day plan"),
+    para(text("What's happening today? Times, reservations, notes for the group.")),
+    heading("Who's doing what"),
+    para(text("Anything the plan itself cannot carry — who is picking up the car, who is booking the table.")),
   ]),
 };
 
 // ---------------------------------------------------------------------------
 // Offered in the gallery only
 // ---------------------------------------------------------------------------
+
+const dayInDetail: TemplateSeed = {
+  key: "day-in-detail",
+  title: "A day in detail",
+  description: "One day, built out of the plan — every stop, what it costs, what is still loose.",
+  seedIntoNewTrips: false,
+  buildContext: (tripId) => ({ tripId }),
+  content: newPageDoc([
+    heading("The day", 1),
+    para(
+      text(
+        "Point the widgets below at a day — click one, then pick the day from its chrome row. Unpointed they read the whole trip, which is also a fine way to use this page.",
+      ),
+    ),
+    para(text("Running from "), widget("hours"), text(", and it costs "), widget("cost"), text(".")),
+    heading("Every stop"),
+    block("day.detail"),
+    heading("Booked"),
+    block("stop.rows", { kind: "booked" }),
+    heading("Still to sort"),
+    para(text("What is not booked yet, and who is chasing it.")),
+    block("stop.rows", { kind: "hold" }),
+  ]),
+};
 
 const fullTripBreakdown: TemplateSeed = {
   key: "full-trip-breakdown",
@@ -276,6 +307,7 @@ const beforeYouGo: TemplateSeed = {
 export const TEMPLATE_LIBRARY: TemplateSeed[] = [
   tripOverview,
   dayOverview,
+  dayInDetail,
   fullTripBreakdown,
   dinnerTracker,
   bookingsAndConfirmations,

@@ -220,6 +220,15 @@ trip-agnostic.
 "Start from a template" only; a library that seeds itself into every trip stops
 being a library at about four entries.
 
+**A seeded template carries no widgets, and `templates.test.ts` enforces it in
+both directions.** The rule: *a template planted before there is a plan prompts
+writing; a template you choose once you have one builds itself.* A brand-new
+trip has no dates, no cities and no stops, so a widget-bearing seeded page opens
+as a column of grey "no dates set" chips — and those two pages are also the
+blank sheet the rest of the product reaches for. Put the widgets in a gallery
+template instead; "A day in detail" and "Full trip breakdown" are the two that
+exist.
+
 ## Importing
 
 ```

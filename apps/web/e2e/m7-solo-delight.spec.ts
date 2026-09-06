@@ -61,16 +61,19 @@ async function openNotebookIndex(page: Page): Promise<void> {
 // UI, and that note ended *"macro authoring returns in M14; this spec should
 // regain that coverage then."*
 //
-// **It has (2026-09-06, ADR-041).** The picker, the slash menu and the chrome
-// row all shipped in M14, so `templates.ts` plants widgets again — and the
-// seeds are read from `DEFAULT_TEMPLATES` below rather than typed here, so the
-// next rename of one is not three failing assertions about a word. What this
-// spec asserts about them is deliberately the EMPTY case: these trips are
-// created with no dates and no stops, so every widget resolves to its
-// `emptyText` chip. That is the state a brand-new trip's notebook is actually
-// in, it is the one this spec can reach without building a trip first, and
-// "renders its empty chip rather than erroring or rendering blank" is exactly
-// what the exit-gate line asks for.
+// **It has, and deliberately not here (2026-09-06, ADR-041).** Widgets came
+// back to `templates.ts` — but to the templates you CHOOSE, not the two every
+// trip is seeded with. A widget-bearing Trip Overview opens a brand-new trip's
+// notebook as five grey "no dates set" chips, and it stops that page being the
+// blank sheet `m14-notebook-widgets.spec.ts` and `m14-mobile-notebook.spec.ts`
+// both open when they need one — three of them broke on the run that proved it.
+// So the seeded pair stays prose, widget coverage stays in the M14 specs, and
+// this one still asserts what it always did: the two notebooks exist and render
+// their starter text.
+//
+// What DID change here: the titles are read from `DEFAULT_TEMPLATES` rather than
+// typed, so renaming a seed ("Day Sheet" → "Day overview") is not three failing
+// assertions about a word.
 //
 // AI: the exit gate's "AI demo" step (prompt → composed page / atomic batch)
 // deliberately has NO e2e coverage here. Playwright drives a real running
@@ -105,18 +108,12 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(overviewLink).toBeVisible();
   await expect(dayLink).toBeVisible();
 
-  // -- Trip Overview: its starter text AND its widgets --
+  // -- Trip Overview: renders its plain-starter-text template --
   await overviewLink.click();
   await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
-  // The widgets resolved. This trip has no dates, no cities and no stops, so
-  // each one is its own empty chip — a resolved answer, not a blank and not an
-  // error. `dates` and `city` are on this template; "no days to show" is
-  // `day.rows` deciding it has nothing to list.
-  await expect(page.getByText("no dates set")).toBeVisible();
-  await expect(page.getByText("no cities yet")).toBeVisible();
-  await expect(page.getByText("no days to show")).toBeVisible();
+  await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
   // -- the assistant opens on a page, in EITHER mode (no real AI call) --
   // It used to be an editing-only control, hidden in Reading because what it
@@ -152,15 +149,14 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expectNotebookIndex(page);
   await dayLink.click();
   await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
-  await expect(page.getByText(/point the widgets below at a day/i)).toBeVisible();
-  await expect(page.getByText("no times set")).toBeVisible();
+  await expect(page.getByText(/what's happening today/i)).toBeVisible();
+  await expect(page.getByText(/who is picking up the car/i)).toBeVisible();
 });
 
 // Exit-gate line "Open a fresh empty trip's Notebook → default pages render
-// as a legible skeleton". They carry widgets again (see the header), so the
-// skeleton is now starter text PLUS each widget's empty chip — which is what a
-// brand-new trip's notebook actually looks like, and what "legible" has to mean
-// for it.
+// as a legible skeleton". The seeded pair is plain starter text — see the
+// header on why widgets went to the gallery templates instead — so this checks
+// that skeleton renders rather than erroring or rendering blank.
 test("fresh trip: Notebook default pages render their starter text", async ({ page }) => {
   const tripName = e2eTripName("Lagos");
   await page.goto("/");
@@ -176,13 +172,13 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
   await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
-  await expect(page.getByText("no dates set")).toBeVisible();
+  await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
   await page.getByRole("link", { name: new RegExp(DAY_OVERVIEW.title) }).click();
   await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
-  await expect(page.getByText(/point the widgets below at a day/i)).toBeVisible();
+  await expect(page.getByText(/what's happening today/i)).toBeVisible();
 });
 
 // Waits for a page's debounced content autosave (PageScreen.tsx's

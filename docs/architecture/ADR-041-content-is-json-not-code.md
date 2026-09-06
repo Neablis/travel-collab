@@ -151,14 +151,36 @@ Discover's budget filter has occupants in all four bands for the first time
 `starterDays.ts` flagged and could not fix at its own size. Adding a region is
 one JSON file and no code.
 
-**The notebook library moved with it.** `@tc/pages`' `templates.ts` now splits
-`DEFAULT_TEMPLATES` (seeded into every trip — still two) from `TEMPLATE_LIBRARY`
-(what the gallery offers — six), and the templates plant widgets again: the M8
-note saying they must not was written in the window between macro authoring
-leaving the editing surface and M14 putting it back. `content/notebooks/built-in-notebooks.json`
-is a serialised copy of that library, checked against the code by
-`templates.test.ts` — so "the format carries notebooks" is demonstrated on the
-notebooks the product itself ships rather than on a toy.
+**The notebook library moved with it, and one line of it was got wrong first.**
+`@tc/pages`' `templates.ts` now splits `DEFAULT_TEMPLATES` (seeded into every
+trip — still two) from `TEMPLATE_LIBRARY` (what the gallery offers — seven), and
+the gallery templates plant widgets again: the M8 note saying they must not was
+written in the window between macro authoring leaving the editing surface and
+M14 putting it back.
+
+**The seeded pair deliberately stays prose**, and the rule is worth stating
+because the first version of this change did not have it:
+
+> A template planted before there is a plan prompts writing; a template you
+> choose once you have one builds itself.
+
+Widgets went onto Trip Overview first, and the e2e lane said no in three places
+at once: `m14-notebook-widgets` and `m14-mobile-notebook` both open Trip
+Overview when they need *a page with nothing on it*, and both started counting
+the template's own widgets alongside the ones they had inserted. That is a fact
+about what the page IS, not a test to work around — Trip Overview is the first
+page of every trip and the product's blank sheet. The product argument points
+the same way: a brand-new trip has no dates, no cities and no stops, so a
+widget-bearing Trip Overview opens as five grey "no dates set" chips where the
+prose version asks the question the person can actually answer. The widget-built
+versions of both ideas are one click away in the gallery — "A day in detail" and
+"Full trip breakdown" — and `templates.test.ts` asserts the split in both
+directions.
+
+`content/notebooks/built-in-notebooks.json` is a serialised copy of the library,
+checked against the code by `templates.test.ts` — so "the format carries
+notebooks" is demonstrated on the notebooks the product itself ships rather than
+on a toy.
 
 **`packages/contracts` now spells its own relative imports with `.ts`.** That
 was not a preference; it is what makes the package loadable by a plain Node

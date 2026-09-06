@@ -129,15 +129,30 @@ describe("templates", () => {
     );
   });
 
-  // A template made entirely of prose is a template that is stale by the second
-  // day — the reason the M8-era "no macro nodes" rule was lifted (file header).
-  // This is the floor, not a target: it fails if somebody strips the widgets
-  // back out, and says nothing about how many is right.
-  it("the library actually uses widgets", () => {
-    const total = TEMPLATE_LIBRARY.flatMap((t) => widgetsIn(t.content));
-    expect(total.length).toBeGreaterThan(20);
+  /**
+   * **The seeded pair is prose; everything you choose is widgets.**
+   *
+   * The file header argues the line — *a template planted before there is a
+   * plan prompts writing; a template you choose once you have one builds
+   * itself* — and this is that line as an assertion rather than a comment,
+   * because it is the kind of thing a later edit undoes without noticing.
+   *
+   * It is not tidiness. A widget-bearing Trip Overview opens a brand-new trip's
+   * notebook as five grey "no dates set" chips, and it stops that page being
+   * the neutral canvas three e2e specs open when they need one — which is how
+   * this was found, on a run where all three broke at once.
+   */
+  it("seeds prose and offers widgets, and never the other way round", () => {
     for (const t of TEMPLATE_LIBRARY) {
-      expect(widgetsIn(t.content).length, `${t.key} has no widgets`).toBeGreaterThan(0);
+      const widgets = widgetsIn(t.content).length;
+      if (t.seedIntoNewTrips) {
+        expect(widgets, `${t.key} is seeded into every trip and must carry no widgets`).toBe(0);
+      } else {
+        expect(widgets, `${t.key} is a gallery template and should build itself`).toBeGreaterThan(0);
+      }
     }
+    // A floor on the whole set, so "no widgets anywhere" cannot pass the branch
+    // above by having no gallery templates at all.
+    expect(TEMPLATE_LIBRARY.flatMap((t) => widgetsIn(t.content)).length).toBeGreaterThan(20);
   });
 });

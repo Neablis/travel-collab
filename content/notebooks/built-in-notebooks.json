@@ -44,14 +44,14 @@
             ]
           },
           {
-            "type": "paragraph",
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
             "content": [
               {
-                "type": "macro",
-                "attrs": {
-                  "name": "dates",
-                  "params": {}
-                }
+                "type": "text",
+                "text": "Itinerary"
               }
             ]
           },
@@ -59,11 +59,8 @@
             "type": "paragraph",
             "content": [
               {
-                "type": "macro",
-                "attrs": {
-                  "name": "city",
-                  "params": {}
-                }
+                "type": "text",
+                "text": "Sketch the shape of the trip here — arrival, key days, departure."
               }
             ]
           },
@@ -75,7 +72,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "The shape of it"
+                "text": "Costs"
               }
             ]
           },
@@ -84,66 +81,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Sketch the arc — arrival, the days that matter, departure."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "day.rows",
-                  "params": {}
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Money"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "What is worth spending on, and what isn't."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "attribute",
-                  "params": {
-                    "field": "trip.budgetRemaining"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "cost.rows",
-                  "params": {}
-                }
+                "text": "Track budget notes, splurges, and who's paying for what."
               }
             ]
           }
@@ -153,7 +91,7 @@
     {
       "key": "day-overview",
       "title": "Day overview",
-      "description": "One day, close up. What's booked, what it costs, what's still loose.",
+      "description": "One day, close up. Times, reservations, notes for the group.",
       "seedIntoNewTrips": true,
       "content": {
         "v": 2,
@@ -163,6 +101,60 @@
             "type": "heading",
             "attrs": {
               "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Day plan"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What's happening today? Times, reservations, notes for the group."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Who's doing what"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Anything the plan itself cannot carry — who is picking up the car, who is booking the table."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "day-in-detail",
+      "title": "A day in detail",
+      "description": "One day, built out of the plan — every stop, what it costs, what is still loose.",
+      "seedIntoNewTrips": false,
+      "content": {
+        "v": 2,
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 1
             },
             "content": [
               {
@@ -184,23 +176,30 @@
             "type": "paragraph",
             "content": [
               {
+                "type": "text",
+                "text": "Running from "
+              },
+              {
                 "type": "macro",
                 "attrs": {
                   "name": "hours",
                   "params": {}
                 }
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
+              },
+              {
+                "type": "text",
+                "text": ", and it costs "
+              },
               {
                 "type": "macro",
                 "attrs": {
                   "name": "cost",
                   "params": {}
                 }
+              },
+              {
+                "type": "text",
+                "text": "."
               }
             ]
           },
@@ -224,6 +223,32 @@
                 "attrs": {
                   "name": "day.detail",
                   "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Booked"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "booked"
+                  }
                 }
               }
             ]
