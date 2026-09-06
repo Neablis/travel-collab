@@ -676,9 +676,24 @@ def city_anchors(db, provider, args, stopping, progress) -> dict:
     db.commit()
     todo = db.execute("select city from cities where status in ('pending','failed') "
                       "and attempts < ? order by city", (args.max_attempts,)).fetchall()
-    if todo:
-        progress.interrupt(f"  resolving {len(todo)} city centres first "
-                           f"(one request each, reused by every stop in them)")
+    if not todo:
+        return {c: (la, ln) for c, la, ln
+                in db.execute("select city, lat, lng from cities where status='ok'")}
+
+    # This pass gets its OWN live line. It was silent behind --verbose in the
+    # first cut, which at Nominatim's 1.1s meant six unexplained minutes before
+    # the first place — the same "is it hung?" failure the status line exists to
+    # prevent, reintroduced in a new code path.
+    mins = len(todo) * provider.min_interval / 60
+    progress.interrupt(
+        f"  resolving {len(todo)} city centres first — one request each, reused by "
+        f"every stop in them\n  this takes about {mins:.0f} min at "
+        f"{provider.min_interval:.2f}s/request, and nothing else happens until it is done")
+    done_c = db.execute("select count(*) from cities where status='ok'").fetchone()[0]
+    total_c = db.execute("select count(*) from cities").fetchone()[0]
+    cp = Progress(len(todo), len(todo), total_c, args.progress_every)
+    seen = 0
+
     for (city,) in todo:
         if stopping.now:
             break
@@ -699,8 +714,11 @@ def city_anchors(db, provider, args, stopping, progress) -> dict:
                    (status, lat, lng, disp, err,
                     time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), city))
         db.commit()
-        progress.interrupt(f"  city {city} → {status}") if args.verbose else None
+        seen += 1
+        done_c += 1 if status == "ok" else 0
+        cp.tick(done_c, seen, f"city  {city[:52]}")
         time.sleep(provider.min_interval + random.uniform(0, 0.25))
+    cp.done()
     got = db.execute("select city, lat, lng from cities where status='ok'").fetchall()
     return {c: (la, ln) for c, la, ln in got}
 
@@ -730,6 +748,14 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
     done_all = db.execute("select count(*) from places where status not in ('pending','failed')").fetchone()[0]
     grand = db.execute("select count(*) from places").fetchone()[0]
     print(f"  provider {provider.name} at {provider.min_interval:.2f}s between requests")
+    if provider.name == "nominatim":
+        # Say this loudly. Falling back to Nominatim is silent, roughly halves
+        # the speed, and looks identical to a working LocationIQ run until you
+        # notice the banner — which cost a confusing six minutes once already.
+        print("  NOTE: no LocationIQ key was found, so this is the free public "
+              "Nominatim.\n        Your LocationIQ quota is NOT being used. To use "
+              "your key instead, stop\n        and re-run with: "
+              "LOCATIONIQ_API_KEY=... python3 scripts/geocode-content.py ...")
     if len(provider.keys.keys) > 1:
         print("  keys are used one at a time, in order — a second key is a second DAY's "
               "quota, never a faster rate")
