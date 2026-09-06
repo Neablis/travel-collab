@@ -71,8 +71,41 @@ silence:
 
 ## Findings
 
-_Empty until the comments are in. One row per toolbar thread, in the order left._
+One row per toolbar thread, in the order left. Detail below the table.
 
 | # | Route / surface | Viewport | What's wrong | Outcome |
 | - | --------------- | -------- | ------------ | ------- |
-| | | | | |
+| 1 | `/signin` — dev-login submit | 1728×836 | Dev-login button is the faintest control on a screen where it is the only one that works | **Open — awaiting decision** |
+
+### 1. `/signin` — "Sign in with dev login" prominence
+
+> "Make the \"Sign in with dev login\" button more pronounced"
+
+- Thread: `cBvDTW4vOces` (neablis, 2026-09-06)
+- Route: `/signin` ("Sign in — Caesura"), Chrome 151 on macOS, 1728×836 @2x
+- Selector: `body > div.flex > main.grid > div.flex > div.rounded-md > form.flex > button.inline-flex`
+- Component tree: inside `AuthScreen` (`mode="signin" devLoginEnabled googleAvailable`) →
+  the `devLoginEnabled` `<form className="flex flex-col gap-2 border-t border-hairline pt-3.5">`
+  → its submit `Button`, captured as `variant="ghost" disabled`.
+- Maps to: `apps/web/src/components/front/AuthScreen.tsx:309`.
+
+**Why the contrast is as stark as it is.** The button directly above it —
+"Continue with Google" — is `variant="secondary"` with
+`className="h-11.5 w-full text-md font-semibold"`. The dev-login button is
+`variant="ghost"` with no sizing classes at all. So the hierarchy is not
+incidental; it is two deliberate and opposite styling decisions stacked in the
+same card.
+
+**And the hierarchy is right in general, but backwards on a preview.** Ghost is
+the correct weight for a control whose own `FormField` hint reads "Preview and
+local only" — it should not compete with Google in production. But this surface
+*is* a preview, where dev login is typically the only path that actually
+completes, so the one button a reviewer needs is the quietest thing on screen.
+Any fix should key off the environment rather than just darkening the button
+everywhere.
+
+**On the captured `disabled`.** That is `disabled={!hydrated}`, not a defect —
+it is the fix for finding 1 of the 2026-08-30 pass ("Enter appeared to do
+nothing"), which deliberately shows a disabled control pre-hydration rather than
+failing silently. The toolbar snapshotted before hydration. Noted so it is not
+re-reported as a bug.
