@@ -22,7 +22,14 @@ import { bundleTripCommands } from "./toCommands.ts";
 
 const CONTENT_DIR = fileURLToPath(new URL("../../../../content/", import.meta.url));
 
-/** Every `*.json` under `content/`, at any depth. */
+/**
+ * Every `*.json` under `content/`, at any depth, skipping dot-files.
+ *
+ * `content/` is a working directory too — `scripts/geocode-content.py` keeps
+ * its resume cache and review file there — and a tool's scratch state is not
+ * content. Mirrors `bundleFiles` in `apps/web/scripts/import-content.ts`, which
+ * is where this was found the hard way.
+ */
 function bundleFiles(dir: string): string[] {
   let entries: string[];
   try {
@@ -31,6 +38,7 @@ function bundleFiles(dir: string): string[] {
     return [];
   }
   return entries.flatMap((entry) => {
+    if (entry.startsWith(".")) return [];
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return bundleFiles(path);
     return path.endsWith(".json") ? [path] : [];

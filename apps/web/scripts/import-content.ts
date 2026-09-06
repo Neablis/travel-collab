@@ -91,7 +91,17 @@ function parseArgs(argv: string[]): Options {
 
 // ---- reading -----------------------------------------------------------
 
-/** Every `*.json` under `dir`, at any depth, in a stable order. */
+/**
+ * Every `*.json` under `dir`, at any depth, in a stable order — **skipping
+ * dot-files and dot-directories.**
+ *
+ * That exclusion is not tidiness. `content/` is a working directory as well as
+ * a source of truth: `scripts/geocode-content.py` writes its resume cache and
+ * its review file there, and the moment it did, this function tried to parse
+ * `.geocode-review.json` as a bundle and the whole import refused. A stray
+ * `.DS_Store.json` would have done the same. A tool's own scratch state living
+ * beside the content it works on is normal; treating it as content is the bug.
+ */
 function bundleFiles(dir: string): string[] {
   let entries: string[];
   try {
@@ -100,6 +110,7 @@ function bundleFiles(dir: string): string[] {
     return [];
   }
   return entries.flatMap((entry) => {
+    if (entry.startsWith(".")) return [];
     const path = join(dir, entry);
     return statSync(path).isDirectory() ? bundleFiles(path) : path.endsWith(".json") ? [path] : [];
   });
