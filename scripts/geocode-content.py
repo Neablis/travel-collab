@@ -410,13 +410,84 @@ class Provider:
         return rows if isinstance(rows, list) else []
 
 
+ENV_FILES = ("apps/web/.env.local", ".env.local", ".env")
+
+
+def env_file_keys() -> dict[str, str]:
+    """LOCATIONIQ_* entries from the repo's env files.
+
+    The key lives in `apps/web/.env.local` because that is where the app wants
+    it, and requiring it be exported by hand as well is a trap: an empty
+    variable silently produces a Nominatim run that looks exactly like a working
+    one. Read the file the key is already in.
+
+    Deliberately not a dotenv parser — just KEY=VALUE, with optional `export`
+    and matched surrounding quotes stripped, which is the whole grammar these
+    files use for this variable.
+    """
+    found: dict[str, str] = {}
+    for rel in ENV_FILES:
+        path = REPO / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            name, value = name.strip(), value.strip()
+            if not name.startswith("LOCATIONIQ_API_KEY"):
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            # An earlier file wins, and a real environment variable beats both.
+            found.setdefault(name, value.strip())
+    return found
+
+
+def key_diagnosis() -> str:
+    """Why there is no key, specifically. Blank when there is one.
+
+    "No key found" is the wrong message when the variable is right there but
+    empty, which is the state a freshly-provisioned `.env.local` is in — and it
+    is indistinguishable from "not set" unless something says so.
+    """
+    env_set = [n for n in os.environ if n.startswith("LOCATIONIQ_API_KEY")]
+    env_empty = [n for n in env_set if not (os.environ.get(n) or "").strip()]
+    files = {rel: (REPO / rel) for rel in ENV_FILES if (REPO / rel).is_file()}
+    file_names = env_file_keys()
+    empty_in_file = [n for n, v in file_names.items() if not v]
+
+    if env_empty and len(env_empty) == len(env_set):
+        return (f"  {env_empty[0]} is set in your shell but EMPTY — that is why. "
+                f"Give it a value, or pass --key.")
+    if empty_in_file:
+        where = ", ".join(files) or "the env file"
+        return (f"  {empty_in_file[0]} is present in {where} but has no value — "
+                f"that is why. Fill it in, or pass --key.")
+    if not env_set and not file_names:
+        looked = ", ".join(ENV_FILES)
+        return (f"  no LOCATIONIQ_API_KEY in the environment or in {looked}. "
+                f"Pass --key, or add it to apps/web/.env.local.")
+    return "  no usable LocationIQ key found. Pass --key, or set LOCATIONIQ_API_KEY."
+
+
 def api_keys(args) -> KeyRing:
-    """`--key`, then LOCATIONIQ_API_KEY, then LOCATIONIQ_API_KEY_1, _2, ... ."""
+    """`--key`, then the environment, then the repo's env files."""
     keys: list[str] = []
     if args.key:
         keys.append(args.key.strip())
-    for name in ["LOCATIONIQ_API_KEY"] + [f"LOCATIONIQ_API_KEY_{n}" for n in range(1, 10)]:
-        value = (os.environ.get(name) or "").strip()
+    from_files = env_file_keys()
+    names = ["LOCATIONIQ_API_KEY"] + [f"LOCATIONIQ_API_KEY_{n}" for n in range(1, 10)]
+    for name in names:
+        value = (os.environ.get(name) or "").strip() or from_files.get(name, "")
+        value = value.strip()
         if value and value not in keys:
             keys.append(value)
     return KeyRing(keys)
@@ -752,10 +823,11 @@ def work(db: sqlite3.Connection, provider: Provider, args) -> None:
         # Say this loudly. Falling back to Nominatim is silent, roughly halves
         # the speed, and looks identical to a working LocationIQ run until you
         # notice the banner — which cost a confusing six minutes once already.
-        print("  NOTE: no LocationIQ key was found, so this is the free public "
-              "Nominatim.\n        Your LocationIQ quota is NOT being used. To use "
-              "your key instead, stop\n        and re-run with: "
-              "LOCATIONIQ_API_KEY=... python3 scripts/geocode-content.py ...")
+        print("  NOTE: this is the free public Nominatim (OpenStreetMap's own "
+              "geocoder — same data\n        as LocationIQ, no key, but ~1 request/s "
+              "and no uptime promise).\n        Your LocationIQ quota is NOT being "
+              "used.")
+        print(key_diagnosis())
     if len(provider.keys.keys) > 1:
         print("  keys are used one at a time, in order — a second key is a second DAY's "
               "quota, never a faster rate")

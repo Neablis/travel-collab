@@ -10,7 +10,9 @@
 - **The script now exists, and has never had a real run.** `scripts/geocode-content.py` was written for this (Python, no repo deps): it holds a resumable SQLite queue at `content/.geocode-cache.sqlite`, commits after every single request so a `kill -9` costs at most one lookup, fails over between `LOCATIONIQ_API_KEY` and `LOCATIONIQ_API_KEY_1..9` **one key at a time** (a second key is a second day's quota, never a faster rate), and refuses any result whose returned address disagrees with the stop's own `city` — the KI-39 defence, made mechanical. It has been exercised end to end against a local mock, but never against LocationIQ or Nominatim: this container has neither a key nor egress to either host. **1,344 distinct places**; roughly 11 minutes on one LocationIQ free key, 25 on Nominatim, 2 against a self-hosted instance via `--url`.
 
   ```
-  export LOCATIONIQ_API_KEY=...            # omit entirely to use Nominatim at 1.1s/request
+  # No export needed: the script reads LOCATIONIQ_API_KEY from apps/web/.env.local.
+  # With no key it falls back to Nominatim (OpenStreetMap's own geocoder — same
+  # data, no key, ~1 req/s) and says so, naming the reason it found no key.
   python3 scripts/geocode-content.py --status     # what is queued; touches no network
   python3 scripts/geocode-content.py --sample 40  # measure the hit rate for ~70 requests
   python3 scripts/geocode-content.py              # Ctrl-C whenever; re-run resumes
