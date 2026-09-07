@@ -480,6 +480,13 @@ function toAuthor(row: { owner_id: string; adds: number; days_shared: number }):
 }
 
 /**
+ * What a profile with nothing on it is called. The same string `displayNameFor`
+ * itself falls back to for an id with no readable characters, so the app has
+ * one neutral name for a person it cannot name rather than two.
+ */
+const NO_ONE_IN_PARTICULAR = "A traveler";
+
+/**
  * One person's numbers, computed the same way the board computes everyone's.
  *
  * Shared by the public profile AND by the shared-day route's author strip, so
@@ -501,10 +508,32 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
     where d.owner_id = ${userId}
       ${notDeleted}
   `);
-  const row = rows.rows[0];
-  return row === undefined
-    ? { userId, displayName: displayNameFor({ userId }), daysShared: 0, adds: 0 }
-    : toAuthor({ ...row, owner_id: userId });
+  // Exactly one row, always. This is an ungrouped aggregate — no `group by` —
+  // and SQL evaluates one of those over the whole (possibly empty) input and
+  // returns a single row of zeros. Verified against a real database for a
+  // userId with no `saved_days` at all: `rows.rows.length = 1`,
+  // `{adds: 0, days_shared: 0}`. What stood here was a `row === undefined`
+  // ternary whose branch could not be reached and whose two arms produced the
+  // same author anyway (KI-2026-09-05-y / F-G05). The non-null assertion is
+  // the claim above, stated where it is relied on.
+  const row = rows.rows[0]!;
+  const author = toAuthor({ ...row, owner_id: userId });
+
+  // A person with nothing gets NO derived handle. `displayNameFor` will turn
+  // any string into something person-shaped — `publicAuthor("someuserxyz")`
+  // returned `"Traveler serxyz"` — and this is the one call site whose
+  // argument is a URL segment a stranger typed, so a mistyped or invented id
+  // rendered as a plausible individual who has simply shared nothing
+  // (KI-2026-09-05-y / F-G05).
+  //
+  // Deliberately NOT a `users` lookup and a 404: that answers "does this
+  // account exist" for anyone who asks, which is exactly what the docstring
+  // above refuses to do. Zero days and zero adds is the strongest statement
+  // that can be made without asking that question, and it is true of every
+  // nonexistent id — so the neutral name costs nothing on a page that has
+  // nothing to attribute, while everyone the leaderboard actually ranks (adds
+  // or days > 0) keeps the distinct suffix it needs.
+  return author.daysShared === 0 && author.adds === 0 ? { ...author, displayName: NO_ONE_IN_PARTICULAR } : author;
 }
 
 /**

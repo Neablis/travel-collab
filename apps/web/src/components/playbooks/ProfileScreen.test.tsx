@@ -32,7 +32,11 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 }
 
 const profile: PublicProfileResponse = {
-  author: { userId: "dev-alice", displayName: "dev-alice", daysShared: 2, adds: 3 },
+  // `displayName` is what the ENDPOINT resolved (`displayNameFor` on the
+  // server), which for `dev-alice` is "Alice" — not the raw id this fixture
+  // used to carry, which the endpoint has never returned and which the page
+  // now renders verbatim because it stopped re-deriving the name itself.
+  author: { userId: "dev-alice", displayName: "Alice", daysShared: 2, adds: 3 },
   knows: [
     { city: "Kyoto", days: 2 },
     { city: "Hakone", days: 1 },
@@ -153,12 +157,28 @@ describe("a public profile", () => {
 
   it("says plainly when somebody has shared nothing", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ author: { userId: "dev-dan", displayName: "dev-dan", daysShared: 0, adds: 0 }, knows: [], days: [] }),
+      ok({ author: { userId: "dev-dan", displayName: "Dan", daysShared: 0, adds: 0 }, knows: [], days: [] }),
     );
     renderProfile();
     expect(await screen.findByText("Nothing shared yet")).toBeTruthy();
   });
 
+  // The name is the endpoint's answer, not a second derivation from the id in
+  // the URL. This page used to call `displayNameFor({ userId })` itself, which
+  // made `PublicAuthor.displayName` dead here and let the API and the page
+  // disagree — and the disagreement was the whole point of the fix: a profile
+  // with nothing on it may be a mistyped id, and only the server knows that it
+  // has zero days and zero adds, so only the server can decide to name it
+  // neutrally rather than as "Traveler <six characters of the URL>"
+  // (KI-2026-09-05-y / F-G05).
+  it("heads the page with the name the endpoint resolved, not one minted from the id in the URL", async () => {
+    fetchPublicProfileMock.mockResolvedValue(
+      ok({ author: { userId: "dev-alice", displayName: "A traveler", daysShared: 0, adds: 0 }, knows: [], days: [] }),
+    );
+    renderProfile();
+    expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("A traveler");
+    expect(screen.queryByText("Alice")).toBeNull();
+  });
 });
 
 describe("the contextual back link", () => {
