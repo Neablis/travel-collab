@@ -124,9 +124,21 @@ export default function Home() {
   // Only a 401 means `/welcome`. A 500 is not "you are signed out", and
   // sending someone to the front door on one would log them out of a working
   // session.
+  // LAST WRITER WINS, AND THE LAST WRITER IS THE LAST REQUEST — not the last
+  // response. `load` is called from the first-run effect, from Try again, and
+  // after a create or a restore, so two can be in flight at once; without this
+  // a slow earlier call settling second would reinstate a stale error over a
+  // good result, or overwrite newer trips with older ones (CodeRabbit, PR #155).
+  // A monotonic ticket rather than an AbortController because the loser here
+  // must not CANCEL the winner's work — both may legitimately be running, only
+  // one may write.
+  const loadTicket = useRef(0);
   const load = useCallback(async () => {
+    const ticket = ++loadTicket.current;
+    const isStale = () => ticket !== loadTicket.current;
     try {
       const res = await fetch("/api/trips");
+      if (isStale()) return;
       if (res.status === 401) {
         setUnauthenticated(true);
         return;
@@ -136,10 +148,14 @@ export default function Home() {
         return;
       }
       const data = (await res.json()) as { trips: TripSummary[] };
+      // Re-checked AFTER the second await: `res.json()` is its own suspension
+      // point, and a newer load can win during it.
+      if (isStale()) return;
       setUnauthenticated(false);
       setLoadError(null);
       setTrips(data.trips);
     } catch {
+      if (isStale()) return;
       // Deliberately not the thrown message: a `TypeError: Failed to fetch`
       // or a JSON parse error is about the transport, not about anything the
       // reader can act on. The retry is the actionable half.

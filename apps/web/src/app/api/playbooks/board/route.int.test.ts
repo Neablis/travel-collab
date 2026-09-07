@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { expect, it, describe, vi } from "vitest";
 import type { LeaderboardResponse, PublicProfileResponse } from "@/lib/playbooks";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
+import { savedDays } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 // The leaderboard (M11b link 7) and the public profile (link 8), against the
 // real ledger.
@@ -272,5 +275,38 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const seen = await profile(POPULAR);
     expect(seen.author.displayName).toBe(`Traveler ${POPULAR.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`);
     expect(seen.author.daysShared).toBeGreaterThan(0);
+  });
+
+  // THE OTHER HALF OF THE SAME CONDITION, and the test above cannot reach it.
+  // `publicAuthor` neutralises on `daysShared === 0 && adds === 0`, so an
+  // implementation that dropped the `adds` clause entirely would pass every
+  // other test in this file (CodeRabbit, PR #155; and the path instruction that
+  // an invariant asserted only in a comment is the KI-1 / KI-14 defect class).
+  //
+  // The state is reachable and is not contrived: publish a day, let somebody
+  // take it, then unpublish. The ledger row survives — that is the point of a
+  // ledger — so the author has adds but nothing currently shared. Flipped
+  // through the database because no route unpublishes, and inventing one for a
+  // test would be the tail wagging the dog.
+  it("keeps the derived handle for somebody with adds but nothing currently shared", async () => {
+    const UNSHARED = `board-unshared-${RUN}`;
+    currentUserId = UNSHARED;
+    const day = await saveDay(`Unshared ${RUN}`, CITY);
+    await publish(day);
+    currentUserId = TAKER;
+    await take(day);
+
+    await db
+      .update(savedDays)
+      .set({ visibility: "private" })
+      .where(eq(savedDays.id, day));
+
+    currentUserId = TAKER;
+    const seen = await profile(UNSHARED);
+    expect(seen.author.daysShared).toBe(0);
+    expect(seen.author.adds).toBeGreaterThan(0);
+    expect(seen.author.displayName).toBe(
+      `Traveler ${UNSHARED.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`,
+    );
   });
 });

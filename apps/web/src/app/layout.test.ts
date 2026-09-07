@@ -49,7 +49,12 @@ function mounts(component: unknown): boolean {
 // F-G06).
 describe("root layout Vercel telemetry", () => {
   it("mounts neither analytics script when the app is not running on Vercel", () => {
-    expect(process.env.VERCEL).toBeUndefined();
+    // Stubbed, not asserted. `expect(process.env.VERCEL).toBeUndefined()` made
+    // this test's premise depend on the runner's environment: anywhere VERCEL
+    // is set the test failed on its own precondition instead of exercising the
+    // off-Vercel branch it exists for (CodeRabbit, PR #155). `afterEach`'s
+    // `unstubAllEnvs` restores it.
+    vi.stubEnv("VERCEL", "");
     expect(mounts(Analytics)).toBe(false);
     expect(mounts(SpeedInsights)).toBe(false);
   });

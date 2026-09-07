@@ -71,7 +71,21 @@ try {
   process.exit(2);
 }
 
-const entries = JSON.parse(readFileSync(journalPath, "utf8")).entries;
+// Exit 2, not 1. This script's whole contract is that 1 means "production is
+// behind" and 2 means "I could not tell" — `db-probe.mjs`'s rule, and the
+// reason the workflow can treat 1 as actionable. An unreadable or malformed
+// journal is emphatically the second, and letting Node's default exit 1 escape
+// here would report a broken checkout as pending migrations (CodeRabbit, #155).
+let entries;
+try {
+  entries = JSON.parse(readFileSync(journalPath, "utf8")).entries;
+} catch (err) {
+  console.error(
+    "check-migration-state: could not read the migration journal — a broken checkout, NOT a database that is behind.\n" +
+      `           ${err instanceof Error ? err.message : String(err)}`,
+  );
+  process.exit(2);
+}
 
 let pg;
 try {

@@ -47,7 +47,18 @@ jobs:
     # Runaway cap only: checkout + install + one SELECT.
     timeout-minutes: 10
     steps:
+      # `persist-credentials: false`: checkout otherwise leaves the job's token
+      # in `.git/config`, where `pnpm install` and everything after it can read
+      # it (zizmor `artipacked`, CodeRabbit on PR #155). Nothing here needs git
+      # AUTH — the journal check runs `--ref HEAD`, a local ref — so the token
+      # buys nothing and costs a credential sitting in the workspace.
+      #
+      # NOT copied to `ci.yml`: that job runs `git fetch origin main` for the
+      # migration wall's baseline, which is a real authenticated git operation.
+      # Turning credentials off there would break the very check this PR added.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
