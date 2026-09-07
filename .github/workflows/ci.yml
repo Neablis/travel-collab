@@ -112,6 +112,16 @@ jobs:
         run: pnpm lint
       - if: '!cancelled()'
         run: pnpm test
+      # `drizzle-kit check` reads the migration SNAPSHOTS and reports two things
+      # nothing else here does: a malformed snapshot, and a *collision* — two
+      # snapshots naming the same parent, which is what two branches generating
+      # migrations in parallel leaves behind when a merge keeps both. It reads
+      # `_journal.json` not at all (measured 2026-09-07: a journal with two
+      # `idx: 18` entries printed "Everything's fine"), which is why `pnpm lint`
+      # separately runs `scripts/check-migration-journal.mjs`. The two overlap
+      # nowhere. ~2s, no database, no build. KI-2026-09-05-k.
+      - if: '!cancelled()'
+        run: pnpm --filter web db:check
 
   # Everything that needs Postgres, a real build, and a browser: migrations,
   # integration tests, and e2e. This is the long pole, so it runs in parallel

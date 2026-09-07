@@ -68,6 +68,27 @@ What I clicked through, and what I saw:
 
 Not run, and why:
 
+## Migrations
+
+<!-- Merging does NOT apply a migration. Production migrations are dispatched by
+     hand (ADR-004, for CI cost): `gh workflow run migrate-production.yml -f
+     confirm=migrate`, from main. Between merge and dispatch the code is live
+     and the column is not, so anything reading it 500s — this line is the
+     handover, and "none" is the usual and correct answer.
+
+     `pnpm lint` runs scripts/check-migration-journal.mjs, which refuses a
+     migration whose `when` is not newer than main's newest. If it fired, do NOT
+     renumber the file: rebase onto main and re-run `pnpm --filter web
+     db:generate` so it gets a fresh `when`. `when` is what drizzle compares,
+     and it applies only entries newer than the last row already applied — an
+     older one is skipped in silence with `migrate` still printing success.
+     KI-2026-09-05-k. -->
+
+- [ ] No Drizzle migration in this PR — nothing to dispatch
+- [ ] Adds the migration(s) named below, and **`migrate-production` must be dispatched after merge**
+
+Migrations added: <!-- e.g. 0019_saved_day_pinned — or "none" -->
+
 ## Definition of done
 
 <!-- Restated from AGENTS.md / docs/guidelines/quality-enforcement.md. -->
@@ -78,6 +99,7 @@ Not run, and why:
 - [ ] Contracts changelog entry if any schema changed, consumers updated here too
 - [ ] No invariant weakened (a blocker is a finding to report, not a rule to bend)
 - [ ] Docs updated — ADR / milestone file / guidelines — if behavior or interfaces changed
+- [ ] Any Drizzle migration is named in the Migrations section above, and the dispatch handed to Mitchell
 - [ ] Conventional commits, one logical change each
 
 ## Known issues

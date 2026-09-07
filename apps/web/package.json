@@ -18,6 +18,8 @@
     "walk:preview": "node --env-file-if-exists=.env.local scripts/walk-preview.mjs",
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",
+    "db:check": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs check",
+    "db:state": "node --env-file-if-exists=.env.local scripts/check-migration-state.mjs",
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
     "db:backfill-cities": "node --env-file-if-exists=.env.local scripts/backfill-saved-day-cities.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
