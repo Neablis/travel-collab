@@ -169,6 +169,55 @@ describe("the assistant on a notebook page", () => {
     expect(screen.getByText("Bring a raincoat")).toBeTruthy();
   });
 
+  // **The insert must not take the caret away from the composer**
+  // (KI-2026-09-06-b). It used to: `page-inserts` ran an unconditional
+  // `chain().focus()`, and tiptap schedules that focus in a
+  // `requestAnimationFrame`, so it landed AFTER the inserted text had rendered
+  // — mid-word, for anyone still typing. What was typed before the frame
+  // stayed in the composer, and everything after it, `Enter` included, was
+  // typed into the page: the follow-up was never sent and its characters were
+  // appended to the document and autosaved.
+  //
+  // This is the one test in the file that deliberately does NOT go through
+  // `readyForAnotherTurn`. That helper clicks the composer to take focus back,
+  // which is right for the tests that only need a second turn — and is exactly
+  // what would hide this, because a user who never stopped typing never clicks.
+  it("keeps a follow-up typed while an insert lands in the composer, not in the page", async () => {
+    const { onUpdate } = await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+    // The autosave, not the rendered text, is the signal that the insert chain
+    // has run — `onUpdate` fires from the editor afterwards. The focus call
+    // that used to steal the caret was scheduled a frame later still, which is
+    // what made it land in the middle of the next word.
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    const savedBeforeFollowUp = onUpdate.mock.calls.length;
+
+    askAssistantMock.mockImplementation(
+      turnEmitting({
+        type: "page-inserts",
+        content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "And a power adapter" }] }]),
+      }),
+    );
+    // No click: `userEvent.keyboard` types wherever focus actually is.
+    await userEvent.keyboard("One more thing{Enter}");
+
+    // It was asked, and ALL of it was — not the two characters that beat the
+    // frame, and not without the `Enter` that submits it.
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    const [, messages] = askAssistantMock.mock.calls[1]!;
+    expect((messages as AskWireMessage[]).at(-1)!.parts[0]!.text).toBe("One more thing");
+
+    // ...and none of it reached the page the user was reading. The second
+    // turn's own autosave is the one that would carry the stray characters if
+    // any had, so it is the one worth looking at.
+    expect(await screen.findByText("And a power adapter")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate.mock.calls.length).toBeGreaterThan(savedBeforeFollowUp), {
+      timeout: 3000,
+    });
+    expect(JSON.stringify(onUpdate.mock.calls.at(-1)![1].content)).not.toContain("One more thing");
+  });
+
   // The thread is what a rail is for, and what the prompt box could not have.
   it("posts the whole conversation back on the second turn, assistant turns included", async () => {
     // The first turn ANSWERS as well as inserting, because a history of two
