@@ -1,4 +1,4 @@
-### KI-2026-09-05-ab — `PageAssistant.test.tsx`'s two multi-turn tests fail locally: the second question is typed into the notebook document instead of the composer
+### KI-2026-09-05-ab — `PageAssistant.test.tsx`'s two multi-turn tests fail locally: the second question is typed into the notebook document instead of the composer — RESOLVED, superseded
 
 - **Severity:** test reliability — **confirmed, and it is a test-environment defect rather than a product one so far**. Two tests fail; nothing user-visible is established. The cost is that the two tests which prove the notebook assistant holds a *conversation* — the whole reason M14 link 8 replaced `ComposePanel` with a rail — are red locally and therefore prove nothing to anyone working in that file.
 - **Area:** `apps/web/src/components/pages/PageAssistant.test.tsx`, tests *"accumulates a second turn instead of replacing the first"* (line ~135) and *"posts the whole conversation back on the second turn, assistant turns included"* (line ~160). The code under them is `apps/web/src/components/pages/PageScreen.tsx`'s `page-inserts` handler — `editorRef.current?.chain().focus().insertContent(...)` — and `apps/web/src/components/pages/editor/PageEditor.tsx`.
@@ -33,3 +33,42 @@
   Confirm on Node 22 either way, so the CI-vs-local gap is measured rather than assumed.
 - **Cross-reference:** KI-2026-09-02-a (the other Node-26-only local failure, different files, different cause); ADR-035 decision 5 (insert-shaped page tools, which is why the insert focuses the editor at all); `docs/guidelines/testing.md` rule 3 — these two tests were presumably seen to fail and pass when written, which is what makes their going red *later* worth an entry rather than a shrug.
 - **First noted:** 2026-09-05, wiring SPEC §23's Ask pill onto `PageScreen`; the failures were already there before the first line of that change and are still there with it reverted.
+
+---
+
+**RESOLVED 2026-09-07 — superseded, not separately fixed.** This entry was
+already stale when the KI sweep triaged it: its successor
+**KI-2026-09-06-a** (`resolved/`) root-caused and closed the test failure, and
+the still-open **KI-2026-09-06-b** recorded that it had done so. The entry sat
+in `open/` describing finished work — a live instance of the duplication
+**KI-2026-08-30-d** describes.
+
+The one claim it made that had never been measured was *"CI is Node 22, where
+these two are believed to pass"*. That is now measured rather than believed. On
+this container's **Node v22.22.2**, on the sweep's integration branch:
+
+```
+$ pnpm --filter web exec vitest run -c vitest.unit.config.ts \
+    src/components/pages/PageAssistant.test.tsx --reporter=verbose
+✓ … > accumulates a second turn instead of replacing the first 1081ms
+✓ … > posts the whole conversation back on the second turn, assistant turns included 1071ms
+Test Files  1 passed (1)
+     Tests  10 passed (10)
+```
+
+Both tests this entry names are green. The Node-26/Node-22 gap it hypothesised
+is real and is the reason it went unrecorded for so long.
+
+**What was NOT merely a test bug, and is the durable half:** the entry's own
+"Suggested next step" warned that silencing a true failure would be the
+expensive mistake, and told the next reader to check whether the product was
+wrong *before* fixing the test. That instruction paid. KI-2026-09-06-b, closed
+in this same sweep, established that a real user typing into the composer after
+an insert loses their keystrokes to the document — the tests were reporting a
+genuine defect, and the existing helper (`readyForAnotherTurn`) had been
+stepping around it by clicking the composer to take focus back. The fix landed
+in `PageScreen.tsx`, not in the tests.
+
+**Proof line:** both named tests pass on Node v22.22.2 (transcript above);
+successor entries KI-2026-09-06-a and KI-2026-09-06-b are both in
+`docs/known-issues/resolved/`.

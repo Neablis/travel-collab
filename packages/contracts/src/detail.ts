@@ -12,12 +12,15 @@ export const ActivityView = z.object({
   notes: z.string().nullable(),
   anchors: z.array(Anchor),
   // Defaulted, not required, for the same reason `forkedFrom` below is:
-  // `trip_details.doc` is stored jsonb that `getTripDetail` returns RAW, and
-  // the read route parses it. Every document written before M18 added these
-  // two fields therefore has neither key, and a row is only rewritten when
-  // its trip next changes — so a required `kind` 500s the board for any trip
-  // nobody has touched since, which is exactly what it did on the #71 preview
-  // (GET /api/trips/… → ZodError, `kind` Required).
+  // `trip_details.doc` is stored jsonb, and since KI-2026-09-05-r
+  // `getTripDetail` parses it against this schema at the source rather than
+  // handing it back raw for the read route to parse. Every document written
+  // before M18 added these two fields has neither key, and a row is only
+  // rewritten when its trip next changes — so a required `kind` 500s the
+  // board for any trip nobody has touched since, which is exactly what it did
+  // on the #71 preview (GET /api/trips/… → ZodError, `kind` Required).
+  // Parsing at the source makes these defaults MORE load-bearing, not less:
+  // they are now what lets an untouched pre-M18 row be read back at all.
   //
   // These are the same zero values the rest of the stack already agrees on:
   // `AddActivity.kind` is optional and documented "omitted = planned",
