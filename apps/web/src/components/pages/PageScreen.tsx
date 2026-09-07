@@ -251,7 +251,35 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       // here. It goes in through the SAME `insertContent` chain a click and a
       // drop use — one mechanism, so the AI cannot develop placement rules of
       // its own.
-      editorRef.current?.chain().focus().insertContent(event.content.content as never).run();
+      //
+      // **The insert does not TAKE the caret; it only keeps it (KI-2026-09-06-b).**
+      // An unconditional `focus()` here stole focus from the composer the user
+      // was still typing a follow-up into — and it stole it LATE, because
+      // tiptap's `focus` command schedules `view.focus()` in a
+      // `requestAnimationFrame` (`@tiptap/core` 2.27.2, `commands/focus.ts`).
+      // The keystrokes before that frame stayed in the composer and every one
+      // after it — `Enter` included — was typed into the page instead, silently:
+      // the follow-up was never sent and its characters were appended to the
+      // document and autosaved.
+      //
+      // **Placement is unchanged, which is why this is not a product decision.**
+      // `focus()` with no position never touches the selection: it resolves to
+      // `editor.state.selection`, sees the selection is the same, and does
+      // nothing but schedule that frame. `insertContent` lands at
+      // `state.selection`, which a ProseMirror state always has whether or not
+      // the view holds DOM focus — so the node goes exactly where it went
+      // before. The guarded call is a no-op by tiptap's own early return
+      // (`view.hasFocus() && position === null`); it is written out rather than
+      // deleted so that "the editor keeps the caret when it already had it"
+      // stays a property of this code and not of a library internal.
+      //
+      // `liveEditor`, not `editor`: the state variable of that name is this
+      // closure's stale copy, which is the whole reason `editorRef` exists.
+      const liveEditor = editorRef.current;
+      if (!liveEditor) return;
+      const insert = liveEditor.chain();
+      if (liveEditor.isFocused) insert.focus();
+      insert.insertContent(event.content.content as never).run();
     },
   });
   const [assistantOpen, setAssistantOpen] = useState(false);
