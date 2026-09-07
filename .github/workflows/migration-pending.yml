@@ -1,0 +1,71 @@
+name: migration-pending
+
+# THE DETECTOR. Production deploys on merge; production migrations are applied
+# only when a human dispatches `migrate-production.yml` (ADR-004, 2026-08-27 —
+# deliberate, and not what this fixes). What was missing is that between those
+# two moments NOTHING said the journal was ahead of the database: a route
+# reading the column the migration adds returns a 500 and users find out first.
+# `AGENTS.md` made "say so in the PR body" the sole control. KI-2026-09-05-k.
+#
+# So: whenever a migration reaches `main`, ask production whether it has it.
+# The job is read-only — one SELECT against `drizzle.__drizzle_migrations`,
+# `apps/web/scripts/check-migration-state.mjs` — and it fails only when
+# production really is behind. That matters: a job that goes red every time a
+# migration merges would be a reminder nobody reads within a month, and this
+# repo has already paid for one of those (KI-1). Dispatch the migration, re-run
+# this, and it goes green — the red run is a true statement about a real state,
+# not a ritual.
+#
+# `workflow_dispatch` is here for the question the KI could not answer from the
+# repo: "were 0012-0015 ever dispatched to production?" Run this by hand and it
+# answers, without applying anything.
+on:
+  push:
+    branches: [main]
+    # Only when the migrations themselves move. `ci.yml` deliberately does not
+    # run on push to `main` at all (it cost ~456 billed min/month to re-test a
+    # tree the PR run already tested); this is the narrow exception, and it is
+    # narrow on purpose — a handful of ~1-minute runs a month, on the pushes
+    # where a human owes an action. See docs/guidelines/ci-cost-and-capacity.md.
+    paths:
+      - 'apps/web/drizzle/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never race the migration itself. `migrate-production` holds its own group and
+# must not be cancelled mid-apply; this one is read-only, so a newer push may
+# freely supersede an in-flight check.
+concurrency:
+  group: migration-pending
+  cancel-in-progress: true
+
+jobs:
+  pending:
+    runs-on: ubuntu-latest
+    # Runaway cap only: checkout + install + one SELECT.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Shape first, and without a database. If the journal itself is wrong —
+      # two entries sharing an idx, a .sql nothing will ever apply — then what
+      # production is missing is the second question, not the first. `--ref
+      # HEAD` because on `main` the baseline IS this commit, so the comparison
+      # is vacuous and only the shape rules run.
+      - name: Journal shape
+        run: node scripts/check-migration-journal.mjs --ref HEAD
+
+      - name: Is production behind this tree?
+        env:
+          # The UNPOOLED/direct string, same as migrate-production.yml. Read-only
+          # here, but DDL and PgBouncer do not mix and one secret is one secret.
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: pnpm --filter web db:state

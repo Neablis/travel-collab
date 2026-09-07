@@ -347,8 +347,14 @@ point: they describe the change, not the ceremony around it.
   longer applies it: production migrations are dispatched explicitly via the
   `migrate-production` workflow (`gh workflow run migrate-production.yml -f
   confirm=migrate`, from `main`). A merged-but-undispatched migration is a
-  production schema drift waiting to happen, and the PR body is the only place
-  anyone will look for it. See `docs/guidelines/environments-and-deploys.md`.
+  production schema drift waiting to happen. The PR template now has a
+  **Migrations** section to say it in — and, since KI-2026-09-05-k, the PR body
+  is no longer the only control: `pnpm lint` runs
+  `scripts/check-migration-journal.mjs` (a migration you add must be newer than
+  `origin/main`'s newest, or drizzle will skip it in silence), and
+  `.github/workflows/migration-pending.yml` asks production, on every push to
+  `main` that touches `apps/web/drizzle/**`, whether it actually has them. See
+  `docs/guidelines/environments-and-deploys.md`.
 - The PR uses `.github/PULL_REQUEST_TEMPLATE.md` and its **Verification
   actually performed** section is filled in honestly — including which tier you
   ran and why. A step you did not run is recorded on the "Not run, and why"
