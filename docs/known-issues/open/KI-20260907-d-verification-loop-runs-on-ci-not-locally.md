@@ -27,7 +27,7 @@
 
 Same tree apart from the gate fix. A 5× slowdown with a large scattered failure set is KI-13's signature exactly, and the operator created the contention. About three of those 56 were the real m11a regression; the rest was noise that was briefly reported as a reproduction.
 
-**A scarce human-facing resource spent.** CodeRabbit provides one included review per hour. It reviewed `af38e31`; two pushes followed, so its risk assessment still reads "up to `af38e`" and a re-trigger is owed. Nothing in the loop warns that pushing after a review invalidates it.
+**A human's attention spent and then discarded.** CodeRabbit does not auto-review this repo (public, 0 stars, below its 10-star OSS gate — KI-2026-09-01), so every review is a step Mitchell performs by hand and then waits ~21 minutes for. `AGENTS.md:386` is explicit that **any push during that window aborts it**, and that the abort surfaces only as an edit to an existing comment. Its assessment on #155 still reads *"Merge Risk: Moderate · up to `af38e`"* — two code pushes and a docs push later. Nothing in the loop warns before a push that a review is in flight or already superseded; the only signal is a comment edit nobody is watching for.
 
 **Three checks green for the wrong reason, in one branch:**
 
@@ -70,7 +70,7 @@ Ordered by value per unit of work. None is large.
 3. **Add a CPU-exclusive resource to `.claude/protocol/adapter.json`, and make the lease intra-unit.** Cover `test:e2e`, `test:int` and `next build` under one `heavy-lane` resource with a symptom line naming KI-13. The port reasoning that excluded `test:e2e` is correct and simply about a different resource.
 4. **Open sweeps and phase PRs as drafts.** One word in `.claude/commands/ki-sweep.md` step 6a and in `phase-implementer`'s brief, matching `AGENTS.md:236`. Intermediate pushes then cost nothing until `gh pr ready`.
 5. **Re-justify the batching rule from the premise that still holds.** Update `AGENTS.md:241-245` to cite session time, Claude tokens and reviewer attention rather than the 2,000-minute cap, and state a budget an agent reads while working: *batch until the branch is verifiable, then push once; a second push within the hour needs a reason you would say out loud.*
-6. **Warn that a push invalidates a review.** CodeRabbit allows one included review per hour. A line in `working-a-review.md` and in the PR template: *do not push after triggering a review unless you intend to spend another one.*
+6. **Make an in-flight review visible to the thing that pushes.** The handoff flow (`AGENTS.md:390-405`) already says nobody pushes for ~21 minutes after a trigger; nothing enforces or even displays it. A `PreToolUse` guard on `git push` that reads the PR's latest CodeRabbit comment and asks when a review is in flight or when HEAD has moved past `coveredCommitId` would cost one API call and convert a silently aborted review into a question. Same shape as `check-destructive-git.mjs`.
 7. **Close the "green for the wrong reason" class deliberately.** Three instances in one branch is a pattern, not luck. The shape is **a check that passes without exercising the property it names**, and its three sub-shapes belong in `docs/guidelines/testing.md`: an assertion the test environment fabricates (jsdom focus), a rule that degrades silently exactly where it matters (the wall's baseline), and a fix that removes its own test's subject (the dev-login bypass). The existing red-first drill catches only the first.
 
 ---
