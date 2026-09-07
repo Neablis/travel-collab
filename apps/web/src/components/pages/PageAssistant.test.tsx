@@ -182,7 +182,28 @@ describe("the assistant on a notebook page", () => {
   // `readyForAnotherTurn`. That helper clicks the composer to take focus back,
   // which is right for the tests that only need a second turn — and is exactly
   // what would hide this, because a user who never stopped typing never clicks.
-  it("keeps a follow-up typed while an insert lands in the composer, not in the page", async () => {
+  // NAME THIS CAREFULLY. The first version of this test was called "keeps a
+  // follow-up typed while an insert lands IN THE COMPOSER, not in the page",
+  // and the browser walk on PR #155's preview measured the first half false:
+  // `AssistantRail.tsx`'s composer is `disabled={asking}`, disabling a focused
+  // input BLURS it, and re-enabling it ~76ms later does not restore focus. So
+  // in a real browser the follow-up reaches neither the composer nor the page
+  // — it goes to <body> and is dropped (KI-2026-09-07-c).
+  //
+  // jsdom does not reproduce that blur, which is why the old name passed while
+  // claiming something no browser does. What this test actually guards — and
+  // all KI-2026-09-06-b was ever about — is the destructive half: the
+  // keystrokes must not end up in the document the user was reading, and must
+  // not be autosaved there. That holds in jsdom AND in the browser.
+  //
+  // Measured, rather than assumed, with the `isFocused` guard in
+  // `PageScreen.tsx` reverted:
+  //   - as written        -> red at the call count, "expected 2 times, got 1"
+  //   - call count removed -> still red, at findByText("And a power adapter"),
+  //                           because the second turn is never asked at all
+  // So the assertions discriminate as a chain; no single one of them is the
+  // guard. Worth knowing before deleting any of them as redundant.
+  it("keeps a follow-up typed while an insert lands out of the page document", async () => {
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
@@ -202,8 +223,14 @@ describe("the assistant on a notebook page", () => {
     // No click: `userEvent.keyboard` types wherever focus actually is.
     await userEvent.keyboard("One more thing{Enter}");
 
-    // It was asked, and ALL of it was — not the two characters that beat the
-    // frame, and not without the `Enter` that submits it.
+    // JSDOM-ONLY, and deliberately not the claim this test is named for. Here
+    // the composer keeps focus, so the follow-up is delivered whole — not the
+    // two characters that beat the frame, and not without its `Enter`. In a
+    // real browser the composer has been blurred by `disabled={asking}` and
+    // this turn is never asked at all (KI-2026-09-07-c). Read the two
+    // assertions below as "the editor did not take the caret", which is the
+    // product property; do NOT read them as "a user can type a follow-up
+    // mid-turn", which is what the walk disproved.
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     const [, messages] = askAssistantMock.mock.calls[1]!;
     expect((messages as AskWireMessage[]).at(-1)!.parts[0]!.text).toBe("One more thing");
