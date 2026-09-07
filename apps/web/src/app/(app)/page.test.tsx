@@ -801,3 +801,53 @@ describe("Home finishing a demo clone", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
   });
 });
+
+// The third site of the class the 2026-08-28 review named (§1.1): a `load()`
+// that handles 401 and nothing else. `trips` stays null on any other failure,
+// and both render branches on this page are gated on `trips !== null`, so the
+// page shows a title row and "New trip" and never says a word — while an
+// unhandled rejection lands in the console. `TripProvider.load` got its
+// try/catch then; this site did not (KI-2026-09-05-y / F-G03).
+describe("Home trip list load failures", () => {
+  it("says the list could not be loaded, and offers a retry, when /api/trips 500s with a non-JSON body", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) return new Response("boom", { status: 500 });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/could not load your trips/i);
+    expect(screen.getByRole("button", { name: /try again/i })).toBeTruthy();
+    // Not the first-run card: "your trips could not be read" and "you have no
+    // trips" are different statements, and only one of them is true here.
+    expect(screen.queryByText("Plan your first trip")).toBeNull();
+    // And not /welcome either — only a 401 means that (F-G03's "Do not").
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("says the same when the fetch itself rejects, and the retry reloads the list", async () => {
+    let attempt = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) {
+        attempt += 1;
+        if (attempt === 1) throw new TypeError("Failed to fetch");
+        return jsonResponse({ trips: [tripSummaryFixture({ tripId, name: "Japan" })] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not load your trips/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+
+    expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
