@@ -101,6 +101,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      # `pnpm lint` runs `scripts/check-migration-journal.mjs`, whose HEADLINE
+      # rule — a new migration's `when` must exceed `main`'s newest — needs
+      # `main`'s journal, i.e. a git ref. `actions/checkout` fetches only the
+      # ref under test, so without this the wall finds no `origin/main`,
+      # degrades to shape-only and exits 0. It said so in its own banner and
+      # nobody read it: measured on a CI-like shallow clone 2026-09-07,
+      # "19 entries, shape only — baseline NOT compared". A wall that can only
+      # run on the contributor's laptop is advice, not a gate, and the case it
+      # exists for (a branch cut before main's newest migration) is exactly the
+      # one that reaches CI without ever touching that laptop again.
+      # One commit, ~1s. Found by Copilot's review of PR #155.
+      #
+      # It ASSERTS the ref rather than tolerating a miss. The first draft wrote
+      # `|| echo "…degrades to shape-only"`, which reproduces the exact defect
+      # being fixed one level up: the step would report success while the wall
+      # went back to comparing nothing, and the only witness would again be a
+      # line buried in a log nobody reads. `origin` is the BASE repository even
+      # for a fork PR, so `main` is always fetchable here; if this ever fails it
+      # is a real infrastructure fault and a red step is the correct outcome.
+      - name: Fetch main, so the migration journal wall has a baseline
+        run: |
+          git fetch --depth=1 origin main:refs/remotes/origin/main
+          git rev-parse --verify refs/remotes/origin/main >/dev/null
+          echo "baseline ref present: $(git rev-parse --short refs/remotes/origin/main)"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -112,6 +136,16 @@ jobs:
         run: pnpm lint
       - if: '!cancelled()'
         run: pnpm test
+      # `drizzle-kit check` reads the migration SNAPSHOTS and reports two things
+      # nothing else here does: a malformed snapshot, and a *collision* — two
+      # snapshots naming the same parent, which is what two branches generating
+      # migrations in parallel leaves behind when a merge keeps both. It reads
+      # `_journal.json` not at all (measured 2026-09-07: a journal with two
+      # `idx: 18` entries printed "Everything's fine"), which is why `pnpm lint`
+      # separately runs `scripts/check-migration-journal.mjs`. The two overlap
+      # nowhere. ~2s, no database, no build. KI-2026-09-05-k.
+      - if: '!cancelled()'
+        run: pnpm --filter web db:check
 
   # Everything that needs Postgres, a real build, and a browser: migrations,
   # integration tests, and e2e. This is the long pole, so it runs in parallel

@@ -19,25 +19,34 @@ import { isDemoTripId } from "@/lib/demoTrip";
  * overlay lives at the read boundary, which is the only place a person's
  * membership is a fact about the answer rather than a fact about the plan.
  *
- * It is also PARSED here, not cast. `getTripDetail` hands back the stored
- * `trip_details.doc` raw, and a doc is only rewritten when its trip next
- * changes — so every document written before a field existed is missing that
- * key entirely, and the contract's `.default()`s (`kind`, `tags`,
- * `forkedFrom`) only apply when something actually parses. Typing the raw doc
- * as `TripDetail` made that a silent lie every consumer inherited: the trip
- * GET route hit it as Mitchell's "500 loading any trip", and `POST
+ * The result is PARSED here, and the parse now guards the OVERLAY rather than
+ * the stored doc. It was added (KI-74) because `getTripDetail` returned
+ * `trip_details.doc` raw: a doc is only rewritten when its trip next changes,
+ * so every document written before a field existed is missing that key
+ * entirely, and the contract's `.default()`s (`kind`, `tags`, `forkedFrom`)
+ * only apply when something actually parses. Typing the raw doc as
+ * `TripDetail` made that a silent lie every consumer inherited: the trip GET
+ * route hit it as Mitchell's "500 loading any trip", and `POST
  * /api/saved-days` hit it again by handing the same doc to `stopsForDay`,
  * which copied `undefined` into a required `SavedStop.kind` and threw at the
  * response boundary AFTER the library row had already been inserted (PR #71
- * review §2). Parsing at the seam makes the type true once, for every caller.
+ * review §2).
+ *
+ * `getTripDetail` parses at the source as of KI-2026-09-05-r, so `projected`
+ * arrives valid and this is no longer what makes the legacy row safe. It is
+ * NOT redundant: `members` here is not the doc's own list but
+ * `effectiveMembers`, whose granted half is built in `members.ts` as
+ * `{ userId: r.userId, role: r.role as TripRole }` from a `text` column — the
+ * one unchecked value in the object being returned. A `trip_memberships` row
+ * carrying a role no `TripRole` names (a bad migration, a hand-written row)
+ * reaches the read boundary through here and nowhere else.
  *
  * `safeParse`, not `parse`: every other failure here is a returned
  * `{ error: Response }`, and a caller that writes `if ("error" in access)
  * return access.error` is entitled to assume that covers every way this can
- * fail. A doc malformed in a way the `.default()`s cannot repair is exactly
- * the legacy-row case this parse exists for, so throwing out of the seam
- * would reintroduce the unhandled 500 — with no logged context — for the one
- * input it was added to handle.
+ * fail — so a stray membership row is answered with a logged 500 rather than
+ * an unhandled throw. (`getTripDetail`'s own failure DOES throw, deliberately:
+ * it has no error channel, and it logs the `tripId` and issues before it does.)
  */
 /**
  * The only `minimum` the demo trip can satisfy. Written as a named constant
@@ -147,13 +156,14 @@ export async function requireTripAccess(
  * The same member overlay, for a detail the caller already holds.
  *
  * PARSED on the way out, for the reason `requireTripAccess` above is (KI-74).
- * The parameter type is not the guarantee it looks like: `getTripDetail` hands
- * back the stored `trip_details.doc` typed `TripDetail` and parsed by nothing,
- * so "the caller already holds a `TripDetail`" is exactly the claim that was
- * false for eight milestones and produced the "500 loading any trip". Spreading
- * such a doc and returning it under this signature would hand the lie on
- * intact — the contract's `.default()`s (`kind`, `tags`, `forkedFrom`) only
- * exist inside a parse.
+ * The parameter type is not the guarantee it looks like. It was `getTripDetail`
+ * that made it a lie — the stored `trip_details.doc` typed `TripDetail` and
+ * parsed by nothing, for eight milestones, which is what produced the "500
+ * loading any trip"; that source now parses (KI-2026-09-05-r). The signature is
+ * still only a claim, though: a `TripDetail` is whatever the compiler was told
+ * one is, and the overlay this function performs adds `effectiveMembers`, whose
+ * granted roles come off a `text` column through an unchecked cast. Spreading
+ * and returning under this signature without a parse would hand both on intact.
  *
  * `parse`, not `requireTripAccess`'s `safeParse`, because this function has no
  * error channel: its result type is a bare `TripDetail`, so there is no

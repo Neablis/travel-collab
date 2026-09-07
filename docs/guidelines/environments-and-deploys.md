@@ -86,6 +86,30 @@ Rules (ADR-004 + M1 retro):
   `ci-cost-and-capacity.md`). The rule above still holds: the *trigger* is
   manual, the *execution* is still automation, and the connection string never
   reaches a laptop shell.
+
+  **What tells you a migration is pending** (all three added by KI-2026-09-05-k;
+  before them, the PR body was the only control and nothing checked it):
+
+  | | |
+  |---|---|
+  | `.github/workflows/migration-pending.yml` | Every push to `main` touching `apps/web/drizzle/**` asks production whether it has them, and fails if not. `workflow_dispatch` runs the same read-only check by hand — that is how you answer "is production actually at 0018?" without applying anything. |
+  | `pnpm --filter web db:state` | The same check locally against any `DATABASE_URL`. Exit 0 applied, 1 pending, 2 could-not-tell. |
+  | `pnpm lint` → `scripts/check-migration-journal.mjs` | Refuses a migration whose `when` is not newer than `origin/main`'s newest, before it can merge. |
+
+  That last one is not tidiness. Drizzle's migrator applies an entry only if it
+  is newer than the newest row already in `drizzle.__drizzle_migrations` — not
+  the set difference — so a migration generated on a branch cut before someone
+  else's is **skipped, permanently, with `drizzle-kit migrate` printing
+  "migrations applied successfully!"**. Measured 2026-09-07 against a real
+  Postgres: 18 rows applied, one entry pending and older, `migrate` reported
+  success, and the count afterwards was still 18. If the wall fires, rebase and
+  re-run `pnpm --filter web db:generate` for a fresh `when` — renumbering the
+  file does nothing, because the number is not what is compared.
+
+  **Migrations are forward-only.** No migration in this repo has a down script
+  and two (`0002`, `0005`) carry irreversible data steps, so the wall also
+  refuses deleting one that `main` already has, or rewriting the `when` of one
+  already applied.
 - Preview migrations: `apps/web/scripts/vercel-build-migrate.mjs` runs
   `drizzle-kit migrate` during the Vercel build, and needs **both** conditions:
   `VERCEL_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says

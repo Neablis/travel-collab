@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { fetchPublicProfile } from "@/lib/apiClient";
-import { displayNameFor } from "@/lib/displayName";
 import type { PublicProfileResponse } from "@/lib/playbooks";
 import { DiscoverCard } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
@@ -75,9 +74,16 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
       ) : (
         <>
           <div>
-            {/* The M17 seam, second and last call site — one resolver, and it
-                returns the identifier today. */}
-            <Heading level={1}>{displayNameFor({ userId: feed.data.author.userId })}</Heading>
+            {/* The name the ENDPOINT resolved, not a second derivation from
+                the id in the URL. `PublicAuthor.displayName` is already
+                `displayNameFor`'s answer (server/playbooks.ts) — re-deriving it
+                here made that field dead on this surface and let the two
+                disagree, which they now do on purpose: a profile with zero days
+                and zero adds may be a mistyped id and is named neutrally rather
+                than as a plausible individual, and only the server can tell
+                (KI-2026-09-05-y / F-G05). Still one resolver; this is now
+                genuinely its consumer rather than a second call. */}
+            <Heading level={1}>{feed.data.author.displayName}</Heading>
             <Text variant="secondary" className="mt-1">
               Every number here is counted from this person&apos;s days, so it says the same thing
               as Discover does.

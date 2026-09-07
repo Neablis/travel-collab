@@ -130,22 +130,23 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
       }
     >
       {/*
-        §11 pins this popover's height rules, and they are load-bearing rather
-        than cosmetic: the create row and the footer stay put while only the
-        list scrolls, so the two actions never scroll out of reach behind a
+        SPEC §11 pins this popover's height rules, and they are load-bearing
+        rather than cosmetic: the create row and the footer stay put while only
+        the list scrolls, so the two actions never scroll out of reach behind a
         long list of notebooks.
 
-        The `max-height` is an inline style because the value is
+        The `max-height` is an inline style for one reason: the value is
         `--radix-popover-content-available-height`, which Radix measures per
-        open against the actual viewport — a static token cannot hold it. The
-        Tailwind arbitrary-value form (`max-h-[…]`) is explicitly warned off in
-        §11 for a reason that applies to this page: it loads the precompiled
-        `_ds_bundle.css` with no JIT, so an uncompiled utility lands in the DOM
-        and silently does nothing.
+        open against the actual viewport. No static token can hold a number
+        that does not exist until the popover is open, and a utility class
+        would state it as a design constant, which it is not. This is the same
+        escape hatch, for the same reason, as `ui/dialog.tsx`'s
+        viewport-relative cap — an enumerated exception to the inline-style
+        wall (docs/guidelines/design-system.md), not a workaround for one.
       */}
       <div
         className="flex min-h-0 flex-col"
-        // eslint-disable-next-line no-restricted-syntax -- a Radix-measured viewport value has no static token, and §11 warns off the Tailwind arbitrary-value form on this page
+        // eslint-disable-next-line no-restricted-syntax -- Radix measures --radix-popover-content-available-height per open against the live viewport; no static token can hold a per-open measurement
         style={{ maxHeight: "calc(var(--radix-popover-content-available-height, 420px) - 24px)" }}
       >
         {/* HIDDEN for a reader, not greyed — ADR-031's rule, the one

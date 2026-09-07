@@ -58,6 +58,12 @@ export default function Home() {
   const [trips, setTrips] = useState<TripSummary[] | null>(null);
   const [unauthenticated, setUnauthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Why this is separate from `error` above: `error` is delete/duplicate
+  // feedback about a trip that is already on screen, and the page around it
+  // still works. This one says the list itself never arrived, which is the
+  // only thing on the page worth reading — so it carries its own retry and
+  // survives independently of a later delete failure clearing the other.
+  const [loadError, setLoadError] = useState<string | null>(null);
   // New-trip is now the 4-step NewTripWizard (page head "New trip" trigger,
   // Phase 7 Task 7.2), hosted in the same Sheet-in-a-Dialog-slot this single
   // field Dialog used to be. CreateTrip itself still only ever carries a name
@@ -105,15 +111,56 @@ export default function Home() {
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
 
+  // Every render branch below is gated on `trips !== null`, so "the read
+  // failed" and "the read has not finished" are the same state to them —
+  // which is why a failure that leaves `trips` null renders a title row, a
+  // "New trip" button and nothing else, forever, with only an unhandled
+  // rejection in the console to say so. This is the third site of the class
+  // the 2026-08-28 review named (§1.1); `TripProvider.load` got its try/catch
+  // then and this one did not (KI-2026-09-05-y / F-G03). Two things escape
+  // without it: `res.json()` on a non-JSON 500 body, and the `fetch` itself
+  // rejecting (offline, DNS) — both are covered here.
+  //
+  // Only a 401 means `/welcome`. A 500 is not "you are signed out", and
+  // sending someone to the front door on one would log them out of a working
+  // session.
+  // LAST WRITER WINS, AND THE LAST WRITER IS THE LAST REQUEST — not the last
+  // response. `load` is called from the first-run effect, from Try again, and
+  // after a create or a restore, so two can be in flight at once; without this
+  // a slow earlier call settling second would reinstate a stale error over a
+  // good result, or overwrite newer trips with older ones (CodeRabbit, PR #155).
+  // A monotonic ticket rather than an AbortController because the loser here
+  // must not CANCEL the winner's work — both may legitimately be running, only
+  // one may write.
+  const loadTicket = useRef(0);
   const load = useCallback(async () => {
-    const res = await fetch("/api/trips");
-    if (res.status === 401) {
-      setUnauthenticated(true);
-      return;
+    const ticket = ++loadTicket.current;
+    const isStale = () => ticket !== loadTicket.current;
+    try {
+      const res = await fetch("/api/trips");
+      if (isStale()) return;
+      if (res.status === 401) {
+        setUnauthenticated(true);
+        return;
+      }
+      if (!res.ok) {
+        setLoadError("Could not load your trips.");
+        return;
+      }
+      const data = (await res.json()) as { trips: TripSummary[] };
+      // Re-checked AFTER the second await: `res.json()` is its own suspension
+      // point, and a newer load can win during it.
+      if (isStale()) return;
+      setUnauthenticated(false);
+      setLoadError(null);
+      setTrips(data.trips);
+    } catch {
+      if (isStale()) return;
+      // Deliberately not the thrown message: a `TypeError: Failed to fetch`
+      // or a JSON parse error is about the transport, not about anything the
+      // reader can act on. The retry is the actionable half.
+      setLoadError("Could not load your trips.");
     }
-    const data = (await res.json()) as { trips: TripSummary[] };
-    setUnauthenticated(false);
-    setTrips(data.trips);
   }, []);
 
   useEffect(() => {
@@ -344,6 +391,21 @@ export default function Home() {
           <Text role="alert" variant="secondary" className="text-danger-ink">
             {error}
           </Text>
+        )}
+
+        {/* The list read failed (F-G03). Said out loud with a way back, rather
+            than left as an empty page: `trips` is still null, so the grid and
+            the first-run card both render nothing, and "we could not read your
+            trips" must not be mistaken for "you have no trips". */}
+        {loadError && (
+          <div role="alert" className="flex flex-wrap items-center gap-3">
+            <Text variant="secondary" className="text-danger-ink">
+              {loadError}
+            </Text>
+            <Button type="button" variant="secondary" onClick={() => void load()}>
+              Try again
+            </Button>
+          </div>
         )}
 
         {/* Said out loud, because this page is about to navigate away on its

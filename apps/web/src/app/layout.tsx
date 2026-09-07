@@ -63,8 +63,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             client component — `children` is still passed through as an
             already-rendered server tree. */}
         <SaveLightProvider>{children}</SaveLightProvider>
-        <Analytics />
-        <SpeedInsights />
+        {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`
+            alone, so any production build — `next start` locally, CI's
+            ci-like e2e lane, a self-hosted deploy — mounted them and then
+            requested `/_vercel/insights/script.js` and
+            `/_vercel/speed-insights/script.js`, which only Vercel's edge ever
+            serves. Off Vercel that is two 404s plus two strict-MIME refusals
+            in the console on every page: 34 of the 2026-09-05 review's ~70
+            browser-walk finding lines, burying real errors and making a "no
+            console errors" e2e assertion impossible (KI-2026-09-05-y /
+            F-G06). `VERCEL` is set by the platform on every Vercel build and
+            runtime and by nothing else, which is also the condition
+            next.config.ts's CSP comment already assumes when it calls these
+            scripts same-origin. Read per render, not hoisted to a module
+            constant, so layout.test.ts can exercise both branches. */}
+        {process.env.VERCEL ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );

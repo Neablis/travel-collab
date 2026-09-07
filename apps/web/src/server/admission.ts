@@ -28,7 +28,15 @@ import { inviteCodes, tripInvites } from "./db/schema";
 /** The cookie that carries an admission credential across the OAuth round trip. */
 
 /** How a person got through the gate. Recorded so a refusal can be told from each. */
-export type AdmissionGrant = "returning-user" | "trip-invite" | "super-code" | "invite-code";
+export type AdmissionGrant =
+  | "returning-user"
+  | "trip-invite"
+  | "super-code"
+  | "invite-code"
+  // Granted by `recordSignIn`, never by anything in this file: dev login is an
+  // ENVIRONMENT fact (AUTH_DEV_LOGIN + a non-production VERCEL_ENV), not a
+  // credential, so there is nothing here to check or to spend.
+  | "dev-login";
 
 export type AdmissionOutcome =
   | { admitted: true; via: AdmissionGrant }

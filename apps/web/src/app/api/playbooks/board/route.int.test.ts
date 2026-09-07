@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { expect, it, describe, vi } from "vitest";
 import type { LeaderboardResponse, PublicProfileResponse } from "@/lib/playbooks";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
+import { savedDays } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 // The leaderboard (M11b link 7) and the public profile (link 8), against the
 // real ledger.
@@ -241,21 +244,69 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const nobody = await profile(`board-ghost-${RUN}`);
     expect(nobody.author).toEqual({
       userId: `board-ghost-${RUN}`,
-      // The id is what the profile IS, and what the URL carries; the name is
-      // what `displayNameFor` makes of it, which since 2026-09-01 is never the
-      // raw identifier ("Dont show the UUID"). Asserted as the derived handle
-      // rather than as the id, so a regression that started printing the id
-      // again fails here. Six characters, not four (CodeRabbit, pull request 104):
-      // `displayNameFor` widened its suffix because four hex characters
-      // collided too easily for a label the leaderboard ranks people by — see
-      // `lib/displayName.ts`. `board-ghost-${RUN}` has no other non-alphanumeric
-      // characters after RUN, so the compacted id's last six characters are
-      // exactly RUN's last six.
-      displayName: `Traveler ${RUN.slice(-6)}`,
+      // NOT a derived handle. The id is what the profile IS and what the URL
+      // carries, and the name is still never the raw identifier ("Dont show
+      // the UUID", 2026-09-01) — but it is no longer `Traveler ${RUN.slice(-6)}`
+      // either, which is what this asserted until 2026-09-07. `board-ghost-…`
+      // is an id no account has, and six characters off the end of any string
+      // a stranger types into the URL rendered as a plausible individual who
+      // had simply shared nothing (KI-2026-09-05-y / F-G05). Zero days and zero
+      // adds is the strongest thing that can be said without answering "does
+      // this account exist", so that is what it says. The suffix and its width
+      // are still pinned, for the people the leaderboard actually ranks, by
+      // `src/lib/displayName.test.ts` and by "keeps the derived handle for
+      // somebody who HAS shared" below.
+      displayName: "A traveler",
       daysShared: 0,
       adds: 0,
     });
     expect(nobody.days).toEqual([]);
     expect(nobody.knows).toEqual([]);
+  });
+
+  // The other side of the neutral name, and the reason it is conditioned on
+  // "has nothing" rather than applied to every profile: the leaderboard ranks
+  // people against each other, so everyone with days or adds must still render
+  // as somebody in particular. A flat "A traveler" for POPULAR here would make
+  // every row on that page the same person — the failure `lib/displayName.ts`'s
+  // six-character suffix exists to prevent.
+  it("keeps the derived handle for somebody who HAS shared", async () => {
+    currentUserId = TAKER;
+    const seen = await profile(POPULAR);
+    expect(seen.author.displayName).toBe(`Traveler ${POPULAR.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`);
+    expect(seen.author.daysShared).toBeGreaterThan(0);
+  });
+
+  // THE OTHER HALF OF THE SAME CONDITION, and the test above cannot reach it.
+  // `publicAuthor` neutralises on `daysShared === 0 && adds === 0`, so an
+  // implementation that dropped the `adds` clause entirely would pass every
+  // other test in this file (CodeRabbit, PR #155; and the path instruction that
+  // an invariant asserted only in a comment is the KI-1 / KI-14 defect class).
+  //
+  // The state is reachable and is not contrived: publish a day, let somebody
+  // take it, then unpublish. The ledger row survives — that is the point of a
+  // ledger — so the author has adds but nothing currently shared. Flipped
+  // through the database because no route unpublishes, and inventing one for a
+  // test would be the tail wagging the dog.
+  it("keeps the derived handle for somebody with adds but nothing currently shared", async () => {
+    const UNSHARED = `board-unshared-${RUN}`;
+    currentUserId = UNSHARED;
+    const day = await saveDay(`Unshared ${RUN}`, CITY);
+    await publish(day);
+    currentUserId = TAKER;
+    await take(day);
+
+    await db
+      .update(savedDays)
+      .set({ visibility: "private" })
+      .where(eq(savedDays.id, day));
+
+    currentUserId = TAKER;
+    const seen = await profile(UNSHARED);
+    expect(seen.author.daysShared).toBe(0);
+    expect(seen.author.adds).toBeGreaterThan(0);
+    expect(seen.author.displayName).toBe(
+      `Traveler ${UNSHARED.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`,
+    );
   });
 });

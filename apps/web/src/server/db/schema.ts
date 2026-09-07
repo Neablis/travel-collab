@@ -92,6 +92,13 @@ export const tripSummaries = pgTable("trip_summaries", {
 
 export const tripDetails = pgTable("trip_details", {
   tripId: uuid("trip_id").primaryKey(),
+  // `$type<T>()` IS A CAST, NOT A GUARANTEE (KI-2026-09-05-r). Drizzle applies
+  // no runtime check: it relabels `unknown` as `TripDetail` for the compiler
+  // and nothing else, so a `doc` written by an older version of the contract —
+  // or by hand — is typed `TripDetail` while satisfying none of it. Reading
+  // this column is therefore only safe through `getTripDetail`, which parses;
+  // a `db.select().from(tripDetails)` written anywhere else re-opens the hole.
+  // The same caveat applies to every `$type` in this file.
   doc: jsonb("doc").$type<TripDetail>().notNull(),
 });
 

@@ -8,6 +8,7 @@ import {
 } from "./admission";
 import { db } from "./db/client";
 import { users } from "./db/schema";
+import { isDevLoginEnabled } from "@/lib/devLogin";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
 // is created or refreshed on sign-in and nothing else touches it. Identity is
@@ -53,6 +54,12 @@ type SignInUser = {
  */
 type SignInAccount = {
   providerAccountId?: string | null;
+  // WHICH provider authenticated, not which one the caller claims. Auth.js
+  // builds this from the provider that actually handled the request, so it is
+  // the only trustworthy way to recognise a dev-login sign-in — a `dev-`
+  // prefix on `providerAccountId` is a string anyone can present through
+  // Google. See `recordSignIn`'s dev-login branch.
+  provider?: string | null;
 };
 
 /** What Auth.js hands the `signIn` callback, reduced to what identity needs. */
@@ -267,9 +274,39 @@ export async function recordSignIn(
   if (identity === null) return false;
 
   const returning = await hasUserRow(identity.id);
+  // DEV LOGIN IS ITS OWN ADMISSION. The invite gate exists to control who
+  // reaches a real deployment; dev login cannot reach one. `isDevLoginEnabled()`
+  // requires AUTH_DEV_LOGIN=true AND VERCEL_ENV !== "production", and Vercel
+  // sets VERCEL_ENV itself, so production cannot satisfy it however the opt-in
+  // was scoped — the provider is not even registered there
+  // (`lib/authConfig.ts`). Requiring an invite code on top of that gated a door
+  // that is already locked, and locked out every fresh dev user on preview and
+  // on a new local database: reported 2026-09-07, "i cant log in, sign in with
+  // dev login errors because i dont have a invite code".
+  //
+  // BOTH conditions, in the repo's fail-closed idiom (`isDemoDataResetEnabled`,
+  // `matchesSuperCode`): the environment must allow dev login, and the sign-in
+  // must have come THROUGH the dev-login provider. Keying on `identity.id`
+  // starting with `dev-` would be the bug — that string arrives from the
+  // provider's subject and a Google account could carry it.
+  //
+  // THE ONE OPT-OUT, and it exists because this bypass would otherwise delete
+  // the invite gate's only end-to-end coverage. `m11a-invite-gate.spec.ts`
+  // proves the gate through DEV LOGIN — four refusals, a single-use race, and
+  // the pending-admission cookie — because dev login is the only way a browser
+  // test can mint an identity the app has never seen. Admitting every dev-login
+  // sign-in makes all of that vacuous, so the e2e server sets this and the gate
+  // applies there exactly as it did before. Set in `playwright.config.ts`
+  // beside `INVITE_SUPER_CODE`, nowhere else: a human never sets it, and a
+  // deployment never should.
+  const gateAppliesAnyway = process.env.DEV_LOGIN_HONOURS_INVITE_GATE === "true";
+  const viaDevLogin =
+    isDevLoginEnabled() && payload?.account?.provider === "dev-login" && !gateAppliesAnyway;
   const outcome = returning
     ? ({ admitted: true, via: "returning-user" } as const)
-    : await redeemAdmission(await pending.read(), identity.id);
+    : viaDevLogin
+      ? ({ admitted: true, via: "dev-login" } as const)
+      : await redeemAdmission(await pending.read(), identity.id);
 
   // After the decision and before either answer, so a refusal cannot leave the
   // rejected credential behind to be replayed by the next sign-in attempt. Not
