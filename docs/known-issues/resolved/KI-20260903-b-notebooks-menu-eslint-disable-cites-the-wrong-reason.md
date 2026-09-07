@@ -1,4 +1,38 @@
-### KI-2026-09-03-b — `NotebooksMenu`'s inline-style `eslint-disable` cites a constraint that does not apply to `apps/web`
+### KI-2026-09-03-b — `NotebooksMenu`'s inline-style `eslint-disable` cites a constraint that does not apply to `apps/web` — RESOLVED
+
+**Resolved 2026-09-07.** The comment block above the scroll container and the
+`eslint-disable-next-line no-restricted-syntax` reason on the `style={{ maxHeight: … }}`
+line were rewritten to state the one load-bearing fact — Radix measures
+`--radix-popover-content-available-height` per open against the live viewport, so no static
+token can hold it — and the `_ds_bundle.css` / no-JIT clause was dropped entirely. **The
+directive itself was kept**, and `docs/guidelines/design-system.md` gained the boundary this
+entry asked for, stating both halves once: the `.design-sync` no-JIT rule governs artboard
+HTML and not `apps/web`, and a half-step like `size-5.5` is house style, not a bracketed
+arbitrary value.
+
+*Correction to this entry's own framing, found while reproducing it:* the offending clause
+is not in `RULES.md` (which has six rules and no §11) but in `SPEC.md` §11's "Notebooks is a
+menu, not a tab" subsection, verbatim — *"Do not use arbitrary Tailwind values (`max-h-[…]`)
+here — this page loads the precompiled `_ds_bundle.css` with no JIT."* The implementer copied
+it faithfully; the falsehood entered when "this page" was re-anchored from the artboard to the
+React component. `DS-UPSTREAM.md` U4 settles it: *"In the real app the JIT handles them, so
+this is a design-file constraint, not a product bug."*
+
+**Proven by:** (1) compiling the app's own stylesheet —
+`npx @tailwindcss/cli -i src/app/globals.css -o out.css` emits
+`.max-w-\[calc\(100vw-2rem\)\] { max-width: calc(100vw - 2rem) }` from `ShareButton.tsx`,
+i.e. bracketed values are *not* inert in `apps/web`, and `.size-5\.5` compiles too;
+(2) deleting the directive reproduces `no-restricted-syntax` — *"No inline styles — use
+tokens"*, a token rule with no JIT component — at the `style` line both before and after the
+rewrite, so the escape hatch is still load-bearing and still correct;
+(3) `grep -rn "§11" apps/web/src` now yields no citation invoking a styling or compilation
+constraint — every remaining one is a SPEC product-rule reference. `pnpm --filter web lint`,
+`pnpm --filter web typecheck`, and `NotebooksMenu.test.tsx` (10 tests) all pass.
+
+No regression test: the bug class is the truth of a sentence in a comment, which no assertion
+can check in general. The one mechanizable slice — a source wall forbidding the no-JIT clause
+in `apps/web/src` — is already owned by KI-2026-09-05-v, whose proposed mechanism (teaching
+the lint rule the geometric class, plus `reportUnusedDisableDirectives`) subsumes it.
 
 - **Severity:** cleanup (no defect — the escape hatch itself is correct and the rendered
   menu is right; what is wrong is the stated reason, which teaches the next reader

@@ -59,7 +59,19 @@ optically larger).
 
 - **Spacing:** Tailwind's default 4px grid, unmodified. Arbitrary values
   (`p-[13px]`) are banned by lint — if a spacing need doesn't fit the grid, the
-  design is wrong, not the grid.
+  design is wrong, not the grid. A **half-step on the scale is not an arbitrary
+  value**: `size-5.5` (22px) is house style here (`NotebooksMenu`,
+  `LandingHeroArt`), compiles from the spacing scale like any other utility, and
+  is unrelated to the bracketed `[13px]` form the wall bans.
+- **The `.design-sync` styling rules do not bind `apps/web`.** SPEC §11's "do not
+  use arbitrary Tailwind values here — this page loads the precompiled
+  `_ds_bundle.css` with no JIT" is a constraint on the **artboard HTML**, whose
+  bundle nothing recompiles (`.design-sync/handoff/DS-UPSTREAM.md` U4: *"In the
+  real app the JIT handles them, so this is a design-file constraint, not a
+  product bug"*). `apps/web` compiles Tailwind normally via
+  `@tailwindcss/postcss`, so a bracketed value there compiles like any other
+  utility — it is banned by *our* lint wall (below), for token reasons, never
+  because it would be inert.
 - **Radii:** `rounded-sm` 6px (badges, inputs, small controls) · `rounded-md`
   8px (buttons, cards) · `rounded-lg` 12px (dialogs, panels) · `rounded-xl`
   14px (day headers, stat tiles) · `rounded-2xl` 16px (day columns) · `rounded-full`
