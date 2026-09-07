@@ -101,6 +101,19 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      # `pnpm lint` runs `scripts/check-migration-journal.mjs`, whose HEADLINE
+      # rule — a new migration's `when` must exceed `main`'s newest — needs
+      # `main`'s journal, i.e. a git ref. `actions/checkout` fetches only the
+      # ref under test, so without this the wall finds no `origin/main`,
+      # degrades to shape-only and exits 0. It said so in its own banner and
+      # nobody read it: measured on a CI-like shallow clone 2026-09-07,
+      # "19 entries, shape only — baseline NOT compared". A wall that can only
+      # run on the contributor's laptop is advice, not a gate, and the case it
+      # exists for (a branch cut before main's newest migration) is exactly the
+      # one that reaches CI without ever touching that laptop again.
+      # One commit, ~1s. Found by Copilot's review of PR #155.
+      - name: Fetch main, so the migration journal wall has a baseline
+        run: git fetch --depth=1 origin main:refs/remotes/origin/main || echo "no main to compare against (fork or first push) — wall degrades to shape-only"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:

@@ -41,11 +41,20 @@ import { join, relative, resolve } from "node:path";
 // The two checks overlap nowhere, which is why CI runs both.
 //
 // BASELINE AVAILABILITY. The comparison needs `main`'s journal, which means a
-// git ref. `actions/checkout` fetches only the ref under test, so
-// `origin/main` usually does NOT exist on a CI runner; there the wall reports
-// what it could not compare and still runs the shape checks. Locally — where
-// `pnpm lint` runs before you push, which is the moment this catches things —
-// the ref is there.
+// git ref, and `actions/checkout` fetches only the ref under test — so
+// `origin/main` does NOT exist on a runner by default. This file used to say
+// that was fine because "locally is the moment this catches things". It is
+// not fine, and Copilot's review of PR #155 said so: the wall printed
+// `shape only — baseline NOT compared` in CI and exited 0, which makes the
+// headline rule advice rather than a gate. Reproduced on a CI-like shallow
+// clone 2026-09-07, then fixed at the other end: `.github/workflows/ci.yml`
+// fetches `main` (depth 1, ~1s) before `pnpm lint`.
+//
+// The degraded path still exists and still must not break a build — a fork PR,
+// a first push, or a checkout with no reachable `main` all land here. But it is
+// now the exception it was always described as, rather than what CI did every
+// single run. If you see `baseline NOT compared` in a CI log, that fetch step
+// is missing or failed; do not read it as normal.
 
 const JOURNAL_IN_DRIZZLE_DIR = join("meta", "_journal.json");
 
