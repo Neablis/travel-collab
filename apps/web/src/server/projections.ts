@@ -1,4 +1,4 @@
-import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
+import { TripDetail, TripEvent, type EventEnvelope } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
 import { and, eq, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
@@ -59,6 +59,31 @@ export async function upsertTripDetail(tx: Queryable, detail: TripDetail): Promi
     .onConflictDoUpdate({ target: tripDetails.tripId, set: { doc: detail } });
 }
 
+/**
+ * The stored `trip_details` document, PARSED (KI-2026-09-05-r).
+ *
+ * `trip_details.doc` is `jsonb(...).$type<TripDetail>()`, and a Drizzle
+ * `$type` is a compile-time cast with no runtime check behind it — see the
+ * note at `db/schema.ts`. This function returning `rows[0]?.doc` under a
+ * `Promise<TripDetail | null>` signature therefore asserted something no code
+ * had ever verified, and handed that assertion to every caller: `cloneTrip`,
+ * `shares`, `invites`, the member-removal route and `requireTripAccess`.
+ *
+ * Six of those callers survived on luck rather than design — they read only
+ * `status`, `members` and `name`, which are day-one fields no contract change
+ * has ever defaulted. The seventh did not: `requireTripAccess` had to grow its
+ * own `safeParse` (KI-74) after a pre-M18 doc, missing `kind` and `tags`,
+ * 500'd the board on every untouched trip. The parse belongs HERE, at the one
+ * place the document leaves the database, so the next caller starts correct by
+ * default instead of inheriting the lie and rediscovering KI-74.
+ *
+ * THROWING is how it declines, for the reason `withEffectiveMembers` throws:
+ * `null` is this function's word for "no such trip", and a trip whose row is
+ * malformed is not a trip that does not exist — answering 404 for it would
+ * hide a broken row behind a routine miss. The issues are logged with the
+ * `tripId` because the throw does not carry it, and the id is what makes the
+ * row findable.
+ */
 export async function getTripDetail(tripId: string): Promise<TripDetail | null> {
   // `trip_id` is a uuid column, so a `tripId` that is not one is not a miss —
   // it is `22P02` out of the driver, and the 500 that reached the board as the
@@ -69,7 +94,17 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
   // into the 404 they always meant.
   if (!isUuid(tripId)) return null;
   const rows = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
-  return rows[0]?.doc ?? null;
+  const doc = rows[0]?.doc;
+  if (doc === undefined) return null;
+  const parsed = TripDetail.safeParse(doc);
+  if (!parsed.success) {
+    console.error("trip_details doc failed TripDetail parse", {
+      tripId,
+      issues: parsed.error.issues,
+    });
+    throw parsed.error;
+  }
+  return parsed.data;
 }
 
 export async function rebuildProjections(): Promise<void> {
