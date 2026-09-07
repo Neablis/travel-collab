@@ -360,6 +360,25 @@ describe("recordSignIn is the invite gate (M11a)", () => {
       expect(await readUser(id)).toBeNull();
     });
 
+    // The e2e opt-out. Without this the bypass would silently delete
+    // `m11a-invite-gate.spec.ts`'s entire subject — it proves the gate THROUGH
+    // dev login, because that is the only way a browser test mints a brand-new
+    // identity. `playwright.config.ts` sets this; nothing else does.
+    it("honours the invite gate when DEV_LOGIN_HONOURS_INVITE_GATE is set", async () => {
+      const id = `dev-${signInId()}`;
+      const previous = process.env.DEV_LOGIN_HONOURS_INVITE_GATE;
+      process.env.DEV_LOGIN_HONOURS_INVITE_GATE = "true";
+      try {
+        await expect(recordSignIn(devSignIn(id), fakeJar(null))).resolves.toBe(
+          `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
+        );
+        expect(await readUser(id)).toBeNull();
+      } finally {
+        if (previous === undefined) delete process.env.DEV_LOGIN_HONOURS_INVITE_GATE;
+        else process.env.DEV_LOGIN_HONOURS_INVITE_GATE = previous;
+      }
+    });
+
     it("does NOT admit dev-login when the environment has it switched off", async () => {
       const id = `dev-${signInId()}`;
       const previous = process.env.AUTH_DEV_LOGIN;

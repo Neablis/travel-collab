@@ -140,6 +140,14 @@ export default defineConfig({
       // specs present this exact string, so a developer's own value in
       // `.env.local` must not be what the server ends up trusting.
       INVITE_SUPER_CODE: E2E_SUPER_CODE,
+      // Dev login normally bypasses the invite gate entirely (a fresh dev user
+      // on a new database should not need a code — Mitchell, 2026-09-07). But
+      // `m11a-invite-gate.spec.ts` proves the gate THROUGH dev login, because
+      // that is the only way a browser test can mint an identity the app has
+      // never seen; with the bypass on, its four refusals and its single-use
+      // race all pass vacuously. So the e2e server opts back in and the gate
+      // behaves here exactly as M11a specified it. Nowhere else sets this.
+      DEV_LOGIN_HONOURS_INVITE_GATE: "true",
       // Auth.js v5 rejects requests from untrusted hosts under `next start`
       // (production mode) unless the platform sets this itself (Vercel does).
       // CI's workflow env already sets this for the job as a whole (see

@@ -289,7 +289,19 @@ export async function recordSignIn(
   // must have come THROUGH the dev-login provider. Keying on `identity.id`
   // starting with `dev-` would be the bug — that string arrives from the
   // provider's subject and a Google account could carry it.
-  const viaDevLogin = isDevLoginEnabled() && payload?.account?.provider === "dev-login";
+  //
+  // THE ONE OPT-OUT, and it exists because this bypass would otherwise delete
+  // the invite gate's only end-to-end coverage. `m11a-invite-gate.spec.ts`
+  // proves the gate through DEV LOGIN — four refusals, a single-use race, and
+  // the pending-admission cookie — because dev login is the only way a browser
+  // test can mint an identity the app has never seen. Admitting every dev-login
+  // sign-in makes all of that vacuous, so the e2e server sets this and the gate
+  // applies there exactly as it did before. Set in `playwright.config.ts`
+  // beside `INVITE_SUPER_CODE`, nowhere else: a human never sets it, and a
+  // deployment never should.
+  const gateAppliesAnyway = process.env.DEV_LOGIN_HONOURS_INVITE_GATE === "true";
+  const viaDevLogin =
+    isDevLoginEnabled() && payload?.account?.provider === "dev-login" && !gateAppliesAnyway;
   const outcome = returning
     ? ({ admitted: true, via: "returning-user" } as const)
     : viaDevLogin
