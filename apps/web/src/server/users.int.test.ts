@@ -317,6 +317,65 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     expect(row?.redeemedBy).toBeNull();
   });
 
+  // DEV LOGIN IS ITS OWN ADMISSION, and the gate is the environment rather than
+  // the id string. `AUTH_DEV_LOGIN=true` + `VERCEL_ENV !== "production"` is what
+  // `isDevLoginEnabled()` requires, and the dev-login PROVIDER is only
+  // registered when that holds — so a Google sign-in cannot present
+  // `provider: "dev-login"` and a production deployment cannot register it at
+  // all. Keying on the provider Auth.js actually authenticated with, not on a
+  // `dev-` prefix in `providerAccountId`, is the difference between a gate and
+  // a guessable string.
+  describe("dev login", () => {
+    const devSignIn = (subject: string) => ({
+      user: { name: subject.replace(/^dev-/, "") },
+      account: { providerAccountId: subject, provider: "dev-login" },
+    });
+
+    it("admits a brand-new dev user with no invite code, and creates the row", async () => {
+      const id = `dev-${signInId()}`;
+
+      await expect(recordSignIn(devSignIn(id), fakeJar(null))).resolves.toBe(true);
+      expect(await readUser(id)).not.toBeNull();
+    });
+
+    it("spends no invite code doing it", async () => {
+      const id = `dev-${signInId()}`;
+      const code = await mintCode(id);
+
+      await expect(recordSignIn(devSignIn(id), fakeJar(code))).resolves.toBe(true);
+
+      const [row] = await db.select().from(inviteCodes).where(eq(inviteCodes.code, code));
+      expect(row?.redeemedBy).toBeNull();
+    });
+
+    it("does NOT admit a dev-shaped id presented by another provider", async () => {
+      const id = `dev-${signInId()}`;
+
+      await expect(
+        recordSignIn(
+          { user: { name: "Impostor" }, account: { providerAccountId: id, provider: "google" } },
+          fakeJar(null),
+        ),
+      ).resolves.toBe(`/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`);
+      expect(await readUser(id)).toBeNull();
+    });
+
+    it("does NOT admit dev-login when the environment has it switched off", async () => {
+      const id = `dev-${signInId()}`;
+      const previous = process.env.AUTH_DEV_LOGIN;
+      process.env.AUTH_DEV_LOGIN = "false";
+      try {
+        await expect(recordSignIn(devSignIn(id), fakeJar(null))).resolves.toBe(
+          `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
+        );
+        expect(await readUser(id)).toBeNull();
+      } finally {
+        if (previous === undefined) delete process.env.AUTH_DEV_LOGIN;
+        else process.env.AUTH_DEV_LOGIN = previous;
+      }
+    });
+  });
+
   // The headline refusal: a brand-new account with no admission is refused and
   // LEAVES NO USERS ROW BEHIND.
   it("refuses a newcomer who presents nothing, and creates no row", async () => {

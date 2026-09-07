@@ -128,6 +128,48 @@ export function shapeViolations(entries, sqlTags) {
 }
 
 /**
+ * Every migration that CHANGES SCHEMA must have left a snapshot behind.
+ *
+ * `drizzle-kit generate` diffs `schema.ts` against the NEWEST snapshot it can
+ * find. A schema migration whose snapshot was never committed is therefore
+ * invisible to it, and the next `generate` re-emits that migration's own
+ * change as a new one — which then fails on apply with "column already exists"
+ * against every database that is current. The next person to write a migration
+ * inherits a broken artefact before they have written a line of it.
+ *
+ * Not hypothetical: `0018_saved_day_source_bundle`'s snapshot was missing and
+ * `generate` on an untouched tree emitted a duplicate `ALTER TABLE
+ * "saved_days" ADD COLUMN "source_bundle" text` (KI-2026-09-07-a, fixed
+ * 2026-09-07). `drizzle-kit check` does not catch it — it reads the snapshots
+ * it HAS and never reads `_journal.json`.
+ *
+ * DATA-ONLY MIGRATIONS ARE EXEMPT, and that exemption is why this rule reads
+ * the SQL rather than counting files. `0016_demo_visitor_orphans` is a
+ * hand-written `DELETE FROM`; it changes no schema, drizzle-kit never made a
+ * snapshot for it, and it needs none — the previous snapshot still describes
+ * the schema correctly. A blanket "one snapshot per journal entry" rule would
+ * fail on it and be deleted within the week for crying wolf.
+ */
+export function snapshotViolations(entries, sqlFor, hasSnapshot) {
+  const problems = [];
+  for (const { idx, tag } of entries) {
+    const sql = sqlFor(tag);
+    if (sql === null) continue; // already reported by shapeViolations
+    if (!DDL.test(sql)) continue; // data-only: no snapshot is correct
+    if (hasSnapshot(idx)) continue;
+    problems.push(
+      `${tag}: changes schema but has no meta/${String(idx).padStart(4, "0")}_snapshot.json — ` +
+        `\`drizzle-kit generate\` will diff against an older snapshot and re-emit this migration's own change`,
+    );
+  }
+  return problems;
+}
+
+/** Statements that move the schema, and so must be reflected in a snapshot. */
+const DDL =
+  /\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|TYPE|SCHEMA|SEQUENCE|MATERIALIZED\s+VIEW|VIEW)\b/i;
+
+/**
  * The production check. Every migration this branch ADDS must be newer than
  * every migration already on the baseline ref, or the migrator will skip it on
  * any database that is already at the baseline.
@@ -201,8 +243,20 @@ const baseline = baselineFile
   ? { entries: parseJournal(readFileSync(baselineFile, "utf8")).entries }
   : baselineFromGit(drizzleDir, baselineRef);
 
+const snapshotIdx = new Set(
+  readdirSync(join(drizzleDir, "meta"))
+    .map((f) => /^(\d+)_snapshot\.json$/.exec(f))
+    .filter((m) => m !== null)
+    .map((m) => Number(m[1])),
+);
+const sqlFor = (tag) => {
+  const at = join(drizzleDir, `${tag}.sql`);
+  return existsSync(at) ? readFileSync(at, "utf8") : null;
+};
+
 const violations = [
   ...shapeViolations(entries, sqlTags),
+  ...snapshotViolations(entries, sqlFor, (idx) => snapshotIdx.has(idx)),
   ...(baseline.entries ? baselineViolations(entries, baseline.entries) : []),
 ];
 
