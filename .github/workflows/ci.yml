@@ -112,8 +112,19 @@ jobs:
       # exists for (a branch cut before main's newest migration) is exactly the
       # one that reaches CI without ever touching that laptop again.
       # One commit, ~1s. Found by Copilot's review of PR #155.
+      #
+      # It ASSERTS the ref rather than tolerating a miss. The first draft wrote
+      # `|| echo "…degrades to shape-only"`, which reproduces the exact defect
+      # being fixed one level up: the step would report success while the wall
+      # went back to comparing nothing, and the only witness would again be a
+      # line buried in a log nobody reads. `origin` is the BASE repository even
+      # for a fork PR, so `main` is always fetchable here; if this ever fails it
+      # is a real infrastructure fault and a red step is the correct outcome.
       - name: Fetch main, so the migration journal wall has a baseline
-        run: git fetch --depth=1 origin main:refs/remotes/origin/main || echo "no main to compare against (fork or first push) — wall degrades to shape-only"
+        run: |
+          git fetch --depth=1 origin main:refs/remotes/origin/main
+          git rev-parse --verify refs/remotes/origin/main >/dev/null
+          echo "baseline ref present: $(git rev-parse --short refs/remotes/origin/main)"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
