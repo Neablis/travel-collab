@@ -52,11 +52,25 @@ coordination between worktrees.
 |---|---|---|---|
 | Local | `pnpm dev` (port 3001) | Docker Postgres (port 5433), or a native cluster on the same port in a web session | `apps/web/src/server/config.ts` default / `.env.local` |
 | CI | GitHub Actions | PG service container | `ci.yml` workflow env |
-| Preview | Vercel preview deploys | **Neon branch `preview`** (pooled) | Vercel env, Preview scope |
-| Production | Vercel production | Neon `main` (pooled) | Vercel env, Production scope |
+| Preview | Vercel preview deploys | **A disposable Neon branch** (pooled), never production's | Vercel env, Preview scope — plus `PREVIEW_DB_IS_DISPOSABLE=true` |
+| Production | Vercel production | The Neon branch the live site reads (pooled) | Vercel env, Production scope |
+
+> **The Neon project and branch names are deliberately not written above.** They
+> have been wrong in this file before: it named a `preview` branch that had been
+> archived since 2026-08-28 and a `main` branch in a project that was not the one
+> the `PRODUCTION_DATABASE_URL` secret pointed at. Two Neon projects existed with
+> near-identical connection strings differing only in host, and the branch *named*
+> `production` was not production. Identify a database by connecting to it and
+> looking, never by the name on it — `KI-2026-09-06-h` has the method.
 
 Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
+  **This rule was silently violated from 2026-07-21 to 2026-09-06** — the Neon
+  Vercel integration injects one `DATABASE_URL` scoped "Production and Preview",
+  which is one value for both, and nothing checked. Read
+  `docs/known-issues/open/KI-2026-09-06-h-preview-and-production-shared-one-database.md`
+  before changing anything in this section; the rail below is what now enforces
+  the half of it that automation can enforce.
 - Migrations are applied by automation only (see below), never `drizzle-kit migrate`
   run by hand against a remote database.
 - Production migrations: **explicitly dispatched**, never automatic. Run the
@@ -73,8 +87,14 @@ Rules (ADR-004 + M1 retro):
   manual, the *execution* is still automation, and the connection string never
   reaches a laptop shell.
 - Preview migrations: `apps/web/scripts/vercel-build-migrate.mjs` runs
-  `drizzle-kit migrate` during the Vercel build only when `VERCEL_ENV=preview`,
-  against the preview branch. Safe because previews are disposable (Task 0c).
+  `drizzle-kit migrate` during the Vercel build, and needs **both** conditions:
+  `VERCEL_ENV=preview` **and** `PREVIEW_DB_IS_DISPOSABLE=true`. The first says
+  where the build runs; only the second says anything about which database it is
+  pointed at, and it is set by hand on the Preview scope alone. Without it the
+  build **fails** rather than skipping — a preview that cannot prove its database
+  is disposable must not migrate, and a red build is the cheap failure here.
+  `VERCEL_ENV=preview` alone was the only check until 2026-09-06, which is how
+  migrations 0015-0018 were applied to production by preview builds.
 - Resetting the preview branch (or local db):
   `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
