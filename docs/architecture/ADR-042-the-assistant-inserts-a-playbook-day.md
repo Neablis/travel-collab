@@ -1,8 +1,12 @@
 # ADR-042: The assistant proposes a playbook day by reference, and the server expands it
 
-**Status:** **Accepted — 2026-09-08.** Approved by Mitchell the same day, as one
-feature rather than a milestone: *"Lets just start on this one feature, i can
-turn on ai-live to test."*
+**Status:** **Accepted — 2026-09-08, and built the same day** (`657c372`): both
+tools, the by-reference proposal, the server-side expansion with the ledger on
+the batch's transaction hook, and a `simulatedModel` branch so the flow works
+with `ai-live` off. Approved by Mitchell as one feature rather than a milestone:
+*"Lets just start on this one feature, i can turn on ai-live to test."*
+**Not yet walked in a browser and not covered by an e2e spec** — the unit and
+integration lanes are green (see the commit), the clicking is not done.
 **Deciders:** Mitchell (product/eng — asked for it); Claude (architect) — drafted
 Amends: **ADR-015 §2** ("two derived tool families, never hand-written") for a
 third time, and **ADR-022 §1**, which amended it for *read* tools only
