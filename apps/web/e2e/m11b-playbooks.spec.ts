@@ -271,6 +271,63 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await bob.context().close();
 });
 
+// The other branch of "Add to a trip" (Mitchell, 2026-09-08): the taker has no
+// trip to put this day in, so the day STARTS one — named after itself, with
+// itself as day 1.
+//
+// Why this is an e2e case and not only a component test: the whole feature
+// rests on the dialog dating the new trip BEFORE inserting the day, because
+// `addCounts()` refuses an add against an undated trip and dating it afterwards
+// does not count it retroactively. "1 trip" on the day's own facts rail is the
+// only place that ordering is visible end to end — with the order swapped, every
+// screen below still looks right and only the author's credit is missing.
+test("a shared day can start a new trip, as day 1, and the add still counts", async ({ page, browser }) => {
+  test.slow();
+
+  const city = mintCity("Startere2e");
+  const dayName = `A day worth its own trip ${randomUUID().slice(0, 8)}`;
+
+  const source = await tripWithCities(page, e2eTripName("Starter"), [city]);
+  const savedDayId = await keepDay(page, source.tripId, source.dayId, dayName);
+  const published = await page.request.post(`/api/saved-days/${savedDayId}/publish`);
+  expect(published.ok(), `publish -> ${published.status()}`).toBe(true);
+
+  // Somebody who is not alice and — the point of this case — has no trip at all
+  // to put the day in. `tripWithCities` is deliberately NOT called for him.
+  const bob = await signedInAs(browser, newcomer("pbstarter"));
+  await bob.goto(`/playbooks/day/${savedDayId}`);
+  await expect(bob.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
+
+  await bob.getByRole("button", { name: "Add to a trip" }).click();
+  await bob.getByLabel("Which trip").selectOption({ label: "Start a new trip" });
+  await bob.getByLabel("Start date").fill("2027-05-04");
+  await Promise.all([
+    bob.waitForURL(/\/trips\/[0-9a-f-]{36}$/),
+    bob.getByRole("button", { name: "Add to trip" }).click(),
+  ]);
+
+  // Named after the day, verbatim — there is no name field to have typed one in.
+  await expect(bob.getByRole("heading", { name: dayName, level: 2 })).toBeVisible();
+  // ONE day column, and the playbook day is it. The COUNT is what catches
+  // `SetTripDates` being used instead of `SetTripStartDate`: that command
+  // reconciles day count and would have minted an empty day 1, leaving the day
+  // somebody actually came for sitting second.
+  await bob.getByRole("tab", { name: "Day columns" }).click();
+  await expect(bob.getByTestId("day-column")).toHaveCount(1);
+  await expect(bob.getByTestId("day-column").getByText(`Stop in ${city}`)).toBeVisible();
+
+  // The ledger counted it, which is true only because the trip had its start
+  // date before the insert arrived.
+  await bob.goto(`/playbooks/day/${savedDayId}`);
+  await expect(bob.getByTestId("day-facts").getByText("1 trip")).toBeVisible();
+
+  // Bob's new trip is named after the DAY, so it carries no `[e2e]` prefix —
+  // but `global.teardown.ts` only ever sweeps alice's trips anyway, and every
+  // trip this spec makes for a newcomer is already outside its reach.
+  await forgetDay(page, savedDayId);
+  await bob.context().close();
+});
+
 // The exit gate names FOUR states for city search against the REAL endpoint.
 // Two of them (results, no matches) are ordinary answers; the fourth needs the
 // endpoint to fail, which is what `page.route` is for. The dropdown it replaced
