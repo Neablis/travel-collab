@@ -218,6 +218,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
       proposalId: "p1",
       changes: [],
       commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }],
+      inserts: [],
       skipped: [],
     }),
 };
@@ -522,6 +523,7 @@ const PROPOSAL = {
   commands: [
     { type: "AddActivity", tripId: TRIP_ID, activityId: UUID, dayId: UUID, title: "Coffee" },
   ],
+  inserts: [],
   skipped: [],
 };
 
@@ -564,6 +566,41 @@ describe("the proposal on the wire", () => {
       "no proposalId",
     ],
   ])("drops %s (%s)", async (frame) => {
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+
+  // ADR-042 Decision 1: a turn whose only write call was `insert_playbook_day`
+  // resolves to zero commands, so "no commands" stopped being the same question
+  // as "nothing to review".
+  it("keeps a proposal that carries only an insert", async () => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p2","commands":[],' +
+      '"inserts":[{"savedDayId":"' +
+      UUID +
+      '","name":"A day in Kyoto"}],"changes":[],"skipped":[]}}}';
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    const proposals = events.filter((e) => e.type === "proposal");
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]!.proposal.inserts).toEqual([{ savedDayId: UUID, name: "A day in Kyoto" }]);
+  });
+
+  // Parsed, never cast — the same rule `commands` is under. These go straight
+  // back to /ask/apply.
+  it.each([
+    ['"inserts":[{"name":"nameless"}]', "an entry with no savedDayId"],
+    ['"inserts":[{"savedDayId":"","name":"empty"}]', "an empty savedDayId"],
+    ['"inserts":["' + UUID + '"]', "a bare string instead of an entry"],
+    ['"inserts":"not-a-list"', "inserts that is not a list at all"],
+  ])("drops %s (%s) and, with no commands, the whole proposal", async (insertsJson) => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p3","commands":[],' +
+      insertsJson +
+      ',"changes":[],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
@@ -645,7 +682,9 @@ describe("applyAssistantProposal", () => {
       }),
     );
     const result = await applyAssistantProposal(TRIP_ID, PROPOSAL as never);
-    expect(seen).toEqual({ proposalId: "p1", commands: PROPOSAL.commands });
+    // `inserts` rides along even when empty: the server reads it as the other
+    // half of "at least one change", so omitting it would be a different body.
+    expect(seen).toEqual({ proposalId: "p1", commands: PROPOSAL.commands, inserts: [] });
     if (!result.ok) throw new Error(`expected ok, got ${result.error.message}`);
     expect(result.value.message).toBe("Done — added “Coffee” to day 2.");
     expect(result.value.detail.tripId).toBe(DETAIL.tripId);

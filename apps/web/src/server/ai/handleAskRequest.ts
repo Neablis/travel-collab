@@ -53,6 +53,7 @@ import {
   commitProposal,
   droppedWriteCalls,
   parseApprovedCommands,
+  writeToolsContext,
   WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
 import {
@@ -568,7 +569,13 @@ export async function handleAskRequest(
     // is retryable; a viewer is told what is actually true of them.
     instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites), briefFor(page)),
     tools,
-    toolsContext: readToolsContext({ tripId, userId, detail, scope }),
+    // Keyed by tool name. `insert_playbook_day` takes the same context under
+    // its own key — the write tools it ships beside take none, so the extra
+    // entry is inert on a turn that was not offered it.
+    toolsContext: {
+      ...readToolsContext({ tripId, userId, detail, scope }),
+      ...writeToolsContext({ tripId, userId, detail, scope }),
+    },
     stopWhen: isStepCount(MAX_ASK_STEPS),
     // **This is the whole of our AI-agent tracing, and it is one line.**
     //
@@ -665,7 +672,12 @@ export async function handleAskRequest(
         // so the final chunk carries a proposal or a page, never both.
         if (pageTools !== null) return pageInsertsMetadata(pageTools.getInserts());
         if (writeTools === null) return undefined;
-        const proposal = buildProposal(writeTools.getCollected(), detail, { tripId, actorId: userId });
+        const proposal = buildProposal(
+          writeTools.getCollected(),
+          detail,
+          { tripId, actorId: userId },
+          writeTools.getInserts(),
+        );
         return proposal === null ? undefined : { proposal };
       },
       onError: (error) => {
@@ -753,6 +765,11 @@ const APPLY_STATUS: Record<string, number> = {
   "invalid-command": 400,
   forbidden: 403,
   "trip-not-found": 404,
+  // An approved insert whose saved day this actor cannot read — hallucinated,
+  // private, or withdrawn between the proposal and the click. All three are the
+  // same 404 the manual dialog answers, which is `readableSavedDay`'s whole
+  // point (ADR-042's deliberate failure mode).
+  "not-found": 404,
   "concurrency-conflict": 409,
 };
 
@@ -763,7 +780,20 @@ const ApplyProposalRequest = z.object({
    * tripId is checked against the URL regardless of what this says.
    */
   proposalId: z.string().min(1).optional(),
-  commands: z.array(z.unknown()).min(1, "an approval must carry at least one change"),
+  // No `.min(1)` any more: an inserts-only approval carries no commands at all.
+  // "At least one change" is still enforced, below, over both lists together —
+  // it stopped being a question this field can answer on its own.
+  commands: z.array(z.unknown()),
+  /**
+   * Days to insert, by reference (ADR-042 Decision 1).
+   *
+   * Only the id is read. The proposal's `name` rides the wire for the card and
+   * is stripped here by zod, because the server re-reads the row: trusting a
+   * posted id to be the day it claims to be would make a ledger credit — and
+   * therefore board position — client-mintable, and `/ask/apply` has no
+   * proposal store it could check the claim against.
+   */
+  inserts: z.array(z.object({ savedDayId: z.string().min(1) })).optional(),
 });
 
 /**
@@ -782,6 +812,8 @@ export interface ProposalApplyRecord {
   userId: string;
   proposalId: string | null;
   commandCount: number;
+  /** How many playbook days the approval asked the server to expand (ADR-042). */
+  insertCount: number;
   outcome: "applied" | "refused";
   /** The domain rejection code when refused, else null. */
   code: string | null;
@@ -860,14 +892,21 @@ export async function handleApplyProposalRequest(
 
   const commands = parseApprovedCommands(parsed.data.commands, tripId);
   if (!commands.ok) return badRequest(commands.error);
+  const inserts = parsed.data.inserts ?? [];
+  // The rule `commands.min(1)` used to carry, asked of the whole approval:
+  // an approval with neither commands nor inserts is nothing to approve.
+  if (commands.commands.length === 0 && inserts.length === 0) {
+    return badRequest("an approval must carry at least one change");
+  }
 
-  const committed = await commitProposal(tripId, commands.commands, userId, detail, geocoder);
+  const committed = await commitProposal(tripId, commands.commands, userId, detail, geocoder, inserts);
   const record = {
     event: "ai.proposal.apply" as const,
     tripId,
     userId,
     proposalId: parsed.data.proposalId ?? null,
     commandCount: commands.commands.length,
+    insertCount: inserts.length,
     latencyMs: Date.now() - startedAt,
   };
   if (!committed.ok) {
@@ -973,6 +1012,12 @@ export function instructionsFor(
           // "nobody knows yet". `cost` is optional in the contract precisely so
           // this can be left out.
           "NEVER invent a price. `cost` is optional: if you do not know what something costs, leave `cost` out entirely. A cost of 0 means free — writing 0 for something whose price you do not know is a wrong number, not a blank.",
+          // Neither line is a safety property — the card is still the only door
+          // (ADR-042's Context) — so they are worded as craft, not as a rule
+          // the model could break something by ignoring. The first stops it
+          // guessing a savedDayId; the second keeps the card to one decision.
+          "To add a ready-made day from the playbook library, call search_playbooks FIRST and then insert_playbook_day with a savedDayId it returned. Never write a savedDayId yourself.",
+          "Propose at most ONE playbook day per turn, so the user has one thing to say yes to.",
         ]
       : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,

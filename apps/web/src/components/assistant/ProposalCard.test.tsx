@@ -18,6 +18,7 @@ const PROPOSAL: AssistantProposal = {
     { type: "AddActivity", tripId: TRIP_ID, activityId: UUID, dayId: UUID, title: "Sample: coffee stop" },
     { type: "AddActivity", tripId: TRIP_ID, activityId: UUID, dayId: UUID, title: "Sample: evening stroll" },
   ],
+  inserts: [],
   skipped: [],
 };
 

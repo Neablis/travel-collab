@@ -9,6 +9,7 @@ import {
   commitProposal,
   describeProposedChange,
   droppedWriteCalls,
+  INSERT_PLAYBOOK_DAY,
   parseApprovedCommands,
   withDefaultKind,
   withoutFabricatedCost,
@@ -47,10 +48,13 @@ describe("WRITE_TOOL_NAMES", () => {
   // The point of measuring rather than listing: a thirteenth BatchableCommand
   // becomes a thirteenth write tool AND flips `minimumRoleFor` to editor for
   // free. A hand-written array would silently offer it to a viewer.
-  it("is exactly the derived planning tool set", () => {
+  it("is the derived planning tool set, plus the one hand-written tool", () => {
     expect([...WRITE_TOOL_NAMES].sort()).toEqual(Object.keys(buildWriteTools().tools).sort());
+    // The derived half still measured against the contract, so the ADR-042
+    // exception cannot quietly grow a second member: everything in
+    // WRITE_TOOL_NAMES is either a BatchableCommand or `insert_playbook_day`.
     expect([...WRITE_TOOL_NAMES].sort()).toEqual(
-      BatchableCommand.options.map((o) => o.shape.type.value as string).sort(),
+      [...BatchableCommand.options.map((o) => o.shape.type.value as string), INSERT_PLAYBOOK_DAY].sort(),
     );
   });
 
@@ -484,11 +488,12 @@ describe("parseApprovedCommands", () => {
     expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
   });
 
-  it("refuses an empty approval", () => {
-    expect(parseApprovedCommands([], TRIP_ID)).toEqual({
-      ok: false,
-      error: "an approval must carry at least one change",
-    });
+  // An empty COMMAND list is not an empty approval any more: an inserts-only
+  // proposal carries no commands at all (ADR-042 Decision 1). "At least one
+  // change" is asked of the whole approval, at the apply door, where both
+  // lists are visible — `apply/route.int.test.ts` holds that end.
+  it("accepts an empty command list, which an inserts-only approval has", () => {
+    expect(parseApprovedCommands([], TRIP_ID)).toEqual({ ok: true, commands: [] });
   });
 
   it("refuses anything that is not a BatchableCommand", () => {

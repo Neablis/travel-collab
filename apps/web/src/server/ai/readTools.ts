@@ -9,9 +9,11 @@
 //   > A new tool is earned by a new computation or a new capability boundary —
 //   > never by a new phrasing of a question.
 //
-// So there are exactly three, and new questions land on them as typed
-// parameters. "Where is there free time after 9pm?" is `find_free_time({ after
-// })`, not a fourth tool.
+// So there are four, and new questions land on them as typed parameters.
+// "Where is there free time after 9pm?" is `find_free_time({ after })`, not a
+// fifth tool. `search_playbooks` is the one earned since (ADR-042 Decision 2),
+// and it is earned as a CAPABILITY BOUNDARY rather than a phrasing: it reads a
+// corpus outside the trip, which the other three cannot reach by construction.
 //
 // Two structural rules run through the whole file:
 //
@@ -21,6 +23,13 @@
 //      in the same sense `idFields.ts` is: the constraint is structural, not
 //      prompted. `readTools.test.ts` asserts it over every schema, so a fourth
 //      tool cannot quietly reintroduce one.
+//   1b. **No tool takes an `ownerId` either**, and `search_playbooks`'s
+//      visibility set is exactly `readableSavedDay`'s — your own days plus
+//      anybody's published one. Narrower and the model proposes days the apply
+//      door then 404s on; wider and the tool is a way to enumerate what people
+//      have kept private, which is the exact attack that WHERE clause is
+//      written to defeat (ADR-042 Decision 2). It is reused, never restated:
+//      `discoverDays({ scope: "everyone" })` IS that clause.
 //   2. **The computation lives in the domain.** `find_free_time` is a wrapper
 //      over `findFreeGaps` (packages/domain/src/trip/freeTime.ts) and owns
 //      nothing but the translation between what a user says ("after 9pm") and
@@ -36,8 +45,9 @@ import type { ActivityKind, TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
+import { discoverDays } from "@/server/playbooks";
 
-export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time"] as const;
+export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time", "search_playbooks"] as const;
 export type ReadToolName = (typeof READ_TOOL_NAMES)[number];
 
 /**
@@ -58,12 +68,17 @@ export interface ReadToolContext {
   scope: AskScope;
 }
 
+// Exported so `insert_playbook_day` (writeTools.ts) can take the SAME context
+// shape rather than a second one: it is the same actor reading the same
+// library, and two context schemas would be two places for "who is asking" to
+// come from.
+//
 // `contextSchema` is validated on EVERY tool call (ai/dist:
 // validateToolContext), so re-running `TripDetail.parse` here would re-walk a
 // 68-activity document per call to re-check something `requireTripAccess`
 // already checked at the seam. The identity fields are checked because they
 // are what ADR-022 §3 is about; `detail` and `scope` are passed through.
-const ReadContextSchema = z.object({
+export const ReadContextSchema = z.object({
   tripId: z.string().uuid(),
   userId: z.string().min(1),
   detail: z.custom<TripDetail>((v) => typeof v === "object" && v !== null),
@@ -372,6 +387,95 @@ export function findFreeTime(
   };
 }
 
+// How many library days `search_playbooks` will name in one call, and how many
+// cities it will match on. `MAX_READ_DAYS`' reasoning, applied to the other
+// corpus: a cap the model could raise to "the whole library" would put 148
+// days' worth of names and cities into a step's context to pick one of them.
+// Eight is a shortlist a model can choose from and a person can be told about.
+// Both are enforced at the SCHEMA — asking for more fails validation before
+// `execute` runs, rather than silently truncating.
+export const MAX_PLAYBOOK_RESULTS = 8;
+export const MAX_SEARCH_CITIES = 5;
+
+export interface PlaybookDayReadout {
+  /**
+   * The one id the assistant is ever given, and the only reason it can be: the
+   * whole of ADR-042 is that the model names a ROW and the server reads it.
+   * `read_day` withholds activity UUIDs precisely because a UUID the model has
+   * seen is one it can invent a near-miss of (KI-15's shape) — that hazard is
+   * unchanged here, and it is answered instead of avoided: every id comes back
+   * through `readableSavedDay` at propose time and again at apply time, so a
+   * near-miss fails closed at both doors rather than becoming a stop.
+   */
+  savedDayId: string;
+  name: string;
+  /** Every city the day touches, in its own time order (`citiesOfStops`). */
+  cities: string[];
+  stopCount: number;
+  /** The day's total across its priced stops, or null when nothing is priced. */
+  totalCost: { amountMinor: number; currency: string } | null;
+  /** How many trips have taken this day — the adds ledger's count (M11b). */
+  adds: number;
+  /** Whether the caller wrote it, so the answer can say "your own". */
+  mine: boolean;
+}
+
+export interface PlaybookSearchReadout {
+  /** What was searched for, so the answer can say so. */
+  searched: string;
+  days: PlaybookDayReadout[];
+}
+
+export interface SearchPlaybooksInput {
+  cities?: string[];
+  limit?: number;
+}
+
+/**
+ * The playbook library, filtered to what this reader may see.
+ *
+ * **`discoverDays({ scope: "everyone" })`, not a third copy of the visibility
+ * clause.** `scopePredicate` (playbooks.ts) spells `everyone` as *"published,
+ * or mine"* — which is exactly `readableSavedDay`'s WHERE clause, the one the
+ * apply door will re-run per day. A separate query here would agree with it
+ * only until somebody edited one of them, and the two directions that
+ * disagreement can go are both bad: narrower proposes days that 404 on
+ * approval, wider enumerates other people's private days.
+ *
+ * It costs one extra `count(*)` (`publishedDayCount`) that this caller does not
+ * read. That is the price of the shared query, and it is one indexed count over
+ * a small table — cheap next to a second predicate to keep in step.
+ */
+export async function searchPlaybooks(
+  readerId: string,
+  input: SearchPlaybooksInput,
+): Promise<PlaybookSearchReadout> {
+  const cities = input.cities ?? [];
+  const found = await discoverDays({
+    cities,
+    scope: "everyone",
+    // Most-added first: the ledger is the library's own answer to "which of
+    // these is worth taking", and it is the ranking Discover offers a person
+    // making the same choice.
+    sort: "most-added",
+    budget: "any",
+    season: null,
+    readerId,
+  });
+  return {
+    searched: cities.length === 0 ? "the whole library" : cities.join(", "),
+    days: found.days.slice(0, input.limit ?? MAX_PLAYBOOK_RESULTS).map((day) => ({
+      savedDayId: day.savedDayId,
+      name: day.name,
+      cities: day.cities,
+      stopCount: day.stopCount,
+      totalCost: day.totalCost,
+      adds: day.adds,
+      mine: day.isMine,
+    })),
+  };
+}
+
 // Input schemas, exported so the no-`tripId` assertion can walk them
 // structurally rather than by reading the tool descriptions.
 const ReadTripInput = z.object({});
@@ -411,14 +515,36 @@ export const FindFreeTimeInputSchema = z.object({
   minMinutes: z.number().int().min(1).optional().describe("Ignore gaps shorter than this many minutes."),
 });
 
+// No `ownerId`, and no `visibility` either: both would be ways to ask the
+// library a question about somebody else, and neither is expressible. The set
+// of rows this can reach is decided by `readerId`, which arrives through
+// `contextSchema` alone (ADR-042 Decision 2).
+export const SearchPlaybooksInputSchema = z.object({
+  cities: z
+    .array(z.string().min(1).max(200))
+    .max(MAX_SEARCH_CITIES, `Name at most ${MAX_SEARCH_CITIES} cities per call.`)
+    .optional()
+    .describe(
+      'City names, spelled exactly as read_trip spells them (e.g. ["Kyoto", "Osaka"]). A day matches if it touches ANY of them. Omit to browse the most-added days.',
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PLAYBOOK_RESULTS, `Ask for at most ${MAX_PLAYBOOK_RESULTS} days per call.`)
+    .optional()
+    .describe(`How many days to return, up to ${MAX_PLAYBOOK_RESULTS}. Omit for all of them.`),
+});
+
 export const READ_TOOL_INPUT_SCHEMAS: Record<ReadToolName, z.ZodObject<z.ZodRawShape>> = {
   read_trip: ReadTripInput,
   read_day: ReadDayInput,
   find_free_time: FindFreeTimeInputSchema,
+  search_playbooks: SearchPlaybooksInputSchema,
 };
 
 /**
- * The three tools, wired to the three functions above.
+ * The four tools, wired to the four functions above.
  *
  * Argument-free like `buildPageTools()`: everything per-request arrives
  * through `toolsContext`, so the tool set itself is a constant and a test can
@@ -473,14 +599,22 @@ export function buildReadTools() {
         contextSchema: ReadContextSchema,
         execute: async (input, { context }) => findFreeTime(context.detail, context.scope, input),
       }),
+      search_playbooks: tool({
+        description:
+          "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, total cost and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
+        inputSchema: SearchPlaybooksInputSchema,
+        contextSchema: ReadContextSchema,
+        execute: async (input, { context }) => searchPlaybooks(context.userId, input),
+      }),
     },
   };
 }
 
 /**
- * The same context under every tool's name — `toolsContext` is keyed by tool,
- * and all three of these read the same trip as the same actor.
+ * The same context under every tool's name — `toolsContext` is keyed by tool.
+ * Three of these read the same trip as the same actor; `search_playbooks` reads
+ * the library as that same actor, which is the only field it takes from here.
  */
 export function readToolsContext(context: ReadToolContext): Record<ReadToolName, ReadToolContext> {
-  return { read_trip: context, read_day: context, find_free_time: context };
+  return { read_trip: context, read_day: context, find_free_time: context, search_playbooks: context };
 }

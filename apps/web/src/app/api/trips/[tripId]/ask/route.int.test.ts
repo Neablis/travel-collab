@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { createPage } from "@/server/pages";
+import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
 import { db } from "@/server/db/client";
@@ -104,6 +105,69 @@ async function seedTrip(): Promise<string> {
     ACTOR_ID,
   );
   return tripId;
+}
+
+/**
+ * A trip whose one located stop is in a city NOBODY else's fixture uses, plus a
+ * published saved day in that same city (ADR-042).
+ *
+ * The city is per-call and random on purpose: `saved_days` is not truncated
+ * between runs (KI-69), and `search_playbooks` ranks the whole readable library
+ * — so a fixed city would make "the day this turn proposes" depend on what
+ * every other test in the suite happened to leave behind.
+ */
+async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: string }> {
+  const city = `Playbookville-${randomUUID().slice(0, 8)}`;
+
+  const sourceTrip = randomUUID();
+  const sourceDay = randomUUID();
+  await executeTripCommand({ type: "CreateTrip", tripId: sourceTrip, name: "Source" }, ACTOR_ID);
+  await executeTripCommand({ type: "AddDay", tripId: sourceTrip, dayId: sourceDay }, ACTOR_ID);
+  for (const title of ["Fushimi Inari", "Nishiki Market"]) {
+    await executeTripCommand(
+      {
+        type: "AddActivity",
+        tripId: sourceTrip,
+        activityId: randomUUID(),
+        dayId: sourceDay,
+        title,
+        location: { name: title, city },
+      },
+      ACTOR_ID,
+    );
+  }
+  const saved = await saveDay({ name: "A day in Kyoto", dayId: sourceDay }, (await getTripDetail(sourceTrip))!, ACTOR_ID);
+  if (!saved.ok) throw new Error(`could not save the day: ${saved.error.message}`);
+  const published = await setSavedDayVisibility(saved.value.savedDayId, ACTOR_ID, "public");
+  if (published === null) throw new Error("could not publish the day");
+
+  // The TARGET trip, with one located stop in the same city so `read_trip`'s
+  // `cities` gives the simulated model something to search on.
+  const tripId = randomUUID();
+  await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto 2027" }, ACTOR_ID);
+  const dated = await executeTripCommand(
+    {
+      type: "SetTripDates",
+      tripId,
+      startDate: "2027-04-01",
+      endDate: "2027-04-02",
+      newDayIds: [randomUUID(), randomUUID()],
+    },
+    ACTOR_ID,
+  );
+  if (!dated.ok) throw new Error("failed to date trip");
+  await executeTripCommand(
+    {
+      type: "AddActivity",
+      tripId,
+      activityId: randomUUID(),
+      dayId: dated.detail.days[0]!.dayId,
+      title: "Gion walk",
+      location: { name: "Gion", city },
+    },
+    ACTOR_ID,
+  );
+  return { tripId, savedDayId: saved.value.savedDayId };
 }
 
 /** One Notebook page on `tripId`, the way the Notebook's own CRUD route makes one. */
@@ -657,6 +721,67 @@ describe("POST /api/trips/:id/ask", () => {
         expect(command.cost).toBeUndefined();
       }
       expect(JSON.stringify(proposal.commands)).not.toContain("amountMinor");
+    });
+
+    // -----------------------------------------------------------------------
+    // ADR-042: the playbook insert, which proposes a ROW rather than commands
+    // -----------------------------------------------------------------------
+
+    // The requirement in one test, for the tool that does not resolve to a
+    // command: a turn that proposes an INSERT commits nothing either.
+    it("collects insert_playbook_day without writing — the trip is byte-identical afterwards", async () => {
+      const { tripId, savedDayId } = await tripAndPublishedDay();
+      const before = await getTripDetail(tripId);
+      const beforeHistory = await getTripHistory(tripId);
+
+      const res = await ask(tripId, {
+        messages: [userMessage("add a day from the playbook library")],
+        scope: { kind: "trip" },
+      });
+      const chunks = await chunksOf(res);
+
+      // It really did draft one — carried by REFERENCE, not as commands, which
+      // is the whole of ADR-042 Decision 1.
+      const finish = chunks.find((c) => c.type === "finish") as
+        | {
+            messageMetadata?: {
+              proposal?: {
+                commands: unknown[];
+                inserts: { savedDayId: string; name: string }[];
+                changes: { type: string; text: string }[];
+              };
+            };
+          }
+        | undefined;
+      const proposal = finish?.messageMetadata?.proposal;
+      expect(proposal?.inserts).toEqual([{ savedDayId, name: "A day in Kyoto" }]);
+      expect(proposal?.commands).toEqual([]);
+      // Described as a sentence like any other change — no new card branch.
+      expect(proposal?.changes).toEqual([
+        { type: "AddDay", text: "Add “A day in Kyoto” from the library (2 stops) as a new day" },
+      ]);
+
+      // And the trip did not move. JSON equality over the whole projection,
+      // not a spot check: a write anywhere in it fails this.
+      expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
+      expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
+    });
+
+    // `search_playbooks` is a READ tool, so it rides `READ_TOOL_NAMES` and
+    // `minimumRoleFor` still answers `viewer` for a turn that only browses.
+    // Asserted through the offered set rather than by calling the computation,
+    // because the set is what the guard is computed from.
+    it("offers a viewer search_playbooks, because browsing the library is not a write", async () => {
+      const tripId = await seedTrip();
+      await grantViewer(tripId, VIEWER_ID);
+      currentUserId = VIEWER_ID;
+      const records: AskAnalyticsRecord[] = [];
+      const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } }, (r) =>
+        records.push(r),
+      );
+      await res.text();
+      expect(records[0]!.offeredTools).toContain("search_playbooks");
+      expect(records[0]!.offeredTools).not.toContain("insert_playbook_day");
     });
 
     it("carries no proposal when the turn was only a question", async () => {
@@ -1350,15 +1475,17 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(record.toolCalls.map((c) => c.name)).toEqual(["read_trip", "find_free_time"]);
       expect(record.toolCalls[1]!.input).toEqual({ after: "08:00", before: "22:00" });
-      // Measured, not inferred — the whole point of the number. `read_day` is
-      // the only tool left uncalled because the write tools were never offered:
-      // this turn classified as a question, which is what the twelve entries
-      // that used to be on this line cost in schema tokens every step.
-      expect(record.uncalledTools).toEqual(["read_day"]);
+      // Measured, not inferred — the whole point of the number. Only read tools
+      // can appear here because the write tools were never offered: this turn
+      // classified as a question, which is what the twelve entries that used to
+      // be on this line cost in schema tokens every step. `search_playbooks`
+      // joins the list for the same reason `read_day` is on it — a trip-wide
+      // question has no reason to reach the library (ADR-042).
+      expect(record.uncalledTools).toEqual(["read_day", "search_playbooks"]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("records an empty uncalled list on a day-scoped turn, which uses all three", async () => {
+    it("leaves only the library uncalled on a day-scoped turn, which uses every trip read tool", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
       const res = await ask(
@@ -1368,9 +1495,10 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
       expect(records[0]!.scope).toEqual({ kind: "day", dayIndex: 1 });
-      // Every read tool used, and no write tool offered to go uncalled — the
-      // day-scoped question is the shape this endpoint answers most.
-      expect(records[0]!.uncalledTools).toEqual([]);
+      // Every trip read tool used, and no write tool offered to go uncalled —
+      // the day-scoped question is the shape this endpoint answers most. The
+      // library is the one thing a question about a day never needs.
+      expect(records[0]!.uncalledTools).toEqual(["search_playbooks"]);
     });
   });
 });
