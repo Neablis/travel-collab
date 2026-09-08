@@ -122,7 +122,7 @@ let popularDay: string;
   currentUserId = QUIET;
   await take(popularDay);
 
-  // The author taking their OWN day into their OWN dated trip: link 4's third
+  // The author taking their OWN day into their OWN trip: link 4's surviving
   // negative case, and the one that would inflate a board that counted raw
   // inserts. Present here so the board's number is proof the rule held.
   currentUserId = POPULAR;

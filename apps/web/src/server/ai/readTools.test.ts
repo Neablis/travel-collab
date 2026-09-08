@@ -283,7 +283,7 @@ describe("find_free_time", () => {
 describe("the tool schemas", () => {
   const { tools } = buildReadTools();
 
-  it("offers exactly the three tools ADR-022 opens with", () => {
+  it("offers exactly the tools READ_TOOL_NAMES names", () => {
     expect(Object.keys(tools).sort()).toEqual([...READ_TOOL_NAMES].sort());
   });
 
@@ -296,6 +296,13 @@ describe("the tool schemas", () => {
     for (const [name, schema] of Object.entries(READ_TOOL_INPUT_SCHEMAS)) {
       const keys = Object.keys(schema.shape);
       expect(keys, `${name} input keys`).not.toContain("tripId");
+      // ADR-042 Decision 2's second half, spelled out rather than left to the
+      // `/id$/i` sweep below: `search_playbooks` reads a corpus that belongs to
+      // OTHER PEOPLE, so "search on behalf of someone else" must be as
+      // inexpressible as "read another trip". The visibility set is decided by
+      // the `readerId` that arrives through `contextSchema` and by nothing a
+      // model can type.
+      expect(keys, `${name} input keys`).not.toContain("ownerId");
       expect(keys.filter((key) => /id$/i.test(key)), `${name} id-shaped keys`).toEqual([]);
     }
   });

@@ -565,10 +565,9 @@ export function insertCommands(saved: SavedDay, tripId: string): BatchableComman
  * come apart at any point a reader could observe.
  *
  * An uncounted add is SILENT — the insert still succeeds and the response is
- * unchanged. All three of the design's clauses describe perfectly ordinary
- * things to do (adding the same day twice, planning an undated trip, reusing
- * your own template); none of them is an error to report to the person doing
- * it. What must not happen is the number moving.
+ * unchanged. Both of the surviving clauses describe perfectly ordinary things to
+ * do (adding the same day twice, reusing your own template); neither is an error
+ * to report to the person doing it. What must not happen is the number moving.
  */
 export async function insertSavedDay(
   savedDayId: string,
@@ -580,13 +579,8 @@ export async function insertSavedDay(
   if (saved === null) {
     return { ok: false, error: { code: "not-found", message: "That saved day does not exist." } };
   }
-  return executeTripCommandBatch(insertCommands(saved, tripId), actorId, async (tx, { detail }) => {
-    // `detail` is the trip as it stands after the insert committed inside this
-    // transaction — and `startDate` is untouched by AddDay/AddActivity, so it
-    // is equally the trip's dating before it. Read from here rather than
-    // re-queried so the eligibility decision cannot see a different trip than
-    // the one the batch just wrote.
-    if (!addCounts({ authorId: saved.ownerId, actorId, tripStartDate: detail.startDate })) return;
+  return executeTripCommandBatch(insertCommands(saved, tripId), actorId, async (tx) => {
+    if (!addCounts({ authorId: saved.ownerId, actorId })) return;
     await recordAdd(tx, {
       savedDayId: saved.savedDayId,
       tripId,

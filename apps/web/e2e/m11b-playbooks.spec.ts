@@ -79,8 +79,9 @@ async function tripWithCities(
   const dayId = randomUUID();
 
   if (options.dated === true) {
-    // A dated trip is what makes an add COUNT (link 4's rule). `newDayIds` is
-    // required — SetTripDates mints the days and the domain cannot mint uuids.
+    // `newDayIds` is required — SetTripDates mints the days and the domain
+    // cannot mint uuids. (Dating is no longer what makes an add count; the
+    // clause was dropped 2026-09-08. The walks below still want real dates.)
     await post(`/api/trips/${tripId}/commands`, {
       type: "SetTripDates",
       tripId,
@@ -227,8 +228,11 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await bob.getByRole("link", { name: /who shares the most/i }).click();
   await expect(bob).toHaveURL(/\/playbooks\/board$/);
   await expect(
-    bob.getByText(/An add only counts once per trip, and only after the trip has dates/),
+    bob.getByText(/An add only counts once per trip\./),
   ).toBeVisible();
+  // The dropped clause (2026-09-08) must not survive in copy: §15's whole point
+  // is that the board is credible because it states the rule it enforces.
+  await expect(bob.getByText(/after the trip has dates/)).toHaveCount(0);
   // "Alice", not "dev-alice": since 2026-09-01 `displayNameFor` never hands a
   // raw identifier to a reader, and a dev-login id carries the username inside
   // it. The id is still what the ROW links to, which is the distinction — see
@@ -267,6 +271,63 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await bob.goto(`/playbooks/day/${savedDayId}`);
   await expect(bob.getByText("This day is not in the library")).toBeVisible();
 
+  await forgetDay(page, savedDayId);
+  await bob.context().close();
+});
+
+// The other branch of "Add to a trip" (Mitchell, 2026-09-08): the taker has no
+// trip to put this day in, so the day STARTS one — named after itself, with
+// itself as day 1.
+//
+// Why this is an e2e case and not only a component test: three calls have to
+// land against the new trip's real id — create, date, insert — and "1 trip" on
+// the day's own facts rail is the only place the last of them is visible end to
+// end. (It used to rest on the ORDER, because `addCounts()` refused an add
+// against an undated trip. That clause was dropped on 2026-09-08, so the order
+// is now a product choice; the credit is asserted either way.)
+test("a shared day can start a new trip, as day 1, and the add still counts", async ({ page, browser }) => {
+  test.slow();
+
+  const city = mintCity("Startere2e");
+  const dayName = `A day worth its own trip ${randomUUID().slice(0, 8)}`;
+
+  const source = await tripWithCities(page, e2eTripName("Starter"), [city]);
+  const savedDayId = await keepDay(page, source.tripId, source.dayId, dayName);
+  const published = await page.request.post(`/api/saved-days/${savedDayId}/publish`);
+  expect(published.ok(), `publish -> ${published.status()}`).toBe(true);
+
+  // Somebody who is not alice and — the point of this case — has no trip at all
+  // to put the day in. `tripWithCities` is deliberately NOT called for him.
+  const bob = await signedInAs(browser, newcomer("pbstarter"));
+  await bob.goto(`/playbooks/day/${savedDayId}`);
+  await expect(bob.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
+
+  await bob.getByRole("button", { name: "Add to a trip" }).click();
+  await bob.getByLabel("Which trip").selectOption({ label: "Start a new trip" });
+  await bob.getByLabel("Start date").fill("2027-05-04");
+  await Promise.all([
+    bob.waitForURL(/\/trips\/[0-9a-f-]{36}$/),
+    bob.getByRole("button", { name: "Add to trip" }).click(),
+  ]);
+
+  // Named after the day, verbatim — there is no name field to have typed one in.
+  await expect(bob.getByRole("heading", { name: dayName, level: 2 })).toBeVisible();
+  // ONE day column, and the playbook day is it. The COUNT is what catches
+  // `SetTripDates` being used instead of `SetTripStartDate`: that command
+  // reconciles day count and would have minted an empty day 1, leaving the day
+  // somebody actually came for sitting second.
+  await bob.getByRole("tab", { name: "Day columns" }).click();
+  await expect(bob.getByTestId("day-column")).toHaveCount(1);
+  await expect(bob.getByTestId("day-column").getByText(`Stop in ${city}`)).toBeVisible();
+
+  // The ledger counted it — now true whether or not the trip had its start date
+  // when the insert arrived.
+  await bob.goto(`/playbooks/day/${savedDayId}`);
+  await expect(bob.getByTestId("day-facts").getByText("1 trip")).toBeVisible();
+
+  // Bob's new trip is named after the DAY, so it carries no `[e2e]` prefix —
+  // but `global.teardown.ts` only ever sweeps alice's trips anyway, and every
+  // trip this spec makes for a newcomer is already outside its reach.
   await forgetDay(page, savedDayId);
   await bob.context().close();
 });

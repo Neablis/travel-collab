@@ -364,20 +364,22 @@ export const savedDays = pgTable(
 // The adds ledger (M11b link 4). One row per (saved day, trip) — the day
 // somebody took, and the trip they took it into.
 //
-// **A table, not an `adds++`.** The rule, verbatim from the design: *an add
-// only counts once per trip, and only after the trip has dates; copying your
-// own day into your own trip does not count.* A build that counts raw inserts
-// produces a different and gameable order, and the leaderboard's whole
-// credibility is that rule holding — so the ledger records what was added and
-// `saved_days.adds` is derived from it, never the other way round.
+// **A table, not an `adds++`.** The rule: *an add only counts once per trip;
+// copying your own day into your own trip does not count.* A build that counts
+// raw inserts produces a different and gameable order, and the leaderboard's
+// whole credibility is that rule holding — so the ledger records what was added
+// and `saved_days.adds` is derived from it, never the other way round. (The
+// design's copy had a third clause, *and only after the trip has dates*;
+// Mitchell dropped it on 2026-09-08 and an add into an undated trip now counts.
+// `savedDayAdds.ts` carries the reasoning.)
 //
 // **The composite primary key is the "once per trip" half of that rule, made
 // true by construction.** Inserting the same day into the same trip twice
 // raises a unique violation at the database rather than depending on an
 // application read-then-write that a future caller could forget, or lose a
-// race with. The other two clauses — the trip has dates, and the author is not
-// their own audience — are facts about a trip and an actor, not about this
-// table, so they stay in the write path (PR2) where those values are in hand.
+// race with. The other clause — the author is not their own audience — is a
+// fact about a day and an actor, not about this table, so it stays in the write
+// path (PR2) where those values are in hand.
 //
 // `added_by` is recorded but does not key anything: it is what makes "copying
 // your own day into your own trip does not count" auditable after the fact,

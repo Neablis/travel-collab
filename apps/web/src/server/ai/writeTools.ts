@@ -1,10 +1,17 @@
 // The write half of the assistant (M9), offered on /ask beside the read tools.
 //
-// **Nothing here is a new tool.** The write tools ARE `buildPlanningTools()` —
-// the family derived from `@tc/contracts` command schemas (ADR-015 invariant 5,
-// ADR-022 §4: "M9's write tools return by wrapping that pipeline from inside
-// the agent, not by reimplementing it"). This module adds three things around
-// them and no fourth tool:
+// **One tool here is not derived, and exactly one.** The rest ARE
+// `buildPlanningTools()` — the family derived from `@tc/contracts` command
+// schemas (ADR-015 invariant 5, ADR-022 §4: "M9's write tools return by
+// wrapping that pipeline from inside the agent, not by reimplementing it").
+// `insert_playbook_day` is hand-written, which ADR-042 Decision 3 permits on a
+// narrow reading: it takes a `savedDayId` and nothing else, executes no
+// command, and the commands it eventually becomes are minted SERVER-side by
+// `insertCommands` at approval. So ADR-022's argument transfers unchanged —
+// there is nothing for its schema to drift from. A hand-written write tool
+// that carried command fields from the model is still forbidden.
+//
+// This module adds three things around the tools:
 //
 //   1. `WRITE_TOOL_NAMES`, measured from the built tool set rather than typed
 //      out, so `minimumRoleFor` cannot fall behind a new BatchableCommand.
@@ -12,7 +19,9 @@
 //      in a sentence per change. Nothing is committed by it.
 //   3. `commitProposal` — the ONE atomic batch (ADR-013), through the same
 //      `enrichCommandLocations` → `flushPlanningBatch` path the command
-//      endpoint uses, so approval is not a second door around KI-15.
+//      endpoint uses, so approval is not a second door around KI-15. It is
+//      also where an approved `{ savedDayId }` is re-read and expanded, and
+//      where the adds ledger rides the batch's own transaction.
 //
 // The tools themselves stay COLLECT-ONLY, exactly as they already are on the
 // command path: `execute` pushes a raw intent and returns `{ queued: true }`.
@@ -21,40 +30,149 @@
 // The only caller of `commitProposal` is the apply endpoint, and it runs after
 // the human said yes.
 import { randomUUID } from "node:crypto";
-import { BatchableCommand, type TripDetail, type TripHistory } from "@tc/contracts";
+import { tool } from "ai";
+import { z } from "zod";
+import { BatchableCommand, type SavedDay, type TripDetail, type TripHistory } from "@tc/contracts";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
+import { insertCommands, readableSavedDay } from "@/server/savedDays";
+import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
 import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
+import { ReadContextSchema, type ReadToolContext } from "@/server/ai/readTools";
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
 import type { AskDroppedCall } from "@/server/ai/askAnalytics";
+import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
+
+/** ADR-042 Decision 3's one hand-written write tool. */
+export const INSERT_PLAYBOOK_DAY = "insert_playbook_day";
 
 /**
  * The write tools, by name.
  *
- * MEASURED from the derived tool set, never listed: every `BatchableCommand`
+ * The derived family is still MEASURED, never listed: every `BatchableCommand`
  * member becomes one tool (planningTools.ts), so a thirteenth command joins
  * this array — and therefore `minimumRoleFor`'s editor branch — without anyone
- * remembering to. Typing the names out here would be the hand-written manifest
- * ADR-015 invariant 5 forbids, one level up.
+ * remembering to. Typing those names out here would be the hand-written
+ * manifest ADR-015 invariant 5 forbids, one level up.
+ *
+ * `INSERT_PLAYBOOK_DAY` is named because it is genuinely not derived from
+ * anything (ADR-042 Decision 3). It is appended rather than replacing the
+ * measurement, so the derived half keeps its property.
  */
-export const WRITE_TOOL_NAMES: readonly string[] = Object.keys(buildPlanningTools().tools);
+export const WRITE_TOOL_NAMES: readonly string[] = [
+  ...Object.keys(buildPlanningTools().tools),
+  INSERT_PLAYBOOK_DAY,
+];
 
 /**
- * The tools handed to the agent for an editor's turn.
+ * A day the turn asked to insert, resolved at PROPOSE time.
  *
- * A pass-through, deliberately: wrapping `buildPlanningTools()` in anything
- * that alters a schema or an `execute` would be the reimplementation ADR-022 §4
- * rules out. It exists as a named door so `handleAskRequest` reads as "read
- * tools plus write tools" rather than reaching into the command endpoint's
- * module.
+ * `name` and `stopCount` ride along so the change sentence can be written
+ * without a second read — and, more to the point, so the sentence the user
+ * approves names the day the server actually found rather than whatever the
+ * model called it.
  */
-export function buildWriteTools(): ReturnType<typeof buildPlanningTools> {
-  return buildPlanningTools();
+export interface CollectedInsert {
+  savedDayId: string;
+  name: string;
+  stopCount: number;
+}
+
+/**
+ * The whole of what the model may say about an insert.
+ *
+ * One field, and it names a row rather than describing one — which is the
+ * narrow reading ADR-042 Decision 3 permits a hand-written write tool under.
+ * No `tripId` (ADR-022 §3, and the trip arrives from the URL at apply), no day
+ * position, no stop list: everything about WHAT gets inserted comes from
+ * `insertCommands` reading the row.
+ *
+ * `.min(1)` rather than `.uuid()` on purpose. A malformed id is a
+ * hallucination like any other, and `readableSavedDay` already answers every
+ * flavour of unreachable — never existed, not yours, withdrawn, not even a
+ * uuid — with the same "no row". Validating the shape here would tell the
+ * model which kind of wrong it was.
+ */
+const InsertPlaybookDayInput = z.object({
+  savedDayId: z
+    .string()
+    .min(1)
+    .describe("The `savedDayId` of a day search_playbooks returned. Never write or guess one."),
+});
+
+/**
+ * The tools handed to the agent for an editor's turn: the derived planning
+ * family, plus `insert_playbook_day`.
+ *
+ * The derived half is a pass-through, deliberately — wrapping
+ * `buildPlanningTools()` in anything that alters a schema or an `execute` would
+ * be the reimplementation ADR-022 §4 rules out.
+ *
+ * **`insert_playbook_day` is collect-only like every other write tool**, and it
+ * resolves the row it was handed before collecting. That read is not
+ * decoration: a hallucinated or unreadable id fails HERE, at propose time, with
+ * a message the model can act on in the same turn — rather than surfacing as a
+ * 404 after the user has already clicked Approve on a card naming a day that
+ * was never reachable. The apply door re-reads regardless (`commitProposal`);
+ * this one is for the model, that one is the guarantee.
+ */
+export function buildWriteTools(): {
+  tools: ReturnType<typeof buildPlanningTools>["tools"];
+  getCollected: () => RawToolIntent[];
+  getInserts: () => CollectedInsert[];
+} {
+  const planning = buildPlanningTools();
+  const inserts: CollectedInsert[] = [];
+  return {
+    tools: {
+      ...planning.tools,
+      [INSERT_PLAYBOOK_DAY]: tool({
+        description:
+          "Propose adding a whole day from the playbook library to this trip — every stop it holds, in order, as a new day at the end. Pass a `savedDayId` that search_playbooks returned; never invent one, and propose at most ONE day per turn. Like every other change tool this only DRAFTS: the day is inserted when the user approves.",
+        inputSchema: InsertPlaybookDayInput,
+        contextSchema: ReadContextSchema,
+        execute: async ({ savedDayId }, { context }) => {
+          // The collector's own ceiling, so the cap holds on both sides of the
+          // stream: `/ask/apply` refuses an over-cap approval (limits.ts), and a
+          // turn cannot draft a card that would be refused. Refused as a tool
+          // result rather than a throw — the model can read it and stop.
+          if (inserts.length >= MAX_PROPOSAL_INSERTS) {
+            return {
+              error: `You have already queued ${MAX_PROPOSAL_INSERTS} playbook days, which is the most one proposal may carry. Stop and tell the user what you have drafted.`,
+            };
+          }
+          const saved = await readableSavedDay(savedDayId, context.userId);
+          if (saved === null) {
+            return {
+              error:
+                "There is no playbook day with that id that you can open. Call search_playbooks and use a savedDayId from its results.",
+            };
+          }
+          inserts.push({ savedDayId: saved.savedDayId, name: saved.name, stopCount: saved.stops.length });
+          return { queued: true, name: saved.name, stopCount: saved.stops.length };
+        },
+      }),
+    },
+    getCollected: planning.getCollected,
+    getInserts: () => inserts,
+  };
+}
+
+/**
+ * The context `insert_playbook_day` reads, under its own name — `toolsContext`
+ * is keyed by tool, so a write tool with a `contextSchema` needs an entry of
+ * its own beside `readToolsContext`'s.
+ *
+ * The same `ReadToolContext` the read tools take, and only `userId` is used:
+ * the library is read as the actor, and the trip is not this tool's business.
+ */
+export function writeToolsContext(context: ReadToolContext): Record<string, ReadToolContext> {
+  return { [INSERT_PLAYBOOK_DAY]: context };
 }
 
 /** One change, as the user reads it before deciding. */
@@ -78,6 +196,22 @@ export interface AssistantProposal {
   proposalId: string;
   changes: ProposedChange[];
   commands: BatchableCommand[];
+  /**
+   * Days to insert, BY REFERENCE (ADR-042 Decision 1) — never as commands.
+   *
+   * The obvious implementation is to expand the day into `AddDay +
+   * AddActivity[]` here and let it ride `commands`. That silently bypasses the
+   * adds ledger: `recordAdd` runs only inside an `alsoInSameTransaction` hook,
+   * so an assistant-inserted day would never reach `saved_day_adds` and SPEC
+   * §15's *"a build that counts raw inserts will produce a different and
+   * gameable order"* would be exactly what we shipped.
+   *
+   * So the reference travels and the server expands it. `name` is here for the
+   * card and for nothing else — the apply door re-reads the row and takes the
+   * name from there, because a ledger credit is not something a client may
+   * mint.
+   */
+  inserts: { savedDayId: string; name: string }[];
   /**
    * Changes the resolver dropped, as sentences. `no-op` drops are excluded —
    * the domain simply had nothing to do, which is not something to warn about.
@@ -142,6 +276,26 @@ export function describeProposedChange(command: BatchableCommand, detail: TripDe
   })();
 
   return { type: command.type, text };
+}
+
+/**
+ * An insert, as the user reads it before deciding.
+ *
+ * `type: "AddDay"` because that is what an insert IS — a new day at the end of
+ * the trip — and the field's whole job is letting a client group or icon a
+ * change without parsing prose. `describeProposedChange` and `ID_FIELDS` stay
+ * untouched (ADR-042's consequences): there is no command here to describe,
+ * only a row, and the commands are minted at approval.
+ *
+ * The stop count is in the sentence because it is the one number that says how
+ * big the yes is. "Add a day" and "add a day with eleven stops" are different
+ * decisions.
+ */
+function describeProposedInsert(insert: CollectedInsert): ProposedChange {
+  return {
+    type: "AddDay",
+    text: `Add “${insert.name}” from the library (${insert.stopCount} stop${insert.stopCount === 1 ? "" : "s"}) as a new day`,
+  };
 }
 
 /**
@@ -221,7 +375,10 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
  *
  * Returns `null` when the turn asked for nothing that survived resolution:
  * there is no proposal to review, so the client renders no card and the answer
- * stands on its own prose.
+ * stands on its own prose. **An inserts-only turn is not that case** — a turn
+ * whose one write call was `insert_playbook_day` resolves to zero commands by
+ * construction, and returning `null` for it would produce no card at all for
+ * the only thing the user asked for.
  *
  * Also where a created stop with no stated `kind` becomes `hold` rather than
  * `planned` — see `withDefaultKind`.
@@ -239,22 +396,29 @@ export function buildProposal(
   intents: RawToolIntent[],
   detail: TripDetail,
   opts: { tripId: string; actorId: string; mintId?: () => string; proposalId?: string },
+  inserts: readonly CollectedInsert[] = [],
 ): AssistantProposal | null {
-  if (intents.length === 0) return null;
+  if (intents.length === 0 && inserts.length === 0) return null;
   const { commands, errors } = resolveBatch(intents, detail, {
     tripId: opts.tripId,
     actorId: opts.actorId,
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
   });
-  if (commands.length === 0) return null;
+  if (commands.length === 0 && inserts.length === 0) return null;
   // Enforced, not requested — see `withoutFabricatedCost` and `withDefaultKind`.
   // Applied after resolution so each sees the parsed command, and before
   // `changes` so the card and the batch describe the same thing.
   const honest = commands.map(withoutFabricatedCost).map(withDefaultKind);
   return {
     proposalId: opts.proposalId ?? randomUUID(),
-    changes: honest.map((command) => describeProposedChange(command, detail)),
+    changes: [
+      ...honest.map((command) => describeProposedChange(command, detail)),
+      ...inserts.map(describeProposedInsert),
+    ],
     commands: honest,
+    // `stopCount` is dropped on the way out: it was for the sentence above, and
+    // the apply door reads the row rather than anything on this list.
+    inserts: inserts.map(({ savedDayId, name }) => ({ savedDayId, name })),
     skipped: errors.filter((e) => e.code !== "no-op").map((e) => e.message),
   };
 }
@@ -317,6 +481,16 @@ export interface ProposalCommitResult {
  * The two steps are the command endpoint's own, in its order and for its
  * reasons:
  *
+ *   0. **Every `{ savedDayId }` is RE-READ**, through `readableSavedDay` as the
+ *      approving actor (ADR-042 Decision 1). This is not a formality and it is
+ *      not the propose-time read repeated for tidiness: `/ask/apply` has no
+ *      server-side proposal store, so nothing here can verify that a claimed
+ *      insert corresponds to something a model proposed. Trusting the posted
+ *      id would make board position client-mintable, which is the one thing
+ *      the adds ledger exists to prevent. A hallucinated id, somebody else's
+ *      private day and a day withdrawn since the proposal all fail closed as
+ *      the same "no row" — the indistinguishability `savedDays.ts` records at
+ *      length.
  *   1. **`enrichCommandLocations`.** The model is not trusted with coordinates
  *      and the geocoder is not trusted to overrule it (KI-15: unsupervised
  *      enrichment moved a Niagara Falls dinner to Shropshire and swallowed
@@ -342,14 +516,57 @@ export async function commitProposal(
   actorId: string,
   detail: TripDetail,
   geocoder?: Geocoder,
+  inserts: readonly { savedDayId: string }[] = [],
 ): Promise<{ ok: true; value: ProposalCommitResult } | { ok: false; error: { code: string; message: string } }> {
+  const days: SavedDay[] = [];
+  for (const { savedDayId } of inserts) {
+    const saved = await readableSavedDay(savedDayId, actorId);
+    if (saved === null) {
+      return { ok: false, error: { code: "not-found", message: "That saved day does not exist." } };
+    }
+    days.push(saved);
+  }
+
   const { commands: enriched, report } = await enrichCommandLocations(
     commands,
     () => geocoder ?? getGeocoder(),
     tripRegionOf(detail),
   );
 
-  const batch = await flushPlanningBatch(tripId, enriched, actorId);
+  // `insertCommands` — the SAME exported function the manual "Add to a trip"
+  // dialog goes through, so the two paths cannot disagree about what inserting
+  // a day means. Appended AFTER enrichment on purpose: a saved day's stops were
+  // located by whoever wrote them and by the importer's geocoder (ADR-041), the
+  // manual path runs no enrichment over them, and putting this one through
+  // LocationIQ would make the assistant's insert a different day than the
+  // dialog's.
+  const inserted = days.flatMap((day) => insertCommands(day, tripId));
+
+  // ONE batch, with the ledger rows in its own transaction (ADR-013 + M11b).
+  // Two calls would be two history entries and two undos for one approval; a
+  // ledger write after the call returns would be a credit for a batch that
+  // might have lost its optimistic-concurrency check.
+  const batch = await flushPlanningBatch(
+    tripId,
+    [...enriched, ...inserted],
+    actorId,
+    days.length === 0
+      ? undefined
+      : async (tx) => {
+          for (const day of days) {
+            // `addCounts`, uncopied — the assistant's door and the manual
+            // dialog's cannot disagree about who gets credited, which is the
+            // whole reason the rule is one function and not two.
+            if (!addCounts({ authorId: day.ownerId, actorId })) continue;
+            await recordAdd(tx, {
+              savedDayId: day.savedDayId,
+              tripId,
+              addedBy: actorId,
+              createdAt: new Date(),
+            });
+          }
+        },
+  );
   if (!batch.ok) return { ok: false, error: batch.error };
 
   // Derived from what committed, so the sentence can never claim an edit the
@@ -364,7 +581,16 @@ export async function commitProposal(
       `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${shown}${rest > 0 ? `, and ${rest} more` : ""} — worth checking on the map.`,
     );
   }
-  const summary = summarizeBatch(enriched, detail);
+  // The inserted days are named in their own sentence rather than folded into
+  // `summarizeBatch`. Its phrasing is per command, and the day it adds is new —
+  // so an eleven-stop insert would read as "added a day and added X to a day"
+  // eleven times over, which says less than the one line the user approved.
+  const summary = [
+    ...(enriched.length > 0 ? [summarizeBatch(enriched, detail)] : []),
+    // The name comes from the row this server just read, never from the
+    // proposal the client posted back.
+    ...days.map((day) => `Added “${day.name}” from the library.`),
+  ].join(" ");
   return {
     ok: true,
     value: {
@@ -405,9 +631,11 @@ export function parseApprovedCommands(
   value: unknown,
   tripId: string,
 ): { ok: true; commands: BatchableCommand[] } | { ok: false; error: string } {
-  if (!Array.isArray(value) || value.length === 0) {
-    return { ok: false, error: "an approval must carry at least one change" };
-  }
+  // An EMPTY list is accepted here and refused one level up. An inserts-only
+  // approval carries no commands at all (ADR-042 Decision 1), so "at least one
+  // change" is a question about the whole approval — commands and inserts
+  // together — and only the caller can see both.
+  if (!Array.isArray(value)) return { ok: false, error: "malformed change in this approval" };
   const commands: BatchableCommand[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return { ok: false, error: "malformed change in this approval" };

@@ -105,10 +105,17 @@ export function buildPlanningTools(): {
 }
 
 // Submits the resolved commands as ONE atomic batch (ADR-013).
+//
+// `alsoInSameTransaction` is `executeTripCommandBatch`'s existing seam, carried
+// through rather than reimplemented: an approved playbook insert has to write
+// its adds-ledger row as part of the same fact as the batch (ADR-042 Decision
+// 1, M11b link 4). Reaching the executor a second way instead would be a second
+// history entry and a second undo for one approval.
 export async function flushPlanningBatch(
   _tripId: string,
   calls: BatchableCommandType[],
   actorId: string,
+  alsoInSameTransaction?: Parameters<typeof executeTripCommandBatch>[2],
 ): Promise<CommandResult> {
-  return executeTripCommandBatch(calls, actorId);
+  return executeTripCommandBatch(calls, actorId, alsoInSameTransaction);
 }

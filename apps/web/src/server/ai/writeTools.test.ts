@@ -3,12 +3,15 @@ import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
+import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import { readableSavedDay } from "@/server/savedDays";
 import {
   buildProposal,
   buildWriteTools,
   commitProposal,
   describeProposedChange,
   droppedWriteCalls,
+  INSERT_PLAYBOOK_DAY,
   parseApprovedCommands,
   withDefaultKind,
   withoutFabricatedCost,
@@ -25,6 +28,21 @@ vi.mock("./planningTools", async (importOriginal) => {
   return { ...actual, flushPlanningBatch: vi.fn() };
 });
 const { flushPlanningBatch } = await import("./planningTools");
+
+// `insert_playbook_day` resolves the row before collecting, which is Postgres.
+// The collector's own ceiling is what this file tests, so the read is stubbed
+// to always succeed — the real read is the apply route's integration suite.
+vi.mock("@/server/savedDays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/savedDays")>();
+  return {
+    ...actual,
+    readableSavedDay: vi.fn(async (savedDayId: string) => ({
+      savedDayId,
+      name: "A day in Kyoto",
+      stops: [{}, {}],
+    })),
+  };
+});
 
 const DAY_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 const COLOSSEUM_ID = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
@@ -47,10 +65,13 @@ describe("WRITE_TOOL_NAMES", () => {
   // The point of measuring rather than listing: a thirteenth BatchableCommand
   // becomes a thirteenth write tool AND flips `minimumRoleFor` to editor for
   // free. A hand-written array would silently offer it to a viewer.
-  it("is exactly the derived planning tool set", () => {
+  it("is the derived planning tool set, plus the one hand-written tool", () => {
     expect([...WRITE_TOOL_NAMES].sort()).toEqual(Object.keys(buildWriteTools().tools).sort());
+    // The derived half still measured against the contract, so the ADR-042
+    // exception cannot quietly grow a second member: everything in
+    // WRITE_TOOL_NAMES is either a BatchableCommand or `insert_playbook_day`.
     expect([...WRITE_TOOL_NAMES].sort()).toEqual(
-      BatchableCommand.options.map((o) => o.shape.type.value as string).sort(),
+      [...BatchableCommand.options.map((o) => o.shape.type.value as string), INSERT_PLAYBOOK_DAY].sort(),
     );
   });
 
@@ -77,6 +98,29 @@ describe("the write tools collect and commit nothing", () => {
     expect(output).toEqual({ queued: true, type: "AddActivity" });
     expect(getCollected()).toEqual([{ type: "AddActivity", args: { title: "Coffee", dayRef: "day 1" } }]);
     expect(flushPlanningBatch).not.toHaveBeenCalled();
+  });
+
+  // The collector half of `MAX_PROPOSAL_INSERTS` (limits.ts). The apply door
+  // refuses an over-cap approval; this stops a turn drafting a card that would
+  // be refused, and bounds the sequential `readableSavedDay` calls a single
+  // turn can make.
+  it("stops collecting playbook days at the cap, and says so to the model", async () => {
+    const { getInserts, tools } = buildWriteTools();
+    const insert = tools[INSERT_PLAYBOOK_DAY]!.execute as (i: unknown, o: unknown) => Promise<unknown>;
+    const context = { context: { userId: ACTOR } };
+    for (let i = 0; i < MAX_PROPOSAL_INSERTS; i++) {
+      expect(await insert({ savedDayId: `day-${i}` }, context)).toEqual({
+        queued: true,
+        name: "A day in Kyoto",
+        stopCount: 2,
+      });
+    }
+    expect(getInserts()).toHaveLength(MAX_PROPOSAL_INSERTS);
+    const overflow = (await insert({ savedDayId: "day-over" }, context)) as { error?: string };
+    expect(getInserts()).toHaveLength(MAX_PROPOSAL_INSERTS);
+    expect(overflow.error).toContain(String(MAX_PROPOSAL_INSERTS));
+    // The refusal is a decision, not a read: the row is never resolved.
+    expect(vi.mocked(readableSavedDay)).toHaveBeenCalledTimes(MAX_PROPOSAL_INSERTS);
   });
 
   it("gives each turn its own collection — one turn cannot inherit another's intents", () => {
@@ -484,11 +528,12 @@ describe("parseApprovedCommands", () => {
     expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
   });
 
-  it("refuses an empty approval", () => {
-    expect(parseApprovedCommands([], TRIP_ID)).toEqual({
-      ok: false,
-      error: "an approval must carry at least one change",
-    });
+  // An empty COMMAND list is not an empty approval any more: an inserts-only
+  // proposal carries no commands at all (ADR-042 Decision 1). "At least one
+  // change" is asked of the whole approval, at the apply door, where both
+  // lists are visible — `apply/route.int.test.ts` holds that end.
+  it("accepts an empty command list, which an inserts-only approval has", () => {
+    expect(parseApprovedCommands([], TRIP_ID)).toEqual({ ok: true, commands: [] });
   });
 
   it("refuses anything that is not a BatchableCommand", () => {

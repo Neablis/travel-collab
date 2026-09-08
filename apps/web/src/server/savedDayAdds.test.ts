@@ -6,28 +6,29 @@ import { addCounts } from "./savedDayAdds";
 
 const AUTHOR = "author";
 const TAKER = "taker";
-const DATED = "2027-04-01";
 
-// The two clauses `addCounts` owns. (The third — once per trip — is the
+// The one clause `addCounts` owns. (The other — once per trip — is the
 // composite primary key on `saved_day_adds`, and is proven against the ledger
 // in `app/api/trips/[tripId]/saved-days/[savedDayId]/route.int.test.ts`.)
+//
+// There used to be a third, "only after the trip has dates", asserted here as
+// two negatives. It was dropped on 2026-09-08, and `AddEligibility` no longer
+// carries a trip at all — so the claim that replaces those negatives, *an add
+// into an undated trip counts*, is not statable at this layer: there is no
+// undated case left to pass in, and a test that constructed one would only be
+// testing its own literal. It is asserted where a real undated trip exists, and
+// asserted positively, against the ledger:
+//   * `app/api/trips/[tripId]/saved-days/[savedDayId]/route.int.test.ts`
+//   * `app/api/trips/[tripId]/ask/apply/route.int.test.ts`
+// Reinstating the clause has to widen `AddEligibility` to have a date to read,
+// which fails those suites and this file's typecheck together.
 describe("addCounts", () => {
-  it("counts a dated trip taken by somebody other than the author", () => {
-    expect(addCounts({ authorId: AUTHOR, actorId: TAKER, tripStartDate: DATED })).toBe(true);
-  });
-
-  it("does not count a trip with no dates", () => {
-    expect(addCounts({ authorId: AUTHOR, actorId: TAKER, tripStartDate: null })).toBe(false);
+  it("counts a day taken by somebody other than the author", () => {
+    expect(addCounts({ authorId: AUTHOR, actorId: TAKER })).toBe(true);
   });
 
   it("does not count the author taking their own day", () => {
-    expect(addCounts({ authorId: AUTHOR, actorId: AUTHOR, tripStartDate: DATED })).toBe(false);
-  });
-
-  // Both clauses at once. Stated separately because a `&&` written as an `||`
-  // passes each single-clause case above.
-  it("does not count the author taking their own day into an undated trip", () => {
-    expect(addCounts({ authorId: AUTHOR, actorId: AUTHOR, tripStartDate: null })).toBe(false);
+    expect(addCounts({ authorId: AUTHOR, actorId: AUTHOR })).toBe(false);
   });
 });
 

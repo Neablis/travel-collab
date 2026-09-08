@@ -37,7 +37,14 @@ import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/ai/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
-import type { DayReadout, FreeTimeReadout, ReadToolProblem, TripReadout } from "@/server/ai/readTools";
+import type {
+  DayReadout,
+  FreeTimeReadout,
+  PlaybookSearchReadout,
+  ReadToolProblem,
+  TripReadout,
+} from "@/server/ai/readTools";
+import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -357,7 +364,12 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
 // 2?" is a question, and the derived suggestion chips ask it verbatim
 // (suggestedQuestions.ts). Word boundaries matter for the same reason: "What
 // still needs booking?" must not match `book`.
-const CHANGE_VERBS = /\b(add|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
+//
+// `insert` is here because it is a write tool's own name — `insert_playbook_day`
+// — and the system instruction tells the model to "insert" in those words
+// (handleAskRequest.ts). "Insert a coffee stop on day 2" reading as a question
+// was the feature failing to recognise its own verb.
+const CHANGE_VERBS = /\b(add|insert|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
 
 // The other half of "asked for a change": a question that asks for IDEAS rather
 // than for a fact. `CHANGE_VERBS` is imperative-only by design, which left the
@@ -406,6 +418,49 @@ function canPropose(options: CallOptionsLike): boolean {
   return (options.tools ?? []).some((t) => t?.name === "AddActivity");
 }
 
+// What the user has to say for this model to reach for the library rather than
+// invent two sample stops. Deliberately narrow — the words a person uses when
+// they mean "find me a ready-made day", and nothing that overlaps
+// `CHANGE_VERBS`' ordinary "add a coffee stop".
+//
+// It matters that this branch exists at all: `ai-live` is off in every Vercel
+// environment, so without it ADR-042's whole flow is unreachable anywhere
+// Mitchell can click it.
+const PLAYBOOK_PROMPTS = /\bplaybook|\blibrary\b|\bsaved day|\bready-made\b|\bsomeone else's day\b/i;
+
+function asksForAPlaybookDay(text: string): boolean {
+  return PLAYBOOK_PROMPTS.test(text);
+}
+
+/**
+ * The playbook half of a proposing turn, in two steps.
+ *
+ * **Search, then insert — never insert alone**, which is the shape the
+ * instruction asks a real model for and the shape the flow only works in: the
+ * `savedDayId` has to come from the library, because `insert_playbook_day`
+ * resolves it through `readableSavedDay` and refuses anything invented.
+ *
+ * The cities come from `read_trip`'s own readout rather than from the question,
+ * so the day this proposes is one that touches somewhere the trip actually
+ * goes. On an empty or unlocated trip that list is empty, which
+ * `search_playbooks` reads as "browse the most-added days" — still a real
+ * answer.
+ *
+ * `null` means there was nothing to insert: the library had no matching day, so
+ * the turn falls through and SAYS so instead of proposing something else.
+ */
+function playbookCalls(results: readonly ToolResultLike[]): ToolCall[] | null {
+  const found = resultFor<PlaybookSearchReadout>(results, "search_playbooks");
+  if (found === undefined) {
+    const trip = resultFor<TripReadout>(results, "read_trip");
+    const cities = [...new Set((trip?.days ?? []).flatMap((day) => day.cities))].slice(0, 3);
+    return [call("search_playbooks", cities.length > 0 ? { cities } : {})];
+  }
+  const first = found.days[0];
+  // One day per turn, exactly as the instruction asks of a real model.
+  return first === undefined ? null : [call(INSERT_PLAYBOOK_DAY, { savedDayId: first.savedDayId })];
+}
+
 /** A write tool's result — planningTools' `execute` returns `{ queued: true }`. */
 function isQueued(result: ToolResultLike): boolean {
   const output = result.output;
@@ -449,6 +504,13 @@ function proposeCalls(scope: AskScope, results: readonly ToolResultLike[]): Tool
 const SIMULATED_PROPOSAL_NOTICE =
   "AI is switched off on this deployment, so I drafted this from your trip data rather than from a model.";
 
+// The honest fallback for a library with nothing to offer: a proposal is not
+// drafted, so this turn ends as prose with no card under it.
+const SIMULATED_NO_PLAYBOOK_ANSWER = [
+  "I couldn't find a day in the playbook library to suggest for this trip.",
+  SIMULATED_PROPOSAL_NOTICE,
+];
+
 /**
  * What the model says about a proposal it has just drafted.
  *
@@ -457,6 +519,9 @@ const SIMULATED_PROPOSAL_NOTICE =
  * of the trip agree. The card underneath carries the changes themselves.
  */
 function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[] {
+  // One `insert_playbook_day` is one queued change here and one line on the
+  // card, which is the honest count: the stops it becomes are minted by the
+  // server on approval, and nothing in this turn knows how many there will be.
   const queued = results.filter(isQueued).length;
   const where = scope.kind === "day" ? `day ${scope.dayIndex + 1}` : "this trip";
   return [
@@ -468,7 +533,7 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
 
 /**
  * The pre-turn classification call (askIntent.ts), answered from the same
- * `asksForAChange` judgement that decides whether this model proposes.
+ * judgement that decides whether this model proposes.
  *
  * Reusing that predicate is the point, not a shortcut: the switched-off
  * deployment is the one every Vercel environment runs, so a classifier that
@@ -481,15 +546,28 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * classification call.
  * `askChipCoverage.test.ts` does NOT cover it — it hands the model a
  * hardcoded `EDITOR_TOOLS` and never issues a classification call at all.
- * One predicate, so the two answers cannot disagree.
+ *
+ * **`asksForAPlaybookDay` belongs in that judgement too, and its absence made
+ * most of `PLAYBOOK_PROMPTS` dead code** (browser walk of the preview,
+ * 2026-09-08). `askTurn` reaches the library branch on `asksForAPlaybookDay`
+ * alone, but the classifier consulted only `asksForAChange` — so "find me a
+ * ready-made day for Kyoto" was called a question, was offered no write tools,
+ * and could never reach the branch written for it. `\bready-made\b`,
+ * `\bsaved day` and `\bsomeone else's day\b` only ever fired when the user also
+ * happened to say a change verb, in which case `CHANGE_VERBS` had already
+ * matched. One predicate, so the two answers cannot disagree.
  */
+function asksToWrite(text: string): boolean {
+  return asksForAChange(text) || asksForAPlaybookDay(text);
+}
+
 function classifyStep(options: CallOptionsLike): SimulatedStep {
   // The STRUCTURED verdict, via askIntent.ts's own writer — not the bare word
   // this used to emit. `classifyAskIntent` now asks for a typed field
   // (`Output.choice`), and the SDK parses this text as JSON against that
   // schema before returning: a bare `write` would fail to parse and fail open
   // on every turn of the only path anyone deploys.
-  const verdict = askIntentVerdictText(asksForAChange(latestUserText(options)) ? "write" : "question");
+  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "write" : "question");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },
@@ -532,12 +610,7 @@ function pageTurn(results: readonly ToolResultLike[]): SimulatedStep {
   if (!results.some((result) => result.toolName === "insert_text")) {
     return { content: pageCalls(), finishReason: { unified: "tool-calls", raw: undefined } };
   }
-  const sentences = [SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE];
-  return {
-    content: [{ type: "text", text: sentences.join(" ") }],
-    finishReason: { unified: "stop", raw: undefined },
-    textDeltas: sentences.map((sentence, i) => (i === sentences.length - 1 ? sentence : `${sentence} `)),
-  };
+  return speak([SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE]);
 }
 
 /**
@@ -568,10 +641,25 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   const proposed = results.some(isQueued);
-  if (!proposed && canPropose(options) && asksForAChange(latestUserText(options))) {
+  const question = latestUserText(options);
+  // The library branch is checked BEFORE the sample-stops one: "add a day from
+  // the playbook library" satisfies `asksForAChange` too, and the more specific
+  // reading of the same sentence is the right one.
+  if (!proposed && canPropose(options) && asksForAPlaybookDay(question)) {
+    const calls = playbookCalls(results);
+    if (calls !== null) return { content: calls, finishReason: { unified: "tool-calls", raw: undefined } };
+    return speak(SIMULATED_NO_PLAYBOOK_ANSWER);
+  }
+  if (!proposed && canPropose(options) && asksForAChange(question)) {
     return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
   }
-  const sentences = proposed ? proposalAnswer(scope, results) : askAnswer(scope, results);
+  return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
+}
+
+// A text step from a list of sentences: one message part, streamed sentence by
+// sentence. Split into parts instead and every client that concatenates them
+// reads "5 stops.They are:".
+function speak(sentences: string[]): SimulatedStep {
   return {
     content: [{ type: "text", text: sentences.join(" ") }],
     finishReason: { unified: "stop", raw: undefined },

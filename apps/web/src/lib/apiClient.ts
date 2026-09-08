@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   BatchableCommand,
   InvitePreview,
@@ -675,6 +676,19 @@ export type AssistantProposal = {
   proposalId: string;
   changes: ProposedChange[];
   commands: BatchableCommand[];
+  /**
+   * Playbook days the proposal would insert, BY REFERENCE (ADR-042 Decision 1).
+   *
+   * Not commands, and deliberately: the server re-reads each row on approval
+   * and mints the commands itself, so the adds ledger is written by the same
+   * code the manual "Add to a trip" dialog goes through. Expanding a day into
+   * commands on this side would bypass the ledger entirely and make the
+   * leaderboard count raw inserts.
+   *
+   * `name` is what the card already showed. It is posted back and ignored — the
+   * server takes the name from the row it reads.
+   */
+  inserts: { savedDayId: string; name: string }[];
   /** Changes the server could not match to this trip, as sentences. */
   skipped: string[];
 };
@@ -795,12 +809,35 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   return null;
 }
 
+/**
+ * The proposal's playbook-day references (ADR-042 Decision 1).
+ *
+ * A missing `inserts` is an empty one — a proposal drafted before this field
+ * existed, or a turn that made no library call — but a present-and-malformed
+ * one is not.
+ */
+const ProposedInserts = z
+  .array(z.object({ savedDayId: z.string().min(1), name: z.string() }))
+  .default([]);
+
 /** `unknown` → a proposal we are willing to act on, or `null`. */
 function proposalFrom(value: unknown): AssistantProposal | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Record<string, unknown>;
   const commands = BatchableCommand.array().safeParse(raw.commands);
-  if (!commands.success || commands.data.length === 0) return null;
+  if (!commands.success) return null;
+  // Parsed all-or-nothing, exactly as `commands` is above, and for a reason
+  // that is sharper than symmetry: `changes` — the sentences the card renders —
+  // is a SEPARATE server-provided array. Dropping one malformed entry from
+  // `inserts` while keeping its sentence in `changes` shows the user "Add “A day
+  // in Kyoto” from the library" and then commits an approval that no longer
+  // carries it. A malformed entry anywhere makes the whole proposal `null`.
+  const inserts = ProposedInserts.safeParse(raw.inserts);
+  if (!inserts.success) return null;
+  // A proposal with no commands is still a proposal when it carries an insert:
+  // a turn whose only write call was `insert_playbook_day` resolves to zero
+  // commands by construction (ADR-042 Decision 1).
+  if (commands.data.length === 0 && inserts.data.length === 0) return null;
   if (typeof raw.proposalId !== "string" || raw.proposalId === "") return null;
   const changes = Array.isArray(raw.changes)
     ? raw.changes.flatMap((change) => {
@@ -810,7 +847,7 @@ function proposalFrom(value: unknown): AssistantProposal | null {
       })
     : [];
   const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
-  return { proposalId: raw.proposalId, changes, commands: commands.data, skipped };
+  return { proposalId: raw.proposalId, changes, commands: commands.data, inserts: inserts.data, skipped };
 }
 
 /**
@@ -975,7 +1012,11 @@ export async function applyAssistantProposal(
     const res = await fetch(apiUrl(`/api/trips/${tripId}/ask/apply`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ proposalId: proposal.proposalId, commands: proposal.commands }),
+      body: JSON.stringify({
+        proposalId: proposal.proposalId,
+        commands: proposal.commands,
+        inserts: proposal.inserts,
+      }),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };

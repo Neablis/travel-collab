@@ -640,6 +640,20 @@ describe("simulatedModel — proposing a change", () => {
     expect(result.finishReason.unified).toBe("stop");
   });
 
+  // The other half of the same gate: the phrasings above must reach the LIBRARY
+  // branch, not the invented-sample-stops one. `search_playbooks` first,
+  // because the savedDayId has to come from the library.
+  it.each([
+    "find me a ready-made day for Kyoto",
+    "show me a saved day for Kyoto",
+    "insert a playbook day",
+  ])("reaches for the library on %s, rather than inventing stops", async (question) => {
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }),
+    );
+    expect(callsOf(result).map((c) => c.toolName)).toEqual(["search_playbooks"]);
+  });
+
   it("does not propose twice in one turn", async () => {
     const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),
@@ -698,6 +712,23 @@ describe("simulatedModel — the intent classification call", () => {
     const result = await probe().doGenerate(
       classifyPrompt("There are no days yet — how should I start planning this trip?"),
     );
+    expect(textOf(result)).toBe(askIntentVerdictText("write"));
+  });
+
+  // **The gate that made most of `PLAYBOOK_PROMPTS` dead code.** The classifier
+  // consulted `asksForAChange` alone, but `askTurn` reaches the library branch
+  // on `asksForAPlaybookDay` — so a request that names the library without a
+  // change verb was called a question, was offered no write tools, and could
+  // never reach the branch written for it. Both phrasings below were measured
+  // broken on the deployed preview, 2026-09-08; `ai-live` is off there, so the
+  // simulated path is the only path anyone can click.
+  it.each([
+    "find me a ready-made day for Kyoto",
+    "show me a saved day for Kyoto",
+    "insert a playbook day",
+    "browse the library for a day in Kyoto",
+  ])("classifies %s as a write, because it is one this model would propose on", async (question) => {
+    const result = await probe().doGenerate(classifyPrompt(question));
     expect(textOf(result)).toBe(askIntentVerdictText("write"));
   });
 

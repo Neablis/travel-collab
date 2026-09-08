@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { expect, test, type Page } from "@playwright/test";
 import { createMappedTrip, openHistory } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -151,4 +152,116 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   await expect(board.getByText("Sample: coffee stop")).toHaveCount(0);
   expect(applyCalls).toBe(0);
   expect(await (await page.request.get(`/api/trips/${tripId}`)).text()).toBe(before);
+});
+
+/**
+ * A one-day trip whose stops carry the cities and titles this spec chose,
+ * built through the app's own command API — `m11b-playbooks.spec.ts`'s
+ * `tripWithCities` idiom, with the titles under this spec's control too so the
+ * inserted day's stops can be told apart from the target trip's own.
+ */
+async function tripWithStops(
+  page: Page,
+  name: string,
+  stops: { title: string; city: string }[],
+): Promise<{ tripId: string; dayId: string }> {
+  const post = async (path: string, data: unknown) => {
+    const res = await page.request.post(path, { data });
+    expect(res.ok(), `${path} -> ${res.status()}`).toBe(true);
+    return res;
+  };
+  const created = await post("/api/trips", { name });
+  const { tripId } = (await created.json()) as { tripId: string };
+  const dayId = randomUUID();
+  await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
+  for (const [index, { title, city }] of stops.entries()) {
+    await post(`/api/trips/${tripId}/commands`, {
+      type: "AddActivity",
+      tripId,
+      activityId: randomUUID(),
+      dayId,
+      title,
+      timeWindow: {
+        start: `${String(index + 8).padStart(2, "0")}:00`,
+        end: `${String(index + 9).padStart(2, "0")}:00`,
+      },
+      location: { name: `Somewhere in ${city}`, city },
+    });
+  }
+  return { tripId, dayId };
+}
+
+// ADR-042 in a browser: **search → card → Approve → the day's stops are on the
+// board.** The last piece of that ADR's status block that was still a promise.
+//
+// Two things about it are deliberate.
+//
+// **The question carries no change verb.** "find me a ready-made day" is the
+// wording a person types, and until 2026-09-08 it was classified a *question*:
+// the simulated intent classifier consulted `asksForAChange` alone while
+// `askTurn` reached the library branch on `asksForAPlaybookDay`, so write tools
+// were never offered and the card could not appear. `ai-live` is off on every
+// Vercel environment, so that was the only path anyone could click. A spec
+// phrased "add a day from the playbook library" would have passed throughout.
+//
+// **The city is minted.** The published library is global and cumulative
+// (m11b's comment), and the simulated model takes `search_playbooks`' FIRST
+// result — over a shared city that is whatever the rest of the suite left
+// behind. A city no other run can have published into makes the result exactly
+// one day.
+test("a playbook day the assistant found reaches the board once it is approved", async ({ page }) => {
+  test.slow();
+
+  const city = `Kyotoai${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+  const dayName = `Temples on foot ${randomUUID().slice(0, 8)}`;
+  await page.goto("/");
+
+  // The library day: kept, then published, so `search_playbooks` can see it.
+  const source = await tripWithStops(page, e2eTripName("AI Library Source"), [
+    { title: `Kiyomizu at dawn ${city}`, city },
+    { title: `Nishiki market ${city}`, city },
+  ]);
+  const kept = await page.request.post("/api/saved-days", {
+    data: { name: dayName, tripId: source.tripId, dayId: source.dayId },
+  });
+  expect(kept.ok(), `keep -> ${kept.status()}`).toBe(true);
+  const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };
+  const published = await page.request.post(`/api/saved-days/${savedDay.savedDayId}/publish`);
+  expect(published.ok(), `publish -> ${published.status()}`).toBe(true);
+
+  // The trip being planned. Its own stop sits in the SAME minted city, because
+  // the simulated model searches the library on the cities `read_trip` reports.
+  const target = await tripWithStops(page, e2eTripName("AI Library"), [
+    { title: `Already here ${city}`, city },
+  ]);
+  await page.goto(`/trips/${target.tripId}`);
+  const board = page.locator(".trip-board-content");
+  await expect(board.getByText(`Already here ${city}`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await page.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
+  await page.getByRole("button", { name: "Ask" }).click();
+
+  const card = page.getByRole("region", { name: "Proposed change" });
+  await expect(card).toBeVisible();
+  // Named by the row the server read, and counted from it — the card is not
+  // repeating anything the model wrote.
+  await expect(card).toContainText(`Add “${dayName}” from the library (2 stops) as a new day`);
+  await expect(card).toContainText("Not applied yet");
+  // Nothing has moved while the card sits there. ADR-042's insert commits at
+  // the apply door and nowhere else.
+  await expect(board.getByText(`Kiyomizu at dawn ${city}`)).toHaveCount(0);
+
+  const [applied] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
+    card.getByRole("button", { name: "Approve" }).click(),
+  ]);
+  expect(applied.status()).toBe(200);
+  await expect(card).toContainText("Applied");
+
+  // The whole day, in order, as a new day at the end — expanded server-side
+  // from the reference the proposal carried.
+  await expect(board.getByText(`Kiyomizu at dawn ${city}`)).toBeVisible();
+  await expect(board.getByText(`Nishiki market ${city}`)).toBeVisible();
+  await expect(board.getByText(`Already here ${city}`)).toBeVisible();
 });

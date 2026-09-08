@@ -1454,6 +1454,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
           title: "Coffee at Fuglen",
         },
       ],
+      inserts: [],
       skipped: [],
     };
   }

@@ -29,6 +29,7 @@ const PROPOSAL = {
       title: "Coffee",
     },
   ],
+  inserts: [],
   skipped: [],
 };
 

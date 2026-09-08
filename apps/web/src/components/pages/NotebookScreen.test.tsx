@@ -436,7 +436,7 @@ describe("NotebookScreen", () => {
           { type: "text", delta: "I can move that." },
           {
             type: "proposal",
-            proposal: { proposalId: "p1", changes: [{ type: "activity.move", text: "Move “Dinner” to day 2" }], commands: [], skipped: [] },
+            proposal: { proposalId: "p1", changes: [{ type: "activity.move", text: "Move “Dinner” to day 2" }], commands: [], inserts: [], skipped: [] },
           },
         ),
       );
