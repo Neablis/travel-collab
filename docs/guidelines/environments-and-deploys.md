@@ -223,7 +223,7 @@ why the kill switch is built as a model swap rather than a branch.
 | Preview | The `ai-live` flag's value in the Vercel dashboard, optionally overridden per session via the Flags Explorer (below). |
 | Production | The `ai-live` flag's value in the Vercel dashboard. Keep this `false` until the app is deliberately shared with live AI enabled. |
 
-**Flipping `ai-live`:**
+**Flipping `ai-live` for everyone:**
 
 ```
 vercel flags set ai-live --environment production --variant true
@@ -232,6 +232,66 @@ vercel flags set ai-live --environment production --variant true
 or the equivalent toggle on the project's Flags page in the Vercel
 dashboard. Either writes the same value `vercelAdapter()` reads at request
 time — no deploy needed.
+
+### Turning AI on for specific people (targeting)
+
+`ai-live` is **targetable per user** (ADR-019's 2026-09-08 amendment). On every
+evaluation the app tells Vercel who is asking, via `identify` in
+`apps/web/src/server/flagEntities.ts`, and a dashboard rule decides from that.
+Three attributes are published, and nothing else:
+
+| Attribute | Example | Use it for |
+|---|---|---|
+| `user.id` | `google-11822…` | Percentage rollouts (`--by user.id`) — the only field stable enough to bucket by |
+| `user.email` | `mitchell@example.com` | Naming one person. Always lowercased, so write the rule in lowercase |
+| `user.emailDomain` | `example.com` | Everyone at one company, in one rule |
+
+Turn it on for one person:
+
+```
+vercel flags rules add ai-live --environment production \
+  --condition user.email:eq:mitchell@example.com --variant true \
+  --message "Live AI for Mitchell"
+```
+
+`--variant true` names the variant by its **value** — the same form
+`vercel flags set` uses above, and the values `aiLiveFlag`'s own `options`
+declare (`false` = Simulated, `true` = Live). Vercel's CLI examples show both
+`--variant on` and `--variant false` against boolean flags, so if a token is
+ever rejected, `vercel flags rules ls ai-live` prints the variant names this
+flag actually has — or sidestep it and add the rule in the dashboard, which
+`vercel flags open ai-live` goes straight to.
+
+Everyone else keeps getting the simulated model — which still works, still
+mutates the trip, and still badges itself, so an untargeted visitor sees a
+functioning assistant rather than a dead end.
+
+Roll it out gradually instead:
+
+```
+vercel flags rollout ai-live --environment production --by user.id \
+  --stage 5,6h --stage 25,12h
+```
+
+**The fallthrough must stay "Simulated".** Rules only ever WIDEN who gets live
+AI. Anyone no rule matches — including every signed-out visitor, for whom
+`identify` publishes no `user` at all — falls through to the flag's default
+value, so that default is the kill switch. Setting it to "Live" and relying on
+rules to hold everyone else back would invert the whole control: the code cannot
+enforce this, which is why it is written down here.
+
+**What a signed-out or unidentifiable caller gets.** No `user` entity is
+published, so no user-keyed rule matches and the fallthrough applies. If the
+session read itself *fails*, the flag is not consulted at all and `aiLive()`
+answers `false` — simulated, never spending. Off is the answer to every question
+this flag cannot resolve.
+
+**Checking what a deployment is actually doing:** `GET /api/health/ai-mode`
+returns `{ live, source }`. `source: "env"` means `AI_LIVE` decided it and no
+caller on that server can get a different answer; `source: "flag"` means Vercel
+Flags answered **for the caller of that request**, and someone else may well get
+the other answer. Only `"env"` is evidence about anybody but you — which is why
+e2e's `global.setup.ts` refuses to run a suite on anything else.
 
 **Per-session overrides on preview deploys:** the Vercel Toolbar's Flags
 Explorer talks to the discovery endpoint at

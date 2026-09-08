@@ -17,7 +17,9 @@ vi.mock("@/server/ai/gateway", () => ({
   aiClassifierModel: () => aiClassifierModel(),
 }));
 
-const { aiLive, selectAiModel, deniedResponse } = await import("@/server/ai/modelSelection");
+const { aiLive, aiLiveMode, selectAiModel, deniedResponse } = await import(
+  "@/server/ai/modelSelection"
+);
 const { SIMULATED_MODEL_ID } = await import("@/server/ai/simulatedModel");
 
 const ORIGINAL = process.env.AI_LIVE;
@@ -69,6 +71,32 @@ describe("aiLive", () => {
   it("resolves to false, not rejects, when the flag throws", async () => {
     aiLiveFlag.mockRejectedValue(new Error("readOverrides: invalid FLAGS_SECRET"));
     await expect(aiLive()).resolves.toBe(false);
+  });
+});
+
+// `source` is the half of the answer that says how far it generalises, and it
+// exists because the `ai-live` flag is per-user targetable (ADR-019 amendment
+// 2026-09-08). e2e's global setup clears a whole suite on it, so getting it
+// backwards would let a run that could bill a real model proceed.
+describe("aiLiveMode", () => {
+  it('reports source "env" when AI_LIVE decided it, for both values', async () => {
+    process.env.AI_LIVE = "false";
+    await expect(aiLiveMode()).resolves.toEqual({ live: false, source: "env" });
+    process.env.AI_LIVE = "true";
+    await expect(aiLiveMode()).resolves.toEqual({ live: true, source: "env" });
+    expect(aiLiveFlag).not.toHaveBeenCalled();
+  });
+
+  it('reports source "flag" when the flag decided it', async () => {
+    aiLiveFlag.mockResolvedValue(true);
+    await expect(aiLiveMode()).resolves.toEqual({ live: true, source: "flag" });
+  });
+
+  // The degrade path still says where it came from. Reporting `"env"` here
+  // would claim a server-wide guarantee on the strength of a failed lookup.
+  it('reports a failed flag read as not live, and still as source "flag"', async () => {
+    aiLiveFlag.mockRejectedValue(new Error("identify: JWT decryption failed"));
+    await expect(aiLiveMode()).resolves.toEqual({ live: false, source: "flag" });
   });
 });
 
