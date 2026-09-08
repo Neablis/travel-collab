@@ -45,7 +45,12 @@ import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, settleAiSteps } fro
 import { deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import { askScopeLine, type AskScope } from "@/server/ai/context";
-import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
+import {
+  MAX_ASK_BODY_BYTES,
+  MAX_ASK_MESSAGES,
+  MAX_PROMPT_CHARS,
+  MAX_PROPOSAL_INSERTS,
+} from "@/server/ai/limits";
 import { buildReadTools, MAX_READ_DAYS, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
 import {
   buildProposal,
@@ -793,7 +798,12 @@ const ApplyProposalRequest = z.object({
    * therefore board position — client-mintable, and `/ask/apply` has no
    * proposal store it could check the claim against.
    */
-  inserts: z.array(z.object({ savedDayId: z.string().min(1) })).optional(),
+  inserts: z
+    .array(z.object({ savedDayId: z.string().min(1) }))
+    .max(MAX_PROPOSAL_INSERTS, {
+      message: `an approval may carry at most ${MAX_PROPOSAL_INSERTS} playbook days`,
+    })
+    .optional(),
 });
 
 /**

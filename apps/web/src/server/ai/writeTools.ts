@@ -44,6 +44,7 @@ import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
 import type { AskDroppedCall } from "@/server/ai/askAnalytics";
+import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
 
@@ -136,6 +137,15 @@ export function buildWriteTools(): {
         inputSchema: InsertPlaybookDayInput,
         contextSchema: ReadContextSchema,
         execute: async ({ savedDayId }, { context }) => {
+          // The collector's own ceiling, so the cap holds on both sides of the
+          // stream: `/ask/apply` refuses an over-cap approval (limits.ts), and a
+          // turn cannot draft a card that would be refused. Refused as a tool
+          // result rather than a throw — the model can read it and stop.
+          if (inserts.length >= MAX_PROPOSAL_INSERTS) {
+            return {
+              error: `You have already queued ${MAX_PROPOSAL_INSERTS} playbook days, which is the most one proposal may carry. Stop and tell the user what you have drafted.`,
+            };
+          }
           const saved = await readableSavedDay(savedDayId, context.userId);
           if (saved === null) {
             return {

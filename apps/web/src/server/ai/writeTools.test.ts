@@ -3,6 +3,8 @@ import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
+import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import { readableSavedDay } from "@/server/savedDays";
 import {
   buildProposal,
   buildWriteTools,
@@ -26,6 +28,21 @@ vi.mock("./planningTools", async (importOriginal) => {
   return { ...actual, flushPlanningBatch: vi.fn() };
 });
 const { flushPlanningBatch } = await import("./planningTools");
+
+// `insert_playbook_day` resolves the row before collecting, which is Postgres.
+// The collector's own ceiling is what this file tests, so the read is stubbed
+// to always succeed — the real read is the apply route's integration suite.
+vi.mock("@/server/savedDays", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/savedDays")>();
+  return {
+    ...actual,
+    readableSavedDay: vi.fn(async (savedDayId: string) => ({
+      savedDayId,
+      name: "A day in Kyoto",
+      stops: [{}, {}],
+    })),
+  };
+});
 
 const DAY_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 const COLOSSEUM_ID = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
@@ -81,6 +98,29 @@ describe("the write tools collect and commit nothing", () => {
     expect(output).toEqual({ queued: true, type: "AddActivity" });
     expect(getCollected()).toEqual([{ type: "AddActivity", args: { title: "Coffee", dayRef: "day 1" } }]);
     expect(flushPlanningBatch).not.toHaveBeenCalled();
+  });
+
+  // The collector half of `MAX_PROPOSAL_INSERTS` (limits.ts). The apply door
+  // refuses an over-cap approval; this stops a turn drafting a card that would
+  // be refused, and bounds the sequential `readableSavedDay` calls a single
+  // turn can make.
+  it("stops collecting playbook days at the cap, and says so to the model", async () => {
+    const { getInserts, tools } = buildWriteTools();
+    const insert = tools[INSERT_PLAYBOOK_DAY]!.execute as (i: unknown, o: unknown) => Promise<unknown>;
+    const context = { context: { userId: ACTOR } };
+    for (let i = 0; i < MAX_PROPOSAL_INSERTS; i++) {
+      expect(await insert({ savedDayId: `day-${i}` }, context)).toEqual({
+        queued: true,
+        name: "A day in Kyoto",
+        stopCount: 2,
+      });
+    }
+    expect(getInserts()).toHaveLength(MAX_PROPOSAL_INSERTS);
+    const overflow = (await insert({ savedDayId: "day-over" }, context)) as { error?: string };
+    expect(getInserts()).toHaveLength(MAX_PROPOSAL_INSERTS);
+    expect(overflow.error).toContain(String(MAX_PROPOSAL_INSERTS));
+    // The refusal is a decision, not a read: the row is never resolved.
+    expect(vi.mocked(readableSavedDay)).toHaveBeenCalledTimes(MAX_PROPOSAL_INSERTS);
   });
 
   it("gives each turn its own collection — one turn cannot inherit another's intents", () => {

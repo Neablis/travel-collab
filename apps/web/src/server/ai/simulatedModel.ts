@@ -364,7 +364,12 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
 // 2?" is a question, and the derived suggestion chips ask it verbatim
 // (suggestedQuestions.ts). Word boundaries matter for the same reason: "What
 // still needs booking?" must not match `book`.
-const CHANGE_VERBS = /\b(add|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
+//
+// `insert` is here because it is a write tool's own name — `insert_playbook_day`
+// — and the system instruction tells the model to "insert" in those words
+// (handleAskRequest.ts). "Insert a coffee stop on day 2" reading as a question
+// was the feature failing to recognise its own verb.
+const CHANGE_VERBS = /\b(add|insert|move|remove|delete|rename|reschedule|schedule|book|put|change|swap)\b/i;
 
 // The other half of "asked for a change": a question that asks for IDEAS rather
 // than for a fact. `CHANGE_VERBS` is imperative-only by design, which left the
@@ -528,7 +533,7 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
 
 /**
  * The pre-turn classification call (askIntent.ts), answered from the same
- * `asksForAChange` judgement that decides whether this model proposes.
+ * judgement that decides whether this model proposes.
  *
  * Reusing that predicate is the point, not a shortcut: the switched-off
  * deployment is the one every Vercel environment runs, so a classifier that
@@ -541,15 +546,28 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * classification call.
  * `askChipCoverage.test.ts` does NOT cover it — it hands the model a
  * hardcoded `EDITOR_TOOLS` and never issues a classification call at all.
- * One predicate, so the two answers cannot disagree.
+ *
+ * **`asksForAPlaybookDay` belongs in that judgement too, and its absence made
+ * most of `PLAYBOOK_PROMPTS` dead code** (browser walk of the preview,
+ * 2026-09-08). `askTurn` reaches the library branch on `asksForAPlaybookDay`
+ * alone, but the classifier consulted only `asksForAChange` — so "find me a
+ * ready-made day for Kyoto" was called a question, was offered no write tools,
+ * and could never reach the branch written for it. `\bready-made\b`,
+ * `\bsaved day` and `\bsomeone else's day\b` only ever fired when the user also
+ * happened to say a change verb, in which case `CHANGE_VERBS` had already
+ * matched. One predicate, so the two answers cannot disagree.
  */
+function asksToWrite(text: string): boolean {
+  return asksForAChange(text) || asksForAPlaybookDay(text);
+}
+
 function classifyStep(options: CallOptionsLike): SimulatedStep {
   // The STRUCTURED verdict, via askIntent.ts's own writer — not the bare word
   // this used to emit. `classifyAskIntent` now asks for a typed field
   // (`Output.choice`), and the SDK parses this text as JSON against that
   // schema before returning: a bare `write` would fail to parse and fail open
   // on every turn of the only path anyone deploys.
-  const verdict = askIntentVerdictText(asksForAChange(latestUserText(options)) ? "write" : "question");
+  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "write" : "question");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },

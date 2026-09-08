@@ -589,18 +589,41 @@ describe("the proposal on the wire", () => {
     expect(proposals[0]!.proposal.inserts).toEqual([{ savedDayId: UUID, name: "A day in Kyoto" }]);
   });
 
-  // Parsed, never cast — the same rule `commands` is under. These go straight
+  // Parsed all-or-nothing, the same rule `commands` is under. These go straight
   // back to /ask/apply.
   it.each([
     ['"inserts":[{"name":"nameless"}]', "an entry with no savedDayId"],
     ['"inserts":[{"savedDayId":"","name":"empty"}]', "an empty savedDayId"],
     ['"inserts":["' + UUID + '"]', "a bare string instead of an entry"],
     ['"inserts":"not-a-list"', "inserts that is not a list at all"],
-  ])("drops %s (%s) and, with no commands, the whole proposal", async (insertsJson) => {
+  ])("drops %s (%s), and with it the whole proposal", async (insertsJson) => {
     const frame =
       '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p3","commands":[],' +
       insertsJson +
       ',"changes":[],"skipped":[]}}}';
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+
+  // The mixed case is the one that made this all-or-nothing rather than a
+  // filter. `changes` is a separate server-provided array, so a proposal that
+  // kept its good insert and silently dropped the malformed one would still
+  // RENDER both sentences: the user approves two library days and commits one.
+  it("drops the whole proposal when ONE insert of several is malformed", async () => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p4",' +
+      '"commands":[{"type":"AddDay","tripId":"' +
+      TRIP_ID +
+      '","dayId":"' +
+      UUID +
+      '"}],"inserts":[{"savedDayId":"' +
+      UUID +
+      '","name":"A day in Kyoto"},{"name":"nameless"}],' +
+      '"changes":[{"type":"AddDay","text":"Add a day"},' +
+      '{"type":"AddDay","text":"Add “A day in Kyoto” from the library"},' +
+      '{"type":"AddDay","text":"Add “nameless” from the library"}],"skipped":[]}}}';
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));

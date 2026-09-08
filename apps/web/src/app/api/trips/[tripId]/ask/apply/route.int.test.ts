@@ -10,6 +10,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, savedDayAdds, savedDays, tripMemberships } from "@/server/db/schema";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
+import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 
 const ACTOR_ID = "apply-owner";
 const VIEWER_ID = "apply-viewer";
@@ -590,6 +591,31 @@ describe("POST /api/trips/:id/ask/apply", () => {
       expect(res.status).toBe(404);
       expect(await res.json()).toEqual({ error: "That saved day does not exist.", code: "not-found" });
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
+    });
+
+    // The "one day per turn" rule is prompt-only, and this door is
+    // authenticated but otherwise untrusted: a 128 KiB body holds thousands of
+    // ids, and each one costs a sequential `readableSavedDay`. The ceiling is
+    // `MAX_PROPOSAL_INSERTS` (limits.ts) and it is refused before any read.
+    it("400s an approval carrying more playbook days than the cap, and reads nothing", async () => {
+      const savedDayId = await publishedDay(AUTHOR_ID);
+      const tripId = await seedTrip();
+      const before = await getTripDetail(tripId);
+      const res = await handleApplyProposalRequest(
+        req(tripId, {
+          commands: [],
+          inserts: Array.from({ length: MAX_PROPOSAL_INSERTS + 1 }, () => ({ savedDayId })),
+        }),
+        tripId,
+        undefined,
+        silent,
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: `an approval may carry at most ${MAX_PROPOSAL_INSERTS} playbook days`,
+      });
+      expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
+      expect(await ledgerRows(savedDayId)).toHaveLength(0);
     });
 
     it("refuses an approval carrying neither a command nor an insert", async () => {

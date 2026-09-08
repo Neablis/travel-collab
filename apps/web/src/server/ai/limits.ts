@@ -39,3 +39,18 @@ export { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 // parts. Measured on the raw body, before parsing, so a hostile body is
 // refused without ever being deserialized.
 export const MAX_ASK_BODY_BYTES = 128 * 1024;
+
+// Playbook days one proposal may carry (ADR-042 Decision 1).
+//
+// "One day per turn" is prompt-only — a sentence in `insert_playbook_day`'s
+// description — and `/ask/apply` is authenticated but otherwise untrusted: a
+// 128 KiB body holds thousands of `{"savedDayId":"…"}` entries, and
+// `commitProposal` does one sequential `readableSavedDay` per id and expands
+// each into commands. Unbounded batch, unbounded round trips.
+//
+// Eight, because that is `MAX_ASK_STEPS` (handleAskRequest.ts): the most times
+// a model could legitimately call the tool in one turn is once per step, so a
+// proposal carrying more inserts than the turn had steps did not come from a
+// turn. It is deliberately far above the ONE the instruction asks for — this is
+// a blast-radius ceiling, not a second copy of the prompt's rule.
+export const MAX_PROPOSAL_INSERTS = 8;

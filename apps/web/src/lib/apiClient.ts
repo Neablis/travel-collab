@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   BatchableCommand,
   InvitePreview,
@@ -808,27 +809,35 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   return null;
 }
 
+/**
+ * The proposal's playbook-day references (ADR-042 Decision 1).
+ *
+ * A missing `inserts` is an empty one — a proposal drafted before this field
+ * existed, or a turn that made no library call — but a present-and-malformed
+ * one is not.
+ */
+const ProposedInserts = z
+  .array(z.object({ savedDayId: z.string().min(1), name: z.string() }))
+  .default([]);
+
 /** `unknown` → a proposal we are willing to act on, or `null`. */
 function proposalFrom(value: unknown): AssistantProposal | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Record<string, unknown>;
   const commands = BatchableCommand.array().safeParse(raw.commands);
   if (!commands.success) return null;
-  // Parsed, never cast — the same rule `commands` is under, and for the same
-  // reason: these go straight back to `/ask/apply`.
-  const inserts = Array.isArray(raw.inserts)
-    ? raw.inserts.flatMap((insert) => {
-        if (typeof insert !== "object" || insert === null) return [];
-        const { savedDayId, name } = insert as { savedDayId?: unknown; name?: unknown };
-        return typeof savedDayId === "string" && savedDayId !== "" && typeof name === "string"
-          ? [{ savedDayId, name }]
-          : [];
-      })
-    : [];
+  // Parsed all-or-nothing, exactly as `commands` is above, and for a reason
+  // that is sharper than symmetry: `changes` — the sentences the card renders —
+  // is a SEPARATE server-provided array. Dropping one malformed entry from
+  // `inserts` while keeping its sentence in `changes` shows the user "Add “A day
+  // in Kyoto” from the library" and then commits an approval that no longer
+  // carries it. A malformed entry anywhere makes the whole proposal `null`.
+  const inserts = ProposedInserts.safeParse(raw.inserts);
+  if (!inserts.success) return null;
   // A proposal with no commands is still a proposal when it carries an insert:
   // a turn whose only write call was `insert_playbook_day` resolves to zero
   // commands by construction (ADR-042 Decision 1).
-  if (commands.data.length === 0 && inserts.length === 0) return null;
+  if (commands.data.length === 0 && inserts.data.length === 0) return null;
   if (typeof raw.proposalId !== "string" || raw.proposalId === "") return null;
   const changes = Array.isArray(raw.changes)
     ? raw.changes.flatMap((change) => {
@@ -838,7 +847,7 @@ function proposalFrom(value: unknown): AssistantProposal | null {
       })
     : [];
   const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
-  return { proposalId: raw.proposalId, changes, commands: commands.data, inserts, skipped };
+  return { proposalId: raw.proposalId, changes, commands: commands.data, inserts: inserts.data, skipped };
 }
 
 /**

@@ -5,8 +5,22 @@ tools, the by-reference proposal, the server-side expansion with the ledger on
 the batch's transaction hook, and a `simulatedModel` branch so the flow works
 with `ai-live` off. Approved by Mitchell as one feature rather than a milestone:
 *"Lets just start on this one feature, i can turn on ai-live to test."*
-**Not yet walked in a browser and not covered by an e2e spec** — the unit and
-integration lanes are green (see the commit), the clicking is not done.
+**Walked in a browser, and covered by an e2e spec** — `e2e/m10-simulated-ai.spec.ts`
+("a playbook day the assistant found reaches the board once it is approved")
+publishes a day into a minted city, asks for it in words that carry no change
+verb, and asserts the card, the untouched board under it, and the day's stops
+after Approve.
+
+The hand walk of the deployed preview that closed the "not yet clicked" half
+found what the spec is now phrased to catch: the simulated intent classifier
+consulted `asksForAChange` alone while `askTurn` reached the library branch on
+`asksForAPlaybookDay`, so *"find me a ready-made day"* was classified a
+question, was offered no write tools, and could never produce a card —
+`\bready-made\b`, `\bsaved day` and `\bsomeone else's day\b` only ever fired
+when the user also happened to say a change verb. `ai-live` is off in every
+Vercel environment, so that was the only path anyone could click. Fixed
+2026-09-08; a spec worded "add a day from the playbook library" would have
+passed throughout, which is why this one is not.
 **Deciders:** Mitchell (product/eng — asked for it); Claude (architect) — drafted
 Amends: **ADR-015 §2** ("two derived tool families, never hand-written") for a
 third time, and **ADR-022 §1**, which amended it for *read* tools only
