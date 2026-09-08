@@ -250,9 +250,17 @@ Turn it on for one person:
 
 ```
 vercel flags rules add ai-live --environment production \
-  --condition user.email:eq:mitchell@example.com --variant on \
+  --condition user.email:eq:mitchell@example.com --variant true \
   --message "Live AI for Mitchell"
 ```
+
+`--variant true` names the variant by its **value** — the same form
+`vercel flags set` uses above, and the values `aiLiveFlag`'s own `options`
+declare (`false` = Simulated, `true` = Live). Vercel's CLI examples show both
+`--variant on` and `--variant false` against boolean flags, so if a token is
+ever rejected, `vercel flags rules ls ai-live` prints the variant names this
+flag actually has — or sidestep it and add the rule in the dashboard, which
+`vercel flags open ai-live` goes straight to.
 
 Everyone else keeps getting the simulated model — which still works, still
 mutates the trip, and still badges itself, so an untargeted visitor sees a
