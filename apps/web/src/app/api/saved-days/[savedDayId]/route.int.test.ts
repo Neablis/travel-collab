@@ -293,8 +293,8 @@ describe("what a deleted day disappears from", () => {
     const savedDayId = await saveDay("Counted, then not");
     await publish(savedDayId);
 
-    // Somebody else takes it, into a dated trip, so the add COUNTS — which is
-    // what puts the author on the board at all.
+    // Somebody else takes it, so the add COUNTS — which is what puts the author
+    // on the board at all.
     currentUserId = OTHER;
     await addToDatedTrip(savedDayId);
     currentUserId = AUTHOR;

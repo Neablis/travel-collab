@@ -9,13 +9,26 @@ type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // The adds ledger's write path (M11b link 4).
 //
-// The rule, verbatim from the design: *an add only counts once per trip, and
-// only after the trip has dates; copying your own day into your own trip does
-// not count.* `SPEC.md` §15 is blunt about why this is a link and not a detail:
-// **a build that counts raw inserts produces a different and gameable order**,
-// and that ordering is the whole credibility of the leaderboard.
+// The rule: *an add only counts once per trip; copying your own day into your
+// own trip does not count.* `SPEC.md` §15 is blunt about why this is a link and
+// not a detail: **a build that counts raw inserts produces a different and
+// gameable order**, and that ordering is the whole credibility of the
+// leaderboard.
 //
-// The three clauses are enforced in two different places, on purpose:
+// **The design's copy carried a third clause — *and only after the trip has
+// dates* — and Mitchell dropped it on 2026-09-08.** An add into an undated trip
+// counts. The argument for the clause was that an undated trip is a wishlist,
+// so counting it makes "most added" a measure of browsing; the argument against
+// is that it bought almost nothing and cost real credit. Inflating somebody
+// still needs N genuinely separate trips — once-per-trip caps each trip at one
+// — and putting a date on each of N trips is trivial, so the clause deterred no
+// determined gamer. What it did reliably was discard honest adds permanently:
+// an uncounted add leaves no ledger row, and nothing on the trip side records
+// where a day came from, so dating the trip afterwards could never credit it.
+// `SPEC.md` §15 still states the old rule; the deviation is recorded in
+// `.design-sync/handoff/DRIFT.md`.
+//
+// The two surviving clauses are enforced in two different places, on purpose:
 //
 //   1. **Once per trip** — the database. `saved_day_adds`' primary key is
 //      `(saved_day_id, trip_id)`, so a second add into the same trip cannot be
@@ -23,46 +36,40 @@ type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 //      reports "did not count" rather than raising, because a person inserting
 //      the same day twice is doing something perfectly reasonable — it is only
 //      the SECOND one that must not move a number.
-//   2. **Dated trip, and not your own day** — here, in `addCounts`. Both are
-//      facts about a trip and an actor rather than about this table, so there
-//      is nothing a constraint could key on.
+//   2. **Not your own day** — here, in `addCounts`. It is a fact about a day's
+//      author and the person adding it rather than about this table, so there is
+//      nothing a constraint could key on.
 //
 // Nothing outside this module may touch `saved_days.adds`.
 
-/** What the two application-side clauses are decided from. */
+/** What the application-side clause is decided from. */
 export type AddEligibility = {
   /** `saved_days.owner_id` — the author of the day being taken. */
   authorId: string;
   /** Who is doing the adding. */
   actorId: string;
-  /** The target trip's `startDate`; null means the trip has no dates yet. */
-  tripStartDate: string | null;
 };
 
 /**
  * Does this add count towards the author's board position?
  *
- * Pure, and separated from the write so the rule can be read on its own. The
- * two clauses:
+ * Pure, and separated from the write so the rule can be read on its own. One
+ * clause lives here:
  *
- *   * **The trip has dates.** An undated trip is a wishlist — days get dropped
- *     into one to look at them, and counting that would make "most added" a
- *     measure of browsing. `startDate` is the whole of "has dates": the domain
- *     mints a trip's days from it (`SetTripDates`), so a trip with a start date
- *     is a trip on a calendar.
  *   * **The author is not their own audience.** Copying your own day into your
  *     own trip is the single cheapest way to inflate a board, and it is also a
  *     completely ordinary thing to do — reusing your own template is what the
  *     library is FOR. So it is silently uncounted, never refused.
  *
- * Deliberately not "the actor is not a member of the source trip" or anything
- * else clever: every extra clause is another thing a real add can fail for
- * without the person being told, and the design named exactly these three.
+ * **The target trip is not an input, and that is the decision of 2026-09-08**
+ * rather than an omission: an add into a trip with no dates counts, so there is
+ * nothing about the trip left to ask. Deliberately not "the actor is not a
+ * member of the source trip" or anything else clever either — every extra
+ * clause is another thing a real add can fail for without the person being
+ * told, and that is exactly how the dates clause went wrong.
  */
-export function addCounts({ authorId, actorId, tripStartDate }: AddEligibility): boolean {
-  if (tripStartDate === null) return false;
-  if (authorId === actorId) return false;
-  return true;
+export function addCounts({ authorId, actorId }: AddEligibility): boolean {
+  return authorId !== actorId;
 }
 
 /**

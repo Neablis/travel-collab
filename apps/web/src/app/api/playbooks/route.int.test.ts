@@ -81,15 +81,16 @@ async function unpublish(savedDayId: string): Promise<void> {
   expect(res.status).toBe(200);
 }
 
-/** Take a day into a brand-new DATED trip, so the add counts (link 4's rule). */
+/** Take a day into a brand-new DATED trip. */
 async function addToDatedTrip(savedDayId: string): Promise<string> {
   const tripId = randomUUID();
   await executeTripCommand({ type: "CreateTrip", tripId, name: "Target" }, currentUserId!);
   // `newDayIds` is required: SetTripDates mints the trip's days and the domain
   // is pure, so the ids come in with the command (contracts/trip.ts). Checked
-  // rather than fired and forgotten — an undated trip is exactly the state the
-  // add rule refuses to count, so a silently failed dating would make these
-  // tests assert the rule while proving nothing.
+  // rather than fired and forgotten — the dating is no longer what makes the add
+  // count (the clause was dropped 2026-09-08), but these tests read a trip that
+  // has days in it, and a silently failed dating would leave them reading an
+  // empty one.
   const dated = await executeTripCommand(
     {
       type: "SetTripDates",

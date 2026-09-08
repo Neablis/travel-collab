@@ -87,6 +87,21 @@ link and not a detail — **a build that counts raw inserts will produce a
 different and gameable order**, and that rule is the whole credibility of the
 board.
 
+> **Amended 2026-09-08 — the dates clause is dropped.** Mitchell: *"lets drop
+> the clause, i dont mind the past missed installs"*. The rule as built is now
+> *an add only counts once per trip; copying your own day into your own trip
+> does not count*, and **an add into a trip with no dates counts**. The
+> anti-gaming argument that justified the third clause is carried by the other
+> two: once-per-trip caps each trip at one, own-day blocks self-boosting, so
+> inflating a friend still needs N genuinely separate trips — and putting a date
+> on each of N trips is trivial, so the clause deterred no determined gamer.
+> What it did reliably was discard honest adds permanently: an uncounted add
+> leaves no ledger row and nothing on the trip side records where a day came
+> from, so dating the trip afterwards could never credit it. **The historical
+> uncounted adds are unrecoverable and there is deliberately no backfill** —
+> there is nothing to backfill from. `SPEC.md` §15 still states the old rule
+> upstream; the deviation is recorded in `.design-sync/handoff/DRIFT.md`.
+
 **Link 5 — Discover (route `playbooks`).** Replaces the shell. A day matches on
 **any** city it contains — a Kyoto query returns the Uji day, matched city
 filled and the rest outlined, with a per-card line ("Kyoto matched · also Uji").
@@ -243,6 +258,14 @@ invited.
       twice to one trip counts once; an add to a trip with no dates does not
       count; the author adding their own day to their own trip does not count.
       Proven against the ledger, not the counter.
+      **Amended 2026-09-08, after the gate closed.** The box above is what was
+      true when it was ticked and is left as it stands. The dates clause has
+      since been dropped (Mitchell — see link 4), so the rule now has two
+      negatives, not three, and the undated case has been **inverted rather than
+      deleted** in the suites that proved it: an add into a trip with no dates is
+      asserted to COUNT, against the ledger, in
+      `saved-days/[savedDayId]/route.int.test.ts` and `ask/apply/route.int.test.ts`.
+      The two surviving negatives are unchanged and still proven.
 - [x] The board ranks on the ledger, states its rule in copy, tints and badges
       your own row **without pinning it**, and **is not reachable from the top
       bar** — only from Discover (project rule 1).

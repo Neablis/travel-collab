@@ -32,10 +32,12 @@ describe("the leaderboard", () => {
   it("states the add rule in its own copy", async () => {
     render(<LeaderboardScreen />);
     await screen.findByTestId("board-rows");
-    expect(
-      screen.getByText(/An add only counts once per trip, and only after the trip has dates/),
-    ).toBeTruthy();
+    expect(screen.getByText(/An add only counts once per trip\./)).toBeTruthy();
     expect(screen.getByText(/Copying your own day into your own trip does not count/)).toBeTruthy();
+    // The absence is asserted too. §15's point is that the board is credible
+    // because it states the rule it ACTUALLY enforces, so copy claiming the
+    // dates clause — dropped 2026-09-08 — would be worse than no copy at all.
+    expect(screen.queryByText(/after the trip has dates/)).toBeNull();
   });
 
   it("ranks on adds, not on days shared", async () => {

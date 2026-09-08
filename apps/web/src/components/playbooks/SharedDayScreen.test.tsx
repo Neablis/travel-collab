@@ -353,12 +353,13 @@ describe("starting a new trip from a shared day", () => {
     return select;
   }
 
-  // The ORDER is the assertion, not a detail of it. `addCounts()` refuses a
-  // leaderboard add against an undated trip and dating it afterwards does not
-  // count it retroactively (`server/savedDays.int.test.ts`), so an insert that
-  // overtakes the start date is a silent, permanent under-credit — nothing
-  // downstream would ever go red for it. Hence one recorded call log rather
-  // than three independent `toHaveBeenCalledWith`s, which pass in any order.
+  // The ORDER is the assertion, not a detail of it — though no longer for the
+  // reason it was written: the dates clause is gone (2026-09-08), so an insert
+  // that overtook the start date would still be credited. What the order still
+  // protects is the SHAPE of the sequence — three calls, each against the new
+  // trip's real id, with `SetTripStartDate` in the middle. Hence one recorded
+  // call log rather than three independent `toHaveBeenCalledWith`s, which pass
+  // in any order.
   it("creates the trip named after the day, dates it, and only then inserts", async () => {
     const calls: string[] = [];
     createTripMock.mockImplementation(async (input: { name: string }) => {
@@ -395,21 +396,26 @@ describe("starting a new trip from a shared day", () => {
     ]);
   });
 
-  // Required, and required for a reason: an undated trip is exactly the case
-  // `addCounts()` silently refuses, so a new trip with no start date would take
-  // the day and never credit its author.
-  it("cannot be submitted until a start date is picked", async () => {
+  // The inverse of what this asserted until 2026-09-08, when the field became
+  // optional (Mitchell: "no make that field optional now") because the dates
+  // clause it existed to satisfy was dropped the same day.
+  //
+  // The ABSENCE of the batch is the assertion. "It navigated" would hold just
+  // as well for a build that sent `SetTripStartDate` with `startDate: ""` — a
+  // command the domain would reject and the user would meet as an error on a
+  // trip that had already been created.
+  it("creates an UNDATED trip when the start date is left blank, sending no dates command", async () => {
     await chooseNewTrip();
-    const submit = () => screen.getByRole("button", { name: "Add to trip" }) as HTMLButtonElement;
-    expect(submit().disabled).toBe(true);
+    const submit = screen.getByRole("button", { name: "Add to trip" }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    expect((screen.getByLabelText("Start date") as HTMLInputElement).value).toBe("");
 
-    await userEvent.click(submit());
-    expect(createTripMock).not.toHaveBeenCalled();
+    await userEvent.click(submit);
 
-    // The other side of the same switch: the date is what unblocks it, rather
-    // than the button being permanently dead.
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-04-01" } });
-    expect(submit().disabled).toBe(false);
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+    expect(createTripMock).toHaveBeenCalledTimes(1);
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(insertSavedDayMock).toHaveBeenCalledWith(NEW_TRIP_ID, DAY_ID);
   });
 
   // `NewTripWizard`'s latch (CodeRabbit, PR #32): a failure at a later step used
@@ -438,6 +444,37 @@ describe("starting a new trip from a shared day", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
     expect(createTripMock).toHaveBeenCalledTimes(1);
     expect(sendTripCommandBatchMock).toHaveBeenCalledTimes(1);
+    expect(insertSavedDayMock).toHaveBeenCalledTimes(2);
+  });
+
+  // The case the optional field opened up, and the one the latch is most likely
+  // to get wrong: blank is not "already dated as nothing". `datedAs: null` has
+  // to stay distinguishable from a real date, or a user who submits blank,
+  // fails at the insert and THEN picks a date gets their date silently dropped
+  // on the retry — a trip they explicitly dated arriving undated, with no error
+  // anywhere to say so.
+  it("sends the dates command on a retry that adds a date the blank first attempt had not", async () => {
+    insertSavedDayMock
+      .mockResolvedValueOnce({ ok: false, error: { status: 500, message: "insert blew up" } })
+      .mockResolvedValue(ok({ detail: {}, history: {} }));
+
+    await chooseNewTrip();
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+    expect(await screen.findByText("insert blew up")).toBeTruthy();
+    // Nothing was dated on the first pass, which is what the retry then has to
+    // notice.
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-04-01" } });
+    await userEvent.click(screen.getByRole("button", { name: "Add to trip" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${NEW_TRIP_ID}`));
+    expect(sendTripCommandBatchMock).toHaveBeenCalledTimes(1);
+    expect(sendTripCommandBatchMock).toHaveBeenCalledWith(NEW_TRIP_ID, [
+      { type: "SetTripStartDate", tripId: NEW_TRIP_ID, startDate: "2027-04-01" },
+    ]);
+    // Still one trip — the latch's original job, unchanged.
+    expect(createTripMock).toHaveBeenCalledTimes(1);
     expect(insertSavedDayMock).toHaveBeenCalledTimes(2);
   });
 

@@ -29,7 +29,7 @@ import { useLibraryRead } from "./useLibraryRead";
 
 /** The ranking rule, in the page's own copy. §15 requires it stated. */
 const RULE =
-  "An add only counts once per trip, and only after the trip has dates. Copying your own day into your own trip does not count.";
+  "An add only counts once per trip. Copying your own day into your own trip does not count.";
 
 const SKELETON_ROWS = 5;
 
@@ -128,8 +128,7 @@ export function LeaderboardScreen() {
           because "0 adds" beside a person who has shared days reads as a
           judgement, and the rule above is what actually explains it. */}
       <Banner variant="info">
-        Sharing a day is not what ranks you here — being taken into somebody else&apos;s dated trip
-        is.
+        Sharing a day is not what ranks you here — being taken into somebody else&apos;s trip is.
       </Banner>
     </div>
   );

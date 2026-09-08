@@ -79,8 +79,9 @@ async function tripWithCities(
   const dayId = randomUUID();
 
   if (options.dated === true) {
-    // A dated trip is what makes an add COUNT (link 4's rule). `newDayIds` is
-    // required — SetTripDates mints the days and the domain cannot mint uuids.
+    // `newDayIds` is required — SetTripDates mints the days and the domain
+    // cannot mint uuids. (Dating is no longer what makes an add count; the
+    // clause was dropped 2026-09-08. The walks below still want real dates.)
     await post(`/api/trips/${tripId}/commands`, {
       type: "SetTripDates",
       tripId,
@@ -227,8 +228,11 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   await bob.getByRole("link", { name: /who shares the most/i }).click();
   await expect(bob).toHaveURL(/\/playbooks\/board$/);
   await expect(
-    bob.getByText(/An add only counts once per trip, and only after the trip has dates/),
+    bob.getByText(/An add only counts once per trip\./),
   ).toBeVisible();
+  // The dropped clause (2026-09-08) must not survive in copy: §15's whole point
+  // is that the board is credible because it states the rule it enforces.
+  await expect(bob.getByText(/after the trip has dates/)).toHaveCount(0);
   // "Alice", not "dev-alice": since 2026-09-01 `displayNameFor` never hands a
   // raw identifier to a reader, and a dev-login id carries the username inside
   // it. The id is still what the ROW links to, which is the distinction — see
@@ -275,12 +279,12 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
 // trip to put this day in, so the day STARTS one — named after itself, with
 // itself as day 1.
 //
-// Why this is an e2e case and not only a component test: the whole feature
-// rests on the dialog dating the new trip BEFORE inserting the day, because
-// `addCounts()` refuses an add against an undated trip and dating it afterwards
-// does not count it retroactively. "1 trip" on the day's own facts rail is the
-// only place that ordering is visible end to end — with the order swapped, every
-// screen below still looks right and only the author's credit is missing.
+// Why this is an e2e case and not only a component test: three calls have to
+// land against the new trip's real id — create, date, insert — and "1 trip" on
+// the day's own facts rail is the only place the last of them is visible end to
+// end. (It used to rest on the ORDER, because `addCounts()` refused an add
+// against an undated trip. That clause was dropped on 2026-09-08, so the order
+// is now a product choice; the credit is asserted either way.)
 test("a shared day can start a new trip, as day 1, and the add still counts", async ({ page, browser }) => {
   test.slow();
 
@@ -316,8 +320,8 @@ test("a shared day can start a new trip, as day 1, and the add still counts", as
   await expect(bob.getByTestId("day-column")).toHaveCount(1);
   await expect(bob.getByTestId("day-column").getByText(`Stop in ${city}`)).toBeVisible();
 
-  // The ledger counted it, which is true only because the trip had its start
-  // date before the insert arrived.
+  // The ledger counted it — now true whether or not the trip had its start date
+  // when the insert arrived.
   await bob.goto(`/playbooks/day/${savedDayId}`);
   await expect(bob.getByTestId("day-facts").getByText("1 trip")).toBeVisible();
 

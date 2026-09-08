@@ -38,9 +38,9 @@ const NEW_TRIP = "new";
 // place, and the caller refreshes rather than a modal being thrown at anyone.
 //
 // **The second branch: start a new trip with this day as day 1** (Mitchell,
-// 2026-09-08 — "do smallest possible, make them pick a date to start... For
-// name same thing, just use name of the day for trip."). Three facts make the
-// three-call sequence below correct, and each cost a read to establish:
+// 2026-09-08 — "do smallest possible... For name same thing, just use name of
+// the day for trip."). Three facts make the two- or three-call sequence below
+// correct, and each cost a read to establish:
 //
 //   1. A freshly created trip has `days: []` and `startDate: null`
 //      (`packages/domain/src/trip/evolve.ts`), so the insert's `AddDay` lands
@@ -48,11 +48,17 @@ const NEW_TRIP = "new";
 //   2. The date goes on with `SetTripStartDate`, never `SetTripDates`. The
 //      latter reconciles day COUNT (`decide.ts`) and would mint an empty day 1,
 //      pushing the playbook day to day 2.
-//   3. **Dating the trip must happen BEFORE the insert.** `addCounts()`
-//      (`server/savedDayAdds.ts`) refuses to record a leaderboard add against a
-//      trip with no `startDate`, and dating it afterwards does not count it
-//      retroactively (pinned by `server/savedDays.int.test.ts`). Get the order
-//      backwards and the author is silently, permanently under-credited.
+//   3. **The start date is OPTIONAL** (Mitchell, 2026-09-08 — "no make that
+//      field optional now"). It was required, and it was a correctness
+//      requirement rather than a preference: `addCounts()` refused a
+//      leaderboard add against an undated trip, so an insert that overtook the
+//      date under-credited the author silently and forever. That clause was
+//      dropped the same day and the add now counts either way, which leaves the
+//      field nothing to guarantee. Blank means **no `SetTripStartDate` is sent
+//      at all** — the trip is simply created undated, which is a supported
+//      state everywhere (`evolve.ts` genesis is `startDate: null`, and
+//      `deriveDayDates` renders an undated trip as ordinals). Blank is NOT
+//      `SetTripStartDate` with an empty date.
 export function AddToTripDialog({
   open,
   onOpenChange,
@@ -144,7 +150,14 @@ export function AddToTripDialog({
         latched = { tripId: created.value.tripId, datedAs: null };
         newTrip.current = latched;
       }
-      if (latched.datedAs !== startDate) {
+      // Blank skips step 2 outright rather than sending an empty date. The
+      // latch keeps `datedAs: null` for that case, which is what makes the
+      // retry path work: submit blank, fail at the insert, type a date, retry —
+      // `null !== "2027-04-01"` so the command goes out on the second attempt,
+      // where a boolean latch would have swallowed it. Going the other way
+      // (dated, then cleared, then retried) deliberately leaves the date on:
+      // this dialog has no business un-dating a trip the user already dated.
+      if (startDate !== "" && latched.datedAs !== startDate) {
         const dated = await sendTripCommandBatch(latched.tripId, [
           { type: "SetTripStartDate", tripId: latched.tripId, startDate },
         ]);
@@ -204,7 +217,7 @@ export function AddToTripDialog({
           <FormField
             id={startDateFieldId}
             label="Start date"
-            hint={`The trip is named “${dayName}”, and this day is day 1.`}
+            hint={`Optional. The trip is named “${dayName}”, and this day is day 1.`}
           >
             <Input
               id={startDateFieldId}
@@ -233,7 +246,7 @@ export function AddToTripDialog({
         </Button>
         <Button
           variant="primary"
-          disabled={busy || tripId === "" || (creatingTrip && startDate === "")}
+          disabled={busy || tripId === ""}
           onClick={() => void add()}
         >
           {busy ? "Adding…" : "Add to trip"}

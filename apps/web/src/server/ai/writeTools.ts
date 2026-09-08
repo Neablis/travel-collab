@@ -542,13 +542,12 @@ export async function commitProposal(
     actorId,
     days.length === 0
       ? undefined
-      : async (tx, { detail: committed }) => {
+      : async (tx) => {
           for (const day of days) {
-            // `addCounts`, unchanged and uncopied — so an assistant insert into
-            // an undated trip does not count for exactly the reason a manual
-            // one does not. `committed.startDate` is the trip as this batch
-            // left it, and AddDay/AddActivity cannot move it.
-            if (!addCounts({ authorId: day.ownerId, actorId, tripStartDate: committed.startDate })) continue;
+            // `addCounts`, uncopied — the assistant's door and the manual
+            // dialog's cannot disagree about who gets credited, which is the
+            // whole reason the rule is one function and not two.
+            if (!addCounts({ authorId: day.ownerId, actorId })) continue;
             await recordAdd(tx, {
               savedDayId: day.savedDayId,
               tripId,

@@ -73,7 +73,7 @@ function fakeGeocoder(responses: Record<string, GeocodeResult[]>): Geocoder {
 // truncated and every ledger assertion below is "this day, these rows".
 const AUTHOR_ID = `apply-playbook-author-${randomUUID().slice(0, 8)}`;
 
-/** A trip with NO dates — the wishlist state `addCounts` refuses to credit. */
+/** A trip with NO dates. Since 2026-09-08 an add into one is credited like any other. */
 async function seedUndatedTrip(): Promise<string> {
   const tripId = randomUUID();
   const create = await executeTripCommand({ type: "CreateTrip", tripId, name: "Someday" }, ACTOR_ID);
@@ -488,18 +488,15 @@ describe("POST /api/trips/:id/ask/apply", () => {
       expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
     });
 
-    // `addCounts` is unchanged and uncopied, so its three negatives have to
-    // hold through this door for the same reasons they hold through the manual
-    // one. Each is proven against the ledger.
-    describe("and the adds rule, unchanged, through this door", () => {
-      it("does not count an insert into a trip with no dates", async () => {
+    // `addCounts` is uncopied, so the rule has to come out the same through this
+    // door as through the manual one — including the clause dropped on
+    // 2026-09-08, whose *positive* case leads here for that reason. Each case is
+    // proven against the ledger.
+    describe("and the adds rule, uncopied, through this door", () => {
+      it("counts an insert into a trip with no dates", async () => {
         const savedDayId = await publishedDay(AUTHOR_ID);
         const tripId = await seedUndatedTrip();
 
-        // Asserted, not discarded: the two assertions below hold just as well
-        // for an insert that 404'd, so without this a regression that broke
-        // inserting into an undated trip would pass a test whose whole claim is
-        // that the insert SUCCEEDED and simply was not credited.
         expect(
           (
             await handleApplyProposalRequest(
@@ -511,8 +508,13 @@ describe("POST /api/trips/:id/ask/apply", () => {
           ).status,
         ).toBe(200);
 
-        expect(await ledgerRows(savedDayId)).toHaveLength(0);
-        expect(await expectCounterMatchesLedger(savedDayId)).toBe(0);
+        // The credit is asserted, not the absence of a refusal: a build that had
+        // stopped recording adds altogether would satisfy "no longer refused".
+        const rows = await ledgerRows(savedDayId);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.tripId).toBe(tripId);
+        expect(rows[0]!.addedBy).toBe(ACTOR_ID);
+        expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
       });
 
       it("does not count the author inserting their OWN day into their own trip", async () => {

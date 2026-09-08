@@ -6,9 +6,11 @@ import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { insertSavedDay } from "@/server/savedDays";
 
-// The adds ledger (M11b link 4). The design's rule, verbatim: *an add only
-// counts once per trip, and only after the trip has dates; copying your own day
-// into your own trip does not count.*
+// The adds ledger (M11b link 4). The rule: *an add only counts once per trip;
+// copying your own day into your own trip does not count.* The design's copy had
+// a third clause, *and only after the trip has dates*; Mitchell dropped it on
+// 2026-09-08 ("i dont mind the past missed installs") and an add into an undated
+// trip now counts — asserted below, positively, like any other add.
 //
 // **Every assertion below is against the LEDGER**, which is the exit gate's own
 // wording, and it is not a formality: the counter is what a build that got this
@@ -50,7 +52,7 @@ async function datedTrip(): Promise<string> {
   return tripId;
 }
 
-/** A trip with no dates — the wishlist state the rule refuses to count. */
+/** A trip with no dates. Since 2026-09-08 an add into one counts like any other. */
 async function undatedTrip(): Promise<string> {
   const tripId = randomUUID();
   await executeTripCommand({ type: "CreateTrip", tripId, name: "Someday" }, currentUserId);
@@ -155,7 +157,9 @@ describe("an add that counts", () => {
   });
 });
 
-// The three negative cases the exit gate names, each proven against the ledger.
+// The negative cases the exit gate names, each proven against the ledger. The
+// gate named three; the undated one is no longer a negative and has moved to
+// "an add that counts" below (amendment of 2026-09-08 on M11b's gate).
 describe("an add that does not count", () => {
   it("counts the same day added twice to ONE trip only once", async () => {
     const savedDayId = await publishedDay();
@@ -173,17 +177,6 @@ describe("an add that does not count", () => {
     expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
   });
 
-  it("does not count an add to a trip with no dates", async () => {
-    const savedDayId = await publishedDay();
-    currentUserId = TAKER;
-    const tripId = await undatedTrip();
-
-    expect((await insert(tripId, savedDayId)).status).toBe(200);
-
-    expect(await ledgerRows(savedDayId)).toHaveLength(0);
-    expect(await expectCounterMatchesLedger(savedDayId)).toBe(0);
-  });
-
   it("does not count the author adding their own day to their own trip", async () => {
     const savedDayId = await publishedDay();
     // currentUserId is AUTHOR — their own day, their own dated trip.
@@ -194,24 +187,40 @@ describe("an add that does not count", () => {
     expect(await ledgerRows(savedDayId)).toHaveLength(0);
     expect(await expectCounterMatchesLedger(savedDayId)).toBe(0);
   });
+});
 
-  // The undated trip is a *deferral*, not a permanent refusal in disguise: the
-  // same day into the same trip counts as soon as the trip has dates... except
-  // that it does not, and that is worth pinning rather than discovering. The
-  // composite primary key has no notion of "the earlier one did not count", so
-  // a day added while a trip was undated is never credited later.
-  it("still does not count after the trip is dated, because the insert was the only chance", async () => {
+// The clause that was dropped on 2026-09-08, asserted in the direction it now
+// runs. A test that only stopped refusing the undated case would go green for a
+// build that had stopped recording ANY add, so the credit is asserted, not the
+// absence of a refusal.
+describe("an add into a trip with no dates", () => {
+  it("counts, exactly like an add into a dated one", async () => {
     const savedDayId = await publishedDay();
     currentUserId = TAKER;
     const tripId = await undatedTrip();
-    // Asserted, not discarded. The two assertions at the end hold just as well
-    // for an insert that 404'd or 500'd — so without this, a regression that
-    // broke inserting into an undated trip would pass a test whose whole claim
-    // is that the add SUCCEEDED and simply was not credited.
-    // Raised in review on pull request 101.
+
     expect((await insert(tripId, savedDayId)).status).toBe(200);
 
-    await executeTripCommand(
+    const rows = await ledgerRows(savedDayId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.tripId).toBe(tripId);
+    expect(rows[0]!.addedBy).toBe(TAKER);
+    expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
+  });
+
+  // What the dropped clause used to cost, now that it costs nothing: the add
+  // was credited at insert time, and dating the trip afterwards neither
+  // double-counts it nor has anything left to credit. The composite primary key
+  // still has no notion of "the earlier one did not count" — it simply no
+  // longer needs one.
+  it("is credited once, and dating the trip afterwards does not credit it again", async () => {
+    const savedDayId = await publishedDay();
+    currentUserId = TAKER;
+    const tripId = await undatedTrip();
+    expect((await insert(tripId, savedDayId)).status).toBe(200);
+    expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
+
+    const dated = await executeTripCommand(
       {
         type: "SetTripDates",
         tripId,
@@ -221,9 +230,12 @@ describe("an add that does not count", () => {
       },
       TAKER,
     );
+    // Checked rather than fired and forgotten: a dating that silently failed
+    // would leave this test asserting nothing about "afterwards" at all.
+    expect(dated.ok).toBe(true);
 
-    expect(await ledgerRows(savedDayId)).toHaveLength(0);
-    expect(await expectCounterMatchesLedger(savedDayId)).toBe(0);
+    expect(await ledgerRows(savedDayId)).toHaveLength(1);
+    expect(await expectCounterMatchesLedger(savedDayId)).toBe(1);
   });
 });
 
