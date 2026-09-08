@@ -6,6 +6,33 @@ import { aiClassifierModel, aiModel } from "@/server/ai/gateway";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import type { AiSurface } from "@/server/ai/context";
 
+// May THIS request's caller cause a real model call. Every caller that only
+// needs the answer uses this; `aiLiveMode()` below is the same decision with
+// its provenance attached, for the one caller that needs to know how much the
+// answer is worth.
+//
+// Per-user since the 2026-09-08 amendment to ADR-019: with `identify` on the
+// flag (server/flagEntities.ts), two callers of this function in the same
+// deployment can legitimately get different answers.
+export async function aiLive(): Promise<boolean> {
+  return (await aiLiveMode()).live;
+}
+
+// The same decision, plus WHERE it came from — because the two sources do not
+// carry the same weight once the flag is per-user targetable:
+//
+//   * `"env"` — AI_LIVE decided it. Global, and true of every caller on this
+//     server, because the flag was never consulted for anyone.
+//   * `"flag"` — Vercel Flags decided it, FOR THE CALLER OF THIS REQUEST. A
+//     targeting rule can answer differently for the next person, so this says
+//     nothing about anyone else.
+//
+// `GET /api/health/ai-mode` reports it so its one consumer — e2e's
+// global.setup.ts, which refuses to run a suite that could bill a real model —
+// can tell a guarantee from a sample of one. Anonymous "not live" stopped being
+// evidence about the signed-in test user the moment targeting existed.
+export type AiLiveMode = { live: boolean; source: "env" | "flag" };
+
 // AI_LIVE short-circuits the flag entirely. It has to live here rather than in
 // the flag's own `decide`, because the Flags SDK treats an explicit `decide` as
 // an override of the adapter — a decide returning undefined falls to
@@ -16,20 +43,28 @@ import type { AiSurface } from "@/server/ai/context";
 //
 // LOCAL AND CI ONLY. On Vercel this variable is unset and the flag is the sole
 // source of truth. See .env.example.
-export async function aiLive(): Promise<boolean> {
-  if (process.env.AI_LIVE !== undefined) return process.env.AI_LIVE === "true";
+export async function aiLiveMode(): Promise<AiLiveMode> {
+  if (process.env.AI_LIVE !== undefined) {
+    return { live: process.env.AI_LIVE === "true", source: "env" };
+  }
   // `aiLiveFlag()`'s own `defaultValue: false` only covers a throw/undefined
   // from INSIDE the SDK's `decide` — it does not cover `readOverrides` /
   // `decryptOverrides` throwing earlier in `getRun()`, which happens when
   // FLAGS_SECRET is unset or malformed AND a `vercel-flag-overrides` cookie is
   // present (reachable locally, and on Vercel until FLAGS_SECRET is
-  // configured there). Without this catch that throw propagates out of
-  // aiLive() as an unhandled rejection, producing an opaque 500 instead of
-  // the degrade-to-simulated guarantee this file and ADR-019 document.
+  // configured there). Nor does it cover `identify` throwing: the SDK resolves
+  // entities BEFORE the code path that applies `defaultValue` (verified in
+  // flags@4.3.0, dist/next.js — `getEntities` runs ahead of `applyResult`), so
+  // a failed session read escapes the flag the same way. Without this catch any
+  // of those propagates out of aiLive() as an unhandled rejection, producing an
+  // opaque 500 instead of the degrade-to-simulated guarantee this file and
+  // ADR-019 document.
   try {
-    return await aiLiveFlag();
+    return { live: await aiLiveFlag(), source: "flag" };
   } catch {
-    return false; // unreachable/misconfigured Flags service ⇒ simulated, never spending
+    // Unreachable/misconfigured Flags service, or an unidentifiable caller
+    // ⇒ simulated, never spending.
+    return { live: false, source: "flag" };
   }
 }
 

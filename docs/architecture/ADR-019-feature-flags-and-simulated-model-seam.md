@@ -205,6 +205,126 @@ Not a rate limit, not a spend cap, not an authorization model. `rateLimit.ts`
 exists separately, and access to a *trip* is `guard()`'s job. This is one
 question only: **may this actor cause a model call, and if so which model.**
 
+## Amendment — 2026-09-08: per-user targeting, built (Vercel Entities)
+
+Recorded on Mitchell's request, 2026-09-08:
+
+> *"Can you implement Vercel Entities so i can do targeted Feature Flags for
+> turning on AI?"*
+
+The original decision left this one option away and said so: *"Per-user
+targeting is one `identify` option away … Not built now."* This amendment is
+that option being taken. Nothing above is reversed.
+
+### 1. What was built
+
+`apps/web/src/server/flagEntities.ts` — a new module holding the **entities**
+this app publishes about the caller, and the `identify` that produces them.
+`aiLiveFlag` gains `identify: identifyFlagEntities` and a second type parameter;
+that is the entire change to the declaration, exactly as §6 of the design spec
+predicted.
+
+It is a **new module rather than a few lines in `server/flags.ts`** for the
+reason Decision 1 already gives: that module is declarations only, because
+`getProviderData(flags)` enumerates every one of its exports and expects each to
+be a flag. `identifyFlagEntities` would have been the second thing it broke on.
+
+### 2. The entities, and why exactly three
+
+| Attribute | Why it is published |
+|---|---|
+| `user.id` | The Auth.js user id, which is `actor_id` verbatim. The only identifier stable across sign-ins, and therefore the only sound thing to bucket a percentage rollout by (`vercel flags rollout ai-live --by user.id`). |
+| `user.email` | The handle a rule is actually written with. `id` is `google-<sub>` — an opaque number — so targeting by it alone would mean copy-pasting uuids out of Postgres to turn AI on for one person, which is the task this exists to make easy. |
+| `user.emailDomain` | So "everyone at my company" is one `eq` rule instead of one per person, without depending on which string operators the dashboard offers on `email`. |
+
+The list stays this short deliberately. These attributes are sent to Vercel on
+every evaluation; Vercel already runs the compute this app is deployed on and
+already holds all three, so no new processor sees them — but it is still a real
+export of identity, and each addition should have to justify itself the way
+these do.
+
+### 3. Targeting may only WIDEN. The dashboard fallthrough is part of the design
+
+A caller no rule matches falls through to the flag's dashboard default. A
+signed-out caller is one of those: `identify` publishes **no `user` key at
+all** for them, rather than a user with blank attributes, so no user-keyed rule
+can match — an entity keyed on `""` would otherwise let one rule match every
+unidentifiable caller at once.
+
+Therefore: **the `ai-live` fallthrough must stay "Simulated".** Rules turn live
+AI *on* for named people; they are never the thing keeping everyone else off it.
+This is a configuration the code cannot enforce, so it is stated where the
+commands that set it are (`docs/guidelines/environments-and-deploys.md`).
+
+### 4. This is targeting, not entitlement — the amendment above still stands
+
+The 2026-08-25 amendment's three-way outcome is untouched. A user no rule
+matches gets **`simulated`**, not `denied`: they still get a working assistant
+that mutates their trip and badges itself, which is the whole point of the kill
+switch being a model swap. `denied` remains reserved for entitlement — a
+database fact about an account tier, per §3 of that amendment — and remains
+unreachable in production. Flag targeting and entitlement are two questions with
+two answers, and folding the first into the second would have made "you are not
+in the rollout" indistinguishable from "your plan does not include this".
+
+### 5. Failing closed survives, by one verified detail
+
+`identify` runs **before** the SDK's `defaultValue` machinery: `getEntities` is
+called ahead of `applyResult` (verified in `flags@4.3.0`, `dist/next.js`). So an
+`identify` that throws — a failed session read — escapes the flag call entirely
+and is **not** covered by `defaultValue: false`.
+
+Two consequences, both deliberate:
+
+- `flagEntities.ts` has **no try/catch**. Swallowing the failure would publish
+  `{}`, i.e. "anonymous", which falls through to a dashboard configuration
+  rather than to a guarantee.
+- The catch that matters is the one `aiLive()` already had, for the
+  `readOverrides` case. It now covers this too, and its comment says so.
+
+Off remains the answer to every question this flag cannot resolve.
+
+### 6. `GET /api/health/ai-mode` had to say WHERE its answer came from
+
+Per-user targeting silently broke a guarantee KI-25 bought. That endpoint
+reported `{ live }`, and e2e's `global.setup.ts` refused to run a suite unless
+it read `false`. But the probe is unauthenticated: once a rule can serve "Live"
+to a named user, an anonymous `live: false` says nothing about the signed-in
+user the specs sign in as moments later.
+
+So `aiLive()` is now a thin reader over `aiLiveMode()`, which returns
+`{ live, source: "env" | "flag" }`, and the endpoint reports both. `"env"` means
+`AI_LIVE` decided it and the flag was never consulted — a fact about the server,
+true of every caller. `"flag"` means Vercel Flags answered for this caller only.
+`global.setup.ts` now requires `source === "env"`, which is a **tightening**: an
+unset `AI_LIVE` used to pass on a `false` from the flag and now refuses.
+`.env.example` ships `AI_LIVE=false` and CI sets it in the workflow env, so both
+supported lanes are unaffected.
+
+### 7. `auth` is imported lazily, and that is not a style choice
+
+`@/server/auth` reaches `server/users.ts` → `server/db/client.ts` →
+`server/config.ts`, which **throws at module load when `DATABASE_URL` is
+unset**. A static import would put that in `server/flags.ts`'s module graph and
+therefore in the discovery endpoint's — so `.well-known/vercel/flags`, a
+protocol route that needs no database and builds without one today, would start
+failing Next's page-data collection in any checkout without an `.env.local`.
+`docs/guidelines/cloud-agent-sessions.md` documents what that failure looks like
+and how long it takes to recognise; it is not a cost worth paying for a static
+import.
+
+### 8. What is still not built
+
+- Any second flag, and any general flag-driven UI gating pattern. `identify` is
+  written to be shared: a second flag reusing the same function reference is
+  deduped to one session read per request, and the SDK groups flags by their
+  identify reference into a single `bulkDecide` call.
+- Entitlement (`denied`). Unchanged from the 2026-08-25 amendment.
+- Any entity that is not the user — a trip, say. `Identify` receives only
+  `{ headers, cookies }`, so a `tripId` from the route path is not reachable
+  from it; targeting by trip would need a different mechanism, not a wider
+  entity.
+
 ## Alternatives rejected
 
 - **A canned refusal.** An early return in the route emitting a fixed "AI is

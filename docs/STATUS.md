@@ -22,6 +22,33 @@ general setup.
 
 ## Where the work is right now
 
+**AI CAN BE TURNED ON FOR SPECIFIC PEOPLE, 2026-09-08.** Branch
+`claude/vercel-entities-ai-flags-7zdbsj`. Mitchell asked for *"Vercel Entities so i can do
+targeted Feature Flags for turning on AI"*; ADR-019 had left per-user targeting as the one
+option it deliberately did not take, and this takes it. `apps/web/src/server/flagEntities.ts`
+publishes three attributes about the caller — `user.id`, `user.email`, `user.emailDomain` —
+and `aiLiveFlag` gains `identify`. A dashboard rule (`user.email:eq:…`, or a
+`--by user.id` rollout) now decides live-vs-simulated per person, with no deploy. The
+commands are in `docs/guidelines/environments-and-deploys.md`; the reasoning is ADR-019's
+2026-09-08 amendment.
+
+**One rule to remember: the dashboard fallthrough must stay "Simulated".** Targeting only ever
+*widens* who gets live AI. A caller no rule matches — every signed-out visitor included, since
+`identify` publishes no `user` at all for them — falls through to the flag's default, so that
+default is the kill switch. The code cannot enforce it.
+
+Two things this change forced, both worth knowing before touching this area:
+
+- **`identify` runs BEFORE `defaultValue`** (`getEntities` ahead of `applyResult`, verified in
+  `flags@4.3.0`). A failed session read escapes the flag rather than degrading through it, so
+  `flagEntities.ts` has no try/catch on purpose and `aiLive()`'s existing catch is what keeps
+  the fail-closed guarantee.
+- **`/api/health/ai-mode` now reports `{ live, source }`**, and `e2e/global.setup.ts` requires
+  `source: "env"`. An anonymous `live: false` from a *targetable* flag stopped being evidence
+  about the signed-in user the specs sign in as — which had quietly broken what KI-25 bought.
+  Set `AI_LIVE=false` (`.env.example` ships it; CI sets it in the workflow env) or e2e refuses
+  to start.
+
 **THE CONTENT HAS COORDINATES, AND A WAY TO PRODUCTION, 2026-09-06.** Branch
 `claude/serialize-and-seed-data-66f8tb`. 1,091 of 1,375 stops now carry `lat`/`lng` — 827 on
 the venue itself — from `scripts/geocode-content.py`, which took five attempts. The four
