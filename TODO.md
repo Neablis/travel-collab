@@ -257,10 +257,18 @@ Where the work actually stands right now: `docs/STATUS.md`.
       *(**Retitled and scoped 2026-09-01** — was "Community", with no file and
       no exit gate. The public gallery and discovery that name promised
       **shipped in M11b**; what M12 keeps from `SPEC.md` §15 is reviews,
-      ratings everywhere they surface, and moderation. Six links, nine gate
-      boxes. It exists to delete one line from §15: **"Until the reviews table
-      exists, every rating here is fixture data"** — still true in `main`.
-      Needs a migration.)*
+      ratings everywhere they surface, and moderation. It exists to delete one
+      line from §15: **"Until the reviews table exists, every rating here is
+      fixture data"** — still true in `main`. Needs a migration.
+      **Seven links and thirteen gate boxes as of 2026-09-09**, when Mitchell
+      asked for **country search alongside city search** in Discover's box and
+      it was added as link 7 — the one piece of M12 that is not trust and
+      safety, and an amendment to the milestone's own "nothing that changes what
+      M11b ships". It needs a **second migration** (`saved_days.countries`) and
+      has a data prerequisite: the content library carries `countryCode` on
+      **none** of its 1,375 locations today. Both are in the milestone file.
+      This entry said "six links, nine gate boxes"; the file in fact had ten
+      boxes before link 7 was added, so the count here was already one out.)*
 - [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
       conflicts. → `docs/milestones/M13-collaboration.md`
       *(**Narrowed 2026-08-27**: invites, roles and revocation moved into M11,
