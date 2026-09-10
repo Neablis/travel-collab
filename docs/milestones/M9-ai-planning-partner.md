@@ -95,6 +95,41 @@ it corrupted a correct answer and silently dropped seven others. Streaming,
 threads and approval would have made all of this *visible sooner*. None of them
 would have made it *right*.
 
+## Phase 0 — the assistant kernel (added 2026-09-10)
+
+**Mitchell, 2026-09-10, against KI-2026-09-05-t:** *"Lets take on refactoring it, and the
+entire AI Ask system, i want a really easy to use, add functionality and audit system."*
+
+**Placed as this milestone's Phase 0, ahead of M17's remaining exit-gate boxes** — Mitchell's
+placement decision the same day, on the KI's own argument: `handleAskRequest()` being one
+455-line function is a *schedule multiplier* on every task below, and this milestone's
+estimate assumes it is fixed first. It closes no gate box of its own; it is what the three
+boxes are built on top of.
+
+Decision and rules: **ADR-043**. Design, measurements and phase table:
+`docs/specs/2026-09-10-assistant-kernel-design.md`.
+
+Six PRs:
+
+| Phase | Lands | Closes / deletes |
+|---|---|---|
+| P0 | The spec and ADR-043 | — |
+| P1 | `defineTool` (required output schema, declared `needs`, `spend`), the derived registry, every tool ported, the import wall | ambient `toolsContext`; lands KI-9's type-forcing |
+| P2 | Domains x effect, `toolsFor`, computed `minimumRoleFor` | `offeredToolNamesFor` + three name manifests (F-F02) |
+| P3 | `evaluateAiGrant` staged admission; handler becomes orchestration | **KI-2026-09-05-t**, F-F03 |
+| P4 | Prompt blocks + tool-result tainting | string-concatenated instructions |
+| P5 | Task classes, tiered model routing, `TurnLedger` | homes for **KI-93** and **KI-94/97** |
+| P6 | Stream envelope into `packages/contracts` (own PR, per AGENTS.md) | **KI-22** |
+
+**What it does not do.** No entitlement policy, no `ai_usage` table, no migration — M20 owns
+those under four rules already decided 2026-09-01, and this builds only the ports they fill.
+`resolveBatch` is not rewritten (KI-10 needs its own call). No comment in
+`handleAskRequest.ts` is deleted; each moves with the step it describes.
+
+**Effect on the three gate boxes.** KI-93 and KI-94 are gate boxes and P5 gives each a place
+to be fixed rather than only described — but P5 is *not* the fix, and neither box is ticked
+by this phase. KI-12 (name a trip, set its dates) is untouched by it.
+
 ## Scope
 
 - **Grounding — the agent gets to look things up before it decides.** A

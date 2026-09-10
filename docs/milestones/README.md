@@ -198,13 +198,40 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M17 — Account preferences**
-(`M17-account-customization.md`), as of **2026-08-31, when M11a's and M11b's
-gates both closed** — M11a nine of nine with its admission paths walked on
-production, M11b eleven of eleven with the two-actor publish walk and the
-`cities` backfill. Order from here:
-`M11a ✓ → M11b ✓ → M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`
-— **M20 and M21 minted and placed 2026-09-01**; see the note below.
+Current milestone: **M9 Phase 0 — the assistant kernel**
+(`M9-ai-planning-partner.md`, "Phase 0"), as of **2026-09-10**. **M17 —
+Account preferences** (`M17-account-customization.md`) is **paused at 0 of 3
+gate boxes**, not superseded; it resumes when Phase 0's six PRs land. Order
+from here:
+`M11a ✓ → M11b ✓ → [M9 Phase 0] → M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`
+— **M20 and M21 minted and placed 2026-09-01**; see the note below;
+**M9 Phase 0 interposed 2026-09-10**, see the note immediately below.
+
+### 2026-09-10 — interposed: M9 Phase 0, the assistant kernel, ahead of M17
+
+**Mitchell's call, 2026-09-10**, opening KI-2026-09-05-t: *"Lets take on
+refactoring it, and the entire AI Ask system."* Chosen from three placements
+offered; the two declined were finishing M17 first, and writing the design
+record now and building after M17.
+
+**What moves.** Only the start of M9. `M17` keeps its place in the order and its
+three open gate boxes; what changes is that its remaining work now runs *after*
+M9's Phase 0 rather than before all of M9. Milestone numbers are unchanged —
+this is a placement, the same shape as ADR-018, ADR-021, ADR-022 and the
+2026-09-01 M9 reorder above.
+
+**Why ahead of M17.** The KI's own argument, which M9's estimate already
+assumes: `handleAskRequest()` being one 455-line function is a *schedule
+multiplier* on every M9 task, and ~15 of the 40 open known issues are
+consequences of the same untyped boundaries. Doing M9's three real pieces of
+work against that shape pays the multiplier three times. Nothing in M17 reads
+anything Phase 0 touches, so the pause costs sequencing only.
+
+**What it is not.** It closes no gate box, of M9's or anyone's. Entitlement
+policy and the `ai_usage` cost ledger stay **M20's**, under the four rules
+decided 2026-09-01 — Phase 0 builds the ports those rules fill and chooses no
+tier, ceiling or price. Decision: **ADR-043**. Design:
+`docs/specs/2026-09-10-assistant-kernel-design.md`.
 
 ### 2026-09-01 — minted and placed: M20 and M21, the first commercial milestones
 
