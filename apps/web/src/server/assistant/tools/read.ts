@@ -29,7 +29,8 @@
 //      door then 404s on; wider and the tool is a way to enumerate what people
 //      have kept private, which is the exact attack that WHERE clause is
 //      written to defeat (ADR-042 Decision 2). It is reused, never restated:
-//      `discoverDays({ scope: "everyone" })` IS that clause.
+//      the `playbooks` port resolves to `discoverDays({ scope: "everyone" })`,
+//      which IS that clause.
 //   2. **The computation lives in the domain.** `find_free_time` is a wrapper
 //      over `findFreeGaps` (packages/domain/src/trip/freeTime.ts) and owns
 //      nothing but the translation between what a user says ("after 9pm") and
@@ -44,8 +45,8 @@ import { ActivityKind, Money, TimeWindow, type TripDetail } from "@tc/contracts"
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
-import { discoverDays } from "@/server/playbooks";
 import { defineTool } from "@/server/assistant/defineTool";
+import type { PlaybookLibrary } from "@/server/assistant/deps";
 
 // The times this boundary accepts and emits: 00:00-23:59, PLUS "24:00".
 //
@@ -487,37 +488,26 @@ export interface SearchPlaybooksInput {
 /**
  * The playbook library, filtered to what this reader may see.
  *
- * **`discoverDays({ scope: "everyone" })`, not a third copy of the visibility
- * clause.** `scopePredicate` (playbooks.ts) spells `everyone` as *"published,
- * or mine"* — which is exactly `readableSavedDay`'s WHERE clause, the one the
- * apply door will re-run per day. A separate query here would agree with it
- * only until somebody edited one of them, and the two directions that
+ * **The visibility clause is the adapter's, and there is still only one of
+ * it.** `playbooks.discover` is `discoverDays({ scope: "everyone" })`
+ * (`server/ai/assistantPorts.ts`), and `scopePredicate` spells `everyone` as
+ * *"published, or mine"* — exactly `readableSavedDay`'s WHERE clause, the one
+ * the apply door will re-run per day. A query written here instead would agree
+ * with it only until somebody edited one of them, and the two directions that
  * disagreement can go are both bad: narrower proposes days that 404 on
- * approval, wider enumerates other people's private days.
- *
- * It costs one extra `count(*)` (`publishedDayCount`) that this caller does not
- * read. That is the price of the shared query, and it is one indexed count over
- * a small table — cheap next to a second predicate to keep in step.
+ * approval, wider enumerates other people's private days. The port is narrow
+ * precisely so that clause cannot be restated on this side of it.
  */
 export async function searchPlaybooks(
+  library: PlaybookLibrary,
   readerId: string,
   input: SearchPlaybooksInput,
 ): Promise<PlaybookSearchReadout> {
   const cities = input.cities ?? [];
-  const found = await discoverDays({
-    cities,
-    scope: "everyone",
-    // Most-added first: the ledger is the library's own answer to "which of
-    // these is worth taking", and it is the ranking Discover offers a person
-    // making the same choice.
-    sort: "most-added",
-    budget: "any",
-    season: null,
-    readerId,
-  });
+  const found = await library.discover({ cities, readerId });
   return {
     searched: cities.length === 0 ? "the whole library" : cities.join(", "),
-    days: found.days.slice(0, input.limit ?? MAX_PLAYBOOK_RESULTS).map((day) => ({
+    days: found.slice(0, input.limit ?? MAX_PLAYBOOK_RESULTS).map((day) => ({
       savedDayId: day.savedDayId,
       name: day.name,
       cities: day.cities,
@@ -670,9 +660,12 @@ export const searchPlaybooksTool = defineTool({
   spend: "none",
   input: SearchPlaybooksInputSchema,
   output: PlaybookSearchReadoutSchema,
-  needs: ["actor"] as const,
+  // WHO it reads the library as, and WHERE the library is. The second key is
+  // what the audit property was missing: the corpus read used to arrive by
+  // import, so "what can this tool touch?" did not mention Postgres.
+  needs: ["actor", "playbooks"] as const,
   minimumRole: "viewer",
-  run: (input, deps) => searchPlaybooks(deps.actor.userId, input),
+  run: (input, deps) => searchPlaybooks(deps.playbooks, deps.actor.userId, input),
 });
 
 export const READ_TOOLS = [readTripTool, readDayTool, findFreeTimeTool, searchPlaybooksTool] as const;

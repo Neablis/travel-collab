@@ -3,13 +3,15 @@
 // trip, PROPOSES changes to it for an editor (M9), and authors one Notebook
 // page (ADR-033 Decision 4).
 //
-// **One door, three tool sets, chosen from server-resolved facts.** The
-// capability boundary a second endpoint used to buy is now a computation:
-// `offeredToolNamesFor` picks the set and `minimumRoleFor` says what that set
-// requires, both from the guard's answer and from a scope the server has
-// VERIFIED — never from a client-supplied field (ADR-033 Decision 2). The three
-// sets are disjoint where it matters: a page turn holds no planning write tool,
-// and a planning turn holds no page insert tool.
+// **One door, one grant, chosen from server-resolved facts.** The capability
+// boundary a second endpoint used to buy is now a computation: `grantFor` caps
+// each tool domain, `toolsFor` filters the registry by it and `minimumRoleFor`
+// says what the resulting set requires — all from the guard's answer and from a
+// scope the server has VERIFIED, never from a client-supplied field (ADR-033
+// Decision 2). The sets are disjoint where it matters: a page turn holds no
+// planning write tool, and a planning turn holds no page insert tool, because
+// the page surface caps `itinerary` at `read` and does not name `pages` on the
+// planning one (assistant/grants.ts).
 //
 // The turn itself changes nothing. Its write tools collect (writeTools.ts) and
 // the loop ends; what goes out on the stream's last chunk is a resolved
@@ -36,7 +38,7 @@
 // the flag (ADR-019's 2026-08-25 amendment).
 import { z } from "zod";
 import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent, type LanguageModel } from "ai";
-import type { Page, TripRole } from "@tc/contracts";
+import type { Page } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { primitiveCatalog } from "@tc/pages";
 import { guard } from "@/server/pages-guard";
@@ -51,22 +53,25 @@ import {
   MAX_PROMPT_CHARS,
   MAX_PROPOSAL_INSERTS,
 } from "@/server/ai/limits";
-import { buildReadTools, MAX_READ_DAYS, readToolsContext, READ_TOOL_NAMES } from "@/server/ai/readTools";
+import { MAX_READ_DAYS } from "@/server/ai/readTools";
 import {
   buildProposal,
-  buildWriteTools,
   commitProposal,
   droppedWriteCalls,
   parseApprovedCommands,
-  writeToolsContext,
-  WRITE_TOOL_NAMES,
 } from "@/server/ai/writeTools";
+import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
+import { playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
+import { newPageBuffer, newProposalBuffer } from "@/server/assistant/deps";
+import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
 import {
-  buildPageTools,
-  PAGE_TOOL_NAMES,
-  validatePageInserts,
-  type PageInserts,
-} from "@/server/ai/pageTools";
+  grantFor,
+  minimumRoleFor,
+  permitsPropose,
+  postureFor,
+  toolsFor,
+  type AskToolPosture,
+} from "@/server/assistant/grants";
 import { getPage } from "@/server/pages";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
@@ -91,64 +96,38 @@ import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetr
 // (KI-67).
 const MAX_ASK_STEPS = 8;
 
-/**
- * What one turn may be offered, by what the turn is FOR.
- *
- * Three answers, not two, and the third is a real narrowing rather than a move
- * (ADR-033 Decision 4). A page-authoring turn gets the page insert tools and NO
- * planning write tools; a planning turn gets the write tools and NO page insert
- * tools. One door is not the widest door: a turn writing into a Notebook
- * page has no business holding `RemoveActivity`, and the separate endpoint it
- * came from existed largely to say so.
- *
- * Both write halves are DERIVED — the planning tools from `@tc/contracts`
- * command schemas (writeTools.ts), the page tools from the `@tc/pages` macro
- * registry (pageTools.ts) — so each grows with its own registry and never with
- * a hand-written manifest (ADR-015 invariant 5).
- */
-export type AskToolSet = "read-only" | "planning" | "page";
-
-export function offeredToolNamesFor(kind: AskToolSet): readonly string[] {
-  switch (kind) {
-    case "read-only":
-      return READ_TOOL_NAMES;
-    case "planning":
-      return [...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES];
-    case "page":
-      return [...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES];
-  }
-}
-
-// **The guard follows the tool set, not the endpoint.**
+// **`offeredToolNamesFor` and the three name manifests are gone** (F-F02,
+// ADR-043 decision 2). A page-authoring turn still gets the page insert tools
+// and NO planning write tools, and a planning turn still gets the write tools
+// and NO page insert tools — one door is not the widest door, and a turn
+// writing into a Notebook page has no business holding `RemoveActivity`
+// (ADR-033 Decision 4). What changed is that this is no longer a sentence three
+// constants have to keep true: it is the `itinerary` domain capped at `read` on
+// the page surface, and the `pages` domain absent from the planning one, in the
+// surface table in `assistant/grants.ts`.
 //
-// The endpoint this merged in asked for `editor` unconditionally, because every
-// surface it served wrote. A read-only turn is different: a viewer may ask about
-// a trip they can already see, and refusing them would be a permission rule that
-// exists only because the assistant shares a route with one that writes. Now
-// that there is one route, this computation is the whole difference.
+// Both write halves are still DERIVED — the planning tools from `@tc/contracts`
+// command schemas, the page tools from the `@tc/pages` macro registry — so each
+// grows with its own registry and never with a hand-written manifest (ADR-015
+// invariant 5). They now arrive through the registry rather than through a
+// builder each.
+
+// The minimum to get through the door: the role the NARROWEST turn there is
+// still requires. A viewer's turn is read-only and always was; whether THIS turn
+// also gets a write half is decided below, from the role the guard resolved and
+// the scope the server verified, not from the route.
 //
-// Written as a computation rather than a constant so the rule is executable. The
-// moment a tool that is not in `READ_TOOL_NAMES` is offered — `AddActivity`, or
-// `insert_widget` — this answers `editor` without anyone having to remember.
-// Page authoring writes a page, so it lands on the same answer as a planning
-// write, by the same rule and not by a second one. It is not consulted only at
-// the door: the handler asks it what the set it is ABOUT to hand the agent
-// requires, and refuses to build an agent the actor's role does not cover. Every
-// branch is asserted in the /ask route's integration suite (a unit test cannot
-// import this module: `guard()` pulls in next-auth).
-export function minimumRoleFor(toolNames: readonly string[]): TripRole {
-  const readOnly = (READ_TOOL_NAMES as readonly string[]).slice();
-  return toolNames.every((name) => readOnly.includes(name)) ? "viewer" : "editor";
-}
+// Every cap at `read` is what "narrowest" means — `grantFor` is a minimum, so
+// the surface it is asked about cannot widen the answer.
+export const ASK_MINIMUM_ROLE = minimumRoleFor(
+  toolsFor(grantFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })),
+);
 
-// The minimum to get through the door. A viewer's turn is read-only and always
-// was; whether THIS turn also gets a write half is decided below, from the role
-// the guard resolved and the scope the server verified, not from the route.
-export const ASK_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor("read-only"));
-
-// The minimum an approval needs — the same computation, asked about the set a
-// proposal can only have come from.
-export const APPLY_MINIMUM_ROLE = minimumRoleFor(offeredToolNamesFor("planning"));
+// The minimum an approval needs — the same computation, asked about the widest
+// set a proposal can have come from.
+export const APPLY_MINIMUM_ROLE = minimumRoleFor(
+  toolsFor(grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" })),
+);
 
 // Names the `simulated` verdict on the wire, so the client stops deriving it
 // from the model's own prose.
@@ -472,24 +451,55 @@ export async function handleAskRequest(
     canWrite && page === null
       ? await classifyAskIntent(selected.classifierModel, question, recentContext(messages), request.signal)
       : null;
-  const offerWrites = canWrite && page === null && classification?.intent !== "question";
 
-  // The tool set for THIS turn, and the three sets are mutually exclusive by
-  // construction: `page` is non-null only for a verified page scope, and
-  // `offerWrites` is false whenever it is. A viewer reaches neither.
+  // **The turn's grant: a minimum over four independent caps, one per domain**
+  // (ADR-043 decision 2). Each answers a different question, and the four are
+  // not interchangeable — that is why this is not a boolean and not one effect
+  // across all domains.
   //
+  //   * the SURFACE is `scope.kind`, already verified server-side above;
+  //   * the ROLE comes from the guard's members, through the AccessPolicy seam;
+  //   * the PLAN has no source yet — `permitsPropose` permits everybody, which
+  //     is exactly today's behaviour. M20 owns it (spec §7c);
+  //   * the CLASSIFIER is `askIntent`'s answer, and a page turn is not
+  //     classified at all (`classification` is null), so it caps nothing.
+  const caps = {
+    surface: scope.kind,
+    role: canWrite ? ("propose" as const) : ("read" as const),
+    plan: permitsPropose({ userId }),
+    classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
+  };
+  const grant = grantFor(caps);
+  const offered = toolsFor(grant);
+
+  // The two halves the run's final chunk can carry, read off the GRANT rather
+  // than tracked beside it. They stay mutually exclusive by construction: a
+  // page scope caps `itinerary` at `read`, so a page turn cannot propose a
+  // planning change, and no other surface names `pages` at all.
+  const proposesPlan = grant.itinerary === "propose";
+  const proposesPage = grant.pages === "propose";
+  const proposalBuffer = newProposalBuffer();
+  const pageBuffer = newPageBuffer();
+
   // The rule is enforced rather than commented: `minimumRoleFor` is asked what
-  // the set about to be handed to the agent requires, and the actor must
-  // already satisfy it. Unreachable while the lines above decide the set —
-  // which is why it is here, because the next person to add a branch to them is
-  // who this catches.
-  const writeTools = offerWrites ? buildWriteTools() : null;
-  const pageTools = page !== null ? buildPageTools() : null;
-  const tools = { ...buildReadTools().tools, ...(writeTools?.tools ?? {}), ...(pageTools?.tools ?? {}) };
-  const offeredNames = Object.keys(tools);
-  if (!hasAtLeast(userId, detail.members, minimumRoleFor(offeredNames))) {
+  // the set about to be handed to the agent requires — now the maximum
+  // `minimumRole` over the tools actually selected — and the actor must already
+  // satisfy it. Unreachable while the caps above decide the set, which is why
+  // it is here: the next person to add a branch to them is who this catches.
+  //
+  // Every branch is asserted in the /ask route's integration suite (a unit test
+  // cannot import this module: `guard()` pulls in next-auth).
+  if (!hasAtLeast(userId, detail.members, minimumRoleFor(offered))) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
+
+  const tools = aiToolsFor(offered, {
+    proposalBuffer,
+    pageBuffer,
+    playbooks: playbookLibrary,
+    savedDays: savedDayLibrary,
+  });
+  const offeredNames = Object.keys(tools);
 
   // The step settlement's promise, so the end-of-turn path below can AWAIT it.
   //
@@ -516,8 +526,8 @@ export async function handleAskRequest(
     model: modelIdOf(selected.model),
     // What was actually handed to the agent, not what a constant says was —
     // "offered" has to be a measurement for `uncalledTools` to mean anything.
-    // `readTools.test.ts` ties this set to `READ_TOOL_NAMES`, which is what
-    // the guard above is computed from.
+    // It is now the same array the guard above was computed from, rather than
+    // a second one tied to it by a test.
     offeredTools: offeredNames,
     // Beside `question` and `offeredTools`, which is what makes a
     // misclassification diagnosable after the fact rather than only visible as
@@ -572,15 +582,11 @@ export async function handleAskRequest(
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, postureFor(canWrite, offerWrites), briefFor(page)),
+    instructions: instructionsFor(scope, detail.days.length, postureFor(caps), briefFor(page)),
     tools,
-    // Keyed by tool name. `insert_playbook_day` takes the same context under
-    // its own key — the write tools it ships beside take none, so the extra
-    // entry is inert on a turn that was not offered it.
-    toolsContext: {
-      ...readToolsContext({ tripId, userId, detail, scope }),
-      ...writeToolsContext({ tripId, userId, detail, scope }),
-    },
+    // Keyed by tool name, and DERIVED from the same definitions: every tool
+    // that declared an ambient dep gets the context, and nothing else does.
+    toolsContext: ambientContextFor(offered, { tripId, userId, detail, scope }),
     stopWhen: isStepCount(MAX_ASK_STEPS),
     // **This is the whole of our AI-agent tracing, and it is one line.**
     //
@@ -597,7 +603,7 @@ export async function handleAskRequest(
     // on is `ai` >= 7 only.
     telemetry: { functionId: "ask" },
     onStepEnd: (step) => recorder.observeStep(step),
-    // `writeTools` is the SAME collection `messageMetadata`'s `buildProposal`
+    // `proposalBuffer` is the SAME collection `messageMetadata`'s `buildProposal`
     // reads below — `onEnd` just runs first, before the stream's `finish`
     // part exists to build the actual proposal from. A second, cheap
     // `resolveBatch` dry run (`droppedWriteCalls`) is how the drop reaches
@@ -607,7 +613,7 @@ export async function handleAskRequest(
     onEnd: async (end) => {
       recorder.finish(
         end,
-        writeTools ? droppedWriteCalls(writeTools.getCollected(), detail, { tripId, actorId: userId }) : [],
+        proposesPlan ? droppedWriteCalls(proposalBuffer.collected(), detail, { tripId, actorId: userId }) : [],
       );
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
@@ -673,15 +679,16 @@ export async function handleAskRequest(
       // it runs after a human clicked Approve.
       messageMetadata: ({ part }) => {
         if (part.type !== "finish") return undefined;
-        // At most one of these is non-null — the tool sets are disjoint above —
-        // so the final chunk carries a proposal or a page, never both.
-        if (pageTools !== null) return pageInsertsMetadata(pageTools.getInserts());
-        if (writeTools === null) return undefined;
+        // At most one of these is true — the grant caps `itinerary` at `read`
+        // on the surface that grants `pages` — so the final chunk carries a
+        // proposal or a page, never both.
+        if (proposesPage) return pageInsertsMetadata(pageBuffer.inserted());
+        if (!proposesPlan) return undefined;
         const proposal = buildProposal(
-          writeTools.getCollected(),
+          proposalBuffer.collected(),
           detail,
           { tripId, actorId: userId },
-          writeTools.getInserts(),
+          proposalBuffer.inserts(),
         );
         return proposal === null ? undefined : { proposal };
       },
@@ -933,17 +940,6 @@ export async function handleApplyProposalRequest(
   return Response.json(committed.value);
 }
 
-/**
- * What this turn may do, which is not the same question as what the ACTOR may
- * do. Three answers, and the middle one is the reason this is not a boolean.
- *
- *   * `propose`   — an editor, holding the write tools.
- *   * `withheld`  — an editor whose turn the classifier read as a question, so
- *     the write tools were not handed over (askIntent.ts).
- *   * `read-only` — a viewer. They cannot edit at all.
- */
-export type AskToolPosture = "propose" | "withheld" | "read-only";
-
 // The one line that tells the model what it can do this turn.
 //
 // `withheld` and `read-only` are different sentences, and that difference is
@@ -1088,12 +1084,6 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
 
 // A LanguageModel is either a bare model-id string or a provider model object
 // carrying `.modelId` — normalize to the requested id either way.
-/** What the turn may do, from what the actor may do and what this turn was given. */
-export function postureFor(canWrite: boolean, offerWrites: boolean): AskToolPosture {
-  if (offerWrites) return "propose";
-  return canWrite ? "withheld" : "read-only";
-}
-
 function modelIdOf(model: LanguageModel): string {
   return typeof model === "string" ? model : model.modelId;
 }

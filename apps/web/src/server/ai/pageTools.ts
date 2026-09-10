@@ -1,44 +1,27 @@
 // The page tool family's ADAPTER. The two tools moved to the assistant kernel
 // (`@/server/assistant/tools/page`, ADR-043 decision 1), still derived from the
 // `@tc/pages` macro registry and still delegating widget validation to
-// `insertWidget`. What is left here is the builder `handleAskRequest` calls and
-// the validation the ROUTE runs over what a turn produced — which is not a tool
-// and does not belong in the kernel.
+// `insertWidget`. What is left here is the validation the ROUTE runs over what
+// a turn produced — which is not a tool and does not belong in the kernel.
+//
+// **P2 took `buildPageTools()` and `PAGE_TOOL_NAMES` out of it.** A page turn's
+// tool set is `toolsFor(grant)` with the `pages` domain granted at `propose`
+// (grants.ts), and the buffer is minted by the turn — so ADR-035 decision 5's
+// "strictly smaller than `compose_page`" is now a row in the surface table
+// rather than a builder plus a name list. The insert collector's own reason is
+// unchanged and lives on `PageBuffer` (assistant/deps.ts): the inserts leave on
+// the stream's `finish` part as message metadata, and by then the tool result
+// is several SDK frames behind.
 //
 // `validateComposedPage` remains as defense-in-depth over the assembled result:
 // it parses the AST and re-walks every macro node against the registry. Any
 // failure returns { error } — the caller decides whether to downgrade or
 // reject. /ask rejects: a doc that fails here never reaches the client.
-import type { Tool } from "ai";
 import { MacroNode, PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
 import type { PageNode } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
-import { newPageBuffer, type PageInserts } from "@/server/assistant/deps";
-import { aiToolsFor } from "@/server/assistant/registry";
-import { PAGE_TOOLS } from "@/server/assistant/tools/page";
 
 export type { PageInserts } from "@/server/assistant/deps";
-
-/**
- * The page tools, and a reader for what the turn wants inserted.
- *
- * The collector is now a declared dependency (`needs: ["pageBuffer"]`) rather
- * than a closure this function captured; all this mints is the buffer for one
- * turn. Its reason for existing is unchanged: the inserts leave on the stream's
- * `finish` part as message metadata, and by then the tool result is several SDK
- * frames behind — the same reason the write tools collect. `run` still returns,
- * so the model sees its own result and can talk about what it added.
- *
- * ADR-035 decision 5: this surface is "strictly smaller than `compose_page`",
- * and it is — two narrow tools over one broad one, with the widget half
- * delegating validation entirely rather than re-implementing it.
- */
-export function buildPageTools(): { tools: Record<string, Tool>; getInserts: () => PageInserts } {
-  const pageBuffer = newPageBuffer();
-  return { tools: aiToolsFor(PAGE_TOOLS, { pageBuffer }), getInserts: () => pageBuffer.inserted() };
-}
-
-export const PAGE_TOOL_NAMES: readonly string[] = Object.keys(buildPageTools().tools);
 
 // ADR-038's consequences: "`validateComposedPage` stops being special. It
 // becomes 'parse the doc', the same call every other path makes." Half of that

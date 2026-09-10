@@ -11,7 +11,6 @@
 // there is nothing for its schema to drift from. A hand-written write tool
 // that carried command fields from the model is still forbidden.
 import { z } from "zod";
-import { readableSavedDay } from "@/server/savedDays";
 import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 import { defineTool } from "@/server/assistant/defineTool";
 
@@ -56,10 +55,13 @@ const InsertPlaybookDayOutput = z.union([
  * was never reachable. The apply door re-reads regardless (`commitProposal`);
  * this one is for the model, that one is the guarantee.
  *
- * `needs` names both halves of what it touches, and they are exactly the two
- * things a hand-written write tool has to be audited for: WHO it reads the
- * library as (`actor` — the trip is not this tool's business, so it is not
- * declared) and WHERE the intent lands (`proposalBuffer`).
+ * `needs` names every half of what it touches, and they are exactly the things
+ * a hand-written write tool has to be audited for: WHO it reads the library as
+ * (`actor` — the trip is not this tool's business, so it is not declared),
+ * WHERE it reads the row from (`savedDays`, a port since P2 — the read used to
+ * arrive by import from `@/server/savedDays`, which is Postgres two hops down,
+ * so the audit line did not mention it) and WHERE the intent lands
+ * (`proposalBuffer`).
  */
 export const insertPlaybookDayTool = defineTool({
   name: INSERT_PLAYBOOK_DAY,
@@ -70,7 +72,7 @@ export const insertPlaybookDayTool = defineTool({
   spend: "none",
   input: InsertPlaybookDayInput,
   output: InsertPlaybookDayOutput,
-  needs: ["actor", "proposalBuffer"] as const,
+  needs: ["actor", "savedDays", "proposalBuffer"] as const,
   minimumRole: "editor",
   run: async ({ savedDayId }, deps) => {
     // The collector's own ceiling, so the cap holds on both sides of the
@@ -82,7 +84,7 @@ export const insertPlaybookDayTool = defineTool({
         error: `You have already queued ${MAX_PROPOSAL_INSERTS} playbook days, which is the most one proposal may carry. Stop and tell the user what you have drafted.`,
       };
     }
-    const saved = await readableSavedDay(savedDayId, deps.actor.userId);
+    const saved = await deps.savedDays.readable(savedDayId, deps.actor.userId);
     if (saved === null) {
       return {
         error:

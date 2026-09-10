@@ -37,6 +37,58 @@ const gatewayWallZones = [
   },
 ];
 
+// THE ASSISTANT KERNEL ALLOWLIST (ADR-043, corrected 2026-09-10). Everything
+// the kernel may import from `@/server`, and nothing else — see the long
+// comment on the block that uses it for why this is an allowlist and not a
+// longer denylist.
+//
+// Each entry is a module whose own imports reach nothing but `@tc/*` and
+// `@/lib`, so admitting it admits no transitive database, network or session
+// access. Adding one is a claim about the module's whole import graph, not just
+// its name.
+
+/** The kernel itself: its whole subtree is its own. */
+const ASSISTANT_KERNEL_ALLOWED_SUBTREES = ["assistant"];
+
+/** Single modules under `src/server`, each checked to reach nothing but `@tc/*` and `@/lib`. */
+const ASSISTANT_KERNEL_ALLOWED_MODULES = [
+  // Rank comparison for `minimumRoleFor` — read through the AccessPolicy seam
+  // rather than copied, because exactly one place knows a viewer ranks below an
+  // editor (AGENTS.md invariant 6c).
+  "accessPolicy",
+  // `AskScope` and the conflict-ref numbering: pure functions over a TripDetail.
+  "ai/context",
+  // Caps and id-field manifests: constants and pure transforms.
+  "ai/limits",
+  "ai/idFields",
+  "ai/markdownToPageNodes",
+  // `RawToolIntent` and the resolver: `@tc/domain` plus the two above.
+  "ai/batchResolver",
+];
+
+// **A regex, not a `group` of gitignore patterns, and that is not cosmetic.**
+// `no-restricted-imports` matches `group` with the `ignore` package, which
+// implements gitignore's rule that *a file cannot be re-included once a parent
+// directory is excluded*. `["@/server/**", "!@/server/ai/context"]` therefore
+// denies `@/server/ai/context` — the deny-all excludes the `@/server/ai`
+// directory, and the exception never fires. Measured, on this ESLint (9.39):
+// every allowlisted import was rejected. A negative lookahead has no such rule,
+// so the allowlist means what it reads as.
+const assistantKernelDenyPattern = `^@/server(?:$|/(?!(?:${ASSISTANT_KERNEL_ALLOWED_SUBTREES.join(
+  "|",
+)})(?:$|/)|(?:${ASSISTANT_KERNEL_ALLOWED_MODULES.join("|")})$))`;
+
+// The same allowlist as paths relative to `./src/server`, for
+// `import/no-restricted-paths` — which resolves an import to a FILE and
+// therefore needs real paths rather than alias specifiers.
+const ASSISTANT_KERNEL_ALLOWED_PATHS = [
+  ...ASSISTANT_KERNEL_ALLOWED_SUBTREES.map((dir) => `./${dir}`),
+  ...ASSISTANT_KERNEL_ALLOWED_MODULES.map((mod) => `./${mod}.ts`),
+];
+
+const ASSISTANT_WALL_MESSAGE =
+  "The assistant kernel imports nothing from @/server outside its allowlist — the database, the page store, the session and the guard all arrive as injected ports (ADR-043 import wall). Widening the allowlist in eslint.config.mjs is the deliberate way to do this.";
+
 const domainAndServerWallPatterns = [
   {
     group: ["@tc/domain", "@tc/domain/*"],
@@ -184,10 +236,31 @@ export default [
     // regression a review caught against `proxy.ts` and `authConfig.ts`, in
     // this file, and it was invisible because nothing fixtured either path.
     //
-    // The rest of `src/server` is deliberately NOT covered: the adapters in
-    // `src/server/ai` still call `getPage`, `guard` and the executor, which is
-    // what makes P1 a move rather than a rewrite. The wall is on the kernel
-    // because the kernel is what has to stay extractable.
+    // **DENY BY DEFAULT, with an allowlist — not a denylist of named modules.**
+    // This is ADR-043's 2026-09-10 correction, and it was bought with a real
+    // breach. The wall first shipped naming five forbidden specifiers
+    // (`next/*`, `@/server/db/*`, `@/server/pages`, `@/server/auth`,
+    // `@/server/pages-guard`) and claimed everything else arrived as an
+    // injected port. It did not: `search_playbooks` imported `discoverDays`
+    // from `@/server/playbooks` and `insert_playbook_day` imported
+    // `readableSavedDay` from `@/server/savedDays`, and BOTH of those import
+    // `./db/client` one hop down (playbooks.ts:17, savedDays.ts:12). ESLint
+    // sees only direct imports, so the kernel was inside Postgres and lint said
+    // it was clean — a boundary that fails silently is worse than none.
+    //
+    // A denylist has to enumerate what is bad, so it is wrong every time
+    // somebody adds a module, and it is wrong QUIETLY. An allowlist has to
+    // enumerate what is permitted, so it is wrong loudly, at the moment of the
+    // change, in the diff of the person making it. Every name in `ALLOWED`
+    // below is a module with no import outside `@tc/*` and `@/lib` — checked,
+    // not assumed — and widening it is the thing a reviewer is being asked to
+    // look at.
+    //
+    // The rest of `src/server` is deliberately NOT covered by a wall of its
+    // own: the adapters in `src/server/ai` still call `getPage`, `guard`, the
+    // executor and both library reads, which is what makes this a move rather
+    // than a rewrite. The wall is on the kernel because the kernel is what has
+    // to stay extractable.
     //
     // `packages/assistant` would have got this from the compiler for free and
     // was rejected for one reason (ADR-043, Alternatives): `packages/*` have no
@@ -211,14 +284,8 @@ export default [
                 "The assistant kernel holds no request, response or route type — it takes what it needs as an injected port (ADR-043 import wall).",
             },
             {
-              group: ["@/server/db", "@/server/db/*"],
-              message:
-                "The assistant kernel does not reach the database — a tool takes what it reads through AssistantDeps (ADR-043 import wall).",
-            },
-            {
-              group: ["@/server/pages", "@/server/pages-guard", "@/server/auth"],
-              message:
-                "The assistant kernel does not resolve a page, a session or an access guard — admission does that and hands the kernel its answer (ADR-043 import wall).",
+              regex: assistantKernelDenyPattern,
+              message: ASSISTANT_WALL_MESSAGE,
             },
           ],
         },
@@ -229,28 +296,13 @@ export default [
           zones: [
             ...gatewayWallZones,
             {
+              // The same wall, resolved rather than string-matched, so
+              // `../playbooks` and `../../server/savedDays` are closed too.
+              // `except` is relative to `from`.
               target: "./src/server/assistant",
-              from: "./src/server/db",
-              message:
-                "The assistant kernel does not reach the database (ADR-043 import wall). This still applies via a relative import.",
-            },
-            {
-              target: "./src/server/assistant",
-              from: "./src/server/pages.ts",
-              message:
-                "The assistant kernel does not resolve a page — admission does, and hands the kernel its answer (ADR-043 import wall). This still applies via a relative import.",
-            },
-            {
-              target: "./src/server/assistant",
-              from: "./src/server/pages-guard.ts",
-              message:
-                "The assistant kernel does not run the page access guard (ADR-043 import wall). This still applies via a relative import.",
-            },
-            {
-              target: "./src/server/assistant",
-              from: "./src/server/auth.ts",
-              message:
-                "The assistant kernel does not read a session (ADR-043 import wall). This still applies via a relative import.",
+              from: "./src/server",
+              except: ASSISTANT_KERNEL_ALLOWED_PATHS,
+              message: `${ASSISTANT_WALL_MESSAGE} This still applies via a relative import.`,
             },
           ],
         },

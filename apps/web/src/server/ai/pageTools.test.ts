@@ -3,8 +3,20 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { buildPageTools, PAGE_TOOL_NAMES, validateComposedPage, validatePageInserts } from "./pageTools";
+import { validateComposedPage, validatePageInserts } from "./pageTools";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
+import { newPageBuffer } from "@/server/assistant/deps";
+import { aiToolsFor } from "@/server/assistant/registry";
+import { PAGE_TOOLS } from "@/server/assistant/tools/page";
+
+// One turn's page tools, built the way a turn builds them: a fresh buffer and
+// the registry's page family. This was `buildPageTools()` in pageTools.ts until
+// P2, when a turn's tool set became `toolsFor(grant)` and the last caller of
+// the builder was this file.
+function buildPageTools() {
+  const pageBuffer = newPageBuffer();
+  return { tools: aiToolsFor(PAGE_TOOLS, { pageBuffer }), getInserts: () => pageBuffer.inserted() };
+}
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
 // covering Standard Schema, Zod, and other schema shapes it accepts), which
@@ -104,15 +116,12 @@ describe("insert_widget", () => {
   });
 });
 
-// PAGE_TOOL_NAMES is MEASURED from the built set, never listed — the same rule
-// WRITE_TOOL_NAMES follows, and what makes `minimumRoleFor` answer "editor" for
-// a second page tool without anyone remembering to add it.
-describe("PAGE_TOOL_NAMES", () => {
-  it("is the built tool set's own keys", () => {
-    expect([...PAGE_TOOL_NAMES]).toEqual(Object.keys(buildPageTools().tools));
-    expect([...PAGE_TOOL_NAMES]).toEqual(["insert_text", "insert_widget"]);
-  });
-});
+// `PAGE_TOOL_NAMES` used to be measured from the built set here, so that a
+// second page tool would flip `minimumRoleFor` to "editor" without anyone
+// remembering to add it. That property is now the `pages` domain's, and the
+// assertion it justified — a page turn holds exactly `insert_text` and
+// `insert_widget` on top of the read family — lives in `grants.test.ts`, over
+// the surface table that decides it.
 
 describe("validatePageInserts", () => {
   it("wraps nodes in a versioned PageDoc, so inserted content carries `v`", () => {

@@ -113,6 +113,6 @@ export const insertWidgetTool = defineTool({
   },
 });
 
-// In call order, which is the order `PAGE_TOOL_NAMES` measures and the order a
-// page turn's tools are offered in.
+// In call order, which is the order a page turn's tools are offered in:
+// `toolsFor` preserves registry order, and the analytics record measures it.
 export const PAGE_TOOLS: readonly AnyAssistantTool[] = [insertTextTool, insertWidgetTool];

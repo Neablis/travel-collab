@@ -1,12 +1,12 @@
 // Every tool the assistant has, in one array, plus the adapters that turn a
 // definition into an AI SDK `Tool`.
 //
-// The registry is the point of ADR-043 decision 2, which P2 builds: the three
-// hand-written name manifests and `offeredToolNamesFor`'s switch exist only
-// because there was nowhere to ask "which tools are there, and what is each
-// one for?". There is now. **P1 records the tags and reads none of them** —
-// `toolsFor(grant)` is P2's, and building it here would be building the filter
-// twice.
+// The registry is the point of ADR-043 decision 2: the three hand-written name
+// manifests and `offeredToolNamesFor`'s switch existed only because there was
+// nowhere to ask "which tools are there, and what is each one for?". There is
+// now, and `toolsFor(grant)` (grants.ts) is the filter over it that replaced
+// them. The tags stay recorded HERE and read THERE — building the filter in
+// this file would be building it twice.
 //
 // The adapters are here rather than beside each family because the mapping is
 // one fact about the SDK, not four: where a definition's declared `needs` come
@@ -18,9 +18,10 @@
 //     channel `toolsContext` has always used, and the reason "read a different
 //     trip" is not expressible (ADR-022 §3).
 //   * **Turn keys are supplied when the tool set is built.** A collector is an
-//     object with identity; only the turn can mint one, and there is nothing
-//     for a schema to validate. It is closed over, and `needs` is still the
-//     whole of what a tool may reach.
+//     object with identity that only the turn can mint, and a library port is a
+//     function only the app's edge can supply; neither is something a schema
+//     can validate. They are closed over, and `needs` is still the whole of
+//     what a tool may reach.
 //
 // P3 collapses this distinction — one `AssistantDeps` built by the admission
 // pipeline — and the adapters below are the seam it will replace.
@@ -30,6 +31,7 @@ import {
   AssistantContextSchema,
   ambientDepsFrom,
   isTurnDepKey,
+  type AssistantContext,
   type AssistantDeps,
   type TurnDeps,
 } from "./deps";
@@ -121,18 +123,54 @@ function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>): Tool 
 
 /**
  * A set of definitions as the AI SDK tool object an agent is handed, keyed by
- * name and in the order given — which is what `PAGE_TOOL_NAMES` and
- * `WRITE_TOOL_NAMES` measure.
+ * name and in the order given — so `Object.keys()` over the result is the
+ * offered set, in registry order, and is a MEASUREMENT rather than a manifest.
  */
+/**
+ * A built tool set, with the CONTEXT parameter pinned.
+ *
+ * A bare `Record<string, Tool>` leaves it untyped, and `InferToolSetContext`
+ * then resolves the whole set's context to nothing — which types
+ * `ToolLoopAgent`'s `toolsContext` as `undefined` and turns the one channel
+ * ADR-022 §3's guarantee rides on into a cast at the call site. Naming the
+ * context here keeps it checked instead. A tool built by `plainTool` simply has
+ * no entry in `ambientContextFor`'s result, which an index signature permits.
+ */
+// The SDK's own `ToolSet` is `Record<string, Tool<any, any, any>>`; the third
+// parameter is the one this alias exists to pin, and the first two cannot be
+// narrowed without making every concrete tool unassignable.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AssistantToolSet = Record<string, Tool<any, any, AssistantContext | undefined>>;
+
 export function aiToolsFor(
   definitions: readonly AnyAssistantTool[],
   turn: Partial<TurnDeps> = {},
-): Record<string, Tool> {
-  const tools: Record<string, Tool> = {};
+): AssistantToolSet {
+  const tools: AssistantToolSet = {};
   for (const definition of definitions) {
     tools[definition.name] = needsAmbient(definition)
       ? (contextTool(definition, turn) as Tool)
       : plainTool(definition, turn);
   }
   return tools;
+}
+
+/**
+ * The context channel's payload, under the name of every definition that reads
+ * it — `toolsContext` is keyed by tool.
+ *
+ * Only the definitions that declare an ambient key get an entry: a tool with no
+ * `contextSchema` has nothing to validate one against. Which tools those are is
+ * read off `needs` rather than listed, which is what `readToolsContext` and
+ * `writeToolsContext` were two hand-written halves of.
+ */
+export function ambientContextFor(
+  definitions: readonly AnyAssistantTool[],
+  context: AssistantContext,
+): Record<string, AssistantContext> {
+  const byName: Record<string, AssistantContext> = {};
+  for (const definition of definitions) {
+    if (needsAmbient(definition)) byName[definition.name] = context;
+  }
+  return byName;
 }

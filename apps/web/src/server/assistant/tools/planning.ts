@@ -13,8 +13,13 @@
 //
 // `defineTool` is the envelope and this loop is the body: a thirteenth
 // BatchableCommand becomes a thirteenth tool with no hand edit here, and
-// therefore a thirteenth entry in the registry. There is no list of command
-// names in this file and there must never be one.
+// therefore a thirteenth entry in the registry — and, since P2, a thirteenth
+// member of every grant that reaches `itinerary`/`propose`. There is no list of
+// command names in this file and there must never be one.
+//
+// The loop is a pass-through, deliberately: wrapping these definitions in
+// anything that alters a schema or a `run` would be the reimplementation
+// ADR-022 §4 rules out.
 import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/ai/idFields";

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Tool } from "ai";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
@@ -7,7 +8,6 @@ import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 import { readableSavedDay } from "@/server/savedDays";
 import {
   buildProposal,
-  buildWriteTools,
   commitProposal,
   describeProposedChange,
   droppedWriteCalls,
@@ -15,9 +15,13 @@ import {
   parseApprovedCommands,
   withDefaultKind,
   withoutFabricatedCost,
-  WRITE_TOOL_NAMES,
   type RawToolIntent,
 } from "./writeTools";
+import { savedDayLibrary } from "@/server/ai/assistantPorts";
+import { newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
+import { aiToolsFor, contextTool, type AssistantToolSet } from "@/server/assistant/registry";
+import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
+import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
 
 // `commitProposal` submits through `flushPlanningBatch`, which reaches
 // Postgres. Its behaviour against a real database is the apply route's
@@ -29,9 +33,12 @@ vi.mock("./planningTools", async (importOriginal) => {
 });
 const { flushPlanningBatch } = await import("./planningTools");
 
-// `insert_playbook_day` resolves the row before collecting, which is Postgres.
-// The collector's own ceiling is what this file tests, so the read is stubbed
-// to always succeed — the real read is the apply route's integration suite.
+// `insert_playbook_day` resolves the row before collecting, which is Postgres —
+// reached through the `savedDays` PORT since P2, whose one adapter
+// (`assistantPorts.ts`) calls this module. Mocking the module still stubs the
+// read, and now stubs it for the only path to it. The collector's own ceiling
+// is what this file tests, so the read is stubbed to always succeed — the real
+// read is the apply route's integration suite.
 vi.mock("@/server/savedDays", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/savedDays")>();
   return {
@@ -57,20 +64,47 @@ function mints(): () => string {
   return () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
 }
 
+/**
+ * One turn's write tools, built the way a turn builds them: one buffer, both
+ * halves. This was `buildWriteTools()` in writeTools.ts until P2, when a turn's
+ * tool set became `toolsFor(grant)` and this file was its last caller.
+ *
+ * `getCollected` and `getInserts` are two readers of the ONE `proposalBuffer`
+ * the turn mints and hands to every write definition that declared it, which is
+ * what makes "what did this turn ask for?" a single value rather than a join.
+ */
+function buildWriteTools(): { tools: AssistantToolSet; getCollected: () => RawToolIntent[]; getInserts: () => CollectedInsert[] } {
+  const proposalBuffer = newProposalBuffer();
+  return {
+    tools: {
+      ...aiToolsFor(PLANNING_TOOLS, { proposalBuffer }),
+      // `as Tool` for the reason `aiToolsFor` makes the same cast: `contextTool`
+      // returns an INFERRED type whose context is exactly `AssistantContext`, and
+      // a set is keyed by a context that a tool without one may also satisfy.
+      [INSERT_PLAYBOOK_DAY]: contextTool(insertPlaybookDayTool, {
+        proposalBuffer,
+        savedDays: savedDayLibrary,
+      }) as Tool,
+    },
+    getCollected: () => proposalBuffer.collected(),
+    getInserts: () => proposalBuffer.inserts(),
+  };
+}
+
 function propose(intents: RawToolIntent[]) {
   return buildProposal(intents, detail, { tripId: TRIP_ID, actorId: ACTOR, mintId: mints(), proposalId: "p1" });
 }
 
-describe("WRITE_TOOL_NAMES", () => {
+describe("the write tool set", () => {
   // The point of measuring rather than listing: a thirteenth BatchableCommand
-  // becomes a thirteenth write tool AND flips `minimumRoleFor` to editor for
-  // free. A hand-written array would silently offer it to a viewer.
+  // becomes a thirteenth write tool AND raises `minimumRoleFor` to editor for
+  // free. A hand-written array would silently offer it to a viewer. The set is
+  // now measured from the registry rather than from a `WRITE_TOOL_NAMES`
+  // constant beside it, which is the second statement F-F02 named — and the
+  // derived half is still measured against the CONTRACT, so the ADR-042
+  // exception cannot quietly grow a second member.
   it("is the derived planning tool set, plus the one hand-written tool", () => {
-    expect([...WRITE_TOOL_NAMES].sort()).toEqual(Object.keys(buildWriteTools().tools).sort());
-    // The derived half still measured against the contract, so the ADR-042
-    // exception cannot quietly grow a second member: everything in
-    // WRITE_TOOL_NAMES is either a BatchableCommand or `insert_playbook_day`.
-    expect([...WRITE_TOOL_NAMES].sort()).toEqual(
+    expect(Object.keys(buildWriteTools().tools).sort()).toEqual(
       [...BatchableCommand.options.map((o) => o.shape.type.value as string), INSERT_PLAYBOOK_DAY].sort(),
     );
   });

@@ -22,10 +22,12 @@
 // because a compile-time guarantee no test can see is one a refactor can
 // delete silently.
 //
-// `domain`, `effect`, `spend` and `minimumRole` are RECORDED here and read by
-// nothing yet. P2 builds the (domain, effect) filter that replaces
-// `offeredToolNamesFor`; P5 reads `spend`. Recording them first is what makes
-// those phases a filter over data rather than a second manifest.
+// `domain`, `effect` and `minimumRole` are RECORDED here and READ by
+// `grants.ts` — the (domain, effect) filter that replaced `offeredToolNamesFor`
+// and the three name manifests (F-F02). `spend` is still recorded and read by
+// nothing; P5 is where it becomes the ledger's filter. Recording a tag before
+// there is a reader is what makes each of those phases a filter over data
+// rather than a second manifest.
 import type { z } from "zod";
 import type { TripRole } from "@tc/contracts";
 import type { AssistantDeps, DepKey } from "./deps";

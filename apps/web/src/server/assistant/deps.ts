@@ -11,10 +11,11 @@
 // The keys are what the tools that exist TODAY actually need, read off them
 // rather than guessed at: `trip` (three read tools), `actor` (the two that
 // reach the library as somebody), `scope` (the day-scope fallback that a model
-// must not be able to omit its way out of), and the two per-turn collectors.
-// A key nothing needs is a key nothing can audit.
+// must not be able to omit its way out of), the two per-turn collectors, and
+// the two library ports. A key nothing needs is a key nothing can audit.
 import { z } from "zod";
-import type { PageNode, TripDetail } from "@tc/contracts";
+import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
+import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/ai/batchResolver";
 import type { AskScope } from "@/server/ai/context";
 
@@ -116,6 +117,40 @@ export function newPageBuffer(): PageBuffer {
 }
 
 /**
+ * The Playbook corpus, as much of it as one reader may see.
+ *
+ * **A port because the kernel reaches no database, and this is the hop that
+ * proved a denylist cannot say so.** `search_playbooks` imported `discoverDays`
+ * from `@/server/playbooks`, which imports `./db/client` — so the kernel was
+ * already inside Postgres while the wall's five forbidden names all passed,
+ * silently (ADR-043's 2026-09-10 correction; the wall is now deny-by-default
+ * over `@/server/**` with an allowlist, and this port is what pays for it).
+ *
+ * It is narrow on purpose: the kernel names WHAT it needs — the days this
+ * reader may see, ranked the way the library ranks them — and the adapter
+ * (`server/ai/assistantPorts.ts`) knows how the corpus is queried, including
+ * the visibility clause that must stay the apply door's. Widening this to
+ * `DiscoverQuery` would move that clause back into the kernel.
+ */
+export interface PlaybookLibrary {
+  discover(query: { cities: string[]; readerId: string }): Promise<readonly DiscoverDay[]>;
+}
+
+/**
+ * One saved day, resolved as somebody — the read `insert_playbook_day` makes
+ * before it collects.
+ *
+ * A port for the same reason and by the same hop: `readableSavedDay` lives in
+ * `@/server/savedDays`, which imports `./db/client` (savedDays.ts:12). The
+ * shape is `readableSavedDay`'s own, unchanged, because the guarantee is its
+ * WHERE clause — *your own days plus anybody's published one* — and a port
+ * that re-stated it would be the third copy ADR-042 Decision 2 forbids.
+ */
+export interface SavedDayLibrary {
+  readable(savedDayId: string, readerId: string): Promise<SavedDay | null>;
+}
+
+/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -141,6 +176,10 @@ export interface AssistantDeps {
   proposalBuffer: ProposalBuffer;
   /** The page tools' per-turn collector. */
   pageBuffer: PageBuffer;
+  /** How `search_playbooks` reaches the library. */
+  playbooks: PlaybookLibrary;
+  /** How `insert_playbook_day` resolves the row it was handed. */
+  savedDays: SavedDayLibrary;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -151,8 +190,12 @@ export type DepKey = keyof AssistantDeps;
  *
  * The split is where the values COME FROM, not a second permission system:
  * `needs` is still the whole of what a tool may reach. Ambient keys are the
- * request's own facts (`contextSchema` re-validates them on every call);
- * the rest are objects with identity that only the turn can mint.
+ * request's own facts (`contextSchema` re-validates them on every call); the
+ * rest are supplied when the tool set is BUILT, because there is nothing for a
+ * schema to validate about them — a collector is an object with identity only
+ * the turn can mint, and a library port is a function only the app's edge can
+ * supply. Their lifetimes differ (a buffer is per-turn, a port is per-process)
+ * and that is not what this split is about.
  */
 export const AMBIENT_DEP_KEYS = ["trip", "actor", "scope"] as const;
 export type AmbientDepKey = (typeof AMBIENT_DEP_KEYS)[number];
@@ -162,12 +205,17 @@ export type TurnDeps = Pick<AssistantDeps, TurnDepKey>;
 // A dep that is not ambient has to be listed here, or the adapter stops
 // checking that a turn supplied it — silently, on exactly the tool that needs
 // it most. Neither list is derivable from `AssistantDeps` at runtime, so the
-// exhaustiveness is bought with a `Record<TurnDepKey, true>`: a sixth
+// exhaustiveness is bought with a `Record<TurnDepKey, true>`: a fifth
 // non-ambient key fails to compile until it appears below.
 //
 // (The obvious spelling — `const _: Exclude<TurnDepKey, …>[] = []` — asserts
 // nothing, because an empty array satisfies any element type. Measured.)
-const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = { proposalBuffer: true, pageBuffer: true };
+const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
+  proposalBuffer: true,
+  pageBuffer: true,
+  playbooks: true,
+  savedDays: true,
+};
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 
 export function isTurnDepKey(key: DepKey): key is TurnDepKey {

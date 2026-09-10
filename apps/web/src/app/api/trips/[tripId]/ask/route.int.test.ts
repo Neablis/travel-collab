@@ -50,14 +50,28 @@ const {
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
   SIMULATED_HEADER,
-  minimumRoleFor,
-  offeredToolNamesFor,
   instructionsFor,
-  postureFor,
 } = await import("@/server/ai/handleAskRequest");
-const { READ_TOOL_NAMES } = await import("@/server/ai/readTools");
-const { WRITE_TOOL_NAMES } = await import("@/server/ai/writeTools");
-const { PAGE_TOOL_NAMES, validateComposedPage } = await import("@/server/ai/pageTools");
+const { grantFor, minimumRoleFor, postureFor, toolsFor } = await import("@/server/assistant/grants");
+const { validateComposedPage } = await import("@/server/ai/pageTools");
+
+// The three sets a turn can be offered, each computed the way the handler
+// computes it: a surface, a role, a plan and a classifier verdict, minimised
+// per domain (ADR-043 decision 2). They are NOT three name lists any more —
+// that was `offeredToolNamesFor`, and its test asserted it against its own
+// constants (F-F02). What each set actually contains, named literally, is
+// pinned once in `assistant/grants.test.ts`; what this file asserts is that the
+// handler reached the same caps from a real request.
+const readOnlyTools = toolsFor(grantFor({ surface: "trip", role: "read", plan: "read", classifier: "read" }));
+const planningTools = toolsFor(
+  grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" }),
+);
+const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
+const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
+const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
+const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
+/** The propose half of a planning turn — what a page turn must not hold. */
+const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
 
@@ -376,19 +390,18 @@ describe("POST /api/trips/:id/ask", () => {
     it("computes the guard from the tool set", () => {
       expect(ASK_MINIMUM_ROLE).toBe("viewer");
       expect(APPLY_MINIMUM_ROLE).toBe("editor");
-      expect(minimumRoleFor(READ_TOOL_NAMES)).toBe("viewer");
-      expect(minimumRoleFor([...READ_TOOL_NAMES, "AddActivity"])).toBe("editor");
-      expect(minimumRoleFor(offeredToolNamesFor("read-only"))).toBe("viewer");
-      expect(minimumRoleFor(offeredToolNamesFor("planning"))).toBe("editor");
+      expect(minimumRoleFor(readOnlyTools)).toBe("viewer");
+      expect(minimumRoleFor(planningTools)).toBe("editor");
       // Page authoring writes a page, so it lands on `editor` by the SAME rule
       // as a planning write rather than by a second one (ADR-033 Decision 4).
-      expect(minimumRoleFor(offeredToolNamesFor("page"))).toBe("editor");
-      expect(minimumRoleFor([...READ_TOOL_NAMES, "compose_page"])).toBe("editor");
-      // Every write tool, not just the one named above — a thirteenth
-      // BatchableCommand, or a second page tool, inherits the editor requirement
-      // for free.
-      for (const name of [...WRITE_TOOL_NAMES, ...PAGE_TOOL_NAMES]) {
-        expect(minimumRoleFor([...READ_TOOL_NAMES, name]), `${name} must require editor`).toBe("editor");
+      expect(minimumRoleFor(pageTurnTools)).toBe("editor");
+      // Every write tool, one at a time — a thirteenth BatchableCommand, or a
+      // second page tool, inherits the editor requirement for free, because the
+      // answer is the maximum over the set actually selected.
+      const writeTools = [...planningTools, ...pageTurnTools].filter((t) => t.effect === "propose");
+      expect(writeTools.length).toBeGreaterThan(0);
+      for (const tool of writeTools) {
+        expect(minimumRoleFor([...readOnlyTools, tool]), `${tool.name} must require editor`).toBe("editor");
       }
     });
 
@@ -397,11 +410,11 @@ describe("POST /api/trips/:id/ask", () => {
     // other's tools, and that is a property of this function rather than of a
     // branch inside the handler.
     it("keeps the page and planning tool sets disjoint", () => {
-      expect(offeredToolNamesFor("page")).not.toContain("AddActivity");
-      expect(offeredToolNamesFor("page")).toEqual([...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES]);
-      expect(offeredToolNamesFor("planning")).not.toContain("compose_page");
-      for (const name of WRITE_TOOL_NAMES) {
-        expect(offeredToolNamesFor("page"), `a page turn must not hold ${name}`).not.toContain(name);
+      expect(PAGE_TURN_TOOL_NAMES).not.toContain("AddActivity");
+      expect(PAGE_TURN_TOOL_NAMES).toEqual([...READ_TOOL_NAMES, "insert_text", "insert_widget"]);
+      expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
+      for (const name of WRITE_ONLY_NAMES) {
+        expect(PAGE_TURN_TOOL_NAMES, `a page turn must not hold ${name}`).not.toContain(name);
       }
     });
   });
@@ -419,7 +432,7 @@ describe("POST /api/trips/:id/ask", () => {
         (r) => records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
       expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: false });
     });
 
@@ -455,7 +468,7 @@ describe("POST /api/trips/:id/ask", () => {
         verdict: '{"result":"question"}',
         failedOpen: false,
       });
-      expect(told[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(told[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
     });
 
     // Mitchell's live thread, 2026-08-29, verbatim — and the regression this
@@ -492,7 +505,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
       // Answered by the rule, so no model was asked and no model could be
       // wrong about it.
       expect(records[0]!.classification).toMatchObject({
@@ -576,12 +589,16 @@ describe("POST /api/trips/:id/ask", () => {
     // The rule underneath both, stated once: what the TURN may do is not the
     // same question as what the ACTOR may do, and only the middle case is new.
     it("derives the turn's posture from the actor and the turn together", () => {
-      expect(postureFor(true, true)).toBe("propose");
-      expect(postureFor(true, false)).toBe("withheld");
-      expect(postureFor(false, false)).toBe("read-only");
-      // Unreachable by construction — `offerWrites` is `canWrite && …` — and
-      // asserted so it stays that way if that line ever grows a branch.
-      expect(postureFor(false, true)).toBe("propose");
+      const caps = (role: "read" | "propose", classifier: "read" | "propose") =>
+        ({ role, plan: "propose", classifier }) as const;
+      expect(postureFor(caps("propose", "propose"))).toBe("propose");
+      expect(postureFor(caps("propose", "read"))).toBe("withheld");
+      expect(postureFor(caps("read", "read"))).toBe("read-only");
+      // A viewer whose turn the classifier would have let write. Unreachable —
+      // the handler does not classify a turn with no write half to withhold —
+      // and asserted so that the ROLE stays the term that decides, if that line
+      // ever grows a branch: a viewer is never told the turn is retryable.
+      expect(postureFor(caps("read", "propose"))).toBe("read-only");
 
       const withheld = instructionsFor({ kind: "trip" }, 3, "withheld");
       expect(withheld).toContain("they can change this trip");
@@ -629,7 +646,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...WRITE_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
       expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: true });
       expect(records[0]!.classification!.verdict).toContain("provider exploded");
     });
@@ -767,8 +784,9 @@ describe("POST /api/trips/:id/ask", () => {
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
     });
 
-    // `search_playbooks` is a READ tool, so it rides `READ_TOOL_NAMES` and
-    // `minimumRoleFor` still answers `viewer` for a turn that only browses.
+    // `search_playbooks` is a READ tool in the `library` domain, so it rides
+    // every surface's read cap and `minimumRoleFor` still answers `viewer` for
+    // a turn that only browses.
     // Asserted through the offered set rather than by calling the computation,
     // because the set is what the guard is computed from.
     it("offers a viewer search_playbooks, because browsing the library is not a write", async () => {
@@ -898,8 +916,8 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES, ...PAGE_TOOL_NAMES].sort());
-      for (const name of WRITE_TOOL_NAMES) {
+      expect(records[0]!.offeredTools.sort()).toEqual([...PAGE_TURN_TOOL_NAMES].sort());
+      for (const name of WRITE_ONLY_NAMES) {
         expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);
       }
       // No planning write tool means `enrichCommandLocations` is structurally

@@ -158,6 +158,96 @@ expectRejectedBy(
   'relative "./gateway" import outside modelSelection.ts correctly rejected',
 );
 
+// THE ASSISTANT KERNEL WALL (ADR-043, corrected 2026-09-10): from inside
+// `src/server/assistant/**`, no `@/server/*` import at all except a named
+// allowlist, and no `next/*`. Everything else arrives as an injected port.
+//
+// **The transitive fixtures below are the point of this block.** P1 shipped
+// this wall as a five-name denylist — `next/*`, `@/server/db/*`,
+// `@/server/pages`, `@/server/auth`, `@/server/pages-guard` — and lint passed
+// while `search_playbooks` reached Postgres through `@/server/playbooks` and
+// `insert_playbook_day` through `@/server/savedDays`, each of which imports
+// `./db/client` one hop down. ESLint sees only direct imports, so a probe that
+// fixtures only the named modules proves nothing about the hop that actually
+// existed. The deny-by-default wall catches it by refusing the INTERMEDIATE
+// module, and these two fixtures are that claim, named.
+//
+// P1 also verified the flat-config shadowing by hand with `--print-config` and
+// reported that the check was not repeatable. The three real-file assertions
+// further down are that check, made repeatable.
+expectRejectedBy(
+  lintFixture(
+    "lint_wall_kernel_next_fixture",
+    'import type { NextRequest } from "next/server";\nexport type Forbidden = NextRequest;\n',
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "no-restricted-imports",
+  "assistant kernel: a next/* import correctly rejected",
+);
+
+expectRejectedBy(
+  lintFixture(
+    "lint_wall_kernel_db_fixture",
+    'import { db } from "@/server/db/client";\nexport function forbidden() { return db; }\n',
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "no-restricted-imports",
+  "assistant kernel: a direct @/server/db import correctly rejected",
+);
+
+// The hop the denylist missed, half one: `@/server/playbooks` is not a database
+// module by name, and imports `./db/client` at line 17.
+expectRejectedBy(
+  lintFixture(
+    "lint_wall_kernel_playbooks_fixture",
+    'import { discoverDays } from "@/server/playbooks";\nexport function forbidden() { return discoverDays; }\n',
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "no-restricted-imports",
+  "assistant kernel: @/server/playbooks (Postgres one hop down) correctly rejected",
+);
+
+// Half two: `@/server/savedDays`, which imports `./db/client` at line 12.
+expectRejectedBy(
+  lintFixture(
+    "lint_wall_kernel_saveddays_fixture",
+    'import { readableSavedDay } from "@/server/savedDays";\nexport function forbidden() { return readableSavedDay; }\n',
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "no-restricted-imports",
+  "assistant kernel: @/server/savedDays (Postgres one hop down) correctly rejected",
+);
+
+// The same module by its RELATIVE spelling, which `no-restricted-imports` does
+// not see at all — the bypass a review found against the gateway rule, closed
+// here by `import/no-restricted-paths` resolving the import first. Named per
+// rule so one of the two halves going missing cannot hide behind the other.
+expectRejectedBy(
+  lintFixture(
+    "lint_wall_kernel_relative_fixture",
+    'import { discoverDays } from "../playbooks";\nexport function forbidden() { return discoverDays; }\n',
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "import/no-restricted-paths",
+  'assistant kernel: relative "../playbooks" correctly rejected',
+);
+
+// The other half of every wall, and the one a deny-by-default rule gets wrong
+// most easily: the allowlist has to actually reach the kernel. Both spellings
+// in one fixture — the alias form an allowlisted module is imported by, and a
+// relative import of the kernel's own sibling, which `import/no-restricted-paths`
+// would close along with everything else if its `except` were wrong.
+expectClean(
+  lintFixture(
+    "lint_wall_kernel_allowed_fixture",
+    'import { askScopeLine } from "@/server/ai/context";\n' +
+      'import { newPageBuffer } from "./deps";\n' +
+      "export function allowed() { return [askScopeLine, newPageBuffer]; }\n",
+    { dir: "src/server/assistant", ext: "ts" },
+  ),
+  "assistant kernel: an allowlisted module and its own sibling correctly pass",
+);
+
 // Some assertions below check "this exact real file's effective config",
 // which a fixture cannot express — a fixture is, by construction, a file at
 // some OTHER path. `--print-config` reports the no-restricted-imports rule
@@ -187,6 +277,21 @@ function noRestrictedImportPatterns(relativePath) {
 
 function restricts(patterns, importPath) {
   return patterns.some((p) => (p.group ?? []).some((g) => g === importPath || g.includes(importPath)));
+}
+
+/**
+ * The same question for a `regex` pattern, which the assistant wall uses instead
+ * of a `group` — `no-restricted-imports` matches `group` with the `ignore`
+ * package, and gitignore's "a file cannot be re-included once a parent directory
+ * is excluded" rule makes a deny-all-plus-exceptions group deny its own
+ * exceptions. Measured; see eslint.config.mjs.
+ */
+function restrictedByPattern(patterns, importPath) {
+  return patterns.some(
+    (p) =>
+      (p.regex !== undefined && new RegExp(p.regex, "u").test(importPath)) ||
+      (p.group ?? []).some((g) => g === importPath),
+  );
 }
 
 // The positive half of the gateway wall: modelSelection.ts itself must stay
@@ -226,6 +331,46 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
     process.exitCode = 1;
   } else {
     console.log(`lint wall OK: ${path} still carries the @tc/domain / @/server/* wall`);
+  }
+}
+
+// The assistant kernel's own real-file check, for the same flat-config reason
+// and against a file a fixture cannot be. `src/server/assistant/**` is matched
+// by TWO blocks that both set `no-restricted-imports` — the gateway chokepoint
+// block and the kernel block after it — and flat config REPLACES a rule's
+// options with the last matching block's rather than merging them. The kernel
+// block therefore has to re-assert `gatewayWallPatterns`, and if it stops, the
+// most security-sensitive directory in the app becomes the one place
+// `selectAiModel()`'s chokepoint is not enforced. Silently: no fixture in this
+// file would notice, because a fixture is by construction a file at some other
+// path with its own resolved config.
+//
+// Three questions, on one real kernel file: the gateway wall survived the
+// shadowing, the deny-all reaches the file, and the allowlist reaches it too.
+{
+  const path = "src/server/assistant/tools/read.ts";
+  const patterns = noRestrictedImportPatterns(path);
+  if (patterns === null) {
+    // already reported by noRestrictedImportPatterns
+  } else {
+    if (!restricts(patterns, "@/server/ai/gateway")) {
+      console.error(`LINT WALL BREACHED: ${path} lost the gateway chokepoint wall to block shadowing`);
+      process.exitCode = 1;
+    } else {
+      console.log(`lint wall OK: ${path} still carries the gateway chokepoint wall`);
+    }
+    if (!restrictedByPattern(patterns, "@/server/playbooks")) {
+      console.error(`LINT WALL BREACHED: ${path} does not restrict @/server/playbooks`);
+      process.exitCode = 1;
+    } else {
+      console.log(`lint wall OK: ${path} restricts @/server outside the allowlist`);
+    }
+    if (restrictedByPattern(patterns, "@/server/ai/context")) {
+      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/ai/context`);
+      process.exitCode = 1;
+    } else {
+      console.log(`lint wall OK: ${path} may still import the allowlisted @/server/ai/context`);
+    }
   }
 }
 

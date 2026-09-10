@@ -5,6 +5,10 @@ import { executeTripCommand } from "@/server/commands";
 import { getTripDetail } from "@/server/projections";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { searchPlaybooks } from "@/server/ai/readTools";
+// The REAL adapter, because the claim this file makes is about a WHERE clause.
+// Handing `searchPlaybooks` a stub port here would assert the stub — the same
+// reason the file is in the integration lane at all.
+import { playbookLibrary } from "@/server/ai/assistantPorts";
 
 // `search_playbooks` is the one read tool that reaches outside the trip, and
 // the only one whose answer depends on WHO is asking (ADR-042 Decision 2). Its
@@ -72,7 +76,7 @@ describe("search_playbooks", () => {
     const authorsPrivate = await seedSavedDay(AUTHOR, "The author's private day", city);
     const strangersOwn = await seedSavedDay(STRANGER, "The stranger's own private day", city);
 
-    const found = await searchPlaybooks(STRANGER, { cities: [city] });
+    const found = await searchPlaybooks(playbookLibrary, STRANGER, { cities: [city] });
     const ids = found.days.map((day) => day.savedDayId);
 
     // Both halves of the rule, asserted as one set rather than two contains():
@@ -90,7 +94,7 @@ describe("search_playbooks", () => {
     const savedDayId = await seedSavedDay(AUTHOR, "Dotonbori after dark", city);
     await publish(savedDayId, AUTHOR);
 
-    const asAuthor = await searchPlaybooks(AUTHOR, { cities: [city] });
+    const asAuthor = await searchPlaybooks(playbookLibrary, AUTHOR, { cities: [city] });
     expect(asAuthor.searched).toBe(city);
     expect(asAuthor.days).toEqual([
       {
@@ -104,7 +108,7 @@ describe("search_playbooks", () => {
       },
     ]);
     // `mine` is the reader's relationship to the row, not a property of it.
-    const asStranger = await searchPlaybooks(STRANGER, { cities: [city] });
+    const asStranger = await searchPlaybooks(playbookLibrary, STRANGER, { cities: [city] });
     expect(asStranger.days.map((day) => day.mine)).toEqual([false]);
   });
 
@@ -113,7 +117,7 @@ describe("search_playbooks", () => {
     for (const name of ["First", "Second", "Third"]) {
       await publish(await seedSavedDay(AUTHOR, name, city), AUTHOR);
     }
-    const found = await searchPlaybooks(STRANGER, { cities: [city], limit: 2 });
+    const found = await searchPlaybooks(playbookLibrary, STRANGER, { cities: [city], limit: 2 });
     expect(found.days).toHaveLength(2);
   });
 });

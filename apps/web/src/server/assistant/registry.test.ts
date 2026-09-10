@@ -24,7 +24,7 @@ import { PAGE_TOOLS } from "./tools/page";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 
-const DEP_KEYS = ["trip", "actor", "scope", "proposalBuffer", "pageBuffer"];
+const DEP_KEYS = ["trip", "actor", "scope", "proposalBuffer", "pageBuffer", "playbooks", "savedDays"];
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
 function insertWidgetNameOptions(): readonly string[] | undefined {
@@ -72,7 +72,7 @@ describe("the registry", () => {
     }
   });
 
-  it("tags every tool for P2's filter, with no holes", () => {
+  it("tags every tool for the grant filter, with no holes", () => {
     for (const tool of ASSISTANT_TOOLS) {
       expect(["itinerary", "library", "pages", "places", "account", "system"], tool.name).toContain(tool.domain);
       expect(["read", "propose"], tool.name).toContain(tool.effect);
@@ -100,6 +100,8 @@ describe("the AI SDK adapter", () => {
     const built = aiToolsFor(ASSISTANT_TOOLS, {
       proposalBuffer: newProposalBuffer(),
       pageBuffer: newPageBuffer(),
+      playbooks: { discover: async () => [] },
+      savedDays: { readable: async () => null },
     });
     for (const definition of ASSISTANT_TOOLS) {
       const wantsContext = definition.needs.some((key) => key === "trip" || key === "actor" || key === "scope");

@@ -4,14 +4,14 @@
 // the derived family to `@/server/assistant/tools/planning` and ADR-042
 // Decision 3's one hand-written tool to
 // `@/server/assistant/tools/insertPlaybookDay`, each carrying the reasoning
-// that earned it. What is left in this module is the three things that were
-// always AROUND the tools rather than in them:
+// that earned it. What is left in this module is the two things that were
+// always AROUND the tools rather than in them — P2 took the third,
+// `WRITE_TOOL_NAMES`, which is now the `itinerary` and `library` domains
+// granted at `propose` (assistant/grants.ts):
 //
-//   1. `WRITE_TOOL_NAMES`, measured from the built tool set rather than typed
-//      out, so `minimumRoleFor` cannot fall behind a new BatchableCommand.
-//   2. `buildProposal` — `resolveBatch` run over what the turn collected, said
+//   1. `buildProposal` — `resolveBatch` run over what the turn collected, said
 //      in a sentence per change. Nothing is committed by it.
-//   3. `commitProposal` — the ONE atomic batch (ADR-013), through the same
+//   2. `commitProposal` — the ONE atomic batch (ADR-013), through the same
 //      `enrichCommandLocations` → `flushPlanningBatch` path the command
 //      endpoint uses, so approval is not a second door around KI-15. It is
 //      also where an approved `{ savedDayId }` is re-read and expanded, and
@@ -24,91 +24,23 @@
 // code path that writes an event. The only caller of `commitProposal` is the
 // apply endpoint, and it runs after the human said yes.
 import { randomUUID } from "node:crypto";
-import type { Tool } from "ai";
 import { BatchableCommand, type SavedDay, type TripDetail, type TripHistory } from "@tc/contracts";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
-import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
-import type { ReadToolContext } from "@/server/ai/readTools";
+import { flushPlanningBatch } from "@/server/ai/planningTools";
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
 import type { AskDroppedCall } from "@/server/ai/askAnalytics";
-import { newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
-import { aiToolsFor, contextTool } from "@/server/assistant/registry";
-import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
-import { INSERT_PLAYBOOK_DAY, insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
+import type { CollectedInsert } from "@/server/assistant/deps";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
 export type { CollectedInsert } from "@/server/assistant/deps";
 
 export { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
-
-/**
- * The write tools, by name.
- *
- * The derived family is still MEASURED, never listed: every `BatchableCommand`
- * member becomes one tool (assistant/tools/planning.ts), so a thirteenth
- * command joins this array — and therefore `minimumRoleFor`'s editor branch —
- * without anyone remembering to. Typing those names out here would be the
- * hand-written manifest ADR-015 invariant 5 forbids, one level up.
- *
- * `INSERT_PLAYBOOK_DAY` is named because it is genuinely not derived from
- * anything (ADR-042 Decision 3). It is appended rather than replacing the
- * measurement, so the derived half keeps its property.
- */
-export const WRITE_TOOL_NAMES: readonly string[] = [
-  ...Object.keys(buildPlanningTools().tools),
-  INSERT_PLAYBOOK_DAY,
-];
-
-/**
- * The tools handed to the agent for an editor's turn: the derived planning
- * family, plus `insert_playbook_day`.
- *
- * The derived half is a pass-through, deliberately — wrapping the definitions
- * in anything that alters a schema or a `run` would be the reimplementation
- * ADR-022 §4 rules out.
- *
- * **One buffer, both halves.** `getCollected` and `getInserts` used to read two
- * separate closures — the planning builder's array and this function's. They
- * are now two readers of the one `proposalBuffer` this turn mints and hands to
- * every write definition that declared it, which is what makes "what did this
- * turn ask for?" a single value rather than a join.
- */
-export function buildWriteTools(): {
-  tools: Record<string, Tool>;
-  getCollected: () => RawToolIntent[];
-  getInserts: () => CollectedInsert[];
-} {
-  const proposalBuffer = newProposalBuffer();
-  return {
-    tools: {
-      ...aiToolsFor(PLANNING_TOOLS, { proposalBuffer }),
-      [INSERT_PLAYBOOK_DAY]: contextTool(insertPlaybookDayTool, { proposalBuffer }) as Tool,
-    },
-    getCollected: () => proposalBuffer.collected(),
-    getInserts: () => proposalBuffer.inserts(),
-  };
-}
-
-/**
- * The context `insert_playbook_day` reads, under its own name — `toolsContext`
- * is keyed by tool, so a write tool with a `contextSchema` needs an entry of
- * its own beside `readToolsContext`'s.
- *
- * The same `ReadToolContext` the read tools take, and only `userId` is used:
- * the library is read as the actor, and the trip is not this tool's business.
- * That last sentence is now enforced rather than stated — the definition
- * declares `needs: ["actor", "proposalBuffer"]`, so its `run` cannot see the
- * trip at all.
- */
-export function writeToolsContext(context: ReadToolContext): Record<string, ReadToolContext> {
-  return { [INSERT_PLAYBOOK_DAY]: context };
-}
 
 /** One change, as the user reads it before deciding. */
 export interface ProposedChange {

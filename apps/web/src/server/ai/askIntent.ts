@@ -27,7 +27,8 @@
 //      which is a broken interaction, not an expensive one. So anything
 //      ambiguous, unparseable or errored gets the full set.
 //   2. **It never widens access.** This selects WITHIN what the guard already
-//      allows. `minimumRoleFor`/`offeredToolNamesFor` remain the authority;
+//      allows: it is one of four caps `grantFor` takes the minimum of, and
+//      `minimumRoleFor` still has the final word (assistant/grants.ts);
 //      `handleAskRequest` does not even call this for a viewer, because there
 //      is no write half to withhold and paying for the call would be pure
 //      waste.
