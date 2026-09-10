@@ -12,6 +12,31 @@ const compat = new FlatCompat({
 // Shared by both lint-wall blocks below so the UI-scoped block (which must
 // add one more restriction on top of these) can't drift from the base wall
 // by editing only one of the two copies.
+// Shared by the gateway block and by the assistant-kernel block below, which
+// must RE-ASSERT them: ESLint flat config replaces a rule's options with the
+// last matching block's rather than merging, and the assistant block is the
+// last block to match `src/server/assistant/**`. Left uncopied, the kernel —
+// the most security-sensitive code in the app — would be the one directory
+// where the gateway chokepoint is not enforced. That is the same regression a
+// review caught on `proxy.ts`/`authConfig.ts`; see the long comment on the
+// gateway block.
+const gatewayWallPatterns = [
+  {
+    group: ["@/server/ai/gateway"],
+    message:
+      "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25).",
+  },
+];
+
+const gatewayWallZones = [
+  {
+    target: "./src",
+    from: "./src/server/ai/gateway.ts",
+    message:
+      "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25). This still applies via a relative import.",
+  },
+];
+
 const domainAndServerWallPatterns = [
   {
     group: ["@tc/domain", "@tc/domain/*"],
@@ -128,14 +153,72 @@ export default [
       import: importPlugin,
     },
     rules: {
+      "no-restricted-imports": ["error", { patterns: gatewayWallPatterns }],
+      "import/no-restricted-paths": ["error", { zones: gatewayWallZones }],
+    },
+  },
+  {
+    // THE ASSISTANT KERNEL WALL (ADR-043): `src/server/assistant/**` is a
+    // kernel that "could if needed be its own service", and this is what makes
+    // that a property of the module graph rather than a claim. Everything it
+    // needs from the app's edges — the request (`next/*`), the database, the
+    // page store, the session, the page access guard — arrives as an INJECTED
+    // PORT (`AssistantDeps`), never as an import.
+    //
+    // Modelled exactly on the gateway block above, including using BOTH rules
+    // for the reason its comment gives at length: `no-restricted-imports` does
+    // string matching on the specifier, so it catches only the `@/…` alias
+    // spelling and gives a cheap, specific message; `import/no-restricted-paths`
+    // RESOLVES the import to a file first, so it also closes the relative
+    // spellings (`../db/client`, `../../server/pages`) that a review proved
+    // were a clean bypass of the alias rule. `next/*` is closable only by the
+    // first, since it resolves into node_modules.
+    //
+    // **This block RE-ASSERTS the gateway wall** (`gatewayWallPatterns` /
+    // `gatewayWallZones`, from the shared constants at the top of this file).
+    // ESLint flat config REPLACES a rule's options with the last matching
+    // block's value rather than merging them, and this block is the last one to
+    // match `src/server/assistant/**` for both rules — so without the two
+    // spreads the kernel would be the one directory in the app where
+    // `selectAiModel()`'s chokepoint is not enforced. That is the exact
+    // regression a review caught against `proxy.ts` and `authConfig.ts`, in
+    // this file, and it was invisible because nothing fixtured either path.
+    //
+    // The rest of `src/server` is deliberately NOT covered: the adapters in
+    // `src/server/ai` still call `getPage`, `guard` and the executor, which is
+    // what makes P1 a move rather than a rewrite. The wall is on the kernel
+    // because the kernel is what has to stay extractable.
+    //
+    // `packages/assistant` would have got this from the compiler for free and
+    // was rejected for one reason (ADR-043, Alternatives): `packages/*` have no
+    // ESLint configuration at all (KI-2026-09-02-c), so the move would put the
+    // most security-sensitive code in the app somewhere unlinted. The zones
+    // below are written so the import graph is already correct on the day that
+    // KI closes and the extraction becomes a `git mv`.
+    files: ["src/server/assistant/**/*.{ts,tsx}"],
+    plugins: {
+      import: importPlugin,
+    },
+    rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
+            ...gatewayWallPatterns,
             {
-              group: ["@/server/ai/gateway"],
+              group: ["next", "next/*"],
               message:
-                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25).",
+                "The assistant kernel holds no request, response or route type — it takes what it needs as an injected port (ADR-043 import wall).",
+            },
+            {
+              group: ["@/server/db", "@/server/db/*"],
+              message:
+                "The assistant kernel does not reach the database — a tool takes what it reads through AssistantDeps (ADR-043 import wall).",
+            },
+            {
+              group: ["@/server/pages", "@/server/pages-guard", "@/server/auth"],
+              message:
+                "The assistant kernel does not resolve a page, a session or an access guard — admission does that and hands the kernel its answer (ADR-043 import wall).",
             },
           ],
         },
@@ -144,11 +227,30 @@ export default [
         "error",
         {
           zones: [
+            ...gatewayWallZones,
             {
-              target: "./src",
-              from: "./src/server/ai/gateway.ts",
+              target: "./src/server/assistant",
+              from: "./src/server/db",
               message:
-                "Only src/server/ai/modelSelection.ts may import the gateway — every model call goes through selectAiModel() (ADR-019 amendment, 2026-08-25). This still applies via a relative import.",
+                "The assistant kernel does not reach the database (ADR-043 import wall). This still applies via a relative import.",
+            },
+            {
+              target: "./src/server/assistant",
+              from: "./src/server/pages.ts",
+              message:
+                "The assistant kernel does not resolve a page — admission does, and hands the kernel its answer (ADR-043 import wall). This still applies via a relative import.",
+            },
+            {
+              target: "./src/server/assistant",
+              from: "./src/server/pages-guard.ts",
+              message:
+                "The assistant kernel does not run the page access guard (ADR-043 import wall). This still applies via a relative import.",
+            },
+            {
+              target: "./src/server/assistant",
+              from: "./src/server/auth.ts",
+              message:
+                "The assistant kernel does not read a session (ADR-043 import wall). This still applies via a relative import.",
             },
           ],
         },
