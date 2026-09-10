@@ -105,6 +105,16 @@ today. Every tier still resolves through `selectAiModel()` — ADR-019's chokepo
 lint wall are untouched, and the kill switch still covers every call. Uncertainty resolves
 *upward*, toward the stronger model, the same bias `askIntent` already applies.
 
+**A tier is the name of a slot, and the model filling it is an input** (Mitchell,
+2026-09-10: *"that cost is not forever, and the model we use might change, so that needs to
+be a variable input in the system"*). No model id is a literal in kernel code; the kernel
+never multiplies tokens by a price; pricing is a downstream join against a dated,
+append-only rate record. Every ledger row carries the **resolved** id of every model the
+turn actually used, and `/api/health/ai-mode` grows the resolved tier map — because
+`config.ts` compiles a default of `anthropic/claude-haiku-4-5` while production runs
+`deepseek/deepseek-v4-flash-0731`, and M20 link 5 records that gap already costing one
+estimate an order of magnitude. Spec §5b.
+
 ## Consequences
 
 **Good.** The 455-line body becomes orchestration. Adding a tool is one file and one tag.

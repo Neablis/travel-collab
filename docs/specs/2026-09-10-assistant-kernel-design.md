@@ -258,6 +258,59 @@ risk is a misrouted `plan` answering on a cheap model, which is a quality regres
 than a dead end — so the router biases the same way `askIntent` already does: every
 uncertainty resolves *upward*, toward the stronger model.
 
+### 5b. Model identity and its price are INPUTS, not constants
+
+**Mitchell, 2026-09-10:** *"that cost is not forever, and the model we use might change, so
+that needs to be a variable input in the system."*
+
+The $0.0011-per-request figure quoted throughout this document and M20 is **one measurement
+of one model on one date**, not a property of the system. DeepSeek's rates for the configured
+model already changed once mid-scoping (2026-08-16). Three rules follow, and they are
+constraints on this design rather than notes about M20's:
+
+**No model id is ever a literal in kernel code.** §5's tiers (`cheap`, `mid`, `strong`) are
+*names of slots*, and the slots resolve through configuration. Today `serverConfig.aiModel`
+and `aiClassifierModel` already do this for two models; the tier map generalises the same
+mechanism rather than replacing it, so `selectAiModel()` stays the one chokepoint and
+ADR-019's lint wall is unaffected. Swapping a model is a configuration change plus a rate
+entry — no kernel code moves.
+
+**The kernel never multiplies tokens by a price.** There is no rate constant, no currency
+type and no cost arithmetic anywhere inside it (§7a). Pricing is a **join, performed
+downstream, as at a point in time**, against a dated append-only rate record that lives
+outside the kernel — M20's 2026-09-02 amendment makes it a committed file, the mirror image
+of the plan-version file, so that a rate change publishes a new dated entry and never
+rewrites history. A model swap and a price move are then the same operation, and neither
+corrupts the series.
+
+**The compiled default must not be able to disagree silently with what runs.** This is not
+hypothetical: `config.ts:15` compiles `DEFAULT_AI_MODEL = "anthropic/claude-haiku-4-5"`, and
+production sets `AI_MODEL` to `deepseek/deepseek-v4-flash-0731`. M20 link 5 records the
+consequence in the only way that matters — *"costing the compiled default instead of the
+configured model overstates the bill by roughly an order of magnitude, and this note exists
+because that mistake was made once already while scoping this milestone."*
+
+Two things close it, and both are cheap:
+
+- **Every ledger row records the RESOLVED id** of every model the turn actually used, turn
+  and classifier separately (§7a). No analysis ever has to assume which model ran, which is
+  what made the original mistake possible.
+- **`GET /api/health/ai-mode` reports the resolved tier map** alongside the `live`/`source`
+  it already returns. Today that endpoint answers *whether* AI is live and not *what* is
+  running, so "which models is production actually on?" is answerable only by reading
+  environment variables in a dashboard — which is exactly how a compiled default goes
+  unnoticed. One field, and the question becomes answerable from outside.
+
+**Open, and deliberately not decided here:** whether the tier map should be a Vercel Flag
+rather than an environment variable. The infrastructure exists — `ai-live` is already a flag
+with per-user entities (ADR-019's 2026-09-08 amendment) — and a flag would let a model be
+swapped without a redeploy, which matters most during an incident (a provider degrades and
+you want off it now). The argument against is that a model id is not a targeting decision and
+the flag would be a second source of truth beside `AI_MODEL`. **The tier map is built as a
+single resolved value either way**, so whichever source feeds it is one function's
+implementation and not a change to anything that reads it. Raised for Mitchell rather than
+assumed.
+
 ### 6. Cost is a return value: `TurnLedger`
 
 ```ts
