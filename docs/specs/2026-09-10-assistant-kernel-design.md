@@ -81,6 +81,8 @@ export const readDay = defineTool({
   output: DayReadout,          // zod — REQUIRED
   needs: ["trip"] as const,    // typed keys into the dependency registry
   minimumRole: "viewer",
+  description: "…",           // REQUIRED — the SDK needs it, and it is the biggest
+                              // single lever on whether the model picks the right tool
   run: (input, deps) => …,     // deps is exactly Pick<AssistantDeps, "trip">
 });
 ```
@@ -110,6 +112,16 @@ or `needs: ["pageBuffer"]`, supplied in `AssistantDeps` when the turn is built. 
 rule paying for itself on its first use — the thing a write tool can reach that a read tool
 cannot is now stated in the tool's own definition instead of being implied by which builder
 constructed it.
+
+**Two channels supply the deps, and the split is deliberate** *(added 2026-09-10 after P1;
+the first draft implied all deps are closed over, which would have been a regression)*.
+Ambient deps — `trip`, `actor`, `scope` — ride the AI SDK's own `contextSchema`, which is
+what gives ADR-022 §3 its **structural** guarantee that a tool cannot be pointed at a
+different trip: the tripId is not a tool argument, so a model cannot supply one. Turn deps —
+`proposalBuffer`, `pageBuffer` — are closed over by the builder, because a buffer is
+per-turn mutable state and not context. `needs` is still the whole of what a tool may reach;
+the split is *where a value comes from*, never a second permission system. P3's admission
+pipeline is where the two are assembled, and it does not collapse them.
 
 **Derivation survives.** ADR-015 invariant 5 (tool schemas are derived, never hand-written
 twice) is not weakened: `defineTool` is the *envelope*, derivation stays the *body*. The
@@ -152,6 +164,35 @@ So *"a page turn holds no `RemoveActivity`, and a planning turn holds no `insert
 — ADR-033 Decision 4's narrowing — stops being a sentence three constants have to keep
 true, and becomes the `itinerary` domain being capped at `read` on one surface and the
 `pages` domain being absent from the other.
+
+**A surface kind is not a tool set, and conflating them is the trap in P2** *(found on the
+first build against this spec)*. `AskScope`'s kinds are `trip | day | page`; today's three
+tool *sets* are `read-only | planning | page`. They are different axes — a `trip`-scoped turn
+by a viewer is `read-only`. The grant is a **`min` over four independent caps**, one per
+domain:
+
+```
+grantedEffect(domain) = min(
+  surface[domain],     // what this surface is about at all            (§2)
+  roleAllows,          // viewer → read, editor → propose              (trip membership)
+  planAllows,          // ai.ask → read, ai.command → propose          (§7c, M20)
+  classifierAllows,    // question → read, edit|plan → propose         (§5)
+)
+```
+
+`AskToolPosture` (`propose | withheld | read-only`) is then **derived** from comparing those
+terms rather than being a fourth input: `withheld` is precisely the case where role and plan
+both permit `propose` and the classifier did not. That derivation is what keeps the
+instruction honest — telling an editor "I can only answer questions" is a lie today only
+because the two causes are distinguishable, and this keeps them distinguishable by
+construction.
+
+**Tool domains, pinned** so P2 cannot silently drop one: `read_trip`, `read_day`,
+`find_free_time` are `itinerary`/`read`; `search_playbooks` is **`library`/`read`** (it reads
+the Playbook corpus, not the trip); the twelve command tools are `itinerary`/`propose`;
+`insert_playbook_day` is `library`/`propose`; `insert_text` and `insert_widget` are
+`pages`/`propose`. Tagging `search_playbooks` `itinerary` would silently drop it from the
+page surface, which today has it.
 
 `minimumRoleFor` becomes `max(tool.minimumRole)` over the set actually selected. Its own
 comment already says this is what it wants to be — *"the moment a tool that is not in
@@ -529,10 +570,34 @@ own call first.
 `import/no-restricted-paths` zone (resolves the import, so relative spellings are closed
 too — the bypass a review actually found against the gateway rule).
 
-The wall forbids, from inside `src/server/assistant/**`: `next/*`, `@/server/db/*`,
-`@/server/pages`, `@/server/auth`, and `@/server/pages-guard`. Everything the kernel needs
-from those arrives as an injected port. That is what "could be its own service" means
-concretely — the module graph, not a deployment.
+The wall must be **deny-by-default over `@/server/**` with an explicit allowlist**, not a
+denylist of named modules.
+
+**This is a correction, made 2026-09-10 after P1 built the denylist version this document
+originally specified and reported that it does not hold.** The first draft named five
+forbidden specifiers — `next/*`, `@/server/db/*`, `@/server/pages`, `@/server/auth`,
+`@/server/pages-guard` — and claimed *"everything the kernel needs from those arrives as an
+injected port."* That claim was false on the day it was written and lint agreed with it:
+`search_playbooks` imports `discoverDays` from `@/server/playbooks`, `insert_playbook_day`
+imports `readableSavedDay` from `@/server/savedDays`, and **both of those import
+`./db/client`** (`playbooks.ts:17`, `savedDays.ts:12`). ESLint sees only direct imports, so
+a five-name denylist is defeated by one hop — and the failure is silent, which is the worst
+property a boundary can have.
+
+A denylist is the wrong shape here for a reason that generalises: it has to enumerate what
+is bad, so it is wrong every time someone adds a module, and it is wrong *quietly*. An
+allowlist has to enumerate what is permitted, so it is wrong loudly, at the moment of the
+change, in the diff of the person making it.
+
+So: from inside `src/server/assistant/**`, **no `@/server/*` import at all** except a named
+allowlist of modules that are provably pure (`@/server/ai/context` today), plus no `next/*`.
+Everything else arrives as an injected port. `discoverDays` and `readableSavedDay` become
+`AssistantDeps` ports in P2 — which is also the change that makes the tools declaring them
+say so in their `needs`, so the audit property covers the library reads too.
+
+That is what "could be its own service" means concretely — the module graph, not a
+deployment — and it is a claim the wall has to be able to *prove*, not one the document gets
+to assert.
 
 **Why not `packages/assistant`.** The compiler would enforce the boundary for free, which
 is stronger than a lint rule. It was rejected for one reason: `packages/*` have no ESLint

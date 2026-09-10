@@ -166,6 +166,14 @@ at all: payments never enter it, and what M21 consumes is the series link 9 stor
 its own PR, because AGENTS.md reserves a contracts change as one. `resolveBatch` is not
 rewritten; KI-10 needs its own call.
 
+**Corrected 2026-09-10, after P1.** The import wall is **deny-by-default over `@/server/**`
+with an allowlist**, not a denylist of named modules. The denylist first specified here was
+built and reported unsound on the same day: two tools reach `./db/client` transitively via
+`@/server/playbooks` and `@/server/savedDays`, ESLint sees only direct imports, and lint
+passed. A boundary that fails silently is worse than none; an allowlist is wrong loudly, in
+the diff of whoever widens it. `defineTool` also takes a required `description` — omitted
+from decision 1's field list, and the SDK requires it. Spec §"Where it lives".
+
 **Nothing in the comment record is deleted.** `handleAskRequest.ts` is ~583 lines of
 comments recording incidents, and they look like bulk. Each moves with the step it
 describes (F-E07's explicit "do not").
