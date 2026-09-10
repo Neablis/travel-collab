@@ -101,6 +101,16 @@ Four of those fields are the whole point:
 - **`effect` is `read | propose`, never `commit`.** The turn changes nothing; that stays a
   property of the shape, as it is today.
 
+**A collector is a dependency, not a closure.** Write tools and page tools do not execute —
+they *collect*, and the loop ends (that is what makes "the turn changes nothing" a property
+of the shape). Today that collection lives in a closure captured by `buildWriteTools()`,
+which is why those builders return `{ tools, getCollected, getInserts }` rather than tools.
+Under `defineTool` the collector is a per-turn **dependency**: `needs: ["proposalBuffer"]`
+or `needs: ["pageBuffer"]`, supplied in `AssistantDeps` when the turn is built. This is the
+rule paying for itself on its first use — the thing a write tool can reach that a read tool
+cannot is now stated in the tool's own definition instead of being implied by which builder
+constructed it.
+
 **Derivation survives.** ADR-015 invariant 5 (tool schemas are derived, never hand-written
 twice) is not weakened: `defineTool` is the *envelope*, derivation stays the *body*. The
 write tools are emitted by a generator that maps each `@tc/contracts` command schema to one
@@ -271,6 +281,168 @@ the analytics log, the Sentry metrics, and the step settlement. Three consequenc
 - **KI-94 gets a home.** Reserve-and-settle needs one place that knows the reservation and
   the actual. That place is now the ledger. The refund primitive itself is
   security-sensitive and stays its own reviewed step, as KI-94 requires.
+
+## 7. Built for M20 and M21, on Mitchell's instruction
+
+**Mitchell, 2026-09-10:** *"Lets make sure to take into consideration the upcoming milestone
+around stripe and people paying for there account, and limits to the AI agent depending on
+the tier, that might influence design decisions about how we structure measureing and
+build."*
+
+It does. M20 ("An account knows what it may do") and M21 (Stripe) were scoped 2026-09-01/02
+in enough detail that this is a fit check, not a guess — and checking it changed four things
+in the design above rather than confirming them. **The goal is that M20 links 5 and 9 are
+wiring, not redesign.**
+
+### 7a. `TurnLedger` IS the `ai_usage` row, field for field
+
+M20 link 9 specifies the table: *"user id, endpoint, model, classifier model, input and
+output tokens (turn and classifier separately), step count, outcome, and `created_at`"*, no
+question text and no trip content, and written **on the failure paths too** *"because the
+round-trips already made were already paid for"*.
+
+So `TurnLedger`'s model half is shaped as that row, not as a cousin of it, and M20 link 9
+becomes an `INSERT` plus a migration:
+
+```ts
+interface TurnCost {                 // the ai_usage row, one per request
+  userId: string;
+  endpoint: "ask" | "ask.apply";
+  outcome: "completed" | "error" | "abort";
+  turn:       { model: string; tokensIn: number | null; tokensOut: number | null };
+  classifier: { model: string; tokensIn: number | null; tokensOut: number | null } | null;
+  steps: number;
+  planVersionRef: string | null;     // see 7c
+}
+```
+
+Turn and classifier stay **separate**, because the whole reason the classifier has its own
+model id and its own `gen_ai.invoke_agent` span is that *"did the classifier save more than
+it cost"* is unanswerable if its spend is folded into the turn's. Recording them summed
+would undo that at the durable layer.
+
+**Written on all three end paths** is already free: `createAskRecorder`'s single-writer latch
+fires exactly once per turn on `onEnd`, abort and error. The ledger becomes a fourth reader
+of that latch, not a fourth place that has to get once-only right.
+
+**No dollars, and never `Money`.** M20's second decision, and it is the KI-1 / KI-14 /
+`budgetPerPerson` defect class on its third recorded recurrence: a live request costs
+**$0.0011**, and `Money`'s integer minor units round that to **zero**. Every request would
+store as free. The ledger carries tokens and model ids; the price is a join against a dated
+rate file. `TurnLedger` therefore has **no currency type anywhere in it**, and that is a
+constraint on this design, not a note about M20's.
+
+### 7b. Cost and capacity are two ledgers, not two fields of one
+
+**This is a correction to §6 above.** The first draft put geocode lookups in `TurnLedger`
+beside model tokens as `vendorCalls`. M20's third decision forbids summing them:
+
+> **Attribute marginal cost only.** Model tokens are the per-account marginal cost. Vercel,
+> Postgres and LocationIQ are not: the geocoder is a **daily-capped free tier**, which is a
+> capacity limit rather than a per-call charge.
+
+Two different questions with two different answers, so:
+
+```ts
+interface TurnLedger {
+  cost:     TurnCost;                                   // billable — model tokens only
+  capacity: { vendor: "locationiq"; calls: number }[];  // NOT billable — quota only
+  toolCalls:{ name: string; ms: number; ok: boolean }[];// neither — efficiency
+}
+```
+
+`capacity` is what KI-93 settles against `geocodeQuota()`. It must never be summed into a
+per-account cost, and the type keeps them apart so that nobody has to remember. A
+`spend: "vendor"` tool contributes to `capacity`; only a model call contributes to `cost`.
+
+### 7c. The entitlement port is a set with ceilings, not a boolean
+
+Today `AiEntitlementCheck = (actor) => boolean | Promise<boolean>`. That port cannot express
+what M20 needs, so **P5 widens it** and M20 fills it:
+
+```ts
+type EntitlementResolver = (actor: AiActor) => Promise<ResolvedEntitlements>;
+
+interface ResolvedEntitlements {
+  has(capability: Entitlement): boolean;  // SET MEMBERSHIP. Never a rank, never an order.
+  ceilings: { perUserRequests: number; perUserSteps: number };
+  planVersionRef: string | null;
+}
+```
+
+Three rules of M20's are load-bearing on this signature:
+
+- **A plan is a set, not a rank.** *"`premium` lists its own entitlements in full; it is
+  never `[...PLUS, 'trip.collaborators']`."* So the port exposes `has()` and **no comparison
+  operator at all** — no `atLeast`, no ordering, nothing shaped like `accessPolicy.ts`'s
+  `RANK`. Copying that rank table is the obvious move here and the wrong one.
+- **Resolve per request from the database, never from the JWT** — *"a downgrade must bite
+  before a token refreshes"* — which is why the resolver is `async` and is called inside the
+  admission pipeline rather than read off the session.
+- **A purchase pins a plan version**, so per-user ceilings come from the *pinned* version.
+  See 7c-note below.
+
+**`ai.ask` and `ai.command` are the effect axis.** M20's entitlement vocabulary is `ai.ask`,
+`ai.command`, `trip.collaborators`. The first two map exactly onto §2's `effect`: `ai.ask` is
+`read`, `ai.command` is `propose`. So the tool filter takes its cap from **two** sources
+intersected — the actor's trip **role** and the account's **plan** — through one filter
+rather than two mechanisms:
+
+```
+grantedEffect(domain) = min( surface.max(domain), roleAllows(domain), planAllows(domain) )
+```
+
+A `free` account is refused `ai.ask` at the `selectModel` stage and never reaches tools at
+all. A `plus` account on a trip where it is a viewer gets `read` from both and `read` is what
+it gets. This is the single strongest reason to build §2 as (domain, effect) pairs rather
+than as three named sets: **the plan gate is the same shape as the role gate, so it is a
+third input to an existing computation instead of a new one.**
+
+**7c-note — one field M20's link 9 does not list, and I think should.** `planVersionRef` on
+the usage row. M20 describes pricing as *"a join across both as at a point in time"*, which
+works when what was in force is derivable from `created_at`. Under rule 4 it is not: a
+purchase **pins** a version, so two accounts billing on the same day can be on different
+pinned versions, and the row's date does not say which. Reconstructing it from the grant
+history afterwards is possible but is exactly the kind of derivation that goes wrong once
+and corrupts a series silently. Recording the ref costs one column. **Flagged for Mitchell
+rather than assumed** — the kernel emits the field, and M20 decides whether to store it.
+
+### 7d. Ceilings are a parameter of admission, and the pipeline order already agrees
+
+M20 link 5: *"`aiQuotas()` and `aiStepQuotas()` take entitlements and return different
+ceilings. **The bucket `name` must not vary by tier**"* — a tier-suffixed bucket would zero an
+account's usage on upgrade and let anyone farm free calls by toggling — and *"per-user
+ceilings come from the account's pinned plan version; global ceilings stay in the
+environment."*
+
+This lands cleanly on §3's pipeline for a reason worth stating, because it could easily have
+gone the other way: `selectModel` already runs **before** `admitQuota`, and it has to, for a
+recorded incident (charging before selection burned a caller's whole allowance against an
+outage that made zero provider calls). Resolving entitlements needs to happen before the
+ceilings are known, and the ceilings are needed by admission. **The order the incident forced
+is the order the tier requirement needs.** So `selectModel` resolves entitlements and hands
+`ResolvedEntitlements.ceilings` to `admitQuota`; nothing in the sequence moves.
+
+### 7e. Task class proposes a tier; entitlement caps it
+
+§5 routes `question → cheap`, `edit → mid`, `plan → strong`. With tiers, that becomes a
+proposal rather than a decision: `capTier(tierFor(taskClass), entitlements)`. It is the same
+cap-an-upper-bound shape as 7c's effect intersection and as §2's surface grant — three
+places, one idea, which is what makes it teachable.
+
+M21 (Stripe) needs nothing from the kernel beyond this. Payments never enter it; what M21
+consumes is the `ai_usage` series that link 9 stores, joined against a dated rate file, and
+the kernel's contribution to that is 7a and 7b.
+
+### 7f. One stale claim found in M20 while checking this
+
+M20 link 9 says *"`/ask` must also account for what it spends, which it currently does not:
+`handleAskRequest.ts:306` charges `aiQuotas()` and never `aiStepQuotas()` or
+`settleAiSteps`."* **That has been false since ADR-033's merge.** `handleAskRequest` charges
+`consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId)` and settles through
+`settleAiSteps` in the recorder's sink — KI-67's fix moved onto `/ask` when it became the one
+door. Corrected in place in M20's file, dated, rather than left for whoever builds link 9 to
+discover. It makes link 9 smaller, not larger.
 
 ## What this deliberately does NOT do
 

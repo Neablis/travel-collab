@@ -535,11 +535,32 @@ refusal to name the tier rather than read as a permission error.
      records finding exactly **one** `ai.ask` entry across seven days. The
      table exists because the log cannot answer a question about last month.
 
-   **`/ask` must also account for what it spends**, which it currently does
+   ~~**`/ask` must also account for what it spends**, which it currently does
    not: `handleAskRequest.ts:306` charges `aiQuotas()` and never
    `aiStepQuotas()` or `settleAiSteps`, so the read agent's round-trips are
-   unbounded while the command endpoint's are capped. Recording cost without
-   bounding it is half a job, so the fix lands here rather than being filed.
+   unbounded while the command endpoint's are capped.~~ **CORRECTED
+   2026-09-10 — this has been false since ADR-033's merge, and this link is
+   smaller than it says.** `/ask` charges
+   `consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId)` at admission and
+   settles the real step count through `settleAiSteps` in the recorder's sink:
+   KI-67's fix moved onto `/ask` when ADR-033 Decision 4 made it the one door,
+   and this paragraph was written against the pre-merge shape. **What is left
+   of it is the recording, not the bounding** — the bounding is done.
+
+   **The ledger's producer is built ahead of this link, in M9 Phase 0**
+   (ADR-043, 2026-09-10). `TurnLedger` is shaped as this row field for field —
+   turn and classifier tokens separate, written on the failure paths too via
+   the recorder's existing single-writer latch, and with **no currency type
+   anywhere in it**. So this link is an `INSERT`, a migration and a retention
+   decision; it is not a measurement design. Phase 0 also widens
+   `AiEntitlementCheck` from a boolean into the `has()`-plus-ceilings resolver
+   link 5 needs, and keeps cost (model tokens) and capacity (LocationIQ) in
+   two separate fields so the third decision above cannot be violated by
+   summing them. **One field Phase 0 emits that the list above does not name:
+   `planVersionRef`** — a purchase pins a version, so which per-user ceiling
+   was in force is *not* derivable from `created_at` and two accounts billing
+   on the same day can sit on different versions. Storing it costs one column;
+   the decision is Mitchell's, and the field is emitted either way.
 
    **What the admin surface (link 7) then shows**, all from this one table plus
    the plan-version file, `users.plan` and `entitlement_grants`: accounts per plan; accounts per

@@ -118,10 +118,41 @@ M9 task. A misrouted `plan` on a cheap tier is a quality regression the upward b
 mitigates but does not eliminate. The kernel lives behind a lint wall rather than a package
 boundary, which is weaker than the compiler; see below.
 
-**Not decided here.** Entitlement policy and the AI usage table are **M20's**, scoped
-2026-09-01 under four rules Mitchell has already decided. This work builds the ports —
-`AiEntitlementCheck` (already stubbed `EVERYONE_IS_ENTITLED`) and a `UsageLedger` sink — and
-chooses no tier, ceiling or price. KI-22 (the stream envelope into `packages/contracts`) is
+### 5. The ports are shaped by M20, not merely left for it
+
+**Added 2026-09-10, Mitchell:** *"Lets make sure to take into consideration the upcoming
+milestone around stripe and people paying for there account, and limits to the AI agent
+depending on the tier, that might influence design decisions about how we structure
+measureing and build."* It did — four things changed rather than being confirmed. Full fit
+check in the spec, §7.
+
+- **`TurnLedger` is the `ai_usage` row, field for field** (M20 link 9), so that link is an
+  `INSERT` and a migration rather than a redesign. Turn and classifier tokens stay
+  **separate** — folding them would undo the reason the classifier has its own model id.
+  **No dollars and no `Money` anywhere in it**: a live request costs $0.0011 and `Money`'s
+  integer minor units round that to zero, which is the KI-1/KI-14/`budgetPerPerson` defect
+  class on its third recurrence.
+- **Cost and capacity are two ledgers, not two fields of one** — a correction to the first
+  draft, forced by M20's *"attribute marginal cost only"*. Model tokens are billable; the
+  geocoder is a daily-capped free tier, which is a capacity limit. The type keeps them apart
+  so nobody has to remember not to sum them. KI-93 settles against the capacity half.
+- **The entitlement port is a set with ceilings, not a boolean.** `has(capability)` and **no
+  comparison operator at all** — M20's *"a plan is a set, not a rank"*, where copying
+  `accessPolicy.ts`'s `RANK` is the obvious move and the wrong one. Resolved `async`, per
+  request, from the database, because a downgrade must bite before a token refreshes.
+- **`ai.ask` and `ai.command` are rule 2's effect axis.** M20's entitlement vocabulary maps
+  onto `read` and `propose`, so the plan gate is a **third input to the existing filter**
+  rather than a second mechanism: `min(surface.max, roleAllows, planAllows)`. That is the
+  strongest reason to build rule 2 as (domain, effect) pairs instead of three named sets.
+- **Per-tier ceilings need no reordering.** M20 link 5 has `aiQuotas()`/`aiStepQuotas()` take
+  entitlements. Rule 3's pipeline already runs `selectModel` before `admitQuota`, forced by a
+  recorded incident — and that is exactly the order resolving ceilings requires. The
+  incident's order and the tier requirement agree.
+
+**Not decided here.** Which tier grants what, what any ceiling is, and what anything costs
+are **M20's**, under four rules Mitchell decided 2026-09-01. This work builds only the ports
+they fill and chooses no tier, ceiling or price. M21 (Stripe) needs nothing from the kernel
+at all: payments never enter it, and what M21 consumes is the series link 9 stores. KI-22 (the stream envelope into `packages/contracts`) is
 its own PR, because AGENTS.md reserves a contracts change as one. `resolveBatch` is not
 rewritten; KI-10 needs its own call.
 
