@@ -187,12 +187,44 @@ instruction honest — telling an editor "I can only answer questions" is a lie 
 because the two causes are distinguishable, and this keeps them distinguishable by
 construction.
 
-**Tool domains, pinned** so P2 cannot silently drop one: `read_trip`, `read_day`,
-`find_free_time` are `itinerary`/`read`; `search_playbooks` is **`library`/`read`** (it reads
-the Playbook corpus, not the trip); the twelve command tools are `itinerary`/`propose`;
-`insert_playbook_day` is `library`/`propose`; `insert_text` and `insert_widget` are
-`pages`/`propose`. Tagging `search_playbooks` `itinerary` would silently drop it from the
-page surface, which today has it.
+**Tool domains, pinned:** `read_trip`, `read_day`, `find_free_time` are `itinerary`/`read`;
+`search_playbooks` is `library`/`read` (it reads the Playbook corpus, not the trip); the
+twelve command tools are `itinerary`/`propose`; `insert_playbook_day` is `library`/`propose`;
+`insert_text` and `insert_widget` are `pages`/`propose`.
+
+> **Corrected 2026-09-10, after P2.** This block previously justified itself by claiming that
+> tagging `search_playbooks` `itinerary` *"would silently drop it from the page surface,
+> which today has it."* **That is false**, and P2 found it the right way — by writing the
+> test this sentence implies and watching it refuse to fail. The page row grants `itinerary`
+> at `read` as well, so a `read`-effect tool is offered either way. More than that:
+> `itinerary` and `library` carry **identical caps on all three rows today**, so retagging
+> either library tool changes no tool set at all.
+>
+> The tags are still worth having, but for an honest reason rather than that one: they are
+> **audit vocabulary now and behaviour later.** Nothing derivable can pin them while the caps
+> agree — which is why `grants.test.ts` pins all seven tools' domains *directly*, as literals,
+> rather than against `SURFACES`. They start bearing weight the first time a surface grants
+> one domain without the other, which is exactly what a `city` or `timeline` surface would do:
+> the Playbook library without the trip itinerary.
+
+**Three mechanical gotchas, each measured rather than reasoned** *(P2, 2026-09-10)*:
+
+- **The role cap's rank comparison belongs in `@/server/accessPolicy`, not in the kernel.**
+  `minimumRoleFor` is a `max` over `TripRole`, and AGENTS.md invariant 6c says exactly one
+  place may know that a viewer ranks below an editor. So `roleAtLeast` is exported from
+  `accessPolicy` (with `hasAtLeast` delegating to it) and that module is allowlisted through
+  the wall. A second `RANK` table inside the kernel is what the invariant forbids, and it is
+  the obvious thing to write.
+- **The obvious spelling of the allowlist is broken.** `no-restricted-imports` matches
+  `group` with the `ignore` package, which follows gitignore semantics — *a file cannot be
+  re-included once a parent directory is excluded*. So `["@/server/**", "!@/server/ai/context"]`
+  **denies its own exception**: measured on ESLint 9.39, every allowlisted import was
+  rejected. The wall uses a negative-lookahead `regex` instead.
+- **Building the tool set dynamically erases `toolsContext`'s type.** `InferToolSetContext`
+  over a `Record<string, Tool>` resolves to nothing and types `toolsContext` as `undefined` —
+  at the one call site ADR-022 §3's structural guarantee rides on. `registry.ts` exports an
+  `AssistantToolSet` that pins the context parameter, so a bogus key still errors by name.
+  This is the trap `readTools.ts` warns about at length, reached from a new direction.
 
 `minimumRoleFor` becomes `max(tool.minimumRole)` over the set actually selected. Its own
 comment already says this is what it wants to be — *"the moment a tool that is not in
