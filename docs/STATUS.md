@@ -22,6 +22,49 @@ general setup.
 
 ## Where the work is right now
 
+**THE ASSISTANT IS A KERNEL — M9 PHASE 0, 2026-09-11.** Two branches, both pushed, both
+Tier-3 green, **neither merged**.
+
+- `claude/ecstatic-johnson-5rqhnm` — P0–P5, ten commits. `pnpm check` exit 0;
+  `pnpm --filter web test:e2e:ci-like` 105 passed.
+- `claude/ai-stream-envelope-contracts` — P6, **stacked on the above**, one commit. A
+  contracts change, which AGENTS.md reserves as its own PR. `pnpm check` exit 0,
+  `pnpm seed:verify` exit 0, e2e 105 passed.
+
+Mitchell, 2026-09-10, opening KI-2026-09-05-t: *"Lets take on refactoring it, and the entire
+AI Ask system."* Decision and the five rules: **ADR-043**. Design, corrections and the open
+questions: `docs/specs/2026-09-10-assistant-kernel-design.md`. Placement — interposed ahead of
+M17's three remaining gate boxes — is in `docs/milestones/README.md`.
+
+What is true now that was not: a tool is a module declaring a **required output schema** and
+its own dependencies (so a tool cannot reach what it did not declare, as a compile error); a
+scope is a grant of (domain, effect) pairs and the tool set is a **filter**, not a
+hand-written switch; admission is a nine-stage declared array whose **order a test asserts**;
+the system instruction is typed blocks with user-authored tool results fenced; and a turn
+returns a `TurnLedger` shaped as M20 link 9's `ai_usage` row.
+
+**Read before merging these two.** They are a stacked pair, and this repo squash-merges.
+**KI-2026-08-30-d is exactly this shape**: squashing the base underneath a stacked branch
+makes a `git mv` of a known-issue entry reappear in *both* `open/` and `resolved/`, **with no
+conflict reported** — the tree is simply wrong afterwards. P0–P5 moves KI-2026-09-05-t and P6
+moves KI-22, so both are exposed. That entry's own fix path 1 is the answer: **merge, don't
+squash, the base PR while another branch is stacked on it.**
+
+**Three questions are open for Mitchell** and none blocks anything — each is implemented one
+way with the alternative recorded, and each is cheap now and expensive later. They are listed
+in the spec under *Open questions for Mitchell*: whether `planVersionRef` is stored on the
+usage row; which quota window a **sold** ceiling binds (implemented per-day, from M20's own
+plan table, which neither document actually states); and whether the model tier map should be
+a Vercel Flag rather than an environment variable read at module load.
+
+**What this did NOT do.** It closes no exit-gate box, of M9's or anyone's. Entitlement policy
+and the `ai_usage` table stay **M20's**, under the four rules decided 2026-09-01 — Phase 0
+builds only the ports they fill and chooses no tier, ceiling or price. KI-93 got a typed place
+to put a geocode count and **did not get the count**: no tool declares `spend: "vendor"`, and
+the real LocationIQ door is `commitProposal`'s geocoder on the apply path, which is not a tool.
+
+---
+
 **AI CAN BE TURNED ON FOR SPECIFIC PEOPLE, 2026-09-08.** Branch
 `claude/vercel-entities-ai-flags-7zdbsj`. Mitchell asked for *"Vercel Entities so i can do
 targeted Feature Flags for turning on AI"*; ADR-019 had left per-user targeting as the one

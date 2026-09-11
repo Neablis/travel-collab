@@ -1,0 +1,26 @@
+### KI-2026-09-05-t — `handleAskRequest()` is one 455-line function, so every change to the AI route lands inside the same body
+
+- **Severity:** cleanup (no defect; it is the shape that makes the ~15 open AI entries expensive to fix one at a time)
+- **Area (as filed):** `apps/web/src/server/ai/handleAskRequest.ts:244-699` (the function body; the file was 1048 lines, of which ~583 are comments recording incidents — **do not trim those**); the seams it already names: `briefFor`, `pageInsertsMetadata`, `instructionsFor`, the recorder, the stream response. *Those line numbers are historical: the file is 863 lines now and the body is elsewhere in it.*
+- **Symptom / What happens:** the `/ask` flow is 13 steps (mapped step by step in `../../reviews/2026-09-05-overnight-review/README.md` §F, worth lifting into `docs/specs/2026-08-29-one-ai-route-design.md`), and the middle of it is one function. Stream E's census found 40 open entries of which 17 are correctness and **14–17 cite `server/ai`**; KI-9, 22, 80, 82, 93, 94 and 97 are all consequences of model output crossing into the system at many places with no single typed boundary.
+- **Why not fixed here:** found by a read-only review; no code was changed by it. The larger half of the fix — KI-9's gateway wrapper that *requires* an output schema, so a new un-parsed consumer is a type error — has been agreed since July and is recorded there; this entry exists for the net-new half, the split, which KI-9 does not cover.
+- **Suggested fix:** land KI-9's wrapper; split `handleAskRequest` at the seams it already names into ~5 functions under 100 lines each, keeping each incident comment attached to the step it describes; move the stream envelope into `packages/contracts` (KI-22).
+- **Cross-reference:** [F-E07](../../reviews/2026-09-05-overnight-review/findings/F-E07-ask-handler-is-one-455-line-function.md) (MEDIUM, CONFIRMED); KI-9 (the hub), KI-22, 80, 82, 93, 94, 97; ADR-033; `../../reviews/2026-09-05-overnight-review/README.md` §F, which also lists eight places in `server/**` where the complexity is **deliberate and should not be simplified**.
+- **Being fixed — M9 Phase 0, opened 2026-09-10.** Mitchell: *"Lets take on refactoring it, and the entire AI Ask system."* The fix is larger than this entry's suggestion and supersedes it: not "split into ~5 functions", but four rules — a tool is a module declaring a required output schema and its own dependencies; a scope is a grant of (domain, effect) pairs so the tool set is a filter rather than a hand-written switch; admission is one declared pipeline returning one verdict and one audit record; and cost is a `TurnLedger` the existing three consumers read. The split falls out of the third. Decision: **ADR-043**; design and phase table: `../../specs/2026-09-10-assistant-kernel-design.md`. **The ~583 comment lines are not trimmed** — each moves with the step it describes.
+- **RESOLVED 2026-09-11 by M9 Phase 0 (ADR-043), branch `claude/ecstatic-johnson-5rqhnm`; the split itself is P3, `a8784ef`.** `handleAskRequest()`'s body is **105 non-comment lines**, down from 455; the thirteen steps are a declared nine-stage array (`ADMISSION` + `grantTools`) whose **order is asserted by a test** rather than defended by a comment. The three transitions that are recorded incidents are each covered: moving `admitQuota` ahead of `selectModel` turns four tests red, including *"does not charge the quota when model selection fails"* — the incident that once burned a caller's whole hourly and daily allowance against an outage that produced zero provider calls. `readTools.ts` and `planningTools.test.ts` are deleted; `/ask`, `/ask/apply` and telemetry integration suites pass **unedited** (97 tests). **The comment record grew rather than shrank** — 634 lines before, 996 after, every sentence diffed and nothing dropped. This entry stays in `open/` only until the branch merges; move it to `resolved/` then, with the commit range.
+- **First noted:** 2026-09-05, overnight review streams E + F.
+
+**Proof line:** `handleAskRequest()`'s body is **105 non-comment lines** (255 including its
+comments), down from 455. Admission is a nine-stage declared array whose order a test
+asserts — moving `admitQuota` ahead of `selectModel` turns four tests red, including *"does
+not charge the quota when model selection fails"*, which is the incident that once burned a
+caller's whole hourly and daily allowance against an outage that produced zero provider
+calls. `readTools.ts` and `planningTools.test.ts` deleted. The comment record went
+**634 → 996** lines across the replacing files, every sentence diffed. Tier 3 on the branch:
+`pnpm check` exit 0 (2521 web unit +1 skipped, 496 integration, 182/182 scripts) and
+`pnpm --filter web test:e2e:ci-like` 105 passed.
+
+**Do not read the phase table as the proof.** A row in `docs/specs/2026-09-10-assistant-
+kernel-design.md` saying a phase "closes" an entry is a plan, not a closure — found by P6,
+which noticed this entry still sitting in `open/` with its as-filed line numbers while two
+documents claimed P3 had closed it. The entry is what closes the entry.
