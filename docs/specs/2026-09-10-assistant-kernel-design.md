@@ -276,6 +276,46 @@ function to read, one log line to query, instead of thirteen steps to trace.
 `handleAskRequest` becomes admission → build agent → stream, and F-F03's duplicated body
 ritual collapses into `capRawBody` + `parseRequest`, shared with the apply handler.
 
+### 3b. Five corrections to §3, from building it *(P3, 2026-09-11)*
+
+**The pipeline is NINE stages, not eight.** The caps are `min(surface, role, plan,
+classifier)` and `classifier` comes from the last of the eight — so the tool set, the derived
+posture and `minimumRoleFor`'s backstop 403 can only resolve *after* every listed stage has
+run. §3 therefore had no name for the step that produces the thing the pipeline returns,
+while also requiring every refusal to name a stage. `grantTools` is the ninth and last, and
+it can refuse, which is what makes it a stage rather than an epilogue. The other eight and
+their order are exactly as specified.
+
+**`AiGrant` names the admission verdict; the (domain → effect) map is `GrantedEffects`.**
+P2 took `AiGrant` for the map before §3 was written against it, and both are load-bearing.
+The verdict keeps the name — it is what the `ai.grant` audit record is a record *of*, and
+"grant" in the permissions sense is the more load-bearing reading.
+
+**The pipeline lives inside the kernel, and its bindings are ports.** §3 said the pipeline
+"returns one value" and never said where it lives, and "Where it lives" put the kernel behind
+an allowlist that denies all five things the pipeline needs — `guard`, `getPage`,
+`selectAiModel`, `consumeQuota`, `classifyAskIntent`. P3 resolved the contradiction by putting
+`evaluateAiGrant` in `src/server/ai`, outside the wall, and flagged the choice rather than
+making it silently. **Decided: it moves inside, in P4.** The reason is the requirement this
+work opened on — the service should *"know how to pull in context, evaluate context"* — and a
+pipeline outside the wall puts the entire audit surface outside the wall with it. `ai.grant`
+is the answer to "what is and isn't allowed", and it should not be the one part of the
+assistant that a service extraction would leave behind. The bindings become ports, which
+`admissionPorts.ts` already is.
+
+**§7d's ordering claim is true but currently unenforced, and P5 is what closes it.**
+`selectModel` runs before `admitQuota` because an incident forced it — but `admitQuota` reads
+nothing `selectModel` produces today, so the data dependency that makes the other stages'
+order structural does not exist for this pair. It is held by two test assertions and nothing
+else. When P5 has `selectModel` hand `ResolvedEntitlements.ceilings` to `admitQuota`, the
+order becomes structural. **P5 is closing a real gap there, not restating a property.**
+
+**`classifyTask` is not a conditional stage.** §3 describes it as running *"only when there is
+a write half to withhold"*, which is the one thing a fixed array cannot express. The stage
+always runs; the *model call* inside it is conditional on `canWrite && page === null`. The
+distinction matters because "the array is the order" is the property the whole section rests
+on.
+
 ### 4. Prompt assembly is typed blocks, and tool results are tainted
 
 Two channels, and they never mix.
