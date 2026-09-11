@@ -88,11 +88,20 @@ export interface ToolSpec<
    * server-authored — `find_free_time` returns day numbers and clock times, and
    * fencing those would be noise that teaches a reader the mark means nothing.
    *
-   * Optional rather than required-and-usually-identity because the ELEVEN write
-   * tools all return `{ queued: true }`, and eleven identity functions would be
-   * a manifest with the same failure mode as the ones ADR-043 deleted. What
-   * keeps it honest instead is a measurement: `read.taint.test.ts` feeds every
-   * read tool a trip whose every user-authored string is a marker, and asserts
+   * Optional rather than required-and-usually-identity because the twelve
+   * planning tools all return a bare `{ queued: true }`, and twelve identity
+   * functions would be a manifest with the same failure mode as the ones
+   * ADR-043 deleted.
+   *
+   * **The thirteenth write tool is the exception, and it is the one that proves
+   * why the measurement matters more than the count** (PR #162 review, Major).
+   * `insert_playbook_day` returns the saved day's `name` — author-written, and
+   * the author is a stranger to the asker — and it shipped unfenced, because
+   * the taint measurement was scoped by its own FILE NAME to the read tools.
+   * A write tool that returns user text is not a special case; it is the case
+   * the name hid. What keeps this honest is a measurement:
+   * `toolResults.taint.test.ts` feeds every tool that returns user-authored
+   * text a trip whose every such string is a marker, and asserts
    * no marker reaches the model unfenced — so a new tool that forgets this
    * fails without anybody remembering to add it to a list.
    */

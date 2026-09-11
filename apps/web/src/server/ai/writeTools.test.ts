@@ -148,7 +148,7 @@ describe("the write tools collect and commit nothing", () => {
         // Fenced, because the day's name is its AUTHOR's text and the author is
         // a stranger to the asker. `execute` is `invoke`, which applies the
         // tool's `taint` — the delimiters are written out rather than imported
-        // so this reads as the model sees it. `readTools.taint.test.ts` owns
+        // so this reads as the model sees it. `toolResults.taint.test.ts` owns
         // the property; this pins the receipt's shape with the fence in it.
         name: "⟦A day in Kyoto⟧",
         stopCount: 2,
