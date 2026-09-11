@@ -18,6 +18,9 @@ import { describe, expect, it } from "vitest";
 import { BatchableCommand } from "@tc/contracts";
 import { MACRO_NAMES } from "@tc/pages";
 import { ASSISTANT_TOOLS, aiToolsFor } from "./registry";
+import { newTurnMeter } from "./ledger";
+import { defineTool } from "./defineTool";
+import { z } from "zod";
 import { newPageBuffer, newProposalBuffer } from "./deps";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { PAGE_TOOLS } from "./tools/page";
@@ -108,5 +111,73 @@ describe("the AI SDK adapter", () => {
       const attached = (built[definition.name] as { contextSchema?: unknown }).contextSchema !== undefined;
       expect(attached, `${definition.name} contextSchema`).toBe(wantsContext);
     }
+  });
+
+  // **The ledger's efficiency half is measured where the tool actually runs.**
+  // `onStepEnd` sees a tool's NAME and its input, because that is what the
+  // model emitted; it cannot see how long the call took or whether it threw,
+  // and those are the whole difference between "the model asked for this tool"
+  // and "this tool earned its schema".
+  describe("the turn meter", () => {
+    const okTool = defineTool({
+      name: "meter_ok",
+      domain: "system",
+      effect: "read",
+      spend: "none",
+      input: z.object({}),
+      output: z.object({ ok: z.boolean() }),
+      needs: [] as const,
+      minimumRole: "viewer",
+      description: "A tool that returns.",
+      run: async () => ({ ok: true }),
+    });
+
+    const throwingTool = defineTool({
+      name: "meter_throws",
+      domain: "system",
+      effect: "read",
+      spend: "none",
+      input: z.object({}),
+      output: z.object({ ok: z.boolean() }),
+      needs: [] as const,
+      minimumRole: "viewer",
+      description: "A tool that throws.",
+      run: async () => {
+        throw new Error("tool exploded");
+      },
+    });
+
+    async function execute(tool: unknown): Promise<unknown> {
+      return (tool as { execute: (input: unknown, options: unknown) => Promise<unknown> }).execute({}, {});
+    }
+
+    it("records a successful call with its name and outcome", async () => {
+      const meter = newTurnMeter();
+      const built = aiToolsFor([okTool], {}, meter);
+      await execute(built.meter_ok);
+
+      expect(meter.toolCalls()).toHaveLength(1);
+      expect(meter.toolCalls()[0]).toMatchObject({ name: "meter_ok", ok: true });
+      expect(meter.toolCalls()[0]!.ms).toBeGreaterThanOrEqual(0);
+    });
+
+    // **Recorded, then re-thrown unchanged.** The SDK turns a throwing tool
+    // into a tool-error result the model can react to; swallowing one here to
+    // keep the ledger tidy would be telemetry changing behaviour, which is the
+    // one thing every sink in this codebase is written not to do.
+    it("records a failed call as ok: false and re-throws it", async () => {
+      const meter = newTurnMeter();
+      const built = aiToolsFor([throwingTool], {}, meter);
+
+      await expect(execute(built.meter_throws)).rejects.toThrow("tool exploded");
+      expect(meter.toolCalls()).toEqual([{ name: "meter_throws", ms: expect.any(Number), ok: false }]);
+    });
+
+    // A caller that is not measuring a turn — every test that builds a tool set
+    // to inspect its schemas — must not have to mint a meter.
+    it("runs unmeasured when no meter is supplied", async () => {
+      const built = aiToolsFor([okTool], {});
+      await expect(execute(built.meter_ok)).resolves.toBeDefined();
+    });
   });
 });

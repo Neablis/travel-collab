@@ -10,8 +10,9 @@
 // could be reached must be served in full.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { consumeQuota, type QuotaCounters, type QuotaPolicy } from "./quota";
+import { aiQuotas, aiStepQuotas, consumeQuota, type QuotaCounters, type QuotaPolicy } from "./quota";
 import { witness } from "@/test-support/witness";
+import type { EntitlementCeilings } from "./assistant/entitlements";
 
 const T0 = new Date("2026-08-28T12:00:00.000Z");
 
@@ -82,5 +83,70 @@ describe("the quota bound holds for any request sequence", () => {
     // than guessed: 1,837-1,911 bound assertions and 89-105 liveness cases.
     w.atLeast(900);
     live.atLeast(45);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The bucket name is not a function of the tier
+// ---------------------------------------------------------------------------
+
+/**
+ * **The hole this closes, stated as the attack.** `QuotaPolicy.name` is
+ * documented *"Bucket namespace. Must be stable — changing it resets everyone's
+ * count"*, and `consumeQuota` keys its counters `${name}:user:${userId}`. So a
+ * bucket name that varied with the plan would hand every account a fresh
+ * allowance on every upgrade AND every downgrade: switch plan, get a new
+ * bucket, start at zero, switch back, start at zero again. Anyone who could
+ * toggle a plan could farm unlimited free calls, and nothing in the counter
+ * table would look wrong.
+ *
+ * M20 link 5 therefore says *"the bucket `name` must not vary by tier… only the
+ * numbers move"*, and this is the universally-quantified form of that: for ANY
+ * ceilings a plan version could name, the four bucket names are the same four
+ * literals.
+ */
+const arbCeilings: fc.Arbitrary<EntitlementCeilings> = fc.record({
+  perUserRequestsPerDay: fc.option(fc.integer({ min: 1, max: 100_000 }), { nil: null }),
+  perUserStepsPerDay: fc.option(fc.integer({ min: 1, max: 1_000_000 }), { nil: null }),
+  maxTier: fc.option(fc.constantFrom("cheap" as const, "mid" as const, "strong" as const), { nil: null }),
+});
+
+const BUCKET_NAMES = ["ai-hourly", "ai-daily", "ai-steps-hourly", "ai-steps-daily"];
+
+describe("tiered ceilings move numbers and never bucket names", () => {
+  it("names the same four buckets for any ceilings a plan version could name", () => {
+    const w = witness("bucket names pinned");
+    // The guard that could go vacuous: if every generated ceiling were `null`,
+    // this would only ever compare the default policies with themselves and
+    // would pass having exercised nothing the parameter added.
+    const moved = witness("a per-user ceiling actually moved");
+
+    fc.assert(
+      fc.property(arbCeilings, (ceilings) => {
+        const policies = [...aiQuotas(ceilings), ...aiStepQuotas(ceilings)];
+        const baseline = [...aiQuotas(), ...aiStepQuotas()];
+
+        expect(policies.map((policy) => policy.name)).toEqual(BUCKET_NAMES);
+        // Stronger than equality against the baseline, and deliberately so: a
+        // name is only safe if it is a literal, so nothing derived from the
+        // ceilings may appear in it at all.
+        for (const policy of policies) {
+          expect(policy.name).toMatch(/^ai(-steps)?-(hourly|daily)$/);
+        }
+        // The GLOBAL ceiling is the operator's abuse bound and was never sold
+        // to anyone, so no plan may move it either.
+        expect(policies.map((policy) => policy.global)).toEqual(baseline.map((policy) => policy.global));
+        w.tick();
+
+        if (policies.some((policy, i) => policy.perUser !== baseline[i]!.perUser)) moved.tick();
+      }),
+      { numRuns: 300 },
+    );
+
+    // Floors measured over three runs rather than guessed: the pinned-name
+    // assertion has no guard and ticks exactly `numRuns`; a ceiling that
+    // actually moved a number was observed 287-293, so its floor is ~half.
+    w.atLeast(300);
+    moved.atLeast(140);
   });
 });

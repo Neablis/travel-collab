@@ -31,6 +31,7 @@ import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { AskIntentRecord } from "@/server/ai/askAnalytics";
 import {
   ADMISSION,
+  taskClassFor,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
   evaluateAiGrant,
@@ -38,6 +39,7 @@ import {
   type AdmissionStageName,
   type AiGrantRecord,
 } from "./admission";
+import { NO_CEILINGS, PERMITS_EVERYTHING, type EntitlementCeilings } from "./entitlements";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const PAGE_ID = "22222222-2222-4222-8222-222222222222";
@@ -45,11 +47,12 @@ const EDITOR = "grant-editor";
 const VIEWER = "grant-viewer";
 
 const CLASSIFIED_AS_WRITE: AskIntentRecord = {
+  taskClass: "edit",
   intent: "write",
   source: "model",
   context: null,
   model: "test/classifier",
-  verdict: '{"result":"write"}',
+  verdict: '{"result":"edit"}',
   failedOpen: false,
   latencyMs: 1,
   usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
@@ -89,9 +92,11 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
   ports: AdmissionPorts;
   calls: string[];
   records: AiGrantRecord[];
+  admittedCeilings: EntitlementCeilings[];
 } {
   const calls: string[] = [];
   const records: AiGrantRecord[] = [];
+  const admittedCeilings: EntitlementCeilings[] = [];
   const base: AdmissionPorts = {
     identifyActor: async () => {
       calls.push("identifyActor");
@@ -105,12 +110,23 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
       calls.push("selectModel");
       return {
         outcome: "live",
-        model: "test/model" as LanguageModel,
+        // One id per slot, so a test can tell WHICH tier a turn resolved to
+        // rather than only that some model came back.
+        models: {
+          cheap: "test/model-cheap" as LanguageModel,
+          mid: "test/model-mid" as LanguageModel,
+          strong: "test/model-strong" as LanguageModel,
+        },
         classifierModel: "test/classifier" as LanguageModel,
+        entitlements: PERMITS_EVERYTHING,
       };
     },
-    admitQuota: async () => {
+    admitQuota: async (_userId, ceilings) => {
       calls.push("admitQuota");
+      // The ceilings this stage was HANDED, kept beside the call list rather
+      // than in it: the order test asserts that list exactly, and spec §3b's
+      // fourth gap needs the ARGUMENT to be observable, not the name.
+      admittedCeilings.push(ceilings);
       return { allowed: true };
     },
     // The real adapter compares against `SIMULATED_MODEL_ID`; nothing injected
@@ -122,7 +138,7 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
     },
     audit: (record) => void records.push(record),
   };
-  return { ports: { ...base, ...overrides }, calls, records };
+  return { ports: { ...base, ...overrides }, calls, records, admittedCeilings };
 }
 
 describe("the admission pipeline's ORDER", () => {
@@ -290,8 +306,12 @@ describe("the ai.grant record", () => {
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
     expect(record.tools).not.toContain("insert_widget");
-    expect(record.model).toBe("test/model");
-    expect(record.taskClass).toBe("write");
+    // `edit` proposes a tier, the tier resolves to a slot, and the slot is
+    // where the model id came from — the record names all three so "which model
+    // answered, and why that one" is one line rather than a re-derivation.
+    expect(record.taskClass).toBe("edit");
+    expect(record.tier).toBe("mid");
+    expect(record.model).toBe("test/model-mid");
     expect(record.refusedBy).toBeNull();
   });
 
@@ -308,7 +328,12 @@ describe("the ai.grant record", () => {
 
     expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read" });
     expect(records[0]!.tools).not.toContain("AddActivity");
-    expect(records[0]!.taskClass).toBeNull();
+    // **A viewer's unclassified turn is a `question`, not an absence.** No model
+    // was asked — there was no write half to withhold — and a turn holding only
+    // read tools is a question whatever it sounds like, so it routes to the
+    // cheapest slot rather than to a null nobody can price.
+    expect(records[0]!.taskClass).toBe("question");
+    expect(records[0]!.tier).toBe("cheap");
     expect(calls).not.toContain("classify");
   });
 
@@ -334,7 +359,11 @@ describe("the ai.grant record", () => {
     expect(records[0]!.status).toBe(429);
     // The model was already chosen when the quota refused, and the record says
     // so — a refusal after selection and one before it are different events.
-    expect(records[0]!.model).toBe("test/model");
+    // The MID slot, because a turn refused before `grantTools` has no task
+    // class and therefore no tier: `tier` is null and the id names the
+    // fallback rather than implying a routing decision that never happened.
+    expect(records[0]!.model).toBe("test/model-mid");
+    expect(records[0]!.tier).toBeNull();
     expect(records[0]!.tools).toBeNull();
   });
 
@@ -418,5 +447,94 @@ describe("the grant a turn holds", () => {
     expect(admission.refusal.stage).toBe("resolveSurface");
     expect(admission.refusal.reason).toBe("this trip has 3 days, so day 10 is out of range");
     expect(calls).toEqual(["identifyActor"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task class, tier, and the ceilings that make the stage order structural (P5)
+// ---------------------------------------------------------------------------
+
+describe("what a turn is for, and which slot answers it", () => {
+  // The surface decides, and it decides BEFORE the classifier is consulted —
+  // which is why a page turn is never classified and never pays for one.
+  it("calls a page turn compose without asking a model", async () => {
+    const { ports, calls, records } = spyPorts();
+    await evaluateAiGrant({
+      request: askFor({ ...TRIP_TURN, scope: { kind: "page", pageId: PAGE_ID } }),
+      tripId: TRIP_ID,
+      ports,
+    });
+
+    expect(records[0]!.taskClass).toBe("compose");
+    expect(records[0]!.tier).toBe("mid");
+    expect(records[0]!.model).toBe("test/model-mid");
+    expect(calls).not.toContain("classify");
+  });
+
+  // The classifier's verdict, all the way through to a model id. `plan` is the
+  // one class that reaches the strong slot, and it is the one whose misrouting
+  // §5 says is worth paying for.
+  it("routes a turn the classifier called plan to the strong slot", async () => {
+    const { ports, records } = spyPorts({
+      classify: async () => ({ ...CLASSIFIED_AS_WRITE, taskClass: "plan", verdict: '{"result":"plan"}' }),
+    });
+    await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(records[0]!.taskClass).toBe("plan");
+    expect(records[0]!.tier).toBe("strong");
+    expect(records[0]!.model).toBe("test/model-strong");
+  });
+
+  // The two structural answers, pinned directly, because neither is derivable
+  // from the classifier's record — which is null in both cases.
+  it("decides the unclassified cases structurally", () => {
+    expect(taskClassFor(true, null)).toBe("compose");
+    expect(taskClassFor(false, null)).toBe("question");
+    // A page turn is compose even if something did classify it: the surface's
+    // answer is the verified one, and the sentence's is not.
+    expect(taskClassFor(true, CLASSIFIED_AS_WRITE)).toBe("compose");
+    expect(taskClassFor(false, CLASSIFIED_AS_WRITE)).toBe("edit");
+  });
+});
+
+describe("admission is handed the ceilings selection resolved", () => {
+  // **Spec §3b's fourth gap, closed.** `selectModel` has always run before
+  // `admitQuota` — a recorded incident forced it — but until P5 `admitQuota`
+  // read nothing `selectModel` produced, so the data dependency that makes
+  // every other pair's order structural did not exist for this one. It was held
+  // by two test assertions and nothing else. This asserts the ARGUMENT, not the
+  // order: the order test above cannot tell a coincidence from a dependency.
+  it("passes the resolved ceilings into the quota stage", async () => {
+    const { ports, admittedCeilings } = spyPorts();
+    await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(admittedCeilings).toEqual([NO_CEILINGS]);
+  });
+
+  // And the ceilings are the ones the resolver named, not a default the adapter
+  // reached for — a settlement metered against different numbers than the
+  // admission charge is a silent mis-charge on exactly the accounts M20 bills.
+  it("passes whatever the resolver named, unaltered", async () => {
+    const ceilings = { perUserRequestsPerDay: 7, perUserStepsPerDay: 70, maxTier: "cheap" as const };
+    const { ports, admittedCeilings, records } = spyPorts({
+      selectModel: async () => ({
+        outcome: "live",
+        models: {
+          cheap: "test/model-cheap" as LanguageModel,
+          mid: "test/model-mid" as LanguageModel,
+          strong: "test/model-strong" as LanguageModel,
+        },
+        classifierModel: "test/classifier" as LanguageModel,
+        entitlements: { has: () => true, ceilings, planVersionRef: "plus@v1" },
+      }),
+    });
+    await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(admittedCeilings).toEqual([ceilings]);
+    // And the same resolution caps the tier: `edit` proposes `mid`, the plan
+    // permits at most `cheap`, and `cheap` is what the turn gets.
+    expect(records[0]!.taskClass).toBe("edit");
+    expect(records[0]!.tier).toBe("cheap");
+    expect(records[0]!.model).toBe("test/model-cheap");
   });
 });

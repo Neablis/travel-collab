@@ -18,6 +18,7 @@ vi.mock("@sentry/nextjs", () => ({
 }));
 
 import { recordAskMetrics, recordProposalApplyMetrics, splitModelId } from "@/server/ai/aiMetrics";
+import type { TurnLedger } from "@/server/assistant/ledger";
 
 interface Emitted {
   name: string;
@@ -75,6 +76,44 @@ const ASK_RECORD: AskAnalyticsRecord = {
   latencyMs: 4210,
 };
 
+/**
+ * The ledger a turn with this record would have produced.
+ *
+ * Derived from the record rather than written out beside it, exactly as
+ * `createAskRecorder` derives it, so a test fixture cannot drift into asserting
+ * a pairing production never emits. `capacity` is empty because no tool
+ * declares `spend: "vendor"` yet — that is the measurement, not a placeholder.
+ */
+function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"] = []): TurnLedger {
+  const classification = record.classification;
+  const called = classification !== null && classification.source === "model" && classification.model !== null;
+  return {
+    cost: {
+      userId: record.userId,
+      endpoint: "ask",
+      outcome: record.outcome,
+      taskClass: classification === null ? "question" : classification.taskClass,
+      turn: { model: record.model, tokensIn: record.usage.inputTokens, tokensOut: record.usage.outputTokens },
+      classifier: called
+        ? {
+            model: classification.model!,
+            tokensIn: classification.usage.inputTokens,
+            tokensOut: classification.usage.outputTokens,
+          }
+        : null,
+      steps: record.steps,
+      planVersionRef: null,
+    },
+    capacity: [],
+    toolCalls,
+  };
+}
+
+/** `recordAskMetrics` with the ledger that record implies. */
+function record(r: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"] = []): void {
+  recordAskMetrics(r, ledgerOf(r, toolCalls));
+}
+
 beforeEach(() => {
   // `reset`, not `clear`: the "never throws" cases install a throwing
   // implementation, and `clearAllMocks` keeps implementations — which would
@@ -111,7 +150,7 @@ describe("splitModelId", () => {
 
 describe("recordAskMetrics", () => {
   it("counts one turn, tagged with its outcome and shape", () => {
-    recordAskMetrics(ASK_RECORD);
+    record(ASK_RECORD);
     expect(counted("ai.ask.turns")).toEqual([
       {
         name: "ai.ask.turns",
@@ -124,6 +163,10 @@ describe("recordAskMetrics", () => {
           simulated: false,
           scope: "trip",
           turn: "opening",
+          // The routing dimension. Without it "did sending questions to a cheap
+          // tier save anything" is not a subtraction between two series, which
+          // is the only form that question has an answer in.
+          task_class: "question",
           outcome: "completed",
           answered: true,
           finish_reason: "stop",
@@ -135,7 +178,7 @@ describe("recordAskMetrics", () => {
   // Counters, not distributions, because the question is "how many tokens did
   // we spend" and a counter incremented by the count sums to exactly that.
   it("counts tokens by value so they sum to the turn's spend", () => {
-    recordAskMetrics(ASK_RECORD);
+    record(ASK_RECORD);
     expect(counted("gen_ai.usage.input_tokens")[0]).toMatchObject({ value: 8355 });
     expect(counted("gen_ai.usage.output_tokens")[0]).toMatchObject({ value: 412 });
     expect(counted("gen_ai.usage.total_tokens")[0]).toMatchObject({ value: 8767 });
@@ -145,20 +188,20 @@ describe("recordAskMetrics", () => {
   // The per-turn SHAPE is a different question from the total, so it gets its
   // own name rather than being read off the counter.
   it("also records the turn's total as a distribution", () => {
-    recordAskMetrics(ASK_RECORD);
+    record(ASK_RECORD);
     expect(distributed("ai.ask.tokens")[0]).toMatchObject({ value: 8767 });
   });
 
   // A provider that reports the halves and no total would otherwise leave the
   // one number anyone charts permanently at zero.
   it("derives a missing total from the halves rather than skipping it", () => {
-    recordAskMetrics({ ...ASK_RECORD, usage: { inputTokens: 100, outputTokens: 20, totalTokens: null } });
+    record({ ...ASK_RECORD, usage: { inputTokens: 100, outputTokens: 20, totalTokens: null } });
     expect(counted("gen_ai.usage.total_tokens")[0]).toMatchObject({ value: 120 });
     expect(distributed("ai.ask.tokens")[0]).toMatchObject({ value: 120 });
   });
 
   it("emits no token metric at all when the provider reported nothing", () => {
-    recordAskMetrics({ ...ASK_RECORD, usage: { inputTokens: null, outputTokens: null, totalTokens: null } });
+    record({ ...ASK_RECORD, usage: { inputTokens: null, outputTokens: null, totalTokens: null } });
     expect(counted("gen_ai.usage.input_tokens")).toEqual([]);
     expect(counted("gen_ai.usage.output_tokens")).toEqual([]);
     expect(counted("gen_ai.usage.total_tokens")).toEqual([]);
@@ -166,7 +209,7 @@ describe("recordAskMetrics", () => {
   });
 
   it("records latency in milliseconds, steps and tool-call count", () => {
-    recordAskMetrics(ASK_RECORD);
+    record(ASK_RECORD);
     expect(distributed("ai.ask.duration")[0]).toMatchObject({ value: 4210, unit: "millisecond" });
     expect(distributed("ai.ask.steps")[0]).toMatchObject({ value: 3 });
     expect(distributed("ai.ask.tool_calls")[0]).toMatchObject({ value: 2 });
@@ -175,7 +218,7 @@ describe("recordAskMetrics", () => {
   // The aggregate form of the measurement ADR-022's "a tool is earned by a new
   // computation" rule depends on: offered vs called vs uncalled, per tool.
   it("counts every tool offered, every tool called, and every tool left uncalled", () => {
-    recordAskMetrics(ASK_RECORD);
+    record(ASK_RECORD);
     expect(counted("ai.tool.offered").map((m) => m.attributes.tool)).toEqual([
       "read_trip",
       "read_day",
@@ -188,7 +231,7 @@ describe("recordAskMetrics", () => {
   // A tool called twice in a turn is two calls, not one — the counter has to
   // move per call for "how often is this tool actually used" to mean anything.
   it("counts a repeated tool call once per call", () => {
-    recordAskMetrics({
+    record({
       ...ASK_RECORD,
       toolCalls: [
         { name: "read_day", input: { days: [1] } },
@@ -200,7 +243,7 @@ describe("recordAskMetrics", () => {
   });
 
   it("counts a dropped write by its command type and the domain's rejection code", () => {
-    recordAskMetrics({
+    record({
       ...ASK_RECORD,
       droppedCalls: [
         { type: "MoveActivity", code: "unresolved-ref", refs: { activityRef: "Nope" }, message: 'No activity named "Nope".' },
@@ -214,7 +257,7 @@ describe("recordAskMetrics", () => {
   // A 429 and a 500 read identically in prose and demand opposite responses,
   // which is why the status code is an attribute and the message is not.
   it("counts a failure by error name and status, never by message", () => {
-    recordAskMetrics({
+    record({
       ...ASK_RECORD,
       outcome: "error",
       cause: { name: "AI_APICallError", message: "<html>Bad Gateway</html>", statusCode: 502 },
@@ -226,7 +269,7 @@ describe("recordAskMetrics", () => {
   });
 
   it("reports a status of 0 for a failure that was not an API call", () => {
-    recordAskMetrics({
+    record({
       ...ASK_RECORD,
       outcome: "error",
       cause: { name: "TypeError", message: "x is not a function", statusCode: null },
@@ -235,7 +278,7 @@ describe("recordAskMetrics", () => {
   });
 
   it("counts no failure on an abandoned turn", () => {
-    recordAskMetrics({ ...ASK_RECORD, outcome: "abort", cause: null });
+    record({ ...ASK_RECORD, outcome: "abort", cause: null });
     expect(counted("ai.ask.failures")).toEqual([]);
     expect(counted("ai.ask.turns")[0]!.attributes).toMatchObject({ outcome: "abort" });
   });
@@ -244,6 +287,7 @@ describe("recordAskMetrics", () => {
     const CLASSIFIED: AskAnalyticsRecord = {
       ...ASK_RECORD,
       classification: {
+        taskClass: "question",
         intent: "question",
         source: "model",
         context: null,
@@ -256,7 +300,7 @@ describe("recordAskMetrics", () => {
     };
 
     it("counts the verdict, how it was reached, and whether it failed open", () => {
-      recordAskMetrics(CLASSIFIED);
+      record(CLASSIFIED);
       expect(counted("ai.classify.turns")[0]!.attributes).toMatchObject({
         intent: "question",
         source: "model",
@@ -269,7 +313,7 @@ describe("recordAskMetrics", () => {
     // between two series — which is only possible if both are under the same
     // metric name, separated by `call`.
     it("counts classifier tokens under the same names as the turn's, separated by call", () => {
-      recordAskMetrics(CLASSIFIED);
+      record(CLASSIFIED);
       const inputs = counted("gen_ai.usage.input_tokens");
       expect(inputs.map((m) => [m.attributes.call, m.value])).toEqual([
         ["turn", 8355],
@@ -281,7 +325,7 @@ describe("recordAskMetrics", () => {
     // the one answering. Attributing its spend to the answer model would
     // silently destroy the one measurement that variable exists to enable.
     it("attributes classifier spend to the classifier's own model", () => {
-      recordAskMetrics({
+      record({
         ...CLASSIFIED,
         classification: { ...CLASSIFIED.classification!, model: "openai/gpt-oss-20b" },
       });
@@ -292,9 +336,10 @@ describe("recordAskMetrics", () => {
     // The affirmation rule answers without calling a model, so there is no
     // model id and no spend — but the verdict still happened and still counts.
     it("counts an affirmation verdict, which called no model and spent nothing", () => {
-      recordAskMetrics({
+      record({
         ...CLASSIFIED,
         classification: {
+          taskClass: "plan",
           intent: "write",
           source: "affirmation",
           context: null,
@@ -310,7 +355,7 @@ describe("recordAskMetrics", () => {
     });
 
     it("emits nothing about classification on a viewer's turn, which is never classified", () => {
-      recordAskMetrics(ASK_RECORD);
+      record(ASK_RECORD);
       expect(counted("ai.classify.turns")).toEqual([]);
       expect(distributed("ai.classify.duration")).toEqual([]);
     });
@@ -321,9 +366,10 @@ describe("recordAskMetrics", () => {
   // would mean one series per trip and a backend that answers by dropping
   // data. They are on the log record, which is where they belong.
   it("puts no unbounded identifier, and no user content, in any attribute", () => {
-    recordAskMetrics({
+    record({
       ...ASK_RECORD,
       classification: {
+        taskClass: "edit",
         intent: "write",
         source: "model",
         context: "Earlier in the conversation: user: add a temple",
@@ -373,7 +419,7 @@ describe("recordAskMetrics", () => {
     count.mockImplementation(() => {
       throw new Error("no client");
     });
-    expect(() => recordAskMetrics(ASK_RECORD)).not.toThrow();
+    expect(() => record(ASK_RECORD)).not.toThrow();
   });
 });
 

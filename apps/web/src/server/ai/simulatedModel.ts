@@ -579,7 +579,14 @@ function classifyStep(options: CallOptionsLike): SimulatedStep {
   // (`Output.choice`), and the SDK parses this text as JSON against that
   // schema before returning: a bare `write` would fail to parse and fail open
   // on every turn of the only path anyone deploys.
-  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "write" : "question");
+  //
+  // **`plan`, not `edit`, for every write** (P5). The verdict widened to a task
+  // class, and this model has one predicate — `asksToWrite` — which answers the
+  // EFFECT question and cannot tell a bounded change from a whole itinerary.
+  // Guessing between them here would be inventing a measurement; resolving
+  // upward is the rule the live classifier already follows for the same
+  // uncertainty, and it costs nothing on a path that contacts no provider.
+  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "plan" : "question");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },

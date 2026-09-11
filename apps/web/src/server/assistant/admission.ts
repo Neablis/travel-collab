@@ -46,6 +46,8 @@ import type { AskScope } from "@/server/ai/context";
 import type { AskIntentRecord } from "@/server/ai/askAnalytics";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
 import type { AnyAssistantTool, ToolEffect } from "./defineTool";
+import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
+import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
 import {
   grantFor,
   minimumRoleFor,
@@ -267,10 +269,27 @@ export interface AiGrant {
   tools: readonly AnyAssistantTool[];
   /** What the instruction may honestly claim about this turn (grants.ts). */
   posture: AskToolPosture;
+  /** The model the turn's TIER resolved to — see `tier`. */
   model: LanguageModel;
   classifierModel: LanguageModel;
   modelId: string;
   simulated: boolean;
+  /**
+   * The model slot this turn ran on: `tierFor(taskClass)`, capped by whatever
+   * the account's plan permits (spec §7e — task class proposes, entitlement
+   * caps). Recorded on the `ai.grant` line so "which model answered, and why
+   * that one" is one record rather than a re-derivation.
+   */
+  tier: ModelTier;
+  /**
+   * What the account may do and what it was sold, resolved once at
+   * `selectModel` and carried rather than re-queried. M20 requires this be
+   * resolved per request from the database — *"a downgrade must bite before a
+   * token refreshes"* — so asking twice in one turn would be two answers to one
+   * question. `admitQuota` reads `ceilings` from here, and the handler reads
+   * `planVersionRef` for the ledger.
+   */
+  entitlements: ResolvedEntitlements;
   /**
    * The classifier's whole record, which the per-ask analytics record carries
    * so a misclassification is diagnosable after the fact. Null when the turn
@@ -278,15 +297,19 @@ export interface AiGrant {
    */
   classification: AskIntentRecord | null;
   /**
-   * What this turn is FOR. `question | write` today, which is exactly
-   * `classification?.intent` — P5 widens it to a task class that picks a model
-   * tier (spec §5), and this is the field it widens.
+   * **What this turn is FOR**, and therefore which tier answers it (spec §5).
    *
-   * Spelled off `AskIntentRecord` rather than through askIntent.ts's `AskIntent`
-   * alias of the identical type: that module calls a provider, so it is not on
-   * the kernel's import allowlist. One indexed access is not a second spelling.
+   * Never null, which is the change P5 made: `question | write | null` became a
+   * total answer, because every turn has a purpose even when no model was asked
+   * what it was. A page turn is `compose` **by construction** — its tool set
+   * comes from a scope the server verified, so classifying it would be spend
+   * with nothing to buy — and an unclassified non-page turn is a viewer's,
+   * which has no write half to withhold and is therefore a `question`.
+   *
+   * `classification` beside it still says whether a model was asked, and what
+   * it answered.
    */
-  taskClass: AskIntentRecord["intent"] | null;
+  taskClass: TaskClass;
   messages: AskUiMessage[];
   /** The latest user message, verbatim — what the caps were measured against. */
   question: string;
@@ -313,8 +336,23 @@ export interface AdmissionPorts {
   loadPage(pageId: string): Promise<Page | null>;
   /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
   selectModel(userId: string): Promise<ModelChoice>;
-  /** `consumeQuota([...aiQuotas(), ...aiStepQuotas()])` — requests AND steps. */
-  admitQuota(userId: string): Promise<QuotaVerdict>;
+  /**
+   * `consumeQuota([...aiQuotas(), ...aiStepQuotas()])` — requests AND steps.
+   *
+   * **`ceilings` is what closes spec §3b's fourth gap.** `selectModel` runs
+   * before this stage because an incident forced it, but until P5 `admitQuota`
+   * read nothing `selectModel` produced — so the data dependency that makes
+   * every other pair's order structural did not exist for this one, and the
+   * ordering was held by two test assertions and nothing else. Passing the
+   * resolved ceilings makes it structural: this stage cannot run before the one
+   * that resolves its argument.
+   *
+   * Per M20 link 5, the bucket `name` must NOT vary with these numbers — a
+   * tier-suffixed bucket would zero an account's usage on upgrade and let
+   * anyone farm free calls by toggling. Only the numbers move; `quota.ts`
+   * enforces it and a property test pins it.
+   */
+  admitQuota(userId: string, ceilings: EntitlementCeilings): Promise<QuotaVerdict>;
   /**
    * Is this model id the simulated one? `simulatedModel.ts` owns that identity
    * and is the far side of the wall, so the kernel asks rather than compares
@@ -353,8 +391,23 @@ export interface AdmissionPorts {
  * shape it was written to prevent.
  */
 export type ModelChoice =
-  | { outcome: "live"; model: LanguageModel; classifierModel: LanguageModel }
-  | { outcome: "simulated"; model: LanguageModel; classifierModel: LanguageModel }
+  | {
+      outcome: "live";
+      /**
+       * Every tier's model, resolved. The kernel names a SLOT — `cheap`, `mid`,
+       * `strong` — and never a model id; which id fills a slot is configuration
+       * on the far side of this port (spec §5b).
+       */
+      models: TierModels;
+      classifierModel: LanguageModel;
+      entitlements: ResolvedEntitlements;
+    }
+  | {
+      outcome: "simulated";
+      models: TierModels;
+      classifierModel: LanguageModel;
+      entitlements: ResolvedEntitlements;
+    }
   | { outcome: "denied"; reason: string; code: string; response: Response };
 
 /**
@@ -401,7 +454,13 @@ interface AdmissionDraft {
   };
   /** Present once `resolveSurface` has run: null on every non-page surface. */
   surface?: { page: Page | null };
-  selected?: { model: LanguageModel; classifierModel: LanguageModel; simulated: boolean };
+  selected?: {
+    /** Every tier's model. Which one answers is not known until `grantTools`. */
+    models: TierModels;
+    classifierModel: LanguageModel;
+    simulated: boolean;
+    entitlements: ResolvedEntitlements;
+  };
   /** Present once `classifyTask` has run: null when there was nothing to classify. */
   classified?: { classification: AskIntentRecord | null };
   /** What `grantTools`, the last stage, resolved — the value the pipeline returns. */
@@ -629,9 +688,13 @@ const selectModel: AdmissionStage = {
     const injected = draft.input.model;
     if (injected) {
       draft.selected = {
-        model: injected,
+        // One model in every slot. The seam exists so a test can pin what the
+        // agent is handed; a test that had to know the tier map to do that
+        // would be testing the configuration rather than the handler.
+        models: { cheap: injected, mid: injected, strong: injected },
         classifierModel: injected,
         simulated: draft.input.ports.isSimulated(modelIdOf(injected)),
+        entitlements: PERMITS_EVERYTHING,
       };
       return null;
     }
@@ -647,9 +710,10 @@ const selectModel: AdmissionStage = {
       return refuse("selectModel", outcome.reason, outcome.response, outcome.code);
     }
     draft.selected = {
-      model: outcome.model,
+      models: outcome.models,
       classifierModel: outcome.classifierModel,
       simulated: outcome.outcome === "simulated",
+      entitlements: outcome.entitlements,
     };
     return null;
   },
@@ -677,11 +741,21 @@ const selectModel: AdmissionStage = {
 // recorder's sink in the handler. An actor already over either ceiling is
 // refused here, before a provider is touched. The in-flight overshoot this
 // admission shape permits is KI-94, unchanged by the move.
+//
+// **The ceilings are a PARAMETER of this stage, and that is what makes its
+// position structural** (spec §3b, §7d). It is handed
+// `ResolvedEntitlements.ceilings` from `selectModel`, so it cannot be moved
+// above the stage that resolves them — where before, the ordering the incident
+// forced was held by two test assertions and nothing else. M20 link 5 is then
+// a change to two numbers rather than to this pipeline: *"`aiQuotas()` and
+// `aiStepQuotas()` take entitlements and return different ceilings. The bucket
+// `name` must not vary by tier."*
 const admitQuota: AdmissionStage = {
   name: "admitQuota",
   run: async (draft) => {
     const { userId } = required(draft.actor, "identifyActor");
-    const quota = await draft.input.ports.admitQuota(userId);
+    const { entitlements } = required(draft.selected, "selectModel");
+    const quota = await draft.input.ports.admitQuota(userId, entitlements.ceilings);
     if (quota.allowed) return null;
     return refuse("admitQuota", `over the ${quota.reason} limit`, quota.response);
   },
@@ -793,6 +867,15 @@ const grantTools: AdmissionStage = {
     const grants = grantFor(caps);
     const tools = toolsFor(grants);
 
+    // **What this turn is for, then which slot answers it** (spec §5, §7e).
+    // The class is a proposal and the plan is a ceiling, which is the same
+    // cap-an-upper-bound shape as `caps` above and as the surface grant — three
+    // places, one idea. Nothing here knows a model id: `tier` names a slot and
+    // `selected.models` is where the far side of the port already put one.
+    const taskClass = taskClassFor(page !== null, classification);
+    const tier = capTier(tierFor(taskClass), selected.entitlements.ceilings.maxTier);
+    const model = selected.models[tier];
+
     // The rule is enforced rather than commented: `minimumRoleFor` is asked what
     // the set about to be handed to the agent requires — the maximum
     // `minimumRole` over the tools actually selected — and the actor must already
@@ -819,12 +902,14 @@ const grantTools: AdmissionStage = {
       grants,
       tools,
       posture: postureFor(caps),
-      model: selected.model,
+      model,
       classifierModel: selected.classifierModel,
-      modelId: modelIdOf(selected.model),
+      modelId: modelIdOf(model),
       simulated: selected.simulated,
+      tier,
+      entitlements: selected.entitlements,
       classification,
-      taskClass: classification?.intent ?? null,
+      taskClass,
       messages,
       question,
       turn,
@@ -832,6 +917,30 @@ const grantTools: AdmissionStage = {
     return null;
   },
 };
+
+/**
+ * **What a turn is for — the surface first, then the classifier.**
+ *
+ * Total by construction, and the two fallbacks are decisions rather than
+ * defaults:
+ *
+ *   * a **page turn is `compose`**, decided structurally. Its tool set comes
+ *     from a scope `resolveSurface` verified server-side, not from what the
+ *     sentence sounds like, so paying for a classification would be spend with
+ *     nothing to buy — which is exactly why `classifyTask` does not make the
+ *     call for a page turn and never has;
+ *   * an **unclassified non-page turn is a `question`**. That is a viewer's
+ *     turn: `canWrite` gated the call because there was no write half to
+ *     withhold, and a turn that holds only read tools is a question whatever it
+ *     sounds like.
+ *
+ * Exported for the test that pins both, because neither is derivable from the
+ * classifier's own record — which is null in both cases.
+ */
+export function taskClassFor(isPageTurn: boolean, classification: AskIntentRecord | null): TaskClass {
+  if (isPageTurn) return "compose";
+  return classification?.taskClass ?? "question";
+}
 
 /**
  * **The order is a value, not statement order.**
@@ -893,7 +1002,10 @@ export interface AiGrantRecord {
   tools: string[] | null;
   model: string | null;
   simulated: boolean | null;
-  taskClass: AskIntentRecord["intent"] | null;
+  /** Which slot the model came from — `null` on a refusal before `grantTools`. */
+  tier: ModelTier | null;
+  /** What the turn was for. Null on a refusal that never resolved one. */
+  taskClass: TaskClass | null;
   /** Which stage refused, and why. Both null on a grant. */
   refusedBy: AdmissionStageName | null;
   reason: string | null;
@@ -943,6 +1055,7 @@ function grantedRecord(grant: AiGrant): AiGrantRecord {
     tools: grant.tools.map((tool) => tool.name),
     model: grant.modelId,
     simulated: grant.simulated,
+    tier: grant.tier,
     taskClass: grant.taskClass,
     refusedBy: null,
     reason: null,
@@ -960,9 +1073,16 @@ function refusedRecord(draft: AdmissionDraft, refusal: AiRefusal): AiGrantRecord
     surface: draft.parsed?.scope.kind ?? null,
     grants: null,
     tools: null,
-    model: draft.selected === undefined ? null : modelIdOf(draft.selected.model),
+    // The tier a refused turn would have run on is not knowable — the class is
+    // resolved by the stage that refused or by one after it — so the model this
+    // names is the MID slot, the one a turn falls back to when nothing narrowed
+    // it. Stated here rather than left to a reader of the log, because "which
+    // model did the refused turn name" is otherwise a question with three
+    // possible answers.
+    model: draft.selected === undefined ? null : modelIdOf(draft.selected.models.mid),
     simulated: draft.selected?.simulated ?? null,
-    taskClass: draft.classified?.classification?.intent ?? null,
+    tier: null,
+    taskClass: draft.classified?.classification?.taskClass ?? null,
     refusedBy: refusal.stage,
     reason: refusal.reason,
     code: refusal.code,

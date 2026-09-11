@@ -86,6 +86,7 @@ import type { Page } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
+import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 
 // The admission pipeline's public names, re-exported so that the one door has
@@ -172,12 +173,22 @@ export async function handleAskRequest(
   const proposalBuffer = newProposalBuffer();
   const pageBuffer = newPageBuffer();
 
-  const tools = aiToolsFor(grant.tools, {
-    proposalBuffer,
-    pageBuffer,
-    playbooks: playbookLibrary,
-    savedDays: savedDayLibrary,
-  });
+  // The turn's meter: one object, handed to the tool set that fills it and to
+  // the recorder that reads it. It is minted here rather than inside either,
+  // because "this turn's tool calls" is a fact about the turn and both halves
+  // have to agree on which turn that is.
+  const meter = newTurnMeter();
+
+  const tools = aiToolsFor(
+    grant.tools,
+    {
+      proposalBuffer,
+      pageBuffer,
+      playbooks: playbookLibrary,
+      savedDays: savedDayLibrary,
+    },
+    meter,
+  );
   const offeredNames = Object.keys(tools);
 
   // The step settlement's promise, so the end-of-turn path below can AWAIT it.
@@ -212,18 +223,35 @@ export async function handleAskRequest(
     // misclassification diagnosable after the fact rather than only visible as
     // an assistant that would not act.
     classification,
-    // **One writer, two consumers.** `createAskRecorder`'s single-writer latch
-    // already guarantees this fires exactly once per turn, on all three end
-    // paths (`onEnd`, abort, error) — which makes it the right place to emit
-    // the metrics too, rather than repeating that once-only logic at each of
-    // the three call sites and getting it subtly wrong at one of them.
+    // What the turn was FOR, and which plan version was in force — the two
+    // fields the ledger carries that the recorder cannot observe for itself.
+    // `compose` is a fact about the surface, so only admission knows it.
+    taskClass: grant.taskClass,
+    planVersionRef: grant.entitlements.planVersionRef,
+    // The per-tool timings and any vendor lookup, collected by the tool set
+    // below and read at the latch.
+    meter,
+    // **One writer, and now four readers** (ADR-043 decision 4, spec §6).
+    // `createAskRecorder`'s single-writer latch already guarantees this fires
+    // exactly once per turn, on all three end paths (`onEnd`, abort, error) —
+    // which makes it the right place to emit the metrics too, rather than
+    // repeating that once-only logic at each of the three call sites and
+    // getting it subtly wrong at one of them.
+    //
+    // The fourth reader is the `TurnLedger` itself, built by the recorder
+    // inside that same latch, so *"written on all three end paths, including
+    // failure"* costs nothing: the round-trips already made were already paid
+    // for, and this is the one place that knows about all of them.
     //
     // The injected `sink` stays a pure test seam: a test that passes one reads
     // the record instead of the console, exactly as before, and
     // `recordAskMetrics` is a no-op without a Sentry client.
-    sink: (record) => {
-      (sink ?? logAskAnalytics)(record);
-      recordAskMetrics(record);
+    sink: (record, ledger) => {
+      // The ledger goes to the injected sink too: a test asserting what a turn
+      // cost should read the same value production settles against, not a
+      // reconstruction of it.
+      (sink ?? logAskAnalytics)(record, ledger);
+      recordAskMetrics(record, ledger);
       // The other half of KI-67: admission pre-authorised ONE round-trip, and
       // this settles what the turn actually cost. A third consumer of the same
       // single-writer latch, for the same reason the metrics are — the provider
@@ -236,22 +264,30 @@ export async function handleAskRequest(
       // never refuses and never throws (see its comment) — a counter write must
       // not turn an answer the user already has into an error.
       //
-      // **The classifier's own round-trip is counted here, not by the agent.**
-      // `record.steps` is observed from `agent.onStepEnd`, so it can only ever
-      // see steps the agent took; `classifyAskIntent` runs BEFORE the agent
-      // exists and spends `selected.classifierModel` on the same key. Settling
-      // `record.steps` alone therefore under-meters every classified turn by
-      // exactly one — an editor turn can cost nine round-trips and settle
-      // eight. That is the same shape as KI-67 itself (a control that does not
-      // bound the thing it exists to bound), reintroduced inside the fix for
-      // it, which is why it is spelled out rather than left to the arithmetic.
+      // **The classifier's own round-trip is a LEDGER LINE, not a `+ 1` added
+      // here.** `record.steps` is observed from `agent.onStepEnd`, so it can
+      // only ever see steps the agent took; `classifyAskIntent` runs BEFORE the
+      // agent exists and spends `classifierModel` on the same key. Settling the
+      // agent's steps alone under-meters every classified turn by exactly one —
+      // an editor turn can cost nine round-trips and settle eight, which is the
+      // same shape as KI-67 itself (a control that does not bound the thing it
+      // exists to bound) reintroduced inside the fix for it. This used to be a
+      // hand-written term with a comment explaining why it must never be
+      // dropped. It is now structural: `billableRoundTrips` counts the ledger's
+      // `cost.classifier`, which exists if and only if a classification
+      // round-trip was actually made — a bare "yes" short-circuits it and a
+      // page turn is never classified, so neither has a line and neither adds
+      // one.
       //
-      // `source` distinguishes the two paths: `"model"` means the call was
-      // made, `"affirmation"` means the classifier short-circuited on a bare
-      // "yes" and spent nothing. A page turn is not classified at all
-      // (`classification` is null), so it adds nothing.
-      const classifierSteps = record.classification?.source === "model" ? 1 : 0;
-      settled = settleAiSteps(aiStepQuotas(), userId, record.steps + classifierSteps);
+      // **Settled against the ceilings it was ADMITTED against.** Letting this
+      // fall back to the default would meter the settlement on a different plan
+      // than the admission charge, which is a silent mis-charge on exactly the
+      // accounts M20 exists to bill.
+      settled = settleAiSteps(
+        aiStepQuotas(grant.entitlements.ceilings),
+        userId,
+        billableRoundTrips(ledger),
+      );
     },
   });
 

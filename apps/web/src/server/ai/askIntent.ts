@@ -26,6 +26,16 @@
 //      for something to be added and gets prose about why nothing happened,
 //      which is a broken interaction, not an expensive one. So anything
 //      ambiguous, unparseable or errored gets the full set.
+//
+//      **The same bias, on the tier axis, since P5.** The verdict widened from
+//      `question | write` to a task class (`question | edit | plan`, spec §5),
+//      and every uncertainty resolves to `plan` — the strongest tier as well as
+//      the full tool set. A misrouted `plan` answered on a cheap model is a
+//      quality regression rather than a dead end, and the cheap direction is
+//      the one that hurts, so the two biases point the same way and are one
+//      value (`FAIL_OPEN_TASK_CLASS`). The EFFECT axis the tool filter reads is
+//      derived from the class (`intentOf`), so gating behaviour is unchanged:
+//      `edit` and `plan` both propose, exactly as `write` did.
 //   2. **It never widens access.** This selects WITHIN what the guard already
 //      allows: it is one of four caps `grantFor` takes the minimum of, and
 //      `minimumRoleFor` still has the final word (assistant/grants.ts);
@@ -62,8 +72,22 @@
 // word.
 import { generateText, Output, type LanguageModel } from "ai";
 import { sanitizeForLog, type AskIntentRecord, type AskUsage } from "@/server/ai/askAnalytics";
+import type { TaskClass } from "@/server/assistant/taskClass";
 
 export type AskIntent = AskIntentRecord["intent"];
+
+/**
+ * **What the classifier is actually asked for, since P5** (spec §5).
+ *
+ * `compose` is absent by construction: a page turn is decided by the surface
+ * and never reaches this module at all, so asking a model to produce the value
+ * would be asking it to guess something the server already knows.
+ *
+ * `intent` is derived from this (`intentOf` below) rather than asked for
+ * separately — one verdict, two axes. The effect axis is what gates tools; the
+ * task class is what picks a tier.
+ */
+export type AskTaskClass = Exclude<TaskClass, "compose">;
 
 // The line that tells `simulatedModel` this is a classification call and not a
 // turn — the same trick, and the same reasoning, as `ASK_SCOPE_PREFIX` in
@@ -72,7 +96,7 @@ export type AskIntent = AskIntentRecord["intent"];
 // cannot drift apart. Without it the flag-off path (which is every Vercel
 // environment) would answer a classification call with `read_trip`, fail open
 // on every turn, and quietly buy nothing.
-const ASK_INTENT_MARKER = "Set intent to question or write.";
+const ASK_INTENT_MARKER = "Set intent to question, edit or plan.";
 
 /**
  * The whole instruction. Deliberately short — it is re-sent on every turn, and
@@ -86,9 +110,10 @@ const ASK_INTENT_MARKER = "Set intent to question or write.";
 export const ASK_INTENT_INSTRUCTION = [
   "You classify the LAST message sent to a trip-planning assistant. You do not answer it.",
   "Earlier messages are context only. A short reply like \"yes\" means whatever was just offered, so classify what it agrees to.",
-  'Use "write" if the message asks for the trip to be changed, agrees to a change that was offered, or asks what to add, plan, book, move or remove.',
   'Use "question" if it only asks about the trip as it already is.',
-  'If you are unsure, use "write".',
+  'Use "edit" if it asks to add, move, remove or replace something in an existing trip.',
+  'Use "plan" if it asks for a whole itinerary or several days, or agrees to one offered.',
+  'If you are unsure, use "plan".',
   ASK_INTENT_MARKER,
 ].join("\n");
 
@@ -110,17 +135,42 @@ export function isAskIntentCall(instructions: string): boolean {
  * than hard-coding the SDK's wire format at a second site — the same
  * writer-and-reader-in-one-module rule `ASK_INTENT_MARKER` follows.
  */
-const INTENT_CHOICES: AskIntent[] = ["question", "write"];
+const INTENT_CHOICES: AskTaskClass[] = ["question", "edit", "plan"];
 const INTENT_OUTPUT = Output.choice({
   options: INTENT_CHOICES,
   name: "intent",
-  description: "Whether the last message asks about the trip (question) or asks for it to change (write).",
+  description:
+    "Whether the last message asks about the trip (question), asks for a bounded change to it (edit), or asks for a whole itinerary to be generated (plan).",
 });
 
 /** One classification verdict, in the wire shape `INTENT_OUTPUT` parses. */
-export function askIntentVerdictText(intent: AskIntent): string {
-  return JSON.stringify({ result: intent });
+export function askIntentVerdictText(taskClass: AskTaskClass): string {
+  return JSON.stringify({ result: taskClass });
 }
+
+/**
+ * The effect axis, derived from the task class rather than asked for.
+ *
+ * `edit` and `plan` are indistinguishable here and that is the point: both
+ * propose, so both get the write half of the tool set, and the gating behaviour
+ * is byte-for-byte what a `question | write` classifier produced. What the wider
+ * verdict buys is upstream of the gate — which tier answers — and nothing
+ * downstream of this function can tell the two classifiers apart.
+ */
+export function intentOf(taskClass: AskTaskClass): AskIntent {
+  return taskClass === "question" ? "question" : "write";
+}
+
+/**
+ * What every uncertainty resolves to.
+ *
+ * Rule 1's bias, now on two axes at once and still one value. On the effect
+ * axis it is `write`, because a change request wrongly denied write tools
+ * cannot act at all. On the tier axis it is `strong`, because a `plan`
+ * answered on a cheap model is a quality regression — and both are the SAME
+ * verdict, which is why the widening did not need a second fail-open branch.
+ */
+const FAIL_OPEN_TASK_CLASS: AskTaskClass = "plan";
 
 // The output budget, and it is NOT a one-word ceiling any more.
 //
@@ -289,7 +339,13 @@ export async function classifyAskIntent(
   // (no round-trip at all on the turn that agrees).
   if (isBareAgreement(question)) {
     return {
-      intent: "write",
+      // An agreement resolves upward, like every other uncertainty: "Yes go
+      // ahead" can be agreeing to a single stop or to a six-day itinerary, and
+      // this rule is deliberately not a parser. It spends nothing either way —
+      // no round-trip is made — so the only cost of resolving upward here is
+      // the tier the turn itself runs on.
+      taskClass: FAIL_OPEN_TASK_CLASS,
+      intent: intentOf(FAIL_OPEN_TASK_CLASS),
       source: "affirmation",
       model: null,
       verdict: "bare agreement — no model call",
@@ -344,9 +400,10 @@ export async function classifyAskIntent(
     // by reasoning tokens ends on `length` and lands here — so "the model
     // never filled it in" joins the throw, the timeout and the abort in one
     // fail-open branch rather than needing a second one.
-    const intent = result.output;
+    const taskClass = result.output;
     return {
-      intent,
+      taskClass,
+      intent: intentOf(taskClass),
       source: "model",
       model: modelIdOf(model),
       // The raw JSON the model returned, not the parsed enum: `intent` already
@@ -360,7 +417,8 @@ export async function classifyAskIntent(
     };
   } catch (err) {
     return {
-      intent: "write",
+      taskClass: FAIL_OPEN_TASK_CLASS,
+      intent: intentOf(FAIL_OPEN_TASK_CLASS),
       source: "model",
       model: modelIdOf(model),
       verdict: failureVerdict(err, emitted),

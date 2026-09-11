@@ -81,8 +81,14 @@ export const admissionPorts: AdmissionPorts = {
   // The refusal is rendered here for `selectModel`'s reason: `quotaRefusal`
   // owns the 429/503 split and the `Retry-After` header, and a second copy of
   // either inside the kernel is a second thing to keep in step.
-  admitQuota: async (userId) => {
-    const decision = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
+  //
+  // **The ceilings arrive from `selectModel`, not from a default** (spec §3b,
+  // §7d). That is the whole of link 5's wiring: per-user numbers come from the
+  // account's pinned plan version, global ones stay in the environment, and the
+  // bucket names do not move. Today the default resolver names no ceiling, so
+  // both calls return exactly the policies they always did.
+  admitQuota: async (userId, ceilings) => {
+    const decision = await consumeQuota([...aiQuotas(ceilings), ...aiStepQuotas(ceilings)], userId);
     return decision.allowed ? decision : { ...decision, response: quotaRefusal(decision) };
   },
   // The one identity the kernel cannot compare for itself: `simulatedModel.ts`

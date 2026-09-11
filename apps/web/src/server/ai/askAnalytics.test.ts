@@ -4,12 +4,15 @@ import {
   logAskAnalytics,
   type AskAnalyticsRecord,
   type AskDroppedCall,
+  type AskIntentRecord,
 } from "@/server/ai/askAnalytics";
+import type { TurnLedger } from "@/server/assistant/ledger";
 
 const OFFERED = ["read_trip", "read_day", "find_free_time"];
 
 function recorderWith(overrides: Partial<Parameters<typeof createAskRecorder>[0]> = {}) {
   const records: AskAnalyticsRecord[] = [];
+  const ledgers: TurnLedger[] = [];
   let clock = 1_000;
   const recorder = createAskRecorder({
     tripId: "11111111-1111-4111-8111-111111111111",
@@ -20,11 +23,17 @@ function recorderWith(overrides: Partial<Parameters<typeof createAskRecorder>[0]
     simulated: true,
     model: "simulated/no-op",
     offeredTools: OFFERED,
-    sink: (record) => records.push(record),
+    // The turn's purpose, which admission resolves. `question` is the narrowest
+    // and therefore the right default for a recorder fixture.
+    taskClass: "question",
+    sink: (record, ledger) => {
+      records.push(record);
+      ledgers.push(ledger);
+    },
     now: () => (clock += 40),
     ...overrides,
   });
-  return { recorder, records };
+  return { recorder, records, ledgers };
 }
 
 describe("the per-ask record", () => {
@@ -437,6 +446,119 @@ describe("why a turn failed", () => {
       info.mockRestore();
       error.mockRestore();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The TurnLedger (ADR-043 decision 4, spec §6 / §7a)
+// ---------------------------------------------------------------------------
+
+const CLASSIFIED_BY_MODEL: AskIntentRecord = {
+  taskClass: "plan",
+  intent: "write",
+  source: "model",
+  context: null,
+  model: "zai/glm-4.7-flash",
+  verdict: '{"result":"plan"}',
+  failedOpen: false,
+  latencyMs: 180,
+  usage: { inputTokens: 198, outputTokens: 49, totalTokens: 247 },
+};
+
+describe("the turn ledger", () => {
+  // **Written on all three end paths, including failure** — *"because the
+  // round-trips already made were already paid for"* (M20 link 9). It is free
+  // rather than new work: the recorder's single-writer latch already fires
+  // exactly once on `onEnd`, abort and error, so the ledger is a fourth reader
+  // of that latch rather than a fourth place that has to get once-only right.
+  it.each([
+    ["completed", (r: ReturnType<typeof recorderWith>["recorder"]) => r.finish({ finishReason: "stop" })],
+    ["abort", (r: ReturnType<typeof recorderWith>["recorder"]) => r.abandon("abort")],
+    ["error", (r: ReturnType<typeof recorderWith>["recorder"]) => r.abandon("error", new Error("boom"))],
+  ] as const)("is written exactly once on a %s turn", (outcome, end) => {
+    const { recorder, ledgers } = recorderWith({ userId: "spender" });
+    recorder.observeStep({ usage: { inputTokens: 1000, outputTokens: 100 } });
+    end(recorder);
+    end(recorder); // the latch: a run that both errors and ends still writes once
+
+    expect(ledgers).toHaveLength(1);
+    expect(ledgers[0]!.cost).toMatchObject({ userId: "spender", endpoint: "ask", outcome, steps: 1 });
+  });
+
+  // **Turn and classifier stay separate, permanently** (§7a rule 1). Folding
+  // them would undo the reason the classifier has its own model id at all:
+  // *"did the classifier save more than it cost"* is a subtraction between two
+  // numbers, and it is unanswerable if there is only one.
+  it("keeps the classifier's spend beside the turn's, never inside it", () => {
+    const { recorder, ledgers } = recorderWith({
+      model: "deepseek/deepseek-v4-flash-0731",
+      classification: CLASSIFIED_BY_MODEL,
+      taskClass: "plan",
+    });
+    recorder.finish({ finishReason: "stop", usage: { inputTokens: 3363, outputTokens: 512 } });
+
+    expect(ledgers[0]!.cost.turn).toEqual({
+      model: "deepseek/deepseek-v4-flash-0731",
+      tokensIn: 3363,
+      tokensOut: 512,
+    });
+    expect(ledgers[0]!.cost.classifier).toEqual({
+      model: "zai/glm-4.7-flash",
+      tokensIn: 198,
+      tokensOut: 49,
+    });
+  });
+
+  // The `+ 1` that used to be added by hand in the /ask sink, now structural:
+  // a classification line exists if and only if a round-trip was made.
+  it("has no classifier line when the affirmation rule answered without a call", () => {
+    const { recorder, ledgers } = recorderWith({
+      classification: {
+        ...CLASSIFIED_BY_MODEL,
+        source: "affirmation",
+        model: null,
+        verdict: "bare agreement — no model call",
+        usage: { inputTokens: null, outputTokens: null, totalTokens: null },
+      },
+    });
+    recorder.finish({ finishReason: "stop" });
+
+    expect(ledgers[0]!.cost.classifier).toBeNull();
+  });
+
+  // Both fields the pipeline resolves and the recorder cannot: `compose` is a
+  // fact about the surface, and the pinned plan version is a fact about the
+  // account at the moment of the turn.
+  it("carries the task class and the pinned plan version the turn ran under", () => {
+    const { recorder, ledgers } = recorderWith({ taskClass: "compose", planVersionRef: "premium@v3" });
+    recorder.finish({ finishReason: "stop" });
+
+    expect(ledgers[0]!.cost.taskClass).toBe("compose");
+    expect(ledgers[0]!.cost.planVersionRef).toBe("premium@v3");
+  });
+
+  // No tool declares `spend: "vendor"` yet, so an /ask turn's capacity is empty
+  // — a measurement, not a placeholder. What matters is that the field exists
+  // and is separate, which is where KI-93 settles.
+  it("reports capacity separately from cost, and empty when nothing spent at a vendor", () => {
+    const { recorder, ledgers } = recorderWith({});
+    recorder.finish({ finishReason: "stop" });
+
+    expect(ledgers[0]!.capacity).toEqual([]);
+    expect(JSON.stringify(ledgers[0]!.cost)).not.toContain("locationiq");
+  });
+
+  // The log line and the settlement must not be able to disagree about one
+  // turn, which is what "the record READS the ledger" buys.
+  it("is the source of the record's own step count and token spend", () => {
+    const { recorder, records, ledgers } = recorderWith({});
+    recorder.observeStep({ usage: { inputTokens: 10, outputTokens: 1 } });
+    recorder.observeStep({ usage: { inputTokens: 20, outputTokens: 2 } });
+    recorder.finish({ finishReason: "stop", usage: { inputTokens: 30, outputTokens: 3, totalTokens: 33 } });
+
+    expect(records[0]!.steps).toBe(ledgers[0]!.cost.steps);
+    expect(records[0]!.usage.inputTokens).toBe(ledgers[0]!.cost.turn.tokensIn);
+    expect(records[0]!.usage.outputTokens).toBe(ledgers[0]!.cost.turn.tokensOut);
   });
 });
 

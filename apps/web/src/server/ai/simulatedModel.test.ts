@@ -685,7 +685,7 @@ describe("simulatedModel — the intent classification call", () => {
 
   it("answers a change request with the verdict that keeps the write tools", async () => {
     const result = await probe().doGenerate(classifyPrompt("Add a coffee stop to day 2"));
-    expect(textOf(result)).toBe(askIntentVerdictText("write"));
+    expect(textOf(result)).toBe(askIntentVerdictText("plan"));
   });
 
   // **The assertion that actually protects the deployed path.** The three
@@ -712,7 +712,7 @@ describe("simulatedModel — the intent classification call", () => {
     const result = await probe().doGenerate(
       classifyPrompt("There are no days yet — how should I start planning this trip?"),
     );
-    expect(textOf(result)).toBe(askIntentVerdictText("write"));
+    expect(textOf(result)).toBe(askIntentVerdictText("plan"));
   });
 
   // **The gate that made most of `PLAYBOOK_PROMPTS` dead code.** The classifier
@@ -729,7 +729,7 @@ describe("simulatedModel — the intent classification call", () => {
     "browse the library for a day in Kyoto",
   ])("classifies %s as a write, because it is one this model would propose on", async (question) => {
     const result = await probe().doGenerate(classifyPrompt(question));
-    expect(textOf(result)).toBe(askIntentVerdictText("write"));
+    expect(textOf(result)).toBe(askIntentVerdictText("plan"));
   });
 
   // Without this the classification call would be read as an opening turn:
@@ -741,6 +741,6 @@ describe("simulatedModel — the intent classification call", () => {
       tools: [{ name: "read_trip" }, { name: "AddActivity" }],
     });
     expect(callsOf(withTools)).toEqual([]);
-    expect(textOf(withTools)).toBe(askIntentVerdictText("write"));
+    expect(textOf(withTools)).toBe(askIntentVerdictText("plan"));
   });
 });

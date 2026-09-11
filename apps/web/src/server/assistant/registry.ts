@@ -36,6 +36,7 @@ import {
   type TurnDeps,
 } from "./deps";
 import type { AnyAssistantTool } from "./defineTool";
+import { NO_METER, type TurnMeter } from "./ledger";
 import { READ_TOOLS } from "./tools/read";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
@@ -100,25 +101,63 @@ function asDeps(partial: Partial<AssistantDeps>): AssistantDeps {
  * whole tool set's context to `{}` — which makes `toolsContext` typed `never`
  * at the call site and silently deletes the one guarantee ADR-022 §3 is about.
  */
-export function contextTool(definition: AnyAssistantTool, turn: Partial<TurnDeps> = {}) {
+export function contextTool(
+  definition: AnyAssistantTool,
+  turn: Partial<TurnDeps> = {},
+  meter: TurnMeter = NO_METER,
+) {
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
     inputSchema: definition.input,
     contextSchema: AssistantContextSchema,
     execute: async (input: unknown, { context }) =>
-      definition.invoke(input, asDeps({ ...ambientDepsFrom(context), ...supplied })),
+      measured(definition, meter, () =>
+        definition.invoke(input, asDeps({ ...ambientDepsFrom(context), ...supplied })),
+      ),
   });
 }
 
 /** One definition as an AI SDK tool with no context channel — it needs none. */
-function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>): Tool {
+function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>, meter: TurnMeter): Tool {
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
     inputSchema: definition.input,
-    execute: async (input: unknown) => definition.invoke(input, asDeps(supplied)),
+    execute: async (input: unknown) =>
+      measured(definition, meter, () => definition.invoke(input, asDeps(supplied))),
   });
+}
+
+/**
+ * The ledger's `toolCalls` half, measured at the one place a tool actually runs
+ * (spec §7b — *"neither cost nor capacity: efficiency"*).
+ *
+ * It has to be here rather than in the recorder: `onStepEnd` sees a tool's NAME
+ * and its input, because that is what the model emitted, and it cannot see how
+ * long the call took or whether it threw. Both of those are the difference
+ * between "the model asked for this tool" and "this tool earned its schema".
+ *
+ * **A failure is recorded and then re-thrown, unchanged.** The SDK turns a
+ * throwing tool into a tool-error result the model can react to, and swallowing
+ * one here to keep the ledger tidy would be telemetry changing behaviour — the
+ * one thing every sink in this codebase is written not to do. `ok: false` is a
+ * measurement of that failure, not a handling of it.
+ */
+async function measured<T>(
+  definition: AnyAssistantTool,
+  meter: TurnMeter,
+  run: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    const result = await run();
+    meter.toolCall(definition.name, Date.now() - startedAt, true);
+    return result;
+  } catch (err) {
+    meter.toolCall(definition.name, Date.now() - startedAt, false);
+    throw err;
+  }
 }
 
 /**
@@ -145,12 +184,16 @@ export type AssistantToolSet = Record<string, Tool<any, any, AssistantContext | 
 export function aiToolsFor(
   definitions: readonly AnyAssistantTool[],
   turn: Partial<TurnDeps> = {},
+  // Optional, and defaulting to a meter that records nothing: a caller that is
+  // not measuring a turn — every test that builds a tool set to inspect its
+  // schemas — should not have to mint one.
+  meter: TurnMeter = NO_METER,
 ): AssistantToolSet {
   const tools: AssistantToolSet = {};
   for (const definition of definitions) {
     tools[definition.name] = needsAmbient(definition)
-      ? (contextTool(definition, turn) as Tool)
-      : plainTool(definition, turn);
+      ? (contextTool(definition, turn, meter) as Tool)
+      : plainTool(definition, turn, meter);
   }
   return tools;
 }

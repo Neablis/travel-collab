@@ -39,6 +39,7 @@
 // never become the reason an answer stops mid-sentence.
 import * as Sentry from "@sentry/nextjs";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { TurnLedger } from "@/server/assistant/ledger";
 
 /**
  * Split a gateway model id into provider and model.
@@ -116,10 +117,21 @@ function modelAttributes(modelId: string): MetricAttributes {
  * Wired as a sink beside `logAskAnalytics` rather than inside it, so the log
  * line keeps working — and keeps being testable — with no Sentry client
  * present at all.
+ * **The token half reads the `TurnLedger`, not the record** (ADR-043 decision
+ * 4, spec §6). The same numbers, taken from the one value that says what the
+ * turn cost — so the metric series, the log line and the step settlement cannot
+ * come to three different answers about one turn. The rest still comes from the
+ * record, which is the right shape for it: tool names, dropped calls and the
+ * scope are facts about the turn's SHAPE and not about its price.
+ *
+ * `task_class` is a new attribute and a bounded one — four values, from the
+ * pipeline's own vocabulary — which is what makes "did routing questions to a
+ * cheap tier actually save anything" a subtraction between two series rather
+ * than a guess.
  */
-export function recordAskMetrics(record: AskAnalyticsRecord): void {
+export function recordAskMetrics(record: AskAnalyticsRecord, ledger: TurnLedger): void {
   try {
-    const model = modelAttributes(record.model);
+    const model = modelAttributes(ledger.cost.turn.model);
     // `agent` used to separate this endpoint's numbers from the command
     // endpoint's; that endpoint is gone (ADR-033) and the attribute stays, so
     // a dashboard built against it does not break and a second agent has a
@@ -132,20 +144,32 @@ export function recordAskMetrics(record: AskAnalyticsRecord): void {
       simulated: record.simulated,
       scope: record.scope.kind,
       turn: record.turn,
+      // Which slot answered, and what the turn was for — the two dimensions a
+      // tier map is worth nothing without. Both are small enumerations, so
+      // neither breaks rule 1 above.
+      task_class: ledger.cost.taskClass,
     };
 
     Sentry.metrics.count("ai.ask.turns", 1, {
-      attributes: { ...base, outcome: record.outcome, answered: record.answered, finish_reason: record.finishReason },
+      attributes: {
+        ...base,
+        outcome: ledger.cost.outcome,
+        answered: record.answered,
+        finish_reason: record.finishReason,
+      },
     });
 
-    countTokens(record.usage, { ...base, call: "turn" });
-    const turnTotal = record.usage.totalTokens ?? sumOrNull(record.usage.inputTokens, record.usage.outputTokens);
+    countTokens(
+      { inputTokens: ledger.cost.turn.tokensIn, outputTokens: ledger.cost.turn.tokensOut, totalTokens: null },
+      { ...base, call: "turn" },
+    );
+    const turnTotal = sumOrNull(ledger.cost.turn.tokensIn, ledger.cost.turn.tokensOut);
     if (turnTotal !== null) {
       Sentry.metrics.distribution("ai.ask.tokens", turnTotal, { attributes: base });
     }
 
     Sentry.metrics.distribution("ai.ask.duration", record.latencyMs, { unit: MS, attributes: base });
-    Sentry.metrics.distribution("ai.ask.steps", record.steps, { attributes: base });
+    Sentry.metrics.distribution("ai.ask.steps", ledger.cost.steps, { attributes: base });
     Sentry.metrics.distribution("ai.ask.tool_calls", record.toolCallCount, { attributes: base });
 
     // **The measurement ADR-022's "a tool is earned" rule depends on.**
@@ -189,14 +213,31 @@ export function recordAskMetrics(record: AskAnalyticsRecord): void {
 
     const classification = record.classification;
     if (classification !== null) {
-      const classifierModel = classification.model ?? record.model;
+      // The model the classifier ACTUALLY ran on, off the ledger — which is
+      // null exactly when no round-trip was made (a bare affirmation), and the
+      // turn's own model is then the honest fallback for a series that still
+      // wants the affirmation counted. Reading it from here rather than from
+      // the record is what keeps the classifier's spend attributed to the
+      // classifier's id, which is the whole reason `AI_CLASSIFIER_MODEL`
+      // exists.
+      const classifierModel = ledger.cost.classifier?.model ?? classification.model ?? ledger.cost.turn.model;
       const classifierBase: MetricAttributes = {
         agent: "ask",
         ...modelAttributes(classifierModel),
         simulated: record.simulated,
       };
       Sentry.metrics.count("ai.classify.turns", 1, {
-        attributes: { ...classifierBase, intent: classification.intent, source: classification.source, failed_open: classification.failedOpen },
+        attributes: {
+          ...classifierBase,
+          // `intent` keeps its two values so a month of existing series stays
+          // comparable; `task_class` is the wider verdict beside it. Widening
+          // `intent` in place would have silently re-based every chart built on
+          // it — which is the same class of mistake as a bucket name that moves.
+          intent: classification.intent,
+          task_class: classification.taskClass,
+          source: classification.source,
+          failed_open: classification.failedOpen,
+        },
       });
       Sentry.metrics.distribution("ai.classify.duration", classification.latencyMs, {
         unit: MS,
@@ -206,7 +247,36 @@ export function recordAskMetrics(record: AskAnalyticsRecord): void {
       // `call` — which is the whole point of `AI_CLASSIFIER_MODEL` existing:
       // "did the cheap classifier save more than it cost" is a subtraction
       // between two series, and it is only possible if both are here.
-      countTokens(classification.usage, { ...classifierBase, call: "classifier" });
+      countTokens(
+        ledger.cost.classifier === null
+          ? { inputTokens: null, outputTokens: null, totalTokens: null }
+          : {
+              inputTokens: ledger.cost.classifier.tokensIn,
+              outputTokens: ledger.cost.classifier.tokensOut,
+              totalTokens: null,
+            },
+        { ...classifierBase, call: "classifier" },
+      );
+    }
+
+    // **Capacity, never cost** (spec §7b). A vendor lookup consumes a
+    // daily-capped free tier's allowance; it is not a per-call charge and must
+    // never be summed into one. It gets its own metric name for exactly that
+    // reason — a shared one would invite the sum the type refuses.
+    for (const line of ledger.capacity) {
+      Sentry.metrics.count("ai.vendor.calls", line.calls, {
+        attributes: { ...base, vendor: line.vendor },
+      });
+    }
+
+    // How long each tool took and whether it worked — the efficiency half,
+    // which `record.toolCalls` cannot answer because it observes what the model
+    // ASKED for rather than what running it cost.
+    for (const call of ledger.toolCalls) {
+      Sentry.metrics.distribution("ai.tool.duration", call.ms, {
+        unit: MS,
+        attributes: { ...base, tool: call.name, ok: call.ok },
+      });
     }
   } catch {
     // Telemetry never breaks a turn. See this file's header.
