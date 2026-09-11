@@ -15,6 +15,13 @@
 // for earning a tool is only enforceable if a tool nobody calls is visible,
 // and "the model probably didn't need it" is not evidence.
 import type { AskScope } from "@/server/ai/context";
+import type { TaskClass } from "@/server/assistant/taskClass";
+import {
+  NO_METER,
+  type TurnLedger,
+  type TurnMeter,
+  type TurnOutcome,
+} from "@/server/assistant/ledger";
 
 /**
  * How a turn ended, as a fact about the TURN rather than about the model.
@@ -74,8 +81,33 @@ export interface AskFailureCause {
  * to tell which of the three inputs produced the answer.
  */
 export interface AskIntentRecord {
-  /** What the turn was classified as. `write` is also what every uncertainty resolves to. */
+  /**
+   * What the turn was classified as, on the EFFECT axis. `write` is also what
+   * every uncertainty resolves to.
+   *
+   * **Derived from `taskClass` below, never asked for separately** (P5): it is
+   * `taskClass === "question" ? "question" : "write"`, computed once where the
+   * verdict is read. It stays a field rather than becoming a call site's
+   * expression because it is the axis `grantFor` caps on and the dimension
+   * every existing `ai.classify.turns` chart is built against — widening its
+   * values would silently re-base a month of series.
+   */
   intent: "question" | "write";
+  /**
+   * What the turn is FOR, which is the axis that picks a model tier (spec §5).
+   *
+   * The classifier is asked for THIS and `intent` follows from it, rather than
+   * the other way round: `edit` and `plan` are indistinguishable on the effect
+   * axis — both propose — and a router that could not tell them apart would
+   * make the whole tier map unreachable. `compose` never appears here, because
+   * a page turn is decided by the surface and is not classified at all.
+   *
+   * **Uncertainty resolves to `plan`**, the strongest tier, for the same reason
+   * rule 1 in `askIntent.ts` resolves it to `write`: a `plan` answered on a
+   * cheap model is a quality regression, and the cheap direction is the one
+   * that hurts.
+   */
+  taskClass: Exclude<TaskClass, "compose">;
   /**
    * What decided it. `affirmation` is the rule that never called a model at
    * all ("Yes go ahead"); `model` is the classification call.
@@ -215,7 +247,20 @@ export interface AskAnalyticsRecord {
   latencyMs: number;
 }
 
-export type AskAnalyticsSink = (record: AskAnalyticsRecord) => void;
+/**
+ * Where a finished turn goes.
+ *
+ * **The ledger rides beside the record, from the same single writer** (spec §6,
+ * §7a). Cost used to be assembled at three points inside this callback — the
+ * log line, the Sentry metrics and the step settlement — plus one term (the
+ * classifier's own round-trip) added back by hand because `record.steps`
+ * structurally cannot see it. `TurnLedger` is the one value that says what the
+ * turn cost, built here, where the latch is, and read by all three.
+ *
+ * A sink written as `(record) => void` is still a valid sink: the second
+ * parameter is additive, so every existing test seam keeps working unchanged.
+ */
+export type AskAnalyticsSink = (record: AskAnalyticsRecord, ledger: TurnLedger) => void;
 
 // Bounded against `MAX_PROMPT_CHARS` (4000, the wire cap on a prompt), not
 // picked independently of it. 1000 rather than either extreme: a realistic
@@ -321,7 +366,12 @@ function describeFailure(err: unknown): AskFailureCause {
 // failure will filter the same way. So: the diagnosis on the record, and a
 // short line at the level people actually look at, naming the cause and
 // pointing back at the turn.
-export const logAskAnalytics: AskAnalyticsSink = (record) => {
+// Typed as its own one-parameter signature rather than as `AskAnalyticsSink`,
+// which grew a second parameter in P5: the log line reads the record and has no
+// use for the ledger, and a `logAskAnalytics(record)` call site should not have
+// to invent a ledger to satisfy a type. It is still assignable to the sink,
+// which is the direction that matters.
+export const logAskAnalytics = (record: AskAnalyticsRecord): void => {
   if (record.outcome === "error") {
     try {
       // Only server-controlled fields plus `cause`, which `describeFailure`
@@ -393,6 +443,24 @@ export interface AskRecorderParams {
   offeredTools: readonly string[];
   /** The pre-turn classification that decided the write half of `offeredTools`, or null when none ran. */
   classification?: AskIntentRecord | null;
+  /**
+   * What this turn was for, and therefore which tier answered it — resolved by
+   * the admission pipeline, because `compose` is a fact about the surface and
+   * not about the sentence.
+   */
+  taskClass: TaskClass;
+  /**
+   * Which plan version was pinned when this turn ran (spec §7c-note). Null
+   * until M20 has versions to pin; carried now so the ledger's shape is the one
+   * that ships.
+   */
+  planVersionRef?: string | null;
+  /**
+   * The two halves of the turn this recorder cannot observe for itself: how
+   * long each tool took, and any vendor lookup. Minted by the turn and handed
+   * to `aiToolsFor`; omitted, a turn is simply not measured at that grain.
+   */
+  meter?: TurnMeter;
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -452,6 +520,7 @@ export interface AskRecorder {
  */
 export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   const sink = params.sink ?? logAskAnalytics;
+  const meter = params.meter ?? NO_METER;
   const now = params.now ?? Date.now;
   const startedAt = now();
   const toolCalls: AskToolCallRecord[] = [];
@@ -497,6 +566,11 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     // seen — read it only when no step was observed at all, so `answered`
     // cannot be decided by counting the same sentence twice.
     if (steps === 0 && final.text) text += final.text;
+    // **Built before the record, and the record reads it** (spec §6). The two
+    // fields the ledger owns — what the run spent and how many round-trips it
+    // took — are taken from here rather than assembled twice, so the log line
+    // and the settlement cannot disagree about the same turn.
+    const ledger = ledgerFor(final, outcome);
     sink({
       event: "ai.ask",
       tripId: params.tripId,
@@ -508,8 +582,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       model: params.model,
       // `onEnd` fires once after the last step, so the steps this counted are
       // the run's own round-trips; `final` is that run's summary, not an
-      // extra step.
-      steps,
+      // extra step. Read off the ledger, which is where the count now lives.
+      steps: ledger.cost.steps,
       toolCalls,
       toolCallCount: toolCalls.length,
       offeredTools: [...params.offeredTools],
@@ -519,15 +593,89 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       outcome,
       cause,
       finishReason: final.finishReason ?? "unknown",
+      // The turn's own token spend, off the ledger's `cost.turn` — the same two
+      // numbers, read once. `totalTokens` is not on the ledger at all: it is
+      // the provider's own sum of the two halves, useful in a log line and
+      // never a field an `ai_usage` row needs, since a total that disagrees
+      // with its parts is a question about the provider rather than about the
+      // account.
       usage: {
-        inputTokens: final.usage?.inputTokens ?? null,
-        outputTokens: final.usage?.outputTokens ?? null,
+        inputTokens: ledger.cost.turn.tokensIn,
+        outputTokens: ledger.cost.turn.tokensOut,
         totalTokens: final.usage?.totalTokens ?? null,
       },
       usageByStep,
       droppedCalls: [...dropped],
       latencyMs: now() - startedAt,
-    });
+    }, ledger);
+  }
+
+  /**
+   * **The `ai_usage` row for this turn** (spec §7a), on all three end paths.
+   *
+   * `classifier` is non-null if and only if a classification round-trip was
+   * actually MADE. A bare affirmation ("Yes go ahead") short-circuits the
+   * classifier and spends nothing, and a page turn is not classified at all;
+   * neither has a round-trip to bill, and neither gets an entry. That is what
+   * makes `billableRoundTrips` structural instead of the hand-added `+ 1` this
+   * replaces — a term a later edit could drop, which would under-meter every
+   * classified turn by exactly one.
+   */
+  function ledgerFor(final: AskStepLike, outcome: TurnOutcome): TurnLedger {
+    const classification = params.classification ?? null;
+    const classifierCalled = classification !== null && classification.source === "model";
+    return {
+      cost: {
+        userId: params.userId,
+        endpoint: "ask",
+        outcome,
+        taskClass: params.taskClass,
+        turn: {
+          // The RESOLVED id of the model that actually answered — never a
+          // compiled default (ledger.ts, `ModelSpend.model`).
+          model: params.model,
+          tokensIn: final.usage?.inputTokens ?? sumObserved("inputTokens"),
+          tokensOut: final.usage?.outputTokens ?? sumObserved("outputTokens"),
+        },
+        classifier:
+          classifierCalled && classification.model !== null
+            ? {
+                model: classification.model,
+                tokensIn: classification.usage.inputTokens,
+                tokensOut: classification.usage.outputTokens,
+              }
+            : null,
+        steps,
+        planVersionRef: params.planVersionRef ?? null,
+      },
+      capacity: meter.capacity(),
+      toolCalls: meter.toolCalls(),
+    };
+  }
+
+  /**
+   * The turn's spend as the STEPS measured it — the fallback for the two end
+   * paths that have no provider summary to read.
+   *
+   * `abandon` synthesises its `final` (`{ finishReason }`), so reading only
+   * `final.usage` reported null tokens on every aborted and failed turn, even
+   * one whose three completed round-trips were already paid for. M20 link 9
+   * writes the row on those paths for exactly that reason, and a row saying
+   * null there under-reports the bill rather than merely losing detail.
+   *
+   * **Null still means unknown, never zero** (spec §7a: no field may assert a
+   * semantic its arithmetic does not have). So a step the provider reported
+   * nothing for contributes nothing rather than a `0`, and a turn where no
+   * step was measured at all stays null — summing an empty set to zero would
+   * claim a free turn we never observed.
+   */
+  function sumObserved(field: "inputTokens" | "outputTokens"): number | null {
+    let total: number | null = null;
+    for (const usage of usageByStep) {
+      const value = usage[field];
+      if (value !== null) total = (total ?? 0) + value;
+    }
+    return total;
   }
 }
 

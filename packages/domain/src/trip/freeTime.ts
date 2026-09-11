@@ -23,7 +23,8 @@ export interface FindFreeGapsOptions {
 // conversion anywhere — reuse it rather than growing a second time parser
 // (KI-73).
 //
-// Exported for the AI read-tool boundary (`apps/web/src/server/ai/readTools.ts`),
+// Exported for the AI read-tool boundary
+// (`apps/web/src/server/assistant/tools/read.ts`),
 // which is where a user's "after 9pm" becomes the minutes this module speaks.
 // It does NOT validate: inside the domain `TimeWindow`'s regex
 // (packages/contracts/src/activity.ts) already guarantees the shape, and at

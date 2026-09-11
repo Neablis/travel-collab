@@ -1,0 +1,10 @@
+### KI-2026-09-11-b — `simulatedModel`'s `resultFor<T>` is an unchecked cast over the agent's untyped message history
+
+- **Severity:** cleanup (test-path only today — the simulated model never runs against a real provider — but it is the KI-9 shape in the one module KI-9's fix does not reach)
+- **Area:** `apps/web/src/server/ai/simulatedModel.ts` (`resultFor<T>`)
+- **Symptom:** the stand-in model reads prior tool results out of the agent's message history, which is untyped, and casts them to the readout type it expects. Nothing parses. A readout missing a field the cast promises is a runtime throw inside the simulated path, not a type error — found in P4 when a `TripReadout` whose `days[].cities` was absent threw while being mapped over, taking three `simulatedModel.test.ts` cases with it.
+- **Why it matters despite being test-only:** the simulated model is what `ai-live: false` serves, which is **every deployment today** (ADR-019 — the flag defaults off). So this is the code path most users would actually hit, and the one the e2e suite asserts against. It is also the module most likely to break silently when a readout changes shape, because the cast makes the compiler agree with a stale assumption.
+- **Why not fixed in P4:** a `?? []` was added at the single site P4 touched, deliberately, because the fix is a whole-module concern — every `resultFor` call site wants the same zod parse that `defineTool`'s required `output` schema already provides for the real path. **The schemas already exist**; this is wiring them into the stand-in, not writing them.
+- **Fix path:** have `resultFor<T>` take the tool's `output` schema from the registry (`ASSISTANT_TOOLS`) and `safeParse` rather than cast, so a shape change fails in the stand-in the same way it fails in the real path.
+- **Cross-reference:** KI-9 (the hub — `defineTool`'s required output schema closed the real path 2026-09-10 and did not reach this one), ADR-019 (the kill switch, and why this path is the default), ADR-043 (M9 Phase 0).
+- **First noted:** 2026-09-11, by M9 Phase 0 P4.

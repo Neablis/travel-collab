@@ -1,179 +1,46 @@
 // The write half of the assistant (M9), offered on /ask beside the read tools.
 //
-// **One tool here is not derived, and exactly one.** The rest ARE
-// `buildPlanningTools()` — the family derived from `@tc/contracts` command
-// schemas (ADR-015 invariant 5, ADR-022 §4: "M9's write tools return by
-// wrapping that pipeline from inside the agent, not by reimplementing it").
-// `insert_playbook_day` is hand-written, which ADR-042 Decision 3 permits on a
-// narrow reading: it takes a `savedDayId` and nothing else, executes no
-// command, and the commands it eventually becomes are minted SERVER-side by
-// `insertCommands` at approval. So ADR-022's argument transfers unchanged —
-// there is nothing for its schema to drift from. A hand-written write tool
-// that carried command fields from the model is still forbidden.
+// **The tools themselves moved to the assistant kernel** (ADR-043 decision 1):
+// the derived family to `@/server/assistant/tools/planning` and ADR-042
+// Decision 3's one hand-written tool to
+// `@/server/assistant/tools/insertPlaybookDay`, each carrying the reasoning
+// that earned it. What is left in this module is the two things that were
+// always AROUND the tools rather than in them — P2 took the third,
+// `WRITE_TOOL_NAMES`, which is now the `itinerary` and `library` domains
+// granted at `propose` (assistant/grants.ts):
 //
-// This module adds three things around the tools:
-//
-//   1. `WRITE_TOOL_NAMES`, measured from the built tool set rather than typed
-//      out, so `minimumRoleFor` cannot fall behind a new BatchableCommand.
-//   2. `buildProposal` — `resolveBatch` run over what the turn collected, said
+//   1. `buildProposal` — `resolveBatch` run over what the turn collected, said
 //      in a sentence per change. Nothing is committed by it.
-//   3. `commitProposal` — the ONE atomic batch (ADR-013), through the same
+//   2. `commitProposal` — the ONE atomic batch (ADR-013), through the same
 //      `enrichCommandLocations` → `flushPlanningBatch` path the command
 //      endpoint uses, so approval is not a second door around KI-15. It is
 //      also where an approved `{ savedDayId }` is re-read and expanded, and
 //      where the adds ledger rides the batch's own transaction.
 //
 // The tools themselves stay COLLECT-ONLY, exactly as they already are on the
-// command path: `execute` pushes a raw intent and returns `{ queued: true }`.
-// That is what makes "nothing commits without approval" structural rather than
-// prompted — the agent loop has no reachable code path that writes an event.
-// The only caller of `commitProposal` is the apply endpoint, and it runs after
-// the human said yes.
+// command path: `run` pushes a raw intent into the turn's `proposalBuffer` and
+// returns `{ queued: true }`. That is what makes "nothing commits without
+// approval" structural rather than prompted — the agent loop has no reachable
+// code path that writes an event. The only caller of `commitProposal` is the
+// apply endpoint, and it runs after the human said yes.
 import { randomUUID } from "node:crypto";
-import { tool } from "ai";
-import { z } from "zod";
 import { BatchableCommand, type SavedDay, type TripDetail, type TripHistory } from "@tc/contracts";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
-import { buildPlanningTools, flushPlanningBatch } from "@/server/ai/planningTools";
-import { ReadContextSchema, type ReadToolContext } from "@/server/ai/readTools";
+import { flushPlanningBatch } from "@/server/ai/planningTools";
 import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
 import type { AskDroppedCall } from "@/server/ai/askAnalytics";
-import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import type { CollectedInsert } from "@/server/assistant/deps";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
+export type { CollectedInsert } from "@/server/assistant/deps";
 
-/** ADR-042 Decision 3's one hand-written write tool. */
-export const INSERT_PLAYBOOK_DAY = "insert_playbook_day";
-
-/**
- * The write tools, by name.
- *
- * The derived family is still MEASURED, never listed: every `BatchableCommand`
- * member becomes one tool (planningTools.ts), so a thirteenth command joins
- * this array — and therefore `minimumRoleFor`'s editor branch — without anyone
- * remembering to. Typing those names out here would be the hand-written
- * manifest ADR-015 invariant 5 forbids, one level up.
- *
- * `INSERT_PLAYBOOK_DAY` is named because it is genuinely not derived from
- * anything (ADR-042 Decision 3). It is appended rather than replacing the
- * measurement, so the derived half keeps its property.
- */
-export const WRITE_TOOL_NAMES: readonly string[] = [
-  ...Object.keys(buildPlanningTools().tools),
-  INSERT_PLAYBOOK_DAY,
-];
-
-/**
- * A day the turn asked to insert, resolved at PROPOSE time.
- *
- * `name` and `stopCount` ride along so the change sentence can be written
- * without a second read — and, more to the point, so the sentence the user
- * approves names the day the server actually found rather than whatever the
- * model called it.
- */
-export interface CollectedInsert {
-  savedDayId: string;
-  name: string;
-  stopCount: number;
-}
-
-/**
- * The whole of what the model may say about an insert.
- *
- * One field, and it names a row rather than describing one — which is the
- * narrow reading ADR-042 Decision 3 permits a hand-written write tool under.
- * No `tripId` (ADR-022 §3, and the trip arrives from the URL at apply), no day
- * position, no stop list: everything about WHAT gets inserted comes from
- * `insertCommands` reading the row.
- *
- * `.min(1)` rather than `.uuid()` on purpose. A malformed id is a
- * hallucination like any other, and `readableSavedDay` already answers every
- * flavour of unreachable — never existed, not yours, withdrawn, not even a
- * uuid — with the same "no row". Validating the shape here would tell the
- * model which kind of wrong it was.
- */
-const InsertPlaybookDayInput = z.object({
-  savedDayId: z
-    .string()
-    .min(1)
-    .describe("The `savedDayId` of a day search_playbooks returned. Never write or guess one."),
-});
-
-/**
- * The tools handed to the agent for an editor's turn: the derived planning
- * family, plus `insert_playbook_day`.
- *
- * The derived half is a pass-through, deliberately — wrapping
- * `buildPlanningTools()` in anything that alters a schema or an `execute` would
- * be the reimplementation ADR-022 §4 rules out.
- *
- * **`insert_playbook_day` is collect-only like every other write tool**, and it
- * resolves the row it was handed before collecting. That read is not
- * decoration: a hallucinated or unreadable id fails HERE, at propose time, with
- * a message the model can act on in the same turn — rather than surfacing as a
- * 404 after the user has already clicked Approve on a card naming a day that
- * was never reachable. The apply door re-reads regardless (`commitProposal`);
- * this one is for the model, that one is the guarantee.
- */
-export function buildWriteTools(): {
-  tools: ReturnType<typeof buildPlanningTools>["tools"];
-  getCollected: () => RawToolIntent[];
-  getInserts: () => CollectedInsert[];
-} {
-  const planning = buildPlanningTools();
-  const inserts: CollectedInsert[] = [];
-  return {
-    tools: {
-      ...planning.tools,
-      [INSERT_PLAYBOOK_DAY]: tool({
-        description:
-          "Propose adding a whole day from the playbook library to this trip — every stop it holds, in order, as a new day at the end. Pass a `savedDayId` that search_playbooks returned; never invent one, and propose at most ONE day per turn. Like every other change tool this only DRAFTS: the day is inserted when the user approves.",
-        inputSchema: InsertPlaybookDayInput,
-        contextSchema: ReadContextSchema,
-        execute: async ({ savedDayId }, { context }) => {
-          // The collector's own ceiling, so the cap holds on both sides of the
-          // stream: `/ask/apply` refuses an over-cap approval (limits.ts), and a
-          // turn cannot draft a card that would be refused. Refused as a tool
-          // result rather than a throw — the model can read it and stop.
-          if (inserts.length >= MAX_PROPOSAL_INSERTS) {
-            return {
-              error: `You have already queued ${MAX_PROPOSAL_INSERTS} playbook days, which is the most one proposal may carry. Stop and tell the user what you have drafted.`,
-            };
-          }
-          const saved = await readableSavedDay(savedDayId, context.userId);
-          if (saved === null) {
-            return {
-              error:
-                "There is no playbook day with that id that you can open. Call search_playbooks and use a savedDayId from its results.",
-            };
-          }
-          inserts.push({ savedDayId: saved.savedDayId, name: saved.name, stopCount: saved.stops.length });
-          return { queued: true, name: saved.name, stopCount: saved.stops.length };
-        },
-      }),
-    },
-    getCollected: planning.getCollected,
-    getInserts: () => inserts,
-  };
-}
-
-/**
- * The context `insert_playbook_day` reads, under its own name — `toolsContext`
- * is keyed by tool, so a write tool with a `contextSchema` needs an entry of
- * its own beside `readToolsContext`'s.
- *
- * The same `ReadToolContext` the read tools take, and only `userId` is used:
- * the library is read as the actor, and the trip is not this tool's business.
- */
-export function writeToolsContext(context: ReadToolContext): Record<string, ReadToolContext> {
-  return { [INSERT_PLAYBOOK_DAY]: context };
-}
+export { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 
 /** One change, as the user reads it before deciding. */
 export interface ProposedChange {

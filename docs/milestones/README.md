@@ -202,12 +202,42 @@ Current milestone: **M9 — The assistant cites what it plans**
 (`M9-ai-planning-partner.md`), as of **2026-09-11, when M17's gate closed** —
 three of three live boxes, one amended out, with the e2e re-run on the
 `ci-like` lane and the production migration dispatch confirmed from workflow
-history. Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`
+history. **M9 opens with Phase 0 — the assistant
+kernel** (`M9-ai-planning-partner.md`, "Phase 0"), interposed 2026-09-10 and in
+flight; see the note below it. Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 → grounding, durability, evals] → M20 → M21 → M12 → M13 → M14 → M19`
 — **M20 and M21 minted and placed 2026-09-01**; see the note below. **M9 is
 next by the order recorded on 2026-09-01 and by no new decision** — but read
 the 2026-09-11 note below before treating that queue as a description of what
 has been happening.
+
+### 2026-09-10 — M9 opens with Phase 0, the assistant kernel
+
+**Mitchell's call, 2026-09-10**, opening KI-2026-09-05-t: *"Lets take on
+refactoring it, and the entire AI Ask system."* Chosen from three placements
+offered; the two declined were finishing M17 first, and writing the design
+record now and building after M17.
+
+**Why ahead of M17.** The KI's own argument, which M9's estimate already
+assumes: `handleAskRequest()` being one 455-line function is a *schedule
+multiplier* on every M9 task, and ~15 of the 40 open known issues are
+consequences of the same untyped boundaries. Doing M9's three real pieces of
+work against that shape pays the multiplier three times.
+
+**As decided, this paused M17 at "0 of 3 gate boxes". That reading was wrong,
+and the note above is why** — M17's boxes had been satisfiable since PR #112
+merged on 2026-09-02, and its gate closed on 2026-09-11 without Phase 0 giving
+anything back. So the interposition cost M17 nothing: it displaced a marker,
+not any work. Recorded rather than quietly corrected, because "pausing" a
+milestone that was already finishable is the same drift the 2026-09-11 note
+above measures, arrived at from the other direction — that note found a marker
+reporting work that was done, and this one set a marker against it.
+
+**What it is not.** It closes no gate box, of M9's or anyone's. Entitlement
+policy and the `ai_usage` cost ledger stay **M20's**, under the four rules
+decided 2026-09-01 — Phase 0 builds the ports those rules fill and chooses no
+tier, ceiling or price. Decision: **ADR-043**. Design:
+`docs/specs/2026-09-10-assistant-kernel-design.md`.
 
 ### 2026-09-11 — M17's gate closed nine days late, and the queue drifted while it was open
 

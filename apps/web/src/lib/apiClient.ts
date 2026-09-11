@@ -787,8 +787,10 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   }
   // The turn's outcome rides on the run's final chunk as message metadata — the
   // first moment the server knows every tool call the model made. A proposal OR
-  // a page, never both: the two tool sets are disjoint server-side
-  // (`offeredToolNamesFor`), so the scope that asked decides which arrives.
+  // a page, never both: the two tool sets are disjoint server-side — the page
+  // surface caps the `itinerary` domain at `read` and no other surface grants
+  // `pages` at all (assistant/grants.ts) — so the scope that asked decides
+  // which arrives.
   //
   // Parsed, not cast, in both cases: `commands` go straight back to
   // `/ask/apply` and `content` goes straight into the editor, so a malformed

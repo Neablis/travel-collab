@@ -3,19 +3,28 @@ import { JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME } from "@tc/fixtures";
 import type { TripDetail } from "@tc/contracts";
 import { demoTripDetail } from "@/server/demoTrip";
 import {
-  buildReadTools,
   findFreeTime,
   readDay,
   readDays,
   readTrip,
   FindFreeTimeInputSchema,
   MAX_READ_DAYS,
-  READ_TOOL_INPUT_SCHEMAS,
-  READ_TOOL_NAMES,
   ReadDayInput,
   type DayReadout,
   type FreeTimeReadout,
-} from "@/server/ai/readTools";
+} from "@/server/assistant/tools/read";
+import { READ_TOOLS } from "@/server/assistant/tools/read";
+import { aiToolsFor } from "@/server/assistant/registry";
+
+// The read family, built the way a turn builds it — `aiToolsFor` over the
+// registry definitions, which is what `buildReadTools()` was before the grant
+// replaced it. The library port is stubbed because nothing in this file calls
+// `search_playbooks`; its answer is an integration claim about a WHERE clause
+// (readTools.int.test.ts), and a unit test over a stubbed query would assert
+// the stub.
+function readToolSet() {
+  return aiToolsFor(READ_TOOLS, { playbooks: { discover: async () => [] } });
+}
 
 // The canonical fixture (ADR-030) — the 14-day Japan trip, folded through the
 // real domain by `demoTripDetail()`. Not a hand-built TripDetail: a fixture
@@ -162,14 +171,14 @@ describe("read_day, batched", () => {
   });
 
   it("keeps the single-day shape a bare DayReadout, not a batch of one", () => {
-    const { tools } = buildReadTools();
+    const tools = readToolSet();
     // Structural: the SCHEMA accepts both a bare number and a list under the
     // same `days` field, which is what "batch every day into one call rather
     // than one tool per day" needs to be expressible without a second tool
     // (ADR-022 §1) or a second field.
     expect(ReadDayInput.safeParse({ days: 8 }).success).toBe(true);
     expect(ReadDayInput.safeParse({ days: [8] }).success).toBe(true);
-    expect(tools.read_day.inputSchema).toBe(ReadDayInput);
+    expect(tools.read_day!.inputSchema).toBe(ReadDayInput);
   });
 
   it(`bounds a batch to ${MAX_READ_DAYS} days, as a schema failure rather than a silent truncation`, () => {
@@ -281,19 +290,21 @@ describe("find_free_time", () => {
 });
 
 describe("the tool schemas", () => {
-  const { tools } = buildReadTools();
-
-  it("offers exactly the tools READ_TOOL_NAMES names", () => {
-    expect(Object.keys(tools).sort()).toEqual([...READ_TOOL_NAMES].sort());
-  });
+  const tools = readToolSet();
 
   // ADR-022 §3, asserted STRUCTURALLY rather than by reading the prompt: trip
   // and actor identity arrive through `toolsContext`, so "read a different
   // trip" must not be expressible in any tool's input schema. Walking the
   // schemas rather than naming the three tools is what makes a fourth tool
   // inherit the check instead of dodging it.
+  //
+  // Walked over the BUILT set rather than over a `READ_TOOL_INPUT_SCHEMAS`
+  // manifest, which is what this used to read: the manifest needed a second
+  // test to assert it covered every offered tool, and the pair could only ever
+  // agree with each other. Every offered tool is now covered by construction.
   it("declares no tripId — nor any other id — in any tool's input schema", () => {
-    for (const [name, schema] of Object.entries(READ_TOOL_INPUT_SCHEMAS)) {
+    for (const [name, tool] of Object.entries(tools)) {
+      const schema = tool.inputSchema as unknown as { shape: Record<string, unknown> };
       const keys = Object.keys(schema.shape);
       expect(keys, `${name} input keys`).not.toContain("tripId");
       // ADR-042 Decision 2's second half, spelled out rather than left to the
@@ -305,10 +316,6 @@ describe("the tool schemas", () => {
       expect(keys, `${name} input keys`).not.toContain("ownerId");
       expect(keys.filter((key) => /id$/i.test(key)), `${name} id-shaped keys`).toEqual([]);
     }
-  });
-
-  it("keeps every offered tool's schema covered by that assertion", () => {
-    expect(Object.keys(READ_TOOL_INPUT_SCHEMAS).sort()).toEqual(Object.keys(tools).sort());
   });
 
   it("gives every tool a context schema, so identity can only come from context", () => {

@@ -34,7 +34,21 @@ export function hasAtLeast(
   minimum: TripRole,
 ): boolean {
   const role = memberRole(actorId, members);
-  return role !== null && RANK[role] >= RANK[minimum];
+  return role !== null && roleAtLeast(role, minimum);
+}
+
+/**
+ * The rank comparison on its own, for a caller that already holds a role and
+ * has no member list to look it up in.
+ *
+ * The assistant kernel's `minimumRoleFor` is one: it takes the maximum
+ * `minimumRole` over the tools a turn was actually granted, which is a question
+ * about two roles and no actor. It reads RANK through here rather than keeping
+ * a second table, because AGENTS.md invariant 6c is that exactly one place
+ * knows a viewer ranks below an editor — and this module is that place.
+ */
+export function roleAtLeast(role: TripRole, minimum: TripRole): boolean {
+  return RANK[role] >= RANK[minimum];
 }
 
 // The role a member must hold, at minimum, to run each command. Typed as an

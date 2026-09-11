@@ -2,9 +2,16 @@
 // model to use; it does not know a flag exists.
 import type { LanguageModel } from "ai";
 import { aiLiveFlag } from "@/server/flags";
+import { serverConfig } from "@/server/config";
 import { aiClassifierModel, aiModel } from "@/server/ai/gateway";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import type { AiSurface } from "@/server/ai/context";
+import { MODEL_TIERS, type ModelTier, type TierModels } from "@/server/assistant/taskClass";
+import {
+  permitEverything,
+  type EntitlementResolver,
+  type ResolvedEntitlements,
+} from "@/server/assistant/entitlements";
 
 // May THIS request's caller cause a real model call. Every caller that only
 // needs the answer uses this; `aiLiveMode()` below is the same decision with
@@ -100,9 +107,45 @@ export interface AiActor {
 // guarantees — the flag, the entitlement check, and the single gateway
 // chokepoint — instead of needing them restated at the call site.
 export type ModelSelection =
-  | { outcome: "live"; model: LanguageModel; classifierModel: LanguageModel }
-  | { outcome: "simulated"; model: LanguageModel; classifierModel: LanguageModel }
+  | { outcome: "live"; models: TierModels; classifierModel: LanguageModel; entitlements: ResolvedEntitlements }
+  | { outcome: "simulated"; models: TierModels; classifierModel: LanguageModel; entitlements: ResolvedEntitlements }
   | { outcome: "denied"; reason: string };
+
+// `TierModels` itself is the kernel's (assistant/taskClass.ts) — the slot names
+// belong to the thing that routes, and this module is where a slot becomes an
+// id. Re-exported so a caller reading a `ModelSelection` has one import.
+export type { TierModels };
+
+/**
+ * **The resolved tier map, as ids** — what `GET /api/health/ai-mode` reports.
+ *
+ * Today that endpoint answers *whether* AI is live and not *what* is running,
+ * so "which models is production actually on?" is answerable only by reading
+ * environment variables in a dashboard. That is exactly how a compiled default
+ * goes unnoticed: `config.ts` compiles `anthropic/claude-haiku-4-5` while
+ * production sets `AI_MODEL` to `deepseek/deepseek-v4-flash-0731`, and M20
+ * link 5 records that gap already costing one estimate an order of magnitude.
+ * One field, and the question becomes answerable from outside.
+ *
+ * The classifier rides along for the same reason it rides along on a
+ * `ModelSelection`: a second model id is a second thing that can be wrong about
+ * what is running.
+ */
+export function resolvedTierMap(): Record<ModelTier | "classifier", string> {
+  return { ...serverConfig.aiModelTiers, classifier: serverConfig.aiClassifierModel };
+}
+
+// Built EAGERLY on the live branch rather than lazily, and that is deliberate:
+// *"never constructs a gateway client, of either kind, when the flag is off"*
+// is a promise about what this function DOES, and a lazy map would satisfy that
+// test by doing nothing at all on either branch. Three `createGateway` calls
+// where there was one is an object each, no network and no key read beyond the
+// one `aiModel` already performs.
+function tierModels(build: (modelId: string) => LanguageModel): TierModels {
+  const models = {} as Record<ModelTier, LanguageModel>;
+  for (const tier of MODEL_TIERS) models[tier] = build(serverConfig.aiModelTiers[tier]);
+  return models;
+}
 
 // The HTTP contract for a `denied` outcome, defined once here so /ask's two
 // halves (the turn and the approval) render the same refusal rather than each
@@ -120,8 +163,19 @@ export function deniedResponse(reason: string): Response {
 // type and the branch are real. Callers never override this outside tests;
 // M16/M15 wiring a real check in later is a change inside this function, not
 // a new parameter every caller has to learn about.
-export type AiEntitlementCheck = (actor: AiActor) => boolean | Promise<boolean>;
-const EVERYONE_IS_ENTITLED: AiEntitlementCheck = () => true;
+//
+// **Widened by P5 from `(actor) => boolean` to a `ResolvedEntitlements`
+// resolver** (ADR-043 decision 5, spec §7c). A boolean cannot express what M20
+// needs of this port: `has(capability)` for the SET a plan grants,
+// `ceilings` for the per-user numbers admission needs, and `planVersionRef`
+// for which version was pinned. It is `async` and resolved per request because
+// M20 requires it — *"a downgrade must bite before a token refreshes"* — so the
+// answer comes from the database and never off the session. The name stays so
+// that M20 link 4, which names this port, still finds it.
+//
+// The default still permits everything and caps nothing, so behaviour is
+// unchanged (entitlements.ts).
+export type AiEntitlementCheck = EntitlementResolver;
 
 // `aiModel()`/`aiClassifierModel()` are called ONLY on the live branch — they
 // construct the gateway client that carries AI_GATEWAY_API_KEY, and throw when
@@ -132,21 +186,39 @@ const EVERYONE_IS_ENTITLED: AiEntitlementCheck = () => true;
 // `isEntitled` is a test seam, not a real parameter callers pass — it exists
 // so `denied`, currently unreachable in production, can still be exercised by
 // a test (M16's gate requires this).
+//
+// **`ai.ask` is what is asked for here, and it is the effect axis** (spec §7c):
+// M20's entitlement vocabulary maps onto §2's effects, `ai.ask` onto `read`. An
+// account without it is refused at THIS stage and never reaches tools at all,
+// which is why the refusal belongs here rather than in the tool filter.
 export async function selectAiModel(
   actor: AiActor,
-  isEntitled: AiEntitlementCheck = EVERYONE_IS_ENTITLED,
+  isEntitled: AiEntitlementCheck = permitEverything,
 ): Promise<ModelSelection> {
-  if (!(await isEntitled(actor))) {
+  const entitlements = await isEntitled(actor);
+  if (!entitlements.has("ai.ask")) {
     return { outcome: "denied", reason: "AI is not available for this account." };
   }
   if (!(await aiLive())) {
-    // ONE instance, used for both. The classification call and the turn are the
-    // same turn as far as this model is concerned — it decides which shape to
-    // answer with from the prompt it is handed, never from instance state
-    // (simulatedModel.ts). Neither reaches a provider, which is the property
-    // the second model id must not quietly break, so it has a test.
+    // ONE instance, used for every tier and for the classifier. The
+    // classification call and the turn are the same turn as far as this model
+    // is concerned — it decides which shape to answer with from the prompt it
+    // is handed, never from instance state (simulatedModel.ts). Neither reaches
+    // a provider, which is the property the second model id must not quietly
+    // break, so it has a test; the same is now true of the third, fourth and
+    // fifth.
     const simulated = simulatedModel();
-    return { outcome: "simulated", model: simulated, classifierModel: simulated };
+    return {
+      outcome: "simulated",
+      models: tierModels(() => simulated),
+      classifierModel: simulated,
+      entitlements,
+    };
   }
-  return { outcome: "live", model: aiModel(), classifierModel: aiClassifierModel() };
+  return {
+    outcome: "live",
+    models: tierModels((modelId) => aiModel(modelId)),
+    classifierModel: aiClassifierModel(),
+    entitlements,
+  };
 }

@@ -23,6 +23,7 @@
 // proxy never writes an event at all. Counting events would meter exactly the
 // requests that are cheapest to make and miss the abusive ones.
 import { sql } from "drizzle-orm";
+import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
 import type { Db } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
@@ -113,8 +114,31 @@ function envCeiling(name: string, fallback: number): number {
  *
  * The global ceilings bound the same two things across all accounts, which is
  * the only defence against sign-up-a-new-Google-account-and-repeat.
+ *
+ * **`ceilings` is the account's pinned plan, and it moves NUMBERS ONLY**
+ * (M20 link 5, ADR-043 decision 5). Two rules, and the first one is the whole
+ * reason this is a parameter rather than a second set of policies:
+ *
+ *   * **The bucket `name` must not vary by tier.** `QuotaPolicy.name` is
+ *     documented *"Must be stable — changing it resets everyone's count"*, and
+ *     a tier-suffixed bucket would do exactly that: an upgrade would zero the
+ *     account's usage, and anyone could farm free calls by toggling back and
+ *     forth. The names below are literals for that reason, and a property test
+ *     pins that no ceiling can reach them.
+ *   * **Per-user ceilings come from the plan; global ceilings stay in the
+ *     environment.** A per-user ceiling is a term that was SOLD, so it belongs
+ *     on the immutable pinned version. A global ceiling is a deployment-wide
+ *     abuse bound that protects the operator's bill and was never sold to
+ *     anyone, so `envCeiling` keeps owning it and stays tunable by redeploy
+ *     without republishing a plan.
+ *
+ * The **hourly** per-user ceiling also stays in the environment, and that is a
+ * reading of M20 rather than an omission: its plan table sells *"AI requests ·
+ * steps per day"*, and the hourly window is the abuse window — the burst bound
+ * that stops a scripted loop, not a term anyone bought. `null` from the plan
+ * means it named no ceiling, and today's default stands unchanged.
  */
-export function aiQuotas(): QuotaPolicy[] {
+export function aiQuotas(ceilings: EntitlementCeilings = NO_CEILINGS): QuotaPolicy[] {
   return [
     {
       name: "ai-hourly",
@@ -125,7 +149,7 @@ export function aiQuotas(): QuotaPolicy[] {
     {
       name: "ai-daily",
       windowMs: DAY_MS,
-      perUser: envCeiling("AI_RATE_LIMIT_PER_USER_DAILY", 100),
+      perUser: ceilings.perUserRequestsPerDay ?? envCeiling("AI_RATE_LIMIT_PER_USER_DAILY", 100),
       global: envCeiling("AI_RATE_LIMIT_GLOBAL_DAILY", 1000),
     },
   ];
@@ -188,8 +212,15 @@ const AI_MAX_STEPS_PER_REQUEST = 32;
  * daily and global ceilings are scaled from their request counterparts the same
  * way. Every one is operator-overridable, and `envCeiling`'s fallback-on-
  * malformed rule applies to them exactly as it does above.
+ *
+ * **`ceilings` works exactly as it does on `aiQuotas` above**, and the same two
+ * rules apply verbatim: the bucket names are literals so an upgrade cannot
+ * reset a counter, and only the daily per-user number is a sold term. A turn
+ * must be SETTLED against the same ceilings it was admitted against, which is
+ * why the handler passes the grant's entitlements to both calls rather than
+ * letting the settlement fall back to the default.
  */
-export function aiStepQuotas(): QuotaPolicy[] {
+export function aiStepQuotas(ceilings: EntitlementCeilings = NO_CEILINGS): QuotaPolicy[] {
   const AVERAGE_STEPS = 8;
   return [
     {
@@ -201,7 +232,7 @@ export function aiStepQuotas(): QuotaPolicy[] {
     {
       name: "ai-steps-daily",
       windowMs: DAY_MS,
-      perUser: envCeiling("AI_STEP_LIMIT_PER_USER_DAILY", 100 * AVERAGE_STEPS),
+      perUser: ceilings.perUserStepsPerDay ?? envCeiling("AI_STEP_LIMIT_PER_USER_DAILY", 100 * AVERAGE_STEPS),
       global: envCeiling("AI_STEP_LIMIT_GLOBAL_DAILY", 1000 * AVERAGE_STEPS),
     },
   ];

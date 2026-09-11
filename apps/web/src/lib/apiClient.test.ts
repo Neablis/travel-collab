@@ -632,8 +632,8 @@ describe("the proposal on the wire", () => {
 });
 
 // The composed page rides the SAME final chunk as a proposal, and never beside
-// one: the server's tool sets are disjoint (`offeredToolNamesFor`), so the scope
-// that asked decides which arrives.
+// one: the server's tool sets are disjoint (the surface table in
+// `assistant/grants.ts`), so the scope that asked decides which arrives.
 describe("a page turn's inserts on the wire", () => {
   const INSERTS = { content: { type: "doc", content: [{ type: "paragraph", content: [] }] } };
   const finishWith = (metadata: unknown) =>

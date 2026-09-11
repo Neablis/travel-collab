@@ -7,7 +7,7 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M17 is the current work**,
+purpose**, so read the marker, not the position: **M9 Phase 0 is the current work**,
 per the order set on 2026-08-29 when Mitchell placed two of the three
 approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
 **M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
@@ -172,6 +172,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
+- [ ] **M9 Phase 0 — the assistant kernel** ← **current milestone** — **interposed 2026-09-10 on
+      Mitchell's call**, nominally ahead of M17's three open gate boxes — which had in
+      fact been satisfiable since 2026-09-02, so it displaced a marker and not any
+      work; M17's gate closed 2026-09-11 regardless. Opens
+      KI-2026-09-05-t (`handleAskRequest()` is one 455-line function) and the ~15
+      open AI known issues that share its shape. Six PRs: `defineTool` with a
+      required output schema and declared dependencies; scopes as (domain, effect)
+      grants so a tool set is a filter and not a hand-written switch; one staged
+      admission pipeline with one audit record; a prompt boundary that taints
+      tool-returned user content; task-class model routing and a `TurnLedger`;
+      then KI-22's contracts move as its own PR. Closes no gate box — it is what
+      M9's three real pieces of work get built on. Entitlement policy and the
+      `ai_usage` ledger stay M20's. Decision: ADR-043.
+      → `docs/specs/2026-09-10-assistant-kernel-design.md`
 - [x] **M17 Account preferences** — **gate closed 2026-09-11**: three of three
       live boxes, one amended out 2026-09-01. Built in PRs #111 and #112 and in
       production since 2026-09-02 (migration 0015 dispatched sixteen minutes

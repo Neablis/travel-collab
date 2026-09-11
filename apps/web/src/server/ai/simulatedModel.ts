@@ -43,8 +43,9 @@ import type {
   PlaybookSearchReadout,
   ReadToolProblem,
   TripReadout,
-} from "@/server/ai/readTools";
+} from "@/server/assistant/tools/read";
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
+import { plain } from "@/server/assistant/prompt";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -287,12 +288,16 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
 
   if (dayScoped && day && !("error" in day)) {
     const dated = day.date ? ` (${day.date})` : "";
-    const named = trip ? ` of ${trip.name}` : "";
+    const named = trip ? ` of ${plain(trip.name)}` : "";
     sentences.push(`Day ${day.day}${dated}${named} has ${pluralStops(day.stops.length)}.`);
     if (day.stops.length > 0) {
       sentences.push(
         `They are: ${day.stops
-          .map((stop) => (stop.timeWindow ? `${stop.title} at ${stop.timeWindow.start}` : `${stop.title} (no set time)`))
+          .map((stop) =>
+            stop.timeWindow
+              ? `${plain(stop.title)} at ${stop.timeWindow.start}`
+              : `${plain(stop.title)} (no set time)`,
+          )
           .join("; ")}.`,
       );
       // "What on day N still needs booking?" is a chip the rail offers whenever
@@ -302,7 +307,7 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
       sentences.push(
         unbooked.length === 0
           ? "Everything on it is either booked or in transit."
-          : `Still to book: ${unbooked.map((stop) => stop.title).join(", ")}.`,
+          : `Still to book: ${unbooked.map((stop) => plain(stop.title)).join(", ")}.`,
       );
     }
     // Day-scoped, from `read_day`'s own conflict list — NOT from the trip's,
@@ -312,13 +317,13 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
     if (day.conflicts.length > 0) {
       sentences.push(
         `${day.conflicts.length} conflict${day.conflicts.length === 1 ? "" : "s"} on this day: ${day.conflicts
-          .map((conflict) => conflict.description)
+          .map((conflict) => plain(conflict.description))
           .join(" ")}`,
       );
     }
   } else if (trip) {
     const started = trip.startDate ? `, starting ${trip.startDate}` : "";
-    sentences.push(`${trip.name} runs to ${trip.dayCount} day${trip.dayCount === 1 ? "" : "s"}${started}.`);
+    sentences.push(`${plain(trip.name)} runs to ${trip.dayCount} day${trip.dayCount === 1 ? "" : "s"}${started}.`);
     const stops = trip.days.reduce((total, d) => total + d.stopCount, 0);
     sentences.push(`There ${stops === 1 ? "is" : "are"} ${pluralStops(stops)} scheduled across it.`);
     sentences.push(...toBookSentences(trip));
@@ -339,7 +344,7 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
   // M16's gate refuses.
   if (!dayScoped && trip && trip.conflicts.length > 0) {
     sentences.push(
-      `${trip.conflicts.length} conflict${trip.conflicts.length === 1 ? "" : "s"} ${trip.conflicts.length === 1 ? "is" : "are"} still open: ${trip.conflicts[0]!.description}`,
+      `${trip.conflicts.length} conflict${trip.conflicts.length === 1 ? "" : "s"} ${trip.conflicts.length === 1 ? "is" : "are"} still open: ${plain(trip.conflicts[0]!.description)}`,
     );
   }
 
@@ -453,7 +458,14 @@ function playbookCalls(results: readonly ToolResultLike[]): ToolCall[] | null {
   const found = resultFor<PlaybookSearchReadout>(results, "search_playbooks");
   if (found === undefined) {
     const trip = resultFor<TripReadout>(results, "read_trip");
-    const cities = [...new Set((trip?.days ?? []).flatMap((day) => day.cities))].slice(0, 3);
+    // Unfenced before it goes back IN as a search argument. `search_playbooks`
+    // also unfences what it receives, so either spelling works — but a model
+    // told never to repeat the marks would not send them, and this model is a
+    // stand-in for that model.
+    // `?? []` because `resultFor` is a cast over the agent's own untyped
+    // message history, not a parsed readout — a day without `cities` is a
+    // malformed result, not a crash.
+    const cities = [...new Set((trip?.days ?? []).flatMap((day) => (day.cities ?? []).map(plain)))].slice(0, 3);
     return [call("search_playbooks", cities.length > 0 ? { cities } : {})];
   }
   const first = found.days[0];
@@ -567,7 +579,14 @@ function classifyStep(options: CallOptionsLike): SimulatedStep {
   // (`Output.choice`), and the SDK parses this text as JSON against that
   // schema before returning: a bare `write` would fail to parse and fail open
   // on every turn of the only path anyone deploys.
-  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "write" : "question");
+  //
+  // **`plan`, not `edit`, for every write** (P5). The verdict widened to a task
+  // class, and this model has one predicate — `asksToWrite` — which answers the
+  // EFFECT question and cannot tell a bounded change from a whole itinerary.
+  // Guessing between them here would be inventing a measurement; resolving
+  // upward is the rule the live classifier already follows for the same
+  // uncertainty, and it costs nothing on a path that contacts no provider.
+  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "plan" : "question");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },

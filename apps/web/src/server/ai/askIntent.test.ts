@@ -13,7 +13,7 @@ import {
   classifyAskIntent,
   isAskIntentCall,
   isBareAgreement,
-  type AskIntent,
+  type AskTaskClass,
 } from "@/server/ai/askIntent";
 
 // The slice of a call the assertions below read. Structural for the same
@@ -70,8 +70,8 @@ function modelSaying(text: string, finishReason = "stop") {
  * environment runs — produces. If an SDK upgrade moved `Output.choice` off
  * `{ result }`, this file goes red rather than the deployment going quiet.
  */
-function modelReturning(intent: AskIntent) {
-  return modelSaying(askIntentVerdictText(intent));
+function modelReturning(taskClass: AskTaskClass) {
+  return modelSaying(askIntentVerdictText(taskClass));
 }
 
 function modelThatThrows(err: unknown) {
@@ -97,7 +97,7 @@ describe("classifyAskIntent", () => {
   });
 
   it("keeps the write half on an unambiguous change request", async () => {
-    const { model } = modelReturning("write");
+    const { model } = modelReturning("plan");
     const result = await classifyAskIntent(model, "Add a coffee stop to day 2");
     expect(result).toMatchObject({ intent: "write", failedOpen: false });
   });
@@ -205,7 +205,7 @@ describe("classifyAskIntent", () => {
 
     const format = seen[0]!.responseFormat;
     expect(format?.type).toBe("json");
-    expect(JSON.stringify(format?.schema)).toContain('"enum":["question","write"]');
+    expect(JSON.stringify(format?.schema)).toContain('"enum":["question","edit","plan"]');
   });
 
   // The budget has to hold a reasoning preamble AND the answer — an 8-token
@@ -274,7 +274,7 @@ describe("classifyAskIntent", () => {
 
   describe("conversational context", () => {
     it("shows the classifier the two messages before this one", async () => {
-      const { model, seen } = modelReturning("write");
+      const { model, seen } = modelReturning("plan");
       await classifyAskIntent(model, "and the same for day 4?", [
         { role: "user", text: MITCHELL_REQUEST },
         { role: "assistant", text: MITCHELL_ASSISTANT },
@@ -291,7 +291,7 @@ describe("classifyAskIntent", () => {
     });
 
     it("truncates a long prior message rather than re-spending the saving", async () => {
-      const { model, seen } = modelReturning("write");
+      const { model, seen } = modelReturning("plan");
       await classifyAskIntent(model, "and day 4?", [{ role: "assistant", text: "x".repeat(5000) }]);
       const prompt = JSON.stringify(seen[0]!.prompt);
       expect(prompt).toContain("…");
@@ -302,7 +302,7 @@ describe("classifyAskIntent", () => {
     });
 
     it("records the input it classified, so a bad verdict is separable from a bad input", async () => {
-      const withContext = await classifyAskIntent(modelReturning("write").model, "and day 4?", [
+      const withContext = await classifyAskIntent(modelReturning("plan").model, "and day 4?", [
         { role: "assistant", text: MITCHELL_ASSISTANT },
       ]);
       expect(withContext.context).toContain("I've drafted 8 changes");

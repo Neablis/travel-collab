@@ -18,18 +18,19 @@
 // Two structural rules run through the whole file:
 //
 //   1. **No tool takes a `tripId`.** Trip and actor identity arrive through
-//      `contextSchema`/`toolsContext`, so "read a different trip" is not
-//      expressible in any tool's schema (ADR-022 §3). This is layered defense
-//      in the same sense `idFields.ts` is: the constraint is structural, not
-//      prompted. `readTools.test.ts` asserts it over every schema, so a fourth
-//      tool cannot quietly reintroduce one.
+//      `AssistantDeps` (`needs: ["trip"]`, `needs: ["actor"]`), so "read a
+//      different trip" is not expressible in any tool's schema (ADR-022 §3).
+//      This is layered defense in the same sense `idFields.ts` is: the
+//      constraint is structural, not prompted. `readTools.test.ts` asserts it
+//      over every schema, so a fourth tool cannot quietly reintroduce one.
 //   1b. **No tool takes an `ownerId` either**, and `search_playbooks`'s
 //      visibility set is exactly `readableSavedDay`'s — your own days plus
 //      anybody's published one. Narrower and the model proposes days the apply
 //      door then 404s on; wider and the tool is a way to enumerate what people
 //      have kept private, which is the exact attack that WHERE clause is
 //      written to defeat (ADR-042 Decision 2). It is reused, never restated:
-//      `discoverDays({ scope: "everyone" })` IS that clause.
+//      the `playbooks` port resolves to `discoverDays({ scope: "everyone" })`,
+//      which IS that clause.
 //   2. **The computation lives in the domain.** `find_free_time` is a wrapper
 //      over `findFreeGaps` (packages/domain/src/trip/freeTime.ts) and owns
 //      nothing but the translation between what a user says ("after 9pm") and
@@ -39,51 +40,14 @@
 // directions. `TripDetail.days` and `FreeGap.dayIndex` are 0-based; the
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
-import { tool } from "ai";
 import { z } from "zod";
-import type { ActivityKind, TripDetail } from "@tc/contracts";
+import { ActivityKind, Money, TimeWindow, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
-import { discoverDays } from "@/server/playbooks";
-
-export const READ_TOOL_NAMES = ["read_trip", "read_day", "find_free_time", "search_playbooks"] as const;
-export type ReadToolName = (typeof READ_TOOL_NAMES)[number];
-
-/**
- * What every read tool receives through `toolsContext`, and the only way trip
- * or actor identity reaches one.
- *
- * `detail` rides along rather than being re-fetched per tool call: `guard()`
- * has already read and PARSED it at the access seam, and a tool that fetched
- * its own copy could answer about a trip the guard never checked. `scope` is
- * here for the same reason — narrowing is a property of the turn, not
- * something the model should be able to talk its way out of by omitting a
- * parameter.
- */
-export interface ReadToolContext {
-  tripId: string;
-  userId: string;
-  detail: TripDetail;
-  scope: AskScope;
-}
-
-// Exported so `insert_playbook_day` (writeTools.ts) can take the SAME context
-// shape rather than a second one: it is the same actor reading the same
-// library, and two context schemas would be two places for "who is asking" to
-// come from.
-//
-// `contextSchema` is validated on EVERY tool call (ai/dist:
-// validateToolContext), so re-running `TripDetail.parse` here would re-walk a
-// 68-activity document per call to re-check something `requireTripAccess`
-// already checked at the seam. The identity fields are checked because they
-// are what ADR-022 §3 is about; `detail` and `scope` are passed through.
-export const ReadContextSchema = z.object({
-  tripId: z.string().uuid(),
-  userId: z.string().min(1),
-  detail: z.custom<TripDetail>((v) => typeof v === "object" && v !== null),
-  scope: z.custom<AskScope>((v) => typeof v === "object" && v !== null),
-});
+import { defineTool } from "@/server/assistant/defineTool";
+import type { PlaybookLibrary } from "@/server/assistant/deps";
+import { plain, untrusted, untrustedAll, untrustedOrNull } from "@/server/assistant/prompt";
 
 // The times this boundary accepts and emits: 00:00-23:59, PLUS "24:00".
 //
@@ -106,6 +70,13 @@ function hhmmOf(minutes: number): string {
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+/** The conflict shape every readout carries, as `activeConflicts` mints it. */
+const ConflictSummarySchema: z.ZodType<AiConflictSummary> = z.object({
+  ref: z.number(),
+  kind: z.string(),
+  description: z.string(),
+});
 
 export interface TripDayReadout {
   /** 1-based, matching `read_day`'s input. */
@@ -147,6 +118,25 @@ export interface TripReadout {
   /** Active (non-dismissed) conflicts, by the same 1-based `ref` the command envelope uses. */
   conflicts: AiConflictSummary[];
 }
+
+export const TripReadoutSchema: z.ZodType<TripReadout> = z.object({
+  name: z.string(),
+  currency: z.string(),
+  startDate: z.string().nullable(),
+  dayCount: z.number(),
+  tripCostTotal: z.number(),
+  days: z.array(
+    z.object({
+      day: z.number(),
+      date: z.string().nullable(),
+      cities: z.array(z.string()),
+      stopCount: z.number(),
+      toBook: z.number(),
+      costSubtotal: z.number(),
+    }),
+  ),
+  conflicts: z.array(ConflictSummarySchema),
+});
 
 /**
  * The trip noun. No computation — ADR-022 records this tool as earned by the
@@ -214,6 +204,38 @@ export interface ReadToolProblem {
   error: string;
 }
 
+export const ReadToolProblemSchema: z.ZodType<ReadToolProblem> = z.object({ error: z.string() });
+
+// The stop's own fields are the CONTRACT's, reused rather than restated:
+// `timeWindow` and `cost` are passed straight through from a parsed
+// `TripDetail`, so a second spelling of either here would be the hand-written
+// duplicate ADR-015 invariant 5 forbids. `location` is a genuine narrowing —
+// three of `Location`'s fields, with the coordinates the model must never see
+// left behind — so it is written out.
+export const DayReadoutSchema: z.ZodType<DayReadout> = z.object({
+  day: z.number(),
+  date: z.string().nullable(),
+  costSubtotal: z.number(),
+  stops: z.array(
+    z.object({
+      title: z.string(),
+      timeWindow: TimeWindow.nullable(),
+      location: z
+        .object({
+          name: z.string(),
+          city: z.string().nullable(),
+          countryCode: z.string().nullable(),
+        })
+        .nullable(),
+      notes: z.string().nullable(),
+      kind: ActivityKind,
+      tags: z.array(z.string()),
+      cost: Money.nullable(),
+    }),
+  ),
+  conflicts: z.array(ConflictSummarySchema),
+});
+
 /**
  * The day noun, WITH the time windows the command envelope never carried.
  *
@@ -276,7 +298,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
 // fixture's 14 days (ADR-030) so a genuinely trip-wide question stays routed
 // to `read_trip`, while a real multi-day comparison ("days 8 through 10", "the
 // day before and after this one") fits in one call. `ReadDayInput` enforces
-// this at the SCHEMA — asking for more fails validation before `execute` ever
+// this at the SCHEMA — asking for more fails validation before `run` ever
 // runs, rather than silently reading the first `MAX_READ_DAYS` and dropping
 // the rest.
 export const MAX_READ_DAYS = 5;
@@ -285,6 +307,10 @@ export interface DayBatchReadout {
   /** One entry per requested day, in the same (deduplicated) order asked. */
   days: (DayReadout | ReadToolProblem)[];
 }
+
+export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout> = z.object({
+  days: z.array(z.union([DayReadoutSchema, ReadToolProblemSchema])),
+});
 
 /**
  * `read_day`, batched. One entry per requested day, IN THE ORDER ASKED, after
@@ -322,11 +348,30 @@ export interface FreeTimeReadout {
   gaps: FreeTimeGapReadout[];
 }
 
+export const FreeTimeReadoutSchema: z.ZodType<FreeTimeReadout> = z.object({
+  searched: z.string(),
+  window: z.object({ after: z.string(), before: z.string() }),
+  gaps: z.array(
+    z.object({
+      day: z.number(),
+      date: z.string().nullable(),
+      start: z.string(),
+      end: z.string(),
+      durationMinutes: z.number(),
+    }),
+  ),
+});
+
 export interface FindFreeTimeInput {
   day?: number;
   after?: string;
   before?: string;
   minMinutes?: number;
+}
+
+function parseTime(value: string | undefined, fallback: number): number | null {
+  if (value === undefined) return fallback;
+  return HHMM.test(value) ? minutesOf(value) : null;
 }
 
 /**
@@ -340,11 +385,6 @@ export interface FindFreeTimeInput {
  * day-scoped question that forgot to repeat the day number is still about that
  * day. See `scopeNarrowing` in handleAskRequest.ts.
  */
-function parseTime(value: string | undefined, fallback: number): number | null {
-  if (value === undefined) return fallback;
-  return HHMM.test(value) ? minutesOf(value) : null;
-}
-
 export function findFreeTime(
   detail: TripDetail,
   scope: AskScope,
@@ -393,7 +433,7 @@ export function findFreeTime(
 // days' worth of names and cities into a step's context to pick one of them.
 // Eight is a shortlist a model can choose from and a person can be told about.
 // Both are enforced at the SCHEMA — asking for more fails validation before
-// `execute` runs, rather than silently truncating.
+// `run` runs, rather than silently truncating.
 export const MAX_PLAYBOOK_RESULTS = 8;
 export const MAX_SEARCH_CITIES = 5;
 
@@ -426,6 +466,21 @@ export interface PlaybookSearchReadout {
   days: PlaybookDayReadout[];
 }
 
+export const PlaybookSearchReadoutSchema: z.ZodType<PlaybookSearchReadout> = z.object({
+  searched: z.string(),
+  days: z.array(
+    z.object({
+      savedDayId: z.string(),
+      name: z.string(),
+      cities: z.array(z.string()),
+      stopCount: z.number(),
+      totalCost: Money.nullable(),
+      adds: z.number(),
+      mine: z.boolean(),
+    }),
+  ),
+});
+
 export interface SearchPlaybooksInput {
   cities?: string[];
   limit?: number;
@@ -434,37 +489,32 @@ export interface SearchPlaybooksInput {
 /**
  * The playbook library, filtered to what this reader may see.
  *
- * **`discoverDays({ scope: "everyone" })`, not a third copy of the visibility
- * clause.** `scopePredicate` (playbooks.ts) spells `everyone` as *"published,
- * or mine"* — which is exactly `readableSavedDay`'s WHERE clause, the one the
- * apply door will re-run per day. A separate query here would agree with it
- * only until somebody edited one of them, and the two directions that
+ * **The visibility clause is the adapter's, and there is still only one of
+ * it.** `playbooks.discover` is `discoverDays({ scope: "everyone" })`
+ * (`server/ai/assistantPorts.ts`), and `scopePredicate` spells `everyone` as
+ * *"published, or mine"* — exactly `readableSavedDay`'s WHERE clause, the one
+ * the apply door will re-run per day. A query written here instead would agree
+ * with it only until somebody edited one of them, and the two directions that
  * disagreement can go are both bad: narrower proposes days that 404 on
- * approval, wider enumerates other people's private days.
- *
- * It costs one extra `count(*)` (`publishedDayCount`) that this caller does not
- * read. That is the price of the shared query, and it is one indexed count over
- * a small table — cheap next to a second predicate to keep in step.
+ * approval, wider enumerates other people's private days. The port is narrow
+ * precisely so that clause cannot be restated on this side of it.
  */
 export async function searchPlaybooks(
+  library: PlaybookLibrary,
   readerId: string,
   input: SearchPlaybooksInput,
 ): Promise<PlaybookSearchReadout> {
-  const cities = input.cities ?? [];
-  const found = await discoverDays({
-    cities,
-    scope: "everyone",
-    // Most-added first: the ledger is the library's own answer to "which of
-    // these is worth taking", and it is the ranking Discover offers a person
-    // making the same choice.
-    sort: "most-added",
-    budget: "any",
-    season: null,
-    readerId,
-  });
+  // **Unfenced on the way IN.** `read_trip` fences the city names it returns
+  // and this tool's own schema tells the model to spell a city *"exactly as
+  // read_trip spells them"* — so the one round trip the fence could break is
+  // this one. The instruction asks a model not to repeat the marks and a good
+  // one will not; `plain` is what makes the answer the same either way, rather
+  // than a silent zero-result search when it does.
+  const cities = (input.cities ?? []).map(plain);
+  const found = await library.discover({ cities, readerId });
   return {
     searched: cities.length === 0 ? "the whole library" : cities.join(", "),
-    days: found.days.slice(0, input.limit ?? MAX_PLAYBOOK_RESULTS).map((day) => ({
+    days: found.slice(0, input.limit ?? MAX_PLAYBOOK_RESULTS).map((day) => ({
       savedDayId: day.savedDayId,
       name: day.name,
       cities: day.cities,
@@ -478,7 +528,7 @@ export async function searchPlaybooks(
 
 // Input schemas, exported so the no-`tripId` assertion can walk them
 // structurally rather than by reading the tool descriptions.
-const ReadTripInput = z.object({});
+export const ReadTripInput = z.object({});
 
 // One field, two shapes: a bare day number (the common case, and what a
 // day-scoped turn's default still fills in unasked) or a list of up to
@@ -517,8 +567,8 @@ export const FindFreeTimeInputSchema = z.object({
 
 // No `ownerId`, and no `visibility` either: both would be ways to ask the
 // library a question about somebody else, and neither is expressible. The set
-// of rows this can reach is decided by `readerId`, which arrives through
-// `contextSchema` alone (ADR-042 Decision 2).
+// of rows this can reach is decided by `readerId`, which arrives as the turn's
+// `actor` and by nothing a model can type (ADR-042 Decision 2).
 export const SearchPlaybooksInputSchema = z.object({
   cities: z
     .array(z.string().min(1).max(200))
@@ -536,85 +586,186 @@ export const SearchPlaybooksInputSchema = z.object({
     .describe(`How many days to return, up to ${MAX_PLAYBOOK_RESULTS}. Omit for all of them.`),
 });
 
-export const READ_TOOL_INPUT_SCHEMAS: Record<ReadToolName, z.ZodObject<z.ZodRawShape>> = {
-  read_trip: ReadTripInput,
-  read_day: ReadDayInput,
-  find_free_time: FindFreeTimeInputSchema,
-  search_playbooks: SearchPlaybooksInputSchema,
-};
+// ---------------------------------------------------------------------------
+// The fence (spec §4, ADR-043 decision 1's tool-result tainting)
+// ---------------------------------------------------------------------------
+//
+// **Three of these four tools return text somebody else wrote.** A trip is
+// shared by link and edited by several people, so an activity title, a stop's
+// notes, a tag, a city and a Playbook day's name are all attacker-influenceable
+// relative to whoever is asking — that is the threat this product actually has,
+// rather than a generic one it inherits. `untrusted()` fences each of those,
+// and the standing rule in the system instruction (`UNTRUSTED_DATA_RULE`) says
+// once what the fence means.
+//
+// Declared as `taint` on the definition and applied by `invoke`, NOT inside
+// `readTrip`/`readDay`/`searchPlaybooks`: those are pure readouts and are unit
+// tested as such, and fencing is a property of crossing to a model. Anything
+// that reads a readout without going through a tool — the simulated model does,
+// through the agent's own message history — sees the fence and undoes it
+// (`plain`), which is what a real model does with the prose it writes back.
+//
+// `find_free_time` declares no `taint` and that is the point of the asymmetry:
+// day numbers, clock times and durations are ours. A fence on a field nobody
+// wrote teaches a reader — and a model — that the mark means nothing.
 
 /**
- * The four tools, wired to the four functions above.
+ * A conflict, fenced.
  *
- * Argument-free like `buildPageTools()`: everything per-request arrives
- * through `toolsContext`, so the tool set itself is a constant and a test can
- * inspect its schemas without constructing a trip.
- *
- * The return type is INFERRED, not annotated `Record<ReadToolName, Tool>`:
- * `Tool`'s context parameter widens to `any` there, and `InferToolSetContext`
- * then resolves the whole tool set's context to `{}` — which makes
- * `toolsContext` typed `never` at the call site and silently deletes the one
- * guarantee ADR-022 §3 is about.
+ * **`description` is server-authored prose with user-authored titles
+ * interpolated into it** — `"X" and "Y" overlap in time on the same day.`
+ * (`detectConflicts`, packages/domain). So the whole sentence is
+ * attacker-influenceable even though we wrote its frame, and fencing the frame
+ * along with the titles is the conservative reading. `kind` is a closed set of
+ * ours and `ref` is a number, so neither is fenced.
  */
-export function buildReadTools() {
+function fencedConflicts(conflicts: readonly AiConflictSummary[]): AiConflictSummary[] {
+  return conflicts.map((conflict) => ({ ...conflict, description: untrusted(conflict.description) }));
+}
+
+/** A trip readout, fenced: the trip's name, and each day's cities. */
+function fencedTrip(readout: TripReadout): TripReadout {
   return {
-    tools: {
-      read_trip: tool({
-        description:
-          "Read this trip's shape: name, currency, start date, how many days, each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
-        inputSchema: ReadTripInput,
-        contextSchema: ReadContextSchema,
-        execute: async (_input, { context }) => readTrip(context.detail),
-      }),
-      read_day: tool({
-        description:
-          `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
-        inputSchema: ReadDayInput,
-        contextSchema: ReadContextSchema,
-        execute: async (input, { context }) => {
-          const days =
-            input.days !== undefined
-              ? Array.isArray(input.days)
-                ? input.days
-                : [input.days]
-              : context.scope.kind === "day"
-                ? [context.scope.dayIndex + 1]
-                : undefined;
-          if (days === undefined) {
-            return {
-              error: "Say which day: read_day takes a 1-based day number, or a list of them.",
-            } satisfies ReadToolProblem;
-          }
-          // The single-day shape stays exactly what it was — a bare
-          // `DayReadout` — so the one-day form this tool has always answered
-          // is unchanged for the common case. Only a genuine batch takes the
-          // wrapped `{ days: [...] }` shape `readDays` returns.
-          return days.length === 1 ? readDay(context.detail, days[0]!) : readDays(context.detail, days);
-        },
-      }),
-      find_free_time: tool({
-        description:
-          "Find the unscheduled gaps in a day or across the trip, optionally within a time window or above a minimum length. Use this rather than working times out from read_day yourself.",
-        inputSchema: FindFreeTimeInputSchema,
-        contextSchema: ReadContextSchema,
-        execute: async (input, { context }) => findFreeTime(context.detail, context.scope, input),
-      }),
-      search_playbooks: tool({
-        description:
-          "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, total cost and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
-        inputSchema: SearchPlaybooksInputSchema,
-        contextSchema: ReadContextSchema,
-        execute: async (input, { context }) => searchPlaybooks(context.userId, input),
-      }),
-    },
+    ...readout,
+    name: untrusted(readout.name),
+    // `currency` is an ISO code from the contract's own enum, and every other
+    // field on a day is a count, a cost or a date. `cities` is the one that
+    // comes from `Location.city`, which a person typed.
+    days: readout.days.map((day) => ({ ...day, cities: untrustedAll(day.cities) })),
+    conflicts: fencedConflicts(readout.conflicts),
   };
 }
 
-/**
- * The same context under every tool's name — `toolsContext` is keyed by tool.
- * Three of these read the same trip as the same actor; `search_playbooks` reads
- * the library as that same actor, which is the only field it takes from here.
- */
-export function readToolsContext(context: ReadToolContext): Record<ReadToolName, ReadToolContext> {
-  return { read_trip: context, read_day: context, find_free_time: context, search_playbooks: context };
+/** A day readout, fenced: each stop's title, notes, and its location's name and city. */
+function fencedDay(readout: DayReadout): DayReadout {
+  return {
+    ...readout,
+    stops: readout.stops.map((stop) => ({
+      ...stop,
+      title: untrusted(stop.title),
+      notes: untrustedOrNull(stop.notes),
+      // `kind` is the contract's own enum and `timeWindow`/`cost` are numbers
+      // and clock times. `countryCode` is a two-letter code the geocoder
+      // returns, not prose — left alone so the fence keeps meaning "a person
+      // wrote this".
+      //
+      // **`tags` is NOT fenced, and spec §4 has it wrong.** It reads as free
+      // text here because `StopReadout` widens it to `string[]`, but the source
+      // is `ActivityTag` — a four-value enum in `@tc/contracts`. Nobody can type
+      // into it, so there is nothing to fence, and fencing it would have broken
+      // the one consumer that MATCHES on the values (`needsBooking`, through
+      // the simulated model) for no security gain at all.
+      location: stop.location
+        ? { ...stop.location, name: untrusted(stop.location.name), city: untrustedOrNull(stop.location.city) }
+        : null,
+    })),
+    conflicts: fencedConflicts(readout.conflicts),
+  };
 }
+
+/** One `read_day` entry: a day, a batch of them, or the tool's own problem. */
+function fencedDayResult(result: DayReadout | ReadToolProblem | DayBatchReadout): typeof result {
+  if ("error" in result) return result;
+  if ("days" in result) return { days: result.days.map((entry) => ("error" in entry ? entry : fencedDay(entry))) };
+  return fencedDay(result);
+}
+
+/**
+ * The four definitions, wired to the four functions above.
+ *
+ * `needs` is the whole of what each may reach, and the three answers differ:
+ * `read_trip` reads the trip and nothing else; `read_day` and `find_free_time`
+ * also read the turn's scope, which is where the day-number fallback comes
+ * from; `search_playbooks` reads NEITHER — the library is not the trip, and
+ * the only thing it takes is who is asking. That asymmetry used to be invisible
+ * (one ambient context under every tool name) and is now three lines.
+ */
+export const readTripTool = defineTool({
+  name: "read_trip",
+  description:
+    "Read this trip's shape: name, currency, start date, how many days, each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
+  domain: "itinerary",
+  effect: "read",
+  spend: "none",
+  input: ReadTripInput,
+  output: TripReadoutSchema,
+  needs: ["trip"] as const,
+  minimumRole: "viewer",
+  taint: fencedTrip,
+  run: (_input, deps) => readTrip(deps.trip),
+});
+
+export const readDayTool = defineTool({
+  name: "read_day",
+  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
+  domain: "itinerary",
+  effect: "read",
+  spend: "none",
+  input: ReadDayInput,
+  output: z.union([DayReadoutSchema, ReadToolProblemSchema, DayBatchReadoutSchema]),
+  needs: ["trip", "scope"] as const,
+  minimumRole: "viewer",
+  taint: fencedDayResult,
+  run: (input, deps) => {
+    const days =
+      input.days !== undefined
+        ? Array.isArray(input.days)
+          ? input.days
+          : [input.days]
+        : deps.scope.kind === "day"
+          ? [deps.scope.dayIndex + 1]
+          : undefined;
+    if (days === undefined) {
+      return {
+        error: "Say which day: read_day takes a 1-based day number, or a list of them.",
+      } satisfies ReadToolProblem;
+    }
+    // The single-day shape stays exactly what it was — a bare `DayReadout` —
+    // so the one-day form this tool has always answered is unchanged for the
+    // common case. Only a genuine batch takes the wrapped `{ days: [...] }`
+    // shape `readDays` returns.
+    return days.length === 1 ? readDay(deps.trip, days[0]!) : readDays(deps.trip, days);
+  },
+});
+
+export const findFreeTimeTool = defineTool({
+  name: "find_free_time",
+  description:
+    "Find the unscheduled gaps in a day or across the trip, optionally within a time window or above a minimum length. Use this rather than working times out from read_day yourself.",
+  domain: "itinerary",
+  effect: "read",
+  spend: "none",
+  input: FindFreeTimeInputSchema,
+  output: z.union([FreeTimeReadoutSchema, ReadToolProblemSchema]),
+  needs: ["trip", "scope"] as const,
+  minimumRole: "viewer",
+  run: (input, deps) => findFreeTime(deps.trip, deps.scope, input),
+});
+
+export const searchPlaybooksTool = defineTool({
+  name: "search_playbooks",
+  description:
+    "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, total cost and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
+  // `library`, not `itinerary`: the corpus it reads is outside the trip, which
+  // is the capability boundary that earned the tool (ADR-042 Decision 2).
+  domain: "library",
+  effect: "read",
+  spend: "none",
+  input: SearchPlaybooksInputSchema,
+  output: PlaybookSearchReadoutSchema,
+  // `searched` is the model's own `cities` argument echoed back, or our own
+  // "the whole library" — not another person's text, so not fenced. `name` and
+  // `cities` are the library day's author's, and the author is a stranger.
+  taint: (readout: PlaybookSearchReadout) => ({
+    ...readout,
+    days: readout.days.map((day) => ({ ...day, name: untrusted(day.name), cities: untrustedAll(day.cities) })),
+  }),
+  // WHO it reads the library as, and WHERE the library is. The second key is
+  // what the audit property was missing: the corpus read used to arrive by
+  // import, so "what can this tool touch?" did not mention Postgres.
+  needs: ["actor", "playbooks"] as const,
+  minimumRole: "viewer",
+  run: (input, deps) => searchPlaybooks(deps.playbooks, deps.actor.userId, input),
+});
+
+export const READ_TOOLS = [readTripTool, readDayTool, findFreeTimeTool, searchPlaybooksTool] as const;
