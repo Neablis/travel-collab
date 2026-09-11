@@ -67,7 +67,18 @@ test("passes against the checked-in config, and every rejection names the rule t
   ]) {
     assert.ok(stdout.includes(rule), `expected the wall to attribute a rejection to ${rule}`);
   }
-  assert.equal(stdout.trim().split("\n").length, 22, `the wall's assertion count changed:\n${stdout}`);
+  // Bump this deliberately when you add a wall fixture; it is the tripwire that
+  // catches one being deleted.
+  //
+  // **It is also the check that a Tier-2 subset misses, and M9 Phase 0 proved it
+  // twice.** P4 and P5 both added assistant-kernel fixtures and both ran
+  // `node scripts/check-lint-wall.mjs` — which exits 0, because the wall itself
+  // is fine — without running this test OF the wall, which pins the count. The
+  // failure surfaced only in Tier 3's `pnpm check`, two phases after it was
+  // introduced. If you touch `apps/web/eslint.config.mjs` or
+  // `scripts/check-lint-wall.mjs`, the sufficient subset includes THIS FILE, not
+  // just the wall it tests.
+  assert.equal(stdout.trim().split("\n").length, 26, `the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
