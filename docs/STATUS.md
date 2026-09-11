@@ -23,9 +23,10 @@ general setup.
 ## Where the work is right now
 
 **THE ASSISTANT IS A KERNEL — M9 PHASE 0. P0–P5 MERGED 2026-09-11 as `bbc5bdb` (#162).**
-P6 (KI-22, the contracts half) is on `claude/ai-stream-envelope-contracts`, replayed onto
-the new `main` and green — full suite exit 0, `seed:verify` exit 0, e2e 105 passed — and
-has **no PR yet**.
+P6 (KI-22, the contracts half) is **PR #163**, open and in review on
+`claude/ai-stream-envelope-contracts`. It was replayed onto the new `main` and green when
+opened — full suite exit 0, `seed:verify` exit 0, e2e 105 passed — and review fixes have
+been landing on the branch since.
 
 **#162 was squash-merged while P6 was stacked on it, which is KI-2026-08-30-d, and the
 recovery is worth knowing.** Merging `main` into the stacked branch produced **twelve
