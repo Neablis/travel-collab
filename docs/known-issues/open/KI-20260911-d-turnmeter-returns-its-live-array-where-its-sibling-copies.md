@@ -1,0 +1,11 @@
+### KI-2026-09-11-d — `TurnMeter.toolCalls()` hands back its live array, where the sibling collector beside it copies and says copying is the point
+
+- **Severity:** cleanup (latent; harmless today because the meter is read once, at the recorder's single-writer latch)
+- **Area:** `apps/web/src/server/assistant/ledger.ts` (`newTurnMeter`), against `apps/web/src/server/assistant/deps.ts` (`ProposalBuffer.collected`)
+- **The asymmetry:** the two per-turn collectors introduced by M9 Phase 0 disagree about a rule only one of them states. `ProposalBuffer.collected()` returns a **copy**, and `deps.ts` documents that copying as the guarantee it preserves — a caller that mutates what it reads must not be able to rewrite what the turn collected. `newTurnMeter().toolCalls()` returns the array itself (`toolCalls: () => tools`).
+- **Why it is not a defect today:** the meter has exactly one reader, at the point `createAskRecorder`'s latch fires, and nothing mutates the result. The ledger is then serialised and gone. So this is an invariant stated in one of two places that need it, not a reachable bug.
+- **Why it is worth recording anyway:** "one computation, two copies" is a species this register already tracks (KI-73, KI-80), and the failure mode is that the *undocumented* half is the one someone reuses. A second consumer of the ledger — M20 link 9's `ai_usage` insert is the obvious candidate, and it is explicitly coming — is exactly the change that would add one, and it would find a collector that looks like the documented one and does not behave like it.
+- **Fix path:** `toolCalls: () => [...tools]`, matching `collected()`, and one clause in the docstring saying why — the same clause `deps.ts` already carries. It is a behaviour change (a caller could today observe a later push through a reference it already holds), which is why the review pass that found it did not take it: it was a comments-only change.
+- **Found by:** M9 Phase 0, while writing docstrings for the kernel functions that had none. Reported rather than fixed, deliberately.
+- **Cross-reference:** ADR-043 (M9 Phase 0), M20 link 9 (the second consumer this anticipates), KI-73 and KI-80 (the same species).
+- **First noted:** 2026-09-11.
