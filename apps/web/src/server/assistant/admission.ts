@@ -467,6 +467,13 @@ interface AdmissionDraft {
   granted?: AiGrant;
 }
 
+/**
+ * A stage's answer, or a throw naming the stage that should have filled it in.
+ *
+ * The tripwire for reading the draft out of order: an `undefined` allowed
+ * through here would fail somewhere downstream, with the one useful fact —
+ * which stage never ran — no longer available.
+ */
 function required<T>(value: T | undefined, stage: AdmissionStageName): T {
   if (value === undefined) {
     throw new Error(`the admission pipeline read a stage's answer without running ${stage}`);
@@ -480,6 +487,7 @@ interface AdmissionStage {
   run(draft: AdmissionDraft): Promise<AiRefusal | null>;
 }
 
+/** A refusal, carrying the stage that issued it — which is what the audit record names. */
 function refuse(
   stage: AdmissionStageName,
   reason: string,
@@ -1044,6 +1052,13 @@ export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmissio
 }
 
 
+/**
+ * The `ai.grant` record for a turn that was let through.
+ *
+ * Paired with `refusedRecord`: the two fill the same field set, each nulling
+ * what its own outcome cannot know, so a reader of the log never has to ask
+ * which shape an entry has before reading a field.
+ */
 function grantedRecord(grant: AiGrant): AiGrantRecord {
   return {
     event: "ai.grant",
@@ -1064,6 +1079,11 @@ function grantedRecord(grant: AiGrant): AiGrantRecord {
   };
 }
 
+/**
+ * The `ai.grant` record for a turn a stage refused, assembled from however much
+ * of the draft the stages before it had filled in — which is why almost every
+ * field here is read through an optional and falls back to null.
+ */
 function refusedRecord(draft: AdmissionDraft, refusal: AiRefusal): AiGrantRecord {
   return {
     event: "ai.grant",

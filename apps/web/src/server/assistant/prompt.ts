@@ -59,6 +59,10 @@ export function renderPrompt(blocks: readonly PromptBlock[]): string {
   return blocks.map(renderBlock).join("\n");
 }
 
+/**
+ * One block as its line, and the only place the two kinds diverge: a `rule` is
+ * its own text, a `data` block is a label and JSON.
+ */
 function renderBlock(block: PromptBlock): string {
   return block.kind === "rule" ? block.text : `${block.label}: ${jsonLine(block.value)}`;
 }

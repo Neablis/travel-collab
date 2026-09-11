@@ -218,6 +218,11 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 
+/**
+ * Whether a dep key is one the turn supplies, as against one arriving on the
+ * context channel — the runtime half of the split above. `registry.ts` uses it
+ * to sort a definition's `needs` into its two sources.
+ */
 export function isTurnDepKey(key: DepKey): key is TurnDepKey {
   return (TURN_DEP_KEYS as readonly string[]).includes(key);
 }
