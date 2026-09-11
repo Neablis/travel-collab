@@ -12,7 +12,7 @@ import {
   ReadDayInput,
   type DayReadout,
   type FreeTimeReadout,
-} from "@/server/ai/readTools";
+} from "@/server/assistant/tools/read";
 import { READ_TOOLS } from "@/server/assistant/tools/read";
 import { aiToolsFor } from "@/server/assistant/registry";
 

@@ -43,7 +43,7 @@ import type {
   PlaybookSearchReadout,
   ReadToolProblem,
   TripReadout,
-} from "@/server/ai/readTools";
+} from "@/server/assistant/tools/read";
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";

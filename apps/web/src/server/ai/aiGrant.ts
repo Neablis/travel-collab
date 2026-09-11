@@ -1,0 +1,920 @@
+// **Who may spend the operator's money on this turn, and on what** — the /ask
+// admission pipeline (ADR-043 decision 3, spec §3).
+//
+// Thirteen steps used to run inline at the top of `handleAskRequest`, and the
+// three properties that mattered about them were all properties of their
+// ORDER, defended by three comments. They are now a declared array (`ADMISSION`
+// below), each comment moved onto the stage it describes, and the order is
+// asserted by a test that watches the stages actually run (aiGrant.test.ts).
+// Reordering them is a red test rather than a code review someone has to
+// notice.
+//
+// **One verdict, one record.** `evaluateAiGrant` returns either the grant a
+// turn holds or the refusal it got, and emits exactly one `ai.grant` line
+// naming the actor, the granted (domain, effect) pairs, the tools actually
+// offered, the model chosen and — on a refusal — WHICH STAGE refused and why.
+// That record is the answer to "what is and isn't allowed": one function to
+// read and one log line to query, instead of thirteen steps to trace.
+//
+// **Everything with an effect arrives as a port** (`AdmissionPorts`, bound in
+// admissionPorts.ts). Two of them have to: `guard()` reaches next-auth and
+// `getPage` reaches Postgres, and a module that imports either cannot be
+// loaded by the unit lane at all — which is why the whole of this file's logic
+// was previously reachable only through the integration suite (the old
+// handler said so: *"a unit test cannot import this module: `guard()` pulls in
+// next-auth"*). The other three are ports for the same reason the two are: a
+// stage's job is to decide, and a test that can watch every decision in order
+// is the point of the array.
+import { z } from "zod";
+import type { LanguageModel } from "ai";
+import type { Page, TripDetail, TripRole } from "@tc/contracts";
+import { isDemoTripId } from "@/lib/demoTrip";
+import { hasAtLeast } from "@/server/accessPolicy";
+import { AI_NOT_ENTITLED_CODE, deniedResponse } from "@/server/ai/modelSelection";
+import type { ModelSelection } from "@/server/ai/modelSelection";
+import { quotaRefusal } from "@/server/quota";
+import type { QuotaDecision } from "@/server/quota";
+import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
+import type { AskScope } from "@/server/ai/context";
+import type { AskIntent, AskIntentContextMessage } from "@/server/ai/askIntent";
+import type { AskIntentRecord } from "@/server/ai/askAnalytics";
+import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
+import type { AnyAssistantTool, ToolEffect } from "@/server/assistant/defineTool";
+import {
+  grantFor,
+  minimumRoleFor,
+  permitsPropose,
+  postureFor,
+  toolsFor,
+  type AskToolPosture,
+  type SurfaceKind,
+  // `grants.ts` already owns the name `AiGrant` for the (domain → effect) map
+  // P2 built. The verdict this file returns is a different thing that spec §3
+  // also calls `AiGrant`, so the map is aliased here rather than either being
+  // renamed — see the note on `AiGrant` below.
+  type AiGrant as GrantedEffects,
+} from "@/server/assistant/grants";
+
+// The refusal code for the demo trip. Kebab-case and named after the reason,
+// matching `ai-not-entitled` (modelSelection.ts) — a client can branch on it
+// without matching prose.
+export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
+
+// The refusal code for a page scope the server could not resolve to a page on
+// THIS trip. Same reasoning as above, and it exists because "that page is not
+// on this trip" is a refusal a legitimate client can reach by racing a delete.
+export const PAGE_NOT_ON_TRIP_CODE = "page-not-on-trip";
+
+// The minimum to get through the door: the role the NARROWEST turn there is
+// still requires. A viewer's turn is read-only and always was; whether THIS turn
+// also gets a write half is decided by `grantTools` below, from the role the
+// guard resolved and the scope the server verified, not from the route.
+//
+// Every cap at `read` is what "narrowest" means — `grantFor` is a minimum, so
+// the surface it is asked about cannot widen the answer.
+export const ASK_MINIMUM_ROLE = minimumRoleFor(
+  toolsFor(grantFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })),
+);
+
+// The minimum an approval needs — the same computation, asked about the widest
+// set a proposal can have come from.
+export const APPLY_MINIMUM_ROLE = minimumRoleFor(
+  toolsFor(grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" })),
+);
+
+// Only the fields this pipeline enforces caps on. The authoritative validation
+// is `validateUIMessages` inside `createAgentUIStreamResponse`, which knows the
+// full UIMessage part union including tool parts; duplicating it here would be
+// a hand-written copy of someone else's schema. What this does is turn the
+// three ceilings into a 400 that NAMES the rule broken, before a model is
+// selected and before the caller is charged.
+const AskUiMessage = z.object({
+  id: z.string().min(1),
+  role: z.enum(["system", "user", "assistant"]),
+  parts: z.array(z.object({ type: z.string() }).passthrough()),
+});
+
+const AskScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("trip") }),
+  z.object({ kind: z.literal("day"), dayIndex: z.number().int().min(0) }),
+  // Shape only. `pageId` is a CLAIM `resolveSurface` VERIFIES below — this
+  // schema says it could be a page id, not that it is one. `uuid()` rather than
+  // a bare string because `pages.id` is a uuid column: a malformed id would
+  // otherwise reach Postgres as a query it cannot run.
+  z.object({ kind: z.literal("page"), pageId: z.string().uuid() }),
+]);
+
+export const AskRequest = z.object({
+  messages: z
+    .array(AskUiMessage)
+    .min(1, "messages must not be empty")
+    .max(MAX_ASK_MESSAGES, `a thread may hold at most ${MAX_ASK_MESSAGES} messages`),
+  scope: AskScopeSchema,
+});
+
+export type AskUiMessage = z.infer<typeof AskUiMessage>;
+
+/** Every text part of a message, concatenated — what the cap is measured against. */
+export function textOf(message: AskUiMessage): string {
+  return message.parts
+    .filter((part) => part.type === "text" && typeof (part as { text?: unknown }).text === "string")
+    .map((part) => (part as unknown as { text: string }).text)
+    .join("");
+}
+
+/**
+ * The messages the classifier is shown besides the latest one, oldest first.
+ *
+ * Two, which in a normal thread is the previous question and the answer to
+ * it — enough for "Yes go ahead" to resolve to what was offered. They are
+ * truncated by `askIntentPrompt`, not here: how much of a message a model
+ * needs is that module's decision, and this one's job is only to say which
+ * messages.
+ */
+function recentContext(messages: readonly AskUiMessage[]): AskIntentContextMessage[] {
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.role === "user") {
+      lastUserIndex = i;
+      break;
+    }
+  }
+  return messages
+    .slice(0, Math.max(lastUserIndex, 0))
+    .filter((message) => message.role !== "system")
+    .slice(-2)
+    .map((message) => ({ role: message.role as "user" | "assistant", text: textOf(message) }))
+    .filter((message) => message.text.trim().length > 0);
+}
+
+export function badRequest(error: string): Response {
+  return Response.json({ error }, { status: 400 });
+}
+
+// ---------------------------------------------------------------------------
+// The body ritual, read once and shared (F-F03)
+// ---------------------------------------------------------------------------
+
+/** A body read that failed, as the sentence the 400 has to name. */
+type BodyProblem = { ok: false; error: string };
+
+/**
+ * The raw body, capped on BYTES before it is parsed.
+ *
+ * A 10 MB thread must be refused without ever being deserialized, and
+ * `request.json()` would deserialize it first. `Blob` counts bytes, not UTF-16
+ * code units, which is what a limit named in KB has to mean.
+ *
+ * Shared by both halves of /ask, which is the whole of F-F03: the ask handler
+ * and the apply handler each carried this verbatim, and a cap enforced in two
+ * places is a cap that will eventually be enforced in one.
+ */
+export async function capRawBody(request: Request): Promise<{ ok: true; raw: string } | BodyProblem> {
+  const raw = await request.text().catch(() => null);
+  if (raw === null) return { ok: false, error: "could not read the request body" };
+  if (new Blob([raw]).size > MAX_ASK_BODY_BYTES) {
+    return { ok: false, error: `the request body must be ${MAX_ASK_BODY_BYTES} bytes or fewer` };
+  }
+  return { ok: true, raw };
+}
+
+/**
+ * JSON, then the schema — and the 400 NAMES the rule broken.
+ *
+ * The caps are the rejections a legitimate caller can hit by accident (a
+ * pasted document, a long thread), so the response says which rule broke
+ * rather than returning a generic envelope.
+ */
+export function parseRequest<Schema extends z.ZodTypeAny>(
+  raw: string,
+  schema: Schema,
+): { ok: true; value: z.infer<Schema> } | BodyProblem {
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "malformed request" };
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "malformed request" };
+  return { ok: true, value: parsed.data as z.infer<Schema> };
+}
+
+// ---------------------------------------------------------------------------
+// The pipeline's vocabulary
+// ---------------------------------------------------------------------------
+
+/**
+ * Every stage that can refuse, and the value `AiRefusal.stage` carries.
+ *
+ * `grantTools` is not one of the eight ADMISSION stages: it is the epilogue
+ * that resolves the grant once every stage has run, and it names itself here
+ * because it can still refuse (the role backstop below) and every refusal has
+ * to say where it came from.
+ */
+export type AdmissionStageName =
+  | "refuseDemoTrip"
+  | "identifyActor"
+  | "capRawBody"
+  | "parseRequest"
+  | "resolveSurface"
+  | "selectModel"
+  | "admitQuota"
+  | "classifyTask"
+  | "grantTools";
+
+/**
+ * A refusal, as both a machine fact and the Response that goes out.
+ *
+ * `code` is null for the plain 400s, which have never carried one; the three
+ * that do (`demo-trip-unsupported`, `page-not-on-trip`, `ai-not-entitled`) keep
+ * the exact strings a deployed client already branches on.
+ */
+export interface AiRefusal {
+  stage: AdmissionStageName;
+  code: string | null;
+  /** Why, in the words the caller is given. */
+  reason: string;
+  response: Response;
+}
+
+/**
+ * What one admitted turn holds.
+ *
+ * Spec §3 calls this `AiGrant`, and so does this file — but note that
+ * `grants.ts` already exports an `AiGrant`, which is the (domain → effect) map
+ * a surface and three caps resolve to. That map is this type's `grants` field.
+ * Two different things under one name in two modules is a spec collision, not a
+ * design one; the map is imported here as `GrantedEffects` so both keep the
+ * name their own module gave them.
+ */
+export interface AiGrant {
+  tripId: string;
+  userId: string;
+  detail: TripDetail;
+  /** What the user is looking at — `scope.kind`, VERIFIED, never claimed. */
+  surface: SurfaceKind;
+  scope: AskScope;
+  /** The page row `resolveSurface` verified, or null on any other surface. */
+  page: Page | null;
+  /** The (domain, maxEffect) pairs this turn holds. */
+  grants: GrantedEffects;
+  /** The definitions actually offered — a measurement, not a manifest. */
+  tools: readonly AnyAssistantTool[];
+  /** What the instruction may honestly claim about this turn (grants.ts). */
+  posture: AskToolPosture;
+  model: LanguageModel;
+  classifierModel: LanguageModel;
+  modelId: string;
+  simulated: boolean;
+  /**
+   * The classifier's whole record, which the per-ask analytics record carries
+   * so a misclassification is diagnosable after the fact. Null when the turn
+   * was not classified at all (a viewer, or a page turn).
+   */
+  classification: AskIntentRecord | null;
+  /**
+   * What this turn is FOR. `question | write` today, which is exactly
+   * `classification?.intent` — P5 widens it to a task class that picks a model
+   * tier (spec §5), and this is the field it widens.
+   */
+  taskClass: AskIntent | null;
+  messages: AskUiMessage[];
+  /** The latest user message, verbatim — what the caps were measured against. */
+  question: string;
+  turn: "opening" | "follow-up";
+}
+
+export type AiAdmission = { ok: true; grant: AiGrant } | { ok: false; refusal: AiRefusal };
+
+/**
+ * Everything a stage does that is not a decision.
+ *
+ * Each is the whole of one stage's reach, for the same reason a tool's `needs`
+ * is the whole of its reach (ADR-043 decision 1): a stage that could get at
+ * anything else would make the audit record below a claim rather than a
+ * measurement. `admissionPorts.ts` binds them to the real edges.
+ */
+export interface AdmissionPorts {
+  /** `guard()` — the session, the membership check and the trip detail. */
+  identifyActor(
+    tripId: string,
+    minimum: TripRole,
+  ): Promise<{ error: Response } | { userId: string; detail: TripDetail }>;
+  /** The page store, keyed by id ALONE — see `resolveSurface`. */
+  loadPage(pageId: string): Promise<Page | null>;
+  /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
+  selectModel(userId: string): Promise<ModelSelection>;
+  /** `consumeQuota([...aiQuotas(), ...aiStepQuotas()])` — requests AND steps. */
+  admitQuota(userId: string): Promise<QuotaDecision>;
+  /** `classifyAskIntent()`, on the classifier model. */
+  classify(
+    model: LanguageModel,
+    question: string,
+    context: readonly AskIntentContextMessage[],
+    signal?: AbortSignal,
+  ): Promise<AskIntentRecord>;
+  /** Where the one `ai.grant` record goes. */
+  audit(record: AiGrantRecord): void;
+}
+
+export interface AdmissionInput {
+  request: Request;
+  tripId: string;
+  /**
+   * Test seam: an injected model is used as-is and the flag is never
+   * consulted. `simulated` is still derived from its IDENTITY — see
+   * `selectModel`.
+   */
+  model?: LanguageModel;
+  ports: AdmissionPorts;
+}
+
+/**
+ * What the stages fill in, in ADMISSION order.
+ *
+ * Every field a later stage reads is written by an earlier one, and `required`
+ * below turns "a stage was removed and its consumer was not" into a loud throw
+ * at the point of use rather than an `undefined` that travels. It is the same
+ * choice `registry.ts` makes for a missing collector, for the same reason: a
+ * wiring mistake must be a test failure, not a turn that fails several steps
+ * in on the operator's key.
+ */
+interface AdmissionDraft {
+  readonly input: AdmissionInput;
+  actor?: { userId: string; detail: TripDetail; canWrite: boolean };
+  raw?: string;
+  parsed?: {
+    messages: AskUiMessage[];
+    scope: AskScope;
+    question: string;
+    turn: "opening" | "follow-up";
+  };
+  /** Present once `resolveSurface` has run: null on every non-page surface. */
+  surface?: { page: Page | null };
+  selected?: { model: LanguageModel; classifierModel: LanguageModel; simulated: boolean };
+  /** Present once `classifyTask` has run: null when there was nothing to classify. */
+  classified?: { classification: AskIntentRecord | null };
+}
+
+function required<T>(value: T | undefined, stage: AdmissionStageName): T {
+  if (value === undefined) {
+    throw new Error(`the admission pipeline reached grantTools without running ${stage}`);
+  }
+  return value;
+}
+
+/** A stage: a name, and a step that either refuses or lets the turn through. */
+interface AdmissionStage {
+  readonly name: AdmissionStageName;
+  run(draft: AdmissionDraft): Promise<AiRefusal | null>;
+}
+
+function refuse(
+  stage: AdmissionStageName,
+  reason: string,
+  response: Response,
+  code: string | null = null,
+): AiRefusal {
+  return { stage, code, reason, response };
+}
+
+// ---------------------------------------------------------------------------
+// The stages, in the order they run
+// ---------------------------------------------------------------------------
+
+// The demo trip is refused, and it is refused FIRST — before the guard,
+// before model selection, before the quota.
+//
+// `requireTripAccess` answers `isDemoTripId` as a **viewer with no session**
+// (ADR-031), which is what makes /demo public. Combined with this endpoint's
+// (correct) `viewer` minimum, that would have made /ask an internet-facing,
+// unauthenticated LLM proxy on the operator's key the moment `ai-live` is
+// switched on — up to 30 attacker-authored turns an hour, all of them
+// sharing the single `demo-visitor` quota bucket, so one visitor exhausting
+// it denies every other visitor. It would also have put a Postgres write
+// (the quota counter) on a path `demoTrip.ts` deliberately keeps free of the
+// database, which is an architecture regression rather than a missing
+// feature.
+//
+// Refusing here rather than inside `guard()` keeps the rule where its
+// reasoning is, and keeps `requireTripAccess` answering the demo the same
+// way for every other route. `docs/known-issues/` (KI-79) records what
+// would have to be decided to open it up.
+const refuseDemoTrip: AdmissionStage = {
+  name: "refuseDemoTrip",
+  run: async (draft) => {
+    if (!isDemoTripId(draft.input.tripId)) return null;
+    const reason = "The assistant isn't available on the demo trip.";
+    return refuse(
+      "refuseDemoTrip",
+      reason,
+      Response.json({ error: reason, code: DEMO_TRIP_UNSUPPORTED_CODE }, { status: 403 }),
+      DEMO_TRIP_UNSUPPORTED_CODE,
+    );
+  },
+};
+
+// The guard's answer: who is asking, what they may already see, and the trip
+// detail it fetched to decide (which every later stage reuses rather than
+// re-reading).
+//
+// **Write tools are offered only when the turn's guard resolved editor.**
+//
+// Asked through the AccessPolicy seam (`hasAtLeast`), which is the one place
+// that knows a viewer ranks below an editor (AGENTS.md invariant 6c) — not a
+// second rank table here. `guard()` has already resolved the effective members,
+// so `canWrite` is a read of what it decided, not a second access check.
+//
+// `accessPolicy` is imported rather than injected because it is pure — it is on
+// the assistant kernel's own import allowlist for exactly that reason. The
+// guard is a port; the rank comparison it hands back is not.
+const identifyActor: AdmissionStage = {
+  name: "identifyActor",
+  run: async (draft) => {
+    const g = await draft.input.ports.identifyActor(draft.input.tripId, ASK_MINIMUM_ROLE);
+    if ("error" in g) {
+      return refuse("identifyActor", "the guard refused this actor", g.error);
+    }
+    draft.actor = {
+      userId: g.userId,
+      detail: g.detail,
+      canWrite: hasAtLeast(g.userId, g.detail.members, "editor"),
+    };
+    return null;
+  },
+};
+
+// Measured on the RAW body, before parsing — see `capRawBody`. A malformed or
+// oversized request must not cost the caller their allowance, which is why this
+// runs four stages before `admitQuota`.
+const capRawBodyStage: AdmissionStage = {
+  name: "capRawBody",
+  run: async (draft) => {
+    const read = await capRawBody(draft.input.request);
+    if (!read.ok) return refuse("capRawBody", read.error, badRequest(read.error));
+    draft.raw = read.raw;
+    return null;
+  },
+};
+
+// JSON, the request shape, the prompt cap and the turn kind — every rejection
+// here is a 400 that names the rule broken, and every one of them costs the
+// caller nothing. That is the second of the three recorded orderings: a
+// malformed request must not cost the caller their allowance.
+const parseRequestStage: AdmissionStage = {
+  name: "parseRequest",
+  run: async (draft) => {
+    const parsed = parseRequest(required(draft.raw, "capRawBody"), AskRequest);
+    if (!parsed.ok) return refuse("parseRequest", parsed.error, badRequest(parsed.error));
+    const { messages, scope } = parsed.value;
+
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) {
+      const reason = "the thread must end with a question from the user";
+      return refuse("parseRequest", reason, badRequest(reason));
+    }
+    const question = textOf(lastUser);
+    if (question.length > MAX_PROMPT_CHARS) {
+      const reason = `your message must be ${MAX_PROMPT_CHARS} characters or fewer`;
+      return refuse("parseRequest", reason, badRequest(reason));
+    }
+    // A thread of length 1 is just this question — nothing has been answered
+    // yet. Any longer thread already holds at least one prior turn, so this
+    // question is a follow-up: it reads back over answers already given, and
+    // (Design note in askAnalytics.ts) its tool-call shape is genuinely
+    // different from an opening question's.
+    const turn: "opening" | "follow-up" = messages.length > 1 ? "follow-up" : "opening";
+    draft.parsed = { messages, scope, question, turn };
+    return null;
+  },
+};
+
+// **The page scope is VERIFIED here, and this is the load-bearing rule of the
+// one-door design (ADR-033 Decision 2).**
+//
+// `scope` comes off the request body, so `pageId` is something the client
+// says. Three facts have to hold before a page tool is offered, and all three
+// are established server-side: the page EXISTS, it belongs to THIS trip — the
+// tripId in the URL, which `guard()` has already checked this actor against —
+// and the actor may EDIT it, which for a Notebook page is `editor` (the pages
+// CRUD routes pass the same minimum). Trusting the field instead would be the
+// same class of mistake as trusting a `tripId` parameter on a read tool, which
+// ADR-022 §3 already forbids.
+//
+// A claim that does not resolve is REFUSED, and never widened: falling back
+// to the trip-wide set would answer a page request with a planning turn,
+// which is the widest tool set in the app. "If the surface cannot be resolved
+// server-side, the narrowest tool set applies, not the widest."
+//
+// Missing and not-on-this-trip share one 404 deliberately. `getPage` is keyed
+// by id alone, so answering them differently would confirm the existence of a
+// page on a trip this actor cannot see.
+//
+// It runs BEFORE model selection and before the quota, so a bad page id costs
+// the caller nothing — the same ordering the demo refusal and the caps above
+// have, for the same reason. That is the third recorded ordering, and the one
+// this stage's position in ADMISSION exists to hold.
+const resolveSurface: AdmissionStage = {
+  name: "resolveSurface",
+  run: async (draft) => {
+    const { scope } = required(draft.parsed, "parseRequest");
+    const { detail, canWrite } = required(draft.actor, "identifyActor");
+
+    // A scope pointing past the end of the trip is a client bug, not a
+    // question: answering it "about the whole trip" would silently widen a
+    // narrowing the caller asked for.
+    if (scope.kind === "day" && !detail.days[scope.dayIndex]) {
+      const reason = `this trip has ${detail.days.length} days, so day ${scope.dayIndex + 1} is out of range`;
+      return refuse("resolveSurface", reason, badRequest(reason));
+    }
+
+    if (scope.kind !== "page") {
+      draft.surface = { page: null };
+      return null;
+    }
+
+    const found = await draft.input.ports.loadPage(scope.pageId);
+    if (found === null || found.tripId !== draft.input.tripId) {
+      const reason = "That page is not on this trip.";
+      return refuse(
+        "resolveSurface",
+        reason,
+        Response.json({ error: reason, code: PAGE_NOT_ON_TRIP_CODE }, { status: 404 }),
+        PAGE_NOT_ON_TRIP_CODE,
+      );
+    }
+    if (!canWrite) {
+      return refuse(
+        "resolveSurface",
+        "a viewer may read this page but not edit it",
+        Response.json({ error: "forbidden" }, { status: 403 }),
+      );
+    }
+    draft.surface = { page: found };
+    return null;
+  },
+};
+
+// Injected model => that exact model, flag never consulted; `simulated` is
+// derived from its IDENTITY, not from whether one was injected — so a test
+// that injects `simulatedModel()` to exercise the switched-off path is still
+// reported, and badged, as simulated.
+//
+// An injected model classifies as well as answers: one seam, so a test can
+// never end up exercising a classifier the turn itself did not use.
+//
+// **This runs BEFORE `admitQuota`, and it has to.** Charging before selection
+// meant a missing AI_GATEWAY_API_KEY (the 503 below) burned the caller's whole
+// hourly and daily allowance on retries against an outage that produced zero
+// provider calls — the incident outlived its own fix by a day. Spec §7d records
+// that M20's per-tier ceilings need the same order for their own reason:
+// resolving entitlements has to happen before the ceilings are known, and the
+// ceilings are what admission needs. The order the incident forced is the order
+// the tier requirement needs, so nothing in this sequence moves.
+const selectModel: AdmissionStage = {
+  name: "selectModel",
+  run: async (draft) => {
+    const injected = draft.input.model;
+    if (injected) {
+      draft.selected = {
+        model: injected,
+        classifierModel: injected,
+        simulated: modelIdOf(injected) === SIMULATED_MODEL_ID,
+      };
+      return null;
+    }
+    const { userId } = required(draft.actor, "identifyActor");
+    let outcome: ModelSelection;
+    try {
+      outcome = await draft.input.ports.selectModel(userId);
+    } catch (err) {
+      const reason = `model selection failed: ${errorMessage(err)}`;
+      return refuse("selectModel", reason, Response.json({ error: reason, simulated: false }, { status: 503 }));
+    }
+    if (outcome.outcome === "denied") {
+      return refuse("selectModel", outcome.reason, deniedResponse(outcome.reason), AI_NOT_ENTITLED_CODE);
+    }
+    draft.selected = {
+      model: outcome.model,
+      classifierModel: outcome.classifierModel,
+      simulated: outcome.outcome === "simulated",
+    };
+    return null;
+  },
+};
+
+// **Charged after validation and after model selection**, and that ordering is
+// a recorded incident, not a preference — see `selectModel` above for the
+// incident and spec §7d for why M20 needs the same order. A malformed request
+// must not cost the caller their allowance either. Nothing between selection
+// and here reads the counters, so the placement is order-safe. It applies in
+// simulated mode too: the limiter's job is to bound requests, not to guess
+// which ones reached a provider.
+//
+// **Two layers, both charged here (KI-67).** `aiQuotas` bounds how many times
+// an actor may ask; `aiStepQuotas` bounds what asking COSTS, in model
+// round-trips. KI-67 measured that metering requests alone turned a nominal
+// ceiling of 30 into a real one of 960, and its fix was wired into the command
+// endpoint only — so this endpoint, built afterwards and the door users
+// actually reach, was metered the way KI-67 had already proved wrong, for its
+// whole life. One door means one quota path; that is the point of the merge
+// rather than a bonus from it.
+//
+// Only one round-trip can be pre-authorised, because the real step count does
+// not exist until the run ends; `settleAiSteps` charges the rest from the
+// recorder's sink in the handler. An actor already over either ceiling is
+// refused here, before a provider is touched. The in-flight overshoot this
+// admission shape permits is KI-94, unchanged by the move.
+const admitQuota: AdmissionStage = {
+  name: "admitQuota",
+  run: async (draft) => {
+    const { userId } = required(draft.actor, "identifyActor");
+    const quota = await draft.input.ports.admitQuota(userId);
+    if (quota.allowed) return null;
+    return refuse("admitQuota", `over the ${quota.reason} limit`, quotaRefusal(quota));
+  },
+};
+
+// **What this turn is for, decided before the agent is built.**
+//
+// ~85% of a step's fixed input cost is tool schemas, and 12 of the 15 tools
+// are write tools that a question never calls — see the measurement in
+// askIntent.ts. One extra, tool-less round-trip buys back most of it.
+//
+// It is handed the two messages before this one, because the turn that
+// writes is often the one that says least: the 2026-08-29 thread ended a
+// long request with "Yes go ahead", and those three words did all ten
+// writes. In isolation they classify as a question — reasonably — and the
+// user would have got an assistant that could not act on the one turn that
+// mattered. Fail-open does not cover that: nothing fails.
+//
+// Two properties this stage is responsible for, not the classifier:
+//
+//   * **It can only narrow.** `canWrite` gates it, so a viewer is never
+//     classified at all — there is no write half to withhold, and paying for
+//     the call would be waste. `minimumRoleFor` in `grantTools` still has the
+//     final word on whatever comes out.
+//   * **It runs after the quota.** A turn refused before it reached a model
+//     must not have paid for a classification either. That is why this stage
+//     is LAST, and it is the third thing the array's order defends.
+//
+// It goes to `classifierModel`, which is the answer model unless
+// AI_CLASSIFIER_MODEL says otherwise — a separate id, still built at
+// `selectAiModel`'s one chokepoint, so the kill switch covers both.
+//
+// `classifyAskIntent` is total — it fails open to `write` rather than
+// throwing — so there is deliberately no try/catch here to suggest otherwise.
+//
+// Sentry sees this call as its own `gen_ai.invoke_agent` run, separate from
+// the turn's — `askIntent.ts` names it through `telemetry.functionId`. That
+// separation is the point rather than an accident of where the call sits:
+// `AI_CLASSIFIER_MODEL` can put the classifier on a cheaper model than the
+// one answering, and "did the classifier save more than it cost" is
+// unanswerable if its spend is folded into the turn's — the same argument
+// `AskIntentRecord.model` makes for the log record.
+//   * **A page turn is not classified at all.** Its tool set is decided by a
+//     scope the server verified, not by what the sentence sounds like, so
+//     there is no write half to withhold and the call would be spend with
+//     nothing to buy.
+const classifyTask: AdmissionStage = {
+  name: "classifyTask",
+  run: async (draft) => {
+    const { canWrite } = required(draft.actor, "identifyActor");
+    const { page } = required(draft.surface, "resolveSurface");
+    const { messages, question } = required(draft.parsed, "parseRequest");
+    const { classifierModel } = required(draft.selected, "selectModel");
+    draft.classified = {
+      classification:
+        canWrite && page === null
+          ? await draft.input.ports.classify(classifierModel, question, recentContext(messages), draft.input.request.signal)
+          : null,
+    };
+    return null;
+  },
+};
+
+/**
+ * **The order is a value, not statement order.**
+ *
+ * Three of the transitions are recorded incidents, and each one's comment sits
+ * on its stage above:
+ *
+ *   * charging before model selection burned a caller's whole allowance
+ *     against an outage that produced zero provider calls (`selectModel`);
+ *   * a malformed request must not cost an allowance (`capRawBody`,
+ *     `parseRequest`);
+ *   * a bad page id must cost nothing (`resolveSurface`).
+ *
+ * Written as an array so those three are defended by a test that watches the
+ * stages run rather than by three comments somebody has to read before moving
+ * a line. Spec §7d: `selectModel` before `admitQuota` is also the order M20's
+ * per-tier ceilings need, so this sequence is load-bearing twice.
+ */
+export const ADMISSION: readonly AdmissionStage[] = [
+  refuseDemoTrip,
+  identifyActor,
+  capRawBodyStage,
+  parseRequestStage,
+  resolveSurface,
+  selectModel,
+  admitQuota,
+  classifyTask,
+];
+
+// ---------------------------------------------------------------------------
+// The verdict, and the record
+// ---------------------------------------------------------------------------
+
+/**
+ * One line per admission decision — **the answer to "what is and isn't
+ * allowed"**.
+ *
+ * `console.info`, matching `ai.ask` (askAnalytics.ts) and `ai.proposal.apply`:
+ * no table and no migration (ADR-043 builds ports, not policy), and Vercel
+ * captures it as a queryable line. Every field is server-resolved — a stage
+ * name, a role's answer, a tool name from the registry, a model id — so unlike
+ * `ai.ask` this record carries nothing a model wrote and needs no sanitising.
+ */
+export interface AiGrantRecord {
+  event: "ai.grant";
+  tripId: string;
+  /** Null when the refusal came before the guard answered. */
+  userId: string | null;
+  outcome: "granted" | "refused";
+  surface: SurfaceKind | null;
+  /** The granted (domain, effect) pairs — the whole of what this turn may do. */
+  grants: Partial<Record<string, ToolEffect>> | null;
+  /** The tools actually offered, in registry order. */
+  tools: string[] | null;
+  model: string | null;
+  simulated: boolean | null;
+  taskClass: AskIntent | null;
+  /** Which stage refused, and why. Both null on a grant. */
+  refusedBy: AdmissionStageName | null;
+  reason: string | null;
+  /** The machine code the client branches on, when the refusal carries one. */
+  code: string | null;
+  status: number | null;
+}
+
+/**
+ * Where the record goes. The console sink lives at the app's edge
+ * (`admissionPorts.ts`) rather than here, because writing it turns out to need
+ * one fact about Sentry — see the comment there.
+ */
+export type AiGrantSink = (record: AiGrantRecord) => void;
+
+/**
+ * Run the pipeline, resolve the grant, and emit exactly one record either way.
+ *
+ * The loop is the whole of the control flow: a stage either refuses — and the
+ * refusal names it — or fills in its part of the draft and the next one runs.
+ */
+export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmission> {
+  const draft: AdmissionDraft = { input };
+  for (const stage of ADMISSION) {
+    const refusal = await stage.run(draft);
+    if (refusal !== null) {
+      input.ports.audit(refusedRecord(draft, refusal));
+      return { ok: false, refusal };
+    }
+  }
+  return grantTools(draft);
+}
+
+/**
+ * **The turn's grant: a minimum over four independent caps, one per domain**
+ * (ADR-043 decision 2). Each answers a different question, and the four are
+ * not interchangeable — that is why this is not a boolean and not one effect
+ * across all domains.
+ *
+ *   * the SURFACE is `scope.kind`, already verified server-side by
+ *     `resolveSurface`;
+ *   * the ROLE comes from the guard's members, through the AccessPolicy seam;
+ *   * the PLAN has no source yet — `permitsPropose` permits everybody, which
+ *     is exactly today's behaviour. M20 owns it (spec §7c);
+ *   * the CLASSIFIER is `askIntent`'s answer, and a page turn is not
+ *     classified at all (`classification` is null), so it caps nothing.
+ *
+ * **`offeredToolNamesFor` and the three name manifests are gone** (F-F02,
+ * ADR-043 decision 2). A page-authoring turn still gets the page insert tools
+ * and NO planning write tools, and a planning turn still gets the write tools
+ * and NO page insert tools — one door is not the widest door, and a turn
+ * writing into a Notebook page has no business holding `RemoveActivity`
+ * (ADR-033 Decision 4). What changed is that this is no longer a sentence three
+ * constants have to keep true: it is the `itinerary` domain capped at `read` on
+ * the page surface, and the `pages` domain absent from the planning one, in the
+ * surface table in `assistant/grants.ts`.
+ *
+ * Both write halves are still DERIVED — the planning tools from `@tc/contracts`
+ * command schemas, the page tools from the `@tc/pages` macro registry — so each
+ * grows with its own registry and never with a hand-written manifest (ADR-015
+ * invariant 5). They now arrive through the registry rather than through a
+ * builder each.
+ */
+function grantTools(draft: AdmissionDraft): AiAdmission {
+  const { userId, detail, canWrite } = required(draft.actor, "identifyActor");
+  const { messages, scope, question, turn } = required(draft.parsed, "parseRequest");
+  const { page } = required(draft.surface, "resolveSurface");
+  const selected = required(draft.selected, "selectModel");
+  const { classification } = required(draft.classified, "classifyTask");
+
+  const caps = {
+    surface: scope.kind,
+    role: canWrite ? ("propose" as const) : ("read" as const),
+    plan: permitsPropose({ userId }),
+    classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
+  };
+  const grants = grantFor(caps);
+  const tools = toolsFor(grants);
+
+  // The rule is enforced rather than commented: `minimumRoleFor` is asked what
+  // the set about to be handed to the agent requires — the maximum
+  // `minimumRole` over the tools actually selected — and the actor must already
+  // satisfy it. Unreachable while the caps above decide the set, which is why
+  // it is here: the next person to add a branch to them is who this catches.
+  //
+  // Every branch is asserted in the /ask route's integration suite.
+  const needed = minimumRoleFor(tools);
+  if (!hasAtLeast(userId, detail.members, needed)) {
+    const refusal = refuse(
+      "grantTools",
+      `this tool set requires ${needed}`,
+      Response.json({ error: "forbidden" }, { status: 403 }),
+    );
+    draft.input.ports.audit(refusedRecord(draft, refusal));
+    return { ok: false, refusal };
+  }
+
+  const grant: AiGrant = {
+    tripId: draft.input.tripId,
+    userId,
+    detail,
+    surface: scope.kind,
+    scope,
+    page,
+    grants,
+    tools,
+    posture: postureFor(caps),
+    model: selected.model,
+    classifierModel: selected.classifierModel,
+    modelId: modelIdOf(selected.model),
+    simulated: selected.simulated,
+    classification,
+    taskClass: classification?.intent ?? null,
+    messages,
+    question,
+    turn,
+  };
+  draft.input.ports.audit(grantedRecord(grant));
+  return { ok: true, grant };
+}
+
+function grantedRecord(grant: AiGrant): AiGrantRecord {
+  return {
+    event: "ai.grant",
+    tripId: grant.tripId,
+    userId: grant.userId,
+    outcome: "granted",
+    surface: grant.surface,
+    grants: grant.grants,
+    tools: grant.tools.map((tool) => tool.name),
+    model: grant.modelId,
+    simulated: grant.simulated,
+    taskClass: grant.taskClass,
+    refusedBy: null,
+    reason: null,
+    code: null,
+    status: null,
+  };
+}
+
+function refusedRecord(draft: AdmissionDraft, refusal: AiRefusal): AiGrantRecord {
+  return {
+    event: "ai.grant",
+    tripId: draft.input.tripId,
+    userId: draft.actor?.userId ?? null,
+    outcome: "refused",
+    surface: draft.parsed?.scope.kind ?? null,
+    grants: null,
+    tools: null,
+    model: draft.selected === undefined ? null : modelIdOf(draft.selected.model),
+    simulated: draft.selected?.simulated ?? null,
+    taskClass: draft.classified?.classification?.intent ?? null,
+    refusedBy: refusal.stage,
+    reason: refusal.reason,
+    code: refusal.code,
+    status: refusal.response.status,
+  };
+}
+
+// A LanguageModel is either a bare model-id string or a provider model object
+// carrying `.modelId` — normalize to the requested id either way.
+export function modelIdOf(model: LanguageModel): string {
+  return typeof model === "string" ? model : model.modelId;
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}

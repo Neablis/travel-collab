@@ -4,7 +4,7 @@ import { SavedDayVisibility } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
 import { getTripDetail } from "@/server/projections";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
-import { searchPlaybooks } from "@/server/ai/readTools";
+import { searchPlaybooks } from "@/server/assistant/tools/read";
 // The REAL adapter, because the claim this file makes is about a WHERE clause.
 // Handing `searchPlaybooks` a stub port here would assert the stub — the same
 // reason the file is in the integration lane at all.
