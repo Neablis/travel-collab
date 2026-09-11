@@ -111,17 +111,87 @@ boxes are built on top of.
 Decision and rules: **ADR-043**. Design, measurements and phase table:
 `docs/specs/2026-09-10-assistant-kernel-design.md`.
 
-Six PRs:
+Planned as six PRs; **it ran as seven phases in two PRs** — P0-P5 shipped together because
+each depended on the one before, and only P6 needed its own review. **Complete 2026-09-11.**
 
-| Phase | Lands | Closes / deletes |
-|---|---|---|
-| P0 | The spec and ADR-043 | — |
-| P1 | `defineTool` (required output schema, declared `needs`, `spend`), the derived registry, every tool ported, the import wall | ambient `toolsContext`; lands KI-9's type-forcing |
-| P2 | Domains x effect, `toolsFor`, computed `minimumRoleFor` | `offeredToolNamesFor` + three name manifests (F-F02) |
-| P3 | `evaluateAiGrant` staged admission; handler becomes orchestration | **KI-2026-09-05-t**, F-F03 |
-| P4 | Prompt blocks + tool-result tainting | string-concatenated instructions |
-| P5 | Task classes, tiered model routing, `TurnLedger` | homes for **KI-93** and **KI-94/97** |
-| P6 | Stream envelope into `packages/contracts` (own PR, per AGENTS.md) | **KI-22** |
+| Phase | Lands | Closes / deletes | Landed |
+|---|---|---|---|
+| P0 | The spec and ADR-043 | — | `bbc5bdb` (#162) |
+| P1 | `defineTool` (required output schema, declared `needs`, `spend`), the derived registry, every tool ported, the import wall | ambient `toolsContext`; lands KI-9's type-forcing | `bbc5bdb` (#162) |
+| P2 | Domains x effect, `toolsFor`, computed `minimumRoleFor` | `offeredToolNamesFor` + three name manifests (F-F02) | `bbc5bdb` (#162) |
+| P3 | `evaluateAiGrant` staged admission; handler becomes orchestration | **KI-2026-09-05-t**, F-F03 | `bbc5bdb` (#162) |
+| P4 | Prompt blocks + tool-result tainting | string-concatenated instructions | `bbc5bdb` (#162) |
+| P5 | Task classes, tiered model routing, `TurnLedger` | homes for **KI-93** and **KI-94/97** | `bbc5bdb` (#162) |
+| P6 | Stream envelope into `packages/contracts` (own PR, per AGENTS.md) | **KI-22** | `845fc48` (#163) |
+
+### What landed, and what it cost
+
+**The measurement the phase was opened on.** `handleAskRequest()` went **455 -> 105
+non-comment lines**, while the comment record in the same files **grew 634 -> 996**. That
+ratio is the point rather than a curiosity: KI-2026-09-05-t's complaint was never line count,
+it was that the reasoning lived in one function's head. ADR-043's rule that no comment in
+`handleAskRequest.ts` is deleted — each moves with the step it describes — is what made the
+second number go up while the first went down.
+
+**What is true now that was not.** A tool is a module declaring a **required output schema**
+and its own dependencies, so a tool cannot reach what it did not declare and the violation is
+a compile error. A scope is a grant of **(domain, effect)** pairs and the tool set is a
+*filter*, not a hand-written switch. Admission is a **nine-stage declared array whose order a
+test asserts**. The system instruction is typed blocks with user-authored tool results fenced
+in `⟦…⟧`. A turn returns a `TurnLedger` shaped as M20 link 9's `ai_usage` row, and **model
+identity and cost are variable inputs**, not constants — Mitchell's correction on 2026-09-10,
+and the reason the ledger takes a rate rather than hard-coding one.
+
+**Known issues.** Closed: **KI-2026-09-05-t**, **KI-22**. Partly closed: **KI-9**. Updated
+rather than closed: **KI-93** (the assertion is about shape, not count), **KI-2026-08-30-d**
+(the real hazard shape and its recovery — see below). Filed by doing the work:
+**KI-2026-09-11-a** (AI console sinks put a `userId` into Sentry breadcrumbs),
+**-b** (`simulatedModel`'s `resultFor<T>` is an unchecked cast), **-c** (two `modelSelection`
+tests read `serverConfig` at module load), **-d** (`TurnMeter.toolCalls()` returns its live
+array).
+
+**Neither gate box moved, as designed.** P5 gave **KI-93** and **KI-94/97** a place to be
+fixed; it is not the fix, and this phase ticks nothing in the exit gate above. **The detail
+that matters for closing KI-93:** it got a typed place to put a geocode count and *did not get
+the count* — no tool declares `spend: "vendor"`, all eight declare `"none"`, and the real
+LocationIQ door is `commitProposal`'s geocoder on the **apply** path, which is not a tool at
+all. So "every vendor call goes through the quota" is not satisfiable by tagging a tool; the
+spec has the measurement at `docs/specs/2026-09-10-assistant-kernel-design.md:683`.
+
+**The squash-merge hazard, because it cost the most.** #162 was squash-merged while P6 was
+stacked on it, which is **KI-2026-08-30-d** in a worse form than that entry predicted: it
+forecasts duplicated known-issue entries, and here the duplicate check came back *clean*
+while **twelve add/add conflicts** appeared on source files instead. A squash preserves the
+**tree** and loses only the ancestry, so the recovery is to replay the stacked branch's own
+contribution onto the new `main` rather than merge. **The trap in that recipe bit on the
+first try, and is the part worth carrying:** the replayed tree silently reverted a docstring
+pass — sixteen docstrings across eight `assistant/**` files — that had landed on the base
+after the branch last merged it. A *deleted* file shows as `D` and gets caught; a *reverted
+docstring reads as the branch's own work*. Copilot caught it in suppressed comments; it was
+restored in `1bd9c64`. The check that actually works is comparing the replayed commit's file
+set against the branch diff (20 vs 28). CodeRabbit later measured the same damage
+independently as a 56.25% docstring-coverage warning, from a walkthrough rendered one commit
+before the restoration.
+
+**Verified in a browser, once, on #162's preview.** Six surfaces, signed in: **no `⟦` or `⟧`
+in any human-visible output**, including the playbook day name that was the security finding's
+specific risk. P6 had no browser walk of its own and says so rather than waving it through —
+it changes no rendered output, and the proposal card's text is asserted unchanged by
+`ask/route.int.test.ts`.
+
+**One claim in the design spec was false and was disproved by building it.** §2 claimed that
+retagging `search_playbooks` would drop it from the page surface. P2 wrote the test and
+watched it refuse to fail. Domains are **audit vocabulary now, behaviour later**; the spec
+carries the correction.
+
+### Open questions this phase raised for Mitchell
+
+None blocking, and none of them stops M9's real work starting:
+
+1. Whether the usage row carries a `planVersionRef`.
+2. Which quota window a **sold** ceiling binds. It is implemented per-day and stated nowhere,
+   which is the kind of gap M20 pays for if it is not settled first.
+3. Whether the tier map is a Vercel Flag or an env var.
 
 **What it does not do.** No entitlement policy, no `ai_usage` table, no migration — M20 owns
 those under four rules already decided 2026-09-01, and this builds only the ports they fill.

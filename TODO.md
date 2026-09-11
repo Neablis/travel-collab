@@ -7,7 +7,8 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M9 Phase 0 is the current work**,
+purpose**, so read the marker, not the position: **M9 is the current work**, its
+Phase 0 having completed 2026-09-11,
 per the order set on 2026-08-29 when Mitchell placed two of the three
 approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
 **M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
@@ -37,6 +38,12 @@ M19, which is deliberately *placed but not scoped*.
 Whichever item carries `← current milestone` is the current work; when that marker and the first
 unchecked item disagree, the marker names a recorded Mitchell decision and the
 milestone file it cites is the evidence.
+
+**They disagree right now, and that is expected.** Since M9 Phase 0 was ticked on
+2026-09-11, the first unchecked item *in file order* is **M12** (trust & safety),
+while the marker sits on **M9**, which is the current work by the 2026-09-01 reorder.
+`pnpm state` reports this as one mechanical drift every session; it is the documented
+case above, not a defect.
 
 **Nothing is approved-but-unplaced any more.** M11b was the last one, and it was
 unplaced for a specific reason — it had no scope and no exit gate, and writing
@@ -172,20 +179,27 @@ Where the work actually stands right now: `docs/STATUS.md`.
       path is untouched. It exists because `/ai` derives its reply from
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
-- [ ] **M9 Phase 0 — the assistant kernel** ← **current milestone** — **interposed 2026-09-10 on
-      Mitchell's call**, nominally ahead of M17's three open gate boxes — which had in
-      fact been satisfiable since 2026-09-02, so it displaced a marker and not any
-      work; M17's gate closed 2026-09-11 regardless. Opens
-      KI-2026-09-05-t (`handleAskRequest()` is one 455-line function) and the ~15
-      open AI known issues that share its shape. Six PRs: `defineTool` with a
-      required output schema and declared dependencies; scopes as (domain, effect)
-      grants so a tool set is a filter and not a hand-written switch; one staged
-      admission pipeline with one audit record; a prompt boundary that taints
-      tool-returned user content; task-class model routing and a `TurnLedger`;
-      then KI-22's contracts move as its own PR. Closes no gate box — it is what
-      M9's three real pieces of work get built on. Entitlement policy and the
-      `ai_usage` ledger stay M20's. Decision: ADR-043.
+- [x] **M9 Phase 0 — the assistant kernel** — **complete 2026-09-11**, in two PRs:
+      P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). **Ticked on completion,
+      not on a gate** — this is the one entry in this file that may be, because it
+      closes no gate box by design; every other box waits for its milestone's exit
+      gate, per the rule at the top. **Interposed 2026-09-10 on Mitchell's call**,
+      nominally ahead of M17's three open gate boxes — which had in fact been
+      satisfiable since 2026-09-02, so it displaced a marker and not any work;
+      M17's gate closed 2026-09-11 regardless. Closed KI-2026-09-05-t
+      (`handleAskRequest()` was one 455-line function — now 105 non-comment lines,
+      while the comment record grew 634 -> 996) and KI-22, and gave the ~15 open AI
+      known issues that share their shape a place to be fixed.
+      **The phase table said six PRs; it ran as seven phases in two** — P0 the spec
+      and ADR-043, then P1 `defineTool` with a required output schema and declared
+      dependencies, P2 scopes as (domain, effect) grants so a tool set is a filter
+      and not a hand-written switch, P3 one staged admission pipeline with one audit
+      record, P4 a prompt boundary that taints tool-returned user content, P5
+      task-class model routing and a `TurnLedger`; P6 took KI-22's contracts move as
+      its own PR, as `AGENTS.md` requires. Entitlement policy and the `ai_usage`
+      ledger stayed M20's, as planned. Decision: ADR-043.
       → `docs/specs/2026-09-10-assistant-kernel-design.md`
+      → what landed, phase by phase: `docs/milestones/M9-ai-planning-partner.md`
 - [x] **M17 Account preferences** — **gate closed 2026-09-11**: three of three
       live boxes, one amended out 2026-09-01. Built in PRs #111 and #112 and in
       production since 2026-09-02 (migration 0015 dispatched sixteen minutes
@@ -878,6 +892,20 @@ marked "history", so nothing live surfaced it and nobody resumed.
   files with no floor) was closed 2026-08-30 with measured, non-vacuity-proven
   floors.
   **Phase 7 is NOT closed** — see the two live items below.
+
+- **The activity-field descriptor refactor — unattached since 2026-08-31.**
+  Project review §6.1. Scheduled 2026-08-29 "alongside" M11a and M11b; both
+  gates closed 2026-08-31 and it did not happen, so it belongs to no milestone
+  and nothing surfaced it. **Recorded here 2026-09-11** because the only thing
+  carrying it was `docs/STATUS.md`'s "Next action" — the precise failure this
+  section exists for, repeated. It is **not blocked**: its stated prerequisite
+  is already met (§1.6 / KI-54 resolved, `equality.ts:55-56` compares `city`
+  and `countryCode`). `AGENTS.md` reserves the contracts step as **its own
+  reviewed PR**, which Mitchell scheduled it knowing — so keep it separate from
+  any milestone PR.
+- **The 19 Dependabot alerts.** Per-advisory triage against actual usage, not a
+  bulk bump. Deferred deliberately; recorded here 2026-09-11 for the same
+  reason as the item above.
 
 ## Live, and previously hidden inside a closed-out plan
 
