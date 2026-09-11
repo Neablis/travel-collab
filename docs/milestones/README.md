@@ -57,7 +57,7 @@ for collaboration later landing on a product people already want to join.
 |---|---|---|
 | M10 | Visual craft pass | **Done, Wave-2 gate closed 2026-08-27.** Executed before M9 (see the 2026-08-08 reorder note below). Wave 1's gate closed 2026-08-10 on a branch; an external review on 2026-08-14 reopened it (the design handoff had moved two generations, and the wave introduced three blocking defects). Wave 2 closed the delta across Phases 0-8 plus 8b; Phase 1b was cancelled unbuilt. The "make it beautiful" pass: a coherent restyle of Home/Trip-plan against the design handoff, plus inert `<Preview>` shells for M9/M11's not-yet-built surfaces. Retro and gate evidence: `M10-visual-craft.md` |
 | M16 | The assistant answers questions | **Done, gate closed 2026-08-29.** Approved 2026-08-25 — ADR-022. Originally placed right after M10's gate and before M15; **M15 in fact closed its own gate first (2026-08-26), ahead of both M10's Phase 9 gate and M16** — see the 2026-08-26 reorder note below. M16 still runs before M11-M14. The sidebar styled to `SPEC.md` §9's *docked* presentation (a flex sibling, not a scrim overlay; both `<Preview>` blocks deleted), then a **read-only tool-using agent** on its own endpoint — one question, one answer, scoped to the selected day or the trip — then analytics on which tools get called and how many calls an answer costs. The command path is untouched. Exists because the AI endpoint today is a *command* endpoint and structurally cannot answer a question: `M16-assistant-read-agent.md` |
-| M17 | Account preferences | **Approved 2026-08-26; re-scoped and placed 2026-08-29, after M18b.** The `users` table and the identity decision were removed from its scope — M11 link 1 shipped both (ADR-025) — leaving the preferences half. Opened by Mitchell reviewing SPEC §12: *"Skip on C5/C6/C7 and make a future milestone, account customization. We will need a new DB table, but i also think we are getting close to just wanting a user table rather than relying on the google auth jwt."* Account settings Sheet (name, email, home airport), distance units at **account** scope through one `kmLabel`, and home-time-on-hover. All three land on the same absence — **narrowed 2026-09-01**: the claim that "the schema is `events`/`trip_summaries`/`trip_details`/`pages`, there is no user row" has been false since ADR-025. The schema is twelve tables and `users` is one of them; what is missing is **preference columns on it**. `users.name` already exists, so "resolve `who` to a display name" is closer to wiring than building. The identity question this milestone was approved to answer is answered: `M17-account-customization.md` |
+| M17 | Account preferences | **Done, gate closed 2026-09-11.** Three of three live boxes; box 3 (home time on hover) was amended out 2026-09-01. Built in PRs #111 and #112 and **in production since 2026-09-02** — the gate simply went nine days unconvened while other work merged, which is the subject of its retro. **Approved 2026-08-26; re-scoped and placed 2026-08-29, after M18b.** The `users` table and the identity decision were removed from its scope — M11 link 1 shipped both (ADR-025) — leaving the preferences half. Opened by Mitchell reviewing SPEC §12: *"Skip on C5/C6/C7 and make a future milestone, account customization. We will need a new DB table, but i also think we are getting close to just wanting a user table rather than relying on the google auth jwt."* Account settings Sheet (name, email, home airport), distance units at **account** scope through one `kmLabel`, and home-time-on-hover. All three land on the same absence — **narrowed 2026-09-01**: the claim that "the schema is `events`/`trip_summaries`/`trip_details`/`pages`, there is no user row" has been false since ADR-025. The schema is twelve tables and `users` is one of them; what is missing is **preference columns on it**. `users.name` already exists, so "resolve `who` to a display name" is closer to wiring than building. The identity question this milestone was approved to answer is answered: `M17-account-customization.md` |
 | M18 | A stop knows what kind of thing it is | **Done, gate closed 2026-08-29.** Ran after M10's Wave-2 gate and M11, before M16. **Widened to carry `tags` (KI-47) as well as `kind`**, on Mitchell's call — *"i dont want to do KIND and TAGS right now, but we can put it in a soon milestone"* — because the two are one contract change, one migration and one backfill decision. A stop has no `kind` — `booked`/`hold`/`idea`/`transit` lives in **note text** (`db-seed.ts` folds it there and says so). Began as one cosmetic tile; SPEC §12 made it load-bearing. **At the gate, that same SPEC §12 travel-day split was built, walked and removed** — it depended on how the fixture tagged cities, so the Calendar groups by city alone and the transition moved to the day label. Shipped: `act.badge`, tag chips, both editor pickers, the home-hero tile, `N to book`. Tag focus carved out as M18b: `M18-stop-kind.md` |
 | M18b | Tag focus | **Done, gate closed 2026-08-30.** Approved 2026-08-29 and placed the same day, immediately after M16; built and closed the next day, its six behaviours green on `test:e2e:ci-like` and the deployed half walked by Mitchell on PR #91's preview. Carved out of M18's gate on the same terms M11b left M11's: M18 lands both fields, every surface that reads `kind`, and tag chips that render and can be set — M18b lands the behaviour the chips drive. SPEC §11's focus dims off-tag stops to 32% across Timeline, Day columns, Calendar and Map (Calendar instead shows `N of M match`, dimming a no-match card to 0.28). It was the only part of M18 needing shared state above the lens switch, its Calendar rule is a second design, and no M18 gate box measured it. Scope and exit gate are already written, so unlike M11b it needs only a place: `M18b-tag-focus.md` |
 | M9 | The assistant cites what it plans | **Retitled 2026-09-01** (was "AI as a planning partner") after an audit against `main`: **four of its seven scope items are already shipped** — streaming, propose→review→approve, refinement within a session, and honest unknowns — and **three of its six gate boxes are already satisfied**. What remains is three things: **grounding** (`SearchPlaces` → `placeRef`, KI-81/KI-15), **conversation durability** (there is no conversation table, so a reload loses the thread), and **an eval/replay harness** (KI-11, inherited from M16's gate). **Conversation design still lives here.** Placed last by ADR-022 (2026-08-25) on two grounds — polish first, sharing first — **both of which have since been met**, and the placement has not been re-examined since; the audit recommends moving it to after M17. The practical cost of last: `ai-live` defaults off and grounding is what would let it be turned on, so the largest built feature in the product is dark. `docs/reviews/2026-09-01-milestone-audit.md` |
@@ -198,13 +198,46 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M17 — Account preferences**
-(`M17-account-customization.md`), as of **2026-08-31, when M11a's and M11b's
-gates both closed** — M11a nine of nine with its admission paths walked on
-production, M11b eleven of eleven with the two-actor publish walk and the
-`cities` backfill. Order from here:
-`M11a ✓ → M11b ✓ → M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`
-— **M20 and M21 minted and placed 2026-09-01**; see the note below.
+Current milestone: **M9 — The assistant cites what it plans**
+(`M9-ai-planning-partner.md`), as of **2026-09-11, when M17's gate closed** —
+three of three live boxes, one amended out, with the e2e re-run on the
+`ci-like` lane and the production migration dispatch confirmed from workflow
+history. Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`
+— **M20 and M21 minted and placed 2026-09-01**; see the note below. **M9 is
+next by the order recorded on 2026-09-01 and by no new decision** — but read
+the 2026-09-11 note below before treating that queue as a description of what
+has been happening.
+
+### 2026-09-11 — M17's gate closed nine days late, and the queue drifted while it was open
+
+**M17's gate closed 2026-09-11 on work that merged 2026-09-02.** The three live
+exit-gate boxes were satisfiable the day PR #112 merged; nobody convened the
+gate, so `TODO.md`, this file's Current milestone and every session's state
+digest went on reporting `M17, 0/3` for nine days. The gate-close checklist at
+the top of this file has no step that fires when a milestone's last PR merges —
+its trigger is "the gate passes", and a gate nobody convenes never passes. That
+is the second time a milestone has stayed unticked (M2 was the first) and the
+first time it happened without the gate itself occurring.
+
+**The consequence is an ordering question, and it is Mitchell's, not this
+file's.** While M17 sat nominally current, work merged on two milestones sitting
+fifth and seventh in the recorded order:
+
+- **M12 link 7** — country search in Discover's box (#159, 2026-09-09).
+- **M14 links 1-3** — the Notebooks menu and rebuilt index (#126), a widget
+  owning its own day (#129), and the 21-widget catalogue with ADR-037/ADR-038
+  (#130). M14's file carries **2 of 14** gate boxes ticked; its builder half is
+  merged and its gate is open.
+
+Neither is a violation anyone committed on purpose. AGENTS.md's *"do not build
+ahead of the current milestone"* is enforced against the marker, and the marker
+pointed at finished work, so "ahead" had stopped meaning anything. **Current
+milestone is set to M9 because that is the order recorded on 2026-09-01 and no
+decision has superseded it** — not because M9 is where the work has been going.
+If the real sequence is now M12/M14 first, that is an amendment to make here
+explicitly, the same shape as ADR-021, ADR-022 and the M9 reorder; this note
+records the divergence rather than quietly resolving it.
 
 ### 2026-09-01 — minted and placed: M20 and M21, the first commercial milestones
 
