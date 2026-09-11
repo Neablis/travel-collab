@@ -424,7 +424,11 @@ like, so paying for a classification would be spend with nothing to buy.
 
 Every tier resolves through `selectAiModel()` — ADR-019's single chokepoint and its lint
 wall are unchanged, and the kill switch still covers every call. What changes is that the
-chokepoint takes a task class instead of a fixed pair of model ids.
+chokepoint **returns every tier's model and the pipeline picks one** — it cannot *take* a task
+class, because `selectModel` is stage 6 and `classifyTask` is stage 8, and §3b forbids
+reordering. The map is built eagerly on the live branch: *"never constructs a gateway client
+when the flag is off"* is a promise about what the function does, and a lazy map would satisfy
+that test by doing nothing on either branch.
 
 **The saving this buys, and the risk.** Today a question and a plan cost the same model. A
 question routed to a cheap tier is the dominant term, because questions are most turns. The
@@ -592,7 +596,7 @@ type EntitlementResolver = (actor: AiActor) => Promise<ResolvedEntitlements>;
 
 interface ResolvedEntitlements {
   has(capability: Entitlement): boolean;  // SET MEMBERSHIP. Never a rank, never an order.
-  ceilings: { perUserRequests: number; perUserSteps: number };
+  ceilings: { perUserRequestsPerDay: number | null; perUserStepsPerDay: number | null };
   planVersionRef: string | null;
 }
 ```
@@ -670,6 +674,72 @@ M20 link 9 says *"`/ask` must also account for what it spends, which it currentl
 `settleAiSteps` in the recorder's sink — KI-67's fix moved onto `/ask` when it became the one
 door. Corrected in place in M20's file, dated, rather than left for whoever builds link 9 to
 discover. It makes link 9 smaller, not larger.
+
+### 6b. Seven corrections to §5–§7, from building them *(P5, 2026-09-11)*
+
+**1. "KI-93 gets a home" is true of the type and false of the producer — and the difference
+matters.** §6 says *"a `spend: 'vendor'` tool's lookups are ledger lines."* No tool declares
+`spend: "vendor"`; all eight declare `"none"`. The actual LocationIQ door is `commitProposal`'s
+geocoder on the **apply** path, which is not a tool and does not run inside a turn. So
+`capacity` is structurally `[]` on every `/ask` turn today. **KI-93 gets a shape to settle
+into; it does not get a count.** Recorded on KI-93 itself so nobody reads this phase as having
+closed it.
+
+**2. `ai.apply` emits no ledger at all.** `TurnCost.endpoint` carries `"ask" | "ask.apply"`
+per §7a, but the apply endpoint makes no model call, so nothing constructs the second variant
+— while it *does* geocode, which is a real vendor spend with no capacity line. Same root as
+correction 1.
+
+**3. §7c's `ceilings` were typed non-nullable, which contradicts this document's own scope.**
+A non-nullable ceiling forces the default resolver to invent two numbers, and "chooses no
+tier, ceiling or price" forbids exactly that. They are `number | null`; `null` means the plan
+named no ceiling and `envCeiling`'s default stands.
+
+**4. §7c names two ceilings and `quota.ts` has four per-user ones** — requests and steps ×
+hourly and daily — and **neither this document nor M20 link 5 says which window a sold ceiling
+binds.** M20's plan table sells *"AI requests · steps per day"*, so the fields are
+`perUserRequestsPerDay` / `perUserStepsPerDay` and the hourly pair stays in the environment as
+the abuse window. **That is a reading, not a fact either document states** — see Open
+questions.
+
+**5. §6 presents all three ledger fields as readers of data that already exists. `toolCalls`
+was not.** Nothing in the app timed a tool call or recorded whether it threw — `onStepEnd`
+sees the name and the input only, and Sentry's `gen_ai.execute_tool` spans are not readable
+from a sink. `ms` and `ok` required instrumenting `execute` in `registry.ts`. Emitting
+`ms: 0, ok: true` would have been fabricating a measurement.
+
+**6. `intent` is not widened; `taskClass` is added beside it.** §5 says the classifier's output
+"widens" to a task class — but `intent` is the effect axis the tool filter caps on *and* the
+dimension a month of `ai.classify.turns` series is built against. Widening it in place would
+silently re-base that history, which is the same class of mistake as a bucket name that moves.
+The classifier emits the task class and `intent` is **derived** from it. Retiring `intent` is a
+deliberate telemetry break and should be its own decision.
+
+**7. Two configuration mechanisms in this repo disagree, and §5b picked one without saying
+so.** `serverConfig` is read at module load; `envCeiling` in `quota.ts` explicitly does the
+opposite (*"Read at call time, not at module load"*, so a redeploy is not needed). §5b said to
+reuse the `serverConfig` mechanism, so the tier map cannot change without a redeploy — which
+is precisely the property §5b's own open Vercel-Flag question exists to avoid. **Reusing
+`serverConfig` quietly pre-decides part of that question.**
+
+## Open questions for Mitchell
+
+Three, accumulated across the phases. None blocks the work; each is implemented one way with
+the alternative noted, and each is cheap to change now and expensive later.
+
+1. **`planVersionRef` on the usage row (§7c-note).** A purchase pins a plan version, so which
+   per-user ceiling was in force is *not* derivable from `created_at` — two accounts billing on
+   the same day can sit on different versions. The kernel emits the field; whether M20 stores
+   it is M20's call. Costs one column.
+2. **Which window a sold ceiling binds (correction 4 above).** Implemented as *per day*, from
+   M20's own plan table. If a sold ceiling should bind the hourly window instead, or both, the
+   field names are wrong and a field applied to the wrong window is exactly the "semantic its
+   arithmetic does not have" class §7a warns about.
+3. **The tier map as a Vercel Flag rather than an environment variable (§5b, correction 7).**
+   The infrastructure exists — `ai-live` already targets per-user entities — and a flag would
+   let a degrading provider be swapped without a redeploy, which is when you most want it.
+   Against: a model id is not a targeting decision, and the flag becomes a second source of
+   truth beside `AI_MODEL`. Currently env, read at module load.
 
 ## What this deliberately does NOT do
 

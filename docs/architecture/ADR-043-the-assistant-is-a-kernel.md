@@ -94,7 +94,8 @@ the answer to "what is and isn't allowed."**
 
 ### 4. Cost is a return value, and the model is chosen by task class
 
-`TurnLedger` — model calls (task class, model, tokens, ms), tool calls, vendor calls — is
+`TurnLedger` — **`cost`** (model tokens: turn and classifier separately, no currency type
+anywhere), **`capacity`** (vendor call counts, never summed into cost) and **`toolCalls`** — is
 what a turn returns. The analytics log, the Sentry metrics and the step settlement become
 readers of it rather than three assemblies of it.
 
@@ -165,6 +166,12 @@ they fill and chooses no tier, ceiling or price. M21 (Stripe) needs nothing from
 at all: payments never enter it, and what M21 consumes is the series link 9 stores. KI-22 (the stream envelope into `packages/contracts`) is
 its own PR, because AGENTS.md reserves a contracts change as one. `resolveBatch` is not
 rewritten; KI-10 needs its own call.
+
+**Corrected 2026-09-11, after P5.** Decision 4 above carried §6's *first draft* — "model
+calls, tool calls, vendor calls" — for a day after §7b had already split cost from capacity,
+so the ADR's two halves disagreed about the type the phase builds. P5 found it while building
+against both. `compose` routes to the `mid` tier, which decision 4 never assigned: a page turn
+writes a bounded amount into one page. That is a choice, not a derivation.
 
 **Corrected 2026-09-10, after P1.** The import wall is **deny-by-default over `@/server/**`
 with an allowlist**, not a denylist of named modules. The denylist first specified here was
