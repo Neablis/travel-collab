@@ -345,6 +345,67 @@ unchanged. Moving the scope onto a side-channel was considered and rejected: it 
 nothing here (the line is server-authored) and costs the one channel that reaches both a
 real model and the simulated one.
 
+### 4b. Six corrections to §4, from building it *(P4, 2026-09-11)*
+
+**The fence is a mitigation, not a guarantee, and this document should not have implied
+otherwise.** Delimiting plus a standing rule is state of the art for prompt injection; it is
+not a boundary. The real guarantee here stays structural and is unchanged by P4: **no tool
+commits**, the apply endpoint is the only door, and a human clicks Approve. Say it that way
+when describing this work.
+
+**1. `tags` is not user-authored, and fencing it would have been strictly negative.**
+`StopReadout.tags` widens to `string[]` so it reads like free text, but the source is
+`ActivityTag` — a four-value enum in `@tc/contracts`. Nobody can type into a closed enum, so
+there is no gain; and `needsBooking` *matches on the values*, which the simulated model feeds
+straight from the tool result, so there is a real break. **The type checker refused the
+fixture**, which is how it surfaced — the fence is typed, so mis-fencing a closed set does
+not compile.
+
+**2. §4 never noticed that the simulated model reads tool results.** It protects the `Scope:`
+line *because* the simulated model parses it, and then three sentences later fences
+`read_trip` and `read_day` without observing that the same stand-in echoes `trip.name`,
+`stop.title` and `conflict.description` verbatim into prose that `simulatedModel.test.ts` and
+the milestone e2e assert. Tainting breaks the entire switched-off path unless the stand-in
+unfences. A live model told the fence means "data you are reporting on" does not reproduce
+the marks, so the stand-in has to do the same thing deliberately: `plain()`, at seven sites.
+
+**3. The field carrying all three of §4's examples is the one §4 does not name.**
+`Conflict.description` is *server*-authored prose with user-authored titles interpolated into
+it — `"X" and "Y" overlap in time on the same day.` (`packages/domain/src/trip/conflicts.ts`).
+We wrote the frame, so it looks like ours; it is attacker-influenceable all the same, and it
+is the field **most likely to be read aloud in an answer**. Fenced.
+
+**4. A fenced value that is also a machine key needs the inverse applied at the door it comes
+back through.** This is the general rule, and §4 has no equivalent of it.
+`SearchPlaybooksInputSchema` tells the model to spell cities *"exactly as read_trip spells
+them"* — and `read_trip` now spells them `⟦Kyoto⟧`. A model that copies the fenced spelling
+gets **zero results, silently**. `searchPlaybooks` now `plain()`s its input. Any future fence
+over a value that round-trips needs the same treatment, and silence is its failure mode.
+
+**5. §3b's rename decision was incomplete: the *file* names collide too.**
+`assistant/grants.ts` beside a hypothetical `assistant/aiGrant.ts` reinstates exactly the
+confusion renaming the type removed. The moved file is `admission.ts`, which also matches the
+majority of its own exports (`AdmissionPorts`, `AdmissionStage`, `ADMISSION`, `AiAdmission`).
+
+**6. `PromptBlock.rule` is documented "ours, constant" and several rules are not constant** —
+they interpolate `dayCount`, `MAX_READ_DAYS`, the verified day number. The property that
+actually matters is **"nothing a user typed is ever in one"**, which holds. "Constant" is the
+wrong word for it and someone will eventually try to enforce the literal reading.
+
+**A note on how the escaping is built, because the obvious version is weaker.** The
+delimiters are replaced by sequences that **do not contain them** (`\<`, `\>`), not
+backslash-prefixed. With `\⟧` the body still holds a `⟧`, and anything scanning for the next
+closing mark — a model's eye included — stops in the wrong place. The escape character is
+escaped *first*, or the mapping is ambiguous.
+
+**And a warning about how the property test for it can be vacuous.** P4's first draft passed
+with the closing delimiter's escape deleted: `fc.string({ unit: "binary" })` is one code point
+in ~1.1M, so 1,000 short strings never once produced U+27E7. It ticked 1,000 times while
+testing nothing — the `witness` helper's *second* documented failure mode, the input space
+shrinking, which an assertion count cannot see. The generator is now built from the hazardous
+characters and a second witness counts cases that actually carry a delimiter. **This was found
+only by doing CLAUDE.md rule 3**, which is the argument for rule 3 in one paragraph.
+
 ### 5. Model routing by task class
 
 The classifier already runs and already costs a round-trip. Its output widens from
