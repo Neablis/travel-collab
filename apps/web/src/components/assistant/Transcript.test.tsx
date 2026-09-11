@@ -19,7 +19,7 @@ const THREAD: AssistantTurn[] = [
 
 const PROPOSAL = {
   proposalId: "p1",
-  changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+  changes: [{ type: "AddActivity" as const, text: "Add “Coffee” to day 2" }],
   commands: [
     {
       type: "AddActivity" as const,

@@ -187,4 +187,6 @@ model is still forbidden, and is still what ADR-015 §2 is about.
 - The response envelope is still not in `packages/contracts` (KI-22). `inserts`
   is added to the local `AssistantProposal` in `writeTools.ts` and its hand-kept
   mirror in `apiClient.ts`; this ADR does not reopen that, but it adds one more
-  field to the pair KI-22 is about.
+  field to the pair KI-22 is about. **Closed 2026-09-11** by M9 Phase 0 P6: both
+  mirrors are gone and `AssistantProposal` — `inserts` included, as
+  `ProposedInsert` — is one schema in `packages/contracts/src/assistant.ts`.

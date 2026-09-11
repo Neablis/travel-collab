@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AssistantProposal } from "@/lib/apiClient";
+import type { AssistantProposal } from "@tc/contracts";
 
 /**
  * Where a proposal is in its life. Four states, and the two that matter are

@@ -24,7 +24,14 @@
 // code path that writes an event. The only caller of `commitProposal` is the
 // apply endpoint, and it runs after the human said yes.
 import { randomUUID } from "node:crypto";
-import { BatchableCommand, type SavedDay, type TripDetail, type TripHistory } from "@tc/contracts";
+import {
+  BatchableCommand,
+  type AssistantProposal,
+  type ProposedChange,
+  type SavedDay,
+  type TripDetail,
+  type TripHistory,
+} from "@tc/contracts";
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
@@ -42,50 +49,12 @@ export type { CollectedInsert } from "@/server/assistant/deps";
 
 export { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 
-/** One change, as the user reads it before deciding. */
-export interface ProposedChange {
-  /** The command type, so a client can group or icon them without parsing prose. */
-  type: BatchableCommand["type"];
-  /** "Add “Coffee at Fuglen” to day 2" — conditional mood; nothing has happened. */
-  text: string;
-}
-
-/**
- * A turn's proposal: what WOULD change, said before it is true.
- *
- * `commands` are the resolved, contract-parsed commands — the same objects the
- * apply endpoint re-parses and submits — so the batch that commits is the batch
- * that was reviewed, not a second resolution of the same intents against
- * different state. A command that has gone stale in the meantime aborts the
- * whole batch atomically (ADR-013) rather than applying a subset nobody saw.
- */
-export interface AssistantProposal {
-  proposalId: string;
-  changes: ProposedChange[];
-  commands: BatchableCommand[];
-  /**
-   * Days to insert, BY REFERENCE (ADR-042 Decision 1) — never as commands.
-   *
-   * The obvious implementation is to expand the day into `AddDay +
-   * AddActivity[]` here and let it ride `commands`. That silently bypasses the
-   * adds ledger: `recordAdd` runs only inside an `alsoInSameTransaction` hook,
-   * so an assistant-inserted day would never reach `saved_day_adds` and SPEC
-   * §15's *"a build that counts raw inserts will produce a different and
-   * gameable order"* would be exactly what we shipped.
-   *
-   * So the reference travels and the server expands it. `name` is here for the
-   * card and for nothing else — the apply door re-reads the row and takes the
-   * name from there, because a ledger credit is not something a client may
-   * mint.
-   */
-  inserts: { savedDayId: string; name: string }[];
-  /**
-   * Changes the resolver dropped, as sentences. `no-op` drops are excluded —
-   * the domain simply had nothing to do, which is not something to warn about.
-   * `droppedWriteCalls` below filters it the same way.
-   */
-  skipped: string[];
-}
+// `ProposedChange` and `AssistantProposal` are `@tc/contracts` types since P6
+// (KI-22). They ride the stream's final chunk, so they are cross-boundary by
+// construction and the reasoning that used to live here — why `inserts` travel
+// by reference, why a proposal with nothing in it is not one, why `skipped`
+// excludes `no-op` — moved WITH them to `packages/contracts/src/assistant.ts`
+// rather than being restated on this side of the wire.
 
 /**
  * The past-tense receipt (`summarizeBatch`) is the command path's contract and

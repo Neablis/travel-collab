@@ -436,7 +436,26 @@ describe("NotebookScreen", () => {
           { type: "text", delta: "I can move that." },
           {
             type: "proposal",
-            proposal: { proposalId: "p1", changes: [{ type: "activity.move", text: "Move “Dinner” to day 2" }], commands: [], inserts: [], skipped: [] },
+            // The command is not decoration: `AssistantProposal` is refined to
+            // carry at least one command or insert, so a changes-only proposal
+            // is a shape no parsed turn can reach — the refinement does not
+            // show up in the inferred type, which is the only reason one
+            // compiled here.
+            proposal: {
+              proposalId: "p1",
+              changes: [{ type: "MoveActivity", text: "Move “Dinner” to day 2" }],
+              commands: [
+                {
+                  type: "MoveActivity",
+                  tripId: TRIP_ID,
+                  activityId: "8c2f1d4a-5e6b-4c7d-8e9f-0a1b2c3d4e5f",
+                  toDayId: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                  position: 0,
+                },
+              ],
+              inserts: [],
+              skipped: [],
+            },
           },
         ),
       );

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
-import type { AssistantProposal } from "@/lib/apiClient";
+import type { AssistantProposal } from "@tc/contracts";
 
 afterEach(cleanup);
 

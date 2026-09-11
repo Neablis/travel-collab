@@ -82,7 +82,7 @@ import {
   parseRequest,
 } from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
-import type { Page } from "@tc/contracts";
+import { SIMULATED_HEADER, type AskStreamMetadata, type Page } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
@@ -100,20 +100,12 @@ export {
   PAGE_NOT_ON_TRIP_CODE,
 } from "@/server/assistant/admission";
 
-// Names the `simulated` verdict on the wire, so the client stops deriving it
-// from the model's own prose.
-//
-// Task 5's client matched the sentence "AI is switched off on this deployment"
-// to decide whether to show the Simulated badge, because the stream carried no
-// flag. That is a display concern derived from generated text — the same
-// anti-pattern `docs/milestones/M18-stop-kind.md` rejects for parsing `kind`
-// out of note text — and it breaks silently the first time the sentence is
-// reworded. A header is honest, is set on the same three lines that already
-// know the answer, and survives a turn that fails before it says anything.
-//
-// It stays HERE rather than moving to `assistant/admission.ts`: it is a property of the
-// stream, not of admission, and P6 is what moves the envelope.
-export const SIMULATED_HEADER = "x-tc-ai-simulated";
+// `SIMULATED_HEADER` is a `@tc/contracts` name since P6 (KI-22). It was
+// declared here and re-declared as a literal in `apiClient.ts`, which could not
+// import this module (the UI may not import `@/server/*`) — the duplication
+// KI-22 filed against `simulated`. Why the verdict is a header rather than a
+// member of the stream envelope, and why it is a constant rather than a schema,
+// moved with it to `packages/contracts/src/assistant.ts`.
 
 // Round-trips one turn may take, and the only step budget left in the app.
 //
@@ -392,7 +384,12 @@ export async function handleAskRequest(
       // Nothing is committed here. `buildProposal` resolves and describes;
       // the only caller of `commitProposal` is the apply endpoint below, and
       // it runs after a human clicked Approve.
-      messageMetadata: ({ part }) => {
+      //
+      // Typed `AskStreamMetadata` (`@tc/contracts`) since P6, so the keys are
+      // the contract's rather than this literal's: a misspelled `pageInserts`
+      // or a fifth key now fails to compile here instead of arriving at a
+      // client that quietly ignores it.
+      messageMetadata: ({ part }): AskStreamMetadata | undefined => {
         if (part.type !== "finish") return undefined;
         // At most one of these is true — the grant caps `itinerary` at `read`
         // on the surface that grants `pages` — so the final chunk carries a
@@ -478,7 +475,7 @@ function briefFor(page: Page | null): PageBrief | null {
  * most of what a conversation does — so an empty insert list is silence, not a
  * failure. Only a turn that produced nodes which fail validation reports one.
  */
-function pageInsertsMetadata(inserts: PageInserts): Record<string, unknown> {
+function pageInsertsMetadata(inserts: PageInserts): AskStreamMetadata {
   if (inserts.nodes.length === 0) return {};
   const validated = validatePageInserts(inserts.nodes);
   if ("error" in validated) return { composeError: validated.error };

@@ -111,7 +111,12 @@ does not disturb.
   the exemption did not silently grow beyond this one fixed path.
 - The AI response envelope (now including `simulated`) still isn't
   schematized in `packages/contracts` — filed as KI-22 in
-  `docs/known-issues.md`.
+  `docs/known-issues.md`. **Closed 2026-09-11** by M9 Phase 0 P6, which put the
+  `/ask` stream envelope in `packages/contracts/src/assistant.ts` and moved
+  `SIMULATED_HEADER` there with it — the verdict stays a header, for the reason
+  this ADR gives for setting it before a byte of the stream. The entry is now
+  `docs/known-issues/resolved/` (the single file this line points at was split
+  per-entry on 2026-08-30, KI-95).
 
 ## Amendment — 2026-08-25: the seam is a controlled chokepoint, and it must survive a second entry point
 

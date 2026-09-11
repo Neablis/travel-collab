@@ -825,6 +825,58 @@ the branch is in draft, Tier 3 once.
 | **P5** | Task classes, tiered routing, `TurnLedger`, sinks rewired | the hand-added classifier step; homes for KI-93/94 |
 | **P6** | Stream envelope → `packages/contracts` (own PR) | KI-22 |
 
+### P6's corrections, from building it *(P6, 2026-09-11)*
+
+P6 has no numbered design section above — it is one table row and one paragraph under
+"What this deliberately does NOT do" — so its corrections land here.
+
+**1. KI-22 names three keys on `/ask`'s stream and there are four shapes.** The entry lists
+`{ proposal }`, `{ composedPage }` and `{ composeError }`. A page turn that inserted nothing
+sends `{}`, which is *silence* rather than a refusal — "a turn can legitimately answer a
+question about the page without editing it" (`pageInsertsMetadata`) — and a union admitting
+only the three named would have rejected the commonest page-turn outcome there is.
+
+**2. The same entry names a key that was renamed a week before this phase ran.** ADR-035
+decision 5 made it `pageInserts` and the client parser `pageInsertsFrom` — *inserted, not
+composed* — so `composedPage`/`composedPageFrom` in KI-22 name nothing that existed by
+2026-09-11. Reading the entry rather than the code would have produced a schema for the wrong
+envelope, which is exactly what the brief for this phase warned about.
+
+**3. KI-22 calls this "smaller than the original: three keys rather than six fields", and it
+is bigger than that.** The payloads inside two keys are already contract types, which is what
+the estimate was counting; the proposal WRAPPER around them was not, and it was hand-written
+**twice** — `writeTools.ts` and `apiClient.ts` — which is the invariant-5 violation proper
+rather than the absence of a schema. Moving it was the larger half of the work.
+
+**4. The two copies had already diverged, and a test was asserting the divergence.**
+`ProposedChange.type` was `BatchableCommand["type"]` on the server and `string` on the client.
+`NotebookScreen.test.tsx` built a proposal with `type: "activity.move"` — a name no command
+has ever had, and one nothing in the app can produce — and it passed, because the client's
+copy accepted any string. One schema, with the enum derived from `BatchableCommand.options`,
+fails to compile it.
+
+**5. "Schematize the union" has a trap in it that produces a schema asserting nothing.** The
+obvious `z.union([...{ proposal }, { pageInserts }, { composeError }, z.object({})])` accepts
+**every** malformed payload: `z.object({})` matches any object, so `{ proposal: <garbage> }`
+parses as "nothing" and no branch ever fails. The empty branch has to be `z.strictObject({})`.
+The three payload branches must NOT be strict, for the opposite reason — the stream is a
+superset the server may grow, and a key added beside a valid `proposal` must not cost an older
+client the card. Any future union-of-shapes contract in this repo has the same asymmetry.
+
+**6. A phase table row that says "closes X" is not what closes X.** P3's row here and in
+`M9-ai-planning-partner.md` both list KI-2026-09-05-t, and that entry is still in
+`docs/known-issues/open/` with an Area reading `handleAskRequest.ts:244-699` and "the file is
+1048 lines" — the file is 860 after this phase, and was 863 before it. P1 did annotate KI-9 in place; P3 did not do the same. Not
+P6's to fix, but the table should not be read as a record of what happened.
+
+**7. `simulated` is the half of KI-22 that does not close by being schematized.** It is a
+response header, and it stays one: set before a byte of the stream so a turn that fails
+mid-answer is still badged, where stream metadata rides a final chunk that failure path never
+sends. What it needed was one owner rather than a schema — `handleAskRequest.ts` declared the
+literal and `apiClient.ts` re-declared it, with a comment explaining that it could not import
+the server's copy. `@tc/contracts` is the third place both may import from, which is where
+that comment was pointing all along.
+
 ## Cross-reference
 
 KI-2026-09-05-t (this entry), KI-9 (the hub), KI-22, KI-80, KI-82, KI-93, KI-94, KI-97;

@@ -51,10 +51,10 @@ const {
   ASK_MINIMUM_ROLE,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
-  SIMULATED_HEADER,
   instructionBlocks,
   instructionsFor,
 } = await import("@/server/ai/handleAskRequest");
+const { SIMULATED_HEADER } = await import("@tc/contracts");
 const { grantFor, minimumRoleFor, postureFor, toolsFor } = await import("@/server/assistant/grants");
 const { validateComposedPage } = await import("@/server/ai/pageTools");
 

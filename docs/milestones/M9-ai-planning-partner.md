@@ -290,7 +290,7 @@ open — but **not gate boxes**, and the gate does not wait on them.
 |---|---|
 | KI-10 | Batches don't recover a reference to an activity created later in the same batch. Reported via `resolutionErrors`, not silent, and the fix is in `resolveBatch` — which this file says explicitly **not** to rewrite. Needs its own call before anyone touches it |
 | KI-9 | Model outputs validated ad hoc rather than at one typed boundary. Cleanup, defensive, no known reachable bug |
-| KI-22 | The AI response envelope is not in `packages/contracts`. **`AGENTS.md` reserves a contracts change as its own reviewed PR**, so this cannot be a box inside another milestone's gate without breaking that rule |
+| ~~KI-22~~ | The AI response envelope is not in `packages/contracts`. **`AGENTS.md` reserves a contracts change as its own reviewed PR**, so this cannot be a box inside another milestone's gate without breaking that rule. **Resolved 2026-09-11 by Phase 0 P6**, which is that PR |
 | KI-24 | `AI_LIVE` on Vercel is warned-about, not prevented. Defense-in-depth on a switch, not a live bypass — worth doing while the switch is the subject, but the switch works |
 | KI-80 | Two phrasings of the same command list. Both read the same `BatchableCommand`s, so they cannot disagree about facts, only wording |
 | KI-15 / KI-81 / KI-11 | Already load-bearing in the boxes above — KI-15 and KI-81 are what grounding closes, KI-11 is what the replay harness closes. Listed for completeness, not carried separately |
@@ -302,7 +302,7 @@ open — but **not gate boxes**, and the gate does not wait on them.
 | **KI-94** | correctness | The step quota's admission charge is one step, so concurrent requests overshoot the ceiling together (KI-97 is its tracking-only duplicate) |
 | KI-10 | correctness | Batches don't recover a reference to an activity created later in the same batch |
 | KI-9 | cleanup | Model outputs validated ad hoc per call site, not at one typed boundary |
-| KI-22 | cleanup | The AI response envelope is not in `packages/contracts` |
+| ~~KI-22~~ | cleanup | The AI response envelope is not in `packages/contracts` — **resolved 2026-09-11 (Phase 0 P6)** |
 | KI-24 | cleanup | `AI_LIVE` on Vercel is warned-about, not prevented |
 | KI-80 | cleanup | Two phrasings of the same command list |
 
