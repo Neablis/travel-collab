@@ -47,6 +47,7 @@ import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
 import { defineTool } from "@/server/assistant/defineTool";
 import type { PlaybookLibrary } from "@/server/assistant/deps";
+import { plain, untrusted, untrustedAll, untrustedOrNull } from "@/server/assistant/prompt";
 
 // The times this boundary accepts and emits: 00:00-23:59, PLUS "24:00".
 //
@@ -503,7 +504,13 @@ export async function searchPlaybooks(
   readerId: string,
   input: SearchPlaybooksInput,
 ): Promise<PlaybookSearchReadout> {
-  const cities = input.cities ?? [];
+  // **Unfenced on the way IN.** `read_trip` fences the city names it returns
+  // and this tool's own schema tells the model to spell a city *"exactly as
+  // read_trip spells them"* — so the one round trip the fence could break is
+  // this one. The instruction asks a model not to repeat the marks and a good
+  // one will not; `plain` is what makes the answer the same either way, rather
+  // than a silent zero-result search when it does.
+  const cities = (input.cities ?? []).map(plain);
   const found = await library.discover({ cities, readerId });
   return {
     searched: cities.length === 0 ? "the whole library" : cities.join(", "),
@@ -579,6 +586,88 @@ export const SearchPlaybooksInputSchema = z.object({
     .describe(`How many days to return, up to ${MAX_PLAYBOOK_RESULTS}. Omit for all of them.`),
 });
 
+// ---------------------------------------------------------------------------
+// The fence (spec §4, ADR-043 decision 1's tool-result tainting)
+// ---------------------------------------------------------------------------
+//
+// **Three of these four tools return text somebody else wrote.** A trip is
+// shared by link and edited by several people, so an activity title, a stop's
+// notes, a tag, a city and a Playbook day's name are all attacker-influenceable
+// relative to whoever is asking — that is the threat this product actually has,
+// rather than a generic one it inherits. `untrusted()` fences each of those,
+// and the standing rule in the system instruction (`UNTRUSTED_DATA_RULE`) says
+// once what the fence means.
+//
+// Declared as `taint` on the definition and applied by `invoke`, NOT inside
+// `readTrip`/`readDay`/`searchPlaybooks`: those are pure readouts and are unit
+// tested as such, and fencing is a property of crossing to a model. Anything
+// that reads a readout without going through a tool — the simulated model does,
+// through the agent's own message history — sees the fence and undoes it
+// (`plain`), which is what a real model does with the prose it writes back.
+//
+// `find_free_time` declares no `taint` and that is the point of the asymmetry:
+// day numbers, clock times and durations are ours. A fence on a field nobody
+// wrote teaches a reader — and a model — that the mark means nothing.
+
+/**
+ * A conflict, fenced.
+ *
+ * **`description` is server-authored prose with user-authored titles
+ * interpolated into it** — `"X" and "Y" overlap in time on the same day.`
+ * (`detectConflicts`, packages/domain). So the whole sentence is
+ * attacker-influenceable even though we wrote its frame, and fencing the frame
+ * along with the titles is the conservative reading. `kind` is a closed set of
+ * ours and `ref` is a number, so neither is fenced.
+ */
+function fencedConflicts(conflicts: readonly AiConflictSummary[]): AiConflictSummary[] {
+  return conflicts.map((conflict) => ({ ...conflict, description: untrusted(conflict.description) }));
+}
+
+function fencedTrip(readout: TripReadout): TripReadout {
+  return {
+    ...readout,
+    name: untrusted(readout.name),
+    // `currency` is an ISO code from the contract's own enum, and every other
+    // field on a day is a count, a cost or a date. `cities` is the one that
+    // comes from `Location.city`, which a person typed.
+    days: readout.days.map((day) => ({ ...day, cities: untrustedAll(day.cities) })),
+    conflicts: fencedConflicts(readout.conflicts),
+  };
+}
+
+function fencedDay(readout: DayReadout): DayReadout {
+  return {
+    ...readout,
+    stops: readout.stops.map((stop) => ({
+      ...stop,
+      title: untrusted(stop.title),
+      notes: untrustedOrNull(stop.notes),
+      // `kind` is the contract's own enum and `timeWindow`/`cost` are numbers
+      // and clock times. `countryCode` is a two-letter code the geocoder
+      // returns, not prose — left alone so the fence keeps meaning "a person
+      // wrote this".
+      //
+      // **`tags` is NOT fenced, and spec §4 has it wrong.** It reads as free
+      // text here because `StopReadout` widens it to `string[]`, but the source
+      // is `ActivityTag` — a four-value enum in `@tc/contracts`. Nobody can type
+      // into it, so there is nothing to fence, and fencing it would have broken
+      // the one consumer that MATCHES on the values (`needsBooking`, through
+      // the simulated model) for no security gain at all.
+      location: stop.location
+        ? { ...stop.location, name: untrusted(stop.location.name), city: untrustedOrNull(stop.location.city) }
+        : null,
+    })),
+    conflicts: fencedConflicts(readout.conflicts),
+  };
+}
+
+/** One `read_day` entry: a day, a batch of them, or the tool's own problem. */
+function fencedDayResult(result: DayReadout | ReadToolProblem | DayBatchReadout): typeof result {
+  if ("error" in result) return result;
+  if ("days" in result) return { days: result.days.map((entry) => ("error" in entry ? entry : fencedDay(entry))) };
+  return fencedDay(result);
+}
+
 /**
  * The four definitions, wired to the four functions above.
  *
@@ -600,6 +689,7 @@ export const readTripTool = defineTool({
   output: TripReadoutSchema,
   needs: ["trip"] as const,
   minimumRole: "viewer",
+  taint: fencedTrip,
   run: (_input, deps) => readTrip(deps.trip),
 });
 
@@ -613,6 +703,7 @@ export const readDayTool = defineTool({
   output: z.union([DayReadoutSchema, ReadToolProblemSchema, DayBatchReadoutSchema]),
   needs: ["trip", "scope"] as const,
   minimumRole: "viewer",
+  taint: fencedDayResult,
   run: (input, deps) => {
     const days =
       input.days !== undefined
@@ -660,6 +751,13 @@ export const searchPlaybooksTool = defineTool({
   spend: "none",
   input: SearchPlaybooksInputSchema,
   output: PlaybookSearchReadoutSchema,
+  // `searched` is the model's own `cities` argument echoed back, or our own
+  // "the whole library" — not another person's text, so not fenced. `name` and
+  // `cities` are the library day's author's, and the author is a stranger.
+  taint: (readout: PlaybookSearchReadout) => ({
+    ...readout,
+    days: readout.days.map((day) => ({ ...day, name: untrusted(day.name), cities: untrustedAll(day.cities) })),
+  }),
   // WHO it reads the library as, and WHERE the library is. The second key is
   // what the audit property was missing: the corpus read used to arrive by
   // import, so "what can this tool touch?" did not mention Postgres.

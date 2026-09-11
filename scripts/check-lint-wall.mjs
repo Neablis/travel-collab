@@ -374,6 +374,41 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
   }
 }
 
+// **The admission pipeline is inside the wall, and its five bindings are still
+// outside it** (P4, spec §3b). `evaluateAiGrant` moved from `src/server/ai` to
+// `src/server/assistant/admission.ts`, which is the test of whether its ports
+// are real: the wall denies `guard`, `getPage`, `selectAiModel`, `consumeQuota`
+// and `classifyAskIntent`, and the pipeline reaches every one of them through
+// `AdmissionPorts` instead. Checked on the REAL file rather than a fixture,
+// because the property being asserted is that this particular module is behind
+// the wall — a fixture at another path cannot say that.
+{
+  const path = "src/server/assistant/admission.ts";
+  const patterns = noRestrictedImportPatterns(path);
+  if (patterns === null) {
+    // already reported by noRestrictedImportPatterns
+  } else {
+    // `pages-guard` and `quota` are two of the five, by name. `ai/askIntent` is
+    // the third and is the deliberate near-miss: `ai/askAnalytics` next door IS
+    // allowlisted, so this is what proves the allowlist is a list of modules
+    // and not a prefix.
+    for (const forbidden of ["@/server/pages-guard", "@/server/quota", "@/server/ai/askIntent"]) {
+      if (!restrictedByPattern(patterns, forbidden)) {
+        console.error(`LINT WALL BREACHED: the admission pipeline may import ${forbidden} directly`);
+        process.exitCode = 1;
+      } else {
+        console.log(`lint wall OK: the admission pipeline must take ${forbidden} as a port`);
+      }
+    }
+    if (restrictedByPattern(patterns, "@/server/ai/askAnalytics")) {
+      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/ai/askAnalytics`);
+      process.exitCode = 1;
+    } else {
+      console.log("lint wall OK: the admission pipeline may import the allowlisted @/server/ai/askAnalytics");
+    }
+  }
+}
+
 // THE TEST-QUALITY WALL (test-overhaul Task 7.1, landed 2026-09-02).
 //
 // A lint rule that asserts an invariant is the same species as a comment that

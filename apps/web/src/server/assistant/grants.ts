@@ -79,8 +79,17 @@ export const SURFACES = {
   ],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 
-/** The resolved grant: the most this turn may do in each domain it holds. */
-export type AiGrant = Readonly<Partial<Record<ToolDomain, ToolEffect>>>;
+/**
+ * The resolved grant: the most this turn may do in each domain it holds.
+ *
+ * **Named `GrantedEffects`, not `AiGrant`** (P4). P2 took `AiGrant` for this
+ * map before spec §3 was written against the same name for the admission
+ * VERDICT, and both are load-bearing. The verdict keeps the name — it is what
+ * the `ai.grant` audit record is a record *of*, and "grant" in the permissions
+ * sense is the more load-bearing reading — so this map says what it actually
+ * is: the effects granted, by domain.
+ */
+export type GrantedEffects = Readonly<Partial<Record<ToolDomain, ToolEffect>>>;
 
 const EFFECT_RANK: Record<ToolEffect, number> = { read: 0, propose: 1 };
 
@@ -131,7 +140,7 @@ export const permitsPropose: PlanEffectPort = () => "propose";
  * a viewer everywhere, and a question is a question everywhere. Only the
  * surface knows that a page turn reads the itinerary and writes the page.
  */
-export function grantFor(caps: EffectCaps): AiGrant {
+export function grantFor(caps: EffectCaps): GrantedEffects {
   const ceiling = minEffect(caps.role, minEffect(caps.plan, caps.classifier));
   const grant: Partial<Record<ToolDomain, ToolEffect>> = {};
   for (const { domain, max } of SURFACES[caps.surface]) grant[domain] = minEffect(max, ceiling);
@@ -146,7 +155,7 @@ export function grantFor(caps: EffectCaps): AiGrant {
  * whose effect exceeds what its domain was granted is not offered either. Those
  * two sentences are the whole of the narrowing.
  */
-export function toolsFor(grant: AiGrant): readonly AnyAssistantTool[] {
+export function toolsFor(grant: GrantedEffects): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     const granted = grant[definition.domain];
     return granted !== undefined && EFFECT_RANK[definition.effect] <= EFFECT_RANK[granted];

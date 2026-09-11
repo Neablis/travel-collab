@@ -14,10 +14,11 @@
 import * as Sentry from "@sentry/nextjs";
 import { guard } from "@/server/pages-guard";
 import { getPage } from "@/server/pages";
-import { selectAiModel } from "@/server/ai/modelSelection";
-import { aiQuotas, aiStepQuotas, consumeQuota } from "@/server/quota";
+import { AI_NOT_ENTITLED_CODE, deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
 import { classifyAskIntent } from "@/server/ai/askIntent";
-import type { AdmissionPorts, AiGrantRecord, AiGrantSink } from "@/server/ai/aiGrant";
+import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
+import type { AdmissionPorts, AiGrantRecord, AiGrantSink } from "@/server/assistant/admission";
 
 /**
  * The `ai.grant` line — `console.info`, matching `ai.ask` (askAnalytics.ts) and
@@ -58,12 +59,37 @@ export const admissionPorts: AdmissionPorts = {
   // `surface: "ask"` is fixed here rather than passed in: there is one door
   // (ADR-033), and a second surface reaching this pipeline would be a new
   // adapter rather than a parameter on an existing one.
-  selectModel: (userId) => selectAiModel({ surface: "ask", userId }),
+  //
+  // A `denied` outcome is RENDERED here. `deniedResponse` and
+  // `AI_NOT_ENTITLED_CODE` are the HTTP contract for it, defined once in
+  // modelSelection.ts *"so /ask's two halves render the same refusal rather
+  // than each inventing its own shape"* — so the pipeline is handed the
+  // Response rather than a code string it would rebuild the 403 from. Live and
+  // simulated pass straight through: `ModelChoice` is `ModelSelection` with
+  // exactly this one branch re-spelled.
+  selectModel: async (userId) => {
+    const outcome = await selectAiModel({ surface: "ask", userId });
+    return outcome.outcome === "denied"
+      ? { ...outcome, code: AI_NOT_ENTITLED_CODE, response: deniedResponse(outcome.reason) }
+      : outcome;
+  },
   // **Both layers, in one call (KI-67).** `aiQuotas` bounds how many times an
   // actor may ask and `aiStepQuotas` bounds what asking costs in round-trips;
   // metering requests alone turned a nominal ceiling of 30 into a real one of
   // 960. Assembled here so the pipeline charges one thing once.
-  admitQuota: (userId) => consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId),
+  //
+  // The refusal is rendered here for `selectModel`'s reason: `quotaRefusal`
+  // owns the 429/503 split and the `Retry-After` header, and a second copy of
+  // either inside the kernel is a second thing to keep in step.
+  admitQuota: async (userId) => {
+    const decision = await consumeQuota([...aiQuotas(), ...aiStepQuotas()], userId);
+    return decision.allowed ? decision : { ...decision, response: quotaRefusal(decision) };
+  },
+  // The one identity the kernel cannot compare for itself: `simulatedModel.ts`
+  // reaches the write tools and the read readouts, so it is behind the wall,
+  // and the pipeline derives `grant.simulated` from an INJECTED model's id
+  // (a test seam) as well as from a live selection.
+  isSimulated: (modelId) => modelId === SIMULATED_MODEL_ID,
   classify: (model, question, context, signal) => classifyAskIntent(model, question, context, signal),
   audit: logAiGrant,
 };

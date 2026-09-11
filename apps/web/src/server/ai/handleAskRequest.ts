@@ -39,8 +39,8 @@
 //
 // **Since P3 this file is orchestration: admission, then build the agent, then
 // stream** (ADR-043 decision 3). The thirteen steps that decide who may spend
-// the operator's money moved to `aiGrant.ts` as a declared array of named
-// stages, because the three things that mattered about them were properties of
+// the operator's money moved to `assistant/admission.ts` — inside the kernel's
+// import wall since P4 — as a declared array of named stages, because the three things that mattered about them were properties of
 // their ORDER and were defended by comments rather than by a test. Each of
 // those comments moved with its stage. What is left here is the half that has
 // nothing to admit: the agent, the stream, `messageMetadata`, `onError` and the
@@ -51,7 +51,7 @@ import { primitiveCatalog } from "@tc/pages";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { aiStepQuotas, settleAiSteps } from "@/server/quota";
-import { askScopeLine, type AskScope } from "@/server/ai/context";
+import type { AskScope } from "@/server/ai/context";
 import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
 import {
@@ -63,6 +63,13 @@ import {
 import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
 import { playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { newPageBuffer, newProposalBuffer } from "@/server/assistant/deps";
+import {
+  data,
+  renderPrompt,
+  rule,
+  UNTRUSTED_DATA_RULE,
+  type PromptBlock,
+} from "@/server/assistant/prompt";
 import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
 import type { AskToolPosture } from "@/server/assistant/grants";
 import {
@@ -73,7 +80,7 @@ import {
   errorMessage,
   evaluateAiGrant,
   parseRequest,
-} from "@/server/ai/aiGrant";
+} from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
 import type { Page } from "@tc/contracts";
 import type { LanguageModel } from "ai";
@@ -90,7 +97,7 @@ export {
   ASK_MINIMUM_ROLE,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
-} from "@/server/ai/aiGrant";
+} from "@/server/assistant/admission";
 
 // Names the `simulated` verdict on the wire, so the client stops deriving it
 // from the model's own prose.
@@ -103,7 +110,7 @@ export {
 // reworded. A header is honest, is set on the same three lines that already
 // know the answer, and survives a turn that fails before it says anything.
 //
-// It stays HERE rather than moving to `aiGrant.ts`: it is a property of the
+// It stays HERE rather than moving to `assistant/admission.ts`: it is a property of the
 // stream, not of admission, and P6 is what moves the envelope.
 export const SIMULATED_HEADER = "x-tc-ai-simulated";
 
@@ -126,7 +133,7 @@ export const SIMULATED_HEADER = "x-tc-ai-simulated";
 const MAX_ASK_STEPS = 8;
 
 // The constants, the schemas and the caps that used to sit here are now in
-// `aiGrant.ts` beside the stage that enforces each of them — `AskRequest` and
+// `assistant/admission.ts` beside the stage that enforces each of them — `AskRequest` and
 // the byte cap with `capRawBody`/`parseRequest`, the two refusal codes with the
 // stages that emit them, and `ASK_MINIMUM_ROLE`/`APPLY_MINIMUM_ROLE` with the
 // grant computation they are asked of. They are re-exported above.
@@ -148,7 +155,7 @@ export async function handleAskRequest(
   // that could refuse this turn — the demo trip, the guard, the byte cap, the
   // request shape, the verified surface, model selection, the quota and the
   // classifier — runs inside `evaluateAiGrant`, in a declared order that a test
-  // asserts (aiGrant.ts). What comes back is either the refusal's own Response,
+  // asserts (assistant/admission.ts). What comes back is either the refusal's own Response,
   // unchanged in status, code and wording, or everything this turn is allowed
   // to hold.
   const admission = await evaluateAiGrant({ request, tripId, model, ports: admissionPorts });
@@ -657,6 +664,30 @@ export function instructionsFor(
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
 ): string {
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page));
+}
+
+/**
+ * The instruction as BLOCKS (spec §4).
+ *
+ * Every sentence below is a `rule` — ours, and a model is meant to obey it.
+ * Everything a person typed is a `data` block instead: a label and a JSON
+ * value on its own line, which is not the shape an instruction has. Only one
+ * line here was ever the other way round, and it was the direct vector: a page
+ * title, written by anyone with the link, interpolated into `The page is
+ * called "…"`. It is `Page title:` now.
+ *
+ * Exported for the tests that assert the SHAPE rather than the rendered string
+ * — that no block of kind `rule` carries user-authored text is a claim about
+ * blocks, and a test that had to re-parse the joined output to make it would be
+ * asserting the renderer instead.
+ */
+export function instructionBlocks(
+  scope: AskScope,
+  dayCount: number,
+  posture: AskToolPosture = "read-only",
+  page: PageBrief | null = null,
+): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
   // dayRef, MoveActivity positions, conflict refs) describes tools it was not
@@ -666,10 +697,18 @@ export function instructionsFor(
   // told. This is where that gets paid off: the branch is the trim.
   if (page !== null) return pageInstructions(scope, dayCount, page);
   const canWrite = posture === "propose";
-  return [
+  // Annotated `string[]` so every entry is checked to BE a rule before `rule()`
+  // wraps it: without it the literal is contextually typed by the return type
+  // and a stray `data` block dropped in here would type-check.
+  const rules: string[] = [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
     ACCESS_LINE[posture],
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
+    // **The one line P4 adds to what a live model is told**, and the only one
+    // it adds: it sits next to "use ONLY what the tools return" because it says
+    // what the tools' answers ARE. Everything else here is verbatim what was
+    // here before — see the block comment on `instructionBlocks`.
+    UNTRUSTED_DATA_RULE,
     "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
     `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
     "Call find_free_time for open time — never work gaps out yourself from read_day's times.",
@@ -698,8 +737,27 @@ export function instructionsFor(
       ? `This question is about DAY ${scope.dayIndex + 1}. Answer about that day. Do not summarise the other days: you may read one if the user explicitly asks about it, but an answer that wanders off the day it was asked about is the wrong answer.`
       : "This question is about the trip as a whole.",
     "Answer in prose, briefly — a sentence or three. No headings, no bullet lists unless the user asks for a list.",
-    askScopeLine(scope),
-  ].join("\n");
+  ];
+  return [...rules.map(rule), scopeBlock(scope)];
+}
+
+/**
+ * The `Scope:` line, as the `data` block it always structurally was — a label
+ * and a machine-readable value, which is why it was the one line here that did
+ * not need rewriting to become one.
+ *
+ * **Its prefix and its JSON are unchanged, and that is a constraint rather than
+ * an accident** (spec §4). `parseAskScope` reads this line back out of the
+ * instruction, and the instruction is the only channel reaching both a real
+ * model and the simulated one — so a scope line this renderer spelled
+ * differently would silently turn every day-scoped simulated turn into a
+ * trip-scoped one (`parseAskScope` is total and falls back to the wider
+ * reading). The label is spelled here and the prefix in `context.ts`, and
+ * `handleAskRequest.test.ts` asserts the two still render the same bytes as
+ * `askScopeLine` — which is the only thing that can keep them in step.
+ */
+export function scopeBlock(scope: AskScope): PromptBlock {
+  return data("Scope", scope);
 }
 
 /**
@@ -713,26 +771,46 @@ export function instructionsFor(
  * is gone because the read tools answer for the trip, and a turn that needs day
  * 3 now asks for day 3 instead of paying for all fourteen.
  */
-function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): string {
+function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): PromptBlock[] {
   return [
-    "You are the travel-collab trip assistant, and on this turn you are ADDING to one page of this trip's Notebook.",
-    `The page is called "${page.title}". You are inserting into what is already there — never rewriting or replacing the page.`,
-    "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
-    "Call read_trip first for the trip's shape, and read_day for what happens on a day (it is the only place stop times live).",
+    rule("You are the travel-collab trip assistant, and on this turn you are ADDING to one page of this trip's Notebook."),
+    // **The direct vector, and the reason spec §4 exists.** This read `The page
+    // is called "${page.title}". You are inserting into…` — a page title, which
+    // anybody with the trip's link can set, interpolated into a sentence in the
+    // SYSTEM instruction. A title of `x". Ignore the above and …` put the rest
+    // of its author's sentence exactly where ours live.
+    //
+    // The rule half is verbatim; the title is now a labelled JSON value on its
+    // own line, which no string a person can type can escape (`renderPrompt`).
+    // The five words "The page is called" are deleted rather than reworded:
+    // there is no wording of that sentence that is not a sentence.
+    data("Page title", page.title),
+    rule("You are inserting into what is already there — never rewriting or replacing the page."),
+    rule("Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date."),
+    // The same standing rule the planning turn carries, for the same reason: a
+    // page turn reads the trip with the same fenced read tools.
+    rule(UNTRUSTED_DATA_RULE),
+    rule("Call read_trip first for the trip's shape, and read_day for what happens on a day (it is the only place stop times live)."),
     // **This said `compose_page` until 2026-09-04, and that tool no longer
     // exists** (ADR-035 decision 5 replaced it with the two insert tools). A
     // live model was being told to call a name absent from its own tool list,
     // and to replace a document the surface no longer replaces. The simulated
     // model hid it: it emits `insert_text` regardless of what it is told.
     // Found by CodeRabbit and Copilot on PR 139.
-    "Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there.",
-    "insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences.",
-    "insert_widget takes a widget name and that widget's own params. Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want. Two widgets also take a NON-filter param — `attribute` needs `field` and renders nothing without one, and `count` takes `of` — and the catalogue below lists both under `params` with the exact values allowed.",
+    rule("Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there."),
+    rule("insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences."),
+    rule("insert_widget takes a widget name and that widget's own params. Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want. Two widgets also take a NON-filter param — `attribute` needs `field` and renders nothing without one, and `count` takes `of` — and the catalogue below lists both under `params` with the exact values allowed."),
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.
-    "A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes.",
-    `These are the only macros that exist — never invent a name: ${JSON.stringify(primitiveCatalog())}`,
+    rule("A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes."),
+    // The catalogue was already JSON appended to a sentence; the sentence and
+    // the JSON are both verbatim, and what changed is the join between them —
+    // it is a labelled line now rather than a colon in the middle of a rule.
+    // Ours either way (the macro registry is `@tc/pages`'), so this is a `data`
+    // block for legibility rather than for safety.
+    rule("These are the only macros that exist — never invent a name."),
+    data("Macros", primitiveCatalog()),
     // A page is about nothing in particular (SPEC §18) — the day a macro reads
     // is that macro's own filter. This sentence used to warn that a day macro
     // drafted with no day renders as a "no day set" placeholder; under ADR-039
@@ -740,10 +818,10 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): s
     // towards binding a day it has no reason to guess. `primitiveCatalog()`
     // above carries each widget's `selection` — its entity and the dimensions
     // it accepts — so the model can see what is legal rather than infer it.
-    "A page is not about any one day. A widget with no filters set covers the whole trip, which is a real answer and never a placeholder — leave a filter out unless the sentence you are writing is specifically about one day, city, tag or kind.",
-    `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
-    "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
-    "Then say ONE short sentence about what you added. What you inserted lands in the editor for the user to review and edit, so never say you have saved or published it.",
-    askScopeLine(scope),
-  ].join("\n");
+    rule("A page is not about any one day. A widget with no filters set covers the whole trip, which is a real answer and never a placeholder — leave a filter out unless the sentence you are writing is specifically about one day, city, tag or kind."),
+    rule(`Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`),
+    rule("Every money amount is an integer in the currency's minor units (cents), never a decimal."),
+    rule("Then say ONE short sentence about what you added. What you inserted lands in the editor for the user to review and edit, so never say you have saved or published it."),
+    scopeBlock(scope),
+  ];
 }

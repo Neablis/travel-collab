@@ -5,7 +5,7 @@
 // three properties that mattered about them were all properties of their
 // ORDER, defended by three comments. They are now a declared array (`ADMISSION`
 // below), each comment moved onto the stage it describes, and the order is
-// asserted by a test that watches the stages actually run (aiGrant.test.ts).
+// asserted by a test that watches the stages actually run (admission.test.ts).
 // Reordering them is a red test rather than a code review someone has to
 // notice.
 //
@@ -16,11 +16,23 @@
 // That record is the answer to "what is and isn't allowed": one function to
 // read and one log line to query, instead of thirteen steps to trace.
 //
+// **It lives INSIDE the kernel, and that is the test of whether the ports are
+// real** (spec §3b, decided for P4). P3 built it in `src/server/ai` and flagged
+// the contradiction rather than resolving it silently: the import wall denies
+// all five things it needs. The resolution is the one the requirement forces —
+// the service should *"know how to pull in context, evaluate context"*, and
+// `ai.grant` is the answer to "what is and isn't allowed", so a pipeline
+// outside the wall would put the entire audit surface outside the wall with it
+// and leave the one part of the assistant a service extraction cannot take.
+// What moving it cost was three port signatures re-spelled in the kernel's own
+// vocabulary (`ModelChoice`, `QuotaVerdict`, `isSimulated` below) — which is
+// what a port layer is, rather than a workaround for the wall.
+//
 // **Everything with an effect arrives as a port** (`AdmissionPorts`, bound in
-// admissionPorts.ts). Two of them have to: `guard()` reaches next-auth and
-// `getPage` reaches Postgres, and a module that imports either cannot be
-// loaded by the unit lane at all — which is why the whole of this file's logic
-// was previously reachable only through the integration suite (the old
+// `server/ai/admissionPorts.ts`). Two of them have to: `guard()` reaches
+// next-auth and `getPage` reaches Postgres, and a module that imports either
+// cannot be loaded by the unit lane at all — which is why the whole of this
+// file's logic was previously reachable only through the integration suite (the old
 // handler said so: *"a unit test cannot import this module: `guard()` pulls in
 // next-auth"*). The other three are ports for the same reason the two are: a
 // stage's job is to decide, and a test that can watch every decision in order
@@ -30,16 +42,10 @@ import type { LanguageModel } from "ai";
 import type { Page, TripDetail, TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { hasAtLeast } from "@/server/accessPolicy";
-import { AI_NOT_ENTITLED_CODE, deniedResponse } from "@/server/ai/modelSelection";
-import type { ModelSelection } from "@/server/ai/modelSelection";
-import { quotaRefusal } from "@/server/quota";
-import type { QuotaDecision } from "@/server/quota";
-import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import type { AskScope } from "@/server/ai/context";
-import type { AskIntent, AskIntentContextMessage } from "@/server/ai/askIntent";
 import type { AskIntentRecord } from "@/server/ai/askAnalytics";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/ai/limits";
-import type { AnyAssistantTool, ToolEffect } from "@/server/assistant/defineTool";
+import type { AnyAssistantTool, ToolEffect } from "./defineTool";
 import {
   grantFor,
   minimumRoleFor,
@@ -47,13 +53,9 @@ import {
   postureFor,
   toolsFor,
   type AskToolPosture,
+  type GrantedEffects,
   type SurfaceKind,
-  // `grants.ts` already owns the name `AiGrant` for the (domain → effect) map
-  // P2 built. The verdict this file returns is a different thing that spec §3
-  // also calls `AiGrant`, so the map is aliased here rather than either being
-  // renamed — see the note on `AiGrant` below.
-  type AiGrant as GrantedEffects,
-} from "@/server/assistant/grants";
+} from "./grants";
 
 // The refusal code for the demo trip. Kebab-case and named after the reason,
 // matching `ai-not-entitled` (modelSelection.ts) — a client can branch on it
@@ -131,7 +133,7 @@ export function textOf(message: AskUiMessage): string {
  * needs is that module's decision, and this one's job is only to say which
  * messages.
  */
-function recentContext(messages: readonly AskUiMessage[]): AskIntentContextMessage[] {
+function recentContext(messages: readonly AskUiMessage[]): { role: "user" | "assistant"; text: string }[] {
   let lastUserIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]!.role === "user") {
@@ -207,10 +209,13 @@ export function parseRequest<Schema extends z.ZodTypeAny>(
 /**
  * Every stage that can refuse, and the value `AiRefusal.stage` carries.
  *
- * `grantTools` is not one of the eight ADMISSION stages: it is the epilogue
- * that resolves the grant once every stage has run, and it names itself here
- * because it can still refuse (the role backstop below) and every refusal has
- * to say where it came from.
+ * **`grantTools` is the NINTH stage, not an epilogue** (spec §3b, landed in
+ * P4). P3 left it outside `ADMISSION` while still requiring every refusal to
+ * name a stage, which made it the one refusal whose name was not in the array
+ * the order test reads. It refuses — the `minimumRoleFor` backstop 403 — and a
+ * step that can refuse is a stage. It runs LAST because the caps it resolves
+ * are `min(surface, role, plan, classifier)` and `classifier` comes from
+ * `classifyTask`, the last of the other eight.
  */
 export type AdmissionStageName =
   | "refuseDemoTrip"
@@ -241,12 +246,11 @@ export interface AiRefusal {
 /**
  * What one admitted turn holds.
  *
- * Spec §3 calls this `AiGrant`, and so does this file — but note that
- * `grants.ts` already exports an `AiGrant`, which is the (domain → effect) map
- * a surface and three caps resolve to. That map is this type's `grants` field.
- * Two different things under one name in two modules is a spec collision, not a
- * design one; the map is imported here as `GrantedEffects` so both keep the
- * name their own module gave them.
+ * Spec §3 calls this `AiGrant` and so does this file, and it is now the only
+ * `AiGrant` there is: P3 found `grants.ts` had taken the name for the
+ * (domain → effect) map, which is this type's `grants` field, and P4 renamed
+ * that map `GrantedEffects`. The verdict kept the name because it is what the
+ * `ai.grant` audit record is a record *of*.
  */
 export interface AiGrant {
   tripId: string;
@@ -277,8 +281,12 @@ export interface AiGrant {
    * What this turn is FOR. `question | write` today, which is exactly
    * `classification?.intent` — P5 widens it to a task class that picks a model
    * tier (spec §5), and this is the field it widens.
+   *
+   * Spelled off `AskIntentRecord` rather than through askIntent.ts's `AskIntent`
+   * alias of the identical type: that module calls a provider, so it is not on
+   * the kernel's import allowlist. One indexed access is not a second spelling.
    */
-  taskClass: AskIntent | null;
+  taskClass: AskIntentRecord["intent"] | null;
   messages: AskUiMessage[];
   /** The latest user message, verbatim — what the caps were measured against. */
   question: string;
@@ -304,19 +312,60 @@ export interface AdmissionPorts {
   /** The page store, keyed by id ALONE — see `resolveSurface`. */
   loadPage(pageId: string): Promise<Page | null>;
   /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
-  selectModel(userId: string): Promise<ModelSelection>;
+  selectModel(userId: string): Promise<ModelChoice>;
   /** `consumeQuota([...aiQuotas(), ...aiStepQuotas()])` — requests AND steps. */
-  admitQuota(userId: string): Promise<QuotaDecision>;
-  /** `classifyAskIntent()`, on the classifier model. */
+  admitQuota(userId: string): Promise<QuotaVerdict>;
+  /**
+   * Is this model id the simulated one? `simulatedModel.ts` owns that identity
+   * and is the far side of the wall, so the kernel asks rather than compares
+   * against a copied constant — the copy is how the badge and the model drift
+   * apart. Only the injected-model branch of `selectModel` needs it; the real
+   * path is answered by `ModelChoice.outcome`.
+   */
+  isSimulated(modelId: string): boolean;
+  /**
+   * `classifyAskIntent()`, on the classifier model.
+   *
+   * `context` is structurally askIntent.ts's `AskIntentContextMessage`, spelled
+   * inline for the same reason `taskClass` is: that module reaches a provider
+   * and is not on the kernel's allowlist. The adapter's assignment is what
+   * checks the two still agree.
+   */
   classify(
     model: LanguageModel,
     question: string,
-    context: readonly AskIntentContextMessage[],
+    context: readonly { role: "user" | "assistant"; text: string }[],
     signal?: AbortSignal,
   ): Promise<AskIntentRecord>;
   /** Where the one `ai.grant` record goes. */
   audit(record: AiGrantRecord): void;
 }
+
+/**
+ * What `selectModel` answers — the kernel's spelling of `ModelSelection`
+ * (modelSelection.ts), which lives behind the import wall because it reaches
+ * the gateway and the kill-switch flag.
+ *
+ * The one difference is `denied`: it carries its own Response instead of a
+ * reason this file renders. `deniedResponse` exists *"so /ask's two halves
+ * render the same refusal rather than each inventing its own shape"*, and a
+ * kernel that rebuilt that 403 from a copied code string would be the second
+ * shape it was written to prevent.
+ */
+export type ModelChoice =
+  | { outcome: "live"; model: LanguageModel; classifierModel: LanguageModel }
+  | { outcome: "simulated"; model: LanguageModel; classifierModel: LanguageModel }
+  | { outcome: "denied"; reason: string; code: string; response: Response };
+
+/**
+ * What `admitQuota` answers — `QuotaDecision` (quota.ts, which reaches
+ * Postgres) with its refusal already rendered, for `ModelChoice`'s reason:
+ * `quotaRefusal` owns the 429/503 split and the `Retry-After` header, and
+ * neither belongs in two places.
+ */
+export type QuotaVerdict =
+  | { allowed: true }
+  | { allowed: false; reason: string; response: Response };
 
 export interface AdmissionInput {
   request: Request;
@@ -355,11 +404,13 @@ interface AdmissionDraft {
   selected?: { model: LanguageModel; classifierModel: LanguageModel; simulated: boolean };
   /** Present once `classifyTask` has run: null when there was nothing to classify. */
   classified?: { classification: AskIntentRecord | null };
+  /** What `grantTools`, the last stage, resolved — the value the pipeline returns. */
+  granted?: AiGrant;
 }
 
 function required<T>(value: T | undefined, stage: AdmissionStageName): T {
   if (value === undefined) {
-    throw new Error(`the admission pipeline reached grantTools without running ${stage}`);
+    throw new Error(`the admission pipeline read a stage's answer without running ${stage}`);
   }
   return value;
 }
@@ -580,12 +631,12 @@ const selectModel: AdmissionStage = {
       draft.selected = {
         model: injected,
         classifierModel: injected,
-        simulated: modelIdOf(injected) === SIMULATED_MODEL_ID,
+        simulated: draft.input.ports.isSimulated(modelIdOf(injected)),
       };
       return null;
     }
     const { userId } = required(draft.actor, "identifyActor");
-    let outcome: ModelSelection;
+    let outcome: ModelChoice;
     try {
       outcome = await draft.input.ports.selectModel(userId);
     } catch (err) {
@@ -593,7 +644,7 @@ const selectModel: AdmissionStage = {
       return refuse("selectModel", reason, Response.json({ error: reason, simulated: false }, { status: 503 }));
     }
     if (outcome.outcome === "denied") {
-      return refuse("selectModel", outcome.reason, deniedResponse(outcome.reason), AI_NOT_ENTITLED_CODE);
+      return refuse("selectModel", outcome.reason, outcome.response, outcome.code);
     }
     draft.selected = {
       model: outcome.model,
@@ -632,7 +683,7 @@ const admitQuota: AdmissionStage = {
     const { userId } = required(draft.actor, "identifyActor");
     const quota = await draft.input.ports.admitQuota(userId);
     if (quota.allowed) return null;
-    return refuse("admitQuota", `over the ${quota.reason} limit`, quotaRefusal(quota));
+    return refuse("admitQuota", `over the ${quota.reason} limit`, quota.response);
   },
 };
 
@@ -695,95 +746,6 @@ const classifyTask: AdmissionStage = {
 };
 
 /**
- * **The order is a value, not statement order.**
- *
- * Three of the transitions are recorded incidents, and each one's comment sits
- * on its stage above:
- *
- *   * charging before model selection burned a caller's whole allowance
- *     against an outage that produced zero provider calls (`selectModel`);
- *   * a malformed request must not cost an allowance (`capRawBody`,
- *     `parseRequest`);
- *   * a bad page id must cost nothing (`resolveSurface`).
- *
- * Written as an array so those three are defended by a test that watches the
- * stages run rather than by three comments somebody has to read before moving
- * a line. Spec §7d: `selectModel` before `admitQuota` is also the order M20's
- * per-tier ceilings need, so this sequence is load-bearing twice.
- */
-export const ADMISSION: readonly AdmissionStage[] = [
-  refuseDemoTrip,
-  identifyActor,
-  capRawBodyStage,
-  parseRequestStage,
-  resolveSurface,
-  selectModel,
-  admitQuota,
-  classifyTask,
-];
-
-// ---------------------------------------------------------------------------
-// The verdict, and the record
-// ---------------------------------------------------------------------------
-
-/**
- * One line per admission decision — **the answer to "what is and isn't
- * allowed"**.
- *
- * `console.info`, matching `ai.ask` (askAnalytics.ts) and `ai.proposal.apply`:
- * no table and no migration (ADR-043 builds ports, not policy), and Vercel
- * captures it as a queryable line. Every field is server-resolved — a stage
- * name, a role's answer, a tool name from the registry, a model id — so unlike
- * `ai.ask` this record carries nothing a model wrote and needs no sanitising.
- */
-export interface AiGrantRecord {
-  event: "ai.grant";
-  tripId: string;
-  /** Null when the refusal came before the guard answered. */
-  userId: string | null;
-  outcome: "granted" | "refused";
-  surface: SurfaceKind | null;
-  /** The granted (domain, effect) pairs — the whole of what this turn may do. */
-  grants: Partial<Record<string, ToolEffect>> | null;
-  /** The tools actually offered, in registry order. */
-  tools: string[] | null;
-  model: string | null;
-  simulated: boolean | null;
-  taskClass: AskIntent | null;
-  /** Which stage refused, and why. Both null on a grant. */
-  refusedBy: AdmissionStageName | null;
-  reason: string | null;
-  /** The machine code the client branches on, when the refusal carries one. */
-  code: string | null;
-  status: number | null;
-}
-
-/**
- * Where the record goes. The console sink lives at the app's edge
- * (`admissionPorts.ts`) rather than here, because writing it turns out to need
- * one fact about Sentry — see the comment there.
- */
-export type AiGrantSink = (record: AiGrantRecord) => void;
-
-/**
- * Run the pipeline, resolve the grant, and emit exactly one record either way.
- *
- * The loop is the whole of the control flow: a stage either refuses — and the
- * refusal names it — or fills in its part of the draft and the next one runs.
- */
-export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmission> {
-  const draft: AdmissionDraft = { input };
-  for (const stage of ADMISSION) {
-    const refusal = await stage.run(draft);
-    if (refusal !== null) {
-      input.ports.audit(refusedRecord(draft, refusal));
-      return { ok: false, refusal };
-    }
-  }
-  return grantTools(draft);
-}
-
-/**
  * **The turn's grant: a minimum over four independent caps, one per domain**
  * (ADR-043 decision 2). Each answers a different question, and the four are
  * not interchangeable — that is why this is not a boolean and not one effect
@@ -813,63 +775,162 @@ export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmissio
  * invariant 5). They now arrive through the registry rather than through a
  * builder each.
  */
-function grantTools(draft: AdmissionDraft): AiAdmission {
-  const { userId, detail, canWrite } = required(draft.actor, "identifyActor");
-  const { messages, scope, question, turn } = required(draft.parsed, "parseRequest");
-  const { page } = required(draft.surface, "resolveSurface");
-  const selected = required(draft.selected, "selectModel");
-  const { classification } = required(draft.classified, "classifyTask");
+const grantTools: AdmissionStage = {
+  name: "grantTools",
+  run: async (draft) => {
+    const { userId, detail, canWrite } = required(draft.actor, "identifyActor");
+    const { messages, scope, question, turn } = required(draft.parsed, "parseRequest");
+    const { page } = required(draft.surface, "resolveSurface");
+    const selected = required(draft.selected, "selectModel");
+    const { classification } = required(draft.classified, "classifyTask");
 
-  const caps = {
-    surface: scope.kind,
-    role: canWrite ? ("propose" as const) : ("read" as const),
-    plan: permitsPropose({ userId }),
-    classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
-  };
-  const grants = grantFor(caps);
-  const tools = toolsFor(grants);
+    const caps = {
+      surface: scope.kind,
+      role: canWrite ? ("propose" as const) : ("read" as const),
+      plan: permitsPropose({ userId }),
+      classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
+    };
+    const grants = grantFor(caps);
+    const tools = toolsFor(grants);
 
-  // The rule is enforced rather than commented: `minimumRoleFor` is asked what
-  // the set about to be handed to the agent requires — the maximum
-  // `minimumRole` over the tools actually selected — and the actor must already
-  // satisfy it. Unreachable while the caps above decide the set, which is why
-  // it is here: the next person to add a branch to them is who this catches.
-  //
-  // Every branch is asserted in the /ask route's integration suite.
-  const needed = minimumRoleFor(tools);
-  if (!hasAtLeast(userId, detail.members, needed)) {
-    const refusal = refuse(
-      "grantTools",
-      `this tool set requires ${needed}`,
-      Response.json({ error: "forbidden" }, { status: 403 }),
-    );
-    draft.input.ports.audit(refusedRecord(draft, refusal));
-    return { ok: false, refusal };
+    // The rule is enforced rather than commented: `minimumRoleFor` is asked what
+    // the set about to be handed to the agent requires — the maximum
+    // `minimumRole` over the tools actually selected — and the actor must already
+    // satisfy it. Unreachable while the caps above decide the set, which is why
+    // it is here: the next person to add a branch to them is who this catches.
+    //
+    // Every branch is asserted in the /ask route's integration suite.
+    const needed = minimumRoleFor(tools);
+    if (!hasAtLeast(userId, detail.members, needed)) {
+      return refuse(
+        "grantTools",
+        `this tool set requires ${needed}`,
+        Response.json({ error: "forbidden" }, { status: 403 }),
+      );
+    }
+
+    draft.granted = {
+      tripId: draft.input.tripId,
+      userId,
+      detail,
+      surface: scope.kind,
+      scope,
+      page,
+      grants,
+      tools,
+      posture: postureFor(caps),
+      model: selected.model,
+      classifierModel: selected.classifierModel,
+      modelId: modelIdOf(selected.model),
+      simulated: selected.simulated,
+      classification,
+      taskClass: classification?.intent ?? null,
+      messages,
+      question,
+      turn,
+    };
+    return null;
+  },
+};
+
+/**
+ * **The order is a value, not statement order.**
+ *
+ * Three of the transitions are recorded incidents, and each one's comment sits
+ * on its stage above:
+ *
+ *   * charging before model selection burned a caller's whole allowance
+ *     against an outage that produced zero provider calls (`selectModel`);
+ *   * a malformed request must not cost an allowance (`capRawBody`,
+ *     `parseRequest`);
+ *   * a bad page id must cost nothing (`resolveSurface`).
+ *
+ * Written as an array so those three are defended by a test that watches the
+ * stages run rather than by three comments somebody has to read before moving
+ * a line. Spec §7d: `selectModel` before `admitQuota` is also the order M20's
+ * per-tier ceilings need, so this sequence is load-bearing twice.
+ *
+ * `grantTools` is the ninth and last (spec §3b): it can refuse, which is what
+ * makes it a stage rather than an epilogue, and the order test now covers the
+ * name every refusal is allowed to carry rather than eight of the nine.
+ */
+export const ADMISSION: readonly AdmissionStage[] = [
+  refuseDemoTrip,
+  identifyActor,
+  capRawBodyStage,
+  parseRequestStage,
+  resolveSurface,
+  selectModel,
+  admitQuota,
+  classifyTask,
+  grantTools,
+];
+
+// ---------------------------------------------------------------------------
+// The verdict, and the record
+// ---------------------------------------------------------------------------
+
+/**
+ * One line per admission decision — **the answer to "what is and isn't
+ * allowed"**.
+ *
+ * `console.info`, matching `ai.ask` (askAnalytics.ts) and `ai.proposal.apply`:
+ * no table and no migration (ADR-043 builds ports, not policy), and Vercel
+ * captures it as a queryable line. Every field is server-resolved — a stage
+ * name, a role's answer, a tool name from the registry, a model id — so unlike
+ * `ai.ask` this record carries nothing a model wrote and needs no sanitising.
+ */
+export interface AiGrantRecord {
+  event: "ai.grant";
+  tripId: string;
+  /** Null when the refusal came before the guard answered. */
+  userId: string | null;
+  outcome: "granted" | "refused";
+  surface: SurfaceKind | null;
+  /** The granted (domain, effect) pairs — the whole of what this turn may do. */
+  grants: Partial<Record<string, ToolEffect>> | null;
+  /** The tools actually offered, in registry order. */
+  tools: string[] | null;
+  model: string | null;
+  simulated: boolean | null;
+  taskClass: AskIntentRecord["intent"] | null;
+  /** Which stage refused, and why. Both null on a grant. */
+  refusedBy: AdmissionStageName | null;
+  reason: string | null;
+  /** The machine code the client branches on, when the refusal carries one. */
+  code: string | null;
+  status: number | null;
+}
+
+/**
+ * Where the record goes. The console sink lives at the app's edge
+ * (`admissionPorts.ts`) rather than here, because writing it turns out to need
+ * one fact about Sentry — see the comment there.
+ */
+export type AiGrantSink = (record: AiGrantRecord) => void;
+
+/**
+ * Run the pipeline, resolve the grant, and emit exactly one record either way.
+ *
+ * The loop is the whole of the control flow: a stage either refuses — and the
+ * refusal names it — or fills in its part of the draft and the next one runs.
+ * The last stage fills in the grant, so there is one audit call per outcome
+ * and no branch outside the loop that could grow a second one.
+ */
+export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmission> {
+  const draft: AdmissionDraft = { input };
+  for (const stage of ADMISSION) {
+    const refusal = await stage.run(draft);
+    if (refusal !== null) {
+      input.ports.audit(refusedRecord(draft, refusal));
+      return { ok: false, refusal };
+    }
   }
-
-  const grant: AiGrant = {
-    tripId: draft.input.tripId,
-    userId,
-    detail,
-    surface: scope.kind,
-    scope,
-    page,
-    grants,
-    tools,
-    posture: postureFor(caps),
-    model: selected.model,
-    classifierModel: selected.classifierModel,
-    modelId: modelIdOf(selected.model),
-    simulated: selected.simulated,
-    classification,
-    taskClass: classification?.intent ?? null,
-    messages,
-    question,
-    turn,
-  };
-  draft.input.ports.audit(grantedRecord(grant));
+  const grant = required(draft.granted, "grantTools");
+  input.ports.audit(grantedRecord(grant));
   return { ok: true, grant };
 }
+
 
 function grantedRecord(grant: AiGrant): AiGrantRecord {
   return {

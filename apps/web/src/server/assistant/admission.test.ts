@@ -35,8 +35,9 @@ import {
   PAGE_NOT_ON_TRIP_CODE,
   evaluateAiGrant,
   type AdmissionPorts,
+  type AdmissionStageName,
   type AiGrantRecord,
-} from "@/server/ai/aiGrant";
+} from "./admission";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const PAGE_ID = "22222222-2222-4222-8222-222222222222";
@@ -110,8 +111,11 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
     },
     admitQuota: async () => {
       calls.push("admitQuota");
-      return { allowed: true } as Awaited<ReturnType<AdmissionPorts["admitQuota"]>>;
+      return { allowed: true };
     },
+    // The real adapter compares against `SIMULATED_MODEL_ID`; nothing injected
+    // here is that model, so every turn in this file is a live one.
+    isSimulated: () => false,
     classify: async () => {
       calls.push("classify");
       return CLASSIFIED_AS_WRITE;
@@ -128,7 +132,7 @@ describe("the admission pipeline's ORDER", () => {
   // before `admitQuota` because an incident forced it, AND because that is the
   // order M20's per-tier ceilings need — two independent reasons, neither of
   // them visible from the code that reads the result.
-  it("declares the eight stages in the order the incidents forced", () => {
+  it("declares the nine stages in the order the incidents forced", () => {
     expect(ADMISSION.map((stage) => stage.name)).toEqual([
       "refuseDemoTrip",
       "identifyActor",
@@ -138,7 +142,33 @@ describe("the admission pipeline's ORDER", () => {
       "selectModel",
       "admitQuota",
       "classifyTask",
+      // The ninth, since P4 (spec §3b). It was an epilogue outside the array
+      // while still being a name `AiRefusal.stage` could carry, which made it
+      // the one refusal this test did not cover. It is LAST because its caps
+      // are `min(surface, role, plan, classifier)` and `classifier` is what
+      // `classifyTask` — the stage immediately above — produces.
+      "grantTools",
     ]);
+  });
+
+  // **Every name a refusal may carry is a stage in the array.** The two were
+  // allowed to disagree before P4, and the one that disagreed was the only
+  // refusal the sequence above could not have caught being moved. Asserted as
+  // a set equality rather than a containment so a stage added to the array
+  // without a name, or a name added without a stage, both fail here.
+  it("has a stage for every name a refusal can carry", () => {
+    const names: AdmissionStageName[] = [
+      "refuseDemoTrip",
+      "identifyActor",
+      "capRawBody",
+      "parseRequest",
+      "resolveSurface",
+      "selectModel",
+      "admitQuota",
+      "classifyTask",
+      "grantTools",
+    ];
+    expect([...ADMISSION.map((stage) => stage.name)].sort()).toEqual([...names].sort());
   });
 
   // The same claim as a consequence: every port, in the order its stage runs.
@@ -287,7 +317,14 @@ describe("the ai.grant record", () => {
   // name at all rather than only a Response.
   it("names the stage that refused, its code and its status", async () => {
     const { ports, records } = spyPorts({
-      admitQuota: async () => ({ allowed: false, reason: "user", retryAfterSeconds: 60 }) as never,
+      // The 429 is the ADAPTER's now (`quotaRefusal`, quota.ts), so the port
+      // hands the pipeline the Response it renders rather than a reason the
+      // kernel would have to know the status for.
+      admitQuota: async () => ({
+        allowed: false,
+        reason: "user",
+        response: Response.json({ error: "too many" }, { status: 429 }),
+      }),
     });
     await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 

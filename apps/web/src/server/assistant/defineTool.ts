@@ -22,6 +22,13 @@
 // because a compile-time guarantee no test can see is one a refactor can
 // delete silently.
 //
+// The third guarantee is `taint`. A tool that returns content a PERSON wrote
+// declares how to fence it, and `invoke` applies that on the way out — so
+// "the model never sees an unfenced activity title" is a property of the tool
+// boundary rather than of whoever last edited the readout. See `prompt.ts` for
+// why this product needs it at all (the trip is shared; the asker did not write
+// most of what the tools return).
+//
 // `domain`, `effect` and `minimumRole` are RECORDED here and READ by
 // `grants.ts` — the (domain, effect) filter that replaced `offeredToolNamesFor`
 // and the three name manifests (F-F02). `spend` is still recorded and read by
@@ -75,6 +82,21 @@ export interface ToolSpec<
   /** Typed keys into `AssistantDeps`, and the whole of what `run` may reach. */
   needs: Needs;
   minimumRole: TripRole;
+  /**
+   * Fence the user-authored fields of a result before the model sees it
+   * (`untrusted`, prompt.ts). Omitted by a tool whose result is entirely
+   * server-authored — `find_free_time` returns day numbers and clock times, and
+   * fencing those would be noise that teaches a reader the mark means nothing.
+   *
+   * Optional rather than required-and-usually-identity because the ELEVEN write
+   * tools all return `{ queued: true }`, and eleven identity functions would be
+   * a manifest with the same failure mode as the ones ADR-043 deleted. What
+   * keeps it honest instead is a measurement: `read.taint.test.ts` feeds every
+   * read tool a trip whose every user-authored string is a marker, and asserts
+   * no marker reaches the model unfenced — so a new tool that forgets this
+   * fails without anybody remembering to add it to a list.
+   */
+  taint?: (result: z.infer<Output>) => z.infer<Output>;
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,
@@ -87,9 +109,14 @@ export interface AssistantTool<
   Needs extends readonly DepKey[] = readonly DepKey[],
 > extends ToolSpec<Input, Output, Needs> {
   /**
-   * `run`, with the result put through `output`. This is what an adapter calls;
-   * `run` itself is kept on the definition so a unit test can exercise the body
-   * without the parse, and so a reader can see the two are the same function.
+   * `run`, with the result put through `output` and then through `taint`. This
+   * is what an adapter calls; `run` itself is kept on the definition so a unit
+   * test can exercise the body without either step, and so a reader can see
+   * they are the same function.
+   *
+   * Parse BEFORE fence: `output` is the tool's own contract with itself (KI-9),
+   * and validating an already-fenced value would check the fence rather than
+   * the readout.
    */
   invoke(input: z.infer<Input>, deps: Pick<AssistantDeps, Needs[number]>): Promise<z.infer<Output>>;
 }
@@ -111,6 +138,9 @@ export function defineTool<
 >(spec: ToolSpec<Input, Output, Needs>): AssistantTool<Input, Output, Needs> {
   return {
     ...spec,
-    invoke: async (input, deps) => spec.output.parse(await spec.run(input, deps)) as z.infer<Output>,
+    invoke: async (input, deps) => {
+      const parsed = spec.output.parse(await spec.run(input, deps)) as z.infer<Output>;
+      return spec.taint ? spec.taint(parsed) : parsed;
+    },
   };
 }

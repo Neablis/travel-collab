@@ -42,15 +42,18 @@ const gatewayWallZones = [
 // comment on the block that uses it for why this is an allowlist and not a
 // longer denylist.
 //
-// Each entry is a module whose own imports reach nothing but `@tc/*` and
-// `@/lib`, so admitting it admits no transitive database, network or session
-// access. Adding one is a claim about the module's whole import graph, not just
-// its name.
+// Adding an entry is a claim about the module's whole import GRAPH, not just
+// its name — see the criterion on the list itself.
 
 /** The kernel itself: its whole subtree is its own. */
 const ASSISTANT_KERNEL_ALLOWED_SUBTREES = ["assistant"];
 
-/** Single modules under `src/server`, each checked to reach nothing but `@tc/*` and `@/lib`. */
+/**
+ * Single modules under `src/server`, each checked to reach nothing outside
+ * `@tc/*`, `@/lib`, and the rest of this list — the closure, not just the
+ * direct imports, because one hop is exactly what defeated the denylist this
+ * replaced.
+ */
 const ASSISTANT_KERNEL_ALLOWED_MODULES = [
   // Rank comparison for `minimumRoleFor` — read through the AccessPolicy seam
   // rather than copied, because exactly one place knows a viewer ranks below an
@@ -64,6 +67,20 @@ const ASSISTANT_KERNEL_ALLOWED_MODULES = [
   "ai/markdownToPageNodes",
   // `RawToolIntent` and the resolver: `@tc/domain` plus the two above.
   "ai/batchResolver",
+  // **Added by P4, when the admission pipeline moved inside the wall.** The
+  // grant carries `AskIntentRecord` — the classifier's whole record, which the
+  // per-ask analytics line also carries — and `AiGrant.taskClass` is a field of
+  // it. `askAnalytics.ts` imports exactly one thing, `ai/context`, which is
+  // already on this list; it is record types, `sanitizeForLog` and a
+  // `console.info` sink, with no database, network or session anywhere in its
+  // closure.
+  //
+  // **`ai/askIntent` is deliberately NOT here**, which is why the pipeline
+  // spells `AskIntent` as `AskIntentRecord["intent"]` and the classifier port's
+  // context inline: that module calls `generateText`, and admitting a module
+  // that can reach a provider would be the first entry on this list whose
+  // closure touches the network.
+  "ai/askAnalytics",
 ];
 
 // **A regex, not a `group` of gitignore patterns, and that is not cosmetic.**
