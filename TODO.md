@@ -24,7 +24,8 @@ note, and the one consequence it carries for M11b, are in
 on the audit (`docs/reviews/2026-09-01-milestone-audit.md`): M9 turned out to be
 four-sevenths built, and both of ADR-022's grounds for placing it last — polish
 first, sharing first — have since happened. **The order is now
-`M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`** — **M20 and M21 were
+`M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`** — M17's gate closed
+2026-09-11 — **M20 and M21 were
 minted and placed 2026-09-01**, after M9, by Mitchell's call. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
@@ -172,7 +173,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       committed commands and the envelope carries no time windows, so a question
       like "where is the most free time" is unanswerable twice over.)*
 - [ ] **M9 Phase 0 — the assistant kernel** ← **current milestone** — **interposed 2026-09-10 on
-      Mitchell's call**, ahead of M17's three remaining gate boxes. Opens
+      Mitchell's call**, nominally ahead of M17's three open gate boxes — which had in
+      fact been satisfiable since 2026-09-02, so it displaced a marker and not any
+      work; M17's gate closed 2026-09-11 regardless. Opens
       KI-2026-09-05-t (`handleAskRequest()` is one 455-line function) and the ~15
       open AI known issues that share its shape. Six PRs: `defineTool` with a
       required output schema and declared dependencies; scopes as (domain, effect)
@@ -183,8 +186,18 @@ Where the work actually stands right now: `docs/STATUS.md`.
       M9's three real pieces of work get built on. Entitlement policy and the
       `ai_usage` ledger stay M20's. Decision: ADR-043.
       → `docs/specs/2026-09-10-assistant-kernel-design.md`
-- [ ] **M17 Account preferences** — **paused at 0 of 3 gate boxes 2026-09-10** while M9 Phase 0
-      runs; resumes when it lands. **Re-scoped and placed 2026-08-29, after
+- [x] **M17 Account preferences** — **gate closed 2026-09-11**: three of three
+      live boxes, one amended out 2026-09-01. Built in PRs #111 and #112 and in
+      production since 2026-09-02 (migration 0015 dispatched sixteen minutes
+      after merge); **the gate itself went nine days unconvened**, which is the
+      subject of the retro in the milestone file. Evidence re-derived at close:
+      `e2e/m17-account-preferences.spec.ts` green on `test:e2e:ci-like`, the
+      integration suite green (41 files, 493 tests), and the production
+      `migrate-production` run confirmed from workflow history. Two things
+      carry forward and are named in the retro — `TripMemberProfile` still has
+      no `displayName` (a one-field contract change, invariant 5), and **no
+      deployed browser walk was ever done for this milestone**.
+      **Re-scoped and placed 2026-08-29, after
       M18b**, whose gate closed 2026-08-30, and then **jumped on 2026-08-30**:
       Mitchell asked for "the rest of M11" first, so M11a and M11b run ahead of
       it and M17 follows M11b. The reorder note is in
@@ -355,7 +368,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       questions resolved: no separate first-run screen, and the landing copy
       ships verbatim selling M11/M12. M10's Phase 9 gate closed after this, on
       2026-08-27; **M18** is the next work.)*
-- [ ] **M9 The assistant cites what it plans** →
+- [ ] **M9 The assistant cites what it plans** ← **current milestone** (2026-09-11, on M17's gate close; the order M17 → M9 was already recorded — see the note below about work that has merged ahead of it) →
       `docs/milestones/M9-ai-planning-partner.md`
       *(**Retitled 2026-09-01** — was "AI as a planning partner". An audit
       against `main` found **four of its seven scope items already shipped**

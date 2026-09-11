@@ -1,7 +1,8 @@
 # The assistant is a kernel: typed tools, declared scopes, one admission pipeline
 
 **Status: ACCEPTED — 2026-09-10, as `docs/architecture/ADR-043-the-assistant-is-a-kernel.md`.**
-Runs as **M9 Phase 0**, ahead of M17's remaining exit-gate boxes. This document is the
+Runs as **M9 Phase 0** (interposed 2026-09-10 ahead of M17's then-open gate boxes; M17's gate
+closed 2026-09-11 on its own, so nothing was actually deferred). This document is the
 design and the cost accounting; ADR-043 carries the decision and the four rules.
 
 **Opened by:** Mitchell, 2026-09-10, against KI-2026-09-05-t:

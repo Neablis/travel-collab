@@ -123,7 +123,8 @@ estimate an order of magnitude. Spec §5b.
 type-forcing lands. KI-93 and KI-94 get a place to be fixed rather than a place to be
 described. A question stops paying a planning model's price.
 
-**Costs, accepted.** Six phases, six PRs, ahead of M17's remaining gate boxes — Mitchell's
+**Costs, accepted.** Six phases, six PRs, interposed ahead of M17's then-open gate boxes —
+Mitchell's
 placement decision, on the KI's own argument that this is a schedule multiplier on every
 M9 task. A misrouted `plan` on a cheap tier is a quality regression the upward bias
 mitigates but does not eliminate. The kernel lives behind a lint wall rather than a package

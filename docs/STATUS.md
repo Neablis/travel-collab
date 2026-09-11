@@ -33,8 +33,10 @@ Tier-3 green, **neither merged**.
 
 Mitchell, 2026-09-10, opening KI-2026-09-05-t: *"Lets take on refactoring it, and the entire
 AI Ask system."* Decision and the five rules: **ADR-043**. Design, corrections and the open
-questions: `docs/specs/2026-09-10-assistant-kernel-design.md`. Placement — interposed ahead of
-M17's three remaining gate boxes — is in `docs/milestones/README.md`.
+questions: `docs/specs/2026-09-10-assistant-kernel-design.md`. Placement is in `docs/milestones/README.md`. It was
+interposed *ahead of M17's three open gate boxes* — and **that reading was wrong**: those
+boxes had been satisfiable since 2026-09-02 and M17's gate closed on 2026-09-11 without
+Phase 0 giving anything back, so it displaced a marker rather than any work.
 
 What is true now that was not: a tool is a module declaring a **required output schema** and
 its own dependencies (so a tool cannot reach what it did not declare, as a compile error); a
@@ -64,6 +66,32 @@ to put a geocode count and **did not get the count**: no tool declares `spend: "
 the real LocationIQ door is `commitProposal`'s geocoder on the apply path, which is not a tool.
 
 ---
+
+---
+
+**M17 IS DONE — GATE CLOSED 2026-09-11, NINE DAYS AFTER THE CODE SHIPPED.**
+Branch `claude/milestone-status-review-ov9va0`. The feature merged in PRs #111
+and #112 on 2026-09-02 and has been in production since (migration 0015
+dispatched sixteen minutes after merge); what was missing was the gate, which
+nobody convened. Evidence re-derived at close rather than taken from the PR
+body, which had recorded its browser walk as the literal word *"nothing"*:
+`e2e/m17-account-preferences.spec.ts` green on **`test:e2e:ci-like`**, the
+integration suite green (41 files, 493 tests), and the `migrate-production` run
+confirmed from workflow history. The spec was made to fail first — dropping the
+three preference fields from `writePreferences`'s `.set()` turns it red at
+`:94`, `Received: "sfo"` — so the tick rests on evidence, not on inference from
+green.
+
+**Current milestone is now M9**, by the order recorded 2026-09-01 and by no new
+decision. **Read that as a pointer, not a description.** While M17 sat nominally
+current, M12 link 7 (#159) and three M14 links (#126, #129, #130) merged —
+fifth and seventh in that queue. `docs/milestones/README.md`'s 2026-09-11 note
+has the detail; **the ordering call is Mitchell's and is deliberately not made
+there.** Two items carry forward out of M17 and are named in its retro:
+`TripMemberProfile` still has no `displayName` (one field, but a
+`packages/contracts` change, so invariant 5 gives it its own PR), and **no
+deployed browser walk was ever performed for M17** — closing on test evidence
+alone is a recorded gap, not a silent claim.
 
 **AI CAN BE TURNED ON FOR SPECIFIC PEOPLE, 2026-09-08.** Branch
 `claude/vercel-entities-ai-flags-7zdbsj`. Mitchell asked for *"Vercel Entities so i can do

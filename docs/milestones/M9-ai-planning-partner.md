@@ -100,7 +100,9 @@ would have made it *right*.
 **Mitchell, 2026-09-10, against KI-2026-09-05-t:** *"Lets take on refactoring it, and the
 entire AI Ask system, i want a really easy to use, add functionality and audit system."*
 
-**Placed as this milestone's Phase 0, ahead of M17's remaining exit-gate boxes** — Mitchell's
+**Placed as this milestone's Phase 0** — nominally ahead of M17's then-open exit-gate boxes,
+which turned out to have been satisfiable since 2026-09-02; M17's gate closed 2026-09-11
+regardless, so the interposition displaced a marker and not any work. Mitchell's
 placement decision the same day, on the KI's own argument: `handleAskRequest()` being one
 455-line function is a *schedule multiplier* on every task below, and this milestone's
 estimate assumes it is fixed first. It closes no gate box of its own; it is what the three
