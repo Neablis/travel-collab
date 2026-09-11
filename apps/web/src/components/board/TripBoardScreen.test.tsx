@@ -60,7 +60,7 @@ function answers(text: string, toolName = "read_trip", input: unknown = {}, simu
 }
 
 /** The same, plus the proposal the turn's final chunk carried. */
-function proposes(text: string, proposal: import("@/lib/apiClient").AssistantProposal) {
+function proposes(text: string, proposal: import("@tc/contracts").AssistantProposal) {
   return async (...args: AskArgs) => {
     const onEvent = args[3]!;
     onEvent({ type: "meta", simulated: true });
@@ -1444,7 +1444,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
   function proposalFor(tripId: string, dayId: string) {
     return {
       proposalId: "p1",
-      changes: [{ type: "AddActivity", text: "Add “Coffee at Fuglen” to day 1" }],
+      changes: [{ type: "AddActivity" as const, text: "Add “Coffee at Fuglen” to day 1" }],
       commands: [
         {
           type: "AddActivity" as const,

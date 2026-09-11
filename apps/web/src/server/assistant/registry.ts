@@ -54,11 +54,6 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...PAGE_TOOLS,
 ];
 
-/**
- * Whether a definition reads anything off the context channel, read from its
- * `needs`. It decides which of the two adapters builds the tool, and which
- * tools get an entry in `ambientContextFor`.
- */
 function needsAmbient(definition: AnyAssistantTool): boolean {
   return definition.needs.some((key) => (AMBIENT_DEP_KEYS as readonly string[]).includes(key));
 }
@@ -166,6 +161,11 @@ async function measured<T>(
 }
 
 /**
+ * A set of definitions as the AI SDK tool object an agent is handed, keyed by
+ * name and in the order given — so `Object.keys()` over the result is the
+ * offered set, in registry order, and is a MEASUREMENT rather than a manifest.
+ */
+/**
  * A built tool set, with the CONTEXT parameter pinned.
  *
  * A bare `Record<string, Tool>` leaves it untyped, and `InferToolSetContext`
@@ -181,11 +181,6 @@ async function measured<T>(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AssistantToolSet = Record<string, Tool<any, any, AssistantContext | undefined>>;
 
-/**
- * A set of definitions as the AI SDK tool object an agent is handed, keyed by
- * name and in the order given — so `Object.keys()` over the result is the
- * offered set, in registry order, and is a MEASUREMENT rather than a manifest.
- */
 export function aiToolsFor(
   definitions: readonly AnyAssistantTool[],
   turn: Partial<TurnDeps> = {},

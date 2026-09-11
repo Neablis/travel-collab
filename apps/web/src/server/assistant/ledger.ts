@@ -186,12 +186,6 @@ export interface TurnMeter {
   capacity(): readonly CapacityLine[];
 }
 
-/**
- * One turn's meter. Never shared between turns.
- *
- * Vendor calls are summed as they arrive and read back as one `CapacityLine`
- * per vendor, so nothing downstream has to group them.
- */
 export function newTurnMeter(): TurnMeter {
   const tools: LedgerToolCall[] = [];
   const vendors = new Map<CapacityLine["vendor"], number>();

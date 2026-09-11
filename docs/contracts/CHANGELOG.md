@@ -13,6 +13,65 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-11 — the `/ask` stream envelope: `AskStreamMetadata`, and the proposal it carries (KI-22, M9 Phase 0 P6)
+- Added: `packages/contracts/src/assistant.ts` — `AskStreamMetadata`, the union
+  of the four shapes the `/ask` stream's final chunk may carry as the AI SDK's
+  `messageMetadata` (`{ proposal }` · `{ pageInserts: { content } }` ·
+  `{ composeError }` · `{}`), plus the payload schemas it is built from:
+  `AssistantProposal`, `ProposedChange` and `ProposedInsert`. Also `SIMULATED_HEADER`
+- Why: KI-22. The envelope was an object literal in `handleAskRequest.ts` and a
+  set of `typeof` guards in `apiClient.ts` — a cross-boundary type living in
+  neither `packages/contracts` nor this file, which is invariant 5's drift case
+  exactly. `AssistantProposal` was worse than unschematized: it was hand-written
+  TWICE, once per side, and the copies had already diverged — `ProposedChange.type`
+  was `BatchableCommand["type"]` on the server and `string` on the client, which
+  is how a test fixture asserting `type: "activity.move"`, a name no command has
+  ever had, sat in the suite unnoticed. It fails to compile now
+- Named `AskStreamMetadata` after the SDK field it IS, not `AskEnvelope`:
+  `envelope.ts` already exports `EventEnvelope` for the event log's envelope, and
+  two envelopes in one package is a collision the reader pays for. In a new file
+  rather than in `pages.ts` or `trip.ts` because it belongs to neither module —
+  it composes both (`BatchableCommand`, `PageDoc`)
+- `ProposedChange.type` is derived from `BatchableCommand.options`, not a
+  hand-written `z.enum`, so a thirteenth command joins it for free
+- **`simulated` is deliberately not a member of the union, and the decision is
+  half of what KI-22 asked for.** It is a response header
+  (`x-tc-ai-simulated`), set before a byte of the stream so a turn that fails
+  mid-answer is still badged; stream metadata rides the FINAL chunk, which that
+  failure path never sends, so folding it in would reintroduce the bug the header
+  exists to prevent. What it needed was one owner rather than a schema — it had
+  two, and `apiClient.ts` carried a comment explaining that it could not import
+  the server's copy. The NAME moves here; the transport does not change
+- Consumers updated: `apps/web` — `server/ai/handleAskRequest.ts` (the
+  `messageMetadata` callback and `pageInsertsMetadata` are typed
+  `AskStreamMetadata`, so a misspelled key is a compile error; the local
+  `SIMULATED_HEADER` is gone), `server/ai/writeTools.ts` (the local
+  `AssistantProposal`/`ProposedChange` interfaces are gone), `lib/apiClient.ts`
+  (parses through `AskStreamMetadata`; `proposalFrom`, the local
+  `ProposedInserts` schema, the duplicate types and the re-declared header
+  literal are gone, and `pageInsertsFrom` is reduced to the migrate-on-read step
+  a schema cannot do), `components/assistant/ProposalCard.tsx` and three test
+  files that imported the type from `@/lib/apiClient`
+- **Nothing on the wire changed**, which is the point: the bytes the server
+  writes and the bytes the client reads are identical, and the `/ask`,
+  `/ask/apply` and telemetry integration suites plus the milestone e2e ran
+  unedited to prove it
+- Read path, and the one behaviour that DID change: the client now rejects a
+  payload it used to repair. `changes` and `skipped` were read with a
+  `flatMap`/`filter` that dropped a malformed entry and kept the rest, so a
+  proposal could reach the card describing fewer changes than Approve would
+  commit — the same desync the all-or-nothing rule on `inserts` was written to
+  prevent, pointed the other way. A malformed entry anywhere now fails the whole
+  parse and no card is rendered. No server this repo has ever shipped can produce
+  such a payload
+- Forward compatibility is deliberate and asymmetric: the three payload branches
+  strip an unknown key, so a key a newer deployment adds beside a valid
+  `proposal` costs an older client nothing; the empty branch is `strictObject`,
+  because a permissive `z.object({})` matches any object and would swallow every
+  malformed payload as "nothing"
+- Breaking? **no.** No wire field added, renamed or removed, and no stored data
+  is involved — the envelope exists only for the lifetime of one streamed turn
+
 ## 2026-09-06 — `SavedDay.authorKind`: a playbook says who wrote it
 - Added: `SavedDayAuthorKind` (`"human"` · `"ai"`) and `SavedDay.authorKind`,
   defaulted to `"human"`, in `packages/contracts/src/saved.ts`

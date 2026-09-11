@@ -369,11 +369,6 @@ export interface FindFreeTimeInput {
   minMinutes?: number;
 }
 
-function parseTime(value: string | undefined, fallback: number): number | null {
-  if (value === undefined) return fallback;
-  return HHMM.test(value) ? minutesOf(value) : null;
-}
-
 /**
  * A thin wrapper over the domain's `findFreeGaps`. Everything here is
  * translation: 1-based day → 0-based index, "21:00" → 1260, and back again.
@@ -385,6 +380,11 @@ function parseTime(value: string | undefined, fallback: number): number | null {
  * day-scoped question that forgot to repeat the day number is still about that
  * day. See `scopeNarrowing` in handleAskRequest.ts.
  */
+function parseTime(value: string | undefined, fallback: number): number | null {
+  if (value === undefined) return fallback;
+  return HHMM.test(value) ? minutesOf(value) : null;
+}
+
 export function findFreeTime(
   detail: TripDetail,
   scope: AskScope,
@@ -623,7 +623,6 @@ function fencedConflicts(conflicts: readonly AiConflictSummary[]): AiConflictSum
   return conflicts.map((conflict) => ({ ...conflict, description: untrusted(conflict.description) }));
 }
 
-/** A trip readout, fenced: the trip's name, and each day's cities. */
 function fencedTrip(readout: TripReadout): TripReadout {
   return {
     ...readout,
@@ -636,7 +635,6 @@ function fencedTrip(readout: TripReadout): TripReadout {
   };
 }
 
-/** A day readout, fenced: each stop's title, notes, and its location's name and city. */
 function fencedDay(readout: DayReadout): DayReadout {
   return {
     ...readout,

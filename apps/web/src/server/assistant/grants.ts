@@ -93,12 +93,6 @@ export type GrantedEffects = Readonly<Partial<Record<ToolDomain, ToolEffect>>>;
 
 const EFFECT_RANK: Record<ToolEffect, number> = { read: 0, propose: 1 };
 
-/**
- * The lower of two effects, `read` below `propose`.
- *
- * The whole of the arithmetic below: a turn's grant is a minimum over the four
- * caps, so no one of them can ever widen what another allowed.
- */
 function minEffect(a: ToolEffect, b: ToolEffect): ToolEffect {
   return EFFECT_RANK[a] <= EFFECT_RANK[b] ? a : b;
 }

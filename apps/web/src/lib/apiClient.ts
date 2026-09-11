@@ -1,8 +1,9 @@
-import { z } from "zod";
 import {
+  AskStreamMetadata,
   BatchableCommand,
   InvitePreview,
   PageDoc,
+  SIMULATED_HEADER,
   migratePageDoc,
   SavedDay,
   SharedTripView,
@@ -15,6 +16,7 @@ import {
   TripSummary,
   UpdateUserPreferences,
   UserPreferences,
+  type AssistantProposal,
   type CreateInviteInput,
   type CreateSavedDayInput,
   type TripCommand,
@@ -656,42 +658,13 @@ export type AskWireMessage = {
   parts: { type: "text"; text: string }[];
 };
 
-/**
- * One change an approved proposal would make. `type` is the command type so a
- * client can group them; `text` is the server's own conditional-mood sentence
- * ("Add “Coffee” to day 2"), written where the commands are (writeTools.ts) so
- * the UI never has to interpret a command to describe it.
- */
-export type ProposedChange = { type: string; text: string };
-
-/**
- * What the assistant would change, before it is true (M9).
- *
- * `commands` are already-resolved `BatchableCommand`s — parsed here rather than
- * trusted, because they are posted straight back to `/ask/apply`. They are the
- * batch that was REVIEWED: re-resolving on approval could commit a different
- * set than the one on screen.
- */
-export type AssistantProposal = {
-  proposalId: string;
-  changes: ProposedChange[];
-  commands: BatchableCommand[];
-  /**
-   * Playbook days the proposal would insert, BY REFERENCE (ADR-042 Decision 1).
-   *
-   * Not commands, and deliberately: the server re-reads each row on approval
-   * and mints the commands itself, so the adds ledger is written by the same
-   * code the manual "Add to a trip" dialog goes through. Expanding a day into
-   * commands on this side would bypass the ledger entirely and make the
-   * leaderboard count raw inserts.
-   *
-   * `name` is what the card already showed. It is posted back and ignored — the
-   * server takes the name from the row it reads.
-   */
-  inserts: { savedDayId: string; name: string }[];
-  /** Changes the server could not match to this trip, as sentences. */
-  skipped: string[];
-};
+// `ProposedChange` and `AssistantProposal` are `@tc/contracts` types since P6
+// (KI-22). They were declared here AND in `writeTools.ts` — the same shape
+// spelled twice on two sides of one wire, which is the duplication invariant 5
+// forbids and which this file's two copies had already begun to diverge over
+// (`type` was `string` here and `BatchableCommand["type"]` there). Why the
+// `inserts` travel by reference and what `skipped` excludes moved with them to
+// `packages/contracts/src/assistant.ts`.
 
 export type AskEvent =
   /** A tool call, seen the moment it is issued — before any answer text. */
@@ -734,19 +707,16 @@ export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 /** The server's refusal code when the actor has no AI entitlement. */
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
 
-/**
- * The header `/ask` sets on every turn (`SIMULATED_HEADER` in
- * handleAskRequest.ts). Duplicated as a literal for the same reason the refusal
- * codes above are: the UI may not import `@/server/*` (AGENTS.md's dependency
- * rules).
- *
- * It replaced a prose sniff. Task 5 decided `simulated` by matching the
- * sentence "AI is switched off on this deployment" in the model's own answer,
- * because the stream carried no flag — a display concern derived from generated
- * text, which breaks silently the moment the sentence is reworded, and which
- * could not badge a turn that failed before it said anything.
- */
-const SIMULATED_HEADER = "x-tc-ai-simulated";
+// `SIMULATED_HEADER` is a `@tc/contracts` name since P6 (KI-22). It was
+// re-declared here as a literal because the UI may not import `@/server/*`
+// (AGENTS.md's dependency rules) and `handleAskRequest.ts` owned the only other
+// copy — contracts is the third place both may import from, which is what that
+// rule always pointed at. Why the verdict is a header rather than a field of
+// the stream envelope moved with it.
+//
+// The two refusal codes above stay duplicated literals: they are `@/server/*`
+// exports with no contract of their own, and widening P6 to cover them is a
+// change to the error surface rather than to this envelope.
 
 // One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
 // chunk vocabulary is a wire contract, and the frames this deliberately
@@ -792,98 +762,51 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   // `pages` at all (assistant/grants.ts) — so the scope that asked decides
   // which arrives.
   //
-  // Parsed, not cast, in both cases: `commands` go straight back to
-  // `/ask/apply` and `content` goes straight into the editor, so a malformed
-  // payload is dropped here rather than acted on.
+  // **Parsed through `AskStreamMetadata` (`@tc/contracts`), not cast** —
+  // `commands` go straight back to `/ask/apply` and `content` goes straight
+  // into the editor, so a payload the contract does not accept is dropped here
+  // rather than acted on. Until P6 this was one `typeof` guard per key over two
+  // hand-written narrowing functions, and the gap that shape leaves is not
+  // hypothetical: a malformed entry in `changes` was silently skipped, so a
+  // card could describe fewer changes than Approve would commit.
+  //
+  // A turn with no outcome sends no `messageMetadata` at all, and that fails
+  // the parse exactly as a malformed one does. Both mean the same thing to a
+  // reader — this frame carries no outcome — and the stream is a superset the
+  // server may grow, so an envelope a newer deployment sends must be ignored
+  // rather than allowed to break the conversation.
   if (part.type === "finish") {
-    const metadata = part.messageMetadata as
-      | { proposal?: unknown; pageInserts?: unknown; composeError?: unknown }
-      | undefined;
-    const proposal = proposalFrom(metadata?.proposal);
-    if (proposal !== null) return { type: "proposal", proposal };
-    const inserts = pageInsertsFrom(metadata?.pageInserts);
-    if (inserts !== null) return inserts;
-    if (typeof metadata?.composeError === "string" && metadata.composeError !== "") {
-      return { type: "page-error", message: metadata.composeError };
-    }
+    const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
+    if (!metadata.success) return null;
+    if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
+    if ("pageInserts" in metadata.data) return pageInsertsEvent(metadata.data.pageInserts.content);
+    if ("composeError" in metadata.data) return { type: "page-error", message: metadata.data.composeError };
     return null;
   }
   return null;
 }
 
 /**
- * The proposal's playbook-day references (ADR-042 Decision 1).
+ * A parsed `pageInserts.content` → the nodes we are willing to put in the
+ * editor, or `null`.
  *
- * A missing `inserts` is an empty one — a proposal drafted before this field
- * existed, or a turn that made no library call — but a present-and-malformed
- * one is not.
+ * **Migrated, not merely parsed.** What comes back here goes straight into the
+ * editor and then into `updatePage`, so it is a document entering this build
+ * and gets the same migrate-on-read every other entry point gives one (ADR-038
+ * decision 2). Without it, a payload carrying an older `v` — from a server
+ * mid-deploy, or a `finish` frame replayed from before one — would reach the
+ * editor still spelling widgets the registry has retired, and the reader would
+ * see "unknown macro" chips in content the assistant had just written for them.
+ *
+ * This is the one step the schema cannot do for us: `PageDoc` says the document
+ * is well-formed, and migration says it is well-formed *for this build*.
  */
-const ProposedInserts = z
-  .array(z.object({ savedDayId: z.string().min(1), name: z.string() }))
-  .default([]);
-
-/** `unknown` → a proposal we are willing to act on, or `null`. */
-function proposalFrom(value: unknown): AssistantProposal | null {
-  if (typeof value !== "object" || value === null) return null;
-  const raw = value as Record<string, unknown>;
-  const commands = BatchableCommand.array().safeParse(raw.commands);
-  if (!commands.success) return null;
-  // Parsed all-or-nothing, exactly as `commands` is above, and for a reason
-  // that is sharper than symmetry: `changes` — the sentences the card renders —
-  // is a SEPARATE server-provided array. Dropping one malformed entry from
-  // `inserts` while keeping its sentence in `changes` shows the user "Add “A day
-  // in Kyoto” from the library" and then commits an approval that no longer
-  // carries it. A malformed entry anywhere makes the whole proposal `null`.
-  const inserts = ProposedInserts.safeParse(raw.inserts);
-  if (!inserts.success) return null;
-  // A proposal with no commands is still a proposal when it carries an insert:
-  // a turn whose only write call was `insert_playbook_day` resolves to zero
-  // commands by construction (ADR-042 Decision 1).
-  if (commands.data.length === 0 && inserts.data.length === 0) return null;
-  if (typeof raw.proposalId !== "string" || raw.proposalId === "") return null;
-  const changes = Array.isArray(raw.changes)
-    ? raw.changes.flatMap((change) => {
-        if (typeof change !== "object" || change === null) return [];
-        const { type, text } = change as { type?: unknown; text?: unknown };
-        return typeof type === "string" && typeof text === "string" ? [{ type, text }] : [];
-      })
-    : [];
-  const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((s): s is string => typeof s === "string") : [];
-  return { proposalId: raw.proposalId, changes, commands: commands.data, inserts: inserts.data, skipped };
-}
-
-/**
- * `unknown` → nodes we are willing to put in the editor, or `null`.
- *
- * `PageDoc`, not `PageContent`, and the difference is the whole point: `PageDoc`
- * is what `CreatePageInput`/`UpdatePageInput` validate against since ADR-038, so
- * this is again "a doc that would not survive a save never reaches the editor
- * either". Under `PageContent` — a doc node wrapping `z.array(z.unknown())` —
- * that sentence was true when it was written and stopped being true the moment
- * the write path got a real schema, because `PageContent` accepts documents the
- * write path now rejects.
- *
- * The server validated it too (against the macro registry, which this side
- * cannot see) — this is the client half of the same rule, not a substitute.
- */
-function pageInsertsFrom(value: unknown): { type: "page-inserts"; content: PageDoc } | null {
-  if (typeof value !== "object" || value === null) return null;
-  const raw = value as { content?: unknown };
-  const content = PageDoc.safeParse(raw.content);
-  if (!content.success) return null;
-  // **Migrated, not merely parsed.** What comes back here goes straight into
-  // the editor and then into `updatePage`, so it is a document entering this
-  // build and gets the same migrate-on-read every other entry point gives one
-  // (ADR-038 decision 2). Without it, a payload carrying an older `v` — from a
-  // server mid-deploy, or a `finish` frame replayed from before one — would
-  // reach the editor still spelling widgets the registry has retired, and the
-  // reader would see "unknown macro" chips in content the assistant had just
-  // written for them.
+function pageInsertsEvent(content: PageDoc): AskEvent | null {
   try {
-    return { type: "page-inserts", content: migratePageDoc(content.data) };
+    return { type: "page-inserts", content: migratePageDoc(content) };
   } catch {
     // A document from a FUTURE version. Refusing is what `migratePageDoc` is
-    // saying, and dropping the payload is the same answer this function gives
+    // saying, and dropping the payload is the same answer this reader gives
     // everything else it cannot use.
     return null;
   }

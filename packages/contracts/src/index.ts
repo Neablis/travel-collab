@@ -15,3 +15,4 @@ export * from "./share.ts";
 export * from "./saved.ts";
 export * from "./admission.ts";
 export * from "./identity.ts";
+export * from "./assistant.ts";

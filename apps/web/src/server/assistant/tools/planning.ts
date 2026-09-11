@@ -54,10 +54,6 @@ const conflictRefSchema = z
   .union([z.string(), z.number().int()])
   .describe("The conflict to dismiss, by its `ref` number in the context's `conflicts` list (e.g. 1). Never a raw conflict id.");
 
-/**
- * What a `ref` day field is swapped for: a day as a person names one — "day 2",
- * a dayId, or the backlog.
- */
 function dayRefSchema(backlog: "null" | "omit" | undefined): z.ZodTypeAny {
   const base = z
     .union([z.string(), z.number().int()])
@@ -68,10 +64,6 @@ function dayRefSchema(backlog: "null" | "omit" | undefined): z.ZodTypeAny {
   return backlog === "omit" ? base.optional() : base;
 }
 
-/**
- * The `ref` half of the id-field manifest: one field naming an EXISTING entity,
- * as the human reference the model is asked for in place of its id.
- */
 function refSchemaFor(role: Extract<IdRole, { role: "ref" }>): z.ZodTypeAny {
   switch (role.entity) {
     case "activity":
@@ -89,15 +81,6 @@ function refSchemaFor(role: Extract<IdRole, { role: "ref" }>): z.ZodTypeAny {
 // a schema that admits a tool having done something.
 const QueuedReceipt = z.object({ queued: z.literal(true), type: z.string() });
 
-/**
- * One `BatchableCommand` member as one tool — the derivation ADR-015
- * invariant 5 requires, performed per command.
- *
- * The contract's own schema, with `type` and the server-supplied ids dropped
- * and each `ref` field swapped for a human reference, and a `run` that records
- * the model's raw intent in the turn's buffer. Nothing here names a command,
- * which is what makes the thirteenth one free.
- */
 function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> } & z.ZodRawShape>): AnyAssistantTool {
   const type = optionSchema.shape.type.value as BatchableCommandType["type"];
 

@@ -629,6 +629,65 @@ describe("the proposal on the wire", () => {
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
     expect(events.filter((e) => e.type === "proposal")).toEqual([]);
   });
+
+  // **The cases the `typeof` guards waved through** (P6, KI-22). `changes` and
+  // `skipped` were read with a `flatMap`/`filter` that dropped a bad entry and
+  // kept the rest, so a proposal reached the card describing FEWER changes than
+  // Approve would commit — the same desync the insert rule above exists to
+  // prevent, pointed the other way. The envelope is a `@tc/contracts` schema
+  // now and the whole payload fails to parse.
+  //
+  // The "nothing in it at all" row is the `AssistantProposal` refine, reached
+  // deliberately: the "an empty command list" row further up omits `changes`
+  // entirely, so it is now dropped for a missing field rather than for being
+  // empty, and would not exercise this rule.
+  it.each([
+    [
+      '"changes":[{"type":"AddDay","text":"Add a day"},{"type":"AddDay"}]',
+      "one change of two missing its sentence",
+    ],
+    ['"changes":[{"type":"activity.move","text":"Move “Dinner” to day 2"}]', "a change typed as no command"],
+    ['"changes":[],"skipped":["could not find “Fuglen”",7]', "a skipped reason that is not a sentence"],
+  ])("drops a proposal carrying %s (%s)", async (fieldsJson) => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p5",' +
+      '"commands":[{"type":"AddDay","tripId":"' +
+      TRIP_ID +
+      '","dayId":"' +
+      UUID +
+      '"}],"inserts":[],"skipped":[],' +
+      fieldsJson +
+      "}}}";
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+
+  it("drops a well-formed proposal with nothing in it to review", async () => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":{"proposal":{"proposalId":"p6",' +
+      '"commands":[],"inserts":[],"changes":[],"skipped":[]}}}';
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toEqual([]);
+  });
+
+  // Forward compatibility, and it is not free-floating politeness: the same
+  // reader ignores stream part types it does not know for exactly this reason.
+  // A key a newer deployment adds beside the proposal must cost the user
+  // nothing, so the envelope's payload branches strip rather than refuse.
+  it("keeps the proposal when a newer server sends a key beside it", async () => {
+    const frame =
+      '{"type":"finish","finishReason":"stop","messageMetadata":' +
+      JSON.stringify({ proposal: PROPOSAL, warning: "from the future" }) +
+      "}";
+    server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(['{"type":"start"}', frame])));
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(1);
+  });
 });
 
 // The composed page rides the SAME final chunk as a proposal, and never beside
