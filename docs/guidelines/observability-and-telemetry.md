@@ -64,30 +64,62 @@ ADR-032 records it.
 
 ## The metrics
 
-| Name | Type | Notable attributes |
+All of them are emitted from one file — `apps/web/src/server/ai/aiMetrics.ts`,
+whose header carries the two rules every attribute here obeys (bounded
+cardinality, and no user content). Adding one is described there, not here.
+
+**Every `/ask` metric carries the same base attributes**, so the table lists
+only what each adds on top: `agent`, `model`, `provider` (absent when the
+gateway id carries no `provider/` prefix), `simulated`, `scope`, `turn` and
+`task_class`.
+
+| Name | Type | Adds to the base |
 |---|---|---|
-| `gen_ai.usage.input_tokens` / `.output_tokens` / `.total_tokens` | counter (by token count) | `agent` (`ask`/`command`), `call` (`turn`/`classifier`), `model`, `provider`, `simulated` |
+| `gen_ai.usage.input_tokens` / `.output_tokens` / `.total_tokens` | counter (by token count) | `call` (`turn` / `classifier`) |
+| `ai.ask.turns` | counter | `outcome`, `answered`, `finish_reason` |
+| `ai.ask.tokens` / `.duration` / `.steps` / `.tool_calls` | distribution | — |
 | `gen_ai.tool.calls` | counter | `tool` |
 | `ai.tool.offered` / `ai.tool.uncalled` | counter | `tool` |
-| `ai.ask.turns` | counter | `outcome`, `answered`, `finish_reason`, `scope`, `turn` |
-| `ai.ask.tokens` / `.duration` / `.steps` / `.tool_calls` | distribution | as above |
+| `ai.tool.duration` | distribution | `tool`, `ok` |
+| `ai.vendor.calls` | counter (by call count) | `vendor` |
 | `ai.ask.failures` | counter | `error` (the error's name), `status` (HTTP status, `0` if not an API call) |
 | `ai.ask.dropped_calls` | counter | `type` (command), `code` (domain rejection) |
-| `ai.classify.turns` / `.duration` | counter / distribution | `intent`, `source`, `failed_open` |
-| `ai.command.turns` / `.duration` / `.steps` / `.tool_calls` | counter / distribution | `surface`, `truncated` |
-| `ai.proposal.apply` / `.commands` / `.duration` | counter / distribution | `outcome`, `code` |
+| `ai.classify.turns` | counter | *narrower base, see below* + `intent`, `task_class`, `source`, `failed_open` |
+| `ai.classify.duration` | distribution | *narrower base, see below* |
+| `ai.proposal.apply` / `ai.proposal.commands` / `ai.proposal.apply.duration` | counter / distribution | **no base** — `outcome`, `code` only |
 
-Three things worth knowing before you chart any of them:
+**The two `ai.classify.*` metrics, and the token counters tagged
+`call: classifier`, carry a narrower base than the turn's** —
+`agent`, `model`, `provider`, `simulated`, and nothing else. The model is the
+one the classifier *actually ran on* (`AI_CLASSIFIER_MODEL`), not the turn's,
+which is what keeps its spend attributed to it. That is the whole reason "did
+the cheap classifier save more than it cost" is a subtraction between two
+series rather than a guess: both halves are under the same token metric names,
+separated by `call`.
+
+Five things worth knowing before you chart any of them:
 
 1. **Token metrics are counters incremented by the token count**, so they sum
    to real spend. The distributions (`ai.ask.tokens`) answer the different
    question of what a typical turn looks like.
-2. **`/ask` and `/ai` share the token metric names**, separated by `agent`.
-   They reach the same gateway on the same key; a total that filtered to one
-   of them would be wrong by whatever the other spends.
+2. **`agent` has exactly one value today, on purpose.** It separated `/ask`
+   from the `/ai` command endpoint; **ADR-033 deleted that endpoint** and the
+   attribute stayed, so a dashboard built against it does not break and a
+   second agent has a dimension to arrive on. There are no `ai.command.*`
+   metrics any more.
 3. **Filter `simulated:false` for anything cost-shaped.** Every Vercel
    environment runs with the `ai-live` flag off by default (ADR-019), and
    those turns contact no provider and cost nothing.
+4. **`ai.vendor.calls` is capacity, never cost — never sum it into one.** A
+   LocationIQ lookup consumes a daily-capped free tier's allowance; it is not a
+   per-call charge. It has its own metric name for exactly that reason, and the
+   `TurnLedger` keeps `capacity` a different type from `cost` so the code
+   refuses the same conflation (ADR-043, spec §7b).
+5. **`task_class` is what makes tiered routing measurable**, and it is why
+   `intent` did not simply widen. `intent` keeps its two values so a month of
+   existing series stays comparable; `task_class` is the wider verdict beside
+   it. Widening `intent` in place would have silently re-based every chart
+   built on it — the same class of mistake as a bucket name that moves.
 
 ## Turning things down
 
