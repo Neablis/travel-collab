@@ -172,13 +172,13 @@ export type AssistantProposal = z.infer<typeof AssistantProposal>;
  *
  * That forward compatibility is not a hole on the producing side. The inferred
  * type is still exactly these four shapes, so a server literal with a fifth or
- * misspelled key is an excess-property error at compile time — the key set is
- * pinned by the type, and the parse is what protects the consumer.
+ * misspelled key fails to compile — the key set is pinned by the type, and the
+ * parse is what protects the consumer.
  *
  * A reader that cannot parse a chunk drops it, exactly as it drops an unknown
  * stream part; an unreadable envelope must never break a conversation.
  */
-export const AskStreamMetadata = z.union([
+const AskStreamShape = z.union([
   z.object({ proposal: AssistantProposal }),
   /**
    * What a `page`-scoped turn wants INSERTED. Validated server-side against the
@@ -205,6 +205,53 @@ export const AskStreamMetadata = z.union([
    * renders — the nodes themselves still never reach it.
    */
   z.object({ composeError: z.string().min(1) }),
-  z.strictObject({}),
+  /**
+   * Silence. Strict at runtime for the reason above; typed
+   * `Record<string, never>` rather than the `{}` zod infers, because `{}` is
+   * assignable FROM every object — one `{}` member would make this whole union
+   * accept any object, and a producer's `{ proposalTypo: ... }` would compile.
+   * The transform is identity: this branch still parses `{}` and still rejects
+   * `{ anything: 1 }`. Type only, and only here.
+   */
+  z.strictObject({}).transform((nothing): Record<string, never> => nothing),
 ]);
+
+// Derived from the branches rather than spelled again. The empty branch is a
+// transform and contributes no key, which is exactly what it means.
+const OUTCOME_KEYS = AskStreamShape.options.flatMap((branch) =>
+  branch instanceof z.ZodObject ? Object.keys(branch.shape) : [],
+);
+
+/**
+ * One outcome per chunk.
+ *
+ * The union above says what a single outcome looks like; this says a chunk
+ * carries one. Zod returns the FIRST branch that matches and a permissive
+ * `z.object` strips what it does not name, so two recognised keys in one chunk
+ * lose information silently: `{ proposal, composeError }` renders a card and
+ * drops the server's refusal, and `{ proposal: <invalid>, composeError }` falls
+ * through to the refusal — a valid sibling key hiding a broken one rather than
+ * surfacing it. Our own `messageMetadata` cannot emit either today, because the
+ * tool sets are disjoint; a contract that holds only while the producer is
+ * correct is not the one KI-22 moved this here for.
+ *
+ * **Recognised keys only, and this must never become `.strict()`.** An
+ * unrecognised key beside a single outcome is still stripped, deliberately —
+ * that is the forward compatibility the docstring above defends. What is
+ * narrowed here is ambiguity between the shapes this file already knows.
+ */
+export const AskStreamMetadata = z
+  .unknown()
+  .superRefine((chunk, ctx) => {
+    // Not an object at all is the union's answer to give, with its own message.
+    if (typeof chunk !== "object" || chunk === null) return;
+    const outcomes = OUTCOME_KEYS.filter((key) => key in chunk);
+    if (outcomes.length > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `a chunk carries one outcome, not ${outcomes.join(" and ")}`,
+      });
+    }
+  })
+  .pipe(AskStreamShape);
 export type AskStreamMetadata = z.infer<typeof AskStreamMetadata>;

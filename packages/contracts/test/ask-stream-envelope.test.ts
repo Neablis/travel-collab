@@ -58,6 +58,34 @@ describe("the /ask stream envelope — the four shapes the final chunk may take"
     expect(AskStreamMetadata.safeParse({ warning: "from the future" }).success).toBe(false);
   });
 
+  // **One outcome per chunk.** A union returns the FIRST branch that matches and
+  // a permissive `z.object` strips what it does not name, so two recognised
+  // keys in one chunk is not a harmless oddity: the earlier branch wins and the
+  // later key vanishes. `{ proposal, composeError }` would render a card while
+  // discarding the server's refusal, and `{ proposal: <invalid>, composeError }`
+  // would fall through to the refusal — a valid sibling key hiding a broken one.
+  // Unreachable from our own server (the tool sets are disjoint), which is the
+  // point: a contract that holds only while the producer is correct is not one.
+  const AMBIGUOUS: [unknown, string][] = [
+    [{ proposal: PROPOSAL, composeError: "boom" }, "a proposal and a refusal"],
+    [{ proposal: PROPOSAL, pageInserts: { content: PAGE_DOC } }, "a proposal and page inserts"],
+    [{ pageInserts: { content: PAGE_DOC }, composeError: "boom" }, "page inserts and a refusal"],
+  ];
+
+  it.each(AMBIGUOUS)("rejects %j (%s)", (metadata) => {
+    expect(AskStreamMetadata.safeParse(metadata).success).toBe(false);
+  });
+
+  // The failure mode the pair above is really about: an invalid outcome must
+  // surface as invalid, not be masked by whichever sibling key happens to parse.
+  it("does not let a valid sibling key hide a malformed outcome", () => {
+    const parsed = AskStreamMetadata.safeParse({
+      proposal: { proposalId: "p1" },
+      composeError: 'Macro "cost.day" params failed validation.',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   // A turn with no outcome sends no `messageMetadata` key at all, which is not
   // the same value as `{}` and must not be mistaken for one by a reader that
   // parses whatever it finds.
@@ -70,6 +98,37 @@ describe("the /ask stream envelope — the four shapes the final chunk may take"
   // empty reason is neither, so it is not a shape this may take.
   it("rejects a compose refusal with no reason in it", () => {
     expect(AskStreamMetadata.safeParse({ composeError: "" }).success).toBe(false);
+  });
+});
+
+// **A type-level test, and it covers the half of the envelope no parse can
+// reach.** The client's `safeParse` already rejects a misspelled key; what it
+// cannot do is stop the server from SENDING one, and producer-side safety is
+// half of why KI-22 moved this shape into contracts at all. The trap is that
+// `{}` is assignable FROM any object, so one `{}` member would make the whole
+// union accept every object and a typo would compile at the producer.
+describe("the envelope's TYPE pins the producer to the same four shapes", () => {
+  it("refuses a misspelled key where `handleAskRequest` builds the chunk", () => {
+    // Shaped exactly like `messageMetadata` in `apps/web/src/server/ai`.
+    const messageMetadata = (): AskStreamMetadata | undefined =>
+      // @ts-expect-error `proposalTypo` is not a key this envelope may carry
+      ({ proposalTypo: PROPOSAL });
+    expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(false);
+  });
+
+  it("refuses a fifth key beside a valid proposal, which the parse forgives", () => {
+    // Forward compatibility is a CONSUMER rule: an older client strips a key a
+    // newer server added. The producer is the newer server, and has no reason
+    // to emit a key it does not also ship a schema for.
+    const messageMetadata = (): AskStreamMetadata | undefined =>
+      // @ts-expect-error `warning` is not a key this envelope may carry
+      ({ proposal: PROPOSAL, warning: "from the future" });
+    expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);
+  });
+
+  it("still lets the empty shape be built, because silence is a real answer", () => {
+    const messageMetadata = (): AskStreamMetadata | undefined => ({});
+    expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);
   });
 });
 
@@ -148,35 +207,62 @@ type RawProposal = {
   skipped: unknown[];
 };
 
-function corrupt(proposal: RawProposal, how: Corruption): RawProposal {
-  const [first, ...rest] = proposal.changes;
+/**
+ * Corrupt ONE entry of the field `how` names, at `index` within it.
+ *
+ * The index is the finding CodeRabbit made on this test: corrupting entry 0 and
+ * nothing else, against a generator that emits up to four, asserts "the first
+ * entry" while claiming "anywhere". The returned `cell` is what the witness
+ * counts, so a position that stops being reached is visible rather than assumed.
+ */
+function corrupt(
+  proposal: RawProposal,
+  how: Corruption,
+  index: number,
+): { proposal: RawProposal; cell: string } {
+  const at = (length: number) => index % length;
+  const swap = <T>(entries: T[], position: number, replacement: T): T[] =>
+    entries.map((entry, i) => (i === position ? replacement : entry));
+  const cell = (position: number) => `${how}@${position}`;
+
   switch (how) {
-    case "change-without-text":
-      return { ...proposal, changes: [{ type: first!.type } as { type: string; text: string }, ...rest] };
-    case "change-typed-as-non-command":
-      return { ...proposal, changes: [{ ...first!, type: "activity.move" }, ...rest] };
-    case "insert-without-savedDayId":
-      return {
-        ...proposal,
-        inserts: [{ name: proposal.inserts[0]!.name } as { savedDayId: string; name: string }, ...proposal.inserts.slice(1)],
-      };
-    case "insert-as-a-bare-string":
-      return {
-        ...proposal,
-        inserts: [DAY_ID as unknown as { savedDayId: string; name: string }, ...proposal.inserts.slice(1)],
-      };
-    case "skipped-entry-that-is-not-a-string":
-      return { ...proposal, skipped: [7, ...proposal.skipped.slice(1)] };
+    case "change-without-text": {
+      const i = at(proposal.changes.length);
+      const stripped = { type: proposal.changes[i]!.type } as { type: string; text: string };
+      return { proposal: { ...proposal, changes: swap(proposal.changes, i, stripped) }, cell: cell(i) };
+    }
+    case "change-typed-as-non-command": {
+      const i = at(proposal.changes.length);
+      const mistyped = { ...proposal.changes[i]!, type: "activity.move" };
+      return { proposal: { ...proposal, changes: swap(proposal.changes, i, mistyped) }, cell: cell(i) };
+    }
+    case "insert-without-savedDayId": {
+      const i = at(proposal.inserts.length);
+      const stripped = { name: proposal.inserts[i]!.name } as { savedDayId: string; name: string };
+      return { proposal: { ...proposal, inserts: swap(proposal.inserts, i, stripped) }, cell: cell(i) };
+    }
+    case "insert-as-a-bare-string": {
+      const i = at(proposal.inserts.length);
+      const bare = DAY_ID as unknown as { savedDayId: string; name: string };
+      return { proposal: { ...proposal, inserts: swap(proposal.inserts, i, bare) }, cell: cell(i) };
+    }
+    case "skipped-entry-that-is-not-a-string": {
+      const i = at(proposal.skipped.length);
+      return { proposal: { ...proposal, skipped: swap(proposal.skipped, i, 7) }, cell: cell(i) };
+    }
     case "blank-proposalId":
-      return { ...proposal, proposalId: "" };
+      // A scalar, so it has exactly one position and the cell says so.
+      return { proposal: { ...proposal, proposalId: "" }, cell: cell(0) };
   }
 }
 
 // Every array is `minLength: 1`, so `corrupt` has something to corrupt in every
 // position and the property body carries no guard clause — which is what lets
-// the witness floor be `numRuns` exactly rather than a measured fraction of it
+// the assertion count be `numRuns` exactly rather than a measured fraction of it
 // (`packages/domain/test/support/witness.ts`). The empty-array cases are
 // covered by the examples above, where they belong.
+const MAX_ENTRIES = { changes: 4, inserts: 3, skipped: 3 } as const;
+
 const rawProposalArb: fc.Arbitrary<RawProposal> = fc.record({
   proposalId: fc.string({ minLength: 1 }),
   changes: fc
@@ -185,46 +271,72 @@ const rawProposalArb: fc.Arbitrary<RawProposal> = fc.record({
         type: fc.constantFrom("AddDay", "AddActivity", "RemoveActivity", "SetTripName"),
         text: fc.string({ minLength: 1 }),
       }),
-      { minLength: 1, maxLength: 4 },
+      { minLength: 1, maxLength: MAX_ENTRIES.changes },
     ),
   commands: fc.subarray([ADD_DAY, ADD_ACTIVITY] as unknown[], { minLength: 1 }),
   inserts: fc.array(fc.record({ savedDayId: fc.constant(DAY_ID), name: fc.string() }), {
     minLength: 1,
-    maxLength: 3,
+    maxLength: MAX_ENTRIES.inserts,
   }),
-  skipped: fc.array(fc.string() as fc.Arbitrary<unknown>, { minLength: 1, maxLength: 3 }),
+  skipped: fc.array(fc.string() as fc.Arbitrary<unknown>, { minLength: 1, maxLength: MAX_ENTRIES.skipped }),
 });
 
-const NUM_RUNS = 300;
+// 0..11 rather than 0..3, because `corrupt` takes it modulo the array's actual
+// length: 12 is divisible by every length an array here can have, so every
+// position of a given array is drawn equally often. A `max` of 3 would hand
+// position 0 of a three-entry array twice the traffic of positions 1 and 2.
+const indexArb = fc.nat({ max: 11 });
+
+// How many positions each arm can reach — the array's own `maxLength`, and 1
+// for the arm that corrupts a scalar.
+const POSITIONS: Record<Corruption, number> = {
+  "change-without-text": MAX_ENTRIES.changes,
+  "change-typed-as-non-command": MAX_ENTRIES.changes,
+  "insert-without-savedDayId": MAX_ENTRIES.inserts,
+  "insert-as-a-bare-string": MAX_ENTRIES.inserts,
+  "skipped-entry-that-is-not-a-string": MAX_ENTRIES.skipped,
+  "blank-proposalId": 1,
+};
+const CELLS = CORRUPTIONS.flatMap((how) =>
+  Array.from({ length: POSITIONS[how] }, (_, position) => `${how}@${position}`),
+);
+
+const NUM_RUNS = 6_000;
 
 describe("a malformed entry anywhere makes the whole proposal fail to parse", () => {
   it("holds for every field position", () => {
     let asserted = 0;
-    const seen = new Map<Corruption, number>();
+    const seen = new Map<string, number>();
     fc.assert(
-      fc.property(rawProposalArb, fc.constantFrom(...CORRUPTIONS), (proposal, how) => {
+      fc.property(rawProposalArb, fc.constantFrom(...CORRUPTIONS), indexArb, (proposal, how, index) => {
         // Asserted, not skipped. A generator that drifted into producing
         // proposals the schema already rejects would make the corruption
         // assertion below pass for the wrong reason — P4's vacuous property in
         // one line — so the base case is checked rather than filtered.
         expect(AskStreamMetadata.safeParse({ proposal }).success).toBe(true);
-        expect(AskStreamMetadata.safeParse({ proposal: corrupt(proposal, how) }).success).toBe(false);
-        seen.set(how, (seen.get(how) ?? 0) + 1);
+        const corrupted = corrupt(proposal, how, index);
+        expect(AskStreamMetadata.safeParse({ proposal: corrupted.proposal }).success).toBe(false);
+        seen.set(corrupted.cell, (seen.get(corrupted.cell) ?? 0) + 1);
         asserted += 1;
       }),
       { numRuns: NUM_RUNS },
     );
     expect(asserted).toBe(NUM_RUNS);
     // The second vacuity mode the witness helper names: the input space
-    // shrinking. An assertion count cannot see a `corrupt` arm that stopped
-    // being reached — `CORRUPTIONS` is drawn from, not iterated — so every arm
-    // is counted by name. **Measured, not guessed** (2026-09-11, six runs of
-    // 300): the least-drawn arm of each run landed at 34, 39, 40, 42, 42 and
-    // 45. 17 is half the observed minimum, which is the rule the witness helper
-    // states — far enough below not to flap, far enough above zero to catch an
-    // arm that stopped being generated.
-    expect([...seen.keys()].sort()).toEqual([...CORRUPTIONS].sort());
-    for (const how of CORRUPTIONS) expect(seen.get(how)!).toBeGreaterThanOrEqual(17);
+    // shrinking. An assertion count cannot see an arm — or, since this test was
+    // reviewed, a *position* — that stopped being reached, because both are
+    // drawn from rather than iterated. So every (arm, position) cell is counted
+    // by name. **Measured, not guessed** (2026-09-11, six runs of 6,000): the
+    // least-drawn cell of each run landed at 47, 52, 53, 53, 57 and 74, and was
+    // `changes`' last position every time — it needs a four-entry array, which
+    // fast-check draws least often. 23 is half the observed minimum, the rule
+    // the witness helper states: far enough below not to flap, far enough above
+    // zero to catch a position that stopped being generated. `numRuns` is 6,000
+    // rather than the 300 this started at because 18 cells with one that rare
+    // left the floor in single digits, where it flapped — measured, at 1,200,
+    // the same cell landed between 5 and 17 across six runs.
+    expect([...seen.keys()].sort()).toEqual([...CELLS].sort());
+    for (const cell of CELLS) expect(seen.get(cell)!).toBeGreaterThanOrEqual(23);
   });
 });
 

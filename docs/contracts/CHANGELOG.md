@@ -69,6 +69,23 @@ Format:
   `proposal` costs an older client nothing; the empty branch is `strictObject`,
   because a permissive `z.object({})` matches any object and would swallow every
   malformed payload as "nothing"
+- **Review follow-through on #163 — two holes the schema alone had left, both
+  unreachable from our own server and both fixed for the same reason: a contract
+  that holds only while the producer is correct is not doing KI-22's job.**
+  - The empty branch's inferred type is `Record<string, never>`, not the `{}`
+    zod infers. `{}` is assignable FROM every object, so a single `{}` member
+    made the whole union accept any object and a producer's
+    `{ proposalTypo: proposal }` compiled. The client's parse still rejected it;
+    what failed was the producer-side safety that is half of why this moved
+    here. Runtime is unchanged — the branch still parses `{}` and still rejects
+    `{ anything: 1 }` — and a `@ts-expect-error` test now holds the guarantee
+  - A chunk carrying more than one RECOGNISED outcome key is rejected. A union
+    returns the FIRST matching branch, so `{ proposal, composeError }` parsed as
+    the proposal and silently discarded the server's refusal, and
+    `{ proposal: <invalid>, composeError }` fell through to the refusal — a
+    valid sibling key hiding a broken one. An unrecognised key beside a single
+    outcome is still stripped: this narrows ambiguity between known shapes and
+    is deliberately not `.strict()`
 - Breaking? **no.** No wire field added, renamed or removed, and no stored data
   is involved — the envelope exists only for the lifetime of one streamed turn
 
