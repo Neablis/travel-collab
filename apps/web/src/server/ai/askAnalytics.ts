@@ -634,8 +634,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
           // The RESOLVED id of the model that actually answered — never a
           // compiled default (ledger.ts, `ModelSpend.model`).
           model: params.model,
-          tokensIn: final.usage?.inputTokens ?? null,
-          tokensOut: final.usage?.outputTokens ?? null,
+          tokensIn: final.usage?.inputTokens ?? sumObserved("inputTokens"),
+          tokensOut: final.usage?.outputTokens ?? sumObserved("outputTokens"),
         },
         classifier:
           classifierCalled && classification.model !== null
@@ -651,6 +651,31 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       capacity: meter.capacity(),
       toolCalls: meter.toolCalls(),
     };
+  }
+
+  /**
+   * The turn's spend as the STEPS measured it — the fallback for the two end
+   * paths that have no provider summary to read.
+   *
+   * `abandon` synthesises its `final` (`{ finishReason }`), so reading only
+   * `final.usage` reported null tokens on every aborted and failed turn, even
+   * one whose three completed round-trips were already paid for. M20 link 9
+   * writes the row on those paths for exactly that reason, and a row saying
+   * null there under-reports the bill rather than merely losing detail.
+   *
+   * **Null still means unknown, never zero** (spec §7a: no field may assert a
+   * semantic its arithmetic does not have). So a step the provider reported
+   * nothing for contributes nothing rather than a `0`, and a turn where no
+   * step was measured at all stays null — summing an empty set to zero would
+   * claim a free turn we never observed.
+   */
+  function sumObserved(field: "inputTokens" | "outputTokens"): number | null {
+    let total: number | null = null;
+    for (const usage of usageByStep) {
+      const value = usage[field];
+      if (value !== null) total = (total ?? 0) + value;
+    }
+    return total;
   }
 }
 

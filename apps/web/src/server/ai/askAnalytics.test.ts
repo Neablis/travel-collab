@@ -465,21 +465,33 @@ const CLASSIFIED_BY_MODEL: AskIntentRecord = {
   usage: { inputTokens: 198, outputTokens: 49, totalTokens: 247 },
 };
 
+/** The three ways a turn can end, named so a case can pair two DIFFERENT ones. */
+type EndPath = (recorder: ReturnType<typeof recorderWith>["recorder"]) => void;
+const FINISHES: EndPath = (recorder) => recorder.finish({ finishReason: "stop" });
+const ABORTS: EndPath = (recorder) => recorder.abandon("abort");
+const ERRORS: EndPath = (recorder) => recorder.abandon("error", new Error("boom"));
+
 describe("the turn ledger", () => {
   // **Written on all three end paths, including failure** — *"because the
   // round-trips already made were already paid for"* (M20 link 9). It is free
   // rather than new work: the recorder's single-writer latch already fires
   // exactly once on `onEnd`, abort and error, so the ledger is a fourth reader
   // of that latch rather than a fourth place that has to get once-only right.
+  //
+  // The second call is deliberately the OTHER end path, because that is the
+  // sequence production produces: an errored run fires `onError` and then
+  // `onEnd`. Calling the same callback twice tests only that one path latches
+  // against itself, which a regression giving `abandon` and `finish` separate
+  // latches would pass — while emitting two ledgers for one turn.
   it.each([
-    ["completed", (r: ReturnType<typeof recorderWith>["recorder"]) => r.finish({ finishReason: "stop" })],
-    ["abort", (r: ReturnType<typeof recorderWith>["recorder"]) => r.abandon("abort")],
-    ["error", (r: ReturnType<typeof recorderWith>["recorder"]) => r.abandon("error", new Error("boom"))],
-  ] as const)("is written exactly once on a %s turn", (outcome, end) => {
+    ["completed", FINISHES, ERRORS],
+    ["abort", ABORTS, FINISHES],
+    ["error", ERRORS, FINISHES],
+  ] as const)("is written exactly once on a %s turn, whichever end path follows", (outcome, end, then) => {
     const { recorder, ledgers } = recorderWith({ userId: "spender" });
     recorder.observeStep({ usage: { inputTokens: 1000, outputTokens: 100 } });
     end(recorder);
-    end(recorder); // the latch: a run that both errors and ends still writes once
+    then(recorder); // the latch: a run that both errors and ends still writes once
 
     expect(ledgers).toHaveLength(1);
     expect(ledgers[0]!.cost).toMatchObject({ userId: "spender", endpoint: "ask", outcome, steps: 1 });
@@ -559,6 +571,45 @@ describe("the turn ledger", () => {
     expect(records[0]!.steps).toBe(ledgers[0]!.cost.steps);
     expect(records[0]!.usage.inputTokens).toBe(ledgers[0]!.cost.turn.tokensIn);
     expect(records[0]!.usage.outputTokens).toBe(ledgers[0]!.cost.turn.tokensOut);
+  });
+
+  // **A turn that made three calls and then died did not make them for free**
+  // — M20 link 9's reason for writing the row on the failure paths at all:
+  // *"the round-trips already made were already paid for"*. Neither abandoned
+  // path has a provider summary to read, so the spend is the steps' own, and
+  // reporting null there under-reports every failed and aborted turn.
+  it.each([
+    ["abort", ABORTS],
+    ["error", ERRORS],
+  ] as const)("bills an abandoned (%s) turn for the round-trips it already made", (_outcome, end) => {
+    const { recorder, records, ledgers } = recorderWith({});
+    recorder.observeStep({ usage: { inputTokens: 1000, outputTokens: 100 } });
+    recorder.observeStep({ usage: { inputTokens: 1200, outputTokens: 40 } });
+    end(recorder);
+
+    expect(ledgers[0]!.cost.turn).toMatchObject({ tokensIn: 2200, tokensOut: 140 });
+    expect(records[0]!.usage.inputTokens).toBe(2200);
+    expect(records[0]!.usage.outputTokens).toBe(140);
+  });
+
+  // **Null keeps meaning "unknown", never zero** (spec §7a: no field may assert
+  // a semantic its arithmetic does not have). A provider that reported one half
+  // and not the other has told us one number, so summing must not invent a `0`
+  // for the half nobody measured — and a turn that died before any step leaves
+  // both unknown rather than free.
+  it("sums only what a provider actually reported, and stays null for what it did not", () => {
+    const partial = recorderWith({});
+    partial.recorder.observeStep({ usage: { inputTokens: 900 } });
+    partial.recorder.observeStep({ usage: { outputTokens: 30 } });
+    partial.recorder.abandon("abort");
+
+    expect(partial.ledgers[0]!.cost.turn).toMatchObject({ tokensIn: 900, tokensOut: 30 });
+
+    const silent = recorderWith({});
+    silent.recorder.observeStep({ finishReason: "tool-calls" });
+    silent.recorder.abandon("error", new Error("boom"));
+
+    expect(silent.ledgers[0]!.cost.turn).toMatchObject({ tokensIn: null, tokensOut: null });
   });
 });
 

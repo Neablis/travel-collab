@@ -136,6 +136,28 @@ describe("tiered ceilings move numbers and never bucket names", () => {
         // The GLOBAL ceiling is the operator's abuse bound and was never sold
         // to anyone, so no plan may move it either.
         expect(policies.map((policy) => policy.global)).toEqual(baseline.map((policy) => policy.global));
+
+        // **WHICH bucket each sold ceiling binds, pinned by name.** This
+        // describe's title promises two halves and only the name half was
+        // asserted: "some `perUser` differs from baseline" is satisfied by an
+        // implementation that swapped the two daily ceilings, or that applied
+        // the request entitlement to the HOURLY bucket, which is a different
+        // product than the one being sold.
+        //
+        // It is also the readable answer to an open question. A sold ceiling
+        // binds a DAY here — the numbers come from M20's plan table, whose
+        // columns are per-day — and neither M20 nor the kernel spec states it
+        // in prose (spec, "Open questions"). Pinning the mapping in a test is
+        // what makes that reading explicit and reviewable rather than implicit
+        // in two `??`s.
+        const perUser = Object.fromEntries(policies.map((policy) => [policy.name, policy.perUser]));
+        const base = Object.fromEntries(baseline.map((policy) => [policy.name, policy.perUser]));
+        expect(perUser["ai-daily"]).toBe(ceilings.perUserRequestsPerDay ?? base["ai-daily"]);
+        expect(perUser["ai-steps-daily"]).toBe(ceilings.perUserStepsPerDay ?? base["ai-steps-daily"]);
+        // The hourly windows are the OPERATOR's burst control, configured by
+        // environment and sold to nobody, so no plan may move either one.
+        expect(perUser["ai-hourly"]).toBe(base["ai-hourly"]);
+        expect(perUser["ai-steps-hourly"]).toBe(base["ai-steps-hourly"]);
         w.tick();
 
         if (policies.some((policy, i) => policy.perUser !== baseline[i]!.perUser)) moved.tick();

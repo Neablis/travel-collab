@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 import { defineTool } from "@/server/assistant/defineTool";
+import { untrusted } from "@/server/assistant/prompt";
 
 /** ADR-042 Decision 3's one hand-written write tool. */
 export const INSERT_PLAYBOOK_DAY = "insert_playbook_day";
@@ -74,6 +75,13 @@ export const insertPlaybookDayTool = defineTool({
   output: InsertPlaybookDayOutput,
   needs: ["actor", "savedDays", "proposalBuffer"] as const,
   minimumRole: "editor",
+  // The receipt echoes the day's name, and **the author is a stranger to the
+  // asker** — the same argument `search_playbooks` fences `day.name` under
+  // (read.ts). Declared here rather than fenced inside `run` so the collector
+  // still records the name a PERSON reads on the approval card: `invoke`
+  // fences on the way to the model only. The error branch carries nothing
+  // anybody typed, so it is returned as written.
+  taint: (result) => ("error" in result ? result : { ...result, name: untrusted(result.name) }),
   run: async ({ savedDayId }, deps) => {
     // The collector's own ceiling, so the cap holds on both sides of the
     // stream: `/ask/apply` refuses an over-cap approval (limits.ts), and a

@@ -150,6 +150,11 @@ describe("selectAiModel", () => {
     vi.stubEnv("AI_MODEL", "vendor/base");
     vi.stubEnv("AI_MODEL_CHEAP", "vendor/tiny");
     vi.stubEnv("AI_MODEL_STRONG", "vendor/huge");
+    // Cleared, not merely left alone: `mid` is the slot this case is ABOUT,
+    // and an environment that happens to set it decides the assertion instead
+    // of the code under test. Asserting a fall-through means owning the
+    // variable it falls through from.
+    vi.stubEnv("AI_MODEL_MID", undefined);
     try {
       const isolated = await import("@/server/ai/modelSelection");
       expect(isolated.resolvedTierMap()).toMatchObject({

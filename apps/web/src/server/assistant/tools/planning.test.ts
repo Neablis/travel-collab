@@ -15,6 +15,7 @@
 // thing the manifest exists to prevent.
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
+import { witness } from "@/test-support/witness";
 import { newProposalBuffer } from "../deps";
 import { aiToolsFor } from "../registry";
 import { PLANNING_TOOLS } from "./planning";
@@ -54,6 +55,32 @@ describe("the planning tools", () => {
     expect(shapeOf("RemoveDay")).toHaveProperty("dayRef");
     expect(shapeOf("DismissConflict")).toHaveProperty("conflictRef");
     expect(shapeOf("RemoveActivity")).toHaveProperty("activityRef");
+  });
+
+  // The cases above name the six commands that HAVE id fields, and naming them
+  // is what makes them readable. It is also their limit: a thirteenth
+  // `BatchableCommand` becomes a thirteenth planning tool with no edit in
+  // `planning.ts` and none here, so an id field it exposed would sit outside
+  // every assertion above with this file still green. The rule itself —
+  // **the AI never handles a UUID** — is a claim about the whole set, so it is
+  // asserted over the whole set.
+  it("exposes no id-shaped field on any planning tool, including one added later", () => {
+    const checked = witness("planning tool shapes");
+
+    for (const tool of PLANNING_TOOLS) {
+      const keys = Object.keys((tool.input as unknown as { shape: Record<string, unknown> }).shape);
+      // `/Id$/` rather than the four field names spelled out: `MoveActivity`'s
+      // ref field is `toDayId`, which a `(tripId|dayId|activityId|conflictId)`
+      // list misses, and the rule is about the SHAPE of an id rather than about
+      // today's vocabulary.
+      expect(keys.filter((key) => /Id$/.test(key)), `${tool.name} must expose no id field`).toEqual([]);
+      checked.tick();
+    }
+
+    // A loop over an empty (or mis-imported) registry asserts nothing and
+    // passes — the vacuity this whole test is here to replace. The exact count
+    // is `registry.test.ts`'s claim, not a second statement of it here.
+    checked.atLeast(1);
   });
 
   // Built the way a turn builds it — `aiToolsFor` over the definitions, which

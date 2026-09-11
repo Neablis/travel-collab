@@ -81,7 +81,7 @@ export const insertWidgetTool = defineTool({
     "registry and cannot be invented. Most params are that widget's own filters, and every " +
     "filter is optional — omit them all and the widget covers the whole trip, which is a real " +
     "answer and usually the right one. A few widgets also take a NON-filter param that chooses " +
-    "what they read or count; the catalogue lists each widget's under `params`, with the exact " +
+    "what they read or count; the catalogue lists each widget's params under `params`, with the exact " +
     "values allowed. `attribute` renders nothing without its `field`.",
   domain: "pages",
   effect: "propose",
