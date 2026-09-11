@@ -22,14 +22,22 @@ general setup.
 
 ## Where the work is right now
 
-**THE ASSISTANT IS A KERNEL — M9 PHASE 0, 2026-09-11.** Two branches, both pushed, both
-Tier-3 green, **neither merged**.
+**THE ASSISTANT IS A KERNEL — M9 PHASE 0. P0–P5 MERGED 2026-09-11 as `bbc5bdb` (#162).**
+P6 (KI-22, the contracts half) is on `claude/ai-stream-envelope-contracts`, replayed onto
+the new `main` and green — full suite exit 0, `seed:verify` exit 0, e2e 105 passed — and
+has **no PR yet**.
 
-- `claude/ecstatic-johnson-5rqhnm` — P0–P5, ten commits. `pnpm check` exit 0;
-  `pnpm --filter web test:e2e:ci-like` 105 passed.
-- `claude/ai-stream-envelope-contracts` — P6, **stacked on the above**, one commit. A
-  contracts change, which AGENTS.md reserves as its own PR. `pnpm check` exit 0,
-  `pnpm seed:verify` exit 0, e2e 105 passed.
+**#162 was squash-merged while P6 was stacked on it, which is KI-2026-08-30-d, and the
+recovery is worth knowing.** Merging `main` into the stacked branch produced **twelve
+add/add conflicts on source files**, because none of the base's commits are ancestors of
+`main` any more and git sees `main` adding everything the branch already has. The entry
+predicts duplicated known-issue entries; that check came back clean and the *code* conflicted
+instead — the failure scales with how much code the squashed base carried. A squash keeps the
+**tree** and loses only the ancestry (`git diff <old-head> origin/main` was empty here), so
+the fix is to replay the stacked branch's own contribution on top of the new `main` rather
+than merge. That entry now carries the full recipe, including the trap that bit on the first
+try: the replayed tree silently drops anything committed to the base after the branch last
+merged it.
 
 Mitchell, 2026-09-10, opening KI-2026-09-05-t: *"Lets take on refactoring it, and the entire
 AI Ask system."* Decision and the five rules: **ADR-043**. Design, corrections and the open
