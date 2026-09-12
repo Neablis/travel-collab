@@ -154,7 +154,11 @@ vi.mock("maplibre-gl", () => {
     }
     remove() {}
   }
-  return { Map, Marker, LngLatBounds };
+  // MapLens points maplibre at the worker copy we serve ourselves before it
+  // constructs a Map (see MAPLIBRE_WORKER_URL there). Nothing in jsdom spawns
+  // a worker, so this only has to exist — but it does have to exist, or every
+  // test in this file dies in the import, not in its assertion.
+  return { Map, Marker, LngLatBounds, setWorkerUrl: () => {} };
 });
 
 const useFocusMock = vi.fn();
