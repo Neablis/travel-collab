@@ -70,9 +70,9 @@ const TRIP_READOUT = {
   dayCount: 3,
   tripCostTotal: 1000,
   days: [
-    { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
-    { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
-    { day: 3, date: "2026-09-10", stopCount: 0, toBook: 0, costSubtotal: 0 },
+    { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 0, costSubtotal: 500 },
+    { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 0, costSubtotal: 500 },
+    { day: 3, date: "2026-09-10", cities: [], stopCount: 0, toBook: 0, costSubtotal: 0 },
   ],
   conflicts: [{ ref: 1, kind: "time-overlap", description: "\"A\" and \"B\" overlap on day 2." }],
 };
@@ -268,6 +268,36 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("AI is switched off on this deployment");
   });
 
+  // KI-2026-09-11-b: `resultFor` used to CAST a tool result to its readout
+  // type rather than parse it, so a result the message history carried but
+  // that did not actually match the tool's `output` schema surfaced as a
+  // runtime throw deep inside `askAnswer` (`trip.conflicts.length` on an
+  // undefined `conflicts`) rather than degrading like every other
+  // missing-result path. `resultFor` now `safeParse`s against the schema
+  // `ASSISTANT_TOOLS` registers for `read_trip`, and a value that fails to
+  // parse is treated as "no result yet" — the same fallback a turn with no
+  // tool results at all already gets. Restoring the old
+  // `found?.output as T | undefined` cast turns this red with exactly the
+  // TypeError above; see the resolved KI entry for that failure text.
+  it("degrades to the honest fallback instead of throwing when a tool result does not match its own schema", async () => {
+    const malformedTripReadout = {
+      name: "Japan",
+      currency: "USD",
+      startDate: "2026-09-08",
+      dayCount: 1,
+      tripCostTotal: 0,
+      days: [{ day: 1, date: "2026-09-08", cities: [], stopCount: 0, toBook: 0, costSubtotal: 0 }],
+      // `conflicts` is required by `TripReadoutSchema` and omitted here on
+      // purpose — a shape a real `read_trip` call can never produce, but one
+      // a cast (rather than a parse) would have let straight through.
+    };
+    const answer = textOf(
+      await probe().doGenerate(askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: malformedTripReadout }])),
+    );
+    expect(answer).toContain("I couldn't read anything about this trip.");
+    expect(answer).toContain("AI is switched off on this deployment");
+  });
+
   // M16's gate: a day-scoped answer must not wander onto other days. The trip's
   // conflict list spans the whole trip, so it is the one thing that could.
   it("names no day but its own when the turn is day-scoped", async () => {
@@ -362,9 +392,9 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...TRIP_READOUT,
               days: [
-                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 2, costSubtotal: 500 },
-                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
-                { day: 3, date: "2026-09-10", stopCount: 1, toBook: 1, costSubtotal: 0 },
+                { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 2, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 0, costSubtotal: 500 },
+                { day: 3, date: "2026-09-10", cities: [], stopCount: 1, toBook: 1, costSubtotal: 0 },
               ],
             },
           },
@@ -388,8 +418,8 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...TRIP_READOUT,
               days: [
-                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
-                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 1, costSubtotal: 500 },
+                { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 0, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 1, costSubtotal: 500 },
               ],
             },
           },

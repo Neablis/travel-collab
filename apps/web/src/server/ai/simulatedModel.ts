@@ -46,6 +46,7 @@ import type {
 } from "@/server/assistant/tools/read";
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
+import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -198,9 +199,42 @@ function unwrapToolOutput(output: unknown): unknown {
   return output;
 }
 
+// Keyed by name from the same registry the real path builds its tool set
+// from (registry.ts), so a tool's `output` schema is read once here rather
+// than re-declared. `ASSISTANT_TOOLS` never changes at runtime, so building
+// this once at module load costs nothing per call.
+const OUTPUT_SCHEMA_BY_TOOL_NAME = new Map(ASSISTANT_TOOLS.map((tool) => [tool.name, tool.output]));
+
+/**
+ * A prior tool result, `safeParse`d against the SAME `output` schema
+ * `defineTool`'s `invoke` already required of the real path (KI-9) — not cast.
+ *
+ * The message history this reads is untyped: it is JSON that came back over
+ * the wire, round-tripped through a client that is free to resend a stale
+ * turn (see `toolResultsOf`), and — before this fix — a plain cast over it, so
+ * a readout missing a field the caller expects surfaced as a runtime throw
+ * three call frames away (`askAnswer`'s `trip.conflicts.length`) rather than
+ * here, at the one place that actually knows the tool's contract.
+ *
+ * A shape that fails to parse is treated as "this tool has no result yet" —
+ * `undefined` — which is the same graceful-degradation path every caller
+ * already has for a tool the model has not called at all. That is weaker than
+ * throwing, but throwing here would just move the crash from three frames
+ * away to one frame away; the honest fallback ("I couldn't read anything
+ * about this trip") is what every other missing-tool-result path already
+ * does, and a shape mismatch is not distinguishable from "not called" from
+ * where `resultFor` sits.
+ */
 function resultFor<T>(results: readonly ToolResultLike[], toolName: string): T | undefined {
   const found = results.find((r) => r.toolName === toolName);
-  return found?.output as T | undefined;
+  if (found === undefined) return undefined;
+  const schema = OUTPUT_SCHEMA_BY_TOOL_NAME.get(toolName);
+  // No registered schema (a tool name the registry does not know) is not this
+  // function's problem to diagnose — fall back to the pre-existing cast so
+  // that case behaves exactly as it always has.
+  if (schema === undefined) return found.output as T | undefined;
+  const parsed = schema.safeParse(found.output);
+  return parsed.success ? (parsed.data as T) : undefined;
 }
 
 // The hours a free-time answer is actually about. Unbounded, the largest gap
@@ -462,9 +496,14 @@ function playbookCalls(results: readonly ToolResultLike[]): ToolCall[] | null {
     // also unfences what it receives, so either spelling works — but a model
     // told never to repeat the marks would not send them, and this model is a
     // stand-in for that model.
-    // `?? []` because `resultFor` is a cast over the agent's own untyped
-    // message history, not a parsed readout — a day without `cities` is a
-    // malformed result, not a crash.
+    // `trip?.days ?? []` because `trip` itself can be `undefined` — no
+    // `read_trip` result yet, or one that failed `resultFor`'s `safeParse`.
+    // `day.cities ?? []` is now belt-and-braces rather than load-bearing:
+    // `resultFor` parses through `TripReadoutSchema`, which requires `cities`
+    // on every day, so a `trip` that parsed at all already has it on each of
+    // its days. Kept anyway — a day without `cities` is still meant to read
+    // as "nothing to offer here", never a crash, however it got past the
+    // schema.
     const cities = [...new Set((trip?.days ?? []).flatMap((day) => (day.cities ?? []).map(plain)))].slice(0, 3);
     return [call("search_playbooks", cities.length > 0 ? { cities } : {})];
   }
