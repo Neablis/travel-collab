@@ -576,15 +576,15 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       Reflect.deleteProperty(window, "matchMedia");
     });
 
-    // **Two controls on this screen are called "Ask", and that is the sheet's
-    // doing, not the pill's**: `AskPill`'s label is §23's, and `AssistantRail`
-    // has always labelled its composer's submit button "Ask" too. Once the
-    // sheet is open both are on screen, so a bare name query is ambiguous.
-    // `aria-expanded` is the honest discriminator — the pill carries it
-    // because it is a disclosure and the submit button is not one — and it
-    // reads as what it is rather than as a nth-match index. (The collision is
-    // real for a voice-control user as well; `AssistantRail` is where it would
-    // be fixed, and that is outside this change.)
+    // Used to need `expanded: false` to disambiguate from the composer's
+    // submit button — both were named the bare "Ask" (KI-2026-09-05-ac,
+    // "three affordances share the accessible name Ask"), which is exactly
+    // the collision that made a voice-control user's "click Ask" ambiguous.
+    // `AssistantRail`'s submit button is `aria-label`led "Ask the assistant"
+    // now, so the name alone is unique; `expanded: false` stays here anyway
+    // because it is honestly what this call site wants — the pill in its shut
+    // state, immediately before it is clicked open — not because anything
+    // else on the page could still answer to "Ask".
     const askPill = () => screen.getByRole("button", { name: "Ask", expanded: false });
 
     // **§23's claim is positional, and this screen was the one that broke it**:
@@ -649,20 +649,19 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // before the sheet had modal semantics (Copilot, PR #148). Offering a
       // covered, inert control to a screen reader with an `aria-expanded` it
       // cannot act on is exactly what `hideOthers` exists to prevent.
-      // Queried by `expanded`, not by name alone: the sheet's own composer
-      // submit is ALSO named "Ask" (KI-2026-09-05-ac — three affordances share
-      // the word), and it is legitimately inside the dialog and reachable. The
-      // pill is the one carrying `aria-expanded`, so this asks the precise
-      // question — is the HEADER control reachable — in either state it could
-      // be in.
-      expect(screen.queryByRole("button", { name: "Ask", expanded: true })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Ask", expanded: false })).toBeNull();
+      // A bare name query is enough now: the sheet's composer submit used to
+      // answer to "Ask" too (KI-2026-09-05-ac), which is why this used to be
+      // two `expanded`-qualified queries rather than one — that submit button
+      // is legitimately inside the dialog and reachable, and would have made
+      // a plain "Ask" query ambiguous. `AssistantRail`'s submit is
+      // `aria-label`led "Ask the assistant" now, so "Ask" names only the
+      // pill, and this asks the precise question directly — is the HEADER
+      // control reachable, in either state it could be in.
+      expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
       // Deliberately NOT asserting the pill is still mounted here. It is, and
-      // it matters (focus is restored to it on close), but every query that
-      // reaches an `aria-hidden` element goes by text — and "Ask" matches the
-      // composer's submit too, so the assertion would be about the collision
-      // rather than the pill. That claim belongs to, and is pinned by,
-      // `AssistantRail.test.tsx`'s focus-restoration test.
+      // it matters (focus is restored to it on close), but that claim belongs
+      // to, and is pinned by, `AssistantRail.test.tsx`'s focus-restoration
+      // test.
 
       // And it comes back, unexpanded, once the sheet closes — which is where
       // "the pill was not replaced by the panel" is a claim worth making. On

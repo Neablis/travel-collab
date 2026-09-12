@@ -449,7 +449,15 @@ function ActivityRow({
               {!readOnly && (
                 <div className="flex gap-0.5">
                   <Preview id="timeline-ghost" size="compact">
-                    <Button variant="ghost" size="sm">
+                    {/* `aria-label`, not the bare visible "Ask": KI-2026-09-05-ac
+                    found this control colliding with §23's header pill and the
+                    composer's submit button — same accessible name, three
+                    different jobs, and on a multi-day trip this one alone
+                    accounts for most of the count (one per stop). WCAG 2.5.3
+                    is a containment rule, not an equality one, so a name that
+                    still starts with the visible word "Ask" stays compliant
+                    while actually saying which stop it is about. */}
+                    <Button variant="ghost" size="sm" aria-label={`Ask about ${activity.title}`}>
                       Ask
                     </Button>
                   </Preview>

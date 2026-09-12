@@ -616,6 +616,18 @@ export function AssistantRail({
                   size={isSheet ? "touch" : "sm"}
                   onClick={() => void submitAsk()}
                   disabled={asking || ask.trim() === ""}
+                  // `aria-label`, only while idle (KI-2026-09-05-ac): this
+                  // button's visible "Ask" is the same accessible name §23's
+                  // header pill carries, and on the phone sheet both are
+                  // reachable at once. WCAG 2.5.3 only requires the accessible
+                  // name to CONTAIN the visible label, not equal it, so
+                  // lengthening this one — the pill's own comment is explicit
+                  // that ITS name has to stay the bare visible word — clears
+                  // the collision without touching either visible label.
+                  // Omitted while `asking`: the visible text is "Asking…" at
+                  // that point, and a stale static label would no longer
+                  // contain it, which is the same 2.5.3 rule the other way.
+                  aria-label={asking ? undefined : "Ask the assistant"}
                 >
                   {asking ? "Asking…" : "Ask"}
                 </Button>
