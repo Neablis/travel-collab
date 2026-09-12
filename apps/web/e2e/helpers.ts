@@ -145,3 +145,59 @@ export async function openHistory(page: Page): Promise<void> {
   await page.getByRole("button", { name: "History", exact: true }).click();
   await undo.waitFor({ state: "visible" });
 }
+
+/**
+ * Reports whether the page got a working maplibre tile-decoding worker.
+ *
+ * Why this exists. Bump #158 took maplibre 5 -> 6, which moved the worker from
+ * an inlined blob to a separate module worker resolved at runtime from
+ * `import.meta.url`. Nothing a bundler can rewrite, so in the built app that
+ * expression yielded an EMPTY url, `new Worker("")` resolved against the
+ * document, and the browser was handed the page HTML as a module script and
+ * refused it on MIME type. The map then drew its chrome — rail, legend, focus
+ * card, every locator the Map specs assert on — over a basemap that never
+ * decoded a tile. The whole suite stayed green and it reached production.
+ *
+ * The assertion is on the POSITIVE outcome — a worker script actually served
+ * as JavaScript — and not on the absence of an error, for a reason worth
+ * keeping: when this was checked by removing the fix and running it, the
+ * browser's "Failed to load module script" never reached `page.on("console")`
+ * at all. That message belongs to the worker context, not the page, so a
+ * console-watching guard sits there reading clean while the map is dead. What
+ * the broken build does NOT do is ask for the worker we serve, and that is
+ * what this watches.
+ *
+ * Poll `outcome`: it returns as soon as the worker responds on the happy path,
+ * and otherwise carries its own explanation instead of a bare timeout.
+ */
+export function watchMapWorker(page: Page): { outcome: () => string } {
+  let state =
+    "no request for a maplibre worker script was ever made — its url did not " +
+    "resolve to the copy we serve (see watchMapWorker in e2e/helpers.ts)";
+  const settled = () => state === "loaded";
+
+  page.on("response", (response) => {
+    if (!response.url().includes("maplibre-gl-worker")) return;
+    const contentType = response.headers()["content-type"] ?? "(none)";
+    state =
+      response.status() === 200 && /javascript/.test(contentType)
+        ? "loaded"
+        : `worker served ${response.status()} as ${contentType} from ${response.url()}`;
+  });
+
+  // The other shape this failure can take: the worker IS requested and comes
+  // back as something that is not JavaScript. Recorded only while nothing has
+  // loaded yet, so an unrelated late error cannot un-pass a healthy map.
+  page.on("console", (message) => {
+    if (settled() || message.type() !== "error") return;
+    if (/failed to load module script|failed to fetch worker/i.test(message.text())) {
+      state = `worker load error: ${message.text()}`;
+    }
+  });
+  page.on("pageerror", (error) => {
+    if (settled()) return;
+    state = `uncaught page error: ${error.message}`;
+  });
+
+  return { outcome: () => state };
+}

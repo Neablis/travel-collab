@@ -5,9 +5,9 @@
   "packageManager": "pnpm@10.28.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack -p ${WEB_PORT:-3001}",
-    "build": "next build",
-    "vercel-build": "node scripts/vercel-build-migrate.mjs && next build",
+    "dev": "node scripts/copy-maplibre-worker.mjs && next dev --turbopack -p ${WEB_PORT:-3001}",
+    "build": "node scripts/copy-maplibre-worker.mjs && next build",
+    "vercel-build": "node scripts/vercel-build-migrate.mjs && node scripts/copy-maplibre-worker.mjs && next build",
     "start": "next start -p ${WEB_PORT:-3001}",
     "lint": "eslint src e2e *.ts",
     "typecheck": "tsc --noEmit",

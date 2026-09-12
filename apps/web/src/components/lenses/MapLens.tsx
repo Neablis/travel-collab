@@ -20,6 +20,22 @@ import { MapLegend } from "./MapLegend";
 // the old "liberty" style's own colourful landuse/POI fills competed with them.
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
+// MapLibre v6 loads its tile-decoding worker as a separate module worker (v5
+// inlined it as a blob), resolving it at runtime from `import.meta.url` with a
+// computed filename. No bundler can rewrite that, and after bundling
+// `import.meta.url` is not an http(s) url, so maplibre fell back to an EMPTY
+// worker url: `new Worker("")` resolved against the document, handed the
+// browser this page's HTML as a module script, and was refused on MIME type —
+// leaving the map chrome drawn over a basemap that never decoded a tile
+// (bump #158). Turbopack's own emitted copy is no use as a target either: it
+// is a raw asset whose `import "./maplibre-gl-shared.mjs"` is left unrewritten
+// next to a hashed sibling. So we serve the worker and that sibling ourselves,
+// under their original names, and name the worker here.
+//
+// Written by scripts/copy-maplibre-worker.mjs at build/dev start; same-origin,
+// so the CSP's `worker-src 'self'` already covers it (next.config.ts).
+const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+
 function accentVar(accent: MapDay["accent"]): string {
   return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
 }
@@ -187,8 +203,11 @@ export function MapLens({
     let map: import("maplibre-gl").Map | undefined;
     let resizeObserver: ResizeObserver | undefined;
 
-    import("maplibre-gl").then(({ Map, Marker, LngLatBounds }) => {
+    import("maplibre-gl").then(({ Map, Marker, LngLatBounds, setWorkerUrl }) => {
       if (cancelled || !el) return;
+      // Before the first Map construction: maplibre reads this when it spawns
+      // its worker pool, which happens inside the constructor below.
+      setWorkerUrl(MAPLIBRE_WORKER_URL);
       LngLatBoundsRef.current = LngLatBounds;
 
       map = new Map({
