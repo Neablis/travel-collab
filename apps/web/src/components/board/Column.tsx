@@ -127,6 +127,14 @@ export function Column({
     <section
       ref={columnRef}
       data-testid="day-column"
+      // SPEC §28's city rule, and the ONLY thing this component does for it.
+      // In Ledger a pale tint reads as grey on cream, so anything city-coded
+      // also gets a 3px solid rule in its own city's colour. The rule itself
+      // lives in the look layer (`globals.css`, `html[data-look="ledger"]
+      // [data-city-accent]`) because it exists in exactly one look; this names
+      // the family so that layer has something to colour it with. Every other
+      // look ignores the attribute entirely.
+      data-city-accent={accent}
       className={cn(
         "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",
         TINT_BG[accent],

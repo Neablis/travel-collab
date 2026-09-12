@@ -120,6 +120,209 @@
   }
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   LOOKS — SPEC §28. Four of them, and `ledger` is the default.
+
+   **Nothing here changes behaviour.** Every rule reassigns a token the app
+   already draws from, so the same markup, handlers, layout and hit targets
+   carry across all four. That is the design file's own framing of this layer
+   (`Trip Planner Redesign.dc.html:80-83`) and it is the property that makes a
+   look cheap: a screen never knows which one it is in.
+
+   **The base `@theme` block above IS the `paper` look**, so `paper` has no
+   block of its own — it is what you get by overriding nothing. Naming it in
+   `data-look` still works, and renders identically.
+
+   **Selector is `html[data-look=…]`, not `[data-look=…]`.** `@theme` emits its
+   variables on `:root`, which is the same element and the same specificity
+   (0,1,0), so a bare attribute selector would win only by source order — true
+   today, and quietly untrue the first time this file is reordered or the
+   import moves. The type selector makes it (0,1,1) and settles it.
+
+   **No `oklch` anywhere, deliberately.** `DRIFT.md` build-check 2: MapLibre
+   parses CSS Color 3 only and falls back to black on an `oklch()` it is
+   handed, while `getComputedStyle` and canvas `fillStyle` both PRESERVE the
+   function verbatim and so look like a fix. The app has never used it; a look
+   defining its palette that way would put the trap on every map paint property
+   in one commit. Hex only.
+
+   **What is NOT here:** the design file also carries a `--a-*` family of
+   per-look assistant shape variables (bubble fills, corner radii, the
+   transcript gap). Those describe the design file's own assistant markup,
+   which is not this build's — `AssistantRail` is built from the same tokens
+   and utilities as everything else, so it re-skins with the rest of the app
+   and needs no second variable system. If a look ever needs the assistant to
+   differ in SHAPE rather than colour, that is the moment to port them.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Ledger — the default. Squared, ruled rather than shadowed, headings set
+   like column headers. */
+html[data-look="ledger"] {
+  --color-paper: #faf8f3;
+  --color-surface: #ffffff;
+  --color-moss: #f0ede4;
+  --color-hairline: #dcd6c8;
+  --color-border-strong: #b5ae9d;
+  --color-border-input: #8b8574;
+  --color-slate: #6b6455;
+  --color-ink: #16130d;
+
+  --color-brand: #2c4034;
+  --color-brand-hover: #22332a;
+  --color-brand-pressed: #1a2720;
+  --color-brand-tint: #e9e7dd;
+
+  /* §28: "City colour carries HARDER in Ledger, not less. A pale tint alone
+     reads as grey on cream." The design says this as a chroma bump on an oklch
+     ramp; this build assigns each city one of five SEMANTIC families
+     (`lib/dayAccent.ts`) and colours it with that family's tint token, so the
+     same instruction lands here as a per-family tint that holds its hue
+     against cream. The solid half is the 3px rule below. */
+  --color-brand-tint: #e9e7dd;
+  --color-info-tint: #dbe6f2;
+  --color-success-tint: #dcebe0;
+  --color-warning-tint: #f2e7cc;
+  --color-danger-tint: #f4dedb;
+
+  /* Squared. `--radius-full` is deliberately untouched: avatars, dots and the
+     Keep pennant are SHAPES, not styling, and §28 carves them out by name. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+
+  /* Headings set like column headers.
+
+     **Overriding `--font-next-display`, not `--font-display`.** The latter is
+     declared in `@theme inline`, and `inline` means Tailwind SUBSTITUTES the
+     value at compile time: `font-display` comes out as
+     `font-family: var(--font-next-display), ui-sans-serif, sans-serif`, with no
+     `var(--font-display)` anywhere in the output to override. Redefining
+     `--font-display` here would have compiled, linted, typechecked and done
+     absolutely nothing. The variable that survives into the utility is the
+     next/font one, so that is the one a look reassigns.
+
+     **Headings only, which is narrower than the design file.** §28's prose says
+     Ledger "sets headings in mono"; the design file's own ledger block also
+     sets `--font-next-sans` to mono, putting the entire UI in monospace. The
+     prose is the written contract and the conservative reading, so this follows
+     it. Flip `--font-next-sans` here if the whole-UI version is what was
+     wanted — it is a one-line change, deliberately. */
+  --font-next-display: var(--font-next-mono);
+}
+
+/* Nightdesk — the dark one. */
+html[data-look="nightdesk"] {
+  color-scheme: dark;
+
+  --color-paper: #0f141d;
+  --color-surface: #171e2a;
+  --color-moss: #1f2734;
+  --color-hairline: #2b3441;
+  --color-border-strong: #3b4553;
+  --color-border-input: #4d5867;
+  --color-slate: #9ba7b6;
+  --color-ink: #eef2f7;
+
+  --color-brand: #35a98d;
+  --color-brand-hover: #45b99c;
+  --color-brand-pressed: #b9e8da;
+  --color-brand-tint: #14302a;
+
+  --color-danger: #e0776d;
+  --color-danger-tint: #391e1c;
+  --color-danger-ink: #f2b6b0;
+  --color-warning: #d8a75a;
+  --color-warning-tint: #382d18;
+  --color-warning-ink: #eed296;
+  --color-success: #56b880;
+  --color-success-tint: #143020;
+  --color-success-ink: #a6dcb9;
+  --color-info: #5b9dd6;
+  --color-info-tint: #15273a;
+  --color-info-ink: #aecfec;
+}
+
+/* Airmail — warm paper, rounder than the rest. */
+html[data-look="airmail"] {
+  --color-paper: #fdf5ec;
+  --color-surface: #fffdfa;
+  --color-moss: #f6e9da;
+  --color-hairline: #ead9c5;
+  --color-border-strong: #cfb79b;
+  --color-border-input: #a8927a;
+  --color-slate: #6f6153;
+  --color-ink: #2a2018;
+
+  --color-brand: #a8532f;
+  --color-brand-hover: #954829;
+  --color-brand-pressed: #7c3b21;
+  --color-brand-tint: #f7e3d5;
+
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+}
+
+/* Ledger's two rules that a token cannot carry on its own.
+
+   **Unlayered, on purpose.** Tailwind declares `@layer theme, base, components,
+   utilities` in that order, and a later layer beats an earlier one regardless
+   of specificity — so `html[data-look="ledger"] .shadow-raised` sitting in
+   `@layer components` would lose to the plain `.shadow-raised` utility every
+   time, however specific it looks. Unlayered rules beat all layered ones, which
+   is what these need.
+
+   1. Elevation becomes a hairline. It has to be a RULE and not a token:
+      `shadow-raised` does not compile to `var(--shadow-raised)` — Tailwind
+      inlines the shadow's literal into a `--tw-shadow` of its own — so setting
+      `--shadow-raised: none` in the block above looked like the fix and changed
+      nothing. */
+html[data-look="ledger"] .shadow-raised {
+  box-shadow: none;
+  border: 1px solid var(--color-hairline);
+}
+
+  /* 2. The city's own 3px rule. The design writes this as
+        `[data-app-theme="ledger"] [data-city] { border-left: 3px solid var(--c) }`
+        over an oklch ramp; the build has five semantic families instead, so the
+        element names its family and the look supplies that family's ink. Only
+        surfaces that are genuinely city-coded carry the attribute — today the
+        Plan columns; §28 also names the Overview day table, which is the
+        Overview page's to add when it exists.
+
+        Scoped to this look on purpose: in every other look the tint alone
+        carries the read, and the rule would be noise. */
+  html[data-look="ledger"] [data-city-accent] {
+    border-left: 3px solid;
+  }
+  html[data-look="ledger"] [data-city-accent="brand"] {
+    border-left-color: var(--color-brand);
+  }
+  html[data-look="ledger"] [data-city-accent="info"] {
+    border-left-color: var(--color-info-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="success"] {
+    border-left-color: var(--color-success-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="warning"] {
+    border-left-color: var(--color-warning-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="danger"] {
+    border-left-color: var(--color-danger-ink);
+  }
+  /* A day with no located stop has no city and therefore no colour. Inventing
+     one would claim a place the trip never named (`cityAccents.ts`), so the
+     rule is drawn in the hairline instead of skipped — the column still lines
+     up with its neighbours. */
+  html[data-look="ledger"] [data-city-accent="neutral"] {
+    border-left-color: var(--color-hairline);
+  }
+
+
+
 @layer components {
   /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
      equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
