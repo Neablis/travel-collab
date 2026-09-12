@@ -222,4 +222,18 @@ describe("the turn meter", () => {
     expect(NO_METER.toolCalls()).toEqual([]);
     expect(NO_METER.capacity()).toEqual([]);
   });
+
+  // KI-2026-09-11-d: toolCalls() used to hand back the live array, where its
+  // sibling ProposalBuffer.collected() (deps.ts) copies and documents copying
+  // as the guarantee it preserves — a caller that mutates what it reads must
+  // not be able to rewrite what the turn collected.
+  it("hands back a copy, so a caller mutating what it reads cannot rewrite what the turn collected", () => {
+    const meter = newTurnMeter();
+    meter.toolCall("read_trip", 12, true);
+
+    const snapshot = meter.toolCalls() as LedgerToolCall[];
+    snapshot.push({ name: "evil", ms: 0, ok: true });
+
+    expect(meter.toolCalls()).toEqual([{ name: "read_trip", ms: 12, ok: true }]);
+  });
 });
