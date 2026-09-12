@@ -223,11 +223,13 @@ link_playwright_shell() {
   # exist" with no clue why — the third silent recurrence in a row. If this
   # cannot resolve Playwright, say so.
   #
-  # This resolution also depends on `apps/web/node_modules` existing, and this
-  # function has historically been reachable before it does — a fresh
-  # container has no node_modules at all until something runs `pnpm install`,
-  # and getting every caller of this function to run strictly after that
-  # install is an ordering invariant, not a guarantee (KI-2026-09-07-b:
+  # This resolution also depends on `apps/web/node_modules` existing, and
+  # getting every caller to run strictly after an install is an ordering
+  # invariant rather than a guarantee. Note the ordering in THIS file has
+  # always been correct — the remote branch below runs `pnpm install` three
+  # lines before calling this, and has since the file was created (e098d19).
+  # The guard is defence against a caller that does not, and against an
+  # install that silently failed (KI-2026-09-07-b:
   # reproduced by calling this function against a real fresh worktree with no
   # apps/web/node_modules — the resolve below threw MODULE_NOT_FOUND and this
   # returned 0 having linked nothing). Rather than rely on the caller getting
