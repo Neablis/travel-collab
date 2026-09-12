@@ -195,7 +195,7 @@ Seven links.
 
    **`Money` must not appear on this surface's data path** — the console shows
    dollars derived at read time from tokens plus the dated rate table, per M20
-   link 9. A request costing $0.0011 rounds to zero in `amountMinor`; that is
+   link 9. A request costing $0.0006 rounds to zero in `amountMinor`; that is
    the third recurrence of the defect class, and a revenue screen is where it
    would look most like a real number.
 
@@ -317,10 +317,13 @@ checkout session cannot ship without a number.
 
 **Cost is not the constraint on that decision.** M20 link 5 works it through
 against the models actually configured — `deepseek/deepseek-v4-flash-0731` at
-$0.22/$0.66 per MTok and `zai/glm-4.7-flash` at $0.06/$0.40, billed at
-provider list price because Vercel AI Gateway takes no markup. A single live
-request cost **about a ninth of a cent**, and an account consuming the entire
-daily ceiling lands between **~$3 and ~$25 a month.** Any plausible
+$0.13/$0.26 per MTok (US regional) and `zai/glm-4.7-flash` at $0.07/$0.40,
+billed at provider list price because Vercel AI Gateway takes no markup. A
+single live request cost **about six hundredths of a cent**, and an account
+consuming the entire daily ceiling lands between **~$2 and ~$14 a month.**
+(Both rates and both bounds corrected 2026-09-12 against the live catalogue;
+this paragraph carried M20's stale $0.22/$0.66 and the ~$3-$25 band derived
+from it.) Any plausible
 subscription price clears that with room, so the prices are a positioning
 question, not a margin one, and the quotas are an abuse bound rather than a
 cost defence.
