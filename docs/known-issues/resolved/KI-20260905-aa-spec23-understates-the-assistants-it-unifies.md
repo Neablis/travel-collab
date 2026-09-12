@@ -1,4 +1,4 @@
-### KI-2026-09-05-aa — `SPEC.md` §23's unification plan is right; the one sentence describing what it unifies is wrong, and that is what hid a KI-84 reversal
+### KI-2026-09-05-aa — `SPEC.md` §23's unification plan is right; the one sentence describing what it unifies is wrong, and that is what hid a KI-84 reversal — RESOLVED
 
 - **Severity:** documentation / handoff correctness — **confirmed**. No user-visible symptom, and **no defect in the design's plan**. The cost is that a build reading §23 cannot see that it is reversing an earlier decision.
 - **Area:** one sentence in `.design-sync/handoff/SPEC.md` §23, its restatement in `DRIFT.md` §2i, and the README's summary of both.
@@ -20,3 +20,23 @@
 - **Suggested next step:** on the next design sync, replace §23's "the phone had none, and no entry point at all" with what was actually there (the table above), and add the KI-84 reversal to §2i's "what a build owes". Nothing else in §23 needs to change.
 - **Cross-reference:** `KI-84`; `KI-2026-08-30`; `KI-2026-09-05-ac` (three affordances now share the name `Ask` — a consequence of unifying onto one word); `DRIFT.md` build-check 4c; `DRIFT.md` §8 (the two holes §23 leaves undesigned: the Free-tier state of the pill, and the missing "Save this day as a Playbook" phone entry point); `SPEC.md` §9, §13.5.
 - **First noted:** 2026-09-05, opening the §23 build.
+- **Fix and proof:** Verified the "before" claim against the code at `ae4d33d` (the commit
+  immediately before PR #148 built §23), not against other prose: `TripBoardScreen.tsx` had
+  one shared `◎ Assistant` button (Plan and Map both render it, "end of the plan column"),
+  `PageScreen.tsx` had its own `◎ Assistant` button beside "Edit page" in the page action
+  row, `NotebookScreen.tsx` had no match for "assistant" at all, and `globals.css`'s
+  `.assistant-rail` below 767px is `position: fixed; inset: 0; width: 100%; height: 100dvh`
+  — genuinely full screen, exactly as the table above states and as
+  `e2e/m16-mobile-assistant.spec.ts`'s pre-#148 header comments describe. Replaced the wrong
+  sentence in `SPEC.md` §23 ("The phone had none, and no entry point at all") and its
+  restatement in `DRIFT.md` §2i ("the phone had no entry point, and the code has no phone
+  assistant either — so this is design ahead of build, not a disagreement") with the actual
+  prior state (three scattered full-screen entry points, one screen with none), added the
+  KI-84-reversal note to §2i's "what a build owes" that the original text's false premise had
+  room to omit, and corrected the README's summary bullet the same way. Accepted the
+  documented risk in "Why not fixed here" (the next design sync can overwrite this) because
+  the task was to correct the bundle as currently committed, not to change the sync process.
+  Proof: `pnpm --filter @tc/fixtures typecheck` and `pnpm --filter @tc/fixtures exec vitest
+  run src/japan/upstreamDrift.test.ts` (the one real code dependency on
+  `.design-sync/handoff/`, via `japan-trip-seed.json`, which this change does not touch) both
+  still pass — 6 tests, no regressions from the prose edit.

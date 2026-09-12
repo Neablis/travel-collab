@@ -945,7 +945,11 @@ entry point, and what the Include chips actually do to the snapshot.
 ## 23. The assistant reaches the phone — as a pill, not a tab — 2026-09-05
 
 §9 gave the assistant three presentations, **all of them desktop**: docked rail, floating
-panel, collapsed bubble. The phone had none, and no entry point at all. It has one now.
+panel, collapsed bubble. The phone already had three of its own, scattered: Plan and Map
+shared one `◎ Assistant` button at the end of the plan column, and an open Notebook page had
+its own beside "Edit page" — both opened **full-screen** (`.assistant-rail` below 768px,
+KI-84). Only the Notebook index had no entry point at all. Six presentations across the app
+before this; one pill, in one place, now.
 
 **An `Ask` pill, last item in the top row, on all four in-trip screens** — Plan, Map, the
 Notebook index and an open Notebook page. Same pill, same label, same position, so it never
