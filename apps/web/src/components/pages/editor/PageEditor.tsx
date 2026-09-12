@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { TripDetail, PageContext, PageDoc, TripGlobals, UserPreferences } from "@tc/contracts";
 import { insertPreset } from "@tc/pages";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
-import { MacroEditorContext } from "./MacroEditorContext";
+import { MacroEditorContext, type MacroEditorContextValue } from "./MacroEditorContext";
 import { SlashMenu } from "./SlashMenu";
 import { useSlashMenu } from "./useSlashMenu";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
@@ -28,6 +28,11 @@ export interface PageEditorProps {
   // Reading mode. ADR-037 decision 4 and §18: Reading is the traveller's view
   // and shows no insert affordance and no chrome.
   editable?: boolean;
+  // SPEC §26: the surface's side channel subscribes here, so a widget's
+  // settings can live outside the document. Omitted by surfaces that have no
+  // side channel to put them in — the Overview tab (§25) mounts this read-only
+  // and passes nothing.
+  onWidgetSelected?: MacroEditorContextValue["onWidgetSelected"];
 }
 
 // The rich-text editor for a page: StarterKit's usual marks/blocks, plus the
@@ -46,7 +51,7 @@ export interface PageEditorProps {
 // `onChange` emits raw `getJSON()`, deliberately typed `unknown`: it is what the
 // editor produced, not yet something we have agreed to store. `toStoredPageDoc`
 // is the step in between.
-export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true }: PageEditorProps) {
+export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, onWidgetSelected }: PageEditorProps) {
   // The slash menu's keydown handler has to be installed at editor creation
   // (`editorProps` is read once), but the menu itself only exists after the
   // editor does. A ref breaks that circle; nothing reads it before the first
@@ -118,7 +123,9 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   slashKeyDownRef.current = slash.handleKeyDown;
 
   return (
-    <MacroEditorContext.Provider value={{ detail, context, user, globals, editing: editable, onBindDay }}>
+    <MacroEditorContext.Provider
+      value={{ detail, context, user, globals, editing: editable, onBindDay, onWidgetSelected }}
+    >
       <EditorContent editor={editor} className="tc-page-editor" />
       <SlashMenu state={slash.state} onPick={slash.onPick} />
     </MacroEditorContext.Provider>

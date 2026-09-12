@@ -24,6 +24,41 @@ export interface MacroEditorContextValue {
   // than each widget guessing.
   editing: boolean;
   onBindDay?: () => void;
+  /**
+   * SPEC §26: a widget reports when it becomes the selected one, so the
+   * SURFACE — not the document — can show its settings.
+   *
+   * > The document reads identically in both modes. No widget control is ever
+   * > in the document flow.
+   *
+   * The callback carries the widget's own `onChange` rather than an id the
+   * panel would have to resolve back to a node: the writer is
+   * `updateAttributes` on that specific ProseMirror node, which only the node
+   * view holds. Passing the closure keeps the "rebind writes straight onto the
+   * node's attrs" property that made the chrome row the whole flow — one
+   * document update, `onUpdate`, autosave, no second save path.
+   *
+   * **The reporter always names itself, including when it is clearing.** Every
+   * mounted node view runs the same effect, so a click moving the selection
+   * from A to B fires A's "I lost it" and B's "I have it" in an order React
+   * decides. A bare `null` would let A's clear land after B's set and close the
+   * panel that had just opened. With the key, a clear can be ignored unless it
+   * comes from the widget currently being shown.
+   *
+   * Optional because `PageEditor` is mounted read-only by surfaces with no side
+   * channel at all (the Overview tab, §25), and a settings panel there would be
+   * a control on a document that cannot be edited.
+   */
+  onWidgetSelected?: (selection: SelectedWidget | null, reporterKey: string) => void;
+}
+
+/** The widget whose settings the surface's side channel is showing (SPEC §26). */
+export interface SelectedWidget {
+  /** Stable for the life of one mounted node view; identifies WHICH widget reported. */
+  key: string;
+  name: string;
+  params: Record<string, unknown>;
+  onChange: (params: Record<string, unknown>) => void;
 }
 
 export const MacroEditorContext = createContext<MacroEditorContextValue | null>(null);

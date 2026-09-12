@@ -324,6 +324,48 @@ html[data-look="ledger"] .shadow-raised {
 
 
 @layer components {
+  /* SPEC §26's edit-mode affordance, and the property that matters is what it
+     does NOT do: **the prose must not move when edit mode opens.**
+
+     > Edit mode used to inject a chrome row — name pill, bind selects, tag
+     > chips — above each widget. That meant the document you were editing was
+     > not the document you had written: it reflowed the moment you hit Edit,
+     > and the thing you were trying to judge moved.
+
+     So neither rule below may take layout space. The outline is drawn with
+     `outline`, not `border`: a border is part of the box and would reflow the
+     line it sits in; an outline is painted outside it and costs nothing.
+     `outline-offset` pushes it clear of the glyphs without touching the
+     measure. The handle is `position: absolute` against the wrapper, so it too
+     is out of flow, and it is allowed to overhang the top edge. */
+  .tc-widget-edit {
+    outline: 1px dashed var(--color-border-strong);
+    outline-offset: 2px;
+  }
+  .tc-widget-handle {
+    position: absolute;
+    /* Above the widget's own top edge, which is what "on its top edge" means
+       when the thing must not displace the line above it. */
+    top: -14px;
+    left: 0;
+    /* §26's 58×20. `line-height` centres the ▸ without a flex context, which
+       matters because this sits inside a ProseMirror inline atom where an
+       unexpected flex container changes how the node's own box is measured. */
+    width: 58px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    font-size: 11px;
+    border-radius: var(--radius-xs);
+    background-color: var(--color-moss);
+    color: var(--color-slate);
+    /* The handle is a marker, not a target: §26 makes "the block itself" the
+       click target, so this must never swallow the click that selects the
+       node underneath it. */
+    pointer-events: none;
+    user-select: none;
+  }
+
   /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
      equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
      would trip the color-wall's "no arbitrary values" check with no inline-style
