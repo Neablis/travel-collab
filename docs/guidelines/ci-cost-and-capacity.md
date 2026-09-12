@@ -166,9 +166,11 @@ Four details that are easy to get wrong and were each got wrong once:
   unrecoverable, and two overlapping ones are worse.
 - **`paths-ignore` lists `*.md`, not `**/*.md`.** `**/*.md` would also match
   `.design-sync/**`, and that tree is a **real build input**:
-  `api/dev/reset-demo-data/route.ts` imports
-  `.design-sync/handoff/data/japan-trip-seed.json` and
-  `japanTripImporter.test.ts` reads it. Ignoring it would let a broken seed
+  `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
+  `apps/web/scripts/geocode-japan-seed.mts:139` both read
+  `.design-sync/handoff/data/japan-trip-seed.json`. (This used to cite
+  `api/dev/reset-demo-data/route.ts`, which no longer imports it — the rule
+  held, the citation did not. Corrected 2026-09-12.) Ignoring it would let a broken seed
   through untested. `scripts/**` is likewise never ignored — `pnpm lint` runs
   `check-lint-wall.mjs` (which also fixtures the test-quality wall),
   `check-color-wall.mjs`, `check-case-collisions.mjs` and `check-sleep-wall.mjs`

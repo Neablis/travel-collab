@@ -282,8 +282,13 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > wait for and no review to collect — see *Do not watch what cannot run* below.
 >
 > **The trap:** `.design-sync/**` is **not** prose. It is a real build input —
-> `api/dev/reset-demo-data/route.ts` imports its seed JSON — so a change there
-> is Tier 2 even when only its markdown moved. `ci.yml` gets this right by
+> `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
+> `apps/web/scripts/geocode-japan-seed.mts:139` both read
+> `.design-sync/handoff/data/japan-trip-seed.json` — so a change there is Tier 2
+> even when only its markdown moved. (This used to cite
+> `api/dev/reset-demo-data/route.ts`, which stopped importing the seed and now
+> only carries a comment saying it once did; the rule was right, its reason had
+> gone stale. Corrected 2026-09-12.) `ci.yml` gets this right by
 > listing `*.md` rather than `**/*.md`; classify the same way.
 
 **Tier 2 — code, mid-branch.** Any change that is not Tier 1, before the branch
