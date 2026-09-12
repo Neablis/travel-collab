@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { createMappedTrip, openHistory } from "./helpers";
+import { createMappedTrip, openHistory, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // This spec's own webServer runs with AI_LIVE=false (playwright.config.ts's
@@ -205,11 +205,17 @@ async function tripWithStops(
 // phrased "add a day from the playbook library" would have passed throughout.
 //
 // **The city is minted.** The published library is global and cumulative
-// (m11b's comment), and the simulated model takes `search_playbooks`' FIRST
-// result — over a shared city that is whatever the rest of the suite left
-// behind. A city no other run can have published into makes the result exactly
-// one day.
-test("a playbook day the assistant found reaches the board once it is approved", async ({ page }) => {
+// (m11b's comment), and the simulated model takes `search_playbooks`' first
+// result that is not the searcher's own (KI-2026-09-08-d) — over a shared
+// city that is whatever the rest of the suite left behind. A city no other
+// run can have published into makes the result exactly one day.
+//
+// **Two actors, m11b's idiom.** Alice keeps and publishes the day; a brand
+// new second account asks the assistant for it. One actor searching their own
+// published day is exactly the case KI-2026-09-08-d's fix excludes — the
+// picker skips a result that is `mine`, so this proposal only exists at all
+// because the finder is not the publisher.
+test("a playbook day the assistant found reaches the board once it is approved", async ({ page, browser }) => {
   test.slow();
 
   const city = `Kyotoai${randomUUID().replace(/-/g, "").slice(0, 8)}`;
@@ -229,20 +235,28 @@ test("a playbook day the assistant found reaches the board once it is approved",
   const published = await page.request.post(`/api/saved-days/${savedDay.savedDayId}/publish`);
   expect(published.ok(), `publish -> ${published.status()}`).toBe(true);
 
+  // The finder: a brand new account, in its own context — `storageState:
+  // undefined` because the "desktop" project pins alice's saved session, and
+  // inheriting it would make this alice finding alice's own day, which the
+  // picker now refuses to propose.
+  const finderContext = await browser.newContext({ storageState: undefined });
+  const finder = await finderContext.newPage();
+  await signInAsDevUser(finder, `finder${randomUUID().replace(/-/g, "").slice(0, 12)}`);
+
   // The trip being planned. Its own stop sits in the SAME minted city, because
   // the simulated model searches the library on the cities `read_trip` reports.
-  const target = await tripWithStops(page, e2eTripName("AI Library"), [
+  const target = await tripWithStops(finder, e2eTripName("AI Library"), [
     { title: `Already here ${city}`, city },
   ]);
-  await page.goto(`/trips/${target.tripId}`);
-  const board = page.locator(".trip-board-content");
+  await finder.goto(`/trips/${target.tripId}`);
+  const board = finder.locator(".trip-board-content");
   await expect(board.getByText(`Already here ${city}`)).toBeVisible();
 
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
-  await page.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
-  await page.getByRole("button", { name: "Ask" }).click();
+  await finder.getByRole("button", { name: "Assistant", exact: true }).click();
+  await finder.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
+  await finder.getByRole("button", { name: "Ask" }).click();
 
-  const card = page.getByRole("region", { name: "Proposed change" });
+  const card = finder.getByRole("region", { name: "Proposed change" });
   await expect(card).toBeVisible();
   // Named by the row the server read, and counted from it — the card is not
   // repeating anything the model wrote.
@@ -253,7 +267,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
   await expect(board.getByText(`Kiyomizu at dawn ${city}`)).toHaveCount(0);
 
   const [applied] = await Promise.all([
-    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
+    finder.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
     card.getByRole("button", { name: "Approve" }).click(),
   ]);
   expect(applied.status()).toBe(200);
@@ -264,4 +278,6 @@ test("a playbook day the assistant found reaches the board once it is approved",
   await expect(board.getByText(`Kiyomizu at dawn ${city}`)).toBeVisible();
   await expect(board.getByText(`Nishiki market ${city}`)).toBeVisible();
   await expect(board.getByText(`Already here ${city}`)).toBeVisible();
+
+  await finderContext.close();
 });
