@@ -363,14 +363,14 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // which is where it belonged: cancellation and unmounting both leave a
     // window for a frame already in flight, and a guard on "is this page still
     // being edited" does not. `PageAssistant.test.tsx` walks that refusal.
-    expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
+    expect(screen.getByTestId("assistant-launcher")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
     // The notebook's AI surface is the assistant panel, not a prompt box —
     // Mitchell: *"This should be the same style AI Assistant as on the trip
     // page, not the top of the UI input box"*.
-    const launcher = screen.getByRole("button", { name: /Assistant/ });
+    const launcher = screen.getByTestId("assistant-launcher");
     expect(launcher).toBeTruthy();
     await userEvent.click(launcher);
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
@@ -394,7 +394,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
   });
@@ -414,7 +414,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
 
     expect(screen.getByText("Looking at Trip Overview")).toBeTruthy();
     expect(screen.queryByTestId("assistant-scrim")).toBeNull();
@@ -903,7 +903,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     // assistant offered here would be a control with nowhere to put its
     // answer. The `Ask` pill is named too because SPEC §23 moved the phone's
     // way in and the locked branch must not have quietly regrown one.
-    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    expect(screen.queryByTestId("assistant-launcher")).toBeNull();
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });

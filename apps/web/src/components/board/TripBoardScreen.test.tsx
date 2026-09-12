@@ -558,7 +558,7 @@ describe("TripBoardScreen", () => {
 
     // The rail is closed until asked for now, so open it before reaching for
     // anything inside it.
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(askButton());
 
@@ -580,7 +580,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i);
     fireEvent.change(box, { target: { value: "What's planned?" } });
     fireEvent.click(askButton());
@@ -611,7 +611,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "What's planned?" } });
     fireEvent.click(askButton());
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -641,7 +641,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByText("Looking at Rome 2027")).toBeTruthy();
     // The composer says the same thing the context line does — it used to say
     // "this day" here regardless (final branch review, finding 3).
@@ -675,7 +675,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     const suggestions = () =>
       within(screen.getByRole("list", { name: "Suggested questions" }))
         .getAllByRole("button")
@@ -707,7 +707,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
     expect(screen.getByText("Looking at Day 2")).toBeTruthy();
 
@@ -740,7 +740,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.click(screen.getByRole("button", { name: "Day 2" }));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Here?" } });
     fireEvent.click(askButton());
@@ -771,7 +771,7 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementation(answers("Two days."));
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
 
     const ask = async (n: number) => {
       fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
@@ -810,7 +810,7 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementation(answers("Two days."));
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
 
     for (let n = 1; n <= 17; n++) {
       fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
@@ -834,7 +834,7 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "First ask" } });
     fireEvent.click(askButton());
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -867,7 +867,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Day nine?" } });
     fireEvent.click(askButton());
 
@@ -910,7 +910,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(askButton());
 
@@ -932,7 +932,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Anything" } });
     fireEvent.click(askButton());
 
@@ -962,7 +962,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "How is it looking?" } });
     fireEvent.click(askButton());
 
@@ -984,7 +984,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     const box = screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
     fireEvent.change(box, { target: { value: "a very long question" } });
     fireEvent.click(askButton());
@@ -1010,7 +1010,7 @@ describe("TripBoardScreen", () => {
     const view = renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Slow one" } });
     fireEvent.click(askButton());
     await waitFor(() => expect(signal).toBeDefined());
@@ -1028,13 +1028,13 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     // The rail is closed until asked for now, so open it before reaching for
     // anything inside it.
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 
@@ -1057,7 +1057,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    const launcher = screen.getByRole("button", { name: "Assistant" });
+    const launcher = screen.getByTestId("assistant-launcher");
     // Nothing has been measured yet, so the launcher sits at its bare offset.
     expect(launcher.style.bottom).toBe("24px");
 
@@ -1115,15 +1115,32 @@ describe("TripBoardScreen", () => {
   // query resolves to exactly the pill. Before the fix (per-stop Ask's
   // `aria-label`), this failed with `expected 3 to be 1` on this same
   // two-activity fixture (one pill + two per-stop asks).
-  it("the header's Ask pill is the only control named bare \"Ask\" on a phone with stops on the board", async () => {
+  // §23's "one entry point per phone screen", which this used to check by
+  // counting controls named "Ask" — there was exactly one, because the desktop
+  // launcher was called "Assistant".
+  //
+  // **SPEC §28 renamed that launcher to "Ask" too**, and it is the same control
+  // at the other breakpoint, so the two agreeing is the design and not a
+  // collision. What that costs is this assertion: jsdom applies no media
+  // queries, so `md:hidden` and `max-md:hidden` are both inert here and BOTH
+  // controls are in the tree at every width. Counting by name now counts two on
+  // a phone and would count two on a desktop, which measures nothing.
+  //
+  // So the unit test asserts the half jsdom can actually see — the phone's
+  // entry point is the header pill, and there is one of it — and the half that
+  // is enforced by CSS is left to the test that runs at a real width in a real
+  // browser: `e2e/responsive.spec.ts`, which drives 390px and 1280px and would
+  // fail on a launcher that did not disappear.
+  it("the header's Ask pill is the phone's one entry point, and it sits in the header", async () => {
     setViewportMatches({ "(max-width: 767px)": true });
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     navigateToLens("Schedule");
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Ask" }).length).toBeGreaterThan(0));
-    expect(screen.getAllByRole("button", { name: "Ask" })).toHaveLength(1);
+    await waitFor(() => expect(screen.queryAllByTestId("ask-pill").length).toBeGreaterThan(0));
+    expect(screen.getAllByTestId("ask-pill")).toHaveLength(1);
+    expect(within(screen.getByRole("navigation")).getByTestId("ask-pill")).toBeTruthy();
   });
 
   // SPEC §23's entry point, and the reason the in-flow launcher could go: the
@@ -1135,7 +1152,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    const pill = within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" });
+    const pill = within(screen.getByRole("navigation")).getByTestId("ask-pill");
     // Shut, and saying so — `aria-expanded` is what carries the state, since
     // the label never changes.
     expect(pill.getAttribute("aria-expanded")).toBe("false");
@@ -1158,7 +1175,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" }));
+    fireEvent.click(within(screen.getByRole("navigation")).getByTestId("ask-pill"));
 
     const panel = assistantPanel();
     // The scrim is what tells the two presentations apart here, and it is the
@@ -1216,7 +1233,7 @@ describe("TripBoardScreen", () => {
     const dayOne = screen.getByRole("button", { name: "Day 1, 0 stops" });
     await waitFor(() => expect(dayOne.getAttribute("aria-pressed")).toBe("true"));
 
-    fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Ask" }));
+    fireEvent.click(within(screen.getByRole("navigation")).getByTestId("ask-pill"));
     const panel = assistantPanel();
     expect(within(panel).getByText("Asking about Day 1")).toBeTruthy();
     expect(within(panel).queryByText("Asking about Rome 2027")).toBeNull();
@@ -1247,7 +1264,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
 
     const panel = assistantPanel();
     // No scrim: the docked rail is a flex sibling that shrinks the plan, not a
@@ -1326,7 +1343,7 @@ describe("assistant rail visibility", () => {
 
       expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
       expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
-      expect(screen.getByRole("button", { name: /assistant/i })).toBeTruthy();
+      expect(screen.getByTestId("assistant-launcher")).toBeTruthy();
     });
   }
 
@@ -1339,7 +1356,7 @@ describe("assistant rail visibility", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: /assistant/i }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy());
 
@@ -1374,7 +1391,7 @@ describe("assistant ask — unsent work blocks the ask", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
     await waitFor(() => expect(screen.getAllByTestId("day-column")).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
@@ -1441,7 +1458,7 @@ describe("TripBoardScreen — a viewer's board", () => {
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "Plan my afternoon" },
     });
@@ -1511,7 +1528,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     );
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    fireEvent.click(screen.getByTestId("assistant-launcher"));
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), {
       target: { value: "add a coffee stop" },
     });

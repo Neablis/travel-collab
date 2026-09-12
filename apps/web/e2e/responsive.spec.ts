@@ -33,7 +33,7 @@ test.describe("responsive (narrow viewport)", () => {
 
     // The rail is closed until asked for, at every width, so open it before
     // asserting anything about it.
-    await page.getByRole("button", { name: "Assistant" }).click();
+    await page.getByRole("button", { name: "Ask" }).click();
     const rail = page.getByRole("complementary", { name: "Assistant" });
     await expect(rail).toBeVisible();
 
@@ -75,7 +75,7 @@ test.describe("responsive (narrow viewport)", () => {
         .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
         .toBe(width);
 
-      await page.getByRole("button", { name: "Assistant" }).click();
+      await page.getByRole("button", { name: "Ask" }).click();
       const rail = page.getByRole("complementary", { name: "Assistant" });
       await expect(rail).toBeVisible();
       await expect
@@ -116,7 +116,7 @@ test.describe("responsive (narrow viewport)", () => {
     // gate on width (it used to be one below 1180px) — the risk this guards
     // against is the same stacking bug in that new shape, so the rail has to
     // actually be open for this assertion to mean anything.
-    await page.getByRole("button", { name: "Assistant" }).click();
+    await page.getByRole("button", { name: "Ask" }).click();
     await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
     await page.getByRole("button", { name: "Trip settings" }).click();

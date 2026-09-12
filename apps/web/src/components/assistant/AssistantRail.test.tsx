@@ -294,7 +294,7 @@ describe("AssistantRail — SPEC §23's sheet presentation", () => {
   // context line is where it is stated.
   it("keeps the panel's mark, heading and context line", () => {
     renderRail({ presentation: "sheet" });
-    expect(screen.getByText("◎")).not.toBeNull();
+    expect(screen.getByTestId("brand-mark")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Assistant" })).not.toBeNull();
     expect(screen.getByText("Looking at Day 2 · Kyoto")).not.toBeNull();
   });

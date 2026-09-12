@@ -12,7 +12,7 @@ import { ScheduleLens } from "@/components/lenses/ScheduleLens";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
@@ -28,6 +28,7 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -1005,14 +1006,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // not disappear the moment the assistant opens. Two entry points to
             // the same panel on one 411px screen is what §23 removes.
             //
-            // >=768px is unchanged: the design's minimized launcher
-            // (`Trip Planner Redesign.dc.html:1058-1063`), a filled-brand pill
-            // pinned bottom-right by `position: fixed`, not the edge-tab
-            // treatment this used to have (variant="secondary",
-            // rounded-r-none, vertically centred against the right edge) — the
-            // design has no bordered edge-tab state for the assistant, only
-            // this pill. Icon mirrors AssistantRail's own open-state mark
-            // glyph (◎, same component's header).
+            // >=768px is the design's minimized launcher
+            // (`Trip Planner Redesign.dc.html:1058-1063`), pinned bottom-right
+            // by `position: fixed`, not the edge-tab treatment this used to
+            // have (variant="secondary", rounded-r-none, vertically centred
+            // against the right edge) — the design has no bordered edge-tab
+            // state for the assistant.
+            //
+            // **It is `AssistantBubble` now, not a button written here.** The
+            // same control existed twice — this pill and the notebook's bubble
+            // — and SPEC §28 changes both in the same two ways (92×44, labelled
+            // `Ask`, no mark). Two copies of one control is how they drifted
+            // apart in the first place; the offset that was genuinely local to
+            // this screen is passed in instead.
             //
             // `hidden md:inline-flex` on the Button itself, and the `flow-root`
             // wrapper, the `PageContainer` and the measured `--launcher-height`
@@ -1028,18 +1034,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // Still deliberately outside the `inert` wrapper above (as before):
             // asking a question about a previewed history state is a read, not
             // a write, so it stays available while the board is inert.
-            <Button
-              variant="primary"
-              onClick={assistant.show}
-              className="fixed right-6 z-40 hidden h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay md:inline-flex"
-              // Only read while the pill is `position: fixed`, which is now the
-              // only way it is ever rendered.
-              // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-              style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-            >
-              <span aria-hidden>◎</span>
-              Assistant
-            </Button>
+            <AssistantBubble open={assistant.open} onOpen={assistant.show} bottom={rackHeight > 0 ? rackHeight + 24 : 24} />
           )}
         </div>
         {/* The assistant rail — a real streaming conversation against

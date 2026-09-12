@@ -79,6 +79,11 @@
   --text-4xl--line-height: 1.03;
   --text-4xl--letter-spacing: -0.022em;
 
+  /* 4px, for the brand mark's tile and nothing else so far. SPEC §28 states
+     the radius directly ("32px tile, 4px radius, 18px strokes") and the scale
+     started at 6px, so the mark would otherwise have been the one inline
+     `border-radius` in the app. */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;

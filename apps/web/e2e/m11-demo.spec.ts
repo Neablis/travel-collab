@@ -104,7 +104,7 @@ test.describe("the demo trip", () => {
     // A write, and owner-gated at that.
     await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
     // Needs a session and is a write; it has no read-only half to fall back to.
-    await expect(page.getByRole("button", { name: "Assistant" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Ask" })).toHaveCount(0);
     // Withheld, exactly as it is for an invited viewer. This asserted
     // `toBeDisabled()` until KI-64: the header was the one place still
     // offering a greyed control on a board ADR-031 had otherwise gone quiet.
