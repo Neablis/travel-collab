@@ -589,7 +589,16 @@ export function AssistantRail({
                   className={cn(isSheet && "h-11")}
                   value={ask}
                   onChange={(e) => setAsk(e.target.value)}
-                  disabled={asking}
+                  // NOT `disabled={asking}` (KI-2026-09-07-c). Disabling a
+                  // focused input blurs it, in every real browser jsdom does
+                  // not reproduce, and re-enabling it afterwards does not
+                  // restore focus — so a follow-up typed mid-turn went to
+                  // `<body>` and was silently dropped, `Enter` included.
+                  // `submitAsk` already refuses to send while `asking` is
+                  // true (and the `Button` below stays disabled), so nothing
+                  // downstream needs the input itself gated: leaving it
+                  // editable keeps focus and keeps the keystrokes, and they
+                  // submit as soon as the turn ends.
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
