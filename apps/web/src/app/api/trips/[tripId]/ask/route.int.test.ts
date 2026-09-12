@@ -72,6 +72,14 @@ const planningTools = toolsFor(
 const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
 const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
+
+// A `plan` turn is offered four fewer than the full derived set — the trip
+// settings and conflict dismissal a "fill out my days" request has no business
+// calling (`TASK_CLASSES_FOR`, tools/planning.ts). **Spelled out here rather
+// than imported from that map**, so changing the policy breaks this test
+// instead of silently agreeing with it.
+const WITHHELD_FROM_PLAN = ["SetTripName", "SetTripCurrency", "SetTripBudget", "DismissConflict"];
+const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PLAN.includes(n));
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
@@ -229,11 +237,13 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
  */
 function recordingModel() {
   const systems: string[] = [];
+  const providerOptions: unknown[] = [];
   const inner = simulatedModel() as unknown as {
     doGenerate: (o: unknown) => Promise<unknown>;
     doStream: (o: unknown) => Promise<unknown>;
   };
   const keep = (options: unknown) => {
+    providerOptions.push((options as { providerOptions?: unknown }).providerOptions);
     const prompt = (options as { prompt?: { role?: string; content?: unknown }[] }).prompt ?? [];
     systems.push(
       prompt
@@ -259,7 +269,7 @@ function recordingModel() {
   // The agent's own instruction, not the classifier's — the classification
   // call is a system message too, and it is not what this is about.
   const turnInstruction = () => systems.find((text) => text.includes("travel-collab trip assistant")) ?? "";
-  return { model, turnInstruction };
+  return { model, turnInstruction, providerOptions: () => providerOptions };
 }
 
 // A model that fails the way a provider outage does: the stream opens and then
@@ -435,7 +445,7 @@ describe("POST /api/trips/:id/ask", () => {
         (r) => records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
       expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: false });
     });
 
@@ -471,7 +481,7 @@ describe("POST /api/trips/:id/ask", () => {
         verdict: '{"result":"question"}',
         failedOpen: false,
       });
-      expect(told[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(told[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
     });
 
     // Mitchell's live thread, 2026-08-29, verbatim — and the regression this
@@ -508,7 +518,20 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
+      // **The FULL planning set, not the narrowed one** — an affirmation is
+      // not a determined `plan`. `isBareAgreement` answers
+      // `FAIL_OPEN_TASK_CLASS` (the same `plan`) with `failedOpen: false`
+      // because it is "deliberately not a parser", so the flag says determined
+      // while the rule says it guessed. The turn being approved here can
+      // contain anything the previous one proposed, a rename included.
+      //
+      // **This assertion was changed to the narrowed set when the task-class
+      // filter landed, and that is how the bug got in.** The test did its job
+      // — it was the expectation that moved. Left spelled out so the next
+      // person to narrow something has to come here and argue with this
+      // comment instead of editing a constant.
       expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools).toContain("SetTripName");
       // Answered by the rule, so no model was asked and no model could be
       // wrong about it.
       expect(records[0]!.classification).toMatchObject({
@@ -569,6 +592,95 @@ describe("POST /api/trips/:id/ask", () => {
       // this trip.
       expect(instruction).not.toContain("You can READ this trip and nothing else");
       expect(instruction).not.toContain("only answer questions about the trip for now");
+    });
+
+    // **A narrowed turn must be TOLD it was narrowed**, or the filter turns a
+    // partial capability into a silent drop.
+    //
+    // `postureFor` reads role, plan and classifier — never the task class — so
+    // a `plan` turn gets `ACCESS_LINE.propose`, which says to emit every change
+    // the request needs. Four change tools are absent from that same turn.
+    // Without this line, "plan six days in Tokyo and call it Spring Trip" has
+    // no `SetTripName`, no instruction to mention that, and the rename just
+    // never appears — the dead end `ACCESS_LINE`'s own comment rules out for
+    // the all-or-nothing case.
+    it("tells a narrowed planning turn to disclose the change it has no tool for", async () => {
+      const tripId = await seedTrip();
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      const instruction = turnInstruction();
+      expect(instruction).toContain("Some change tools are not available on this turn");
+      expect(instruction).toContain("request that part on its own");
+      // It QUALIFIES the propose line rather than replacing it: this turn can
+      // still propose most things, and telling it otherwise would be the lie
+      // the `withheld` copy exists to avoid.
+      expect(instruction).toContain("you can PROPOSE changes to it");
+      expect(instruction).not.toContain("on THIS turn you have no tool to change it");
+    });
+
+    // The other half, and the one that keeps the line honest: a turn the
+    // filter did not narrow is told byte-identically what it was told before
+    // the line existed.
+    //
+    // **The affirmation is the case that proves it**, and it is the only one
+    // this suite can produce: it holds the write tools (so the line is
+    // reachable) AND is not narrowed (so it must not appear). A read-only turn
+    // would prove nothing — it fails the `canWrite` half of the guard before
+    // `classWithheld` is ever consulted. An `edit` turn would also do, and is
+    // unreachable here: the simulated classifier has only two verdicts
+    // (KI-2026-09-12-a).
+    it("says nothing about withheld tools on a write turn that was not narrowed", async () => {
+      const tripId = await seedTrip();
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, {
+          messages: [
+            userMessage("add the temple and the deer park to day 1", "m1"),
+            { id: "m2", role: "assistant", parts: [{ type: "text", text: "I've drafted 2 changes. Nothing is applied yet." }] },
+            userMessage("Yes go ahead", "m3"),
+          ],
+          scope: { kind: "trip" },
+        }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      const instruction = turnInstruction();
+      expect(instruction).toContain("you can PROPOSE changes to it");
+      expect(instruction).not.toContain("Some change tools are not available on this turn");
+    });
+
+    // **Caching is asserted where it is observable: on what the model was
+    // handed.** A turn re-sends its whole prefix — the instruction plus every
+    // offered tool's schema — on every step, and a measured five-step planning
+    // turn spent ~21,600 of its 41,794 input tokens on that repeat.
+    //
+    // `toContainEqual` rather than "every call": the CLASSIFIER runs through
+    // this same recording model in these tests and deliberately does not ask
+    // for caching — its prompt is a few hundred tokens and mostly the question
+    // itself, so there is no stable prefix worth paying a cache write for.
+    // Asserting every call would encode the opposite decision by accident.
+    it("asks the gateway to cache the turn's prefix", async () => {
+      const tripId = await seedTrip();
+      const { model, providerOptions } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
     });
 
     it("keeps the true read-only copy for a viewer, who genuinely cannot edit", async () => {

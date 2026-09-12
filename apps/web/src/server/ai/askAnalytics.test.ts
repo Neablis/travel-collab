@@ -641,3 +641,92 @@ function recordWith(overrides: Partial<AskAnalyticsRecord>): AskAnalyticsRecord 
     ...overrides,
   };
 }
+
+// The defect this closes, measured in production on 2026-09-12. A turn died on
+// a malformed `search_playbooks` argument in a step that had ALSO emitted the
+// write calls; `onStepEnd` never fired for that step, so the record reported
+// `toolCallCount: 3` and listed every write tool as uncalled — while the eleven
+// writes it had already collected were approved by the user and applied. The
+// trace claimed nothing was called by the very turn that changed the trip.
+describe("an aborted step's writes are still in the record", () => {
+  const collected = [
+    { name: "AddDay", input: { dayRef: null } },
+    { name: "AddActivity", input: { title: "Jeonju Hanok Village wander" } },
+    { name: "AddActivity", input: { title: "Jeonju bibimbap for lunch" } },
+  ];
+
+  it("adds write calls the buffer kept but no step reported", () => {
+    // `offeredTools` MUST carry the write tools here. With the fixture's
+    // read-only default the `uncalledTools` assertions below pass whatever the
+    // code does — a vacuous test of the exact field the defect corrupted.
+    const { recorder, records } = recorderWith({
+      offeredTools: [...OFFERED, "AddDay", "AddActivity"],
+      collectedWrites: () => collected,
+    });
+    // The step that DID complete: reads only, exactly as production logged it.
+    recorder.observeStep({ toolCalls: [{ toolName: "read_trip", input: {} }] });
+    recorder.abandon("error", new Error("AI_InvalidToolInputError"));
+
+    const record = records[0]!;
+    expect(record.outcome).toBe("error");
+    expect(record.toolCallCount).toBe(4);
+    expect(record.toolCalls.map((c) => c.name)).toEqual(["read_trip", "AddDay", "AddActivity", "AddActivity"]);
+    // The half that made the old record actively misleading.
+    expect(record.uncalledTools).not.toContain("AddActivity");
+    expect(record.uncalledTools).not.toContain("AddDay");
+  });
+
+  it("counts per name rather than matching by value, so identical calls both survive", () => {
+    // Two AddActivity calls can carry identical arguments. A set of inputs
+    // would collapse them and under-report exactly the turn this exists for.
+    const twins = [
+      { name: "AddActivity", input: { title: "same" } },
+      { name: "AddActivity", input: { title: "same" } },
+    ];
+    const { recorder, records } = recorderWith({ collectedWrites: () => twins });
+    recorder.abandon("error", new Error("boom"));
+    expect(records[0]!.toolCalls.filter((c) => c.name === "AddActivity")).toHaveLength(2);
+  });
+
+  it("is a no-op on a healthy turn, where the steps already saw everything", () => {
+    const { recorder, records } = recorderWith({ collectedWrites: () => collected });
+    recorder.observeStep({ toolCalls: collected.map((c) => ({ toolName: c.name, input: c.input })) });
+    recorder.finish({ text: "done" });
+    expect(records[0]!.toolCallCount).toBe(3);
+  });
+
+  // **Counting by name is exact only while a tool cannot be observed without
+  // also collecting, and `insert_playbook_day` can be.** It returns an error
+  // before `addInsert` on a full proposal or an id it cannot open, so the two
+  // calls below are one observed-not-collected and one collected-not-observed:
+  // the name counts agree at one apiece, and the insert the user went on to
+  // approve was dropped from the record. Found in review, on the first cut of
+  // the reconciliation above.
+  it("keeps an insert whose failed sibling already spent the name's count", () => {
+    const { recorder, records } = recorderWith({
+      collectedWrites: () => [
+        { name: "insert_playbook_day", input: { savedDayId: "good" }, keyField: "savedDayId" },
+      ],
+    });
+    // Observed and NOT collected: `savedDays.readable()` did not resolve it,
+    // so the tool returned an error before reaching the buffer.
+    recorder.observeStep({ toolCalls: [{ toolName: "insert_playbook_day", input: { savedDayId: "bad" } }] });
+    // The step that collected the real one aborted, so it was never observed.
+    recorder.abandon("error", new Error("AI_InvalidToolInputError"));
+
+    const inserts = records[0]!.toolCalls.filter((c) => c.name === "insert_playbook_day");
+    expect(inserts).toHaveLength(2);
+    expect(inserts.map((c) => (c.input as { savedDayId: string }).savedDayId).sort()).toEqual(["bad", "good"]);
+  });
+
+  it("still does not double-count an insert both the step and the buffer saw", () => {
+    const { recorder, records } = recorderWith({
+      collectedWrites: () => [
+        { name: "insert_playbook_day", input: { savedDayId: "good" }, keyField: "savedDayId" },
+      ],
+    });
+    recorder.observeStep({ toolCalls: [{ toolName: "insert_playbook_day", input: { savedDayId: "good" } }] });
+    recorder.finish({ text: "done" });
+    expect(records[0]!.toolCalls.filter((c) => c.name === "insert_playbook_day")).toHaveLength(1);
+  });
+});

@@ -162,6 +162,36 @@ export interface AskToolCallRecord {
   input: unknown;
 }
 
+/**
+ * One write the turn's buffer holds, for the reconciliation below.
+ *
+ * **`keyField` is how a caller declares that counting by name is not safe for
+ * this tool**, and it exists because of a reachable case review found after the
+ * first cut shipped.
+ *
+ * Counting by name is exact only while a tool cannot be OBSERVED without also
+ * collecting. Every planning command satisfies that — `collect()` is the first
+ * statement of its `run` (planning.ts), with no branch in front of it — so for
+ * those, "observed more than collected" is impossible and the counts line up.
+ *
+ * `insert_playbook_day` does NOT: it returns an error before `addInsert` when
+ * the proposal is already at `MAX_PROPOSAL_INSERTS`, or when `savedDays
+ * .readable()` does not resolve the id (insertPlaybookDay.ts). So a turn can
+ * call it once with a bad id — observed, not collected — and again in a step
+ * that aborts — collected, not observed. One of each, the name counts agree,
+ * and the insert the user went on to approve is missing from the record. That
+ * is the same class of hole the reconciliation was written to close.
+ *
+ * Naming the identifying INPUT FIELD rather than threading a `toolCallId`
+ * through `RawToolIntent` keeps the fix off a domain type that `resolveBatch`,
+ * `buildProposal` and `droppedWriteCalls` all consume. The caller knows which
+ * field identifies its call; this module does not, and should not have a list.
+ */
+export interface AskCollectedWrite extends AskToolCallRecord {
+  /** The input field identifying which call produced this write. Absent means count by name. */
+  keyField?: string;
+}
+
 /** One request's worth of token counts — the shape both the whole-run total and a single step use. */
 export interface AskUsage {
   inputTokens: number | null;
@@ -461,6 +491,27 @@ export interface AskRecorderParams {
    * to `aiToolsFor`; omitted, a turn is simply not measured at that grain.
    */
   meter?: TurnMeter;
+  /**
+   * The turn's collected WRITE intents, read at write time.
+   *
+   * **`toolCalls` is observed from `onStepEnd`, and a step that aborts never
+   * fires it.** On 2026-09-12 a turn died on a malformed `search_playbooks`
+   * argument in a step that had also emitted eleven write calls; those calls
+   * had already reached `proposalBuffer`, the user approved the proposal, and
+   * all eleven were applied — while this record said `toolCallCount: 3` and
+   * listed every write tool under `uncalledTools`. The trace claimed nothing
+   * was called by the very turn that changed the trip.
+   *
+   * `uncalledTools` is documented as measured rather than inferred, and on an
+   * aborted turn it was not. This closes the half that is recoverable: the
+   * buffer kept the writes, so the record can have them.
+   *
+   * **What is still lost, and is not pretended otherwise:** READS in an
+   * aborted step have no buffer, so on an errored turn `toolCalls` remains a
+   * lower bound and `uncalledTools` an upper one. The reconciliation below
+   * closes the gap that mattered — the calls that became events.
+   */
+  collectedWrites?: () => readonly AskCollectedWrite[];
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -552,6 +603,43 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     },
   };
 
+  /**
+   * Adds write calls the buffer kept but no step reported — see
+   * `collectedWrites` on the params.
+   *
+   * Counted per tool name rather than matched by value: two `AddActivity`
+   * calls can carry identical arguments, so a set of inputs would collapse
+   * them and under-report exactly the turn this exists for. Anything the steps
+   * already saw is left alone, so a healthy turn reconciles to a no-op.
+   *
+   * **Per name is only exact for a tool that cannot be observed without also
+   * collecting** — see `AskCollectedWrite.keyField` for the one that can, and
+   * for the turn that goes unrecorded when the difference is ignored. A name
+   * whose writes declare a `keyField` is counted per key instead, which is the
+   * same argument applied one identity down: within a single savedDayId, an
+   * observed call did collect, so the counts line up again.
+   */
+  function reconcileCollectedWrites(): void {
+    const collected = params.collectedWrites?.() ?? [];
+    if (collected.length === 0) return;
+    for (const name of new Set(collected.map((c) => c.name))) {
+      const actual = collected.filter((c) => c.name === name);
+      const keyField = actual.find((c) => c.keyField !== undefined)?.keyField;
+      if (keyField === undefined) {
+        const observed = toolCalls.filter((c) => c.name === name).length;
+        for (let i = observed; i < actual.length; i += 1) toolCalls.push(actual[i]!);
+        continue;
+      }
+      const keyOf = (input: unknown): unknown =>
+        typeof input === "object" && input !== null ? (input as Record<string, unknown>)[keyField] : undefined;
+      for (const key of new Set(actual.map((c) => keyOf(c.input)))) {
+        const observed = toolCalls.filter((c) => c.name === name && keyOf(c.input) === key).length;
+        const forKey = actual.filter((c) => keyOf(c.input) === key);
+        for (let i = observed; i < forKey.length; i += 1) toolCalls.push(forKey[i]!);
+      }
+    }
+  }
+
   // One writer, one latch — a run that both errors and ends still logs once.
   function write(
     final: AskStepLike,
@@ -561,6 +649,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   ): void {
     if (written) return;
     written = true;
+    reconcileCollectedWrites();
     const called = new Set(toolCalls.map((c) => c.name));
     // `final.text` is the FINAL step's text, which `observeStep` has already
     // seen — read it only when no step was observed at all, so `answered`

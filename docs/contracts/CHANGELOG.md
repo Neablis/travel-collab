@@ -13,6 +13,54 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-12 — `placeRef` on `AddActivity`/`UpdateActivity`: the grounding citation (M9 link 1, KI-81/KI-15)
+- Added: `placeRef: z.number().int().nonnegative().optional()` on `AddActivity`
+  and `UpdateActivity` (`packages/contracts/src/activity.ts`). Nothing else
+  changed shape
+- Why: M9's grounding. A proposed stop's `location` is currently whatever the
+  model wrote, and blind enrichment then geocodes that text — which is how a
+  Niagara Falls dinner moved to Shropshire (KI-15). The field is the citation
+  half of the fix: the model cites candidate N of what the server's place search
+  returned this turn, and the server resolves the ref into the vendor's name and
+  coordinates. The tool that produces the candidates and the resolution that
+  consumes the ref are the next PR; this is the shape they both agree on, landed
+  first so neither is written against a type that does not exist yet
+- **Optional, and that is the design, not a migration convenience.** A location
+  a *user* typed arrives as free text with no ref, and `enrichCommandLocations`
+  still geocodes it best-effort. Grounding replaces the model's guess, never the
+  user's words — which is what closes KI-15's remaining half rather than
+  deleting the fallback
+- **Transport only: deliberately NOT added to `ActivityPayloadFields`**, so it
+  reaches neither `ActivityAddedV1` nor `ActivityUpdatedV1`. An index into a
+  per-turn server-side cache means nothing once the turn is over; what is worth
+  storing forever is the resolved place. `packages/contracts/test/m9-place-ref.test.ts`
+  asserts the payload shapes stay free of it, because "we resolve it before the
+  domain sees it" is a claim a later PR could quietly stop honouring
+- Consumers checked, and this is the part invariant 5 is actually about — every
+  place that enumerates activity-command fields BY HAND was inspected:
+  - **Derived, so they carry it for free and are tested to:** the planning tools
+    (`assistant/tools/planning.ts`, one tool per `BatchableCommand` member with
+    the id fields subtracted — `planning.test.ts` now pins that the subtraction
+    never reaches `placeRef`), `batchResolver.ts` (copies every non-ref arg, then
+    parses), `parseApprovedCommands` (`ai/writeTools.ts`, re-parses through
+    `BatchableCommand` — `writeTools.test.ts` now pins that the approval door
+    carries a ref through), `AssistantProposal.commands`
+    (`contracts/src/assistant.ts`) and the client that posts it back
+  - **Hand-enumerating and correctly unchanged:** `decideTripCommand` and
+    `evolveTrip` (`@tc/domain`) enumerate the fields that get STORED, which
+    `placeRef` is not; `describeProposedChange`/`summarizeBatch` switch over
+    command TYPES and word `title`, not the field set; `src/mocks/handlers.ts`
+    mirrors the domain's projection and would drift from the real server if it
+    started keeping a ref
+- `@tc/fixtures` exercises it in `src/japan/placeRef.test.ts`: the canonical
+  Japan commands now parse through `TripCommand` (nothing in that package ever
+  did, so a tightened activity command could have broken `db:seed` at runtime
+  with the package green), a ref rides them without being rejected, and no
+  fixture row carries one — there is no search turn behind a hand-written row.
+  `pnpm seed:verify` green, report unchanged
+- Breaking? No. The field is optional on both commands, absent from every event,
+  and no stored payload changes
+
 ## 2026-09-11 — the `/ask` stream envelope: `AskStreamMetadata`, and the proposal it carries (KI-22, M9 Phase 0 P6)
 - Added: `packages/contracts/src/assistant.ts` — `AskStreamMetadata`, the union
   of the four shapes the `/ask` stream's final chunk may carry as the AI SDK's

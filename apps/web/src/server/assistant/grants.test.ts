@@ -18,6 +18,7 @@ import {
   toolsFor,
   type EffectCaps,
 } from "./grants";
+import { TASK_CLASSES } from "./taskClass";
 
 const READ_TOOLS = ["read_trip", "read_day", "find_free_time", "search_playbooks"];
 const COMMAND_TOOLS = BatchableCommand.options.map((option) => option.shape.type.value as string);
@@ -190,5 +191,46 @@ describe("the posture is derived, not passed in", () => {
   // end that copy exists to avoid.
   it("reads a plan that does not permit propose as read-only, not withheld", () => {
     expect(postureFor(caps("propose", "read", "propose"))).toBe("read-only");
+  });
+});
+
+// The third filter axis (`defineTool`'s `taskClasses`), added 2026-09-12 after a
+// live planning turn was offered all seventeen tools, read four of them, and
+// proposed nothing. `domain` and `effect` cannot express this: every planning
+// command is `itinerary`/`propose` because they are derived from one union.
+describe("a task class narrows the tool set, and only ever subtracts", () => {
+  const WITHHELD_FROM_PLAN = ["SetTripName", "SetTripCurrency", "SetTripBudget", "DismissConflict"];
+  const editorTrip: EffectCaps = { ...EDITOR, surface: "trip" };
+  const unnarrowed = toolsFor(grantFor(editorTrip)).map((t) => t.name);
+
+  it("does not narrow when no class is passed — a caller that has not classified gets everything", () => {
+    expect(unnarrowed).toEqual(expect.arrayContaining([...READ_TOOLS, ...COMMAND_TOOLS]));
+    expect(toolsFor(grantFor(editorTrip), undefined).map((t) => t.name)).toEqual(unnarrowed);
+  });
+
+  it("withholds the four trip-settings commands from a plan turn and keeps the rest", () => {
+    const planning = toolsFor(grantFor(editorTrip), "plan").map((t) => t.name);
+    for (const name of WITHHELD_FROM_PLAN) expect(planning).not.toContain(name);
+    // The ones a plan genuinely needs, including BOTH date commands — "plan me
+    // six days from March 3" is a planning turn that has to set dates.
+    for (const name of ["AddDay", "AddActivity", "SetTripDates", "SetTripStartDate", "insert_playbook_day"]) {
+      expect(planning).toContain(name);
+    }
+    expect(planning).toEqual(expect.arrayContaining(READ_TOOLS));
+    expect(planning).toHaveLength(unnarrowed.length - WITHHELD_FROM_PLAN.length);
+  });
+
+  it("offers an edit turn everything, because a bounded change can be any command", () => {
+    expect(toolsFor(grantFor(editorTrip), "edit").map((t) => t.name)).toEqual(unnarrowed);
+  });
+
+  // The invariant that matters more than any single policy entry: a tag may
+  // only ever take a tool away. A `taskClasses` entry that somehow ADDED one
+  // would route around the grant — the thing `toolsFor` exists to enforce.
+  it("never yields a tool the ungoverned grant did not already allow", () => {
+    for (const taskClass of TASK_CLASSES) {
+      const narrowed = toolsFor(grantFor(editorTrip), taskClass).map((t) => t.name);
+      expect(unnarrowed).toEqual(expect.arrayContaining(narrowed));
+    }
   });
 });

@@ -567,6 +567,37 @@ describe("parseApprovedCommands", () => {
     expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
   });
 
+  // **The grounding ref has to survive this door, and the door is the one that
+  // enumerates.** `placeRef` (M9, KI-81) is what makes an approved stop the
+  // place the vendor returned rather than the name the model wrote — so a door
+  // that re-parses through the contract keeps it for free, and one that copies
+  // a hand-listed set of fields drops it silently and falls back to the model's
+  // prose. That is the failure this pins: the field is carried, not enumerated.
+  it("carries placeRef through, on both activity commands", () => {
+    const parsed = parseApprovedCommands(
+      [
+        {
+          type: "AddActivity",
+          tripId: TRIP_ID,
+          activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+          dayId: DAY_ID,
+          title: "Bar Trench",
+          placeRef: 2,
+        },
+        {
+          type: "UpdateActivity",
+          tripId: TRIP_ID,
+          activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+          placeRef: 0,
+        },
+      ],
+      TRIP_ID,
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.commands.map((c) => (c as { placeRef?: unknown }).placeRef)).toEqual([2, 0]);
+  });
+
   // An empty COMMAND list is not an empty approval any more: an inserts-only
   // proposal carries no commands at all (ADR-042 Decision 1). "At least one
   // change" is asked of the whole approval, at the apply door, where both
