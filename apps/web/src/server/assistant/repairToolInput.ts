@@ -31,29 +31,72 @@ function schemaFor(toolName: string): z.ZodTypeAny | null {
   return ASSISTANT_TOOLS.find((tool) => tool.name === toolName)?.input ?? null;
 }
 
+/** The per-field schemas of an object input, or null if the input is not one. */
+function shapeOf(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | null {
+  const holder = schema as unknown as { shape?: unknown };
+  const shape = typeof holder.shape === "function" ? (holder.shape as () => unknown)() : holder.shape;
+  return typeof shape === "object" && shape !== null ? (shape as Record<string, z.ZodTypeAny>) : null;
+}
+
 /**
- * A string that is really a JSON array or object, unwrapped.
+ * A string that is really a JSON array or object, unwrapped — **asked of the
+ * field's own schema, one field at a time.**
  *
- * **Lossless, and that is why it is allowed.** `"[3]"` and `[3]` are the same
- * request written two ways; picking the second changes no intent. Guarded on
- * the first character so an ordinary string that happens to be parseable JSON
- * — a title of `"null"`, a note of `"123"` — is left alone: those are values,
- * not encodings.
+ * `"[3]"` and `[3]` are the same request written two ways, so choosing the
+ * second changes no intent. But "is this an encoding or a value?" is not a
+ * question the text can answer: `notes: "[1, 2]"` is a perfectly good note, and
+ * `tags: "[\"meal\"]"` beside it is an encoding. The first cut guessed from the
+ * first character alone, and got both wrong at once — it re-typed the note into
+ * an array the field rejects, which failed the whole validation and threw away
+ * the `tags` repair that WOULD have worked. A repair that turns a fixable call
+ * into a dead one is worse than no repair. Found by review, not by us.
+ *
+ * The field decides instead, and the test is the rule this file states, made
+ * executable:
+ *
+ *   * the field **accepts the string as written** — it is a value. Left alone,
+ *     whatever it looks like.
+ *   * the field **rejects the string but accepts what it parses to** — it was
+ *     the right argument, spelled wrong. Unwrapped.
+ *   * anything else — not JSON, or parses to something the field also rejects.
+ *     Left alone, and the call fails as it did before.
+ *
+ * Only the second case changes anything, and in it the string form was already
+ * invalid, so nothing that would have worked is lost. A field the schema does
+ * not declare is skipped: there is nothing to ask.
+ *
+ * **Exported only so the first case can be proven.** No field in the registry
+ * today accepts both a JSON string and what it parses to — measured, by asking
+ * every field of every tool — so through `repairToolInput` the first case is
+ * unreachable and the third would cover for it. It is kept rather than dropped
+ * because the field that breaks that is one `z.unknown()` away, and a value
+ * silently re-typed is the failure this whole file exists to avoid. Untestable
+ * defensive code and untested defensive code are both things this repo has paid
+ * for; a synthetic schema in the test costs less than either.
  */
-function unwrapJsonStrings(input: unknown): unknown {
+export function unwrapJsonStrings(input: unknown, schema: z.ZodTypeAny): unknown {
   if (typeof input !== "object" || input === null || Array.isArray(input)) return input;
+  const shape = shapeOf(schema);
+  if (shape === null) return input;
   let changed = false;
   const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
   for (const [key, value] of Object.entries(out)) {
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
     if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) continue;
+    const field = shape[key];
+    if (field === undefined) continue;
+    if (field.safeParse(value).success) continue;
+    let parsed: unknown;
     try {
-      out[key] = JSON.parse(trimmed) as unknown;
-      changed = true;
+      parsed = JSON.parse(trimmed) as unknown;
     } catch {
       // Not JSON after all. The string stays exactly as the model wrote it.
+      continue;
     }
+    if (!field.safeParse(parsed).success) continue;
+    out[key] = parsed;
+    changed = true;
   }
   return changed ? out : input;
 }
@@ -103,7 +146,7 @@ export function repairToolInput(toolName: string, rawInput: unknown): unknown | 
   // it. The SDK only calls us on a failure, so this is a guard, not a path.
   if (schema.safeParse(rawInput).success) return null;
 
-  const unwrapped = unwrapJsonStrings(rawInput);
+  const unwrapped = unwrapJsonStrings(rawInput, schema);
   const afterUnwrap = schema.safeParse(unwrapped);
   if (afterUnwrap.success) return unwrapped;
 
