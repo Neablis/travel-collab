@@ -88,6 +88,8 @@ import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
+import { repairToolInput } from "@/server/assistant/repairToolInput";
+import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 
 // The admission pipeline's public names, re-exported so that the one door has
 // one module to import: `route.ts`, the client-facing refusal codes and the two
@@ -211,6 +213,18 @@ export async function handleAskRequest(
     // It is now the same array the grant's role check was computed from,
     // rather than a second one tied to it by a test.
     offeredTools: offeredNames,
+    // **Read at write time, so an aborted step's writes are still in the
+    // record.** Both buffers hand back copies, so this cannot mutate the turn's
+    // own account of what the model asked for. The insert carries the saved
+    // day's id rather than its name: `name` is author-written and this record
+    // is not a place for unfenced user text.
+    collectedWrites: () => [
+      ...proposalBuffer.collected().map((intent) => ({ name: intent.type, input: intent.args })),
+      ...proposalBuffer.inserts().map((insert) => ({
+        name: INSERT_PLAYBOOK_DAY,
+        input: { savedDayId: insert.savedDayId },
+      })),
+    ],
     // Beside `question` and `offeredTools`, which is what makes a
     // misclassification diagnosable after the fact rather than only visible as
     // an assistant that would not act.
@@ -303,6 +317,23 @@ export async function handleAskRequest(
     // (our current model lists $0.028/MTok against $0.13 input), so this is
     // worth more the stronger the tier gets, not less.
     providerOptions: { gateway: { caching: "auto" } },
+    // **One malformed argument is not the end of a turn.** The SDK throws
+    // `AI_InvalidToolInputError` and `ToolLoopAgent` aborts the run, so before
+    // this the user got nothing at all — twice, on 2026-09-12's first two live
+    // turns. `repairToolInput` says what it will and will not fix, and returning
+    // null here is deliberately still a failure: a call the model meant that the
+    // tool does not offer should end the turn rather than be made to look valid.
+    repairToolCall: async ({ toolCall }) => {
+      let parsed: unknown;
+      try {
+        parsed = typeof toolCall.input === "string" ? JSON.parse(toolCall.input) : toolCall.input;
+      } catch {
+        // Not even JSON. Nothing downstream can read it either.
+        return null;
+      }
+      const repaired = repairToolInput(toolCall.toolName, parsed);
+      return repaired === null ? null : { ...toolCall, input: JSON.stringify(repaired) };
+    },
     // Three-way, not `offerWrites` alone: the instruction has to describe the
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn

@@ -461,6 +461,27 @@ export interface AskRecorderParams {
    * to `aiToolsFor`; omitted, a turn is simply not measured at that grain.
    */
   meter?: TurnMeter;
+  /**
+   * The turn's collected WRITE intents, read at write time.
+   *
+   * **`toolCalls` is observed from `onStepEnd`, and a step that aborts never
+   * fires it.** On 2026-09-12 a turn died on a malformed `search_playbooks`
+   * argument in a step that had also emitted eleven write calls; those calls
+   * had already reached `proposalBuffer`, the user approved the proposal, and
+   * all eleven were applied — while this record said `toolCallCount: 3` and
+   * listed every write tool under `uncalledTools`. The trace claimed nothing
+   * was called by the very turn that changed the trip.
+   *
+   * `uncalledTools` is documented as measured rather than inferred, and on an
+   * aborted turn it was not. This closes the half that is recoverable: the
+   * buffer kept the writes, so the record can have them.
+   *
+   * **What is still lost, and is not pretended otherwise:** READS in an
+   * aborted step have no buffer, so on an errored turn `toolCalls` remains a
+   * lower bound and `uncalledTools` an upper one. The reconciliation below
+   * closes the gap that mattered — the calls that became events.
+   */
+  collectedWrites?: () => readonly AskToolCallRecord[];
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -552,6 +573,25 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     },
   };
 
+  /**
+   * Adds write calls the buffer kept but no step reported — see
+   * `collectedWrites` on the params.
+   *
+   * Counted per tool name rather than matched by value: two `AddActivity`
+   * calls can carry identical arguments, so a set of inputs would collapse
+   * them and under-report exactly the turn this exists for. Anything the steps
+   * already saw is left alone, so a healthy turn reconciles to a no-op.
+   */
+  function reconcileCollectedWrites(): void {
+    const collected = params.collectedWrites?.() ?? [];
+    if (collected.length === 0) return;
+    for (const name of new Set(collected.map((c) => c.name))) {
+      const observed = toolCalls.filter((c) => c.name === name).length;
+      const actual = collected.filter((c) => c.name === name);
+      for (let i = observed; i < actual.length; i += 1) toolCalls.push(actual[i]!);
+    }
+  }
+
   // One writer, one latch — a run that both errors and ends still logs once.
   function write(
     final: AskStepLike,
@@ -561,6 +601,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   ): void {
     if (written) return;
     written = true;
+    reconcileCollectedWrites();
     const called = new Set(toolCalls.map((c) => c.name));
     // `final.text` is the FINAL step's text, which `observeStep` has already
     // seen — read it only when no step was observed at all, so `answered`
