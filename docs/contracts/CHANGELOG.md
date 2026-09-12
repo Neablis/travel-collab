@@ -13,6 +13,69 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-12 — `Location.precision`: what a coordinate DESCRIBES, so the map can stop overclaiming
+- Added: `LocationPrecision = z.enum(["venue", "area", "city"])`, exported, and
+  `precision: LocationPrecision.optional()` on `Location`
+  (`packages/contracts/src/activity.ts`). Nothing else changed shape. Because it
+  sits on `Location`, it reaches `AddActivity`/`UpdateActivity` and both activity
+  event payloads for free — unlike `placeRef` below, this one IS meant to be
+  stored forever
+- Why: a user asked the assistant to add locations to a day of Jeonju stops on
+  prod (2026-09-12) and the approval answered 400 "This change would have no
+  effect." LocationIQ carries none of those venues — KI-2026-08-30-f records that
+  OSM's coverage of small independent venues is structurally thin, so this is the
+  common case rather than the rare one. The fix is for enrichment to fall back to
+  a city-level coordinate, and the moment it does, a city centroid and a real
+  venue fix become byte-identical in storage. The map cannot draw an honest pin
+  for something it cannot distinguish, so the distinction has to be stored
+- **The three words are not new, and that is the point.** `scripts/geocode-content.py`
+  already tiers its answers `venue`/`area`/`city` and refuses to write the third
+  (`docs/guidelines/content-bundles.md:314-325`, "City pins are withheld because
+  putting every stop of a day on one point draws a map that says something false
+  about the day"). Reusing that vocabulary makes the offline pipeline's tiering
+  and the runtime's the same concept rather than two that drift. It also records
+  what changed about the old objection: the map now groups coincident city-level
+  stops into one pin, which is the half that was missing when city pins were
+  withheld
+- **Granularity, not quality — and absent means UNKNOWN.** A city centroid is a
+  precise coordinate for a city, not an imprecise one for a venue; naming the
+  granularity keeps it a fact rather than a verdict. There is deliberately **no
+  `.default()`**: every location already in the database predates this field —
+  the hand-authored Japan fixtures, everything a user typed, every coordinate the
+  assistant has written — and defaulting them to `venue` would claim a precision
+  nobody established, which is the laundering of a guess into a stored fact that
+  KI-15 is about. `packages/contracts/test/location-precision.test.ts` pins the
+  enum, the absence, the command/event round-trip, and a pre-`precision`
+  `trip_details.doc` still parsing (the `area`/KI-35 tripwire, repeated — M18
+  shipped a required field into this shape and 500'd every pre-M18 board)
+- **Deliberately NOT a fourth tier for the assistant's own unverified guess.**
+  When no vendor can corroborate a venue, enrichment keeps the model's own
+  coordinates, and those reach the map indistinguishable from a vendor-verified
+  venue — arguably the least trustworthy pin on it, since a city centroid is at
+  least a real place. Enrichment therefore leaves `precision` ABSENT for them
+  rather than claiming `venue`. Naming that tier is a product decision about what
+  the map should claim, not a shape this change can settle
+- Consumers updated: `packages/domain/src/trip/equality.ts`
+  (`activityStatesEqual` — a field missing there makes changes to it a silent
+  no-op, which is KI-54 and is exactly the bug class that produced this work);
+  `apps/web/src/server/ai/geocodeEnrichment.ts` (writes it);
+  `apps/web/src/server/assistant/tools/read.ts` (the assistant's view of a
+  location, so it can say a stop is only placed at city level instead of implying
+  it pinned it); `apps/web/src/components/lenses/` (MapLens, mapRailData,
+  MapLegend — the grouped disc and its legend key)
+- **The enum is exported as a named schema, and `area` is currently unreachable
+  at runtime.** `GeocodeResult` carries no granularity of its own, so
+  `enrichCommandLocations` can only write `venue` or `city`; the middle tier
+  exists so the runtime enum can represent what `geocode-content.py` already
+  produces offline, which is the whole point of sharing one vocabulary. Anything
+  rendering these must still treat `area` as possible. Exported because the first
+  consumer (`read.ts`) was otherwise reduced to
+  `Location.innerType().shape.precision.unwrap()` — a reach through `Location`'s
+  `.refine()` that breaks the moment the refinement moves
+- Breaking? **no.** Optional, no default, additive against a live database;
+  pre-change projections parse unchanged, and every consumer treats absence as
+  "unknown" rather than as a tier
+
 ## 2026-09-12 — `placeRef` on `AddActivity`/`UpdateActivity`: the grounding citation (M9 link 1, KI-81/KI-15)
 - Added: `placeRef: z.number().int().nonnegative().optional()` on `AddActivity`
   and `UpdateActivity` (`packages/contracts/src/activity.ts`). Nothing else
