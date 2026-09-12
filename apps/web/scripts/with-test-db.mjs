@@ -349,7 +349,7 @@ export function freePort() {
  * makes the right binary a property of this script rather than of how it was
  * invoked.
  */
-function binPath(env) {
+export function binPath(env) {
   const bins = [path.join(WEB_DIR, "node_modules", ".bin"), path.join(WEB_DIR, "..", "..", "node_modules", ".bin")];
   return [...bins, env.PATH ?? ""].filter(Boolean).join(path.delimiter);
 }

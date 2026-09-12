@@ -1,4 +1,4 @@
-// The four decisions in with-test-db.mjs that are not a transcript of a
+// The five decisions in with-test-db.mjs that are not a transcript of a
 // Postgres call, and where being wrong is silent rather than loud:
 //
 //   - which hosts may be provisioned on (it issues DROP DATABASE),
@@ -7,7 +7,9 @@
 //   - which database names the sweep will consider (it drops them), and
 //     which of those is a live build rather than a corpse,
 //   - when the template must be rebuilt (a stale one runs the suite against
-//     the wrong schema).
+//     the wrong schema), and
+//   - which `playwright` the child resolves (the wrong one still runs, and
+//     fails as a filter or config problem rather than as a version problem).
 //
 // The provisioning flow itself is not stubbed here: it is three Postgres
 // statements whose behavior is Postgres's, and a stub asserting we call them
@@ -22,6 +24,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   assertLocalHost,
+  binPath,
   buildingFingerprint,
   migrationsFingerprint,
   runDbAgeMs,
@@ -124,5 +127,44 @@ describe("migrationsFingerprint", () => {
       migrationsDir({ "0000_a.sql": "create table a ();", "0001_b.sql": "create table b ();" }),
     );
     expect(after).not.toBe(before);
+  });
+});
+
+describe("binPath", () => {
+  // KI-2026-09-12: `runChild` spawns bare command names, so which binary the
+  // child gets was decided by PATH inheritance. Reached through `pnpm run`
+  // that is right by accident — pnpm has already prepended
+  // `node_modules/.bin`. Reached one step lower (`node scripts/with-test-db.mjs
+  // --with-port playwright test …`) it was not: this container image ships a
+  // global Playwright 1.56.1 on PATH against the repo's pinned 1.62.1, and a
+  // 1.56.1 runner loading 1.62.1 spec files fails as "Playwright Test did not
+  // expect test() to be called here" and then "No tests found" — which reads
+  // like a bad filter and is a version mismatch. It was in fact misfiled as
+  // one (KI-2026-09-12-c, withdrawn).
+  //
+  // Worth a test precisely because the failure is invisible from the lane
+  // everyone runs: `pnpm --filter web test:e2e` passes whether or not this
+  // function exists, so nothing else would notice it being removed.
+  it("puts the workspace's own .bin directories ahead of whatever PATH already holds", () => {
+    const result = binPath({ PATH: `/opt/node22/bin${path.delimiter}/usr/bin` }).split(path.delimiter);
+
+    expect(result.at(-2)).toBe("/opt/node22/bin");
+    expect(result.at(-1)).toBe("/usr/bin");
+    const ours = result.slice(0, -2);
+    expect(ours).toHaveLength(2);
+    expect(ours.every((dir) => dir.endsWith(path.join("node_modules", ".bin")))).toBe(true);
+    // apps/web's own .bin wins over the workspace root's.
+    const [webBin = ""] = ours;
+    expect(webBin).toContain(path.join("apps", "web"));
+    expect(webBin).not.toContain("/opt/node22/bin");
+  });
+
+  it("survives an environment with no PATH at all, rather than emitting an empty segment", () => {
+    // An empty entry in PATH means "the current directory" on POSIX, so a
+    // stray delimiter is not merely untidy.
+    const result = binPath({}).split(path.delimiter);
+
+    expect(result).toHaveLength(2);
+    expect(result.every((dir) => dir.length > 0)).toBe(true);
   });
 });
