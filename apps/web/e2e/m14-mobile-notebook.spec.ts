@@ -24,8 +24,8 @@ async function openTripOverview(page: import("@playwright/test").Page): Promise<
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
   }
   await page.goto(`/trips/${tripId}/pages`);
-  await page.getByRole("link", { name: /Trip Overview/ }).click();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // §19: "Edit / Done editing is one button… There is no separate phone editor
   // screen — the editor is a mode of the page, exactly as on desktop."
   await page.getByRole("button", { name: "Edit page" }).click();
@@ -84,7 +84,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
 
     // And it survives the round trip, which is the thing no unit test sees.
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "Edit page" }).click();
     await expect(page.getByRole("button", { name: /^Showing/ })).not.toHaveText(/everything/);
   });
@@ -141,7 +141,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // And a fresh load opens in Reading, rather than the toggle merely having
     // been flipped in this session.
     await page.goto(`/trips/${tripId}/pages`);
-    await page.getByRole("link", { name: /Trip Overview/ }).click();
+    await page.getByRole("link", { name: /Overview/ }).first().click();
     await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   });

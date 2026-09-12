@@ -9,7 +9,12 @@ import { e2eTripName } from "./tripNames";
 // about the notebooks EXISTING and RENDERING, not about the words on them.
 // `!` rather than a fallback: a seed that has stopped existing is a real
 // failure and should crash the spec loudly at load, not quietly assert nothing.
-const [TRIP_OVERVIEW, DAY_OVERVIEW] = DEFAULT_TEMPLATES as [
+// **One seeded template since SPEC §25**, not two — Mitchell, 2026-09-12:
+// *"Only 1 notebook per trip is always generated."* Trip Overview and Day
+// overview are gallery templates now, and the page every trip comes with is the
+// Overview. Read from `DEFAULT_TEMPLATES` for the same reason it always was: a
+// rename should not be a failing assertion about a word.
+const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [
   (typeof DEFAULT_TEMPLATES)[number],
   (typeof DEFAULT_TEMPLATES)[number],
 ];
@@ -103,17 +108,17 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
   // text link that used to sit in the trip header's nav row.
   await openNotebookIndex(page);
-  const overviewLink = page.getByRole("link", { name: new RegExp(TRIP_OVERVIEW.title) });
-  const dayLink = page.getByRole("link", { name: new RegExp(DAY_OVERVIEW.title) });
+  const overviewLink = page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) });
   await expect(overviewLink).toBeVisible();
-  await expect(dayLink).toBeVisible();
 
-  // -- Trip Overview: renders its plain-starter-text template --
+  // -- the Overview: the one page a trip comes with --
   await overviewLink.click();
-  await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
+  await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
-  await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
+  // Its one widget (SPEC §25's `w-open`), on a trip with nothing waiting: the
+  // empty state is the good one here, and it is a sentence rather than a blank.
+  await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
 
   // -- the assistant opens on a page, in EITHER mode (no real AI call) --
   // It used to be an editing-only control, hidden in Reading because what it
@@ -128,29 +133,29 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // the same style AI Assistant as on the trip page, not the top of the UI
   // input box"*), which became possible when the page tools stopped replacing
   // the document and started inserting into it (ADR-035 decision 5).
-  await page.getByRole("button", { name: /Assistant/ }).click();
+  // The launcher is called "Ask" since SPEC §28 — a 92×44 bar, not a brand
+  // tile. The PANEL keeps its name.
+  await page.getByRole("button", { name: "Ask" }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await expect(page.getByPlaceholder(/add to this page/i)).toBeVisible();
   await page.getByRole("button", { name: /hide/i }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeHidden();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await page.getByRole("button", { name: /Assistant/ }).click();
+  await page.getByRole("button", { name: "Ask" }).click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await page.getByRole("button", { name: "Done editing" }).click();
   // Still open across the mode change — the reversal, stated as an assertion.
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await page.getByRole("button", { name: /hide/i }).click();
 
-  // -- Day overview: its own starter text --
-  // The day-binding control this used to drive went with SPEC §18: a page has
-  // no scope, and a day is a widget's own input (M14 link 2). The binding UI
-  // returns as the chrome row on a widget, which is M14 link 4's to cover.
+  // -- and it is the ONLY page a new trip has (SPEC §25) --
+  // "Day overview" used to be walked here as the second seeded page. It is a
+  // gallery template now, so the assertion that means something is that the
+  // index carries exactly one page rather than that a second one renders.
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
-  await dayLink.click();
-  await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
-  await expect(page.getByText(/what's happening today/i)).toBeVisible();
-  await expect(page.getByText(/who is picking up the car/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
 });
 
 // Exit-gate line "Open a fresh empty trip's Notebook → default pages render
@@ -168,16 +173,19 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openNotebookIndex(page);
-  await page.getByRole("link", { name: new RegExp(TRIP_OVERVIEW.title) }).click();
-  await expect(page.getByRole("heading", { name: TRIP_OVERVIEW.title })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) }).click();
+  await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
   await expect(page.getByText(/what's this trip about/i)).toBeVisible();
-  await expect(page.getByText(/sketch the shape of the trip/i)).toBeVisible();
   await expect(page.getByText(/track budget notes/i)).toBeVisible();
 
+  // The gallery still offers the pages a trip is no longer seeded with, and
+  // this is where that is checked: "Day overview" exists to CHOOSE now (SPEC
+  // §25), so a new trip does not have one until someone asks for it.
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
-  await page.getByRole("link", { name: new RegExp(DAY_OVERVIEW.title) }).click();
-  await expect(page.getByRole("heading", { name: DAY_OVERVIEW.title })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Start from Day overview" }).click();
+  await expect(page.getByRole("heading", { name: "Day overview", level: 1 })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
 });
 
@@ -230,10 +238,10 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
-  // -- open Trip Overview, add hand-typed prose --
+  // -- open the Overview, add hand-typed prose --
   await openNotebookIndex(page);
-  await page.getByRole("link", { name: /Trip Overview/ }).click();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) }).click();
+  await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
 
   // A notebook opens in READING now (Mitchell, 2026-09-04, walking the M14
   // preview), so typing into it is a deliberate act here as it is for a person.
@@ -266,7 +274,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Revert to here" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 
-  // -- reopen Trip Overview: the hand-typed prose survived the revert untouched --
+  // -- reopen the Overview: the hand-typed prose survived the revert untouched --
   await page.goto(overviewUrl);
   await expect(page.getByText(proseText)).toBeVisible();
 

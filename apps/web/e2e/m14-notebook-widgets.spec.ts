@@ -132,10 +132,13 @@ async function addStopInCity(page: Page, title: string, cityName: string): Promi
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
 }
 
-async function openTripOverview(page: Page): Promise<void> {
+// **The seeded page is "Overview" since SPEC §25**, and there is exactly one of
+// them — Trip Overview and Day overview are gallery templates now, so a new
+// trip's notebook has a single page and this is it.
+async function openSeededPage(page: Page): Promise<void> {
   await openNotebookIndex(page);
-  await page.getByRole("link", { name: /Trip Overview/ }).click();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 }
@@ -166,7 +169,7 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
 
 test("insert a widget from the widget list, narrow it to a day, and reload to find it there", async ({ page }) => {
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   // Searched, because a flat list of eighteen presets is what the widget
   // model's own success looks like.
@@ -192,12 +195,15 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // The whole point: reload and the binding is still there. The unit tests
   // assert the PATCH body; only this asserts the round trip.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
-  // Reading is the default, so the chrome row is not on screen until Editing —
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  // Reading is the default, so no widget control is on screen until Editing —
   // which is the point of Reading. The BINDING is what survived; the control
-  // that shows it is an authoring affordance.
+  // that shows it is an authoring affordance, and since §26 it lives in the
+  // side channel rather than beside the value.
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).not.toHaveText("All days");
+  await expect(
+    (await selectWidget(page, "cost")).getByRole("button", { name: /What it costs: dates/ }),
+  ).not.toHaveText("All days");
 });
 
 /**
@@ -227,10 +233,18 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
   return box;
 }
 
-async function reachChrome(page: Page, control: Locator) {
-  await page.locator("[data-macro-name]").filter({ has: control }).first().hover();
-  const box = await boxOf(control);
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 });
+// **Selects a widget so its settings open in the side channel (SPEC §26).**
+//
+// This replaces `reachChrome`, which hovered the widget to reveal a chrome row
+// rendered beside it in the document. There is no chrome row: §26 moved every
+// widget control out of the flow, and the way to reach one is to select the
+// widget it belongs to. Clicking the widget's rendered value is what a person
+// does, and it is what ProseMirror reads as a node selection.
+async function selectWidget(page: Page, macroName: string): Promise<Locator> {
+  await page.locator(`[data-macro-name="${macroName}"]`).first().click();
+  const panel = page.getByTestId("widget-settings");
+  await expect(panel).toBeVisible();
+  return panel;
 }
 
 test("two widgets on one page read two different days", async ({ page }) => {
@@ -239,7 +253,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // binding, which is the thing an aggregated page-level control would break —
   // and did, before SPEC §18 removed the page's scope.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   await insertFromList(page, /What it costs/);
   await insertFromList(page, /The days, in detail/);
@@ -247,20 +261,22 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // Each widget's OWN day select, found by the widget's name rather than by
   // position: a primitive declares up to five controls now (ADR-039 decision
   // 1), so "the first two comboboxes on the page" are both the first widget's.
-  const pickDay = async (widget: RegExp, day: RegExp) => {
-    const control = page.getByRole("button", { name: widget });
-    await reachChrome(page, control);
-    await control.click();
+  const pickDay = async (macroName: string, control: RegExp, day: RegExp) => {
+    const panel = await selectWidget(page, macroName);
+    await panel.getByRole("button", { name: control }).click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
     );
+    // Twice: the popover, then the node selection — §26 made Escape do both,
+    // in that order, and the second is what closes the settings panel.
+    await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
   };
-  await pickDay(/What it costs: dates/, /Day 1/);
-  await pickDay(/The days in detail: dates/, /Day 2/);
+  await pickDay("cost", /What it costs: dates/, /Day 1/);
+  await pickDay("day.detail", /The days in detail: dates/, /Day 2/);
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
   // page-level control would break.
@@ -269,8 +285,15 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // inequality passes just as happily when both went wrong together. The
   // summary is the DATE the day resolved to (`daysSummary`), not its ordinal,
   // and the trip starts 2027-06-01 — so Day 1 and Day 2 read as the two dates.
-  await expect(page.getByRole("button", { name: /What it costs: dates/ })).toHaveText("2027-06-01");
-  await expect(page.getByRole("button", { name: /The days in detail: dates/ })).toHaveText("2027-06-02");
+  // Read one at a time: §26 shows one widget's settings at a time, so the two
+  // bindings can no longer be compared side by side on screen. The claim is
+  // unchanged — each widget kept ITS OWN binding.
+  await expect(
+    (await selectWidget(page, "cost")).getByRole("button", { name: /What it costs: dates/ }),
+  ).toHaveText("2027-06-01");
+  await expect(
+    (await selectWidget(page, "day.detail")).getByRole("button", { name: /The days in detail: dates/ }),
+  ).toHaveText("2027-06-02");
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -278,7 +301,7 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // row, no compose box — but the widget itself is still resolved and still on
   // the page, which is the difference between "hidden" and "removed".
   const tripName = await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   await insertFromList(page, /The trip's name/);
 
@@ -310,7 +333,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   // finished the moment it lands — and the two days created above are exactly
   // what tells one line per day apart from one line.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   await insertFromList(page, /A line for every day/, "every day");
 
@@ -327,7 +350,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(rows.nth(1)).toContainText("Day 2");
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
   // a reload that lost Day 1 would also satisfy.
   const afterReload = page.locator(".tc-page-editor [role='row']");
@@ -349,27 +372,30 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // "what this trip actually has", never the whole enum.
   await addTaggedStop(page, "Ramen", "Meal");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   await insertFromList(page, /A line for every stop/, "every stop");
 
-  // Two controls, one per declared input.
-  const days = page.getByRole("button", { name: /A line for every stop: dates/i });
-  const tags = page.getByRole("combobox", { name: /A line for every stop: tags/i });
-  // `stop.rows` is a block widget, so its chrome is the hover popover.
-  await reachChrome(page, days);
+  // **Its controls are in the side channel (SPEC §26), so the widget has to be
+  // selected to reach them** — and it already is, because inserting selects
+  // what it inserted. `selectWidget` is called anyway rather than relying on
+  // that: this walk is about the controls, and a failure here should say "the
+  // panel did not open", not "no such control".
+  const panel = await selectWidget(page, "stop.rows");
+  const days = panel.getByRole("button", { name: /A line for every stop: dates/i });
+  const tags = panel.getByRole("combobox", { name: /A line for every stop: tags/i });
   await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
   // `stop.rows` is entity `stop`, and the matrix gives that entity every
   // dimension — reaching the row as FOUR controls, because `day` and `dates`
   // are one. `person` is the one with no control, and deliberately so: no stop
   // carries a person (decision 7).
-  const cities = page.getByRole("combobox", { name: /A line for every stop: city/i });
-  const kinds = page.getByRole("combobox", { name: /A line for every stop: kind/i });
+  const cities = panel.getByRole("combobox", { name: /A line for every stop: city/i });
+  const kinds = panel.getByRole("combobox", { name: /A line for every stop: kind/i });
   await expect(cities).toBeVisible();
   await expect(kinds).toBeVisible();
-  await expect(page.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveCount(0);
+  await expect(panel.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
+  await expect(panel.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveCount(0);
 
   // A tag input reads "every stop, or one" (§18), so unset is a real answer
   // rather than an unfilled blank.
@@ -415,12 +441,15 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   await expect(days).not.toHaveText("All days");
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Trip Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(page.getByRole("button", { name: /A line for every stop: dates/i })).not.toHaveText("All days");
-  await expect(page.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
-  await expect(page.getByRole("combobox", { name: /A line for every stop: city/i })).toHaveValue(cityValue);
-  await expect(page.getByRole("combobox", { name: /A line for every stop: kind/i })).toHaveValue("booked");
+  // Re-selected after the reload: a fresh page has nothing selected, so the
+  // settings panel is showing the insert rail until a widget is picked.
+  const afterPanel = await selectWidget(page, "stop.rows");
+  await expect(afterPanel.getByRole("button", { name: /A line for every stop: dates/i })).not.toHaveText("All days");
+  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
+  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: city/i })).toHaveValue(cityValue);
+  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: kind/i })).toHaveValue("booked");
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
@@ -444,7 +473,7 @@ test("an undated trip says it has no days to filter by, and is not a dead end", 
   await page.waitForURL(/\/trips\/[^/]+$/);
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
 
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /What it costs/, "costs");
 
   await page.getByRole("button", { name: /What it costs: dates/ }).click();
@@ -464,7 +493,7 @@ test("a block widget's bindings are reachable by keyboard, not only by hover", a
   //
   // The pointer never goes near the widget here. That is the whole test.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /The days, in detail/);
 
   const days = page.getByRole("button", { name: /The days in detail: dates/ });
@@ -496,7 +525,7 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   await tripWithTwoDays(page);
   await addTaggedStop(page, "Ramen", "Meal");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /A line for every stop/, "every stop");
 
   const table = page.getByRole("table").first();
@@ -577,7 +606,7 @@ test("the bindings of the last widget in a page are not clipped by the card", as
   // where the editor is at its widest with no sidebar beside it.
   await page.setViewportSize({ width: 1100, height: 800 });
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   // The END of the document, not after the first heading: `insertFromList`
   // inserts under the `h2`, which leaves the whole rest of the page below the
@@ -633,7 +662,7 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   });
   await addStopViaApi(page, tripId, "Someday: the tram museum");
 
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /A line for every stop/, "every stop");
 
   const table = page.getByRole("table").first();
@@ -687,7 +716,7 @@ test("a selected block widget shows its bindings with the pointer nowhere near i
   // reveals it by hover instead, which would make this walk prove the thing it
   // is trying to isolate. The pointer is parked in the far corner throughout.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /The days, in detail/);
 
   const widget = page.locator('[data-macro-name="day.detail"]');
@@ -732,7 +761,7 @@ test("a repeat widget's rows are striped, and its values are text rather than ch
   // `stop.rows` line is a lead and nothing else). Every day here is dated, and
   // a dated day's row carries its date as a value.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /A line for every day/, "every day");
 
   const table = page.getByRole("table").first();
@@ -791,7 +820,7 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   // measures that. Reproducing a wrap would need eleven cities in an e2e trip
   // to test the same inequality.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
   // Into the block itself, not under it: `insertFromList` presses Enter first,
   // which puts the widget in a paragraph of its own. The click lands at the
@@ -854,7 +883,7 @@ test("an inline value keeps a natural space on each side of it", async ({ page }
   // computed margin is a real measurement, and e2e is where this repo already
   // measures rendered geometry (§13's 44px floor is checked the same way).
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
   await insertFromList(page, /The dates/, "dates");
 
   const value = page.locator(".tc-page-editor [data-widget-value]").first();
@@ -879,9 +908,9 @@ test("a notebook is renamed by editing its own heading, and the index follows", 
   // commit and the guards, and nothing below the browser can prove that typing
   // into the thing works at all.
   await tripWithTwoDays(page);
-  await openTripOverview(page);
+  await openSeededPage(page);
 
-  const heading = page.getByRole("heading", { name: "Trip Overview", level: 1 });
+  const heading = page.getByRole("heading", { name: "Overview", level: 1 });
   await expect(heading).toBeVisible();
 
   // Select the whole title and type over it, which is what a person does to a
@@ -902,7 +931,7 @@ test("a notebook is renamed by editing its own heading, and the index follows", 
   await page.getByRole("link", { name: /Notebooks/ }).click();
   await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
   await expect(page.getByRole("link", { name: /Kyoto notes/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Trip Overview/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^Overview/ })).toHaveCount(0);
   // And the button it replaced is gone.
   await expect(page.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
 });

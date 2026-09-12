@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
@@ -54,7 +54,19 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
 export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const { detail, context, user, globals, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
   const name = node.attrs.name as string;
-  const params = (node.attrs.params ?? {}) as Record<string, unknown>;
+  // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
+  // fresh object on every render, and this feeds a `useEffect` that reports the
+  // selection upward — so an unmemoised value re-reports on every render, which
+  // re-renders the screen, which re-renders this. `PageScreen` also guards
+  // against that by value, and both are worth having: this stops the loop at
+  // the source, and the guard there stops any other reporter starting one.
+  const rawParams = node.attrs.params;
+  const paramsKey = JSON.stringify(rawParams ?? {});
+  const params = useMemo(
+    () => (rawParams ?? {}) as Record<string, unknown>,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialised value on purpose; `rawParams` is a new object every render and is what this memo exists to stabilise.
+    [paramsKey],
+  );
   const def = getMacro(name);
 
   // Stable for the life of this mounted node view, and the reason the surface
