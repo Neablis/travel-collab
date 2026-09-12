@@ -32,12 +32,28 @@ describe("Toast", () => {
     expect(screen.queryByRole("button", { name: /undo/i })).toBeNull();
   });
 
-  it("auto-dismisses after a timeout", () => {
+  // SPEC §27: *"The toast holds 6s when it carries an action, 2.4s when it does
+  // not."* Both directions, because one flat duration satisfied either
+  // assertion alone and the point is that they DIFFER — a toast you can act on
+  // has to outlast the moment you realise you want to.
+  it("auto-dismisses after 2.4s with nothing to act on", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(<Toast message="Deleted" onDismiss={onDismiss} />);
+    vi.advanceTimersByTime(2399);
     expect(onDismiss).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(8000);
+    vi.advanceTimersByTime(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds for 6s when it carries an action", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(<Toast message="Deleted" actionLabel="Undo" onAction={vi.fn()} onDismiss={onDismiss} />);
+    // Past the no-action window, and still there — which is the whole claim.
+    vi.advanceTimersByTime(2400);
+    expect(onDismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(3600);
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -74,14 +90,14 @@ describe("Toast", () => {
 
     // Partway through the window, force the parent (and therefore Toast) to
     // re-render with a brand-new onDismiss reference.
-    vi.advanceTimersByTime(4000);
+    vi.advanceTimersByTime(1200);
     fireEvent.click(screen.getByRole("button", { name: /rerender/i }));
     expect(onDismissSpy).not.toHaveBeenCalled();
 
-    // Advance to the ORIGINAL total duration (8000ms since first mount).
-    // Before the fix, the re-render at 4000ms would have restarted the
-    // countdown and this would still be pending.
-    vi.advanceTimersByTime(4000);
+    // Advance to the ORIGINAL total duration (2400ms since first mount — §27's
+    // no-action window). Before the fix, the re-render at 1200ms would have
+    // restarted the countdown and this would still be pending.
+    vi.advanceTimersByTime(1200);
     expect(onDismissSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -95,15 +111,16 @@ describe("Toast", () => {
     const onDismissSpy = vi.fn();
     const { rerender } = render(<Toast message='Deleted "A"' onDismiss={onDismissSpy} />);
 
-    vi.advanceTimersByTime(6000);
+    vi.advanceTimersByTime(1800);
     rerender(<Toast message='Deleted "B"' onDismiss={onDismissSpy} />);
 
-    // 6000ms elapsed since the new message mounted its own timer — not yet due.
-    vi.advanceTimersByTime(6000);
+    // 1800ms elapsed since the new message mounted its own timer — not yet due,
+    // though 3600ms have now passed since the first mount.
+    vi.advanceTimersByTime(1800);
     expect(onDismissSpy).not.toHaveBeenCalled();
 
-    // 8000ms since the message changed.
-    vi.advanceTimersByTime(2000);
+    // 2400ms since the message changed.
+    vi.advanceTimersByTime(600);
     expect(onDismissSpy).toHaveBeenCalledTimes(1);
   });
 });

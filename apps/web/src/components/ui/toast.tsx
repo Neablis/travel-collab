@@ -11,7 +11,13 @@ import { cn } from "@/lib/cn";
 // and an auto-dismiss timer so it never has to be a persistent fixture. No
 // stacking/queueing — this milestone only ever shows one at a time, fired
 // from local component state in the caller (page.tsx, SettingsSheet).
-const AUTO_DISMISS_MS = 8000;
+// SPEC §27: *"The toast holds 6s when it carries an action, 2.4s when it does
+// not."* One flat 8s before this, which is the wrong shape in both directions —
+// too long to read "Saved", and an arbitrary amount of time to notice an Undo
+// and reach it. A toast you can act on has to outlast the moment you realise
+// you want to; one you cannot act on only has to be read.
+const AUTO_DISMISS_WITH_ACTION_MS = 6000;
+const AUTO_DISMISS_MS = 2400;
 
 export function Toast({
   message,
@@ -45,9 +51,12 @@ export function Toast({
   onDismissRef.current = onDismiss;
 
   useEffect(() => {
-    const timer = setTimeout(() => onDismissRef.current(), AUTO_DISMISS_MS);
+    const timer = setTimeout(
+      () => onDismissRef.current(),
+      actionLabel === undefined ? AUTO_DISMISS_MS : AUTO_DISMISS_WITH_ACTION_MS,
+    );
     return () => clearTimeout(timer);
-  }, [message]);
+  }, [message, actionLabel]);
 
   return (
     <div
