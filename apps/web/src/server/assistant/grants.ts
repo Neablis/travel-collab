@@ -159,8 +159,21 @@ export function grantFor(caps: EffectCaps): GrantedEffects {
  * the three sets have always been assembled in.
  *
  * A tool whose domain the grant does not name is not offered at all; a tool
- * whose effect exceeds what its domain was granted is not offered either. Those
- * two sentences are the whole of the narrowing.
+ * whose effect exceeds what its domain was granted is not offered either.
+ *
+ * **`taskClass` is a third axis, and it is not advisory.** It exists because
+ * the first two cannot express "every planning tool is `itinerary`/`propose`,
+ * and some of them are still wrong for a six-day planning turn". Passing it
+ * removes tools; OMITTING IT DISABLES THE FILTER ENTIRELY rather than defaulting
+ * to something safe, which is deliberate — a caller that has not classified the
+ * turn yet must not be handed a narrowed set it did not ask for. Both halves are
+ * asserted in `grants.test.ts`.
+ *
+ * Callers that narrow own two obligations `toolsFor` cannot discharge: only a
+ * class somebody DETERMINED may narrow (a class resolved upward out of
+ * uncertainty must pass `undefined`), and a turn whose set was narrowed needs an
+ * instruction saying so. `admission.ts`'s `grantTools` does both; its comments
+ * carry the incidents.
  */
 export function toolsFor(
   grant: GrantedEffects,

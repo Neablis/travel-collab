@@ -338,7 +338,7 @@ export async function handleAskRequest(
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, grant.posture, briefFor(page)),
+    instructions: instructionsFor(scope, detail.days.length, grant.posture, briefFor(page), grant.classWithheld),
     tools,
     // Keyed by tool name, and DERIVED from the same definitions: every tool
     // that declared an ambient dep gets the context, and nothing else does.
@@ -745,8 +745,9 @@ export function instructionsFor(
   dayCount: number,
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
+  classWithheld = false,
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld));
 }
 
 /**
@@ -769,6 +770,7 @@ export function instructionBlocks(
   dayCount: number,
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
+  classWithheld = false,
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -785,6 +787,28 @@ export function instructionBlocks(
   const rules: string[] = [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
     ACCESS_LINE[posture],
+    // **The partial case `ACCESS_LINE` cannot state**, and it is placed here,
+    // immediately after it, because it qualifies that sentence rather than
+    // adding a separate topic.
+    //
+    // `propose` tells the model to emit every change the request needs; the
+    // task-class filter can remove a handful of change tools while leaving that
+    // sentence true of the rest. Without this line the model is told to emit
+    // everything, has no tool for part of it, and is given no way to say so —
+    // the silent drop that `ACCESS_LINE`'s comment rules out for the all-or-
+    // nothing case and that the filter reintroduced for the partial one.
+    //
+    // It names the SAME recovery the `withheld` copy names (say what is
+    // missing, the user asks again), for the same reason: there is no mid-turn
+    // escalation and no client retry, so an undisclosed gap is a dead end.
+    //
+    // Conditional, so a turn the filter did not narrow is told byte-identically
+    // what it was told before this line existed.
+    ...(canWrite && classWithheld
+      ? [
+          "Some change tools are not available on this turn. If part of what they asked for needs a change you have no tool for, do the rest, then say plainly which part you could not draft and ask them to request that part on its own. Never leave it out silently, and never say the assistant cannot make that change.",
+        ]
+      : []),
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
     // **The one line P4 adds to what a live model is told**, and the only one
     // it adds: it sits next to "use ONLY what the tools return" because it says
