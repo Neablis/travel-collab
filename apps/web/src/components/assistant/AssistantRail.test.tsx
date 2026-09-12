@@ -71,7 +71,7 @@ describe("AssistantRail", () => {
     renderRail({ onAsk });
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
     expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
     // Awaited: the clear now waits on onAsk's answer, because a refused ask
     // keeps the prompt. An accepted one still clears, one microtask later.
@@ -86,7 +86,7 @@ describe("AssistantRail", () => {
     renderRail({ onAsk });
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
     expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
 
     // The prompt only survives if it survives PAST the await inside submitAsk,
@@ -427,7 +427,7 @@ describe("AssistantRail — the sheet is a real modal, not just a scrim", () => 
     const onAfterClick = vi.fn();
     render(<Harness open onHide={onHide} onAfterClick={onAfterClick} />);
     fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "anything" } });
-    screen.getByRole("button", { name: "Ask" }).focus();
+    screen.getByRole("button", { name: "Ask the assistant" }).focus();
 
     await userEvent.tab();
     await pressSpace();
