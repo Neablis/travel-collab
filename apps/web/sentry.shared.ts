@@ -261,6 +261,49 @@ export function scrubSentryPayload<T extends object>(payload: T): T {
 }
 
 /**
+ * Drop the console breadcrumbs the `ai.*` analytics sinks write
+ * (KI-2026-09-11-a).
+ *
+ * `logAskAnalytics` (askAnalytics.ts), `defaultApplySink`
+ * (handleAskRequest.ts) and `logAiGrant` (admissionPorts.ts) each write one
+ * `console.info`/`console.error` line per turn — `"ai.ask"`,
+ * `"ai.ask.failed"`, `"ai.proposal.apply"`, `"ai.grant"` — and every one of
+ * those records carries `userId`. Sentry's `Console` integration is on by
+ * default and turns every console call into a breadcrumb: `data.arguments`
+ * holds the raw arguments (a live object for `defaultApplySink`'s
+ * `console.info(record.event, record)`) and `message` is `util.format`'s
+ * rendering of them (a JSON string for the other two) — neither is a URL, so
+ * `scrubSentryPayload`'s pattern-based masking does not touch either one, and
+ * a real client with `sharedSentryOptions` proves it: the record's `userId`
+ * reaches the breadcrumb list of whatever transaction or error is open next.
+ *
+ * These records are ALREADY the structured log line each sink's own comment
+ * describes as their whole purpose; nothing is lost by keeping them out of
+ * Sentry's breadcrumb trail too. Dropping the breadcrumb outright — rather
+ * than trying to scrub `userId` out of an arbitrary, possibly-nested payload —
+ * is also the fix that does not need updating the next time one of these
+ * records grows a field: every line these sinks write opens with the same
+ * `"ai."`-prefixed event name, by convention rather than by listing the three
+ * that exist today, so a fourth sink that follows it is covered without
+ * anyone remembering to add it here.
+ *
+ * This is the boundary fix the KI asked for instead of patching each sink:
+ * `logAiGrant` additionally forks the isolation scope around its own write
+ * (belt-and-suspenders, and the only thing that satisfies
+ * `ask/telemetry.int.test.ts`, which initialises Sentry with default options
+ * and so never sees this hook) — that call site is out of this KI's scope and
+ * is left as it is.
+ */
+export function scrubBreadcrumb<T extends { category?: string; message?: string }>(
+  breadcrumb: T,
+): T | null {
+  if (breadcrumb.category === "console" && /^ai\.[a-z]/.test(breadcrumb.message ?? "")) {
+    return null;
+  }
+  return scrubSentryPayload(breadcrumb);
+}
+
+/**
  * Scrub the URL out of a Session Replay recording event.
  *
  * Replay needs its own two hooks because neither of the ones below can see it:
@@ -323,5 +366,9 @@ export const sharedSentryOptions = {
   // of per-payload. Nothing writes such a line today; this is so nothing has
   // to remember not to.
   beforeSendLog: scrubSentryPayload,
-  beforeBreadcrumb: scrubSentryPayload,
+  // `scrubBreadcrumb`, not `scrubSentryPayload` — it does everything that one
+  // does (URL masking) and additionally drops the `ai.*` console breadcrumbs
+  // the AI analytics sinks write, which carry `userId` rather than a URL
+  // (KI-2026-09-11-a; see `scrubBreadcrumb`'s own comment).
+  beforeBreadcrumb: scrubBreadcrumb,
 } as const;
