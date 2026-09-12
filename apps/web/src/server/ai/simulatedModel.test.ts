@@ -70,9 +70,9 @@ const TRIP_READOUT = {
   dayCount: 3,
   tripCostTotal: 1000,
   days: [
-    { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
-    { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
-    { day: 3, date: "2026-09-10", stopCount: 0, toBook: 0, costSubtotal: 0 },
+    { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 0, costSubtotal: 500 },
+    { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 0, costSubtotal: 500 },
+    { day: 3, date: "2026-09-10", cities: [], stopCount: 0, toBook: 0, costSubtotal: 0 },
   ],
   conflicts: [{ ref: 1, kind: "time-overlap", description: "\"A\" and \"B\" overlap on day 2." }],
 };
@@ -362,9 +362,9 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...TRIP_READOUT,
               days: [
-                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 2, costSubtotal: 500 },
-                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 0, costSubtotal: 500 },
-                { day: 3, date: "2026-09-10", stopCount: 1, toBook: 1, costSubtotal: 0 },
+                { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 2, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 0, costSubtotal: 500 },
+                { day: 3, date: "2026-09-10", cities: [], stopCount: 1, toBook: 1, costSubtotal: 0 },
               ],
             },
           },
@@ -388,8 +388,8 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...TRIP_READOUT,
               days: [
-                { day: 1, date: "2026-09-08", stopCount: 2, toBook: 0, costSubtotal: 500 },
-                { day: 2, date: "2026-09-09", stopCount: 1, toBook: 1, costSubtotal: 500 },
+                { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 0, costSubtotal: 500 },
+                { day: 2, date: "2026-09-09", cities: [], stopCount: 1, toBook: 1, costSubtotal: 500 },
               ],
             },
           },
