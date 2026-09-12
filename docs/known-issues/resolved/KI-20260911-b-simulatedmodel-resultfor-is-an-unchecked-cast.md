@@ -9,13 +9,16 @@ the graceful-degradation path every caller already had for a tool that had
 not been called — so a malformed readout now degrades the answer instead of
 throwing mid-map three frames away.
 
-**Reproduced first.** A temporary test called `simulatedModel().doGenerate`
-with a `read_trip` result missing its (schema-required) `conflicts` field and
-got, before the fix:
+**Reproduced first**, with a test that called `simulatedModel().doGenerate`
+with a `read_trip` result missing its (schema-required) `conflicts` field.
+Before the fix that threw:
 ```
 TypeError: Cannot read properties of undefined (reading 'length')
  ❯ askAnswer src/server/ai/simulatedModel.ts:345:44
-   |   if (!dayScoped && trip && trip.conflicts.length > 0) {
+    343|   // clash on day 9 inside an answer about day 3 is precisely the wand…
+    344|   // M16's gate refuses.
+    345|   if (!dayScoped && trip && trip.conflicts.length > 0) {
+       |                                            ^
 ```
 After the fix the same call returns the honest fallback sentence
 ("I couldn't read anything about this trip. AI is switched off…") instead of
@@ -31,11 +34,41 @@ supplies `cities` via `citiesOfDay`, so this was never reachable at runtime).
 Added `cities: []` to each day literal in that file so the fixtures describe
 a real `TripReadout` again; no assertion was weakened.
 
-**Proof:** the reproduction above stopped throwing; the full
-`simulatedModel.test.ts` (53 tests, including the one added as the
-reproduction) and `askChipCoverage.test.ts` (which drives the real `read_trip`
-through this same model) both pass; `pnpm --filter web typecheck` and
-`pnpm --filter web lint` are clean.
+That reproduction was kept as a **permanent regression test** —
+`simulatedModel.test.ts`'s `"degrades to the honest fallback instead of
+throwing when a tool result does not match its own schema"` — because the
+repaired fixture alone does not guard the cast from coming back (a fixture
+that already parses cleanly stays green whether `resultFor` parses or casts).
+Proven red-first the repo's way: with `resultFor` reverted to
+`found?.output as T | undefined`, running just that test gave
+```
+TypeError: Cannot read properties of undefined (reading 'length')
+ ❯ askAnswer src/server/ai/simulatedModel.ts:372:44
+    370|   // clash on day 9 inside an answer about day 3 is precisely the wand…
+    371|   // M16's gate refuses.
+    372|   if (!dayScoped && trip && trip.conflicts.length > 0) {
+       |                                            ^
+    373|     sentences.push(
+    374|       `${trip.conflicts.length} conflict${trip.conflicts.length === 1 …
+ ❯ askTurn src/server/ai/simulatedModel.ts:707:60
+ ❯ step src/server/ai/simulatedModel.ts:736:61
+ ❯ Object.doGenerate src/server/ai/simulatedModel.ts:744:41
+ ❯ src/server/ai/simulatedModel.test.ts:295:21
+```
+(same throw, later line numbers — the cast-restoring edit was applied on top
+of the fixed file, which had grown a doc comment above `resultFor` in the
+meantime). Restoring the `safeParse` fix turned it green again.
+
+The stale comment in `playbookCalls` that described `resultFor` as "a cast…
+not a parsed readout" was also corrected — it was true when written and false
+after this fix — without touching the `?? []` guard it explains, which stays
+as defensive code now rather than load-bearing.
+
+**Proof:** both throws above reproduced and then stopped; the full
+`simulatedModel.test.ts` (54 tests, including the permanent regression case)
+and `askChipCoverage.test.ts` (which drives the real `read_trip` through this
+same model) both pass; `pnpm --filter web typecheck` and `pnpm --filter web
+lint` are clean.
 
 Files touched: `apps/web/src/server/ai/simulatedModel.ts`,
 `apps/web/src/server/ai/simulatedModel.test.ts`.

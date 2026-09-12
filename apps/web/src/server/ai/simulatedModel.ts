@@ -496,9 +496,14 @@ function playbookCalls(results: readonly ToolResultLike[]): ToolCall[] | null {
     // also unfences what it receives, so either spelling works — but a model
     // told never to repeat the marks would not send them, and this model is a
     // stand-in for that model.
-    // `?? []` because `resultFor` is a cast over the agent's own untyped
-    // message history, not a parsed readout — a day without `cities` is a
-    // malformed result, not a crash.
+    // `trip?.days ?? []` because `trip` itself can be `undefined` — no
+    // `read_trip` result yet, or one that failed `resultFor`'s `safeParse`.
+    // `day.cities ?? []` is now belt-and-braces rather than load-bearing:
+    // `resultFor` parses through `TripReadoutSchema`, which requires `cities`
+    // on every day, so a `trip` that parsed at all already has it on each of
+    // its days. Kept anyway — a day without `cities` is still meant to read
+    // as "nothing to offer here", never a crash, however it got past the
+    // schema.
     const cities = [...new Set((trip?.days ?? []).flatMap((day) => (day.cities ?? []).map(plain)))].slice(0, 3);
     return [call("search_playbooks", cities.length > 0 ? { cities } : {})];
   }
