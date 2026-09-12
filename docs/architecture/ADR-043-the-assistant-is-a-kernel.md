@@ -141,7 +141,7 @@ check in the spec, §7.
 - **`TurnLedger` is the `ai_usage` row, field for field** (M20 link 9), so that link is an
   `INSERT` and a migration rather than a redesign. Turn and classifier tokens stay
   **separate** — folding them would undo the reason the classifier has its own model id.
-  **No dollars and no `Money` anywhere in it**: a live request costs $0.0011 and `Money`'s
+  **No dollars and no `Money` anywhere in it**: a live request costs $0.0006 and `Money`'s
   integer minor units round that to zero, which is the KI-1/KI-14/`budgetPerPerson` defect
   class on its third recurrence.
 - **Cost and capacity are two ledgers, not two fields of one** — a correction to the first

@@ -303,25 +303,40 @@ set from.
    "charges no markup and no platform fee on tokens. You pay the provider's
    list price"**:
 
-   | | input / MTok | output / MTok |
-   |---|---|---|
-   | `deepseek/deepseek-v4-flash-0731` | $0.22 | $0.66 |
-   | `zai/glm-4.7-flash` (classifier) | $0.06 | $0.40 |
+   | | input / MTok | output / MTok | cached input |
+   |---|---|---|---|
+   | `deepseek/deepseek-v4-flash-0731` | **$0.13** | **$0.26** | $0.028 |
+   | `zai/glm-4.7-flash` (classifier) | **$0.07** | $0.40 | — |
+
+   **Corrected 2026-09-12 against the live catalogue**
+   (`curl https://ai-gateway.vercel.sh/v1/models`). This table read $0.22/$0.66
+   for the turn model, which overstated input by 1.7x and output by 2.5x, and
+   every figure below was derived from it. The rates above are the **US
+   regional** ones; the same id is cheaper again at the base rate
+   ($0.076/$0.153), so these are the conservative numbers.
+
+   **A model id does not pin a price, and that is the part that matters here.**
+   Catalogue entries carry `varies_by_provider`, per-region rates, and in one
+   case (`deepseek-v4-pro`) a 2x `peak_pricing` multiplier on fixed UTC
+   windows. This milestone pins per-user ceilings into **immutable plan
+   versions**, so a ceiling sold against a rate that can move without a deploy
+   is an exposure link 9 has to answer, not a detail.
 
    **The one live `ai.ask` record** (`M16-assistant-read-agent.md`, preview,
    2026-08-30, `simulated: false`) is a two-step trip opener: **3,363 input
    and 512 output tokens** on the turn, plus **198 / 49** on the classifier.
-   That request cost **about $0.0011 — a ninth of a cent.**
+   That request cost **about $0.0006 — six ten-thousandths of a dollar.**
+   (Was quoted as $0.0011 from the stale rates above.)
 
    At the ceiling, the binding cap is **800 steps a day** (`quota.ts:178`,
    `AVERAGE_STEPS` 8). Input accumulates across the steps of one request —
    the record shows 1,332 then 2,031 — so an eight-step request is on the
-   order of 30,000 input and 2,400 output tokens, about **$0.008**. A hundred
-   of those a day is **≈$0.83, or ~$25 a month**; if turns stay as short as
-   the observed one, the request cap binds first at **~$3.40 a month.**
+   order of 30,000 input and 2,400 output tokens, about **$0.0045**. A hundred
+   of those a day is **≈$0.45, or ~$14 a month**; if turns stay as short as
+   the observed one, the request cap binds first at **~$1.80 a month.**
 
-   **So a maxed-out account costs single-digit to low-double-digit dollars a
-   month, not the ~$70-170 an earlier draft of this link claimed.** The
+   **So a maxed-out account costs low single-digit to mid double-digit dollars
+   a month, not the ~$70-170 an earlier draft of this link claimed.** The
    ceilings are an abuse bound, not a margin problem, and they do not need to
    be cut for cost. What this link still owes is a *tier split* — `plus` and
    `premium` cannot both sit at the same ceiling — and the two numbers are a
@@ -516,7 +531,7 @@ refusal to name the tier rather than read as a permission error.
      review should see.)*
    - **`Money` must not be used for this.** ADR-008 defines
      `Money = { amountMinor, currency }` in **integer minor units** — whole
-     cents for USD. A live request costs **$0.0011**, which is a ninth of a
+     cents for USD. A live request costs **$0.0006**, which is six hundredths of a
      cent and rounds to **zero**. Every request would record as free. That is
      precisely the KI-1 / KI-14 / `budgetPerPerson` defect class — a field
      asserting a semantic its arithmetic does not have — and this repo has
@@ -651,7 +666,7 @@ refusal to name the tier rather than read as a permission error.
       failure path writes.
 - [ ] **No dollar amount is stored in `ai_usage`, and `Money` is not used
       anywhere in it.** A test fails if either appears. A request costing
-      $0.0011 rounds to zero in `amountMinor`, which would record every call
+      $0.0006 rounds to zero in `amountMinor`, which would record every call
       as free — the KI-1 / KI-14 / `budgetPerPerson` defect class, third
       recurrence.
 - [ ] **Re-pricing history works**: changing a model's rate in the price table

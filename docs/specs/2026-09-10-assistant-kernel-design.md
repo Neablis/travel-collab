@@ -442,7 +442,7 @@ uncertainty resolves *upward*, toward the stronger model.
 **Mitchell, 2026-09-10:** *"that cost is not forever, and the model we use might change, so
 that needs to be a variable input in the system."*
 
-The $0.0011-per-request figure quoted throughout this document and M20 is **one measurement
+The $0.0006-per-request figure quoted throughout this document and M20 is **one measurement
 of one model on one date**, not a property of the system. DeepSeek's rates for the configured
 model already changed once mid-scoping (2026-08-16). Three rules follow, and they are
 constraints on this design rather than notes about M20's:
@@ -559,7 +559,7 @@ of that latch, not a fourth place that has to get once-only right.
 
 **No dollars, and never `Money`.** M20's second decision, and it is the KI-1 / KI-14 /
 `budgetPerPerson` defect class on its third recorded recurrence: a live request costs
-**$0.0011**, and `Money`'s integer minor units round that to **zero**. Every request would
+**$0.0006**, and `Money`'s integer minor units round that to **zero**. Every request would
 store as free. The ledger carries tokens and model ids; the price is a join against a dated
 rate file. `TurnLedger` therefore has **no currency type anywhere in it**, and that is a
 constraint on this design, not a note about M20's.
