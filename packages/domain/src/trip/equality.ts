@@ -47,14 +47,19 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     // exactly that reason (KI-35) — and `city` and `countryCode` were found
     // missing in the same breath (KI-54, CodeRabbit on #72). This list is now
     // every persisted field of Location; if you add one to the contract, add
-    // it here in the same commit.
+    // it here in the same commit. `precision` is the latest, and it is the one
+    // where forgetting would be least visible: two locations identical but for
+    // their granularity would compare equal, so re-geocoding a stop from a city
+    // centroid up to a real venue fix would be rejected as a no-op — the exact
+    // shape of KI-54, one field later.
     (a.location === null ||
       (a.location.name === b.location!.name &&
         a.location.lat === b.location!.lat &&
         a.location.lng === b.location!.lng &&
         a.location.city === b.location!.city &&
         a.location.countryCode === b.location!.countryCode &&
-        a.location.area === b.location!.area)) &&
+        a.location.area === b.location!.area &&
+        a.location.precision === b.location!.precision)) &&
     sameAnchors(a.anchors, b.anchors) &&
     a.kind === b.kind &&
     sameTags(a.tags, b.tags) &&

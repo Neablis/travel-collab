@@ -62,9 +62,21 @@ type LocationCommand = Extract<BatchableCommand, { type: "AddActivity" | "Update
 export interface LocationEnrichmentReport {
   // The geocoder returned a match consistent with what we already believed.
   verified: string[];
-  // No match, or a match rejected as implausible. The model's own location
-  // survives untouched — which may mean no coordinates at all.
+  // No match, or a match rejected as implausible, AND nothing better to fall
+  // back to. The model's own location survives untouched — which may mean no
+  // coordinates at all.
   unverified: string[];
+  // The venue lookup came back with nothing usable, but the location named a
+  // city and country the geocoder COULD corroborate, so the stop is pinned at
+  // that city's centroid and carries `precision: "city"`.
+  //
+  // Its own bucket rather than a flavour of `unverified`, because the two are
+  // different answers to the user: a city-level stop is on the map, roughly
+  // right, and honest about it; an `unverified` one is not on the map at all.
+  // `unverifiedNotice` (writeTools.ts) is built from `unverified`/`failed`/
+  // `skipped`, so a name left in those would be read back as "I couldn't
+  // verify the location for X" about a stop we had in fact just placed.
+  cityLevel: string[];
   // Accepted, but there was nothing to check it against: no model hint, and no
   // region yet. Only reachable for the FIRST lookup of a trip that has no
   // geocoded activities — after that, bootstrapping supplies a region. Reported
@@ -80,15 +92,28 @@ export interface LocationEnrichmentReport {
 const emptyReport = (): LocationEnrichmentReport => ({
   verified: [],
   unverified: [],
+  cityLevel: [],
   unchecked: [],
   failed: [],
   skipped: [],
 });
 
 // True when the report describes something a user should be told about.
-// `unchecked` is excluded by design — see the field's comment.
+// `unchecked` and `cityLevel` are both excluded by design — see their fields'
+// comments. `cityLevel` is the load-bearing one: it is the outcome this
+// function's caller would otherwise describe as a place it could not verify,
+// which is the opposite of what happened.
 export function hasUnverifiedLocations(report: LocationEnrichmentReport): boolean {
   return report.unverified.length + report.failed.length + report.skipped.length > 0;
+}
+
+// True when the batch placed something at city level. Its own predicate rather
+// than a widening of the one above, and that is not tidiness: the sentence
+// `hasUnverifiedLocations` gates draws its names from `unverified`/`failed`/
+// `skipped`, so counting `cityLevel` there would produce "I couldn't verify
+// locations for  — worth checking on the map" with an empty name list.
+export function hasCityLevelLocations(report: LocationEnrichmentReport): boolean {
+  return report.cityLevel.length > 0;
 }
 
 // "Needs enrichment" = AddActivity/UpdateActivity with a `location` object
@@ -100,6 +125,39 @@ function hasLocation(command: BatchableCommand): command is LocationCommand & { 
 
 function normalize(name: string): string {
   return name.trim().toLowerCase();
+}
+
+/**
+ * The approved location, with only its COORDINATES re-derived.
+ *
+ * Field-agnostic by construction — it spreads rather than enumerating — so a
+ * field added to `Location` later survives enrichment without anyone
+ * remembering to come back here. That is deliberate: hand-enumerated activity
+ * fields are a standing defect class in this repo (KI-2026-09-05-o), and this
+ * function is on the path where forgetting one turns a real edit into a no-op.
+ *
+ * The coordinates are the one thing that cannot simply be carried: a model
+ * that does not know a coordinate emits the null-island `0,0` sentinel, and
+ * `plausibleCoords` has to run per command to strip it or it is persisted as
+ * a real pin. Dropping a bad COORDINATE is not subtraction — it is refusing a
+ * value that was never information.
+ */
+function sanitizeCoords(location: Location): Location {
+  const coords = plausibleCoords(location);
+  if (coords) return { ...location, ...coords };
+  // An implausible pair is dropped rather than carried: a null-island 0,0 is
+  // not a coordinate the model knew, and persisting it draws a real pin in the
+  // Gulf of Guinea.
+  //
+  // `precision` goes with it, by the same argument one level up: the field says
+  // what the COORDINATES describe, so with no coordinates left it describes
+  // nothing. Keeping it would leave a location claiming `precision: "venue"`
+  // and carrying no venue — a claim about a value that is no longer there.
+  const withoutCoords = { ...location };
+  delete withoutCoords.lat;
+  delete withoutCoords.lng;
+  delete withoutCoords.precision;
+  return withoutCoords;
 }
 
 type Outcome = "verified" | "unverified" | "unchecked" | "failed";
@@ -170,6 +228,15 @@ async function resolveOne(
     name: match.canonicalName,
     lat: match.lat,
     lng: match.lng,
+    // The vendor answered a VENUE query with a place, so that is what its
+    // coordinate describes — on both accepting paths, `verified` and
+    // `unchecked` alike. `unchecked` is a venue-level answer we happened to
+    // have nothing to cross-check, not a coarser one, and the report is where
+    // "we could not check it" is already recorded. Overloading `precision`
+    // with that would turn a field about WHAT a coordinate describes into a
+    // verdict on how much we trust it, which contracts/src/activity.ts is
+    // explicit that it is not.
+    precision: "venue",
     ...(match.countryCode ? { countryCode: match.countryCode } : {}),
     ...(match.city ? { city: match.city } : {}),
     ...(match.area ? { area: match.area } : {}),
@@ -196,6 +263,49 @@ async function resolveOne(
   // Nothing to check against. Take it, but do not claim it was verified — and
   // do not nag the user about it either (see LocationEnrichmentReport).
   return { location: found, outcome: "unchecked" };
+}
+
+// The city half of a fallback (KI-2026-08-30-f). One lookup, judged by the
+// SAME region test a venue match faces — a "Springfield, US" the geocoder puts
+// three states from the trip is it answering about a different Springfield, and
+// accepting it would pin the stop in the wrong place, which is the one thing
+// this module may never do. With no region at all there is nothing to check
+// against, so the answer is taken: the same call `resolveOne` makes when it
+// reports `unchecked`.
+//
+// Returns a bare coordinate, not a `Location`: the stop is still the venue the
+// human approved, placed roughly. Letting the city's own `canonicalName` and
+// address components overwrite the approved ones would rename "PNB bakery" to
+// "Jeonju-si" — a relocation of the label rather than of the pin, and just as
+// wrong.
+async function resolveCityCoords(
+  geocoder: Geocoder,
+  query: string,
+  region: BoundingBox | null,
+): Promise<LatLng | null> {
+  let match;
+  try {
+    [match] = await geocoder.forward(query, { limit: 1, ...(region ? { viewbox: region } : {}) });
+  } catch {
+    // Best-effort, exactly like the venue lookup: a vendor failure here costs
+    // the stop its city-level pin and nothing else.
+    return null;
+  }
+  if (!match) return null;
+  const point = plausibleCoords(match);
+  if (!point) return null;
+  if (region && !withinBox(region, point)) return null;
+  return point;
+}
+
+// The query a city fallback sends, and the key that dedupes it across the
+// batch. `"<city>, <countryCode>"` is what a person types into the manual flow,
+// and it is a question the vendor can answer even when the venue is not in OSM
+// at all.
+function cityLookupOf(location: Location): { key: string; query: string } | null {
+  const { city, countryCode } = location;
+  if (!city || !countryCode) return null;
+  return { key: `${normalize(city)}|${countryCode.toUpperCase()}`, query: `${city}, ${countryCode}` };
 }
 
 export async function enrichCommandLocations(
@@ -231,6 +341,12 @@ export async function enrichCommandLocations(
 
   const geocoder = getGeocoder();
 
+  // One clock for the whole function. `mapRateLimited` has its own default, but
+  // the bridge between the two lookup passes below has to sleep on the same one
+  // — including in tests, which inject a no-op so they neither wait nor need
+  // fake timers.
+  const wait = sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
   // Region bootstrapping. A brand-new trip has no geocoded activities, so
   // `tripRegion` is null and the first lookup has nothing to check against.
   // Lookups are sequential, though, so every coordinate we settle on tells the
@@ -242,7 +358,6 @@ export async function enrichCommandLocations(
   const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint }]) => {
     const region = tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
     const resolution = await resolveOne(geocoder, name, hint, region);
-    report[resolution.outcome].push(name);
     // Anything we settled on is evidence about where the trip is — including a
     // rejected lookup's surviving model hint. A `failed` lookup taught us
     // nothing new, so it contributes nothing.
@@ -251,12 +366,116 @@ export async function enrichCommandLocations(
       if (coords) anchors.push(coords);
     }
     return [key, resolution] as const;
-  }, sleep);
+  }, wait);
   // Keyed by normalized name, one Resolution per unique name — this is still
   // just the dedupe (one geocoder call per name), not a decision to make every
   // command sharing that name resolve identically. That decision is made
   // per-command below.
   const resolutionByKey = new Map(resolved);
+
+  // --- The city-level fallback (KI-2026-08-30-f) ---
+  //
+  // Our geocoder is OpenStreetMap-derived and structurally cannot corroborate a
+  // small independent venue: eight of the Japan fixture's stops return a
+  // definitive 404 on every rerun, and a well-planned real trip is full of
+  // exactly that class. So "the venue lookup found nothing" is the COMMON case,
+  // and its old answer — keep whatever the model gave us, which is often no
+  // coordinates at all — left the stop off the map entirely.
+  //
+  // The city the model named is a far easier question, and one the vendor can
+  // answer. So ask it, and pin the stop at the city's centroid marked
+  // `precision: "city"` so nothing downstream can mistake it for a located
+  // venue. Which is a real answer: "somewhere in Jeonju-si" is what the user
+  // already knew and what they asked us to put on a map.
+  //
+  // Only for a stop with NO usable coordinates of its own. Replacing a
+  // plausible model coordinate with a city centroid would MOVE a pin, which
+  // this module may never do (KI-15), and would trade a guess about this venue
+  // for a fact about somewhere the venue merely sits inside.
+  //
+  // Per COMMAND, not per deduped name: two commands can share a venue name and
+  // carry different cities, and applying one command's city to another's stop is
+  // the relocation bug the per-command resolution below already exists to
+  // prevent.
+  const cityQueries = new Map<string, string>();
+  const wantsCity = new Map<BatchableCommand, { cityKey: string; nameKey: string }>();
+  for (const command of commands) {
+    if (!hasLocation(command)) continue;
+    const nameKey = normalize(command.location.name);
+    const outcome = resolutionByKey.get(nameKey)?.outcome;
+    if (outcome !== "unverified" && outcome !== "failed") continue;
+    if (plausibleCoords(command.location)) continue;
+    const lookup = cityLookupOf(command.location);
+    if (!lookup) continue;
+    wantsCity.set(command, { cityKey: lookup.key, nameKey });
+    if (!cityQueries.has(lookup.key)) cityQueries.set(lookup.key, lookup.query);
+  }
+
+  // City lookups spend the SAME per-batch budget as venue lookups and go
+  // through the SAME throttle. Both caps are about the request the user is
+  // waiting on and the vendor's 2/second ceiling, neither of which cares which
+  // kind of question is being asked. Over-budget cities are simply not looked
+  // up: the stops they would have served are already reported `unverified`, and
+  // naming a CITY in a report whose every other entry is a stop name would read
+  // as a stop we failed on.
+  const cityBudget = Math.max(0, MAX_LOOKUPS_PER_BATCH - attempted.length);
+  const cityCoords = new Map<string, LatLng>();
+  if (cityQueries.size > 0 && cityBudget > 0) {
+    // Checked against everything the venue pass settled on, which is strictly
+    // more evidence than any single lookup inside that pass had.
+    const region = tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
+    // `mapRateLimited` sleeps BETWEEN its own items, so a second pass would
+    // fire its first lookup with no gap after the venue pass's last one —
+    // three calls inside one second, over the ceiling. One explicit sleep
+    // bridges the passes, so the batch is throttled as a whole rather than
+    // twice separately.
+    await wait(MIN_INTERVAL_MS);
+    const resolvedCities = await mapRateLimited(
+      Array.from(cityQueries.entries()).slice(0, cityBudget),
+      MIN_INTERVAL_MS,
+      async ([key, query]) => [key, await resolveCityCoords(geocoder, query, region)] as const,
+      wait,
+    );
+    for (const [key, coords] of resolvedCities) if (coords) cityCoords.set(key, coords);
+  }
+
+  // Which commands actually took a city pin, and therefore which NAMES are
+  // reported city-level rather than unverified.
+  const cityPins = new Map<BatchableCommand, LatLng>();
+  // Per NAME, what happened across every command that wanted a city pin for it:
+  // `pinned` if any of them got one, `unpinned` if any of them did not. Both
+  // can be true at once — see the report loop below.
+  const cityOutcomeByName = new Map<string, { pinned: boolean; unpinned: boolean }>();
+  for (const [command, { cityKey, nameKey }] of wantsCity) {
+    const coords = cityCoords.get(cityKey);
+    if (coords) cityPins.set(command, coords);
+    const entry = cityOutcomeByName.get(nameKey) ?? { pinned: false, unpinned: false };
+    if (coords) entry.pinned = true;
+    else entry.unpinned = true;
+    cityOutcomeByName.set(nameKey, entry);
+  }
+
+  // The report is decided here rather than inside the lookup pass, because a
+  // name's outcome is not known until the city fallback has had its turn.
+  // Order still follows the lookup order, so `skipped` (pushed above, before
+  // any lookup ran) and these read as the batch happened.
+  for (const [key, { name }] of attempted) {
+    const outcome = resolutionByKey.get(key)!.outcome;
+    // A name is not one outcome once two commands can share it. Two stops both
+    // called "Lunch" in different cities dedupe to ONE venue lookup, then take
+    // DIFFERENT city lookups — so the name can be pinned for one command and
+    // pinned for neither the other. Reporting only `cityLevel` in that case
+    // left `hasUnverifiedLocations` false, and the receipt told the user
+    // nothing about the stop that got no pin at all. Raised by CodeRabbit on
+    // PR 169; it is the same name-keyed/command-keyed seam the fallback rebuild
+    // above already warns about.
+    //
+    // Both buckets, when both happened. The single-command case — every batch
+    // anyone has actually run — is unchanged.
+    const city = cityOutcomeByName.get(key);
+    if (city?.pinned) report.cityLevel.push(name);
+    if (!city || city.unpinned) report[outcome].push(name);
+  }
 
   return {
     commands: commands.map((command) => {
@@ -276,15 +495,29 @@ export async function enrichCommandLocations(
       // sharing a display name are not guaranteed to be the same place (the
       // model may not bother disambiguating "Lunch in Rochester, NY" across
       // two different days), so when we can't verify anything, the safest
-      // "never relocate" move is to rebuild the fallback from THAT command's
-      // own location — never from another command's. This must stay a
-      // rebuild, not "leave the command as-is": `plausibleCoords` still needs
-      // to run per command to strip a null-island 0,0 sentinel, or that gets
-      // persisted again.
-      const location: Location =
-        resolution.outcome === "verified" || resolution.outcome === "unchecked"
-          ? resolution.location
-          : { name: command.location.name, ...(plausibleCoords(command.location) ?? {}) };
+      // "never relocate" move is to keep THAT command's own location — never
+      // another command's.
+      //
+      // Both branches now go through `sanitizeCoords`, and the verified match
+      // is spread OVER it rather than replacing it. That is the enrichment
+      // invariant stated as code: **refine, never subtract** — what commits is
+      // always at least as informative as what the human approved. It is the
+      // fallback's whole job on the unverified path, and it closes the same
+      // hole on the refine path, where a vendor answer with no city-level
+      // component used to cost the user a city they had asked for.
+      const approved = sanitizeCoords(command.location);
+      if (resolution.outcome === "verified" || resolution.outcome === "unchecked") {
+        return { ...command, location: { ...approved, ...resolution.location } };
+      }
+      // A city centroid, and said to be one. Additive by construction: it only
+      // ever reaches a location that had no usable coordinate of its own, every
+      // field the human approved is still here, and `precision` is overwritten
+      // rather than merged so a location cannot claim a venue-level pin it no
+      // longer has. A stop with no city pin keeps `precision` exactly as
+      // approved — ABSENT for a surviving model guess, which is the whole point
+      // of absent meaning unknown (contracts/src/activity.ts).
+      const pin = cityPins.get(command);
+      const location: Location = pin ? { ...approved, ...pin, precision: "city" } : approved;
       return { ...command, location };
     }),
     report,

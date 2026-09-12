@@ -29,6 +29,24 @@ export const Anchor = z
   });
 export type Anchor = z.infer<typeof Anchor>;
 
+/**
+ * What a `Location`'s coordinates DESCRIBE. Declared as its own schema so a
+ * consumer needing the enum imports it, rather than reaching through
+ * `Location.innerType().shape.precision.unwrap()` — `Location` carries a
+ * `.refine()`, so every such reach has to know that and breaks if the refinement
+ * moves. `read.ts` was doing exactly that before this existed.
+ *
+ * **`area` is currently unreachable at runtime, and that is honest rather than
+ * aspirational.** `GeocodeResult` carries no granularity of its own, so
+ * `enrichCommandLocations` can only ever write `venue` or `city`; the middle
+ * tier exists because `scripts/geocode-content.py` already produces it offline
+ * (docs/guidelines/content-bundles.md) and a runtime enum that could not
+ * represent a bundle's own answer would make the two vocabularies different
+ * again. Anything rendering these must treat `area` as possible.
+ */
+export const LocationPrecision = z.enum(["venue", "area", "city"]);
+export type LocationPrecision = z.infer<typeof LocationPrecision>;
+
 export const Location = z
   .object({
     name: z.string().min(1).max(200),
@@ -65,9 +83,52 @@ export const Location = z
     // still parse (see contracts/test/ki35-location-area.test.ts, and the M18
     // regression it exists to not repeat).
     area: z.string().min(1).max(200).optional(),
+    // **What `lat`/`lng` DESCRIBE — not how good they are.** A city centroid is
+    // not an imprecise coordinate; it is a precise coordinate for a city, and
+    // naming the granularity keeps that a fact rather than a verdict.
+    //
+    // The three words are not new. `scripts/geocode-content.py` already tiers
+    // its answers `venue` / `area` / `city` and refuses to write the third
+    // (docs/guidelines/content-bundles.md), on the grounds that "putting every
+    // stop of a day on one point draws a map that says something false about
+    // the day". Runtime enrichment now writes city-level coordinates where the
+    // vendor cannot corroborate a venue (KI-2026-08-30-f is why that is the
+    // common case, not the rare one), so the map has to be able to say which
+    // it is holding. Reusing the pipeline's vocabulary makes the offline
+    // tiering and the runtime one the same concept instead of two that drift.
+    //
+    // **Absent means UNKNOWN, and that is load-bearing — it does not mean
+    // `venue`.** Every location in the database predates this field: the
+    // hand-authored Japan fixtures, everything a user typed, and every
+    // coordinate the assistant has written so far. Claiming venue precision
+    // for all of them would be exactly the laundering of a guess into a stored
+    // fact that KI-15 is about. `trip_details.doc` is raw jsonb parsed on
+    // read, so an absent key must also simply parse — the same guarantee
+    // `area` carries, and the same one M18 broke by shipping a required field
+    // into this shape (see contracts/test/location-precision.test.ts).
+    //
+    // NOT a fourth tier for the assistant's own unverified guess, which today
+    // reaches the map indistinguishable from a vendor-verified venue. That is
+    // a real gap and a deliberate omission: naming it is a product decision
+    // about what the map should claim, not a shape this PR can settle.
+    precision: LocationPrecision.optional(),
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",
+  })
+  // `precision` describes the COORDINATES, so it cannot outlive them — a
+  // location carrying `precision: "city"` and no lat/lng is a claim about a
+  // value that is not there. `sanitizeCoords` (geocodeEnrichment.ts) already
+  // treats that shape as incoherent and drops `precision` whenever it drops a
+  // null-island pair; this makes the same rule structural instead of leaving
+  // one writer to remember it. Raised by CodeRabbit on PR 169.
+  //
+  // Safe to add as a REFINEMENT rather than a migration concern: `precision`
+  // ships in the same PR, so no stored document can carry it yet, and a
+  // document with no `precision` is unaffected.
+  .refine((l) => l.precision === undefined || l.lat !== undefined, {
+    message: "precision requires coordinates",
+    path: ["precision"],
   });
 export type Location = z.infer<typeof Location>;
 

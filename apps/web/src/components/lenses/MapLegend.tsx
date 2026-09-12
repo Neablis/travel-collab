@@ -10,7 +10,8 @@ import { Preview } from "@/components/ui/preview";
 // train or taxi" for a leg), so those two keys are a claim this app can't
 // make yet — behind their own Preview, narrower than wrapping the whole
 // legend. "Rest of trip" (real: every drawn route is solid, at full or
-// reduced opacity depending on focus) stays outside it.
+// reduced opacity depending on focus) stays outside it, and so does the city
+// disc — both are behaviour the map really has.
 export function MapLegend() {
   return (
     <div
@@ -48,6 +49,24 @@ export function MapLegend() {
           style={{ width: "16px", height: "3px", opacity: 0.55 }}
         />
         Rest of trip
+      </span>
+      {/* The disc, and what its SHAPE claims. A teardrop's tip names one spot;
+          a stop whose coordinate is only known to the city (`precision: "city"`,
+          contracts/src/activity.ts) has no such spot, so MapLens draws those as
+          one disc per centroid — carrying the count of stops under it when there
+          is more than one. The wording says what the coordinate DESCRIBES rather
+          than grading it: a city centroid is a precise coordinate for a city,
+          not a bad one for a venue. Slate, like "Rest of trip" above, because a
+          real disc carries its day's accent and no one swatch can stand for
+          five. */}
+      <span className="flex items-center gap-1.5">
+        <span
+          aria-hidden
+          className="rounded-full border-2 border-slate bg-slate/20"
+          // eslint-disable-next-line no-restricted-syntax -- 12px legend key disc has no token equivalent, matching the stroke keys above
+          style={{ width: "12px", height: "12px" }}
+        />
+        Somewhere in this city
       </span>
     </div>
   );

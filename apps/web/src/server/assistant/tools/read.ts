@@ -41,7 +41,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, Money, TimeWindow, type TripDetail } from "@tc/contracts";
+import { ActivityKind, LocationPrecision, Money, TimeWindow, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
@@ -170,11 +170,36 @@ export function readTrip(detail: TripDetail): TripReadout {
   };
 }
 
+// `LocationPrecision` is imported from the contract rather than respelled here.
+// A respelling is the hand-written duplicate ADR-015 invariant 5 forbids, and it
+// would fail in the quietest possible way: a tier added to the contract would be
+// STRIPPED by this tool's output parse (`defineTool` parses every result), so the
+// model would simply never hear about it. A test pins exactly that.
+
+
 export interface StopReadout {
   title: string;
   /** `null` when the stop is not scheduled to a time — which is what makes free-time answers real. */
   timeWindow: { start: string; end: string } | null;
-  location: { name: string; city: string | null; countryCode: string | null } | null;
+  /**
+   * `precision` is what the coordinates DESCRIBE, and the model needs it to
+   * describe them honestly. Runtime enrichment pins a stop at its city's
+   * centroid when the vendor cannot corroborate the venue — the common case,
+   * not the rare one (KI-2026-08-30-f) — and without this field the assistant
+   * would tell a user it had placed the stop, which is a claim about a pin it
+   * did not make. `null` is UNKNOWN and never "venue": every location written
+   * before the field existed carries none (contracts/src/activity.ts).
+   *
+   * The coordinates themselves are still absent by design. Knowing a stop is
+   * city-level is a fact the model can SAY; a lat/lng is a fact it would be
+   * tempted to invent a near-miss of.
+   */
+  location: {
+    name: string;
+    city: string | null;
+    countryCode: string | null;
+    precision: LocationPrecision | null;
+  } | null;
   notes: string | null;
   kind: ActivityKind;
   tags: string[];
@@ -210,8 +235,9 @@ export const ReadToolProblemSchema: z.ZodType<ReadToolProblem> = z.object({ erro
 // `timeWindow` and `cost` are passed straight through from a parsed
 // `TripDetail`, so a second spelling of either here would be the hand-written
 // duplicate ADR-015 invariant 5 forbids. `location` is a genuine narrowing —
-// three of `Location`'s fields, with the coordinates the model must never see
-// left behind — so it is written out.
+// four of `Location`'s fields, with the coordinates the model must never see
+// left behind — so it is written out, and `precision` is still the contract's
+// own enum rather than a respelling of it.
 export const DayReadoutSchema: z.ZodType<DayReadout> = z.object({
   day: z.number(),
   date: z.string().nullable(),
@@ -225,6 +251,7 @@ export const DayReadoutSchema: z.ZodType<DayReadout> = z.object({
           name: z.string(),
           city: z.string().nullable(),
           countryCode: z.string().nullable(),
+          precision: LocationPrecision.nullable(),
         })
         .nullable(),
       notes: z.string().nullable(),
@@ -278,6 +305,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
                 name: activity.location.name,
                 city: activity.location.city ?? null,
                 countryCode: activity.location.countryCode ?? null,
+                precision: activity.location.precision ?? null,
               }
             : null,
           notes: activity.notes,
@@ -647,7 +675,8 @@ function fencedDay(readout: DayReadout): DayReadout {
       // `kind` is the contract's own enum and `timeWindow`/`cost` are numbers
       // and clock times. `countryCode` is a two-letter code the geocoder
       // returns, not prose — left alone so the fence keeps meaning "a person
-      // wrote this".
+      // wrote this". `location.precision` is the same: a closed enum this
+      // server writes, which nobody can type into.
       //
       // **`tags` is NOT fenced, and spec §4 has it wrong.** It reads as free
       // text here because `StopReadout` widens it to `string[]`, but the source
