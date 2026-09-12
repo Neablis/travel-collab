@@ -69,3 +69,15 @@
     local match count is zero), while a filter-free invocation runs the whole 106-test
     suite normally. Not filed here (out of this entry's blast radius); the next KI sweep
     or the run's own board should pick it up.
+
+- **The e2e regression test has now actually been run, 2026-09-12 — it shipped unexecuted and that is no longer true.** It was recorded as unrunnable on the strength of `KI-2026-09-12-c`, which was **withdrawn the same day**: the Playwright CLI filters files fine, and the "No tests found" the sweep agent hit was a duplicate `@playwright/test` inside an agent worktree (`KI-2026-09-12-b`).
+- **Green on the lane that counts:** `pnpm --filter web build` then `CI=true pnpm --filter web test:e2e e2e/m14-notebook-widgets.spec.ts` → `17 passed (1.5m)`, the new case among them.
+- **Seen red first, for its own reason** (CLAUDE.md rule 3). Stripping `md:sticky md:top-14 md:z-10 md:my-0 md:bg-paper md:py-3` back to the original `className`, rebuilding, and re-running `e2e/m14-notebook-widgets.spec.ts:918`:
+  ```
+  Expect "toBeInViewport" with timeout 5000ms
+    waiting for getByRole('button', { name: 'Done editing' })
+      14 × locator resolved to <button type="button" aria-pressed="true" …>Done editing</button>
+         - unexpected value "viewport ratio 0"
+  > 953 |   await expect(page.getByRole("button", { name: "Done editing" })).toBeInViewport();
+  ```
+  Restoring the classes and rebuilding returned it to `2 passed (9.3s)`. One test, by `file:line`, in nine seconds — the whole suite was never needed.

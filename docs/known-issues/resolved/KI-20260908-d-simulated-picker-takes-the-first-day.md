@@ -87,3 +87,5 @@ The original entry follows, unchanged.
 - **Note for whoever takes it:** the e2e coupling above is the real constraint. Filtering `mine` in the picker means that spec needs a second actor, which is `m11b-playbooks.spec.ts`'s two-actor idiom — not hard, but it is the reason this is not a one-line change.
 - **Cross-reference:** ADR-042; `addCounts` in `apps/web/src/server/savedDayAdds.ts`; KI-2026-09-08-c (found in the same walk).
 - **First noted:** 2026-09-08, browser walk of PR #157.
+
+- **The rewritten e2e spec has now been executed, 2026-09-12.** `m10-simulated-ai.spec.ts`'s playbook test had one actor publish and then find *their own* day — exactly what this fix excludes — so it had to be rewritten to `m11b-playbooks.spec.ts`'s two-actor idiom, and the fixing session could not run it (no Postgres in that worktree). Run since on the lane that counts: `CI=true pnpm --filter web test:e2e e2e/m10-simulated-ai.spec.ts e2e/m16-mobile-assistant.spec.ts` → `13 passed (28.3s)`, including `m10-simulated-ai.spec.ts:218 › a playbook day the assistant found reaches the board once it is approved`. The rewrite holds.
