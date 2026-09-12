@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import * as Sentry from "@sentry/nextjs";
 import {
   REDACTED,
   sampleRate,
+  scrubBreadcrumb,
   scrubReplayRecordingEvent,
   scrubUrl,
   sharedSentryOptions,
@@ -324,6 +326,19 @@ describe("scrubUrl", () => {
 describe("what actually reaches the Sentry transport", () => {
   const sent: [unknown, Array<[{ type: string }, unknown]>][] = [];
 
+  // Generated, not literal — the SDK's `ContextLines` integration reads the
+  // real source around every stack frame, so a literal secret near a
+  // `captureException` call would show up in
+  // `exception.values[0].stacktrace.frames[].context_line` regardless of
+  // what the fix under test does with breadcrumbs. `TOKEN` above is a literal
+  // safely because it only ever appears inside a URL passed as the
+  // exception's MESSAGE, never near a bare `captureException(new Error(...))`
+  // call site the way these ids are below.
+  const AI_APPLY_USER_ID = randomUUID();
+  const AI_ASK_USER_ID = randomUUID();
+  const AI_ASK_FAILED_USER_ID = randomUUID();
+  const AI_GRANT_USER_ID = randomUUID();
+
   beforeAll(async () => {
     Sentry.init({
       ...sharedSentryOptions,
@@ -381,6 +396,35 @@ describe("what actually reaches the Sentry transport", () => {
     // (Copilot, PR #147).
     Sentry.logger.info("share opened", { url: `/api/shares/${TOKEN}` });
 
+    // KI-2026-09-11-a: the AI console sinks' exact shapes, folded into this
+    // same real-client run rather than a second `Sentry.init` (a second
+    // `Sentry.init` sharing this process with this one produced an empty
+    // transport — an OpenTelemetry tracer provider can only be registered
+    // once per process, and this file's job is exercising the real client,
+    // not the SDK's re-init story).
+    //
+    // `defaultApplySink`'s exact shape: a live object, not a JSON string.
+    console.info("ai.proposal.apply", {
+      event: "ai.proposal.apply",
+      tripId: "trip-1",
+      userId: AI_APPLY_USER_ID,
+      outcome: "applied",
+    });
+    // `logAskAnalytics`'s exact shape: a JSON string.
+    console.info("ai.ask", JSON.stringify({ event: "ai.ask", tripId: "trip-1", userId: AI_ASK_USER_ID }));
+    // `logAskAnalytics`'s error line, also JSON.
+    console.error(
+      "ai.ask.failed",
+      JSON.stringify({ event: "ai.ask.failed", tripId: "trip-1", userId: AI_ASK_FAILED_USER_ID }),
+    );
+    // `logAiGrant`'s exact shape — belt-and-suspenders there via
+    // `withIsolationScope`, but this boundary fix must catch it too.
+    console.info("ai.grant", JSON.stringify({ event: "ai.grant", tripId: "trip-1", userId: AI_GRANT_USER_ID }));
+    // A control line: some OTHER console breadcrumb must survive, so the
+    // assertions below cannot pass by dropping every console breadcrumb.
+    console.info("cache warmed", { entries: 3 });
+    Sentry.captureException(new Error("boom, during the same transaction"));
+
     await Sentry.flush(5000);
   });
 
@@ -433,6 +477,74 @@ describe("what actually reaches the Sentry transport", () => {
       .filter((entry) => entry.path === path)
       .map((entry) => entry.value);
     expect(values).toContain(expected);
+  });
+
+  /**
+   * **KI-2026-09-11-a — the AI console sinks must not leak `userId` into a
+   * Sentry breadcrumb.**
+   *
+   * `logAskAnalytics` (askAnalytics.ts), `defaultApplySink`
+   * (handleAskRequest.ts) and `logAiGrant` (admissionPorts.ts) each write one
+   * `console.info`/`console.error` structured-log line per turn, and every
+   * one carries `userId`. Sentry's `Console` integration is on by default
+   * and turns every console call into a breadcrumb attached to the current
+   * scope, so without a scrubber the id rides along with the next event or
+   * transaction sent from this same real client — which is why these cases
+   * are folded into THIS describe's `beforeAll` rather than given a second
+   * `Sentry.init`: a second real client in the same process produced an
+   * empty transport when tried (an OpenTelemetry tracer provider registers
+   * once per process), and this suite's whole point is a REAL client, not a
+   * second one. `ask/telemetry.int.test.ts` cannot stand in for this: it
+   * initialises Sentry with DEFAULT options on purpose (asserting `VercelAI`
+   * is a genuinely default integration), so it never sees anything wired
+   * only here in `sentry.shared.ts`.
+   */
+  it("carries none of the four AI sinks' userId anywhere in any envelope item", () => {
+    const payload = JSON.stringify(sent);
+    for (const userId of [AI_APPLY_USER_ID, AI_ASK_USER_ID, AI_ASK_FAILED_USER_ID, AI_GRANT_USER_ID]) {
+      expect(payload).not.toContain(userId);
+    }
+  });
+
+  it("still records an unrelated console breadcrumb, so the fix is not \"drop everything\"", () => {
+    expect(JSON.stringify(sent)).toContain("cache warmed");
+  });
+});
+
+/**
+ * `scrubBreadcrumb` in isolation — the same three cases as above, without a
+ * real client, so a future edit sees exactly which shape it broke rather than
+ * hunting through an envelope.
+ */
+describe("scrubBreadcrumb", () => {
+  it.each(["ai.ask", "ai.ask.failed", "ai.proposal.apply", "ai.grant"])(
+    "drops a console breadcrumb for the %s event",
+    (event) => {
+      expect(
+        scrubBreadcrumb({
+          category: "console",
+          message: `${event} {"userId":"secret-id"}`,
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it("leaves an unrelated console breadcrumb alone", () => {
+    const breadcrumb = { category: "console", message: "cache warmed" };
+    expect(scrubBreadcrumb(breadcrumb)).toEqual(breadcrumb);
+  });
+
+  it("still scrubs a share/invite URL from a non-console breadcrumb", () => {
+    const breadcrumb = { category: "navigation", data: { to: `/invite/${TOKEN}` } };
+    expect(scrubBreadcrumb(breadcrumb)).toEqual({
+      category: "navigation",
+      data: { to: `/invite/${REDACTED}` },
+    });
+  });
+
+  it("does not drop a breadcrumb merely for starting with \"ai\" outside the console category", () => {
+    const breadcrumb = { category: "navigation", message: "ai.ask" };
+    expect(scrubBreadcrumb(breadcrumb)).toEqual(breadcrumb);
   });
 });
 
