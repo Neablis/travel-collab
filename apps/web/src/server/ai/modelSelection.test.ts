@@ -114,6 +114,44 @@ describe("aiLiveMode", () => {
   });
 });
 
+// KI-24: AI_LIVE overriding the ai-live flag on Vercel is a deliberately kept
+// escape hatch (see modelSelection.ts's module doc) — this only guards the
+// EVIDENCE trail for it, not the override itself. The bug this closes: the
+// warning used to live at module load, so it fired at most once per cold
+// start and then said nothing for however long that container stayed warm,
+// even while every request through it kept using the override. Moved into
+// `aiLiveMode()`, it now fires on every resolution the override decides.
+describe("Vercel AI_LIVE override warning (KI-24)", () => {
+  it("warns on every resolution AI_LIVE decides on Vercel, not just the first", async () => {
+    vi.stubEnv("VERCEL", "1");
+    process.env.AI_LIVE = "true";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await aiLiveMode();
+      await aiLiveMode();
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls[0]?.[0]).toMatch(/AI_LIVE is set in a Vercel environment/);
+    } finally {
+      warnSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // The escape hatch is LOCAL/CI ONLY by design (see aiLiveMode()'s own doc
+  // comment) — outside a Vercel environment, AI_LIVE deciding the outcome is
+  // the expected, documented path and must not itself be noisy.
+  it("does not warn when AI_LIVE is set outside a Vercel environment", async () => {
+    process.env.AI_LIVE = "true";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await aiLiveMode();
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
 const ACTOR = { surface: "ask" as const, userId: "user-1" };
 
 describe("selectAiModel", () => {

@@ -52,6 +52,7 @@ export type AiLiveMode = { live: boolean; source: "env" | "flag" };
 // source of truth. See .env.example.
 export async function aiLiveMode(): Promise<AiLiveMode> {
   if (process.env.AI_LIVE !== undefined) {
+    warnIfVercelOverride();
     return { live: process.env.AI_LIVE === "true", source: "env" };
   }
   // `aiLiveFlag()`'s own `defaultValue: false` only covers a throw/undefined
@@ -75,15 +76,31 @@ export async function aiLiveMode(): Promise<AiLiveMode> {
   }
 }
 
-// Warn once at module load if AI_LIVE is set anywhere on Vercel — this
-// escape hatch is local/CI-only (see aiLive()'s doc comment above and
-// .env.example); on Vercel it silently makes the ai-live flag's dashboard and
-// Toolbar controls inert, which is easy to miss without a loud signal.
-if (process.env.VERCEL && process.env.AI_LIVE !== undefined) {
-  console.warn(
-    "AI_LIVE is set in a Vercel environment — this overrides the ai-live flag entirely. " +
-      "This should never happen outside local dev/CI. See .env.example.",
-  );
+// Warn every time AI_LIVE decides the outcome on Vercel — this escape hatch
+// is local/CI-only (see aiLive()'s doc comment above and .env.example); on
+// Vercel it silently makes the ai-live flag's dashboard and Toolbar controls
+// inert, which is easy to miss without a loud signal.
+//
+// KI-24: this used to be a module-load check, which fires at most once per
+// cold start. A Vercel serverless function stays warm across many
+// invocations after that, so a single import-time line is exactly the kind
+// of evidence that has usually scrolled out of log retention by the time
+// anyone investigates a spend spike this override caused — the container
+// could go on serving live traffic for hours with nothing further logged.
+// Called from `aiLiveMode()` instead, so every resolution the override
+// actually decides leaves its own line, tied to the request that used it.
+// Deliberately still a warning, not a throw: turning this into a hard
+// failure would take down startup for an emergency escape hatch the project
+// owner may still want (see this file's module doc and KI-24's own record of
+// that decision) — this only makes the existing warning survive as long as
+// the override does, it does not change what the override is allowed to do.
+function warnIfVercelOverride(): void {
+  if (process.env.VERCEL) {
+    console.warn(
+      "AI_LIVE is set in a Vercel environment — this overrides the ai-live flag entirely. " +
+        "This should never happen outside local dev/CI. See .env.example.",
+    );
+  }
 }
 
 // Who is asking, and for what. `userId` is carried even though nothing reads
