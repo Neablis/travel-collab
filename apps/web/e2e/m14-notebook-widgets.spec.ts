@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
 
 // M14's builder half, walked the way a person walks it.
@@ -904,4 +905,50 @@ test("a notebook is renamed by editing its own heading, and the index follows", 
   await expect(page.getByRole("link", { name: /Trip Overview/ })).toHaveCount(0);
   // And the button it replaced is gone.
   await expect(page.getByRole("button", { name: /^Rename/ })).toHaveCount(0);
+});
+
+// KI-2026-09-05-b: the Reading/Editing toggle used to sit only in normal
+// document flow at the top of the page, so on a notebook taller than the
+// viewport it scrolled out of view with everything else — the one place a
+// long page's author could not change the mode from was wherever they had
+// just finished typing, at the bottom. Proven here rather than in a unit
+// test: jsdom has no layout engine, so "is this element still in the
+// viewport after a real scroll" is not something `PageScreen.test.tsx` can
+// observe.
+test("the mode toggle stays reachable after scrolling to the bottom of a long page (KI-2026-09-05-b)", async ({
+  page,
+}) => {
+  const tripName = e2eTripName("Setubal");
+  const trip = await page.request.post("/api/trips", { data: { name: tripName } }).then((r) => r.json());
+  const tripId = trip.tripId as string;
+
+  // Long enough to clear the 900px desktop viewport several times over —
+  // built directly against `PageDoc`'s own shape rather than typed through
+  // the editor, which this test has no need to exercise.
+  const paragraphs = Array.from({ length: 60 }, (_, i) => ({
+    type: "paragraph" as const,
+    content: [{ type: "text" as const, text: `Paragraph ${i + 1} of a notebook page long enough to scroll.` }],
+  }));
+  const created = await page.request
+    .post(`/api/trips/${tripId}/pages`, {
+      data: { title: "A very long page", context: { tripId }, content: newPageDoc(paragraphs) },
+    })
+    .then((r) => r.json());
+  const pageId = created.page.id as string;
+
+  await page.goto(`/trips/${tripId}/pages/${pageId}`);
+  await expect(page.getByRole("heading", { name: "A very long page", level: 1 })).toBeVisible();
+
+  const toggle = page.getByRole("button", { name: "Edit page" });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
+
+  await page.mouse.wheel(0, 100_000);
+  await expect(page.getByText("Paragraph 60 of a notebook page long enough to scroll.")).toBeVisible();
+
+  // The claim: after scrolling all the way down, the toggle is still on
+  // screen — reachable from wherever the reader/author actually is, not
+  // only from the top of the document.
+  await expect(page.getByRole("button", { name: "Done editing" })).toBeInViewport();
 });
