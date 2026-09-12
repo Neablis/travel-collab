@@ -21,8 +21,3 @@ them when editing an existing one.
 6. **Assume the best case, recover from the worst.** Design the happy path as
    the default view, but every screen needs a defined empty, offline/sync-fail,
    and conflict state.
-
----
-
-These rules are binding on the build as well as the design. Where the build
-currently disagrees, see `DRIFT.md` § "Rules pass — 2026-08-25".

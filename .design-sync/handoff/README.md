@@ -4,11 +4,32 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: 2026-09-05 (the assistant reaches the phone; the phone tab bar is
+Last substantive pass: **2026-09-12 — the largest since the bundle started.** The trip's tab
+structure changed (§24), the trip gained a landing page that is a real notebook document
+(§25), widget settings left the document flow entirely (§26), trip lifecycle and read-only
+were designed (§27), and the product's mark, default look and phone front door changed (§28).
+
+**If you read nothing else, read §24 and §26.** §24 renames and rescopes every tab and
+deletes one; §26 supersedes how every widget control works on both surfaces.
+
+### What changed on 2026-09-12, in build terms
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| Tabs are Overview · Plan · Calendar · Map; Timeline deleted | §24 | Rename the two lenses; swap Calendar/Map scope; `dayScope = columns \|\| map`; keep `focus` across tabs |
+| Overview renders the trip's undeletable notebook page | §25 | Seed one locked page per trip; add `w-open` to the widget registry; refuse its delete with a reason |
+| No widget control in the document flow | §26 | Move binds/filters/wording/remove into the desktop right column and the phone sheet |
+| Trip lifecycle designed | §27 | Wire `RestoreTrip` / `duplicateTrip` to an optimistic delete + undo toast |
+| Read-only is one mode, two entrances | §27 | One `readOnly` presentation for the demo and invited readers; gate `propose` and the Keep handlers |
+| New mark, Ledger default, phone landing | §28 | Replace ◎ with ‖; `look` defaults to ledger; build the pinned phone front door |
+
+Previous pass: 2026-09-05 (the assistant reaches the phone; the phone tab bar is
 scoped; the notebook widget framework
 and its three components; Save this day as a Playbook; the phone Notebook)
 
-**Building notebook widgets? Read these three, in this order:**
+**Building notebook widgets? Read these four, in this order:**
+0. **`SPEC.md` §26 — where the controls live.** Read this first: it supersedes the chrome row
+   in §18 and the bind-sheet placement in §19. No widget control belongs in the document flow.
 1. `specs/notebook-widget-framework.md` — the three shape components, the four states, the
    ghost rule. **This is the file to reference when implementing any widget.**
 2. `SPEC.md` §18–§19 — the model underneath it (a widget is a function of declared inputs,
@@ -26,17 +47,13 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
-- **The assistant unifies on the phone.** `SPEC.md` §23 (extending §9), `DRIFT.md` §2i. The
-  phone already had three scattered, full-screen entry points (Plan and Map's shared
-  `◎ Assistant` button, and an open page's own beside "Edit page") and one screen with none
-  (the Notebook index); this collapses all four into one `Ask` pill, last in the top row of
-  every in-trip screen, opening a bottom sheet over what you are looking at instead. It also
-  knowingly reverses KI-84's full-screen fix for the three surfaces that had it. **Deliberately
-  not a tab:** a tab is a destination and would have to default to a trip-wide scope, losing
-  the day or the Notebook page you were reading. The sheet states its scope in its first line
-  and derives its placeholder and quick asks from it. Proposals reuse the **desktop ghost
-  path** — no phone-only proposal type. One hole this opens: the pill has **no
-  entitlement-gated state** for a Free user (`DRIFT.md` §8).
+- **The assistant reaches the phone.** `SPEC.md` §23 (extending §9), `DRIFT.md` §2i. An
+  `Ask` pill, last in the top row of all four in-trip screens, opening a bottom sheet over
+  what you are looking at. **Deliberately not a tab:** a tab is a destination and would have
+  to default to a trip-wide scope, losing the day or the Notebook page you were reading. The
+  sheet states its scope in its first line and derives its placeholder and quick asks from
+  it. Proposals reuse the **desktop ghost path** — no phone-only proposal type. One hole this
+  opens: the pill has **no entitlement-gated state** for a Free user (`DRIFT.md` §8).
 - **The phone tab bar is scoped to where you are, and no tab is ever disabled.**
   `SPEC.md` §22, `DRIFT.md` §2h. Inside a trip the bar is Plan · Map · Notebook; everywhere
   else it is Trips · Playbooks. Plan and Map had no meaning on "Your trips", on Discover or on

@@ -1,7 +1,9 @@
 # Spec — what the design file cannot say out loud
 
 Companion to `design/Trip Planner Redesign.dc.html` (the phone is a `surface` prop on it, not
-a second file). Current as of 2026-09-04 — §21 is the newest section.
+a second file). Current as of **2026-09-12 — §24–§28 are the newest sections, and §24 changes
+the trip's whole tab structure.** Read §24 before anything about views, §26 before building
+any widget UI, and §11's "the logo is the save light" alongside §28.
 
 **Not everything is in this file.** Flows that need per-frame or per-component detail live
 under `specs/`: `specs/notebook-widget-framework.md` (§21 — the three shape components and
@@ -945,11 +947,7 @@ entry point, and what the Include chips actually do to the snapshot.
 ## 23. The assistant reaches the phone — as a pill, not a tab — 2026-09-05
 
 §9 gave the assistant three presentations, **all of them desktop**: docked rail, floating
-panel, collapsed bubble. The phone already had three of its own, scattered: Plan and Map
-shared one `◎ Assistant` button at the end of the plan column, and an open Notebook page had
-its own beside "Edit page" — both opened **full-screen** (`.assistant-rail` below 768px,
-KI-84). Only the Notebook index had no entry point at all. Six presentations across the app
-before this; one pill, in one place, now.
+panel, collapsed bubble. The phone had none, and no entry point at all. It has one now.
 
 **An `Ask` pill, last item in the top row, on all four in-trip screens** — Plan, Map, the
 Notebook index and an open Notebook page. Same pill, same label, same position, so it never
@@ -1057,3 +1055,207 @@ two-input widget is half real in between. A ghost is shape-true and never value-
 with an unbound input prints nothing, and only someone with edit rights sees a quiet
 "2 widgets aren't set up" line. That refines ADR-037 decision 6 (it still renders in every
 state; in reading mode it renders as nothing) rather than contradicting it.
+
+
+---
+
+## 24. The trip's four tabs, renamed and rescoped — 2026-09-12
+
+The trip had **Timeline · Day columns · Calendar · Map**. It now has
+**Overview · Plan · Calendar · Map**, and the change is not cosmetic: each tab answers one
+question and the *scope* of each one is the design.
+
+| Tab | Question | Scope |
+|---|---|---|
+| **Overview** | What is this trip, what needs me, who's in | Whole trip. **Read only — nothing on it edits.** |
+| **Plan** (was Day columns) | Build it: move days, add stops, park ideas | Day. **The only surface that edits.** |
+| **Calendar** | What shape is this trip against real dates | **Trip** — deliberately does not drop into a day |
+| **Map** | Where does it sit in the world; am I moving too much | **Day** — reads one day's movement |
+
+**Timeline is deleted, not hidden.** Its read-only day list became a widget inside the
+Overview document (§25), and its editing behaviours were always Day columns' job. The 21KB
+of markup is gone from the design file; do not port it.
+
+**"Plan" is the word on both surfaces.** The phone tab bar already said Plan for the editing
+surface while the desktop said Day columns — one name now.
+
+**Calendar and Map had their scopes backwards** and were swapped. Calendar used to keep day
+focus and Map used to clear it; the opposite is correct. Two consequences a build must keep:
+clicking a Calendar cell **selects** a day without navigating into it (it is not a link into
+Plan), and `dayScope` is now `view === 'columns' || view === 'map'`.
+
+**Day focus survives tab switches.** One `focus` per trip, carried across all four tabs; each
+tab decides whether it has anything to do with it. Losing the selection on the way to another
+tab is the annoying half of scope, not the useful half.
+
+**The day chip rail is on every tab**, including the two trip-scope ones. Picking a day there
+always does something (it carries to Plan and Map), and a header that keeps its height across
+all four tabs is worth more than hiding one control. This is a deliberate, argued exception
+to rule 2 — the rail is not purposeless on Overview, it is how you set the day the other tabs
+will open on.
+
+**Entering a trip lands on Overview.** You read a trip before you change it. The assistant's
+proposals land in **Plan**, because a proposal is a pending edit.
+
+## 25. Overview IS a notebook page — 2026-09-12
+
+Not a dashboard, and not a second rendering of the trip. **Every trip is created with one
+notebook page it cannot delete, and the Overview tab renders that page.**
+
+- It renders through the **same `docBlocks()` the Notebook route uses**, so every block on it
+  is a registry widget any other page could insert. There is no bespoke Overview layout.
+- It **appears in the Notebook index** like any other page, titled "Overview / Comes with the
+  trip". The delete control is present and **refuses with a reason** rather than being hidden.
+- **Editing does not happen on the tab.** The tab's one button opens the page in the Notebook,
+  where pages are edited. One editor, one document, two places to read it.
+- Two blocks needed registry entries that did not exist: **`w-open` ("What needs you")** —
+  overlaps, empty days and parked ideas, one row per thing waiting on a decision — and the
+  existing **`w-people`** for "Who's in". Both render through one shared row block, so they
+  are the same widget shape rather than two bespoke layouts. **A build must add `w-open` to
+  the registry**, and it must be insertable into an ordinary page.
+- Everything on it is derived from the same trip state the other tabs read. An Overview that
+  can disagree with Plan is worse than no Overview.
+
+**The consequence to accept:** because it is a real page, its content is user-editable. If a
+block must be guaranteed present, that has to be a property of the page (undeletable blocks),
+not of the tab. Today someone can empty it.
+
+**This answers the seeded-template question** the widget framework left open: what a seeded
+template instantiates is *this page*.
+
+## 26. Widget settings live outside the page — 2026-09-12
+
+**Supersedes §18's chrome row and §19's bind sheet placement.** The rule is now absolute:
+
+> **The document reads identically in both modes. No widget control is ever in the document
+> flow.**
+
+Edit mode used to inject a chrome row — name pill, bind selects, tag chips — above each
+widget. That meant the document you were editing was not the document you had written: it
+reflowed the moment you hit Edit, and the thing you were trying to judge moved.
+
+**What edit mode adds to the page:** a dashed outline around each widget block, a small
+58×20 handle on its top edge carrying a ▸ (the widget's name is the tooltip, and the heading
+of the panel that opens), and the block itself as the click target. Outline and handle sit
+outside the text measure, so **the prose does not move**. Reading mode shows none of it — a
+widget is indistinguishable from the text around it.
+
+**Where the settings go — the surface's one existing side channel:**
+
+- **Desktop:** the right column already held the insert rail. It now has two states — the
+  rail when nothing is selected, the selected widget's settings when something is. One
+  column, one place to look, no second panel to manage. The column is **not** reserved while
+  reading: the page runs full width until edit mode opens it. That means the measure changes
+  when you enter edit mode (lines rebreak once); switching between rail and settings does
+  not reflow, since both are 320px. This tradeoff was chosen deliberately over an empty
+  320px gutter sitting there the whole time you read.
+- **Phone:** the bind sheet from §19 becomes the phone's inspector — same rows, same labels,
+  **plus** the tag filters, Wording and Remove that used to be inline. 44px targets
+  throughout; the block outline and its handle open it.
+
+**Settings contents, both surfaces:** one entry per bound widget (never aggregated — a
+sentence holding two day-bound widgets shows two, numbered to match the marks in the text),
+the bind selects as labelled fields, tag filters, Wording, Remove.
+
+**Why not popovers,** since they are the obvious answer: a popover anchored to a widget puts
+a `<select>` inside a popover inside the page — the two-level nesting rule 3 forbids — and on
+a phone it covers the very text you are pointing at.
+
+**Also moved out of flow:** the repeater's "Prints N stops" line, its tag chips and its
+"Edit the wording" link. None of them exist in the page in either mode now.
+
+## 27. Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12
+
+### Lifecycle (maps onto `RestoreTrip` and `duplicateTrip`, both already built)
+
+Each trip card carries a **"···" popover with two verbs** — Duplicate and Delete. One level
+deep, no nested menus.
+
+- **Delete is optimistic.** The card goes on the click; the toast carries a single **Undo**
+  that restores it. The toast holds 6s when it carries an action, 2.4s when it does not.
+  **The undo window is a toast, not a trash view** — that is the one thing the design asserts
+  beyond the contract.
+- **Duplicate** lands a real card named "(copy)" with **dates and travellers cleared** — a
+  copy is a starting point, not a commitment. No confirm dialog: it would only restate the
+  verb.
+- A trip someone shared with you offers **"Leave this trip"** instead of Delete.
+
+### Read-only — one presentation, two entrances
+
+The landing page's "Look around a real trip" and a trip shared with you to read are **the
+same screen**: a `readOnly` mode over the ordinary trip surface, not a separate demo route.
+Only the banner copy differs — why you are here, and the one useful next step (sign up, or
+ask the owner for editing).
+
+**The rule: nothing renders disabled.** Add stop, the per-day add, the Keep pennant, Edit in
+Notebook and the unscheduled drawer are **absent**, so the page reads as a finished thing
+rather than a form you lack permission for. The drawer in particular, because a view that
+cannot drag has no use for it (rule 2).
+
+**Mutation entry points are also gated at source** — `openAddAt`, `addDay`, `saveStopEdit`,
+stop edit, day add, `propose`, and both proposal **Keep** handlers — so a keyboard shortcut or
+a drag that slips past the missing UI stops with one explanation rather than half-applying.
+
+**Ask stays available in read-only.** A reader with a question is the most likely visitor the
+demo has, and answering is not changing. What it must not do is offer a verb it cannot
+perform: `propose()` refuses and says why, the Keep handlers are gated, and the assistant's
+context line reads "Reading <trip> · answers only" so the limit is stated before someone asks.
+
+**For the build this lines up with M11a's invite gate:** an invited reader and a
+not-signed-in visitor get the identical presentation. Worth preserving — it means the demo is
+never a separately-maintained fiction that can drift from the real read-only experience.
+
+## 28. Identity, the Ledger look, and the front door on a phone — 2026-09-12
+
+### The mark is the word
+
+The logo was a circled-dot glyph (◎). It is now **the caesura itself — two upright strokes,
+‖** — the break mark the product is named after. Sharp, static, no curves, and it fills its
+tile instead of floating a small circle inside a large one. 32px tile, 4px radius, 18px
+strokes; every instance uses it (app header, auth, first run, phone landing, assistant
+panel and sheet, Ask pills). The header instance still carries the save-light pulse (§11).
+
+### Ledger is the default look
+
+`look` (not `theme` — the old key holds a stale stored value) defaults to **ledger**. Four
+looks ship: ledger, paper, nightdesk, airmail. Ledger squares every corner except the truly
+round ones (avatars, dots, the pennant — those are shapes, not styling), drops card shadows
+for hairline rules, and sets headings in mono.
+
+**City colour carries harder in Ledger, not less.** A pale tint alone reads as grey on cream,
+so anything city-coded also gets a **3px solid rule in its own city colour** (the Plan columns
+and the Overview day table), with tint chroma and the solid both bumped for this look only.
+The "which city, which day" read survives the flattening, carried by an edge rather than a
+fill — which is more ledger-like anyway.
+
+**The `vibe` prop is gone.** Its only effect was to flatten every city to one colour, which
+deletes the functional colour system. A switch whose one job is to make the design worse is
+not a tweak.
+
+### The assistant's collapsed state
+
+A square brand tile carrying the wordmark's own glyph read as a logo, not a control — users
+did not know it was interactive. It is now a **92×44 bar reading "Ask"**, nothing else. A
+drag-handle-plus-mark-plus-word version was tried and rejected as three marks competing in
+one small control. Dragging still works on the whole bar. `asstSize(false)` must match the
+markup — clamping and open/close anchoring both read it.
+
+### The phone front door
+
+The desktop landing's long scroll and rotating hero is the wrong shape at 390px. The phone
+gets a **pinned sequence**: the map and the headline hold still while four claims pass
+through underneath, then the map clears out and the call to action arrives on empty paper.
+
+Two notes a build needs:
+- Progress is **scroll position inside the pinned block**, not time — you can stop on one.
+- The rest state must be **authored into the markup** (first chunk visible, the rest at zero)
+  or a cold load stacks all four.
+- Do **not** wrap the scroll work in `requestAnimationFrame`. In a throttled or hidden frame
+  the callback never runs and the "already scheduled" guard latches forever, silently killing
+  the effect. Synchronous transform/opacity writes only.
+
+### Day columns sort by start time
+
+Settled at the source: days are normalised into start order once, so Plan's cards, the drag
+keys and the Overview list all read the same order and cannot drift. **This answers the build
+audit's open question — yes, a day column sorts by start time.**
