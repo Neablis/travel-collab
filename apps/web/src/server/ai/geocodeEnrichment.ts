@@ -442,12 +442,17 @@ export async function enrichCommandLocations(
   // Which commands actually took a city pin, and therefore which NAMES are
   // reported city-level rather than unverified.
   const cityPins = new Map<BatchableCommand, LatLng>();
-  const cityPinnedNames = new Set<string>();
+  // Per NAME, what happened across every command that wanted a city pin for it:
+  // `pinned` if any of them got one, `unpinned` if any of them did not. Both
+  // can be true at once — see the report loop below.
+  const cityOutcomeByName = new Map<string, { pinned: boolean; unpinned: boolean }>();
   for (const [command, { cityKey, nameKey }] of wantsCity) {
     const coords = cityCoords.get(cityKey);
-    if (!coords) continue;
-    cityPins.set(command, coords);
-    cityPinnedNames.add(nameKey);
+    if (coords) cityPins.set(command, coords);
+    const entry = cityOutcomeByName.get(nameKey) ?? { pinned: false, unpinned: false };
+    if (coords) entry.pinned = true;
+    else entry.unpinned = true;
+    cityOutcomeByName.set(nameKey, entry);
   }
 
   // The report is decided here rather than inside the lookup pass, because a
@@ -456,7 +461,20 @@ export async function enrichCommandLocations(
   // any lookup ran) and these read as the batch happened.
   for (const [key, { name }] of attempted) {
     const outcome = resolutionByKey.get(key)!.outcome;
-    report[cityPinnedNames.has(key) ? "cityLevel" : outcome].push(name);
+    // A name is not one outcome once two commands can share it. Two stops both
+    // called "Lunch" in different cities dedupe to ONE venue lookup, then take
+    // DIFFERENT city lookups — so the name can be pinned for one command and
+    // pinned for neither the other. Reporting only `cityLevel` in that case
+    // left `hasUnverifiedLocations` false, and the receipt told the user
+    // nothing about the stop that got no pin at all. Raised by CodeRabbit on
+    // PR 169; it is the same name-keyed/command-keyed seam the fallback rebuild
+    // above already warns about.
+    //
+    // Both buckets, when both happened. The single-command case — every batch
+    // anyone has actually run — is unchanged.
+    const city = cityOutcomeByName.get(key);
+    if (city?.pinned) report.cityLevel.push(name);
+    if (!city || city.unpinned) report[outcome].push(name);
   }
 
   return {

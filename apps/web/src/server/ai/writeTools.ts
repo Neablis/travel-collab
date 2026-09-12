@@ -382,16 +382,29 @@ function unverifiedNotice(report: LocationEnrichmentReport): string {
  * not a wrong coordinate; it is a coordinate for a city, which is the whole
  * reason `Location.precision` stores the tier rather than a quality verdict.
  */
-function cityLevelNotice(report: LocationEnrichmentReport): string {
+function cityLevelNotice(report: LocationEnrichmentReport, committed: boolean): string {
   const names = report.cityLevel;
   const one = names.length === 1;
-  return `I could only place ${nameList(names)} at city level, so ${one ? "that pin is" : "those pins are"} approximate.`;
+  // **Past tense only when something actually happened.** On the refusal path
+  // the batch committed nothing, so "that pin is approximate" describes a pin
+  // that does not exist — the same species of claim-without-a-change this whole
+  // branch is about, and it would be this endpoint making it. Raised by
+  // CodeRabbit on PR 169.
+  return committed
+    ? `I could only place ${nameList(names)} at city level, so ${one ? "that pin is" : "those pins are"} approximate.`
+    : `I could only resolve ${nameList(names)} to city level, and nothing was committed.`;
 }
 
-/** Both sentences, in the order a reader wants them: what landed, then what did not. */
-function enrichmentNotices(report: LocationEnrichmentReport): string[] {
+/**
+ * Both sentences, in the order a reader wants them: what landed, then what did
+ * not. `committed` is false on the refusal path, where nothing landed at all.
+ *
+ * `unverifiedNotice` needs no such split: "I couldn't verify the location for
+ * X" is true whether or not the batch went on to commit.
+ */
+function enrichmentNotices(report: LocationEnrichmentReport, committed: boolean): string[] {
   return [
-    ...(hasCityLevelLocations(report) ? [cityLevelNotice(report)] : []),
+    ...(hasCityLevelLocations(report) ? [cityLevelNotice(report, committed)] : []),
     ...(hasUnverifiedLocations(report) ? [unverifiedNotice(report)] : []),
   ];
 }
@@ -462,7 +475,7 @@ export async function commitProposal(
   // The `sanitizeCoords` invariant in geocodeEnrichment.ts is what stops that
   // particular hollowing-out; this is what stops the NEXT one being silent.
   if (!batch.ok) {
-    const why = enrichmentNotices(report);
+    const why = enrichmentNotices(report, false);
     return {
       ok: false,
       error: why.length > 0
@@ -474,7 +487,7 @@ export async function commitProposal(
   // Derived from what committed, so the sentence can never claim an edit the
   // batch did not make (planSummary.ts's whole design guarantee). Names resolve
   // against the PRE-change detail for the same reason they do there.
-  const notices: string[] = enrichmentNotices(report);
+  const notices: string[] = enrichmentNotices(report, true);
   // The inserted days are named in their own sentence rather than folded into
   // `summarizeBatch`. Its phrasing is per command, and the day it adds is new —
   // so an eleven-stop insert would read as "added a day and added X to a day"

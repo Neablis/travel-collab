@@ -43,12 +43,25 @@ const PRE_PRECISION_DOC = {
 };
 
 describe("Location.precision", () => {
+  const AT = { lat: 35.8242, lng: 127.148 };
+
   it("accepts the three tiers the content pipeline already uses, and nothing else", () => {
     for (const precision of ["venue", "area", "city"] as const) {
-      expect(Location.parse({ name: "x", precision }).precision).toBe(precision);
+      expect(Location.parse({ name: "x", ...AT, precision }).precision).toBe(precision);
     }
-    expect(() => Location.parse({ name: "x", precision: "approximate" })).toThrow();
-    expect(() => Location.parse({ name: "x", precision: "exact" })).toThrow();
+    expect(() => Location.parse({ name: "x", ...AT, precision: "approximate" })).toThrow();
+    expect(() => Location.parse({ name: "x", ...AT, precision: "exact" })).toThrow();
+  });
+
+  // `precision` describes the coordinates, so it cannot outlive them.
+  // `sanitizeCoords` already drops it alongside a null-island pair; this makes
+  // the rule structural rather than one writer's discipline (CodeRabbit, PR 169).
+  it("refuses a precision that describes coordinates which are not there", () => {
+    expect(() => Location.parse({ name: "x", precision: "city" })).toThrow(/precision requires coordinates/);
+    // The pre-existing pairing rule is untouched, and a bare location with no
+    // precision at all still parses — that is every location already stored.
+    expect(Location.parse({ name: "x" }).precision).toBeUndefined();
+    expect(() => Location.parse({ name: "x", lat: 35.8 })).toThrow();
   });
 
   // Absence is UNKNOWN, not `venue` — there is no `.default()` here on purpose.

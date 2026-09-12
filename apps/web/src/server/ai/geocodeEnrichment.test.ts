@@ -349,6 +349,33 @@ describe("enrichCommandLocations", () => {
     expect(out.location).toEqual({ name: "Makgeolli alley" });
   });
 
+  // Two stops can legitimately share a display name and sit in different
+  // cities — the model does not always disambiguate. They dedupe to ONE venue
+  // lookup, then take DIFFERENT city lookups, so one can be pinned while the
+  // other is not. Reporting the shared name in `cityLevel` alone left
+  // `hasUnverifiedLocations` false and the receipt silent about the stop that
+  // got nothing (CodeRabbit, PR 169).
+  it("reports a shared name in both buckets when one command is pinned and another is not", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      "Jeonju-si, KR": [
+        { canonicalName: "Jeonju-si, South Korea", lat: 35.8242, lng: 127.148, countryCode: "KR", city: "Jeonju-si" },
+      ],
+      // Nothing for "Nowhereville, KR" — that command gets no pin.
+    });
+    const { report } = await enrichCommandLocations(
+      [
+        addActivity("Lunch A", { name: "Lunch", city: "Jeonju-si", countryCode: "KR" }),
+        addActivity("Lunch B", { name: "Lunch", city: "Nowhereville", countryCode: "KR" }),
+      ],
+      () => geocoder,
+    );
+    expect(calls).toContain("Jeonju-si, KR");
+    expect(report.cityLevel).toEqual(["Lunch"]);
+    expect(report.unverified).toEqual(["Lunch"]);
+    // The whole point: the receipt still tells the user something went unplaced.
+    expect(hasUnverifiedLocations(report)).toBe(true);
+  });
+
   // The same invariant on the REFINE path, which had the identical hole: a
   // verified match is spread over the approved location rather than replacing
   // it, so a vendor that locates a place but reports no city-level component

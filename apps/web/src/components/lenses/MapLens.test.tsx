@@ -981,6 +981,58 @@ describe("MapLens city-level stops", () => {
     expect(disc!.getElement().textContent).toBe("3");
   });
 
+  // An interactive disc is a real `button`, not a focusable `div`: a click
+  // listener alone never fires on Enter or Space, so a `role="button"` div
+  // would be an affordance that does not work. Native activation is the fix
+  // (CodeRabbit, PR 169).
+  //
+  // Asserted STRUCTURALLY — the tag, the type, the accessible name — and not
+  // by simulating Enter. jsdom does not implement a button's Enter-to-click
+  // translation, so a passing keyboard simulation here would be evidence about
+  // `user-event`'s emulation rather than about this element; the platform
+  // guarantee is what the tag buys, and the tag is the thing we control.
+  //
+  // `renderMap` always supplies its own `onSelectActivity`, so both cases
+  // render `MapLens` directly — the interactivity of the disc IS the variable.
+  it("makes an interactive disc a real button, named for the stop it opens and how many are behind it", async () => {
+    markerInstances.length = 0;
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detailWithCityGroup()} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const element = markerInstances[1]!.getElement();
+    expect(element.tagName).toBe("BUTTON");
+    // `type="button"`, so a future layout wrapping the map in a form cannot
+    // turn a pin into a submit.
+    expect(element.getAttribute("type")).toBe("button");
+    expect(element.getAttribute("aria-label")).toBe("c1 and 2 more here — approximate location");
+    // The behaviour we do own: activating it opens the group's first stop.
+    fireEvent.click(element);
+    expect(onSelectActivity).toHaveBeenCalledWith("c1");
+  });
+
+  // A board with no selection handler activates nothing, so the disc must not
+  // advertise itself as operable.
+  it("leaves a non-interactive disc a plain element with no button semantics", async () => {
+    markerInstances.length = 0;
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detailWithCityGroup()} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const element = markerInstances[1]!.getElement();
+    expect(element.tagName).toBe("DIV");
+    expect(element.getAttribute("aria-label")).toBeNull();
+  });
+
   it("gives a lone city-level stop the disc but no count — 'raw 1' on a pin says nothing", async () => {
     markerInstances.length = 0;
     renderMap(

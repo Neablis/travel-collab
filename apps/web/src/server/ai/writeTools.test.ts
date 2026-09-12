@@ -764,6 +764,49 @@ describe("commitProposal", () => {
     );
   });
 
+  // A refusal committed nothing, so it must not describe a pin as placed.
+  // "that pin is approximate" about a batch that wrote no events is the same
+  // claim-without-a-change this branch exists to stop (CodeRabbit, PR 169).
+  it("does not describe a city-level pin as placed when the batch committed nothing", async () => {
+    vi.mocked(flushPlanningBatch).mockResolvedValue({
+      ok: false,
+      error: { code: "concurrency-conflict", message: "someone else changed this trip" },
+    });
+    const geocoder = {
+      forward: vi.fn(async (query: string) =>
+        query === "Jeonju-si, KR"
+          ? [{ canonicalName: "Jeonju-si, South Korea", lat: 35.8242, lng: 127.148, countryCode: "KR", city: "Jeonju-si" }]
+          : [],
+      ),
+    };
+    const korea: TripDetail = {
+      ...detail,
+      activities: Object.fromEntries(
+        Object.entries(detail.activities).map(([id, a]) => [
+          id,
+          { ...a, location: { name: a.location?.name ?? "Stop", city: "Jeonju-si", countryCode: "KR", lat: 35.8242, lng: 127.148, precision: "venue" as const } },
+        ]),
+      ),
+    };
+    const result = await commitProposal(
+      TRIP_ID,
+      [
+        {
+          type: "UpdateActivity",
+          tripId: TRIP_ID,
+          activityId: COLOSSEUM_ID,
+          location: { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" },
+        },
+      ],
+      ACTOR,
+      korea,
+      geocoder as never,
+    );
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.message).toContain("nothing was committed");
+    expect(!result.ok && result.error.message).not.toContain("that pin is approximate");
+  });
+
   it("passes a refused batch straight through, with its domain code", async () => {
     vi.mocked(flushPlanningBatch).mockResolvedValue({
       ok: false,

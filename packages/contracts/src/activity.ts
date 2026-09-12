@@ -115,6 +115,20 @@ export const Location = z
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",
+  })
+  // `precision` describes the COORDINATES, so it cannot outlive them — a
+  // location carrying `precision: "city"` and no lat/lng is a claim about a
+  // value that is not there. `sanitizeCoords` (geocodeEnrichment.ts) already
+  // treats that shape as incoherent and drops `precision` whenever it drops a
+  // null-island pair; this makes the same rule structural instead of leaving
+  // one writer to remember it. Raised by CodeRabbit on PR 169.
+  //
+  // Safe to add as a REFINEMENT rather than a migration concern: `precision`
+  // ships in the same PR, so no stored document can carry it yet, and a
+  // document with no `precision` is unaffected.
+  .refine((l) => l.precision === undefined || l.lat !== undefined, {
+    message: "precision requires coordinates",
+    path: ["precision"],
   });
 export type Location = z.infer<typeof Location>;
 

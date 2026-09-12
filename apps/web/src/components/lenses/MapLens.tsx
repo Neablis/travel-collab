@@ -78,8 +78,25 @@ const CITY_DISC_STROKE = "1.5px";
  * A count badge appears only for a group of two or more; a single city-level
  * stop gets the dot instead, because "1" on a pin says nothing.
  */
-function cityDiscElement(stopCount: number, accent: string): HTMLElement {
-  const element = document.createElement("div");
+/**
+ * `label` present = this disc is interactive, and it is then a real `<button>`
+ * rather than a `div` with a click listener. Native activation is the whole
+ * reason: a listener alone never fires on Enter or Space, so a focusable div
+ * would be a keyboard affordance that does not work — which is why the first
+ * pass shipped no affordance at all. A button needs neither `role` nor
+ * `tabIndex` and brings Enter/Space with it. Raised by CodeRabbit on PR 169.
+ *
+ * The stock teardrop markers remain unreachable by keyboard; that is untouched
+ * here and belongs to whichever change gives every marker a keyboard path.
+ */
+function cityDiscElement(stopCount: number, accent: string, label: string | null): HTMLElement {
+  const element = document.createElement(label === null ? "div" : "button");
+  if (label !== null && element instanceof HTMLButtonElement) {
+    // Markers live outside any form; without this a click submits whatever
+    // ancestor form a future layout puts them in.
+    element.type = "button";
+    element.setAttribute("aria-label", label);
+  }
   element.className = "map-city-disc";
   // How many stops this one marker stands for — the fact the badge renders,
   // kept on the element so the focus/ghosting effects and the tests can read a
@@ -93,6 +110,11 @@ function cityDiscElement(stopCount: number, accent: string): HTMLElement {
   const accentColor = `var(${CITY_DISC_ACCENT_VAR}, var(--color-slate))`;
   Object.assign(element.style, {
     boxSizing: "border-box",
+    // A `button` arrives with UA padding, font and background; the disc owns
+    // all three. `appearance: none` keeps Safari from re-imposing them.
+    appearance: "none",
+    padding: "0",
+    font: "inherit",
     width: `${CITY_DISC_PX}px`,
     height: `${CITY_DISC_PX}px`,
     borderRadius: "50%",
@@ -442,9 +464,23 @@ export function MapLens({
           // centroid are one disc (markerGroups, mapRailData.ts). Grouping is
           // per day on purpose, which is also why it happens inside this loop.
           for (const group of markerGroups(day)) {
+            const first = group.stops[0]!;
             const marker = new Marker(
               group.cityLevel
-                ? { element: cityDiscElement(group.stops.length, accent) }
+                ? {
+                    element: cityDiscElement(
+                      group.stops.length,
+                      accent,
+                      // The accessible name says what activating it does, which
+                      // is open the FIRST stop, and how many others are behind
+                      // it — the same fact the badge renders for sighted users.
+                      onSelectActivity
+                        ? group.stops.length === 1
+                          ? `${first.title} — approximate location`
+                          : `${first.title} and ${group.stops.length - 1} more here — approximate location`
+                        : null,
+                    ),
+                  }
                 : accent
                   ? { color: accent }
                   : undefined,
@@ -456,7 +492,6 @@ export function MapLens({
               // members — a popover, or cycling on repeat clicks — is a richer
               // affordance and deliberately out of scope here; the disc's count
               // is what tells you there are others behind it.
-              const first = group.stops[0]!;
               marker.getElement().addEventListener("click", () => onSelectActivity(first.activityId));
               marker.getElement().style.cursor = "pointer";
             }
