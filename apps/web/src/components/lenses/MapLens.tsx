@@ -510,8 +510,22 @@ export function MapLens({
           className="map-lens-canvas relative overflow-hidden border-t border-hairline bg-paper"
           // eslint-disable-next-line no-restricted-syntax -- maplibre needs a sized container; height is geometry, filling exactly the viewport left below the header/tabs and above the unscheduled rack. Deliberately NOT a flex item (no flex-1/min-h-0): a flex-basis:0%-grown item's height doesn't count as "definite" for descendants' percentage-height resolution in this engine, even though the item itself renders at a real pixel height — confirmed by a live probe (a plain 100%-height child stayed at 0px under flex-1, and resolved correctly the moment flex was removed). This div's own height is already fully explicit, so it never needed to be a flex item.
           style={{
-            // `dvh`, not `vh`: on mobile the two differ by the browser
-            // chrome's height, and `vh` is the one that overflows.
+            // `svh`, not `vh` or `dvh`. `vh` is the *large* viewport (chrome
+            // hidden) and is the one that overflows on mobile — that's why
+            // this used to be `dvh`. But `dvh` is the *dynamic* viewport: on
+            // Android Chrome it grows as the toolbar collapses on scroll, and
+            // this canvas's height (and so the document's) is read straight
+            // from it. Any page with a little initial overflow could then
+            // loop — scroll a bit -> toolbar collapses -> dvh grows -> canvas
+            // (and document) grows -> more scroll is available -> repeat,
+            // each turn adding roughly the toolbar's height (KI-2026-09-06-g,
+            // reported as scrolling "way past the bottom" on mobile). `svh`
+            // is the *small* viewport — the largest height that cannot
+            // overflow at any toolbar state — so the loop can't start: it
+            // never grows as the toolbar collapses. The tradeoff is the
+            // symptom `dvh` was chosen to fix, a strip of page under the map
+            // while the toolbar is collapsed, by up to the toolbar's height —
+            // acceptable because it isn't a runaway.
             // `--rack-height` is set by TripBoardScreen on
             // `.trip-board-content` above, so the map stops at the top of
             // the Unscheduled bar instead of running under it, and follows
@@ -538,7 +552,7 @@ export function MapLens({
             // (`.phone-tab-bar-inset`, globals.css) so a page's last row is
             // not underneath it. Every other lens is normal flow and that
             // reservation is all it needs; this canvas is the one element
-            // sized from `100dvh` rather than from its parent, so without the
+            // sized from `100svh` rather than from its parent, so without the
             // matching subtraction it claimed a full viewport *plus* the
             // reservation and the map page scrolled by exactly the bar's
             // height — 927px of document in an 844px viewport, measured at
@@ -550,7 +564,7 @@ export function MapLens({
             height:
               canvasTop === null
                 ? "70vh"
-                : `calc(100dvh - ${canvasTop}px - var(--rack-height, 0px) - var(--phone-tab-bar-height, 0px))`,
+                : `calc(100svh - ${canvasTop}px - var(--rack-height, 0px) - var(--phone-tab-bar-height, 0px))`,
           }}
         >
           <div ref={containerRef} className="h-full w-full" />
