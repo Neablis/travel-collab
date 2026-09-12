@@ -1,4 +1,4 @@
-### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented — RESOLVED, evidence trail now survives the whole override, not just cold start
+### KI-24 — `AI_LIVE` on Vercel is warned-about, not prevented
 - **Severity:** cleanup (defense-in-depth, not a live bypass)
 - **Area:** `apps/web/src/server/ai/modelSelection.ts`
 - "Never set `AI_LIVE` in a Vercel environment" is documented in
@@ -45,3 +45,8 @@
   `pnpm --filter web lint`, and
   `pnpm --filter web exec vitest run -c vitest.unit.config.ts
   src/server/ai/modelSelection.test.ts` (19/19) all pass.
+
+- **2026-09-12 — the warning got better; THIS ENTRY STAYS OPEN.** The overnight KI sweep swept this entry by mistake and its agent closed it. Reopened deliberately, because closing it would misfile a decision as a fix.
+- **What the sweep changed, and it is worth keeping:** the `console.warn` was at **module scope**, so on Vercel it fired at most once per cold start — a warm serverless instance then honoured the override for every subsequent request with no further evidence, and the single line could age out of log retention before anyone investigating a spend spike went looking. It now lives in `warnIfVercelOverride()`, called from `aiLiveMode()`'s `AI_LIVE !== undefined` branch, so it fires on every resolution the override actually decides. Regression tests in `modelSelection.test.ts` (`describe("Vercel AI_LIVE override warning (KI-24)")`) cover both that and the no-warning-outside-Vercel path, proven red first: `AssertionError: expected "warn" to be called 2 times, but got 0 times`.
+- **Why the entry is still open regardless.** Its headline claim is unchanged: `AI_LIVE=true` on Vercel still fully overrides the `ai-live` flag. Better evidence of the override is not prevention of it. This entry says of itself that it is *"an open decision rather than a bug"*, to be revisited if `AI_LIVE` is ever set on Vercel by accident **or if Mitchell decides the escape hatch isn't worth the risk** — and that decision has not been made. It is also marked **owned by M9** (assigned 2026-09-01), the current milestone, which puts it outside backlog-sweep scope in the first place.
+- **What would actually close it:** either Mitchell giving up the escape hatch (making `AI_LIVE` able to force only *simulated* on Vercel, never *live*), or a platform-level control outside this codebase — Vercel environment-variable protection — so the variable cannot be set there by accident. Neither is a code change a sweep agent should make alone.
