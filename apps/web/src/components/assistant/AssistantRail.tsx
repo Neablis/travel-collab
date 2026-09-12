@@ -589,7 +589,21 @@ export function AssistantRail({
                   className={cn(isSheet && "h-11")}
                   value={ask}
                   onChange={(e) => setAsk(e.target.value)}
-                  disabled={asking}
+                  // NOT `disabled={asking}` (KI-2026-09-07-c). Disabling a
+                  // focused input blurs it, in every real browser jsdom does
+                  // not reproduce, and re-enabling it afterwards does not
+                  // restore focus — so a follow-up typed mid-turn went to
+                  // `<body>` and was silently dropped, `Enter` included.
+                  // `submitAsk` already refuses to send while `asking` is
+                  // true (and the `Button` below stays disabled), so nothing
+                  // downstream needs the input itself gated: leaving it
+                  // editable keeps focus and keeps the keystrokes. Note it
+                  // does NOT auto-send them — `submitAsk` still returns early
+                  // while `asking`, so an Enter pressed mid-turn is a no-op
+                  // and the text simply waits in the composer for the user to
+                  // send it. Keeping what was typed is the fix; auto-sending a
+                  // follow-up the user has not re-confirmed would be a
+                  // behaviour change this entry did not ask for.
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -602,6 +616,18 @@ export function AssistantRail({
                   size={isSheet ? "touch" : "sm"}
                   onClick={() => void submitAsk()}
                   disabled={asking || ask.trim() === ""}
+                  // `aria-label`, only while idle (KI-2026-09-05-ac): this
+                  // button's visible "Ask" is the same accessible name §23's
+                  // header pill carries, and on the phone sheet both are
+                  // reachable at once. WCAG 2.5.3 only requires the accessible
+                  // name to CONTAIN the visible label, not equal it, so
+                  // lengthening this one — the pill's own comment is explicit
+                  // that ITS name has to stay the bare visible word — clears
+                  // the collision without touching either visible label.
+                  // Omitted while `asking`: the visible text is "Asking…" at
+                  // that point, and a stale static label would no longer
+                  // contain it, which is the same 2.5.3 rule the other way.
+                  aria-label={asking ? undefined : "Ask the assistant"}
                 >
                   {asking ? "Asking…" : "Ask"}
                 </Button>

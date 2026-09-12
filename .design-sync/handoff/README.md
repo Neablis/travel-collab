@@ -26,13 +26,17 @@ build instruction. Everything here describes the design as it stands and is safe
 
 What is new since the last bundle:
 
-- **The assistant reaches the phone.** `SPEC.md` §23 (extending §9), `DRIFT.md` §2i. An
-  `Ask` pill, last in the top row of all four in-trip screens, opening a bottom sheet over
-  what you are looking at. **Deliberately not a tab:** a tab is a destination and would have
-  to default to a trip-wide scope, losing the day or the Notebook page you were reading. The
-  sheet states its scope in its first line and derives its placeholder and quick asks from
-  it. Proposals reuse the **desktop ghost path** — no phone-only proposal type. One hole this
-  opens: the pill has **no entitlement-gated state** for a Free user (`DRIFT.md` §8).
+- **The assistant unifies on the phone.** `SPEC.md` §23 (extending §9), `DRIFT.md` §2i. The
+  phone already had three scattered, full-screen entry points (Plan and Map's shared
+  `◎ Assistant` button, and an open page's own beside "Edit page") and one screen with none
+  (the Notebook index); this collapses all four into one `Ask` pill, last in the top row of
+  every in-trip screen, opening a bottom sheet over what you are looking at instead. It also
+  knowingly reverses KI-84's full-screen fix for the three surfaces that had it. **Deliberately
+  not a tab:** a tab is a destination and would have to default to a trip-wide scope, losing
+  the day or the Notebook page you were reading. The sheet states its scope in its first line
+  and derives its placeholder and quick asks from it. Proposals reuse the **desktop ghost
+  path** — no phone-only proposal type. One hole this opens: the pill has **no
+  entitlement-gated state** for a Free user (`DRIFT.md` §8).
 - **The phone tab bar is scoped to where you are, and no tab is ever disabled.**
   `SPEC.md` §22, `DRIFT.md` §2h. Inside a trip the bar is Plan · Map · Notebook; everywhere
   else it is Trips · Playbooks. Plan and Map had no meaning on "Your trips", on Discover or on

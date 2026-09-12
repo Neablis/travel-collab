@@ -456,7 +456,23 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           so the row landed hard against the global header (2026-09-06 preview
           feedback, finding 7). Spaced here rather than in `PageContainer`,
           which five other surfaces share. */}
-      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
+      {/* **`md:sticky` (KI-2026-09-05-b).** Mitchell, on the PR 141 preview:
+          *"togglable on a large page without having to scroll up and down"*.
+          Below `md` this stays in normal flow — SPEC §13.5 rules out a
+          floating control on a phone, and §19's phone Notebook keeps the
+          toggle exactly where it already sits, at the top of the page it is
+          reading or editing. `md:top-14` pins it directly under `AppHeader`
+          (`sticky top-0 h-14` — `TripHeader`'s own comment names it the same
+          way), so the two sticky bars stack rather than overlap. `md:bg-paper`
+          is the page's own background (`body`'s `bg-paper`), not the card's:
+          without it the document's prose would show through and scroll
+          underneath a see-through bar. The `mt-3 mb-3` MARGIN that spaces this
+          row from the top bar and the card below is swapped for `md:my-0
+          md:py-3` padding at the same breakpoint: a margin sits outside a
+          sticky element's own painted box, so the background above would not
+          cover it and the document would show through that strip while
+          pinned. */}
+      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 md:sticky md:top-14 md:z-10 md:my-0 md:bg-paper md:py-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
           <Button

@@ -326,9 +326,37 @@ export function freePort() {
   });
 }
 
+/**
+ * The workspace's own `.bin` directories, ahead of whatever is on the ambient
+ * PATH.
+ *
+ * `spawn` resolves a bare command name like `playwright` through PATH, and
+ * this script is normally reached through `pnpm run`, which has already put
+ * `node_modules/.bin` there — so PATH resolution was right by inheritance
+ * rather than by construction. Run the same command a step lower, as
+ * `node scripts/with-test-db.mjs --with-port playwright test …`, and that
+ * inheritance is gone: this container image ships a **global Playwright
+ * 1.56.1** at `/opt/node22/bin/playwright`, which then wins over the repo's
+ * pinned 1.62.1. The run fails as
+ *
+ *   Error: Playwright Test did not expect test() to be called here.
+ *   - You have two different versions of @playwright/test.
+ *   Error: No tests found.
+ *
+ * which reads like a filter or config problem and is neither — it is a 1.56.1
+ * runner loading 1.62.1's spec files. That misdiagnosis was filed as
+ * KI-2026-09-12-c and withdrawn once traced. Prepending the local `.bin`
+ * makes the right binary a property of this script rather than of how it was
+ * invoked.
+ */
+export function binPath(env) {
+  const bins = [path.join(WEB_DIR, "node_modules", ".bin"), path.join(WEB_DIR, "..", "..", "node_modules", ".bin")];
+  return [...bins, env.PATH ?? ""].filter(Boolean).join(path.delimiter);
+}
+
 function runChild(command, args, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: WEB_DIR, stdio: "inherit", env });
+    const child = spawn(command, args, { cwd: WEB_DIR, stdio: "inherit", env: { ...env, PATH: binPath(env) } });
     child.on("error", reject);
 
     // Ctrl-C is the common way a suite ends, and it must still drop the

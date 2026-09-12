@@ -71,7 +71,7 @@ describe("AssistantRail", () => {
     renderRail({ onAsk });
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
     expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
     // Awaited: the clear now waits on onAsk's answer, because a refused ask
     // keeps the prompt. An accepted one still clears, one microtask later.
@@ -86,7 +86,7 @@ describe("AssistantRail", () => {
     renderRail({ onAsk });
     const input = screen.getByPlaceholderText(/ask about this day/i);
     fireEvent.change(input, { target: { value: "Where am I overbooked?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
     expect(onAsk).toHaveBeenCalledWith("Where am I overbooked?");
 
     // The prompt only survives if it survives PAST the await inside submitAsk,
@@ -113,9 +113,16 @@ describe("AssistantRail", () => {
     expect(onAsk).toHaveBeenCalledWith("Cheapest way between cities");
   });
 
-  it("disables the Ask input/button and shows a busy label while asking", () => {
+  // KI-2026-09-07-c: the composer itself must stay ENABLED while a turn is
+  // in flight. `disabled` on a focused input blurs it in every real browser
+  // (jsdom does not reproduce that), and re-enabling it afterwards does not
+  // restore focus — so a follow-up typed mid-turn went to `<body>` and was
+  // silently dropped, `Enter` included. The Ask button is what actually needs
+  // gating, and does: `submitAsk` also refuses while `asking` is true, so
+  // nothing can be sent twice.
+  it("shows a busy label and disables the Ask button while asking, but leaves the composer itself enabled", () => {
     renderRail({ asking: true });
-    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "Asking…" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -420,7 +427,7 @@ describe("AssistantRail — the sheet is a real modal, not just a scrim", () => 
     const onAfterClick = vi.fn();
     render(<Harness open onHide={onHide} onAfterClick={onAfterClick} />);
     fireEvent.change(screen.getByPlaceholderText(/ask about this day/i), { target: { value: "anything" } });
-    screen.getByRole("button", { name: "Ask" }).focus();
+    screen.getByRole("button", { name: "Ask the assistant" }).focus();
 
     await userEvent.tab();
     await pressSpace();

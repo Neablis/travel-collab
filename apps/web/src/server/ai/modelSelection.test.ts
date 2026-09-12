@@ -20,7 +20,10 @@ vi.mock("@/server/ai/gateway", () => ({
   aiClassifierModel: () => aiClassifierModel(),
 }));
 
-const { aiLive, aiLiveMode, selectAiModel, deniedResponse, resolvedTierMap } = await import(
+// `resolvedTierMap` is not destructured here: both cases that assert it need
+// the isolated-import treatment (KI-2026-09-11-c), so every call site reads
+// it off a freshly imported module instead of this one.
+const { aiLive, aiLiveMode, selectAiModel, deniedResponse } = await import(
   "@/server/ai/modelSelection"
 );
 const { SIMULATED_MODEL_ID } = await import("@/server/ai/simulatedModel");
@@ -111,29 +114,85 @@ describe("aiLiveMode", () => {
   });
 });
 
+// KI-24: AI_LIVE overriding the ai-live flag on Vercel is a deliberately kept
+// escape hatch (see modelSelection.ts's module doc) — this only guards the
+// EVIDENCE trail for it, not the override itself. The bug this closes: the
+// warning used to live at module load, so it fired at most once per cold
+// start and then said nothing for however long that container stayed warm,
+// even while every request through it kept using the override. Moved into
+// `aiLiveMode()`, it now fires on every resolution the override decides.
+describe("Vercel AI_LIVE override warning (KI-24)", () => {
+  it("warns on every resolution AI_LIVE decides on Vercel, not just the first", async () => {
+    vi.stubEnv("VERCEL", "1");
+    process.env.AI_LIVE = "true";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await aiLiveMode();
+      await aiLiveMode();
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls[0]?.[0]).toMatch(/AI_LIVE is set in a Vercel environment/);
+    } finally {
+      warnSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // The escape hatch is LOCAL/CI ONLY by design (see aiLiveMode()'s own doc
+  // comment) — outside a Vercel environment, AI_LIVE deciding the outcome is
+  // the expected, documented path and must not itself be noisy.
+  it("does not warn when AI_LIVE is set outside a Vercel environment", async () => {
+    process.env.AI_LIVE = "true";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await aiLiveMode();
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
 const ACTOR = { surface: "ask" as const, userId: "user-1" };
 
 describe("selectAiModel", () => {
+  // Isolated rather than asserted against the module imported at the top of
+  // this file: `serverConfig` is read at module load, so an ambient
+  // AI_MODEL/AI_MODEL_* in the shell is already baked into that import by the
+  // time a `vi.stubEnv` here would run. A fresh module graph, imported after
+  // the stubs are in place, is the only way this assertion is actually about
+  // the compiled default rather than about whatever happened to be exported
+  // when this developer's shell set the tests up to run (KI-2026-09-11-c).
   it("returns a model for every tier, and its own classifier model, when the flag is on", async () => {
     aiLiveFlag.mockResolvedValue(true);
-    const selected = await selectAiModel(ACTOR);
-    expect(selected).toMatchObject({
-      outcome: "live",
-      // Nothing sets AI_MODEL_* here, so all three slots fall through to the
-      // same configured id — which is the property that makes tiering a
-      // no-behaviour-change default rather than a routing change.
-      models: {
-        cheap: "gateway/anthropic/claude-haiku-4-5",
-        mid: "gateway/anthropic/claude-haiku-4-5",
-        strong: "gateway/anthropic/claude-haiku-4-5",
-      },
-      classifierModel: "gateway/fake-classifier",
-    });
-    // One gateway client per slot, eagerly. Three rather than one is the cost
-    // of not making the "never constructs a client when the flag is off"
-    // promise vacuous by deferring construction on both branches.
-    expect(aiModel).toHaveBeenCalledTimes(MODEL_TIERS.length);
-    expect(aiClassifierModel).toHaveBeenCalledOnce();
+    vi.resetModules();
+    vi.stubEnv("AI_MODEL", undefined);
+    vi.stubEnv("AI_MODEL_CHEAP", undefined);
+    vi.stubEnv("AI_MODEL_MID", undefined);
+    vi.stubEnv("AI_MODEL_STRONG", undefined);
+    try {
+      const isolated = await import("@/server/ai/modelSelection");
+      const selected = await isolated.selectAiModel(ACTOR);
+      expect(selected).toMatchObject({
+        outcome: "live",
+        // Nothing sets AI_MODEL_* here, so all three slots fall through to the
+        // same configured id — which is the property that makes tiering a
+        // no-behaviour-change default rather than a routing change.
+        models: {
+          cheap: "gateway/anthropic/claude-haiku-4-5",
+          mid: "gateway/anthropic/claude-haiku-4-5",
+          strong: "gateway/anthropic/claude-haiku-4-5",
+        },
+        classifierModel: "gateway/fake-classifier",
+      });
+      // One gateway client per slot, eagerly. Three rather than one is the cost
+      // of not making the "never constructs a client when the flag is off"
+      // promise vacuous by deferring construction on both branches.
+      expect(aiModel).toHaveBeenCalledTimes(MODEL_TIERS.length);
+      expect(aiClassifierModel).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   // **Each slot reads its OWN variable.** Without this the three defaults are
@@ -175,14 +234,30 @@ describe("selectAiModel", () => {
   // reportable — which is what closes the gap M20 link 5 records, where a
   // compiled default and a configured model disagreed and one cost estimate
   // came out an order of magnitude high.
-  it("reports the resolved tier map, ids and all, without consulting the flag", () => {
-    expect(resolvedTierMap()).toEqual({
-      cheap: "anthropic/claude-haiku-4-5",
-      mid: "anthropic/claude-haiku-4-5",
-      strong: "anthropic/claude-haiku-4-5",
-      classifier: "anthropic/claude-haiku-4-5",
-    });
-    expect(aiLiveFlag).not.toHaveBeenCalled();
+  // Isolated for the same reason as the case above: `resolvedTierMap()` reads
+  // `serverConfig`, which is read at module load, so this has to resolve a
+  // fresh module graph after the stubs rather than the one already imported
+  // at the top of this file (KI-2026-09-11-c).
+  it("reports the resolved tier map, ids and all, without consulting the flag", async () => {
+    vi.resetModules();
+    vi.stubEnv("AI_MODEL", undefined);
+    vi.stubEnv("AI_MODEL_CHEAP", undefined);
+    vi.stubEnv("AI_MODEL_MID", undefined);
+    vi.stubEnv("AI_MODEL_STRONG", undefined);
+    vi.stubEnv("AI_CLASSIFIER_MODEL", undefined);
+    try {
+      const isolated = await import("@/server/ai/modelSelection");
+      expect(isolated.resolvedTierMap()).toEqual({
+        cheap: "anthropic/claude-haiku-4-5",
+        mid: "anthropic/claude-haiku-4-5",
+        strong: "anthropic/claude-haiku-4-5",
+        classifier: "anthropic/claude-haiku-4-5",
+      });
+      expect(aiLiveFlag).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   it("returns the simulated model when the flag is off", async () => {

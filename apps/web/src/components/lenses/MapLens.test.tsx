@@ -417,6 +417,24 @@ describe("MapLens", () => {
     expect(onSelectActivity).toHaveBeenCalledWith("unlocated1");
   });
 
+  // KI-2026-09-06-g: the canvas used to be sized from `100dvh`, the
+  // *dynamic* viewport unit, which grows on Android Chrome as the browser
+  // chrome collapses on scroll — and since this canvas's height (and so the
+  // document's) is read straight from it, any page with a little initial
+  // overflow could loop: scroll a bit -> chrome collapses -> dvh grows ->
+  // canvas grows -> more scroll is available -> repeat. `svh`, the *small*
+  // viewport, cannot grow with the chrome state, so it can't feed that loop.
+  // This can't observe the loop itself (jsdom has no layout, and no headless
+  // Chromium has a dynamic toolbar — see the KI) but it does guard the one
+  // fact the fix actually depends on: which unit is in the calc.
+  it("sizes the canvas from the small viewport unit (svh), not the dynamic one (dvh), so it can't grow as mobile browser chrome collapses", () => {
+    const { container } = renderMap(detailWithTwoDays());
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- geometry lives on the canvas's inline style, which has no other query surface.
+    const canvas = container.querySelector(".map-lens-canvas") as HTMLElement;
+    expect(canvas.style.height).toContain("svh");
+    expect(canvas.style.height).not.toContain("dvh");
+  });
+
   it("draws one route layer per day that has two or more located stops", async () => {
     renderMap(detailWithTwoDays());
     await waitFor(() => expect(addLayerMock).toHaveBeenCalled());

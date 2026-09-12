@@ -181,6 +181,13 @@ export interface TurnMeter {
   toolCall(name: string, ms: number, ok: boolean): void;
   /** One vendor lookup — capacity, never cost. */
   vendorCall(vendor: CapacityLine["vendor"], calls?: number): void;
+  /**
+   * A COPY of what this turn has recorded so far — the array AND each record
+   * in it, never the live ones —
+   * the same guarantee `ProposalBuffer.collected()` (deps.ts) states and
+   * preserves: a caller that mutates what it reads must not be able to
+   * rewrite what the turn collected.
+   */
   toolCalls(): readonly LedgerToolCall[];
   /** Collapsed to one line per vendor, so a reader never has to group. */
   capacity(): readonly CapacityLine[];
@@ -202,7 +209,7 @@ export function newTurnMeter(): TurnMeter {
     vendorCall(vendor, calls = 1) {
       vendors.set(vendor, (vendors.get(vendor) ?? 0) + calls);
     },
-    toolCalls: () => tools,
+    toolCalls: () => tools.map((tool) => ({ ...tool })),
     capacity: () => [...vendors].map(([vendor, calls]) => ({ vendor, calls })),
   };
 }

@@ -15,6 +15,16 @@ import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
 
 const ACTOR_ID = "ask-owner";
+// A second author, so a published library day belongs to SOMEONE ELSE.
+// `playbookCalls` skips a result the searcher wrote themselves
+// (KI-2026-09-08-d): `addCounts` never credits an author adding their own
+// day, so proposing one is an add that could never count. A fixture where one
+// actor publishes and then finds their own day therefore stopped producing a
+// proposal at all — which is the picker behaving correctly, not this test's
+// subject. This test is about ADR-042 Decision 1 (an insert is carried by
+// reference and commits nothing); who authored the day is incidental to that,
+// so the fixture names a second author rather than the assertion being weakened.
+const LIBRARY_AUTHOR_ID = "ask-library-author";
 const VIEWER_ID = "ask-viewer";
 const OUTSIDER_ID = "ask-outsider";
 
@@ -146,8 +156,8 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
 
   const sourceTrip = randomUUID();
   const sourceDay = randomUUID();
-  await executeTripCommand({ type: "CreateTrip", tripId: sourceTrip, name: "Source" }, ACTOR_ID);
-  await executeTripCommand({ type: "AddDay", tripId: sourceTrip, dayId: sourceDay }, ACTOR_ID);
+  await executeTripCommand({ type: "CreateTrip", tripId: sourceTrip, name: "Source" }, LIBRARY_AUTHOR_ID);
+  await executeTripCommand({ type: "AddDay", tripId: sourceTrip, dayId: sourceDay }, LIBRARY_AUTHOR_ID);
   for (const title of ["Fushimi Inari", "Nishiki Market"]) {
     await executeTripCommand(
       {
@@ -158,12 +168,12 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
         title,
         location: { name: title, city },
       },
-      ACTOR_ID,
+      LIBRARY_AUTHOR_ID,
     );
   }
-  const saved = await saveDay({ name: "A day in Kyoto", dayId: sourceDay }, (await getTripDetail(sourceTrip))!, ACTOR_ID);
+  const saved = await saveDay({ name: "A day in Kyoto", dayId: sourceDay }, (await getTripDetail(sourceTrip))!, LIBRARY_AUTHOR_ID);
   if (!saved.ok) throw new Error(`could not save the day: ${saved.error.message}`);
-  const published = await setSavedDayVisibility(saved.value.savedDayId, ACTOR_ID, "public");
+  const published = await setSavedDayVisibility(saved.value.savedDayId, LIBRARY_AUTHOR_ID, "public");
   if (published === null) throw new Error("could not publish the day");
 
   // The TARGET trip, with one located stop in the same city so `read_trip`'s

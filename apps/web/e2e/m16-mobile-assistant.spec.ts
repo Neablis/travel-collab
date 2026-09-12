@@ -40,13 +40,17 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
 }
 
 test.describe("mobile assistant (phone viewport)", () => {
-  // Scoped to the trip header, and it has to be: the phone's plan is the
-  // Timeline lens, and every stop on it carries its own `Ask` button (§9's
-  // per-stop ask). `getByRole("button", { name: "Ask" })` alone resolved to
-  // seven elements on a three-day trip. The pill's own accessible name is
-  // deliberately its visible label — see `AskPill` — so the disambiguation
-  // belongs here, in the surface it sits in, rather than in a label that
-  // disagrees with the word on the control.
+  // Scoped to the trip header. It used to have to be: the phone's plan is the
+  // Timeline lens, and every stop on it carried its own bare `Ask` button
+  // (§9's per-stop ask) — `getByRole("button", { name: "Ask", exact: true })`
+  // alone resolved to seven elements on a three-day trip (KI-2026-09-05-ac,
+  // "three affordances share the accessible name Ask"). The per-stop button
+  // is `aria-label`led with the stop's own title now, so the bare "Ask" no
+  // longer collides with anything but the pill — the header scope stays
+  // anyway, as the honest statement of which control this is, not as a
+  // disambiguation workaround. The pill's own accessible name is deliberately
+  // its visible label — see `AskPill` — which is the reasoning this fix does
+  // not overturn.
   const askPill = (page: import("@playwright/test").Page) =>
     page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true });
 

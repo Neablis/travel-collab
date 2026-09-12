@@ -433,7 +433,11 @@ describe("TimelineLens", () => {
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const region = document.querySelector('[data-preview-id="timeline-ghost"]');
     expect(region).not.toBeNull();
-    expect(within(region as HTMLElement).getByRole("button", { name: "Ask" })).not.toBeNull();
+    // Not the bare "Ask": KI-2026-09-05-ac found this control's visible label
+    // colliding with §23's header pill and the composer's submit button, all
+    // three sharing one accessible name. The `aria-label` now says which stop
+    // it is about, so the visible word is a prefix rather than the whole name.
+    expect(within(region as HTMLElement).getByRole("button", { name: /^Ask about /i })).not.toBeNull();
   });
 
   it("renders no ghost-proposal card when no day is focused (#15)", () => {

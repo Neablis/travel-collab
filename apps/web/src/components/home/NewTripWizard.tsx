@@ -164,12 +164,29 @@ function WizardBody({
   const [pace, setPace] = useState<PaceValue>(PACE_OPTIONS[1].value);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set once createTrip succeeds, so a retry after a failed dates/budget
-  // dispatch re-sends only the failed commands rather than calling
-  // createTrip again and minting a second trip (CodeRabbit, PR #32 — the
-  // original version fired every dispatch without awaiting it and navigated
-  // regardless of whether any of them actually confirmed).
-  const [createdTripId, setCreatedTripId] = useState<string | null>(null);
+  // Set once createTrip succeeds, so a retry after a failed dates/budget/
+  // currency dispatch re-sends only the commands that did NOT land, rather
+  // than calling createTrip again and minting a second trip (CodeRabbit, PR
+  // #32 — the original version fired every dispatch without awaiting it and
+  // navigated regardless of whether any of them actually confirmed).
+  //
+  // The tripId alone answers "don't create a second trip" but not "don't
+  // re-send a command that already landed" — a retry that blindly re-sends
+  // SetTripDates with the same startDate/endDate is rejected by the domain
+  // as a no-op (`okUnlessNoOp`, decide.ts), which turned a transient failure
+  // on budget or currency (the steps AFTER dates) into a permanent one: every
+  // retry re-failed at dates, and the error blamed dates even though dates
+  // had already succeeded (KI-2026-09-08-a). `datedAs`/`budgetAppliedAs`/
+  // `currencyAppliedAs` are the per-command halves of that latch — mirrors
+  // `AddToTripDialog`'s `{ tripId, datedAs }`, widened to all three commands
+  // this wizard sends. Storing the applied VALUE (not a boolean) means
+  // changing the field before retrying still re-sends it.
+  const [progress, setProgress] = useState<{
+    tripId: string;
+    datedAs: { startDate: string; endDate: string } | null;
+    budgetAppliedAs: Money | null;
+    currencyAppliedAs: string | null;
+  } | null>(null);
 
   const trimmedName = name.trim();
 
@@ -183,51 +200,98 @@ function WizardBody({
     setError(null);
     setSubmitting(true);
 
-    let tripId = createdTripId;
-    if (tripId === null) {
+    let latched = progress;
+    if (latched === null) {
       const result = await createTrip({ name: trimmedName });
       if (!result || !result.ok) {
         setError(result?.error?.message ?? "Something went wrong");
         setSubmitting(false);
         return;
       }
-      tripId = result.value.tripId;
-      setCreatedTripId(tripId);
+      latched = { tripId: result.value.tripId, datedAs: null, budgetAppliedAs: null, currencyAppliedAs: null };
+      setProgress(latched);
     }
+    const tripId = latched.tripId;
 
     if (applyDatesAndBudget) {
       // Sequence per the plan: create with the name, then apply dates and
       // budget to the returned tripId. Each only fires if the user actually
-      // gave it something — a fresh trip already has no dates and USD/no
-      // budget, so an untouched field needs no command at all. Awaited and
-      // checked in turn — a failed command stops here with an inline error
-      // rather than navigating past it, and the trip (already real at this
-      // point) is left exactly as far along as it got.
-      if (ISO_DATE.test(arrive) && selectedDays !== null) {
-        const endDate = addDaysIso(arrive, selectedDays - 1);
-        const newDayIds = Array.from({ length: selectedDays }, () => crypto.randomUUID());
-        const result = await dispatch({ type: "SetTripDates", tripId, startDate: arrive, endDate, newDayIds });
+      // gave it something AND it has not already landed on a prior attempt —
+      // a fresh trip already has no dates and USD/no budget, so an untouched
+      // field needs no command at all, and a command whose value already
+      // matches what's latched would be rejected by the domain as a no-op
+      // (see the comment on `progress` above). Awaited and checked in turn —
+      // a failed command stops here with an inline error rather than
+      // navigating past it, and the trip (already real at this point) is
+      // left exactly as far along as it got.
+      // What the form says NOW, which may be null because the user cleared a
+      // field between attempts (CodeRabbit, PR #165). Comparing a nullable
+      // desired value against what is latched is the whole point: guarding on
+      // `ISO_DATE.test(arrive)` alone skipped the dates block entirely when
+      // `arrive` was emptied, so a retry silently kept dates the user had just
+      // removed. Both commands take the null: `SetTripDates` is
+      // `startDate/endDate` nullable with `newDayIds: []`, and
+      // `SetTripBudget.budget` is `Money.nullable()` — "null clears".
+      const desiredDates =
+        ISO_DATE.test(arrive) && selectedDays !== null
+          ? { startDate: arrive, endDate: addDaysIso(arrive, selectedDays - 1) }
+          : null;
+      // A clear is only worth sending if this wizard actually set something
+      // earlier — a trip created moments ago already has no dates, and asking
+      // the domain to clear nothing is the no-op rejection this whole latch
+      // exists to avoid.
+      const datesDiffer =
+        desiredDates === null
+          ? latched.datedAs !== null
+          : latched.datedAs === null ||
+            latched.datedAs.startDate !== desiredDates.startDate ||
+            latched.datedAs.endDate !== desiredDates.endDate;
+      if (datesDiffer) {
+        const newDayIds =
+          desiredDates === null || selectedDays === null
+            ? []
+            : Array.from({ length: selectedDays }, () => crypto.randomUUID());
+        const result = await dispatch({
+          type: "SetTripDates",
+          tripId,
+          startDate: desiredDates?.startDate ?? null,
+          endDate: desiredDates?.endDate ?? null,
+          newDayIds,
+        });
         if (!result.ok) {
           setError(`Trip created, but setting dates failed: ${result.error.message}. Try again.`);
           setSubmitting(false);
           return;
         }
+        latched = { ...latched, datedAs: desiredDates };
+        setProgress(latched);
       }
-      if (budget !== null) {
-        const result = await dispatch({ type: "SetTripBudget", tripId, budget });
-        if (!result.ok) {
-          setError(`Trip created, but setting the budget failed: ${result.error.message}. Try again.`);
-          setSubmitting(false);
-          return;
+      {
+        const applied = latched.budgetAppliedAs;
+        const budgetDiffers =
+          budget === null
+            ? applied !== null
+            : applied === null || applied.amountMinor !== budget.amountMinor || applied.currency !== budget.currency;
+        if (budgetDiffers) {
+          const result = await dispatch({ type: "SetTripBudget", tripId, budget });
+          if (!result.ok) {
+            setError(`Trip created, but setting the budget failed: ${result.error.message}. Try again.`);
+            setSubmitting(false);
+            return;
+          }
+          latched = { ...latched, budgetAppliedAs: budget };
+          setProgress(latched);
         }
       }
-      if (currency !== DEFAULT_CURRENCY) {
+      if (currency !== DEFAULT_CURRENCY && latched.currencyAppliedAs !== currency) {
         const result = await dispatch({ type: "SetTripCurrency", tripId, currency });
         if (!result.ok) {
           setError(`Trip created, but setting the currency failed: ${result.error.message}. Try again.`);
           setSubmitting(false);
           return;
         }
+        latched = { ...latched, currencyAppliedAs: currency };
+        setProgress(latched);
       }
     }
     setSubmitting(false);

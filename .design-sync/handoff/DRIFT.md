@@ -215,15 +215,22 @@ What it needs instead — and this is the part to cost:
 
 ## 2i. New this turn — the assistant reaches the phone
 
-`SPEC.md` §23, which extends §9. Until this turn the assistant existed **only on desktop**;
-the phone had no entry point, and the code has no phone assistant either — so this is design
-ahead of build, not a disagreement.
+`SPEC.md` §23, which extends §9. The assistant was not absent from the phone before this
+turn — the code had it on three of four in-trip screens, each full-screen: Plan and Map
+shared one `◎ Assistant` button, and an open page had its own beside "Edit page". Only the
+Notebook index had no entry point. This is not design ahead of build; it is design
+**replacing** three scattered full-screen presentations with one pill and a sheet — and it
+does so knowingly (see the KI-84 bullet below).
 
 What a build owes:
 
 - **An `Ask` pill in the phone trip header, last in the top row, on all four in-trip
   screens** (Plan, Map, Notebook index, open page), opening a bottom sheet. Not a tab — see
   §23 for why; a tab forces a trip-wide scope and loses the day or page you were reading.
+- **This reverses KI-84 on purpose.** The phone assistant went full-screen because of
+  Mitchell's own report, on his own device, that a modal "breaks the entire website"; §23
+  specifies a `max-height: 80%` sheet for the three surfaces that fix made full-screen.
+  Shown the conflict, Mitchell chose to build §23 literally rather than keep KI-84's fix.
 - **The sheet's scope comes from the surface, and is printed in the sheet.** The context
   line, the input placeholder and the quick asks are all derived from "which phone tab, and
   is a page open". A build that opens the sheet with a trip-wide default has reimplemented

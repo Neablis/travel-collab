@@ -14,15 +14,18 @@ import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/
 import { makeTripHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
-// Two controls on this screen are called "Ask" once the assistant is open: the
-// trip header's phone Ask pill (SPEC §23, `AskPill`) and the composer's submit
-// button. The pill is `md:hidden` and would never be on screen beside the
-// composer in a browser — but jsdom loads no stylesheet, so the breakpoint is
-// inert here and both are in the accessibility tree. Every reach for the
-// composer therefore has to say which one it means, and scoping to the panel is
-// the answer that stays true in all three of its presentations.
+// Scoped to the panel rather than reached for by bare role+name, still —
+// the panel holds real conversation content (turns, proposal cards) a reader
+// could otherwise word their way into a false match against, not because the
+// name collides with anything else here. KI-2026-09-05-ac used to make that
+// collision real (this button and the header's phone Ask pill, SPEC §23's
+// `AskPill`, shared the bare accessible name "Ask" — jsdom loads no
+// stylesheet, so the pill's `md:hidden` breakpoint never took it out of the
+// accessibility tree the way it would in a browser); the composer's submit is
+// now `aria-label`led "Ask the assistant" so the two no longer collide even
+// unscoped.
 const assistantPanel = () => screen.getByRole("complementary", { name: "Assistant" });
-const askButton = () => within(assistantPanel()).getByRole("button", { name: "Ask" });
+const askButton = () => within(assistantPanel()).getByRole("button", { name: "Ask the assistant" });
 
 // The Assistant rail holds a real streaming conversation against
 // /api/trips/:id/ask (M16 Wave 2). Mocked at the client seam rather than with
@@ -789,7 +792,7 @@ describe("TripBoardScreen", () => {
 
     // The composer is gone, so there is no 21st ask to make…
     expect(screen.queryByPlaceholderText(/ask about this (?:day|trip)/i)).toBeNull();
-    expect(within(assistantPanel()).queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(within(assistantPanel()).queryByRole("button", { name: "Ask the assistant" })).toBeNull();
     // …and nothing was trimmed out from under the user: the first question is
     // still on screen.
     expect(screen.getByText("question 1")).toBeTruthy();
@@ -1101,6 +1104,26 @@ describe("TripBoardScreen", () => {
     expect(content.style.getPropertyValue("--launcher-height")).toBe("");
     // The one measurement that IS still live on this element is untouched.
     expect(content.style.getPropertyValue("--rack-height")).toBe("0px");
+  });
+
+  // KI-2026-09-05-ac: the header's Ask pill (SPEC §23) and the Timeline's
+  // per-stop Ask (SPEC §9, a Preview shell but still real markup in the a11y
+  // tree) used to share the bare accessible name "Ask" — on a real,
+  // multi-stop trip that is one control per stop plus the pill, all
+  // indistinguishable to a voice-control user saying "click Ask". Regression:
+  // on a phone-width Schedule lens with stops on the board, an unscoped name
+  // query resolves to exactly the pill. Before the fix (per-stop Ask's
+  // `aria-label`), this failed with `expected 3 to be 1` on this same
+  // two-activity fixture (one pill + two per-stop asks).
+  it("the header's Ask pill is the only control named bare \"Ask\" on a phone with stops on the board", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToLens("Schedule");
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Ask" }).length).toBeGreaterThan(0));
+    expect(screen.getAllByRole("button", { name: "Ask" })).toHaveLength(1);
   });
 
   // SPEC §23's entry point, and the reason the in-flow launcher could go: the
