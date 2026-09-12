@@ -103,6 +103,24 @@ export const AddActivity = z.object({
   title: z.string().min(1).max(200),
   timeWindow: TimeWindow.optional(),
   location: Location.optional(),
+  // A CITATION, not a place: the number of one candidate the assistant's place
+  // search returned this turn, which the server resolves into `location` (the
+  // vendor's name and its coordinates) before the command reaches the domain.
+  // That is the whole of M9's grounding — a stored place becomes one the vendor
+  // returned rather than one the model wrote (KI-81). `nonnegative` rather than
+  // `positive` because the numbering the search tool prints is that tool's to
+  // choose, and a schema that forbade 0 would decide it from here.
+  //
+  // Transport only, which is why it is absent from `ActivityPayloadFields`
+  // below: what is worth storing forever is the resolved place, never the index
+  // the model used to name it, and a ref outlives nothing (the candidates are a
+  // per-turn server-side cache).
+  //
+  // **Optional on purpose.** A location a *user* typed arrives as free text with
+  // no ref at all, and the best-effort geocoding fallback still runs for it —
+  // grounding replaces the model's guess, not the user's words. That is what
+  // closes KI-15's remaining half rather than deleting it.
+  placeRef: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
   anchors: z.array(Anchor).optional(),
   kind: ActivityKind.optional(),         // omitted = "planned"
@@ -119,6 +137,10 @@ export const UpdateActivity = z.object({
   title: z.string().min(1).max(200).optional(),
   timeWindow: TimeWindow.nullable().optional(),
   location: Location.nullable().optional(),
+  // The same citation as on AddActivity, and NOT nullable for the same reason
+  // it is not stored: clearing a location is `location: null`, which says what
+  // it means — a ref to nothing says only that the model lost its place.
+  placeRef: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).nullable().optional(),
   anchors: z.array(Anchor).optional(),
   kind: ActivityKind.optional(),         // omitted = unchanged; no null (set "planned" to clear)

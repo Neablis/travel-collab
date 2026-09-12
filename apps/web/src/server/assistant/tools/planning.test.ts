@@ -57,6 +57,17 @@ describe("the planning tools", () => {
     expect(shapeOf("RemoveActivity")).toHaveProperty("activityRef");
   });
 
+  // **What the transform must NOT drop.** `placeRef` (M9, KI-81) is the one
+  // field the model is meant to supply *instead of* inventing a place, and the
+  // transform above is subtractive — `omit` per id field — so the way it gets
+  // lost is someone adding it to that list. It is not an id and it is not
+  // server-supplied: the model cites a candidate number and the server resolves
+  // it, which is the opposite direction from `dayRef`.
+  it("keeps placeRef on the activity tools — the ref the model is asked FOR", () => {
+    expect(shapeOf("AddActivity")).toHaveProperty("placeRef");
+    expect(shapeOf("UpdateActivity")).toHaveProperty("placeRef");
+  });
+
   // The cases above name the six commands that HAVE id fields, and naming them
   // is what makes them readable. It is also their limit: a thirteenth
   // `BatchableCommand` becomes a thirteenth planning tool with no edit in
