@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
 import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
@@ -256,3 +256,39 @@ test("map: opens on the current day, and on the first one when none is chosen", 
   await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(5);
 });
 
+
+
+/**
+ * The regression guard for bump #158 (maplibre 5 -> 6). See watchMapWorker()
+ * in helpers.ts for what that bump did and why every other Map assertion in
+ * this suite sailed straight past it.
+ *
+ * This is the cheapest test in the file and the only one that would have
+ * caught a dead basemap: the rail, strip, legend and focus-card specs all
+ * assert on chrome that renders perfectly well over a map that never drew a
+ * tile.
+ */
+test("map lens: loads its tile-decoding worker", async ({ page }) => {
+  // Armed before the navigation that triggers it.
+  const worker = watchMapWorker(page);
+  // Distinct prefix from other specs' trip names — parallel workers share a DB.
+  const tripName = e2eTripName("MapWorker");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 3);
+
+  await page.goto(`/trips/${tripId}?lens=Map`);
+
+  // Positive anchor. maplibre attaches this canvas from the Map constructor,
+  // which is also what spawns the worker pool — so reaching it proves the page
+  // actually ran the code path under test. Without it the poll below would sit
+  // at "pending" on a page that rendered nothing at all, and report a timeout
+  // rather than the truth.
+  await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible();
+
+  // Fails with the real reason ("worker load error: Failed to load module
+  // script: ...") rather than a bare timeout, and returns as soon as the
+  // worker responds on the happy path.
+  await expect
+    .poll(worker.outcome, { timeout: 20_000 })
+    .toBe("loaded");
+});
