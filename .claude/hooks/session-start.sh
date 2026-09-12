@@ -222,6 +222,24 @@ link_playwright_shell() {
   # nothing, and handed the next session KI-32's original "Executable doesn'"'"'t
   # exist" with no clue why — the third silent recurrence in a row. If this
   # cannot resolve Playwright, say so.
+  #
+  # This resolution also depends on `apps/web/node_modules` existing, and this
+  # function has historically been reachable before it does — a fresh
+  # container has no node_modules at all until something runs `pnpm install`,
+  # and getting every caller of this function to run strictly after that
+  # install is an ordering invariant, not a guarantee (KI-2026-09-07-b:
+  # reproduced by calling this function against a real fresh worktree with no
+  # apps/web/node_modules — the resolve below threw MODULE_NOT_FOUND and this
+  # returned 0 having linked nothing). Rather than rely on the caller getting
+  # the order right, make the dependency this function actually needs
+  # unconditional: install if it is missing. `pnpm install` is a no-op modulo
+  # a lockfile check when dependencies are already present, so this costs one
+  # `[ -d ]` stat on the ordinary (already-installed) path and only pays for
+  # an install when one was actually still owed.
+  if [ ! -d "$PWD/apps/web/node_modules" ]; then
+    pnpm install >/dev/null 2>&1 || true
+  fi
+
   revs=$(node -e '
     const fs = require("node:fs");
     const path = require("node:path");

@@ -1,4 +1,4 @@
-### KI-2026-09-07-b — the Playwright browser repair resolves through `apps/web/node_modules`, so on a fresh container it runs before `pnpm install` and links nothing
+### KI-2026-09-07-b — the Playwright browser repair resolves through `apps/web/node_modules`, so on a fresh container it runs before `pnpm install` and links nothing — RESOLVED
 
 - **Severity:** reliability of local verification (no product impact; CI is unaffected and remains the authoritative e2e signal). It costs a session one wrong conclusion — that the container has no usable browser — which `docs/guidelines/cloud-agent-sessions.md` already records two agents reaching.
 - **Area:** `.claude/hooks/session-start.sh` — `link_playwright_shell`, specifically the `revs=$(node -e '…' "$PWD/apps/web")` manifest resolution and its `|| { …; return 0; }` fallback.
@@ -26,3 +26,17 @@
 - **What this does NOT change:** KI-32's standing caveat still applies to any local e2e result obtained this way — the suite ran on Chromium 141.0.7390.37, a build the pinned Playwright does not target. A green local run is corroboration; CI's is the authoritative signal, and `.github/workflows/ci.yml` installs its own matching build.
 - **Cross-reference:** **KI-32** (resolved — the parent entry, whose three earlier recurrences are all a different cause from this one); `docs/guidelines/cloud-agent-sessions.md` (the browser note recording two agents concluding the container had no usable browser).
 - **First noted:** 2026-09-07, during the `/ki-sweep` Tier 3 e2e run on `claude/ki-sweep-cphxh2`.
+- **Fixed:** 2026-09-12. Took fix path #2 (with #1's intent folded in): `link_playwright_shell` now checks, right before the manifest resolution, whether `apps/web/node_modules` exists; if it does not, it runs `pnpm install` (guarded with `|| true`, so a failure there still falls through to the pre-existing warn-and-`return 0` path — the never-fail-the-session property is unchanged) before resolving. This makes the resolution's actual dependency — a `require.resolve`-able `@playwright/test` — unconditional rather than trusting every call site to run strictly after some other `pnpm install`, which is exactly the ordering this entry names. On the ordinary already-installed path this costs one `[ -d ]` stat.
+  **Reproduced without simulation**, on a genuinely fresh worktree checkout that had no `node_modules` anywhere in it (confirmed: `ls apps/web/node_modules` / `ls node_modules` both `No such file or directory`, `CLAUDE_CODE_REMOTE=true`). Sourcing the hook's function definitions and calling `link_playwright_shell` directly against that state, before the fix:
+  ```
+  cannot resolve Playwright from apps/web: MODULE_NOT_FOUND
+  session-start: could not read Playwright's browser manifest — e2e may fail on a missing executable (KI-32)
+  FUNCTION_RETURN=0
+  ```
+  — i.e. the exact silent no-op this entry describes. After the fix, run again against the same still-fresh worktree (still no `node_modules` at the start of this second run):
+  ```
+  session-start: created and linked Playwright's expected chromium_headless_shell-1234/chrome-headless-shell-linux64 -> /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+  session-start: created and linked Playwright's expected chromium-1234/chrome-linux64 -> /opt/pw-browsers/chromium-1194/chrome-linux/chrome
+  FUNCTION_RETURN=0
+  ```
+  `apps/web/node_modules` existed afterward, and revision 1234 — what `@playwright/test@^1.62.1`'s manifest actually asks for — was correctly resolved and linked, not inferred from what happened to already be on disk. A third run against the now-installed worktree (the ordinary path) completed in 0.065s with no output, confirming the `pnpm install` branch is skipped once dependencies exist and the existing links are left alone (idempotent `-e` check, unchanged). Checked: `bash -n .claude/hooks/session-start.sh` passes.
