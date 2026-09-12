@@ -66,13 +66,13 @@ beforeEach(() => { search = new URLSearchParams(""); replaceSpy.mockClear(); dis
 function Consumer() {
   const { activeTrip, dispatch } = useTrip();
   const { openCreate, state } = useEditor();
-  const { lens, setLens } = useLens();
+  const { view, setView } = useLens();
   return (
     <div>
       <span data-testid="trip">{activeTrip?.name}</span>
-      <span data-testid="lens">{lens}</span>
+      <span data-testid="lens">{view}</span>
       <span data-testid="editor">{state.mode ?? "closed"}</span>
-      <button onClick={() => setLens("Map")}>go map</button>
+      <button onClick={() => setView("Map")}>go map</button>
       <button onClick={() => openCreate({ dayId: "d1" })}>add</button>
       <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d9" } as never)}>day</button>
     </div>
@@ -104,11 +104,13 @@ describe("trip context spine", () => {
     await waitFor(() => expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "AddDay" })));
   });
 
-  it("setLens writes the URL, and lens derives from it (unidirectional)", async () => {
+  // SPEC §24: a trip with no view in its URL lands on **Overview** — *"You read
+  // a trip before you change it."* It used to land on Board.
+  it("setView writes the URL, and the view derives from it (unidirectional)", async () => {
     render(<Harness />);
-    await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Board"));
+    await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Overview"));
     fireEvent.click(screen.getByRole("button", { name: "go map" }));
-    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("lens=Map"), { scroll: false });
+    expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("view=Map"), { scroll: false });
   });
 
   it("openCreate opens the editor with prefill", async () => {

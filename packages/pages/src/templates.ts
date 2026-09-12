@@ -28,24 +28,27 @@ import type {
 // (`components/pages/editor/`), so a template CAN plant a widget a reader is
 // able to rebind or delete by hand, and the templates below do.
 //
-// **The two seeded ones deliberately do not, and that is a product line rather
-// than a leftover:**
+// **The rule that governs which widgets a SEEDED page may carry, and it is
+// narrower than it used to be:**
 //
-//   *A template planted before there is a plan prompts writing; a template you
-//   choose once you have one builds itself.*
+//   *A widget that reads well on an empty trip may be seeded. One that does
+//   not, may not.*
 //
-// A brand-new trip has no dates, no cities and no stops, so a widget-bearing
-// Trip Overview opens as five grey "no dates set" chips — which is the honest
-// empty state and a poor first page. The prose version asks the question the
-// person is actually in a position to answer. The moment they have a plan,
-// "Full trip breakdown" is one click away in the gallery and is the same idea
-// done in widgets.
+// This used to be the blunter "seeded templates plant no widgets", on the
+// grounds that a brand-new trip has no dates, no cities and no stops, so a
+// widget-bearing page opens as five grey "no dates set" chips — the honest
+// empty state and a poor first page. That reasoning is intact and still
+// excludes almost everything. What it never actually said was "no widgets": it
+// said "nothing that looks broken before there is a plan". `open` (SPEC §25)
+// renders "nothing is waiting on you" on a new trip, which is a true and
+// pleasant sentence, so it is seeded and the rest are not.
 //
-// It is also what makes these two the NEUTRAL CANVAS the rest of the product
-// leans on: `m14-notebook-widgets.spec.ts`, `m14-mobile-notebook.spec.ts` and
-// the phone insert walk all open Trip Overview when they need "a page with
-// nothing on it", and three of them broke the day it stopped being one. That is
-// a signal about what the page IS, not a test to work around.
+// **Until 2026-09-12 two templates were seeded and neither carried a widget.**
+// Now exactly one is — the Overview (§25, and Mitchell: *"Only 1 notebook per
+// trip is always generated"*) — and Trip Overview and Day overview are gallery
+// templates. Nothing migrates: `listPages` seeds only into a trip with zero
+// pages, so every existing trip keeps both, under their own names, as ordinary
+// deletable pages.
 //
 // --- Two lists, and the split is the point ---
 // `DEFAULT_TEMPLATES` is what a new trip is SEEDED with; `TEMPLATE_LIBRARY` is
@@ -121,14 +124,70 @@ export interface TemplateSeed {
 // Seeded into every trip
 // ---------------------------------------------------------------------------
 
+/**
+ * **The Overview page — SPEC §25.** The one page every trip comes with, and the
+ * one it cannot delete.
+ *
+ * > Not a dashboard, and not a second rendering of the trip. Every trip is
+ * > created with one notebook page it cannot delete, and the Overview tab
+ * > renders that page.
+ *
+ * Three things make it what it is, and all three are visible right here:
+ *
+ * 1. **`kind: "overview"` in its context** is what marks it. Not its title,
+ *    which a reader may rename, and not its position, which sorting decides.
+ * 2. **Its blocks are ordinary registry widgets** — `open` is in the picker
+ *    like everything else, and could be inserted into any other page. §25 is
+ *    explicit that there is no bespoke Overview layout.
+ * 3. **It is prose AND a widget**, which is the exception to this file's own
+ *    "seeded templates plant no widgets" rule, and the exception is narrow:
+ *    that rule exists because a widget-bearing page on a brand-new trip opens
+ *    as a row of grey "no dates set" chips. `open` does not do that — on a trip
+ *    with nothing waiting it renders its own empty text, "nothing is waiting on
+ *    you", which is a true and pleasant sentence for a new trip rather than a
+ *    broken-looking one. A widget that reads well empty may be seeded; one that
+ *    does not, still may not.
+ *
+ * §25's *"The consequence to accept"* applies and is not worked around: because
+ * this is a real page, its content is user-editable, and someone can empty it.
+ * Guaranteeing a block would have to be a property of the page (undeletable
+ * blocks), not of the tab.
+ */
+const overviewPage: TemplateSeed = {
+  key: "overview",
+  title: "Overview",
+  // §25's index line: *"titled 'Overview / Comes with the trip'"*. The title is
+  // the first half; this is the second, and it is where the gallery and the
+  // index already put a template's second line.
+  description: "Comes with the trip.",
+  seedIntoNewTrips: true,
+  buildContext: (tripId) => ({ tripId, kind: "overview" }),
+  content: newPageDoc([
+    heading("What needs you"),
+    block("open"),
+    heading("About this trip"),
+    para(text("What's this trip about? Jot down the highlights, the why, who's coming.")),
+    heading("Costs"),
+    para(text("Track budget notes, splurges, and who's paying for what.")),
+  ]),
+};
+
 const tripOverview: TemplateSeed = {
   key: "trip-overview",
   title: "Trip Overview",
   description: "The whole trip in one place — the why, the shape, the money.",
-  seedIntoNewTrips: true,
+  // **No longer seeded** — Mitchell, 2026-09-12: *"Only 1 notebook per trip is
+  // always generated, this is undeletable notebook that needs to be created on
+  // every new trip."* That one is `overviewPage` above. This stays in the
+  // gallery, unchanged, as a template somebody can choose.
+  //
+  // Nothing migrates. `listPages` seeds only into a trip with zero pages, so
+  // every trip that already has a Trip Overview keeps it, under its own name,
+  // as an ordinary deletable page.
+  seedIntoNewTrips: false,
   buildContext: (tripId) => ({ tripId }),
-  // Prose, and no widgets — see the header. This is the first page of every
-  // trip and the one the rest of the product treats as a blank sheet.
+  // Prose, and no widgets — see the header. This is the blank sheet the rest of
+  // the product reaches for.
   content: newPageDoc([
     heading("Overview"),
     para(text("What's this trip about? Jot down the highlights, the why, who's coming.")),
@@ -148,7 +207,10 @@ const dayOverview: TemplateSeed = {
   // that already has a "Day Sheet" keeps it under its own name.
   title: "Day overview",
   description: "One day, close up. Times, reservations, notes for the group.",
-  seedIntoNewTrips: true,
+  // No longer seeded, for the same reason Trip Overview is not: SPEC §25 and
+  // Mitchell, 2026-09-12 — **one** notebook comes with a trip, and it is the
+  // Overview. This is a gallery template now.
+  seedIntoNewTrips: false,
   buildContext: (tripId) => ({ tripId }),
   // Prose, for the same reason as Trip Overview above. The widget-bearing
   // version of this page is "A day in detail" in the gallery.
@@ -305,6 +367,11 @@ const beforeYouGo: TemplateSeed = {
  * own trips — then the rest.
  */
 export const TEMPLATE_LIBRARY: TemplateSeed[] = [
+  // `overviewPage` is deliberately NOT here. The gallery is "Start from a
+  // template", and a second copy of the page that comes with the trip is not a
+  // template anybody wants — there can only be one page marked
+  // `kind: "overview"`, and offering a button that makes another would be
+  // offering a broken outcome (rule 2: no purposeless UI).
   tripOverview,
   dayOverview,
   dayInDetail,
@@ -321,7 +388,18 @@ export const TEMPLATE_LIBRARY: TemplateSeed[] = [
  * about which templates exist. Order follows `TEMPLATE_LIBRARY`, which is what
  * `listPages` backdates its seeds against.
  */
-export const DEFAULT_TEMPLATES: TemplateSeed[] = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips);
+export const DEFAULT_TEMPLATES: TemplateSeed[] = [
+  overviewPage,
+  ...TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips),
+];
+
+/** The one seeded page, for the callers that need to name it rather than list it. */
+export const OVERVIEW_TEMPLATE = overviewPage;
+
+/** Whether this page is the trip's undeletable Overview (SPEC §25). */
+export function isOverviewPage(context: PageContext): boolean {
+  return context.kind === "overview";
+}
 
 export function instantiateDefaults(tripId: string): CreatePageInput[] {
   return DEFAULT_TEMPLATES.map((t) => ({ title: t.title, context: t.buildContext(tripId), content: t.content }));

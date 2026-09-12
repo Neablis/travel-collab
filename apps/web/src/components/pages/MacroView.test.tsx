@@ -370,18 +370,25 @@ describe("every widget is legal where widgets actually go", () => {
   }
 
   // Rich enough that every widget resolves: a budget, a booked stop as well as a
-  // planned one, a city projection and an account.
+  // planned one, a city projection, an account — and, since SPEC §25, something
+  // waiting on a decision, because `open` resolves to `empty` on a trip where
+  // nothing is. One parked idea is the cheapest thing that is true.
   const richDetail: TripDetail = {
     ...costedDetail,
     budget: { amountMinor: 50000, currency: "USD" },
     budgetRemaining: 37655,
     days: [{ ...costedDetail.days[0]!, activityIds: ["a1", "booked"] }],
+    backlog: ["parked"],
     activities: {
       ...costedDetail.activities,
       booked: {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
         location: null, notes: null, anchors: [], kind: "booked", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
+      },
+      parked: {
+        activityId: "parked", title: "Ghibli Museum", timeWindow: null,
+        location: null, notes: null, anchors: [], kind: "idea", tags: [], cost: null,
       },
     },
   };

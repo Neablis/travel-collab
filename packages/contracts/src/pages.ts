@@ -215,6 +215,23 @@ export const FILTER_VALUE_SCHEMAS = {
 // actually belongs.
 export const PageContext = z.object({
   tripId: z.string().uuid(),
+  /**
+   * Marks the trip's **Overview** page — SPEC §25's *"every trip is created
+   * with one notebook page it cannot delete"*, and the page the Overview tab
+   * renders. Absent on every ordinary page, which is what "ordinary" means.
+   *
+   * **Here, and not as a column, because `pages.context` is `jsonb`.** An
+   * optional field on a JSON document needs no migration and no backfill: a
+   * page written before this existed simply has no `kind`, and reads back as
+   * an ordinary page, which is exactly true of it.
+   *
+   * **A literal rather than a boolean.** `isOverview: true` would answer one
+   * question and close the door on the next one; a page that comes with the
+   * trip is a KIND of page, and §25 is explicit that Overview is "a real page"
+   * rather than a flag on a tab. If a second seeded kind ever exists, this
+   * union grows and nothing that reads it has to change shape.
+   */
+  kind: z.literal("overview").optional(),
 });
 export type PageContext = z.infer<typeof PageContext>;
 
