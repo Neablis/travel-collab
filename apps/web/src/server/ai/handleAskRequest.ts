@@ -220,9 +220,17 @@ export async function handleAskRequest(
     // is not a place for unfenced user text.
     collectedWrites: () => [
       ...proposalBuffer.collected().map((intent) => ({ name: intent.type, input: intent.args })),
+      // **`keyField`, because this is the one write tool that can be observed
+      // without collecting.** `insert_playbook_day` returns an error before
+      // `addInsert` on a full proposal or an id it cannot open, so a turn that
+      // calls it once with a bad id and once in a step that aborts has one of
+      // each — and counting by name alone would call that square and drop the
+      // insert the user then approved. Keyed on `savedDayId`, the counts are
+      // compared within one identity and the missing call is added.
       ...proposalBuffer.inserts().map((insert) => ({
         name: INSERT_PLAYBOOK_DAY,
         input: { savedDayId: insert.savedDayId },
+        keyField: "savedDayId",
       })),
     ],
     // Beside `question` and `offeredTools`, which is what makes a

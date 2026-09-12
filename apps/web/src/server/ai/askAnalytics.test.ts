@@ -694,4 +694,39 @@ describe("an aborted step's writes are still in the record", () => {
     recorder.finish({ text: "done" });
     expect(records[0]!.toolCallCount).toBe(3);
   });
+
+  // **Counting by name is exact only while a tool cannot be observed without
+  // also collecting, and `insert_playbook_day` can be.** It returns an error
+  // before `addInsert` on a full proposal or an id it cannot open, so the two
+  // calls below are one observed-not-collected and one collected-not-observed:
+  // the name counts agree at one apiece, and the insert the user went on to
+  // approve was dropped from the record. Found in review, on the first cut of
+  // the reconciliation above.
+  it("keeps an insert whose failed sibling already spent the name's count", () => {
+    const { recorder, records } = recorderWith({
+      collectedWrites: () => [
+        { name: "insert_playbook_day", input: { savedDayId: "good" }, keyField: "savedDayId" },
+      ],
+    });
+    // Observed and NOT collected: `savedDays.readable()` did not resolve it,
+    // so the tool returned an error before reaching the buffer.
+    recorder.observeStep({ toolCalls: [{ toolName: "insert_playbook_day", input: { savedDayId: "bad" } }] });
+    // The step that collected the real one aborted, so it was never observed.
+    recorder.abandon("error", new Error("AI_InvalidToolInputError"));
+
+    const inserts = records[0]!.toolCalls.filter((c) => c.name === "insert_playbook_day");
+    expect(inserts).toHaveLength(2);
+    expect(inserts.map((c) => (c.input as { savedDayId: string }).savedDayId).sort()).toEqual(["bad", "good"]);
+  });
+
+  it("still does not double-count an insert both the step and the buffer saw", () => {
+    const { recorder, records } = recorderWith({
+      collectedWrites: () => [
+        { name: "insert_playbook_day", input: { savedDayId: "good" }, keyField: "savedDayId" },
+      ],
+    });
+    recorder.observeStep({ toolCalls: [{ toolName: "insert_playbook_day", input: { savedDayId: "good" } }] });
+    recorder.finish({ text: "done" });
+    expect(records[0]!.toolCalls.filter((c) => c.name === "insert_playbook_day")).toHaveLength(1);
+  });
 });
