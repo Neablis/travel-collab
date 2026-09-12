@@ -597,8 +597,13 @@ export function AssistantRail({
                   // `submitAsk` already refuses to send while `asking` is
                   // true (and the `Button` below stays disabled), so nothing
                   // downstream needs the input itself gated: leaving it
-                  // editable keeps focus and keeps the keystrokes, and they
-                  // submit as soon as the turn ends.
+                  // editable keeps focus and keeps the keystrokes. Note it
+                  // does NOT auto-send them — `submitAsk` still returns early
+                  // while `asking`, so an Enter pressed mid-turn is a no-op
+                  // and the text simply waits in the composer for the user to
+                  // send it. Keeping what was typed is the fix; auto-sending a
+                  // follow-up the user has not re-confirmed would be a
+                  // behaviour change this entry did not ask for.
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
