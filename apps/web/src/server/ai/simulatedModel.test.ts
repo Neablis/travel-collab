@@ -684,6 +684,62 @@ describe("simulatedModel — proposing a change", () => {
     expect(callsOf(result).map((c) => c.toolName)).toEqual(["search_playbooks"]);
   });
 
+  // KI-2026-09-08-d: the picker used to take `found.days[0]` with no
+  // exclusions, so a searcher whose own day sorted first would be handed a
+  // proposal to add their own day back — which `addCounts` (savedDayAdds.ts)
+  // then never credits, because it excludes an author adding their own day.
+  // The first non-`mine` result is the one this turn can propose honestly.
+  it("skips the searcher's own day and picks the first day that is not theirs", async () => {
+    const searchResult = {
+      toolName: "search_playbooks",
+      value: {
+        searched: "Kyoto",
+        days: [
+          { savedDayId: "mine-1", name: "My day", cities: ["Kyoto"], stopCount: 2, totalCost: null, adds: 0, mine: true },
+          {
+            savedDayId: "theirs-1",
+            name: "Their day",
+            cities: ["Kyoto"],
+            stopCount: 3,
+            totalCost: null,
+            adds: 2,
+            mine: false,
+          },
+        ],
+      },
+    };
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "trip" }, [...READ_RESULTS, searchResult], {
+        question: "find me a ready-made day",
+        writeTools: true,
+      }),
+    );
+    const calls = callsOf(result);
+    expect(calls.map((c) => c.toolName)).toEqual(["insert_playbook_day"]);
+    expect(JSON.parse(calls[0]!.input)).toEqual({ savedDayId: "theirs-1" });
+  });
+
+  // When every result is the searcher's own, there is nothing this turn can
+  // honestly propose — it must say so, the same as an empty library.
+  it("proposes nothing when every result found is the searcher's own day", async () => {
+    const searchResult = {
+      toolName: "search_playbooks",
+      value: {
+        searched: "Kyoto",
+        days: [
+          { savedDayId: "mine-1", name: "My day", cities: ["Kyoto"], stopCount: 2, totalCost: null, adds: 0, mine: true },
+        ],
+      },
+    };
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "trip" }, [...READ_RESULTS, searchResult], {
+        question: "find me a ready-made day",
+        writeTools: true,
+      }),
+    );
+    expect(callsOf(result)).toEqual([]);
+  });
+
   it("does not propose twice in one turn", async () => {
     const result = await probe().doGenerate(
       askPrompt({ kind: "trip" }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),

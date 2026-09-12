@@ -507,7 +507,15 @@ function playbookCalls(results: readonly ToolResultLike[]): ToolCall[] | null {
     const cities = [...new Set((trip?.days ?? []).flatMap((day) => (day.cities ?? []).map(plain)))].slice(0, 3);
     return [call("search_playbooks", cities.length > 0 ? { cities } : {})];
   }
-  const first = found.days[0];
+  // The first result that is not the searcher's own (KI-2026-09-08-d).
+  // `addCounts` (savedDayAdds.ts) excludes an author adding their own day, so
+  // proposing one is an add that could never count — and it is never the
+  // more useful answer anyway, since the searcher already has that day. A
+  // trip's own days already in the trip are a separate exclusion this turn
+  // cannot make: nothing in scope here (or in `TripReadout`) records which
+  // `savedDayId` a trip's own days came from, so that dedup would need new
+  // state and stays out of this fix.
+  const first = found.days.find((day) => !day.mine);
   // One day per turn, exactly as the instruction asks of a real model.
   return first === undefined ? null : [call(INSERT_PLAYBOOK_DAY, { savedDayId: first.savedDayId })];
 }
