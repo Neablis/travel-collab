@@ -1,4 +1,4 @@
-### KI-2026-09-11-d — `TurnMeter.toolCalls()` hands back its live array, where the sibling collector beside it copies and says copying is the point
+### KI-2026-09-11-d — `TurnMeter.toolCalls()` hands back its live array, where the sibling collector beside it copies and says copying is the point — RESOLVED
 
 - **Severity:** cleanup (latent; harmless today because the meter is read once, at the recorder's single-writer latch)
 - **Area:** `apps/web/src/server/assistant/ledger.ts` (`newTurnMeter`), against `apps/web/src/server/assistant/deps.ts` (`ProposalBuffer.collected`)
@@ -9,3 +9,4 @@
 - **Found by:** M9 Phase 0, while writing docstrings for the kernel functions that had none. Reported rather than fixed, deliberately.
 - **Cross-reference:** ADR-043 (M9 Phase 0), M20 link 9 (the second consumer this anticipates), KI-73 and KI-80 (the same species).
 - **First noted:** 2026-09-11.
+- **Resolved:** Applied the fix path exactly as recorded: `toolCalls: () => [...tools]` in `newTurnMeter` (`apps/web/src/server/assistant/ledger.ts`), plus a docstring clause on `TurnMeter.toolCalls()` stating the same copy guarantee `ProposalBuffer.collected()` (`deps.ts`) already carries. Reproduced first with a scratch test that took `meter.toolCalls()`, pushed onto it, and observed the mutation leak back into a second call to `meter.toolCalls()` (`AssertionError: expected [ …(2) ] to have a length of 1 but got 2`); confirmed the mechanism was the live-array return, not something else. Added a permanent regression test to `ledger.test.ts` ("hands back a copy, so a caller mutating what it reads cannot rewrite what the turn collected"), watched it fail against the pre-fix code with the same assertion shape, then restored the fix and watched all 8 tests in the file pass. Checked: `pnpm --filter web typecheck`, `pnpm --filter web lint`, `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/server/assistant/ledger.test.ts` — all clean.
