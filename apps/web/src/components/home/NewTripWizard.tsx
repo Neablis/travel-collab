@@ -224,23 +224,55 @@ function WizardBody({
       // a failed command stops here with an inline error rather than
       // navigating past it, and the trip (already real at this point) is
       // left exactly as far along as it got.
-      if (ISO_DATE.test(arrive) && selectedDays !== null) {
-        const endDate = addDaysIso(arrive, selectedDays - 1);
-        if (latched.datedAs === null || latched.datedAs.startDate !== arrive || latched.datedAs.endDate !== endDate) {
-          const newDayIds = Array.from({ length: selectedDays }, () => crypto.randomUUID());
-          const result = await dispatch({ type: "SetTripDates", tripId, startDate: arrive, endDate, newDayIds });
-          if (!result.ok) {
-            setError(`Trip created, but setting dates failed: ${result.error.message}. Try again.`);
-            setSubmitting(false);
-            return;
-          }
-          latched = { ...latched, datedAs: { startDate: arrive, endDate } };
-          setProgress(latched);
+      // What the form says NOW, which may be null because the user cleared a
+      // field between attempts (CodeRabbit, PR #165). Comparing a nullable
+      // desired value against what is latched is the whole point: guarding on
+      // `ISO_DATE.test(arrive)` alone skipped the dates block entirely when
+      // `arrive` was emptied, so a retry silently kept dates the user had just
+      // removed. Both commands take the null: `SetTripDates` is
+      // `startDate/endDate` nullable with `newDayIds: []`, and
+      // `SetTripBudget.budget` is `Money.nullable()` — "null clears".
+      const desiredDates =
+        ISO_DATE.test(arrive) && selectedDays !== null
+          ? { startDate: arrive, endDate: addDaysIso(arrive, selectedDays - 1) }
+          : null;
+      // A clear is only worth sending if this wizard actually set something
+      // earlier — a trip created moments ago already has no dates, and asking
+      // the domain to clear nothing is the no-op rejection this whole latch
+      // exists to avoid.
+      const datesDiffer =
+        desiredDates === null
+          ? latched.datedAs !== null
+          : latched.datedAs === null ||
+            latched.datedAs.startDate !== desiredDates.startDate ||
+            latched.datedAs.endDate !== desiredDates.endDate;
+      if (datesDiffer) {
+        const newDayIds =
+          desiredDates === null || selectedDays === null
+            ? []
+            : Array.from({ length: selectedDays }, () => crypto.randomUUID());
+        const result = await dispatch({
+          type: "SetTripDates",
+          tripId,
+          startDate: desiredDates?.startDate ?? null,
+          endDate: desiredDates?.endDate ?? null,
+          newDayIds,
+        });
+        if (!result.ok) {
+          setError(`Trip created, but setting dates failed: ${result.error.message}. Try again.`);
+          setSubmitting(false);
+          return;
         }
+        latched = { ...latched, datedAs: desiredDates };
+        setProgress(latched);
       }
-      if (budget !== null) {
+      {
         const applied = latched.budgetAppliedAs;
-        if (applied === null || applied.amountMinor !== budget.amountMinor || applied.currency !== budget.currency) {
+        const budgetDiffers =
+          budget === null
+            ? applied !== null
+            : applied === null || applied.amountMinor !== budget.amountMinor || applied.currency !== budget.currency;
+        if (budgetDiffers) {
           const result = await dispatch({ type: "SetTripBudget", tripId, budget });
           if (!result.ok) {
             setError(`Trip created, but setting the budget failed: ${result.error.message}. Try again.`);

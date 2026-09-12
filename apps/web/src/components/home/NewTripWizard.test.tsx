@@ -265,4 +265,102 @@ describe("NewTripWizard", () => {
     );
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates" }));
   });
+
+  // CodeRabbit, PR #165. The latch above fixed re-sending a value that had
+  // already landed. It did not cover the other direction: a field CLEARED
+  // between attempts. Guarding the dates block on `ISO_DATE.test(arrive)`
+  // skipped it entirely once `arrive` was emptied, so the retry kept dates the
+  // user had just removed and reported success. Reachable because `Back` is
+  // enabled whenever a submit is not in flight, which is exactly the state an
+  // inline error leaves the sheet in.
+  it("retrying after clearing the dates sends a clearing SetTripDates, not silence", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-clear-dates" } });
+
+    let budgetAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripBudget") {
+        budgetAttempts += 1;
+        if (budgetAttempts === 1) return { ok: false, error: { status: 500, message: "server exploded" } };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Porto");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.type(screen.getByLabelText("Total for the trip"), "500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+
+    // Back to the dates step and remove them, the way a user correcting a
+    // mistake mid-failure would.
+    await user.click(screen.getByRole("button", { name: "Back" })); // Shape -> Who & Money
+    await user.click(screen.getByRole("button", { name: "Back" })); // Who & Money -> When
+    await user.clear(screen.getByLabelText("Arrive"));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "SetTripDates",
+          tripId: "trip-clear-dates",
+          startDate: null,
+          endDate: null,
+          newDayIds: [],
+        }),
+      ),
+    );
+  });
+
+  // The same defect on the money half: `MoneyInput` emits null when cleared,
+  // and `if (budget !== null)` skipped the block rather than clearing what had
+  // already landed. `SetTripBudget.budget` is `Money.nullable()` — "null
+  // clears" — so the command to send exists and was simply never sent.
+  it("retrying after clearing the budget sends SetTripBudget with null, not silence", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-clear-budget" } });
+
+    let currencyAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripCurrency") {
+        currencyAttempts += 1;
+        if (currencyAttempts === 1) return { ok: false, error: { status: 500, message: "currency exploded" } };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Lisbon");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.selectOptions(screen.getByLabelText("Currency"), "EUR");
+    await user.type(screen.getByLabelText("Total for the trip"), "2500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/currency exploded/i);
+
+    await user.click(screen.getByRole("button", { name: "Back" })); // Shape -> Who & Money
+    await user.clear(screen.getByLabelText("Total for the trip"));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripBudget", tripId: "trip-clear-budget", budget: null }),
+      ),
+    );
+  });
 });

@@ -236,4 +236,22 @@ describe("the turn meter", () => {
 
     expect(meter.toolCalls()).toEqual([{ name: "read_trip", ms: 12, ok: true }]);
   });
+
+  // CodeRabbit on PR #165: the first version of the fix above copied the array
+  // and not its elements, so `[...tools]` still handed out the live records.
+  // `LedgerToolCall` is a plain mutable interface, so flipping `ok` on a read
+  // record rewrote what the turn had collected — and the test above could not
+  // see it, because appending to a copied array proves nothing about its
+  // elements. This is the assertion that does.
+  it("hands back copies of the records too, not just of the array holding them", () => {
+    const meter = newTurnMeter();
+    meter.toolCall("read_trip", 12, true);
+
+    const record = meter.toolCalls()[0] as LedgerToolCall;
+    record.ok = false;
+    record.name = "rewritten";
+    record.ms = 9999;
+
+    expect(meter.toolCalls()).toEqual([{ name: "read_trip", ms: 12, ok: true }]);
+  });
 });
