@@ -17,6 +17,7 @@
 import type { TripRole } from "@tc/contracts";
 import { roleAtLeast } from "@/server/accessPolicy";
 import type { AnyAssistantTool, ToolDomain, ToolEffect } from "./defineTool";
+import type { TaskClass } from "./taskClass";
 import { ASSISTANT_TOOLS } from "./registry";
 
 /**
@@ -158,13 +159,35 @@ export function grantFor(caps: EffectCaps): GrantedEffects {
  * the three sets have always been assembled in.
  *
  * A tool whose domain the grant does not name is not offered at all; a tool
- * whose effect exceeds what its domain was granted is not offered either. Those
- * two sentences are the whole of the narrowing.
+ * whose effect exceeds what its domain was granted is not offered either.
+ *
+ * **`taskClass` is a third axis, and it is not advisory.** It exists because
+ * the first two cannot express "every planning tool is `itinerary`/`propose`,
+ * and some of them are still wrong for a six-day planning turn". Passing it
+ * removes tools; OMITTING IT DISABLES THE FILTER ENTIRELY rather than defaulting
+ * to something safe, which is deliberate — a caller that has not classified the
+ * turn yet must not be handed a narrowed set it did not ask for. Both halves are
+ * asserted in `grants.test.ts`.
+ *
+ * Callers that narrow own two obligations `toolsFor` cannot discharge: only a
+ * class somebody DETERMINED may narrow (a class resolved upward out of
+ * uncertainty must pass `undefined`), and a turn whose set was narrowed needs an
+ * instruction saying so. `admission.ts`'s `grantTools` does both; its comments
+ * carry the incidents.
  */
-export function toolsFor(grant: GrantedEffects): readonly AnyAssistantTool[] {
+export function toolsFor(
+  grant: GrantedEffects,
+  taskClass?: TaskClass,
+): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     const granted = grant[definition.domain];
-    return granted !== undefined && EFFECT_RANK[definition.effect] <= EFFECT_RANK[granted];
+    if (granted === undefined || EFFECT_RANK[definition.effect] > EFFECT_RANK[granted]) return false;
+    // The third axis (`defineTool`'s `taskClasses`). Absent on the definition
+    // means every class; an absent ARGUMENT means "do not narrow", which is the
+    // shape a caller that has not classified the turn yet must get — silently
+    // handing it a narrowed set would be a filter nobody asked for.
+    if (taskClass === undefined || definition.taskClasses === undefined) return true;
+    return definition.taskClasses.includes(taskClass);
   });
 }
 

@@ -88,6 +88,8 @@ import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
+import { repairToolInput } from "@/server/assistant/repairToolInput";
+import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
 
 // The admission pipeline's public names, re-exported so that the one door has
 // one module to import: `route.ts`, the client-facing refusal codes and the two
@@ -211,6 +213,26 @@ export async function handleAskRequest(
     // It is now the same array the grant's role check was computed from,
     // rather than a second one tied to it by a test.
     offeredTools: offeredNames,
+    // **Read at write time, so an aborted step's writes are still in the
+    // record.** Both buffers hand back copies, so this cannot mutate the turn's
+    // own account of what the model asked for. The insert carries the saved
+    // day's id rather than its name: `name` is author-written and this record
+    // is not a place for unfenced user text.
+    collectedWrites: () => [
+      ...proposalBuffer.collected().map((intent) => ({ name: intent.type, input: intent.args })),
+      // **`keyField`, because this is the one write tool that can be observed
+      // without collecting.** `insert_playbook_day` returns an error before
+      // `addInsert` on a full proposal or an id it cannot open, so a turn that
+      // calls it once with a bad id and once in a step that aborts has one of
+      // each — and counting by name alone would call that square and drop the
+      // insert the user then approved. Keyed on `savedDayId`, the counts are
+      // compared within one identity and the missing call is added.
+      ...proposalBuffer.inserts().map((insert) => ({
+        name: INSERT_PLAYBOOK_DAY,
+        input: { savedDayId: insert.savedDayId },
+        keyField: "savedDayId",
+      })),
+    ],
     // Beside `question` and `offeredTools`, which is what makes a
     // misclassification diagnosable after the fact rather than only visible as
     // an assistant that would not act.
@@ -285,11 +307,46 @@ export async function handleAskRequest(
 
   const agent = new ToolLoopAgent({
     model: grant.model,
+    // **Prompt caching, and it is the one saving that trades nothing.**
+    //
+    // A turn re-sends its whole prefix on every step: the system instruction
+    // plus every offered tool's schema, byte-identical each time. A measured
+    // five-step planning turn spent 41,794 input tokens, of which roughly
+    // 21,600 were that prefix sent again — ~85% of a step's fixed cost is tool
+    // schemas (askIntent.ts's measurement), and the loop pays for it per step.
+    //
+    // `caching: "auto"` is the GATEWAY's option, not a provider's, which is
+    // why it belongs here and not in `gateway.ts` beside a model id: the
+    // gateway applies each provider's own strategy, so this stays correct when
+    // the tier map points at a different provider tomorrow. That is the same
+    // "model identity is an input" rule the tier map itself follows.
+    //
+    // Cached reads are roughly a tenth of input price across the catalogue
+    // (our current model lists $0.028/MTok against $0.13 input), so this is
+    // worth more the stronger the tier gets, not less.
+    providerOptions: { gateway: { caching: "auto" } },
+    // **One malformed argument is not the end of a turn.** The SDK throws
+    // `AI_InvalidToolInputError` and `ToolLoopAgent` aborts the run, so before
+    // this the user got nothing at all — twice, on 2026-09-12's first two live
+    // turns. `repairToolInput` says what it will and will not fix, and returning
+    // null here is deliberately still a failure: a call the model meant that the
+    // tool does not offer should end the turn rather than be made to look valid.
+    repairToolCall: async ({ toolCall }) => {
+      let parsed: unknown;
+      try {
+        parsed = typeof toolCall.input === "string" ? JSON.parse(toolCall.input) : toolCall.input;
+      } catch {
+        // Not even JSON. Nothing downstream can read it either.
+        return null;
+      }
+      const repaired = repairToolInput(toolCall.toolName, parsed);
+      return repaired === null ? null : { ...toolCall, input: JSON.stringify(repaired) };
+    },
     // Three-way, not `offerWrites` alone: the instruction has to describe the
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, grant.posture, briefFor(page)),
+    instructions: instructionsFor(scope, detail.days.length, grant.posture, briefFor(page), grant.classWithheld),
     tools,
     // Keyed by tool name, and DERIVED from the same definitions: every tool
     // that declared an ambient dep gets the context, and nothing else does.
@@ -696,8 +753,9 @@ export function instructionsFor(
   dayCount: number,
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
+  classWithheld = false,
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld));
 }
 
 /**
@@ -720,6 +778,7 @@ export function instructionBlocks(
   dayCount: number,
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
+  classWithheld = false,
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -736,6 +795,28 @@ export function instructionBlocks(
   const rules: string[] = [
     "You are the travel-collab trip assistant. You answer questions about one trip.",
     ACCESS_LINE[posture],
+    // **The partial case `ACCESS_LINE` cannot state**, and it is placed here,
+    // immediately after it, because it qualifies that sentence rather than
+    // adding a separate topic.
+    //
+    // `propose` tells the model to emit every change the request needs; the
+    // task-class filter can remove a handful of change tools while leaving that
+    // sentence true of the rest. Without this line the model is told to emit
+    // everything, has no tool for part of it, and is given no way to say so —
+    // the silent drop that `ACCESS_LINE`'s comment rules out for the all-or-
+    // nothing case and that the filter reintroduced for the partial one.
+    //
+    // It names the SAME recovery the `withheld` copy names (say what is
+    // missing, the user asks again), for the same reason: there is no mid-turn
+    // escalation and no client retry, so an undisclosed gap is a dead end.
+    //
+    // Conditional, so a turn the filter did not narrow is told byte-identically
+    // what it was told before this line existed.
+    ...(canWrite && classWithheld
+      ? [
+          "Some change tools are not available on this turn. If part of what they asked for needs a change you have no tool for, do the rest, then say plainly which part you could not draft and ask them to request that part on its own. Never leave it out silently, and never say the assistant cannot make that change.",
+        ]
+      : []),
     "Use ONLY what the tools return. You cannot see the trip any other way, and you never guess a time, a price, a place or a date.",
     // **The one line P4 adds to what a live model is told**, and the only one
     // it adds: it sits next to "use ONLY what the tools return" because it says

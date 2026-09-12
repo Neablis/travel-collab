@@ -269,6 +269,20 @@ export interface AiGrant {
   tools: readonly AnyAssistantTool[];
   /** What the instruction may honestly claim about this turn (grants.ts). */
   posture: AskToolPosture;
+  /**
+   * **Whether the task-class filter removed a tool the grant would otherwise
+   * have offered** — measured by comparing the two sets, never inferred from
+   * the class.
+   *
+   * It exists because `posture` cannot express a PARTIAL write set. `propose`
+   * tells the model to emit every change the request needs; `withheld` tells it
+   * there is no change tool at all. A `plan` turn is neither: it can propose
+   * most things and has no `SetTripName`. Handed `propose` alone, a model asked
+   * to *"plan six days in Tokyo and call it Spring Trip"* has no tool for the
+   * rename and no instruction to mention that — so it drops it silently, which
+   * is the dead end `ACCESS_LINE`'s own comment says is not priced in.
+   */
+  classWithheld: boolean;
   /** The model the turn's TIER resolved to — see `tier`. */
   model: LanguageModel;
   classifierModel: LanguageModel;
@@ -873,7 +887,6 @@ const grantTools: AdmissionStage = {
       classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
     };
     const grants = grantFor(caps);
-    const tools = toolsFor(grants);
 
     // **What this turn is for, then which slot answers it** (spec §5, §7e).
     // The class is a proposal and the plan is a ceiling, which is the same
@@ -883,6 +896,58 @@ const grantTools: AdmissionStage = {
     const taskClass = taskClassFor(page !== null, classification);
     const tier = capTier(tierFor(taskClass), selected.entitlements.ceilings.maxTier);
     const model = selected.models[tier];
+
+    // **The class is computed BEFORE the tool set, because it narrows it.**
+    // It used to be the other way round and the order was invisible: the class
+    // only chose a model, so nothing broke when it came second. It now also
+    // chooses which tools a turn is offered (`defineTool`'s `taskClasses`), and
+    // a `toolsFor` called above this line would silently get the unnarrowed
+    // set — the same shape of bug as a grant computed after the tools it
+    // governs. **The compiler enforces this, not a test** — moving the call
+    // back above is `TS2448: Block-scoped variable 'taskClass' used before its
+    // declaration` plus `TS2454`, measured rather than assumed. That is why
+    // `taskClass` is passed as an argument instead of read off `draft`: an
+    // argument cannot be read early.
+    //
+    // **A class that was RESOLVED UPWARD does not narrow anything.** Only a
+    // class somebody actually determined is allowed to take a tool away.
+    //
+    // There are two ways a turn arrives at `plan` without anyone having decided
+    // it is one, and they are easy to mistake for one condition because only
+    // the first sets a flag:
+    //
+    //   * `failedOpen` — the classifier threw, timed out, or returned a verdict
+    //     nothing recognised. This endpoint's answer has been the widest safe
+    //     tool set since KI-88.
+    //   * `source: "affirmation"` — `isBareAgreement` short-circuits the
+    //     classifier for "Yes go ahead" and answers `FAIL_OPEN_TASK_CLASS`,
+    //     the SAME `plan`, with `failedOpen: false`. Its own comment says why:
+    //     an agreement "can be agreeing to a single stop or to a six-day
+    //     itinerary, and this rule is deliberately not a parser."
+    //
+    // The second is an admission of uncertainty wearing a determined
+    // classification's flag, and the first cut of this filter narrowed on it —
+    // so the turn that approves *"rename it to Spring Trip and add three days"*
+    // was handed a set with no `SetTripName`, and the rename the user had just
+    // said yes to silently did not happen. That is the fail-OPEN-to-fail-closed
+    // conversion the `failedOpen` guard exists to prevent, arriving by the one
+    // door the guard did not cover. Found by review, not by us.
+    //
+    // A page turn has no classification at all and is NOT this case: `compose`
+    // is decided structurally from a scope `resolveSurface` verified, which is
+    // the strongest determination on offer, so it narrows.
+    const resolvedUpward =
+      classification !== null && (classification.failedOpen || classification.source === "affirmation");
+    const narrowBy = resolvedUpward ? undefined : taskClass;
+
+    // Both sets, because "did the class filter take anything away" is the
+    // question the instruction needs answered, and it is a MEASUREMENT — the
+    // same rule `tools` itself follows. Inferring it from `taskClass === "plan"`
+    // would be a second copy of `TASK_CLASSES_FOR` that drifts the first time
+    // a tool's `taskClasses` changes.
+    const offerable = toolsFor(grants);
+    const tools = narrowBy === undefined ? offerable : toolsFor(grants, narrowBy);
+    const classWithheld = tools.length < offerable.length;
 
     // The rule is enforced rather than commented: `minimumRoleFor` is asked what
     // the set about to be handed to the agent requires — the maximum
@@ -910,6 +975,7 @@ const grantTools: AdmissionStage = {
       grants,
       tools,
       posture: postureFor(caps),
+      classWithheld,
       model,
       classifierModel: selected.classifierModel,
       modelId: modelIdOf(model),
