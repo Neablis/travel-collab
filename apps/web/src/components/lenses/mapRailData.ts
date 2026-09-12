@@ -1,4 +1,4 @@
-import type { ActivityKind, TripDetail } from "@tc/contracts";
+import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
 import { chipModel } from "@/components/trip/DayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
@@ -7,7 +7,20 @@ import { haversineKm } from "@/lib/geo";
 // rest of the day (Mitchell, 2026-08-30 design pass: "Travel activity kinds
 // should be dotted line, not solid"). MapLens is the only consumer; the rail
 // and focus card ignore it.
-export type MapStop = { activityId: string; title: string; lat: number; lng: number; kind: ActivityKind };
+// `precision` says what the coordinate DESCRIBES (contracts/src/activity.ts):
+// `city` is a city centroid, so several stops of one day legitimately share it
+// to the digit. Optional because absent means UNKNOWN — every location written
+// before the field existed carries none, and that is not a claim of `venue`.
+// MapLens groups on it (markerGroups below); the rail, the strip and the focus
+// card ignore it.
+export type MapStop = {
+  activityId: string;
+  title: string;
+  lat: number;
+  lng: number;
+  kind: ActivityKind;
+  precision?: Location["precision"];
+};
 
 export type MapDay = {
   index: number;
@@ -41,7 +54,14 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
     const activity = activities[activityId];
     const location = activity?.location;
     if (location?.lat !== undefined && location.lng !== undefined) {
-      stops.push({ activityId, title: activity!.title, lat: location.lat, lng: location.lng, kind: activity!.kind });
+      stops.push({
+        activityId,
+        title: activity!.title,
+        lat: location.lat,
+        lng: location.lng,
+        kind: activity!.kind,
+        precision: location.precision,
+      });
     }
   }
   return stops;
@@ -143,4 +163,59 @@ export function routeLegs(day: MapDay): { travel: [number, number][][]; rest: [n
     (from.kind === "transit" || to.kind === "transit" ? travel : rest).push(leg);
   }
   return { travel, rest };
+}
+
+/**
+ * One marker per PLACE the day claims, not per stop — the grouping MapLens
+ * draws its markers from.
+ *
+ * A `city`-precision coordinate is a city centroid, so every stop the geocoder
+ * could only place at city level lands on the exact same point: a day of six
+ * such stops used to stack six identical teardrops nobody could tell apart or
+ * click past. Collapsing them into one marker is how the map stops saying
+ * something false about the day — the same reason the offline pipeline withheld
+ * city pins altogether (docs/guidelines/content-bundles.md).
+ *
+ * Only `city` stops group. Any other precision — including ABSENT, which means
+ * unknown rather than `venue` — stays 1:1, even against an identical
+ * coordinate: two stops that each claim a venue at one point are making a claim
+ * this function is not entitled to merge.
+ *
+ * Grouping is within one day by construction, because markers are created and
+ * ghosted per day (MapLens's `markersByDayRef`). Two days in the same city keep
+ * their own disc, which is correct: colour means WHICH DAY.
+ *
+ * Groups come back in stop order, each at the position of its FIRST member —
+ * the stop MapLens opens when the group is clicked.
+ */
+export type MarkerGroup = {
+  lat: number;
+  lng: number;
+  /** City-level: MapLens draws a disc (an area claim), never a teardrop. */
+  cityLevel: boolean;
+  stops: MapStop[];
+};
+
+export function markerGroups(day: MapDay): MarkerGroup[] {
+  const groups: MarkerGroup[] = [];
+  const byCoordinate = new Map<string, MarkerGroup>();
+  for (const stop of day.stops) {
+    if (stop.precision !== "city") {
+      groups.push({ lat: stop.lat, lng: stop.lng, cityLevel: false, stops: [stop] });
+      continue;
+    }
+    // Exact equality, deliberately: this exists for stops that share ONE
+    // centroid to the digit, and a distance threshold would silently merge two
+    // genuinely different city centres that happen to be close.
+    const key = `${stop.lat}:${stop.lng}`;
+    const existing = byCoordinate.get(key);
+    if (existing) {
+      existing.stops.push(stop);
+      continue;
+    }
+    const group: MarkerGroup = { lat: stop.lat, lng: stop.lng, cityLevel: true, stops: [stop] };
+    byCoordinate.set(key, group);
+    groups.push(group);
+  }
+  return groups;
 }

@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import { useEditor } from "../trip/context/EditorHost";
 import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
-import { mapDays, routeLegs, type MapDay } from "./mapRailData";
+import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
 import { useIsPhone } from "./useIsPhone";
@@ -38,6 +38,106 @@ const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
 function accentVar(accent: MapDay["accent"]): string {
   return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
+}
+
+// The day accent, set once on a disc's own element and inherited by its fill,
+// its stroke and its count badge through `var()`. One place to write it keeps a
+// disc and a teardrop on the same day resolving the same token — colour means
+// WHICH DAY on this map and must never pick up a second meaning.
+//
+// Exported only because this property is the one place a finished disc's colour
+// can be read back: MapLens.test.tsx asserts through it rather than naming the
+// string itself, which would go red on a rename nobody can see.
+export const CITY_DISC_ACCENT_VAR = "--map-city-disc-accent";
+// Geometry, from the design pass's option D (`approximate-pins.html`): a 46px
+// disc — nearly twice the stock teardrop's 27px width, which is what makes the
+// shape difference read at a glance — a 22px count badge, and a 7px centre dot
+// for a disc with no badge so the centroid itself is still marked (option C).
+const CITY_DISC_PX = 46;
+const CITY_DISC_BADGE_PX = 22;
+const CITY_DISC_DOT_PX = 7;
+// 1.5px at 55% of the accent is the design's "soft" stroke; the fill is 13% of
+// it. Both are percentages of the ACCENT, not opacities of the element.
+const CITY_DISC_STROKE = "1.5px";
+
+/**
+ * The marker for a city-level group: a DISC, not a teardrop.
+ *
+ * A teardrop's tip points at one spot, which is a claim a city centroid cannot
+ * make — `precision: "city"` says "somewhere in this city" (contracts
+ * activity.ts). A filled circle centred on the centroid makes the area claim
+ * instead, and maplibre's default anchor for a custom element is already
+ * `center` with a zero offset (verified in maplibre-gl 6.8's Marker
+ * constructor), so the coordinate sits where the disc's middle is.
+ *
+ * Translucency here is the FILL's (`color-mix` against transparent, the same
+ * technique globals.css uses), never the element's `opacity` — that is spoken
+ * for twice already: day ghosting sets it to 0 and tag focus to
+ * TAG_DIM_OPACITY, and a third writer of one property cannot be read back.
+ *
+ * A count badge appears only for a group of two or more; a single city-level
+ * stop gets the dot instead, because "1" on a pin says nothing.
+ */
+function cityDiscElement(stopCount: number, accent: string): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "map-city-disc";
+  // How many stops this one marker stands for — the fact the badge renders,
+  // kept on the element so the focus/ghosting effects and the tests can read a
+  // finished marker without reaching into its children.
+  element.dataset.stopCount = String(stopCount);
+  // An `accent` of "" is a day whose family has no token (`neutral` — see the
+  // marker loop): leaving the property UNSET is what lets the `var()` fallbacks
+  // below reach slate. Setting it to "" would not — an empty custom property is
+  // still set, and every `var()` reading it would collapse to nothing.
+  if (accent !== "") element.style.setProperty(CITY_DISC_ACCENT_VAR, accent);
+  const accentColor = `var(${CITY_DISC_ACCENT_VAR}, var(--color-slate))`;
+  Object.assign(element.style, {
+    boxSizing: "border-box",
+    width: `${CITY_DISC_PX}px`,
+    height: `${CITY_DISC_PX}px`,
+    borderRadius: "50%",
+    backgroundColor: `color-mix(in srgb, ${accentColor} 13%, transparent)`,
+    border: `${CITY_DISC_STROKE} solid color-mix(in srgb, ${accentColor} 55%, transparent)`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  });
+
+  const inner = document.createElement("div");
+  Object.assign(inner.style, {
+    boxSizing: "border-box",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  });
+  if (stopCount > 1) {
+    inner.className = "map-city-disc-count";
+    inner.textContent = String(stopCount);
+    Object.assign(inner.style, {
+      width: `${CITY_DISC_BADGE_PX}px`,
+      height: `${CITY_DISC_BADGE_PX}px`,
+      // Solid, so the count reads against whatever basemap is under the disc:
+      // the surface colour with an accent ring and accent digits, not accent
+      // fill with light digits — 11px reversed type on five different accent
+      // hues is the half of that pair whose contrast we cannot promise.
+      backgroundColor: "var(--color-surface)",
+      border: `${CITY_DISC_STROKE} solid ${accentColor}`,
+      color: accentColor,
+      fontSize: "11px",
+      fontWeight: "600",
+      lineHeight: "1",
+    });
+  } else {
+    inner.className = "map-city-disc-dot";
+    Object.assign(inner.style, {
+      width: `${CITY_DISC_DOT_PX}px`,
+      height: `${CITY_DISC_DOT_PX}px`,
+      backgroundColor: accentColor,
+    });
+  }
+  element.appendChild(inner);
+  return element;
 }
 
 // The neutral tone a non-focused day's route line shifts to — keeping its
@@ -131,12 +231,19 @@ export function MapLens({
   // by the focus effect. Backlog-located pins (belong to no day) are never
   // added here, so they're structurally excluded from ghosting.
   //
-  // Each entry carries its `activityId` as well as its Marker: M18b's tag
-  // focus dims a single STOP, and a day-keyed array of bare Markers cannot say
-  // which stop any of them is. Storing the id here rather than re-deriving it
-  // from marker order keeps the pairing true even if the marker loop ever
-  // skips one.
-  const markersByDayRef = useRef<Map<number, { activityId: string; marker: import("maplibre-gl").Marker }[]>>(new Map());
+  // Each entry carries the ids of the stops it stands for as well as its
+  // Marker: M18b's tag focus dims a single STOP, and a day-keyed array of bare
+  // Markers cannot say which stop any of them is. Storing the ids here rather
+  // than re-deriving them from marker order keeps the pairing true even if the
+  // marker loop ever skips one.
+  //
+  // A LIST, not one id, because markers stopped being 1:1 with stops: a
+  // city-level group is one marker standing for every stop that shares its
+  // centroid (markerGroups, mapRailData.ts). Every effect below reads the list,
+  // so a one-stop marker is just the degenerate case rather than a second path.
+  const markersByDayRef = useRef<Map<number, { activityIds: string[]; marker: import("maplibre-gl").Marker }[]>>(
+    new Map(),
+  );
   const pins = activityPins(detail);
   // activityPins includes backlog-located stops (dayId: null) for callers
   // that need the full set; this lens draws day-attached stops only (see the
@@ -157,10 +264,17 @@ export function MapLens({
   // (CodeRabbit, PR #98). Keyed on the accent rather than the city itself:
   // two cities that hash to the same family look identical, and rebuilding
   // the map for a change nobody can see is worse than not rebuilding.
+  // `precision` is in it for the third time this trap has been walked into
+  // (after `kind` and stop order): it decides whether a stop draws a teardrop
+  // or joins a disc, and whether its neighbours' discs carry a count — so a
+  // stop enriched from unknown to `city` without moving would otherwise keep
+  // the stale marker forever.
   const routeKey = days
     .map(
       (day) =>
-        `${day.dayId}:${day.accent}[${day.stops.map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}`).join(",")}]`,
+        `${day.dayId}:${day.accent}[${day.stops
+          .map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}:${s.precision ?? ""}`)
+          .join(",")}]`,
     )
     .join("|");
   const focusedMapDay = focusedDay !== null ? (days[focusedDay] ?? null) : null;
@@ -319,17 +433,35 @@ export function MapLens({
         // location used to get a neutral-brand marker here too; that loop is
         // gone — the map no longer plots anything that isn't on a day.
         for (const day of days) {
-          const dayMarkers: { activityId: string; marker: import("maplibre-gl").Marker }[] = [];
-          for (const stop of day.stops) {
-            const marker = new Marker(accentVar(day.accent) ? { color: accentVar(day.accent) } : undefined)
-              .setLngLat([stop.lng, stop.lat])
+          const dayMarkers: { activityIds: string[]; marker: import("maplibre-gl").Marker }[] = [];
+          // "" for a day whose family has no token — today only `neutral`, which
+          // leaves a stock marker in maplibre's own blue. Not fixed here; just
+          // not made worse (the disc falls back to slate, see cityDiscElement).
+          const accent = accentVar(day.accent);
+          // One marker per PLACE, not per stop: city-level stops that share a
+          // centroid are one disc (markerGroups, mapRailData.ts). Grouping is
+          // per day on purpose, which is also why it happens inside this loop.
+          for (const group of markerGroups(day)) {
+            const marker = new Marker(
+              group.cityLevel
+                ? { element: cityDiscElement(group.stops.length, accent) }
+                : accent
+                  ? { color: accent }
+                  : undefined,
+            )
+              .setLngLat([group.lng, group.lat])
               .addTo(map);
             if (onSelectActivity) {
-              marker.getElement().addEventListener("click", () => onSelectActivity(stop.activityId));
+              // KNOWN LIMITATION: a group opens its FIRST stop. Listing the
+              // members — a popover, or cycling on repeat clicks — is a richer
+              // affordance and deliberately out of scope here; the disc's count
+              // is what tells you there are others behind it.
+              const first = group.stops[0]!;
+              marker.getElement().addEventListener("click", () => onSelectActivity(first.activityId));
               marker.getElement().style.cursor = "pointer";
             }
             marker.getElement().style.transition = "opacity 150ms";
-            dayMarkers.push({ activityId: stop.activityId, marker });
+            dayMarkers.push({ activityIds: group.stops.map((stop) => stop.activityId), marker });
           }
           markersByDayRef.current.set(day.index, dayMarkers);
         }
@@ -424,15 +556,22 @@ export function MapLens({
       // axis; M18b's "dim, never hide" is the TAG axis and is untouched below,
       // where an off-tag pin on the focused day still only fades.
       const dayOpacity = focused ? 1 : 0;
-      for (const { activityId, marker } of markersByDayRef.current.get(day.index) ?? []) {
+      for (const { activityIds, marker } of markersByDayRef.current.get(day.index) ?? []) {
         // Two independent dims can apply to the same pin — its day is not the
         // focused one (0.35), and it does not carry the focused tag (0.32) —
         // so the pin takes whichever is fainter rather than their product.
         // Multiplying would put a stop that is off on both counts at 0.11,
         // effectively invisible, which is the hiding M18b's "dim, never hide"
         // rule exists to prevent.
-        const tags = detail.activities[activityId]?.tags ?? [];
-        const markerOpacity = isOffTag(tags, focusedTag) ? Math.min(dayOpacity, TAG_DIM_OPACITY) : dayOpacity;
+        //
+        // A grouped marker is one pin for several stops, so it dims only when
+        // EVERY member is off-tag: dimming a disc that holds the focused tag
+        // would hide a match, and leaving it full when nothing in it matches
+        // would claim one.
+        const offTag = activityIds.every((activityId) =>
+          isOffTag(detail.activities[activityId]?.tags ?? [], focusedTag),
+        );
+        const markerOpacity = offTag ? Math.min(dayOpacity, TAG_DIM_OPACITY) : dayOpacity;
         marker.setOpacity(String(markerOpacity));
         // An invisible pin must not still be clickable: opacity alone leaves
         // the element in the hit-test, so a tap on empty map would open a stop

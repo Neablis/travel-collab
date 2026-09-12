@@ -21,3 +21,18 @@ describe("MapLegend", () => {
     expect(region!.textContent).toContain("By train or taxi");
   });
 });
+
+// The map draws city-level stops as a disc rather than a teardrop, and nothing
+// on screen says why one marker is a different shape. This key is that
+// explanation — real behaviour, so it belongs outside the transport-mode
+// Preview, which is the half a careless edit gets wrong (a key inside it reads
+// as "coming later" and is pointer-dead).
+describe("MapLegend — the city disc key", () => {
+  it("explains the disc, outside the Preview wrap", () => {
+    render(<MapLegend />);
+    expect(screen.getByText("Somewhere in this city")).toBeTruthy();
+    // The Preview renders `role="group"`; anything inside it is an unbacked
+    // claim, and this one is backed.
+    expect(screen.getByRole("group").textContent).not.toContain("Somewhere in this city");
+  });
+});
