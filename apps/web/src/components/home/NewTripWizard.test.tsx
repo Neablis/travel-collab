@@ -210,4 +210,59 @@ describe("NewTripWizard", () => {
     );
     expect(createTrip).toHaveBeenCalledTimes(1);
   });
+
+  // KI-2026-09-08-a: a transient failure on budget (a step AFTER dates) used
+  // to be permanent, because the retry re-sent the already-applied
+  // SetTripDates unconditionally. The real backend rejects a repeat of an
+  // identical SetTripDates as a no-op (okUnlessNoOp, decide.ts), so this
+  // dispatch stub reproduces that rule directly rather than trusting a mock
+  // that would happily accept the same command twice.
+  it("retrying after dates succeeded but budget failed does not re-send dates", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-retry-budget" } });
+
+    let datesApplied: { startDate: string | null; endDate: string | null } | null = null;
+    let budgetAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripDates") {
+        if (
+          datesApplied !== null &&
+          datesApplied.startDate === command.startDate &&
+          datesApplied.endDate === command.endDate
+        ) {
+          return { ok: false, error: { status: 409, message: "This change would have no effect." } };
+        }
+        datesApplied = { startDate: command.startDate, endDate: command.endDate };
+        return { ok: true, value: {} as CommandOutcome };
+      }
+      if (command.type === "SetTripBudget") {
+        budgetAttempts += 1;
+        if (budgetAttempts === 1) {
+          return { ok: false, error: { status: 500, message: "server exploded" } };
+        }
+        return { ok: true, value: {} as CommandOutcome };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.type(screen.getByLabelText("Total for the trip"), "500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripBudget" })),
+    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates" }));
+  });
 });
