@@ -1,14 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BatchableCommand } from "@tc/contracts";
+import type { BatchableCommand, Location } from "@tc/contracts";
 import type { GeocodeResult, Geocoder } from "@/server/geocoding";
 import { enrichCommandLocations, hasUnverifiedLocations, type LocationEnrichmentReport } from "./geocodeEnrichment";
 
 const TRIP = "11111111-1111-4111-8111-111111111111";
 
-function addActivity(
-  title: string,
-  location?: { name: string; lat?: number; lng?: number },
-): BatchableCommand {
+function addActivity(title: string, location?: Location): BatchableCommand {
   return {
     type: "AddActivity",
     tripId: TRIP,
@@ -16,6 +13,13 @@ function addActivity(
     title,
     ...(location ? { location } : {}),
   } as BatchableCommand;
+}
+
+// The other half of `hasLocation`. Enrichment treats both command types
+// identically, but only an UPDATE can be neutered into a no-op by losing a
+// field, so the regression below is written on the shape it actually broke.
+function updateActivity(activityId: string, location: Location): BatchableCommand {
+  return { type: "UpdateActivity", tripId: TRIP, activityId, location } as BatchableCommand;
 }
 
 // A geocoder whose answers are looked up by query string; anything not in the
@@ -42,7 +46,7 @@ describe("enrichCommandLocations", () => {
     const { commands: out, report } = await enrichCommandLocations(commands, getGeocoder);
     expect(out).toEqual(commands);
     expect(getGeocoder).not.toHaveBeenCalled();
-    expect(report).toEqual({ verified: [], unverified: [], unchecked: [], failed: [], skipped: [] });
+    expect(report).toEqual({ verified: [], unverified: [], cityLevel: [], unchecked: [], failed: [], skipped: [] });
   });
 
   // No hint and no trip region: the answer is taken, but reported `unchecked`
@@ -295,6 +299,289 @@ describe("enrichCommandLocations", () => {
     expect(commands[1]).toMatchObject({ location: { name: "Lunch in Rochester, NY", ...HINT_B } });
   });
 
+  // 2026-09-12, live on prod. "Add locations to each activity on day 3" on a
+  // Korea trip proposed three UpdateActivity commands carrying `city:
+  // "Jeonju-si"` and `countryCode: "KR"` and no coordinates — the model was
+  // right, and the user had approved it. LocationIQ carries none of the three
+  // venues (KI-2026-08-30-f: OSM's coverage of small independent venues), so
+  // every lookup fell back — and the fallback rebuilt each location from
+  // `name` plus coordinates ONLY, dropping the city and country that were the
+  // entire point of the edit. The commands reached the domain byte-identical
+  // to what was already stored, all three decided `no-op`, the batch had zero
+  // events, and the approval answered 400 "This change would have no effect."
+  // over a change the user had just read and approved. There was no recovery:
+  // the same three names fail the same way on every retry.
+  //
+  // **The invariant this pins: enrichment may refine a location, never
+  // subtract from one.** Whatever the outcome, what commits is at least as
+  // informative as what the human approved.
+  it("keeps the city and country an approved update carried when the lookup falls back", async () => {
+    const { geocoder } = fakeGeocoder({}); // no match for any of the three
+    const korea = { countryCode: "KR", city: "Jeonju-si" } as const;
+    const { commands, report } = await enrichCommandLocations(
+      [
+        updateActivity("2c0255be-5193-4b3b-b8ed-ac1f19cb66e2", { name: "Jeonju Hanok Village area", ...korea }),
+        updateActivity("8bb46f3e-a498-49ca-a894-1a1246ddd38f", { name: "PNB bakery \u2014 original shop", ...korea }),
+        updateActivity("45c457ea-17fc-4935-919a-b043e56aec0f", { name: "Makgeolli alley", ...korea }),
+      ],
+      () => geocoder,
+    );
+    expect(report.unverified).toHaveLength(3);
+    for (const command of commands) {
+      expect(command).toMatchObject({ location: korea });
+    }
+  });
+
+  // `precision` describes the coordinates, so it cannot outlive them. Reachable
+  // from stored data rather than from a model (nothing emits `precision` on a
+  // command today), which is exactly why it is pinned: the next thing to write
+  // a location — a backfill, a re-geocode, an importer — would hit it silently.
+  it("drops precision along with a null-island coordinate, never leaving a claim about a value that is gone", async () => {
+    const { geocoder } = fakeGeocoder({}); // nothing to refine with
+    const { commands } = await enrichCommandLocations(
+      [addActivity("Lunch", { name: "Makgeolli alley", lat: 0, lng: 0, precision: "venue" })],
+      () => geocoder,
+    );
+    const [out] = commands;
+    if (out?.type !== "AddActivity") throw new Error("expected the AddActivity back");
+    // `toEqual` over the whole object, not `toMatchObject`: the claim is that
+    // `precision` is ABSENT, and a subset match would pass with it still there.
+    expect(out.location).toEqual({ name: "Makgeolli alley" });
+  });
+
+  // The same invariant on the REFINE path, which had the identical hole: a
+  // verified match is spread over the approved location rather than replacing
+  // it, so a vendor that locates a place but reports no city-level component
+  // no longer costs the user the city they asked for. The vendor still wins
+  // every field it does supply — that is what "refine" means.
+  it("keeps an approved city that a verified match does not supply, and takes the vendor's where it does", async () => {
+    const { geocoder } = fakeGeocoder({
+      "Hanok Village wander": [
+        { lat: 35.8155, lng: 127.1531, canonicalName: "Jeonju Hanok Village, Jeonju, South Korea", countryCode: "KR" },
+      ],
+      "Jeonju Station": [
+        { lat: 35.8497, lng: 127.1613, canonicalName: "Jeonju Station", countryCode: "KR", city: "Wansan-gu" },
+      ],
+    });
+    const { commands } = await enrichCommandLocations(
+      [
+        addActivity("Wander", { name: "Hanok Village wander", city: "Jeonju-si", countryCode: "KR" }),
+        addActivity("Arrive", { name: "Jeonju Station", city: "Jeonju-si", countryCode: "KR" }),
+      ],
+      () => geocoder,
+    );
+    // No city in the vendor's answer: the approved one survives the refinement.
+    expect(commands[0]).toMatchObject({
+      location: { name: "Jeonju Hanok Village, Jeonju, South Korea", lat: 35.8155, city: "Jeonju-si" },
+    });
+    // A city in the vendor's answer: corroborated data wins over the model's.
+    expect(commands[1]).toMatchObject({ location: { city: "Wansan-gu" } });
+  });
+
+  // The other half of the same 2026-09-12 prod incident. Keeping the city and
+  // country was the floor; it still left all three stops off the map, because
+  // no vendor will ever corroborate "Makgeolli alley" (KI-2026-08-30-f — a
+  // capability we do not have, not a bug we can fix). The city, though, is a
+  // question LocationIQ answers easily, and "somewhere in Jeonju-si" is both
+  // true and what the user asked us to draw.
+  it("pins a stop at city level when the venue lookup finds nothing, with one city lookup for the whole batch", async () => {
+    const JEONJU = { lat: 35.8242, lng: 127.148 };
+    const { geocoder, calls } = fakeGeocoder({
+      // No match for any of the three venues, and one for the city they share.
+      "Jeonju-si, KR": [{ ...JEONJU, canonicalName: "Jeonju-si, South Korea", countryCode: "KR", city: "Jeonju-si" }],
+    });
+    const korea = { countryCode: "KR", city: "Jeonju-si" } as const;
+    const { commands, report } = await enrichCommandLocations(
+      [
+        updateActivity("2c0255be-5193-4b3b-b8ed-ac1f19cb66e2", { name: "Jeonju Hanok Village area", ...korea }),
+        updateActivity("8bb46f3e-a498-49ca-a894-1a1246ddd38f", { name: "PNB bakery \u2014 original shop", ...korea }),
+        updateActivity("45c457ea-17fc-4935-919a-b043e56aec0f", { name: "Makgeolli alley", ...korea }),
+      ],
+      () => geocoder,
+      null,
+      async () => {},
+    );
+    // Three venue lookups and exactly ONE city lookup for the city all three
+    // share — five stops in Jeonju-si must not be five city lookups.
+    expect(calls).toEqual([
+      "Jeonju Hanok Village area",
+      "PNB bakery \u2014 original shop",
+      "Makgeolli alley",
+      "Jeonju-si, KR",
+    ]);
+    for (const command of commands) {
+      expect(command).toMatchObject({ location: { ...korea, ...JEONJU, precision: "city" } });
+    }
+    // Not `unverified`: these are on the map, and the user must not be told
+    // otherwise. The venue name is what is reported, never the city queried.
+    expect(report.cityLevel).toEqual([
+      "Jeonju Hanok Village area",
+      "PNB bakery \u2014 original shop",
+      "Makgeolli alley",
+    ]);
+    expect(report.unverified).toEqual([]);
+    expect(hasUnverifiedLocations(report)).toBe(false);
+  });
+
+  // The `failed` outcome reaches the fallback too. A vendor outage or a 429 is
+  // the case where a city-level pin is worth the most: nothing about the stop
+  // was rejected, we simply could not ask.
+  it("pins at city level when the venue lookup throws", async () => {
+    const JEONJU = { lat: 35.8242, lng: 127.148 };
+    const { geocoder } = fakeGeocoder({
+      "Makgeolli alley": new Error("geocode failed: 429"),
+      "Jeonju-si, KR": [{ ...JEONJU, canonicalName: "Jeonju-si, South Korea", countryCode: "KR" }],
+    });
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" })],
+      () => geocoder,
+      null,
+      async () => {},
+    );
+    expect(commands[0]).toMatchObject({ location: { ...JEONJU, precision: "city" } });
+    expect(report.cityLevel).toEqual(["Makgeolli alley"]);
+    expect(report.failed).toEqual([]);
+  });
+
+  // The fallback needs BOTH halves. A bare city name is the query that put a
+  // Niagara Falls dinner in Shropshire (KI-15) — "Jeonju-si" alone is a
+  // question with more than one answer, and this path has no human to pick.
+  it("makes no city lookup when the location names a city but no country", async () => {
+    const { geocoder, calls } = fakeGeocoder({});
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si" })],
+      () => geocoder,
+      null,
+      async () => {},
+    );
+    expect(calls).toEqual(["Makgeolli alley"]);
+    expect(report.unverified).toEqual(["Makgeolli alley"]);
+    expect(report.cityLevel).toEqual([]);
+    expect((commands[0] as { location: { lat?: number } }).location.lat).toBeUndefined();
+  });
+
+  // The city lookup faces the SAME acceptance test the venue lookup does, and
+  // for the same reason: a vendor answering about the wrong Jeonju would pin
+  // the stop on the wrong continent, which is worse than no pin at all.
+  it("refuses a city match that falls outside the trip region", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      "Jeonju-si, KR": [{ lat: 35.8242, lng: 127.148, canonicalName: "Jeonju-si, South Korea", countryCode: "KR" }],
+    });
+    const niagara = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 };
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" })],
+      () => geocoder,
+      niagara,
+      async () => {},
+    );
+    expect(calls).toEqual(["Makgeolli alley", "Jeonju-si, KR"]);
+    expect(report.unverified).toEqual(["Makgeolli alley"]);
+    expect(report.cityLevel).toEqual([]);
+    expect((commands[0] as { location: { lat?: number } }).location.lat).toBeUndefined();
+  });
+
+  // "Refine, never subtract" cuts both ways: a city centroid is more
+  // corroborated than a model guess but says LESS about this stop, so a stop
+  // that already has a usable coordinate is left exactly as approved — and its
+  // `precision` stays absent, because nobody has corroborated anything about
+  // where it is.
+  it("leaves a surviving model coordinate alone instead of replacing it with a city centroid", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      "Jeonju-si, KR": [{ lat: 35.8242, lng: 127.148, canonicalName: "Jeonju-si, South Korea", countryCode: "KR" }],
+    });
+    const guess = { lat: 35.8155, lng: 127.1531 };
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR", ...guess })],
+      () => geocoder,
+      null,
+      async () => {},
+    );
+    // No city lookup at all: the stop is already on the map.
+    expect(calls).toEqual(["Makgeolli alley"]);
+    expect(commands[0]).toMatchObject({ location: guess });
+    expect((commands[0] as { location: { precision?: string } }).location.precision).toBeUndefined();
+    expect(report.unverified).toEqual(["Makgeolli alley"]);
+  });
+
+  // `precision` has to mean something on every path enrichment writes, or a map
+  // reading it cannot tell a located venue from a city centroid.
+  it("marks a vendor match venue-level, whether it was checked against a belief or not", async () => {
+    const { geocoder } = fakeGeocoder({
+      "The Red Coach Inn": [
+        { lat: 43.0812, lng: -79.0665, canonicalName: "The Red Coach Inn, Niagara Falls, NY, USA", countryCode: "US" },
+      ],
+      "Strong Museum of Play": [
+        { lat: 43.1548, lng: -77.695, canonicalName: "The Strong, Rochester, NY, USA", countryCode: "US" },
+      ],
+    });
+    const verified = await enrichCommandLocations(
+      [addActivity("Dinner", { name: "The Red Coach Inn", ...NIAGARA })],
+      () => geocoder,
+    );
+    expect(verified.report.verified).toEqual(["The Red Coach Inn"]);
+    expect(verified.commands[0]).toMatchObject({ location: { precision: "venue" } });
+
+    // `unchecked` is a venue-level ANSWER we had nothing to cross-check, not a
+    // coarser one. How much we trust it is the report's job, not `precision`'s.
+    const unchecked = await enrichCommandLocations(
+      [addActivity("Museum", { name: "Strong Museum of Play" })],
+      () => geocoder,
+    );
+    expect(unchecked.report.unchecked).toEqual(["Strong Museum of Play"]);
+    expect(unchecked.commands[0]).toMatchObject({ location: { precision: "venue" } });
+  });
+
+  // One budget, not two. The cap exists because every lookup is wall-clock
+  // latency on a request the user is already waiting through, and a second
+  // fifteen spent on cities would double the thing it was chosen to bound.
+  it("spends one shared lookup budget across venue and city lookups", async () => {
+    const { geocoder, calls } = fakeGeocoder({}); // nothing resolves
+    const commands = Array.from({ length: 15 }, (_, i) =>
+      addActivity(`a${i}`, { name: `place ${i}`, city: "Jeonju-si", countryCode: "KR" }),
+    );
+    const { report } = await enrichCommandLocations(commands, () => geocoder, null, async () => {});
+    // Fifteen venue lookups exhaust the batch; the city lookup never fires.
+    expect(calls.length).toBe(15);
+    expect(calls).not.toContain("Jeonju-si, KR");
+    expect(report.cityLevel).toEqual([]);
+    expect(report.unverified.length).toBe(15);
+  });
+
+  // The vendor's 2/second ceiling does not care which kind of question it is
+  // being asked, so the city pass is throttled on the same clock as the venue
+  // pass — including across the seam between them, which `mapRateLimited` alone
+  // would not cover (it sleeps between ITS own items).
+  it("throttles city lookups on the same clock as venue lookups, never concurrently", async () => {
+    const sleeps: number[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const calls: string[] = [];
+    const geocoder: Geocoder = {
+      async forward(query) {
+        calls.push(query);
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return [];
+      },
+    };
+    await enrichCommandLocations(
+      [
+        addActivity("Drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" }),
+        addActivity("Ramen", { name: "A counter with six seats", city: "Kyoto", countryCode: "JP" }),
+      ],
+      () => geocoder,
+      null,
+      async (ms) => { sleeps.push(ms); },
+    );
+    expect(calls).toEqual(["Makgeolli alley", "A counter with six seats", "Jeonju-si, KR", "Kyoto, JP"]);
+    expect(maxInFlight).toBe(1);
+    // Four lookups, three gaps: between the two venues, across the seam, and
+    // between the two cities. 500 ms is 2 requests/second.
+    expect(sleeps).toEqual([500, 500, 500]);
+  });
+
   // Same bug, via the `failed` outcome (thrown lookup) rather than `unverified`.
   it("keeps each command's own coordinates when a shared name's lookup fails", async () => {
     const { geocoder } = fakeGeocoder({ "Lunch in Rochester, NY": new Error("geocode failed: 429") });
@@ -378,6 +665,7 @@ describe("hasUnverifiedLocations", () => {
   const emptyReport = (): LocationEnrichmentReport => ({
     verified: [],
     unverified: [],
+    cityLevel: [],
     unchecked: [],
     failed: [],
     skipped: [],
@@ -401,6 +689,15 @@ describe("hasUnverifiedLocations", () => {
   it("is true for entries only in skipped", () => {
     const report = { ...emptyReport(), skipped: ["place 15"] };
     expect(hasUnverifiedLocations(report)).toBe(true);
+  });
+
+  // A city-level pin is an ANSWER, and the sentence this predicate gates
+  // ("I couldn't verify locations for ...", writeTools.ts) is built from
+  // `unverified`/`failed`/`skipped` only. Counting `cityLevel` here would
+  // produce that sentence with no names in it, about stops we did place.
+  it("is false for entries only in cityLevel", () => {
+    const report = { ...emptyReport(), cityLevel: ["PNB bakery \u2014 original shop"] };
+    expect(hasUnverifiedLocations(report)).toBe(false);
   });
 
   it("is false for an all-empty report", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME } from "@tc/fixtures";
+import { tripDetailFactory } from "@tc/factories";
 import type { TripDetail } from "@tc/contracts";
+import type { AssistantDeps } from "@/server/assistant/deps";
 import { demoTripDetail } from "@/server/demoTrip";
 import {
   findFreeTime,
@@ -129,6 +131,51 @@ describe("read_day", () => {
     for (const stop of readout.stops) {
       if (stop.cost) expect(Number.isInteger(stop.cost.amountMinor)).toBe(true);
     }
+  });
+
+  // A trip whose first stop is pinned at its CITY's centroid and whose second
+  // carries the geocoded venue every location in this repo carried before
+  // `precision` existed — so the readout has to distinguish "city-level" from
+  // "we do not know", and cannot do it by having only one case.
+  const cityLevelTrip = (): { detail: TripDetail; cityStopIndex: number } => {
+    const detail = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 2, located: true } });
+    const [first] = detail.days[0]!.activityIds;
+    const activity = detail.activities[first!]!;
+    return {
+      detail: {
+        ...detail,
+        activities: {
+          ...detail.activities,
+          [first!]: { ...activity, location: { ...activity.location!, precision: "city" } },
+        },
+      },
+      cityStopIndex: 0,
+    };
+  };
+
+  // Enrichment pins a stop at its city's centroid whenever the vendor cannot
+  // corroborate the venue, which for small independent venues is the common
+  // case (KI-2026-08-30-f). Without this field the model reads a stop with a
+  // city and a country and tells the user it placed it — a claim about a pin
+  // nobody made.
+  it("tells the model how precisely a stop is placed, and says nothing when that is unknown", () => {
+    const { detail, cityStopIndex } = cityLevelTrip();
+    const readout = readDay(detail, 1) as DayReadout;
+    expect(readout.stops[cityStopIndex]!.location!.precision).toBe("city");
+    // ABSENT is UNKNOWN, never "venue": every location written before the field
+    // existed has none (contracts/src/activity.ts).
+    expect(readout.stops[1]!.location!.precision).toBeNull();
+  });
+
+  // Through the tool boundary, not just the readout: `defineTool` parses every
+  // result against the declared output schema, so a field the interface carries
+  // and the schema forgets is stripped on the way to the model — silently, and
+  // in the one direction no type checker looks.
+  it("keeps precision through the tool's own output parse", async () => {
+    const { detail, cityStopIndex } = cityLevelTrip();
+    const definition = READ_TOOLS.find((tool) => tool.name === "read_day")!;
+    const result = (await definition.invoke({ days: 1 }, { trip: detail } as unknown as AssistantDeps)) as DayReadout;
+    expect(result.stops[cityStopIndex]!.location!.precision).toBe("city");
   });
 
   it("never hands the model an activity UUID", () => {

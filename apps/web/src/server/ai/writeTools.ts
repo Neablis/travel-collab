@@ -37,7 +37,12 @@ import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
 import { flushPlanningBatch } from "@/server/ai/planningTools";
-import { enrichCommandLocations, hasUnverifiedLocations } from "@/server/ai/geocodeEnrichment";
+import {
+  enrichCommandLocations,
+  hasCityLevelLocations,
+  hasUnverifiedLocations,
+  type LocationEnrichmentReport,
+} from "@/server/ai/geocodeEnrichment";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
@@ -346,6 +351,51 @@ export interface ProposalCommitResult {
  * construct one. The rule survives the endpoint (ADR-033 Decision 4) because
  * this is where /ask still enriches.
  */
+/**
+ * The one sentence describing places the geocoder could not corroborate.
+ *
+ * Extracted so the commit path and the REFUSAL path cannot drift into telling
+ * a user two different stories about the same batch. Capped at three names
+ * because the point is "go look at the map", not a manifest.
+ */
+function nameList(names: readonly string[]): string {
+  const shown = names.slice(0, 3).join(", ");
+  const rest = names.length - Math.min(3, names.length);
+  return `${shown}${rest > 0 ? `, and ${rest} more` : ""}`;
+}
+
+function unverifiedNotice(report: LocationEnrichmentReport): string {
+  const names = [...report.unverified, ...report.failed, ...report.skipped];
+  return `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${nameList(names)} — worth checking on the map.`;
+}
+
+/**
+ * The sentence for a stop that IS on the map, roughly.
+ *
+ * A second notice rather than a clause inside the first, because the two say
+ * opposite things: `unverifiedNotice` is about stops that got no coordinates at
+ * all, and this is about stops that got a city's. Folding them together is what
+ * made the shipped copy wrong in the other direction — a stop with a city and
+ * no pin was told to go "check it on the map", where there was nothing to check.
+ *
+ * It names the granularity rather than calling the pin bad. A city centroid is
+ * not a wrong coordinate; it is a coordinate for a city, which is the whole
+ * reason `Location.precision` stores the tier rather than a quality verdict.
+ */
+function cityLevelNotice(report: LocationEnrichmentReport): string {
+  const names = report.cityLevel;
+  const one = names.length === 1;
+  return `I could only place ${nameList(names)} at city level, so ${one ? "that pin is" : "those pins are"} approximate.`;
+}
+
+/** Both sentences, in the order a reader wants them: what landed, then what did not. */
+function enrichmentNotices(report: LocationEnrichmentReport): string[] {
+  return [
+    ...(hasCityLevelLocations(report) ? [cityLevelNotice(report)] : []),
+    ...(hasUnverifiedLocations(report) ? [unverifiedNotice(report)] : []),
+  ];
+}
+
 export async function commitProposal(
   tripId: string,
   commands: BatchableCommand[],
@@ -403,20 +453,28 @@ export async function commitProposal(
           }
         },
   );
-  if (!batch.ok) return { ok: false, error: batch.error };
+  // **The report reaches the user on BOTH paths, not just the happy one.**
+  // It used to be read only after a successful commit, so an approval that the
+  // enrichment step had quietly hollowed out answered with the domain's bare
+  // "This change would have no effect." — a sentence about the user's request
+  // that was really about a vendor lookup they could not see, could not
+  // influence, and would hit identically on every retry (2026-09-12, prod).
+  // The `sanitizeCoords` invariant in geocodeEnrichment.ts is what stops that
+  // particular hollowing-out; this is what stops the NEXT one being silent.
+  if (!batch.ok) {
+    const why = enrichmentNotices(report);
+    return {
+      ok: false,
+      error: why.length > 0
+        ? { ...batch.error, message: `${batch.error.message} (${why.join(" ")})` }
+        : batch.error,
+    };
+  }
 
   // Derived from what committed, so the sentence can never claim an edit the
   // batch did not make (planSummary.ts's whole design guarantee). Names resolve
   // against the PRE-change detail for the same reason they do there.
-  const notices: string[] = [];
-  if (hasUnverifiedLocations(report)) {
-    const names = [...report.unverified, ...report.failed, ...report.skipped];
-    const shown = names.slice(0, 3).join(", ");
-    const rest = names.length - Math.min(3, names.length);
-    notices.push(
-      `I couldn't verify ${names.length === 1 ? "the location" : "locations"} for ${shown}${rest > 0 ? `, and ${rest} more` : ""} — worth checking on the map.`,
-    );
-  }
+  const notices: string[] = enrichmentNotices(report);
   // The inserted days are named in their own sentence rather than folded into
   // `summarizeBatch`. Its phrasing is per command, and the day it adds is new —
   // so an eleven-stop insert would read as "added a day and added X to a day"

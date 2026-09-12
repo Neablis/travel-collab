@@ -682,6 +682,88 @@ describe("commitProposal", () => {
     expect(result.ok && result.value.message).toBe("Done — removed “Colosseum tour”.");
   });
 
+  // A city-level pin is on the map and the user has to be told it is
+  // approximate. Before `cityLevel` got its own bucket these stops were
+  // reported `unverified`, so the receipt said "I couldn't verify the location
+  // for X" about a stop it had just placed; with the bucket and no sentence,
+  // it said nothing at all. Both are wrong in opposite directions.
+  it("tells the user which stops were only placed at city level", async () => {
+    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    const geocoder = {
+      forward: vi.fn(async (query: string) =>
+        query === "Jeonju-si, KR"
+          ? [{ canonicalName: "Jeonju-si, South Korea", lat: 35.8242, lng: 127.148, countryCode: "KR", city: "Jeonju-si" }]
+          : [],
+      ),
+    };
+    // A Korea trip, not the Rome fixture: `tripRegionOf` is built from the
+    // trip's own located activities, and a Jeonju centroid inside a Rome region
+    // is correctly REFUSED. Getting that wrong first is what proved the region
+    // guard covers the city lookup too, not just the venue one.
+    const korea: TripDetail = {
+      ...detail,
+      activities: Object.fromEntries(
+        Object.entries(detail.activities).map(([id, a]) => [
+          id,
+          { ...a, location: { name: a.location?.name ?? "Stop", city: "Jeonju-si", countryCode: "KR", lat: 35.8242, lng: 127.148 } },
+        ]),
+      ),
+    };
+    const result = await commitProposal(
+      TRIP_ID,
+      [
+        {
+          type: "UpdateActivity",
+          tripId: TRIP_ID,
+          activityId: COLOSSEUM_ID,
+          location: { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" },
+        },
+      ],
+      ACTOR,
+      korea,
+      geocoder as never,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.value.message).toContain(
+      "I could only place Makgeolli alley at city level, so that pin is approximate.",
+    );
+    // And NOT the sentence for a stop that never got placed at all.
+    expect(result.ok && result.value.message).not.toContain("I couldn't verify");
+  });
+
+  // 2026-09-12, prod: a refusal answered with the domain's bare sentence while
+  // the enrichment report that explained it was computed and then discarded.
+  // The user read "This change would have no effect." about a change they had
+  // just approved, with no way to learn that a vendor lookup was the reason
+  // and no retry that would behave differently.
+  it("explains a refusal with the enrichment report instead of discarding it", async () => {
+    vi.mocked(flushPlanningBatch).mockResolvedValue({
+      ok: false,
+      error: { code: "no-op", message: "This change would have no effect." },
+    });
+    const geocoder = { forward: vi.fn(async () => []) }; // vendor carries nothing
+    const result = await commitProposal(
+      TRIP_ID,
+      [
+        {
+          type: "UpdateActivity",
+          tripId: TRIP_ID,
+          activityId: COLOSSEUM_ID,
+          location: { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" },
+        },
+      ],
+      ACTOR,
+      detail,
+      geocoder as never,
+    );
+    expect(result.ok).toBe(false);
+    // The domain code is untouched — only the sentence gains the reason.
+    expect(!result.ok && result.error.code).toBe("no-op");
+    expect(!result.ok && result.error.message).toBe(
+      "This change would have no effect. (I couldn't verify the location for Makgeolli alley — worth checking on the map.)",
+    );
+  });
+
   it("passes a refused batch straight through, with its domain code", async () => {
     vi.mocked(flushPlanningBatch).mockResolvedValue({
       ok: false,
