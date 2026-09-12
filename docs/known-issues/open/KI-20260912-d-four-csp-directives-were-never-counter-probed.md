@@ -1,4 +1,4 @@
-### KI-2026-09-12-a — four CSP surfaces were never exercised, and KI-66's close carried them out of `open/` with it
+### KI-2026-09-12-d — four CSP surfaces were never exercised, and KI-66's close carried them out of `open/` with it
 
 - **Severity:** correctness — unverified security claims, not a known defect. Nothing is observed to be broken; the point is that four directives have only ever been reasoned about.
 - **Area:** `apps/web/next.config.ts` (the `headers()` CSP) and `apps/web/next.config.test.ts`. The dev-mode branch (`'unsafe-eval'`, `va.vercel-scripts.com`), `form-action` against Google OAuth's 302, the `frame-src` / `frame-ancestors` / `object-src` / `base-uri` group, and Vercel's `/_vercel/insights/script.js` + `/_vercel/speed-insights/script.js` under `script-src 'self'`.
@@ -7,3 +7,5 @@
 - **Scope:** a counter-probe per directive against a local production build, in the shape KI-66's `connect-src` probe already established: attempt the violation, capture the `Refused to …` console line, record it. The Vercel insights scripts additionally need to be *seen loading* in an environment where they are enabled, which no walk has done.
 - **Why not fixed here:** the 2026-09-12 KI sweep could not run it. `pnpm --filter web build` fails in the container without `DATABASE_URL` (`Error: DATABASE_URL is not set`, while collecting `/api/health/ai-mode` page data), so no production build could be served to a browser, and standing up Postgres was outside that sweep's one-KI blast radius. No fresh browser proof was fabricated to paper over it.
 - **First noted:** 2026-09-12, while closing KI-66 during the overnight KI sweep.
+
+- **Renumbered from `-a` to `-d` on 2026-09-12.** PR #164 landed its own `KI-2026-09-12-a` (the simulated classifier's two verdicts) on `main` while this branch was open, and both entries were filed the same day against a directory whose only index is its filenames. `main`'s is the merged one, so this moved. Worth recording rather than silently renaming: `scripts/check-ki-filenames.mjs` passed on both — it validates each name's shape, not the uniqueness of the id inside it, so nothing would have caught the collision if the slugs had not happened to differ.
