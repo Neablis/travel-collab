@@ -285,6 +285,24 @@ export async function handleAskRequest(
 
   const agent = new ToolLoopAgent({
     model: grant.model,
+    // **Prompt caching, and it is the one saving that trades nothing.**
+    //
+    // A turn re-sends its whole prefix on every step: the system instruction
+    // plus every offered tool's schema, byte-identical each time. A measured
+    // five-step planning turn spent 41,794 input tokens, of which roughly
+    // 21,600 were that prefix sent again — ~85% of a step's fixed cost is tool
+    // schemas (askIntent.ts's measurement), and the loop pays for it per step.
+    //
+    // `caching: "auto"` is the GATEWAY's option, not a provider's, which is
+    // why it belongs here and not in `gateway.ts` beside a model id: the
+    // gateway applies each provider's own strategy, so this stays correct when
+    // the tier map points at a different provider tomorrow. That is the same
+    // "model identity is an input" rule the tier map itself follows.
+    //
+    // Cached reads are roughly a tenth of input price across the catalogue
+    // (our current model lists $0.028/MTok against $0.13 input), so this is
+    // worth more the stronger the tier gets, not less.
+    providerOptions: { gateway: { caching: "auto" } },
     // Three-way, not `offerWrites` alone: the instruction has to describe the
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn

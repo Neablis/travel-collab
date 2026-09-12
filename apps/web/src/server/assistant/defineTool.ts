@@ -38,6 +38,7 @@
 import type { z } from "zod";
 import type { TripRole } from "@tc/contracts";
 import type { AssistantDeps, DepKey } from "./deps";
+import type { TaskClass } from "./taskClass";
 
 /**
  * What a tool is ABOUT. Six values, fixed by ADR-043 decision 2.
@@ -106,6 +107,32 @@ export interface ToolSpec<
    * fails without anybody remembering to add it to a list.
    */
   taint?: (result: z.infer<Output>) => z.infer<Output>;
+  /**
+   * **Which task classes this tool is offered on.** Omitted means all of them,
+   * which is the right default: a tool earns a restriction, it does not earn
+   * its way in.
+   *
+   * This is the third filter axis, beside `domain` and `effect`, and it exists
+   * because those two cannot express it. Every one of the thirteen planning
+   * tools is `itinerary`/`propose` by construction — they are derived from one
+   * command union — so `toolsFor` could never tell "rename the trip" from "add
+   * a day", and a planning turn was handed all seventeen.
+   *
+   * **Seventeen is inside the band where tool count itself degrades
+   * selection.** Published measurements put 1-5 tools at reliable, 5-10 at
+   * workable, and **10-30 at measurable degradation needing architectural
+   * intervention**; one reports Claude Haiku falling from 91% tool-selection
+   * accuracy at 10 tools to 87% at 15, and LongFuncEval measures a 7%-85% drop
+   * as the set grows. The failure mode reported for the top of that band is the
+   * one observed here on 2026-09-11: the model reads, narrates what it would
+   * do, and emits no tool call at all.
+   *
+   * **The tag goes on the definition, never in a list somewhere else.** A
+   * central "which tools on which turn" manifest is exactly `offeredToolNamesFor`
+   * and the three name manifests that ADR-043 decision 2 deleted, and it would
+   * rot the same way. `toolsFor` reads this; nothing else may.
+   */
+  taskClasses?: readonly TaskClass[];
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,

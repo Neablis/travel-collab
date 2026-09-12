@@ -873,7 +873,6 @@ const grantTools: AdmissionStage = {
       classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
     };
     const grants = grantFor(caps);
-    const tools = toolsFor(grants);
 
     // **What this turn is for, then which slot answers it** (spec §5, §7e).
     // The class is a proposal and the plan is a ceiling, which is the same
@@ -883,6 +882,29 @@ const grantTools: AdmissionStage = {
     const taskClass = taskClassFor(page !== null, classification);
     const tier = capTier(tierFor(taskClass), selected.entitlements.ceilings.maxTier);
     const model = selected.models[tier];
+
+    // **The class is computed BEFORE the tool set, because it narrows it.**
+    // It used to be the other way round and the order was invisible: the class
+    // only chose a model, so nothing broke when it came second. It now also
+    // chooses which tools a turn is offered (`defineTool`'s `taskClasses`), and
+    // a `toolsFor` called above this line would silently get the unnarrowed
+    // set — the same shape of bug as a grant computed after the tools it
+    // governs. **The compiler enforces this, not a test** — moving the call
+    // back above is `TS2448: Block-scoped variable 'taskClass' used before its
+    // declaration` plus `TS2454`, measured rather than assumed. That is why
+    // `taskClass` is passed as an argument instead of read off `draft`: an
+    // argument cannot be read early.
+    //
+    // **A classification that failed open does not narrow anything.**
+    // `failedOpen` means the classifier threw, timed out, or returned a verdict
+    // nothing recognised, and this endpoint's answer to that has been the
+    // widest safe tool set since KI-88. Narrowing on a class we have just
+    // admitted we could not determine would quietly convert that fail-OPEN
+    // into a fail-closed — the user whose "rename the trip" landed on a guessed
+    // `plan` would get no tool for it and no way to know why. The guess has to
+    // be trustworthy before it is allowed to take anything away.
+    const narrowBy = classification?.failedOpen === true ? undefined : taskClass;
+    const tools = toolsFor(grants, narrowBy);
 
     // The rule is enforced rather than commented: `minimumRoleFor` is asked what
     // the set about to be handed to the agent requires — the maximum

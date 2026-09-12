@@ -24,6 +24,7 @@ import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/ai/idFields";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
+import type { TaskClass } from "@/server/assistant/taskClass";
 
 const MONEY_UNITS_NOTE =
   "Money is integer minor units (cents): amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).";
@@ -43,6 +44,41 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
     "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
   SetTripBudget: `Set (or clear, with null) the trip's budget. ${MONEY_UNITS_NOTE}`,
+};
+
+/**
+ * **Which planning commands a turn of each class is offered.**
+ *
+ * Absent from this map means every class, so a command earns a restriction and
+ * never earns its way in — a new `BatchableCommand` member is offered
+ * everywhere until somebody decides otherwise, which is the direction that
+ * fails safe.
+ *
+ * **Only `plan` is narrowed, and only by four commands.** A planning turn is
+ * "fill out my days"; it has no business renaming the trip, setting its
+ * currency or budget, or dismissing a conflict. Everything a plan might
+ * plausibly need is kept, including both date commands — "plan me six days
+ * from March 3" is a planning turn that has to set dates.
+ *
+ * **What this does NOT claim.** Four fewer tools (17 -> 13) is a move within
+ * the 10-30 band the published measurements call degraded, not out of it. The
+ * larger lever would be the twelve-way command split itself, and that is
+ * `@tc/contracts`' closed action space (ADR-015) — the property that makes the
+ * model structurally unable to invent an operation — so it is not something to
+ * trade away for a token count. This is the cut that costs nothing.
+ *
+ * **The dead end is real and is handled.** A user who says "plan me a trip and
+ * rename it to Japan 2027" in one turn gets the plan and no rename. The
+ * `propose` posture already tells the model to say what it cannot draft this
+ * turn and to ask again — the same branch a viewer's turn uses — so this
+ * degrades to one extra turn rather than to a silent omission. If it proves
+ * annoying, the fix is to delete an entry here and nothing else.
+ */
+const TASK_CLASSES_FOR: Partial<Record<BatchableCommandType["type"], readonly TaskClass[]>> = {
+  SetTripName: ["question", "edit", "compose"],
+  SetTripCurrency: ["question", "edit", "compose"],
+  SetTripBudget: ["question", "edit", "compose"],
+  DismissConflict: ["question", "edit", "compose"],
 };
 
 const activityRefSchema = z
@@ -126,6 +162,7 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
     output: QueuedReceipt,
     needs: ["proposalBuffer"] as const,
     minimumRole: "editor",
+    taskClasses: TASK_CLASSES_FOR[type],
     run: (args: Record<string, unknown>, deps) => {
       deps.proposalBuffer.collect({ type, args });
       return { queued: true as const, type };

@@ -72,6 +72,14 @@ const planningTools = toolsFor(
 const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
 const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
+
+// A `plan` turn is offered four fewer than the full derived set — the trip
+// settings and conflict dismissal a "fill out my days" request has no business
+// calling (`TASK_CLASSES_FOR`, tools/planning.ts). **Spelled out here rather
+// than imported from that map**, so changing the policy breaks this test
+// instead of silently agreeing with it.
+const WITHHELD_FROM_PLAN = ["SetTripName", "SetTripCurrency", "SetTripBudget", "DismissConflict"];
+const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PLAN.includes(n));
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
@@ -229,11 +237,13 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
  */
 function recordingModel() {
   const systems: string[] = [];
+  const providerOptions: unknown[] = [];
   const inner = simulatedModel() as unknown as {
     doGenerate: (o: unknown) => Promise<unknown>;
     doStream: (o: unknown) => Promise<unknown>;
   };
   const keep = (options: unknown) => {
+    providerOptions.push((options as { providerOptions?: unknown }).providerOptions);
     const prompt = (options as { prompt?: { role?: string; content?: unknown }[] }).prompt ?? [];
     systems.push(
       prompt
@@ -259,7 +269,7 @@ function recordingModel() {
   // The agent's own instruction, not the classifier's — the classification
   // call is a system message too, and it is not what this is about.
   const turnInstruction = () => systems.find((text) => text.includes("travel-collab trip assistant")) ?? "";
-  return { model, turnInstruction };
+  return { model, turnInstruction, providerOptions: () => providerOptions };
 }
 
 // A model that fails the way a provider outage does: the stream opens and then
@@ -435,7 +445,7 @@ describe("POST /api/trips/:id/ask", () => {
         (r) => records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
       expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: false });
     });
 
@@ -471,7 +481,7 @@ describe("POST /api/trips/:id/ask", () => {
         verdict: '{"result":"question"}',
         failedOpen: false,
       });
-      expect(told[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(told[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
     });
 
     // Mitchell's live thread, 2026-08-29, verbatim — and the regression this
@@ -508,7 +518,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
 
-      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
       // Answered by the rule, so no model was asked and no model could be
       // wrong about it.
       expect(records[0]!.classification).toMatchObject({
@@ -569,6 +579,30 @@ describe("POST /api/trips/:id/ask", () => {
       // this trip.
       expect(instruction).not.toContain("You can READ this trip and nothing else");
       expect(instruction).not.toContain("only answer questions about the trip for now");
+    });
+
+    // **Caching is asserted where it is observable: on what the model was
+    // handed.** A turn re-sends its whole prefix — the instruction plus every
+    // offered tool's schema — on every step, and a measured five-step planning
+    // turn spent ~21,600 of its 41,794 input tokens on that repeat.
+    //
+    // `toContainEqual` rather than "every call": the CLASSIFIER runs through
+    // this same recording model in these tests and deliberately does not ask
+    // for caching — its prompt is a few hundred tokens and mostly the question
+    // itself, so there is no stable prefix worth paying a cache write for.
+    // Asserting every call would encode the opposite decision by accident.
+    it("asks the gateway to cache the turn's prefix", async () => {
+      const tripId = await seedTrip();
+      const { model, providerOptions } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
     });
 
     it("keeps the true read-only copy for a viewer, who genuinely cannot edit", async () => {

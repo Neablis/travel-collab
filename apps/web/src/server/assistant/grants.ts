@@ -17,6 +17,7 @@
 import type { TripRole } from "@tc/contracts";
 import { roleAtLeast } from "@/server/accessPolicy";
 import type { AnyAssistantTool, ToolDomain, ToolEffect } from "./defineTool";
+import type { TaskClass } from "./taskClass";
 import { ASSISTANT_TOOLS } from "./registry";
 
 /**
@@ -161,10 +162,19 @@ export function grantFor(caps: EffectCaps): GrantedEffects {
  * whose effect exceeds what its domain was granted is not offered either. Those
  * two sentences are the whole of the narrowing.
  */
-export function toolsFor(grant: GrantedEffects): readonly AnyAssistantTool[] {
+export function toolsFor(
+  grant: GrantedEffects,
+  taskClass?: TaskClass,
+): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     const granted = grant[definition.domain];
-    return granted !== undefined && EFFECT_RANK[definition.effect] <= EFFECT_RANK[granted];
+    if (granted === undefined || EFFECT_RANK[definition.effect] > EFFECT_RANK[granted]) return false;
+    // The third axis (`defineTool`'s `taskClasses`). Absent on the definition
+    // means every class; an absent ARGUMENT means "do not narrow", which is the
+    // shape a caller that has not classified the turn yet must get — silently
+    // handing it a narrowed set would be a filter nobody asked for.
+    if (taskClass === undefined || definition.taskClasses === undefined) return true;
+    return definition.taskClasses.includes(taskClass);
   });
 }
 
