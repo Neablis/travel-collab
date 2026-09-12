@@ -1,4 +1,4 @@
-### KI-2026-09-07-c — the assistant composer is `disabled` while a turn is in flight, which blurs it and silently drops a follow-up typed during the wait
+### KI-2026-09-07-c — the assistant composer is `disabled` while a turn is in flight, which blurs it and silently drops a follow-up typed during the wait — RESOLVED
 
 - **Severity:** correctness (user-visible input loss). Smaller than the defect it was found next to — the keystrokes are dropped rather than written into the user's document — but they are still lost with no feedback, and the `Enter` that would have submitted them is lost with them.
 - **Area:** `apps/web/src/components/assistant/AssistantRail.tsx:592` — `disabled={asking}` on the composer `<Input>`. Every surface that mounts the rail inherits it.
@@ -27,3 +27,35 @@
 - **Not verifiable in the unit lane.** Any test for this has to run in a real browser — jsdom fabricates the passing case. That makes it e2e or nothing, and `docs/guidelines/testing.md`'s locator ladder applies.
 - **Cross-reference:** **KI-2026-09-06-b** (resolved — the destructive half, and the walk that found this); **KI-2026-09-05-a** (the other open entry about this editor's selection behaviour); PR #155.
 - **First noted:** 2026-09-07, by the `phase-verifier` browser walk on PR #155 — found in a real browser precisely because the unit lane cannot see it.
+
+---
+
+**RESOLVED 2026-09-12 — fix path 1 taken, the cheapest one: the composer is no longer `disabled` at all.**
+
+**Reproduced first**, since the entry's own claim ("not verifiable in the unit lane") only covers *proving the fix* — the underlying browser mechanism is reproducible directly, without the app. A standalone real-Chromium session (Playwright, headless) focused a plain `<input>`, then flipped `.disabled = true` and back:
+
+```
+[
+  [ "t0",             true  ],            // input focused
+  [ "after-disable",  false, "BODY" ],    // disabling it blurred it to <body>
+  [ "after-reenable", false, "BODY" ]     // re-enabling did NOT restore focus
+]
+```
+
+This is the exact mechanism the entry's PR #155 trace measured (`BODY` at `t=13`, still `BODY` at `t=89` and for the remaining 8s), reproduced independently against current Chromium — the defect was real and current, not something already fixed or version-specific.
+
+The repo's own unit suite additionally encoded the bug as a passing assertion: `AssistantRail.test.tsx`'s `"disables the Ask input/button and shows a busy label while asking"` asserted `input.disabled === true` while `asking` — i.e. it was a green test *for* the defect, not a test that could ever catch it (jsdom does not blur on `disabled`, so this could only ever be a spec-shaped check, never a focus-loss check).
+
+**Fix:** removed `disabled={asking}` from the composer `<Input>` in `apps/web/src/components/assistant/AssistantRail.tsx`. `submitAsk` already refuses to send while `asking` is true, and the Ask `<Button>` stays `disabled={asking || ask.trim() === ""}`, so nothing downstream needed the input itself gated — leaving it enabled keeps focus (nothing calls `.disabled = true` on it anymore, so the browser mechanism above never fires) and keeps whatever the user typed, which submits as soon as the turn ends.
+
+**Proof:**
+- Re-ran the Chromium mechanism reproduction above: with the code fix in place, `AssistantRail`'s composer is never assigned `disabled`, so the disable→blur→no-restore chain has no trigger left to fire from.
+- Updated the unit test that had been asserting the buggy behaviour (`AssistantRail.test.tsx`) to assert the corrected invariant instead — composer stays enabled, button stays disabled — and watched it fail for the right reason against the pre-fix code (`expected false to be true` on `input.disabled`), then pass after the fix:
+  ```
+  Test Files  1 passed (1)
+       Tests  39 passed (39)
+  ```
+- `PageAssistant.test.tsx` (the file whose own comments document this KI in detail) still passes unchanged: 10/10.
+- Check subset (`minimal-check-subset`, both changed files under `apps/web`, neither under `packages/contracts/src`): `pnpm --filter web typecheck`, `pnpm --filter web lint`, and `pnpm --filter web exec vitest run -c vitest.unit.config.ts src/components/assistant/AssistantRail.test.tsx src/components/pages/PageAssistant.test.tsx` — all clean (49/49 tests, no typecheck or lint errors).
+
+**Regression test:** yes — `AssistantRail.test.tsx`'s renamed test (`"shows a busy label and disables the Ask button while asking, but leaves the composer itself enabled"`) now asserts `input.disabled === false` during `asking`, which fails immediately if `disabled={asking}` (or any equivalent) is reintroduced on the composer. It does not, and cannot, assert the focus-retention property itself — that half remains real-browser-only, per this entry's own "not verifiable in the unit lane" note, and is covered instead by the mechanism reproduction above (there is nothing left in the component that can trigger it).
