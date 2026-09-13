@@ -40,15 +40,30 @@ async function openTripOverview(page: import("@playwright/test").Page): Promise<
  * inline select row before it, because §26 moved every widget control out of
  * the document and into a side channel. On a phone that channel is a sheet.
  *
- * **The inner chip, not the node-view wrapper.** Clicking the wrapper times
- * out: Playwright aims at the centre of its box and the page card underneath
- * takes the hit, because a ProseMirror inline atom's wrapper does not paint the
- * area its bounding box covers. The chip inside is an ordinary `inline-flex`
- * box with a solid hit area, and selecting the node is what a tap anywhere in
- * the widget does regardless of which of the two elements received it.
+ * **The rendered chip, not the node-view wrapper and not the handle.** Two
+ * things have to be stepped around, and both were found by watching this time
+ * out rather than by reading the markup:
+ *
+ * The WRAPPER cannot be clicked. Playwright aims at the centre of its box and
+ * the page card underneath takes the hit — a ProseMirror inline atom's wrapper
+ * does not paint the area its bounding box covers.
+ *
+ * The HANDLE is the wrapper's first child span, and it is `position: absolute;
+ * top: -14px; pointer-events: none` (§26's ▸ affordance, which must not
+ * displace the line above it). So it is unclickable by construction, sits
+ * OUTSIDE the widget, and on a short page ends up under the sticky header —
+ * which is what the second round of this timeout named.
+ *
+ * What is left is the widget's own rendered output: an ordinary `inline-flex`
+ * chip with a solid hit area. Selecting the node is what a tap anywhere in the
+ * widget does, so which element receives it does not change the claim.
  */
 function widget(page: import("@playwright/test").Page) {
-  return page.locator('.tc-page-editor [data-macro-name="cost"]').first().locator("span").first();
+  return page
+    .locator('.tc-page-editor [data-macro-name="cost"]')
+    .first()
+    .locator('span:not([data-testid="widget-handle"])')
+    .first();
 }
 
 async function waitForPageSaved(
