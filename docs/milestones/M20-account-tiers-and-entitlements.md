@@ -793,13 +793,25 @@ for a dark feature is the reason this milestone is not placed earlier.~~
 **Superseded 2026-09-13 by Mitchell's reorder** (`docs/milestones/README.md`) —
 this milestone runs *before* M9's remaining work. It was never a code
 dependency and nothing here fails to build without M9; what it bought was not
-selling a dark feature, and that cost is now accepted on the record with its
-mitigation: `ai-live`'s flag is per-entity and only ever widens
-(ADR-019's 2026-09-08 amendment), so live AI can be turned on for paying
-accounts specifically without turning it on for everyone. **Whether to do that
-is a decision for this milestone's build, not a promise already made** — and if
-it is not made, an account buying `plus` gets a simulated assistant until M9
-lands. Say so in the retro either way.
+selling a dark feature.
+
+**And that cost is now void — Mitchell, 2026-09-13: `ai-live` will be on in
+production before release**, with the flag kept as an emergency disable rather
+than removed (**ADR-019's 2026-09-13 amendment**). An account that buys `plus`
+gets a real assistant. Two consequences land on *this* milestone:
+
+- **The flip comes after this milestone's gate is live in production, never
+  before.** `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so link 4's gate is what replaces the flag's
+  fallthrough as the spend control. Flipping first leaves an interval with no
+  spend control at all.
+- **`denied` stops being unreachable in production**, which is what link 4
+  actually ships. The 2026-08-25 amendment's three-way outcome — `denied` /
+  `simulated` / `live` — is finally exercised end to end rather than only in a
+  test.
+
+**What remains true:** the assistant will be live but **ungrounded** until M9,
+since grounding is M9's work. Say so in the retro.
 
 **M11a, and it is closed.** Link 8 builds on `invite_codes` and on
 `created_by`/`redeemed_by` already being recorded.

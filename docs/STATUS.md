@@ -90,11 +90,17 @@ nothing in CI will tell you when one is broken. The narrative each came from is 
   production content import is incomplete until it is dispatched. Merging does not apply a
   migration: `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`.
   Runbook: `docs/guidelines/content-bundles.md`.
-- **The `ai-live` flag's dashboard fallthrough must stay "Simulated".** Entity targeting
-  (ADR-019's 2026-09-08 amendment) only ever *widens* who gets live AI, and a caller no rule
-  matches — every signed-out visitor included, since `identify` publishes no `user` for them
-  — falls through to the default. That default is the kill switch, it lives in the Vercel
-  dashboard, and no test can assert it.
+- **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips
+  to "Live"** — ADR-019's **2026-09-13 amendment**, which reverses the 2026-09-08 rule that
+  it must stay Simulated forever. Until the flip the old reasoning holds exactly: targeting
+  only ever *widens*, a caller no rule matches falls through to the default, and that default
+  is the only thing keeping anyone off. **The flip is safe only after M20's entitlement gate
+  is live in production** — `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so a paid-account check becomes the spend control and the
+  flag goes back to being an emergency disable. Flipping it early leaves an interval with no
+  spend control at all. After the flip, keep Production's rule list empty: a widening rule
+  would make *the rule* load-bearing, and disabling in a hurry must stay one action. It lives
+  in the Vercel dashboard and no test can assert any of it.
 - **e2e refuses to start unless `AI_LIVE=false`.** `/api/health/ai-mode` reports
   `{ live, source }` and `e2e/global.setup.ts` requires `source: "env"` — an anonymous
   `live: false` from a *targetable* flag stopped being evidence about the signed-in user the

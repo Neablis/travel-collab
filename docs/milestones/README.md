@@ -231,13 +231,19 @@ whoever writes M20's retro knows the trade was deliberate.
 
 Three consequences to hold, each with its mitigation:
 
-1. **The AI tier ships dark.** `ai-live` is still a Vercel dashboard flag
-   defaulting to Simulated (see `docs/STATUS.md`'s live rules), so an account
-   that buys `plus` for the assistant gets a simulated one until M9 lands or the
-   flag is widened. **Mitigation: the flag is per-entity and only ever widens**
-   (ADR-019's 2026-09-08 amendment), so live AI can be turned on for paying
-   accounts specifically, before M9, without turning it on for everyone. That is
-   a decision for M20's build, not a promise made here.
+1. ~~**The AI tier ships dark.**~~ **VOID, 2026-09-13** — decided the same day,
+   later the same session: **`ai-live` will be on in production before release**,
+   and the flag is kept as an **emergency disable** rather than removed
+   (ADR-019's 2026-09-13 amendment). So an account that buys `plus` gets a real
+   assistant, and the largest cost this reorder carried is not paid at all. Two
+   things the amendment settles rather than leaves implied: the fallthrough
+   itself flips (not a widening rule), because a kill switch that requires
+   knowing what rules exist is not one; and **the flip must come after M20's
+   entitlement gate is live in production**, since `selectAiModel` checks
+   entitlement *before* the flag and that check is what replaces the fallthrough
+   as the spend control. **What remains true is narrower and worth keeping:**
+   the assistant will be live but **ungrounded** until M9, since grounding is
+   M9's work. That is a product judgement, not a blocker.
 2. **The pricing decision loses the volume evidence M9 would have produced.**
    M21's prerequisites argue that setting prices after M9 is right *"because of
    evidence, not arithmetic"* — Vercel held exactly one `ai.ask` record across

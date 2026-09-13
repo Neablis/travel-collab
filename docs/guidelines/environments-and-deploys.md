@@ -221,7 +221,7 @@ why the kill switch is built as a model swap rather than a branch.
 |---|---|
 | Local / CI | `AI_LIVE` in `.env.local` / the CI env — `false` by default, checked by `aiLive()` (`apps/web/src/server/ai/modelSelection.ts`) before the flag is ever consulted. **Never set this in a Vercel environment** (see below). |
 | Preview | The `ai-live` flag's value in the Vercel dashboard, optionally overridden per session via the Flags Explorer (below). |
-| Production | The `ai-live` flag's value in the Vercel dashboard. Keep this `false` until the app is deliberately shared with live AI enabled. |
+| Production | The `ai-live` flag's value in the Vercel dashboard. **`false` until release; `true` from release onward**, at which point this control is the emergency disable — ADR-019's 2026-09-13 amendment. Do not flip it before M20's entitlement gate is live in production: between the flip and the gate there is no spend control at all. |
 
 **Flipping `ai-live` for everyone:**
 
@@ -273,12 +273,36 @@ vercel flags rollout ai-live --environment production --by user.id \
   --stage 5,6h --stage 25,12h
 ```
 
-**The fallthrough must stay "Simulated".** Rules only ever WIDEN who gets live
-AI. Anyone no rule matches — including every signed-out visitor, for whom
-`identify` publishes no `user` at all — falls through to the flag's default
-value, so that default is the kill switch. Setting it to "Live" and relying on
-rules to hold everyone else back would invert the whole control: the code cannot
-enforce this, which is why it is written down here.
+**Before release, the fallthrough must stay "Simulated".** Rules only ever
+WIDEN who gets live AI. Anyone no rule matches — including every signed-out
+visitor, for whom `identify` publishes no `user` at all — falls through to the
+flag's default value, so that default is the kill switch. Setting it to "Live"
+and relying on rules to hold everyone else back would invert the whole control:
+the code cannot enforce this, which is why it is written down here.
+
+**From release onward the fallthrough is "Live", and the rule above is
+deliberately inverted** — ADR-019's **2026-09-13 amendment**, Mitchell's
+decision. It is safe only because **M20 checks entitlement before the flag is
+consulted** (`modelSelection.ts:215-218`): an account without `ai.ask` is
+`denied` and never reaches `aiLive()`, so *who may spend* stops being the flag's
+job and becomes a database fact about a paid account. The flag is then what its
+name says — is live AI on at all — and flipping the fallthrough back to
+"Simulated" is the emergency disable, one action reaching everyone.
+
+Two things this changes here, and one it does not:
+
+- **Keep Production's rule list empty at release.** Turning everyone on with a
+  widening rule instead would leave the fallthrough Simulated and make the rule
+  load-bearing, so disabling in a hurry would mean finding and removing rules.
+  A kill switch that requires knowing what rules exist is not one. Remove any
+  pre-release targeting rules when you flip.
+- **Order matters and is not negotiable:** the entitlement gate goes live
+  first. The interval between the flip and the gate has no spend control at
+  all, which is the exact condition ADR-019 was written for.
+- **`defaultValue: false` in the declaration does not change.** That is the
+  code's fallback when the Flags service is unreachable, and it must keep
+  failing closed. It and the dashboard fallthrough point opposite ways on
+  purpose; neither is a mistake to tidy.
 
 **What a signed-out or unidentifiable caller gets.** No `user` entity is
 published, so no user-keyed rule matches and the fallthrough applies. If the
