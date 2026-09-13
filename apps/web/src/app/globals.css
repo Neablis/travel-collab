@@ -324,6 +324,17 @@ html[data-look="ledger"] .shadow-raised {
 
 
 @layer components {
+  /* SPEC §28's phone front door: the pinned block is three viewports tall, and
+     the sticky stage inside it is one — so scrolling it moves `scrollTop`
+     without moving what you are looking at, which is the whole mechanic. Three
+     is the length of the sequence, not a spacing value, so there is no token
+     for it and `h-[300dvh]` is the arbitrary value the colour wall correctly
+     rejects. It lives here, once, the way `.unscheduled-rack`'s own one-off
+     geometry does. */
+  .front-door-pin {
+    height: 300dvh;
+  }
+
   /* SPEC §26's edit-mode affordance, and the property that matters is what it
      does NOT do: **the prose must not move when edit mode opens.**
 
