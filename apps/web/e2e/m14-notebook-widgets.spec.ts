@@ -143,6 +143,14 @@ async function openSeededPage(page: Page): Promise<void> {
   await page.getByRole("link", { name: /Overview/ }).first().click();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
+  // **The seeded Overview opens with a widget in its first paragraph** (§25's
+  // `open`), so entering Editing can leave that widget selected — and while a
+  // widget is selected the right column shows its settings rather than the
+  // insert rail (§26). Clicking into a heading and pressing Escape is the
+  // product's own way back to nothing-selected, and it is what makes the rail
+  // reliably on screen for whatever the walk does next.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 }
 
@@ -355,6 +363,14 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await expect(page.getByText(tripName, { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit page" }).click();
+  // **The seeded Overview opens with a widget in its first paragraph** (§25's
+  // `open`), so entering Editing can leave that widget selected — and while a
+  // widget is selected the right column shows its settings rather than the
+  // insert rail (§26). Clicking into a heading and pressing Escape is the
+  // product's own way back to nothing-selected, and it is what makes the rail
+  // reliably on screen for whatever the walk does next.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 });
 
