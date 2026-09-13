@@ -485,6 +485,31 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(JSON.stringify(saved.content)).toContain('"through":"2027-06-02"');
   });
 
+  // A BLOCK widget rather than the inline ones the other walks use — and a
+  // note about what this does NOT prove, because it was written to pin a
+  // regression and does not.
+  //
+  // The bug: for a block-shaped widget `insertContent` brings a paragraph with
+  // the macro inside it, so the position the insert started from holds the
+  // paragraph, and a selection that only fired when `nodeAt(from)` was a macro
+  // opened the settings for every inline widget and no block one. **That
+  // positional difference does not reproduce in jsdom** — this test passes with
+  // the old, inline-only check restored, which was checked rather than assumed
+  // (CLAUDE.md rule 3).
+  //
+  // So it is kept as what it honestly is: a cheap assertion that a block
+  // widget's settings open. The witness for the regression is the e2e walk
+  // `a multi-filter widget keeps every binding`, in a real browser, which is
+  // where the difference is real and where it was found.
+  it("opens the settings for a BLOCK widget it inserts", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+
+    const panel = within(await screen.findByTestId("widget-settings"));
+    expect(panel.getByRole("heading", { name: "The days in detail" })).toBeTruthy();
+    expect(panel.getByRole("button", { name: /The days in detail: dates/ })).toBeTruthy();
+  });
+
   it("lets two widgets on one page point at different days", async () => {
     // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
     // notebook that shows day 1, day 3 and day 9". Each widget carries its own

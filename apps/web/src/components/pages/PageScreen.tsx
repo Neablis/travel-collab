@@ -428,10 +428,19 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     // land a widget bound to everything and leave the column showing the insert
     // rail, with no indication that the thing to do next is point it somewhere.
     //
-    // `setNodeSelection` on the position the insert started from: TipTap's
-    // `insertContent` leaves the cursor AFTER the node, and `from` is where the
-    // node itself begins. A macro is an atom, so selecting its start selects
-    // the whole node.
+    // **Scans the inserted range for the macro rather than assuming it sits at
+    // the start position**, and that distinction is the whole of whether this
+    // works for block-shaped widgets.
+    //
+    // `insertContent` leaves the cursor after what it inserted, so the range
+    // from the old `from` to the new selection is exactly what landed. For an
+    // INLINE widget (`cost`) the macro is the first node in that range and
+    // `nodeAt(from)` finds it. For a BLOCK one (`day.detail`, `stop.rows`) the
+    // insert brings a paragraph with the macro inside it — so `nodeAt(from)` is
+    // the paragraph, the check failed, and nothing was selected. Which meant
+    // every block widget landed with its settings unopened while every inline
+    // one opened them: a split nobody designed, found by an e2e walk on
+    // `stop.rows` after the inline cases had all gone green.
     const at = editor?.state.selection.from;
     editor
       ?.chain()
@@ -439,9 +448,14 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
       .insertContent(node as never)
       .command(({ tr, dispatch }) => {
         if (at === undefined || dispatch === undefined) return true;
-        const inserted = tr.doc.nodeAt(at);
-        if (inserted?.type.name !== "macro") return true;
-        dispatch(tr.setSelection(NodeSelection.create(tr.doc, at)));
+        let macroPos: number | null = null;
+        tr.doc.nodesBetween(at, Math.max(at, tr.selection.to), (child, pos) => {
+          if (macroPos !== null) return false;
+          if (child.type.name === "macro") macroPos = pos;
+          return macroPos === null;
+        });
+        if (macroPos === null) return true;
+        dispatch(tr.setSelection(NodeSelection.create(tr.doc, macroPos)));
         return true;
       })
       .run();
