@@ -172,16 +172,21 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   // rail rather than clicking straight through is what makes a second insert
   // reliable; the caret click and the React state it drives are two different
   // ticks.
+  // **Escape BEFORE the click, not after**, and the order is the whole of it.
+  // Escape is the product's way out of a node selection (§26 added it), and
+  // when one is live it puts the caret next to THAT widget — so an Escape
+  // pressed after clicking the heading moves the caret back off the heading and
+  // into whichever block the previous insert landed in. The widget then goes
+  // somewhere the walk did not ask for, which is exactly how the heading in
+  // this file's chip-height walk kept coming up empty.
+  //
+  // Focus is already in the editor here: `insertContent` focuses it, so the
+  // previous insert left it there.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
-  // **Escape with the caret in the editor**, which is the product's own way out
-  // of a node selection (§26 added it). The click above puts focus back in the
-  // document, which is what makes this reach the editor's keymap at all — an
-  // Escape pressed while focus is still in the settings panel is consumed
-  // there and never arrives.
-  await page.keyboard.press("Escape");
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.getByRole("button", { name: "Insert a widget" }).click();
   const list = page.getByRole("dialog");
   await expect(list).toBeVisible();
@@ -432,20 +437,27 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // selected widget because inserting selects what it inserted.
   const panel = settingsPanel(page);
   await expect(panel).toBeVisible();
+  // **The names differ by LAYOUT, and the panel is `stacked`.** The date
+  // control carries its own `aria-label` in both layouts — which is why
+  // `/A line for every stop: dates/` still matches — but the plain selects take
+  // a visible `FormField` label when stacked, so they are "Tags", "City" and
+  // "Kind" here rather than the inline row's invented "<widget>: <dimension>".
+  // Scoped `within` the panel, which is what keeps those short names
+  // unambiguous.
   const days = panel.getByRole("button", { name: /A line for every stop: dates/i });
-  const tags = panel.getByRole("combobox", { name: /A line for every stop: tags/i });
+  const tags = panel.getByRole("combobox", { name: "Tags" });
   await expect(days).toBeVisible();
   await expect(tags).toBeVisible();
   // `stop.rows` is entity `stop`, and the matrix gives that entity every
   // dimension — reaching the row as FOUR controls, because `day` and `dates`
   // are one. `person` is the one with no control, and deliberately so: no stop
   // carries a person (decision 7).
-  const cities = panel.getByRole("combobox", { name: /A line for every stop: city/i });
-  const kinds = panel.getByRole("combobox", { name: /A line for every stop: kind/i });
+  const cities = panel.getByRole("combobox", { name: "City" });
+  const kinds = panel.getByRole("combobox", { name: "Kind" });
   await expect(cities).toBeVisible();
   await expect(kinds).toBeVisible();
-  await expect(panel.getByRole("combobox", { name: /A line for every stop: who/i })).toHaveCount(0);
-  await expect(panel.getByRole("combobox", { name: /A line for every stop: day/i })).toHaveCount(0);
+  await expect(panel.getByRole("combobox", { name: "Who" })).toHaveCount(0);
+  await expect(panel.getByRole("combobox", { name: "Day" })).toHaveCount(0);
 
   // A tag input reads "every stop, or one" (§18), so unset is a real answer
   // rather than an unfilled blank.
@@ -888,13 +900,13 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   // block that already holds a widget selects that widget — an inline atom —
   // and the next insert REPLACES it. That cost this walk a run.
   const insertInto = async (block: Locator) => {
-    await block.click();
-    await page.keyboard.press("End");
-    // Escape with the caret in the editor — the product's own way out of a
-    // node selection, and what returns the right column to the insert rail
-    // (SPEC §26). Waiting for it is what makes the SECOND insert reliable.
+    // Escape first, then the click — see `insertFromList` for why the order
+    // matters: Escape lands the caret beside the widget that is selected, so
+    // doing it after the click undoes the click.
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("widget-settings")).toHaveCount(0);
+    await block.click();
+    await page.keyboard.press("End");
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const list = page.getByRole("dialog");
     await expect(list).toBeVisible();
