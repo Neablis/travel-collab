@@ -54,14 +54,26 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Travel insurance" })).toBeVisible();
 
-  // -- per-day subtotal on the Timeline lens --
+  // -- per-day subtotal, on the Calendar --
   // This used to read the same rollup off the Itinerary, Daily-overview and
   // Full-trip lenses via `?lens=`; KI-20 retired all three (they had no nav
   // entry and the M10 redesign never contemplated them), so the money
-  // assertions now run against the surfaces that survived. Timeline's per-day
-  // cost pill is the day subtotal.
-  await page.getByRole("tab", { name: "Plan" }).click();
-  await expect(page.locator('[data-testid^="day-cost-"]').first()).toHaveText("€420.00");
+  // assertions run against the surfaces that survived.
+  //
+  // **It moved again with SPEC §24, from Timeline's per-day cost pill to the
+  // Calendar cell's meta line.** Timeline is deleted and its pill went with it;
+  // §24's Calendar table puts the day's money on the cell — "Meta: `4 stops` ·
+  // day cost — volume and money at a glance" — which is also the tab whose
+  // question is "what shape is this trip", scoped to the whole trip rather
+  // than a day. Plan has no day subtotal now and is not meant to.
+  //
+  // Read out of the cell's accessible NAME rather than its text, because an
+  // `aria-label` on a button replaces its content for assistive technology —
+  // so the label is the only place the figure is actually announced, and a
+  // regression that dropped it from there would be invisible to a text match.
+  // Same reasoning `m11-demo` states at length for the same labels.
+  await page.getByRole("tab", { name: "Calendar" }).click();
+  await expect(page.getByLabel(/^Day 1,.*€420\.00/)).toBeVisible();
 
   // The unscheduled (trip-level) 99.00 EUR stop stays parked in the rack — see
   // its rack-card assertion above; the trip total that rolls both together is

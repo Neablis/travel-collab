@@ -89,9 +89,16 @@ test.describe("mobile assistant (phone viewport)", () => {
     for (const command of commands) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    const firstDay = commands.find((c) => c.type === "AddDay");
-    expect(firstDay, "the threeDayTrip fixture stopped adding days").toBeDefined();
-    const dayId = (firstDay as { dayId: string }).dayId;
+    // Days arrive as `SetTripDates.newDayIds`, not as `AddDay` commands — the
+    // factory mints every day id up front and dates the trip in one command
+    // (`packages/factories/src/commands.ts`). Looking for an `AddDay` here
+    // found nothing and failed with the message below, which is at least the
+    // failure a wrong assumption should produce.
+    const dates = commands.find((c) => c.type === "SetTripDates") as
+      | { newDayIds: string[] }
+      | undefined;
+    expect(dates?.newDayIds?.[0], "the threeDayTrip fixture stopped dating the trip").toBeDefined();
+    const dayId = dates!.newDayIds[0]!;
     for (let i = 0; i < 8; i += 1) {
       await page.request.post(`/api/trips/${tripId}/commands`, {
         data: {

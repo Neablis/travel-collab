@@ -298,6 +298,10 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // prose still untouched --
   await page.goto(tripUrl);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  // Plan again: `tripUrl` is the bare trip URL on purpose (see its capture
+  // above — re-entering the way a person does lands on Overview since §24), and
+  // the day columns counted below are Plan's.
+  await page.getByRole("tab", { name: "Plan" }).click();
   await openHistory(page);
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Undo" }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);

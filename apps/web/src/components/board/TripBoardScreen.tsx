@@ -19,6 +19,7 @@ import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
+import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
@@ -919,6 +920,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // scrolls its column into view here. See the day-sync
                     // contract in `FocusProvider`.
                     sync={columnsSync}
+                    // The insert half of the keep-a-day loop, which SPEC §24
+                    // deleted along with `TimelineLens` — `EndOfTrip` was its
+                    // only mount. Passed from here rather than imported inside
+                    // `Board` because it reads `useTrip()` and `Board` is
+                    // props-only; this screen is inside the provider.
+                    addSavedDay={<AddSavedDayButton />}
                     callbacks={{
                       // "columns", for the same reason the chips row names
                       // itself above: at any width where more than about two

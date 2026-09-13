@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -47,7 +47,7 @@ import { resolveDrop } from "./resolveDrop";
 // additionally carries a "Saved days keep their order and gaps" line and the
 // three end-of-trip Playbook shortcuts; neither is in this phase's copy table,
 // so neither is invented here.
-function OneMoreDayColumn({ onAddDay }: { onAddDay: () => void }) {
+function OneMoreDayColumn({ onAddDay, addSavedDay }: { onAddDay: () => void; addSavedDay?: ReactNode }) {
   return (
     <section
       data-testid="one-more-day-column"
@@ -65,16 +65,25 @@ function OneMoreDayColumn({ onAddDay }: { onAddDay: () => void }) {
       <Button variant="primary" onClick={onAddDay} className="w-full justify-center">
         Add a day
       </Button>
-      {/* M11b deleted the inert `<Preview id="insert-playbook">` copy of "Add a
-          saved day" that used to sit here. The REAL control is
-          `AddSavedDayButton`, which reads `useTrip()` — and `Board` is a
-          props-only component (`BoardCallbacks`) that its own tests render with
-          no provider, so mounting it here would couple this component to the
-          trip context to restore a button that never did anything. The library
-          is one link away instead, and the real "Add a saved day" is where the
-          design put it: in the plan flow, at the end of the trip
-          (`trip/EndOfTrip.tsx`, reachable from the Timeline lens). Raised in
-          the PR3 report rather than decided quietly. */}
+      {/* **The real "Add a saved day", and it is here because SPEC §24 left it
+          nowhere else.** The note that used to sit here said the control lived
+          in `trip/EndOfTrip.tsx`, "reachable from the Timeline lens", and that
+          the library was one link away in the meantime. §24 deleted that lens,
+          which took `EndOfTrip` — and with it this button, its dialog and the
+          whole insert half of the keep-a-day loop — out of the running app
+          entirely. Same shape as the Keep pennant on `Column`: a feature that
+          lived in one lens and was deleted by deleting the lens.
+
+          A SLOT, for the reason the old note gave and which still holds:
+          `AddSavedDayButton` reads `useTrip()`, and `Board` is a props-only
+          component its own tests render with no provider. `TripBoardScreen` is
+          inside the provider already, so it passes the button in.
+
+          The library LINK stays beside it rather than being replaced by it.
+          They are not the same action — this inserts a saved day into this
+          trip, that navigates to the Playbooks page to browse — so R4 ("no
+          duplicated information") does not reach it. */}
+      {addSavedDay}
       <Link
         href="/playbooks"
         className="rounded-md px-2 py-1 text-center text-sm text-slate hover:underline"
@@ -127,9 +136,19 @@ export function Board({
   onToggleTag,
   readOnly = false,
   sync,
+  addSavedDay,
 }: {
   trip: TripDetail;
   callbacks: BoardCallbacks;
+  /**
+   * The "Add a saved day" control for the trailing "One more day?" column.
+   *
+   * A slot because the real one (`trip/AddSavedDayButton`) reads `useTrip()`
+   * and this component is props-only — its own tests render it with no
+   * provider. See the note at its render site for why it has to live here at
+   * all now.
+   */
+  addSavedDay?: ReactNode;
   /**
    * A board that shows the plan and offers nothing that changes it — a
    * viewer's, or the public demo's (ADR-031).
@@ -450,7 +469,7 @@ export function Board({
         {/* "One more day?" is an invitation to change the trip, so it is the
             reader's cue that they are looking at somebody else's — or, on the
             demo, at one that is not theirs yet. */}
-        {!readOnly && <OneMoreDayColumn onAddDay={callbacks.onAddDay} />}
+        {!readOnly && <OneMoreDayColumn onAddDay={callbacks.onAddDay} addSavedDay={addSavedDay} />}
       </div>
     </div>
   );

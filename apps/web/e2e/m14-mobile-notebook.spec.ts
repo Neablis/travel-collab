@@ -39,9 +39,16 @@ async function openTripOverview(page: import("@playwright/test").Page): Promise<
  * button that used to sit in the prose ("Showing …") is gone, along with the
  * inline select row before it, because §26 moved every widget control out of
  * the document and into a side channel. On a phone that channel is a sheet.
+ *
+ * **The inner chip, not the node-view wrapper.** Clicking the wrapper times
+ * out: Playwright aims at the centre of its box and the page card underneath
+ * takes the hit, because a ProseMirror inline atom's wrapper does not paint the
+ * area its bounding box covers. The chip inside is an ordinary `inline-flex`
+ * box with a solid hit area, and selecting the node is what a tap anywhere in
+ * the widget does regardless of which of the two elements received it.
  */
 function widget(page: import("@playwright/test").Page) {
-  return page.locator('.tc-page-editor [data-macro-name="cost"]').first();
+  return page.locator('.tc-page-editor [data-macro-name="cost"]').first().locator("span").first();
 }
 
 async function waitForPageSaved(
