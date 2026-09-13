@@ -45,9 +45,15 @@ test.describe("the demo trip", () => {
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
     await expect(page.getByText("This is an example trip — look around.")).toBeVisible();
 
-    // The four lenses, each rendering the fixture's own content.
-    await expect(page.getByRole("tab", { name: "Plan" })).toBeVisible();
-    await expect(page.getByText("Land at Haneda").first()).toBeVisible();
+    // The four views, each rendering the fixture's own content.
+    //
+    // **`/demo` lands on Overview since SPEC §24** — it is the ordinary trip
+    // surface in read-only (ADR-031), so it gets the ordinary default, and the
+    // ordinary default is the view that does not edit. The stops are one tab
+    // away rather than on arrival, so Plan is clicked BEFORE they are asserted;
+    // the previous order waited 30s for a stop title on a page showing the
+    // trip's notebook.
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
 
     await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page).toHaveURL(/view=Plan/);

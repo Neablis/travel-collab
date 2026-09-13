@@ -59,6 +59,9 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  // SPEC §24: a trip opens on Overview, which is read-only. "Add a day" is on
+  // Plan, the one view that edits.
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -471,6 +474,8 @@ test("an undated trip says it has no days to filter by, and is not a dead end", 
   await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
+  // §24: a trip opens on Overview; "Add a day" lives on Plan.
+  await page.getByRole("tab", { name: "Plan" }).click();
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
 
   await openSeededPage(page);

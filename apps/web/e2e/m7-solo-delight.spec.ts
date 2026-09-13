@@ -233,6 +233,10 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await page.waitForURL(/\/trips\/[^/]+$/);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const tripUrl = page.url();
+  // §24: a trip opens on Overview; "Add a day" lives on Plan. `tripUrl` is
+  // captured BEFORE this click on purpose — the later `goto(tripUrl)` is meant
+  // to re-enter the trip the way a person would, which is on Overview.
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   // Day 1 is the state we'll revert back to.
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
@@ -265,6 +269,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // -- add a second day, then revert to the 1-day state via the History panel --
   await page.goto(tripUrl);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await page.getByRole("tab", { name: "Plan" }).click();
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
