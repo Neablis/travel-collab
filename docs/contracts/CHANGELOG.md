@@ -13,6 +13,37 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `PageContext.kind`: which page this is, stored
+- Added: `kind: z.literal("overview").optional()` on `PageContext`
+  (`packages/contracts/src/pages.ts`). Nothing else changed shape
+- Why: SPEC §25 — *"every trip is created with one notebook page it cannot
+  delete"*. Something has to say WHICH page that is, and it cannot be the title
+  (a reader may rename it) or the position (sorting decides that). It is in
+  `context` rather than as a column because `pages.context` is already `jsonb`
+  and this is a fact about the page's identity, which is what that field holds
+- **Not a scope.** A page is trip-bound and about nothing in particular (§18);
+  `kind` says which page it is, not what it is about
+- **This entry is late, and that is the finding rather than the fix.** The field
+  landed with the §25 work and Invariant 5 says contracts change by protocol,
+  not by drift — CodeRabbit flagged the missing entry on PR 170. Recorded here
+  with the behaviour it turned out to need, which is worth more than a
+  same-day stub would have been
+- **Optional, so every page written before it parses unchanged**, and its
+  absence is the ordinary case: `isOverviewPage` is `context.kind ===
+  OVERVIEW_KIND`, false for every page that has no `kind` at all
+- **It is IMMUTABLE once stored, and that is enforced rather than assumed.**
+  `updatePage` carries the stored `kind` across a PATCH and discards the
+  caller's, and `deletePage` refuses in its own `WHERE` clause rather than in a
+  read-then-delete pair. Before both, a PATCH carrying `{ tripId }` — which is
+  exactly what the one route that PATCHes a page sends — stripped the marker,
+  and the next DELETE removed the page every trip is supposed to keep. Three
+  integration tests pin it, including one that marks a row through raw SQL to
+  prove the refusal is the database's
+- Consumers updated: `packages/pages` (`OVERVIEW_KIND`, `isOverviewPage`,
+  `overviewPage`'s `buildContext`), `apps/web` (`server/pages.ts`,
+  `OverviewLens`, the pages routes)
+- Breaking? no
+
 ## 2026-09-13 — `trip.countdown` joins the `attribute` allow-list
 - Added: `"trip.countdown"` to `AttributeFieldRef`
   (`packages/contracts/src/pages.ts`). Nothing else changed shape

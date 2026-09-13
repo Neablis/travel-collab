@@ -1,8 +1,8 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
-import { instantiateDefaults, isOverviewPage } from "@tc/pages";
+import { instantiateDefaults, isOverviewPage, OVERVIEW_KIND } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
@@ -148,8 +148,28 @@ export async function updatePage(id: string, input: UpdatePageInput): Promise<Pa
   if (!isUuid(id)) return null;
   const patch: Partial<typeof pages.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (input.title !== undefined) patch.title = input.title;
-  if (input.context !== undefined) patch.context = input.context;
   if (input.content !== undefined) patch.content = input.content;
+  if (input.context !== undefined) {
+    // **`kind` is identity, and a PATCH may not write it.**
+    //
+    // `UpdatePageInput.context` is a whole `PageContext`, and this used to
+    // store whatever arrived. `PageContext.kind` is what marks the Overview
+    // (SPEC §25) and what `deletePage` refuses on — so a PATCH carrying
+    // `{ tripId }` and nothing else silently stripped the marker, and the
+    // next DELETE removed the page every trip is supposed to keep
+    // (CodeRabbit, PR 170). The same hole the other way would let any page
+    // become undeletable by asserting `kind: "overview"`.
+    //
+    // So the stored `kind` is carried across and the caller's is discarded.
+    // There is no legitimate caller: the one route that PATCHes a page sends
+    // `context` only to re-state its `tripId`, which it separately checks
+    // against the URL. Nothing else in `PageContext` is identity, so
+    // everything else is taken as sent.
+    const current = await getPage(id);
+    if (current === null) return null;
+    patch.context = { ...input.context, ...(current.context.kind === undefined ? {} : { kind: current.context.kind }) };
+    if (current.context.kind === undefined) delete (patch.context as { kind?: unknown }).kind;
+  }
   const [row] = await db.update(pages).set(patch).where(eq(pages.id, id)).returning();
   return row ? toPage(row) : null;
 }
@@ -179,6 +199,20 @@ export async function deletePage(id: string): Promise<DeletePageOutcome> {
   // shortcut, a stale tab or a direct call that slips past a missing control
   // has to stop with one explanation rather than half-applying. Hiding the
   // button would leave the row deletable by anyone who sent the request.
+  // **The refusal is in the WHERE clause, so it cannot be raced.** This was a
+  // read, a decision, and then an unconditional delete — three statements, and
+  // a PATCH that stripped the marker in between made the delete succeed on a
+  // page the read had just protected (CodeRabbit, PR 170). Now the database
+  // refuses it: the row is only removed if it is not marked, whatever happened
+  // since anyone last looked.
+  const rows = await db
+    .delete(pages)
+    .where(and(eq(pages.id, id), sql`coalesce(${pages.context}->>'kind', '') <> ${OVERVIEW_KIND}`))
+    .returning({ id: pages.id });
+  if (rows.length > 0) return { ok: true };
+
+  // Nothing was deleted, so a read is safe — and it is the only way to tell the
+  // two refusals apart, which the route owes the caller (see the type above).
   const page = await getPage(id);
   if (page === null) return { ok: false, reason: "not-found", message: "No such page." };
   if (isOverviewPage(page.context)) {
@@ -189,7 +223,7 @@ export async function deletePage(id: string): Promise<DeletePageOutcome> {
       message: "The Overview comes with the trip and cannot be deleted. You can empty it instead.",
     };
   }
-
-  const rows = await db.delete(pages).where(eq(pages.id, id)).returning({ id: pages.id });
-  return rows.length > 0 ? { ok: true } : { ok: false, reason: "not-found", message: "No such page." };
+  // The row exists, is not the Overview, and was not deleted: it was removed
+  // between the two statements by something else. "No such page" is true now.
+  return { ok: false, reason: "not-found", message: "No such page." };
 }

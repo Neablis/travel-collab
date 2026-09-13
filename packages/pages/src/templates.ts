@@ -459,9 +459,20 @@ export const DEFAULT_TEMPLATES: TemplateSeed[] = [
 /** The one seeded page, for the callers that need to name it rather than list it. */
 export const OVERVIEW_TEMPLATE = overviewPage;
 
+/**
+ * The stored marker that makes a page the trip's Overview (SPEC §25).
+ *
+ * Exported because it is now read in two languages: this predicate, and the
+ * `WHERE` clause `deletePage` refuses on (`apps/web/src/server/pages.ts`). A
+ * SQL string literal cannot import a type, so the one thing it can share is
+ * this constant — and a hand-typed `'overview'` in a query is exactly how the
+ * database's idea of the Overview and the code's would come apart.
+ */
+export const OVERVIEW_KIND = "overview";
+
 /** Whether this page is the trip's undeletable Overview (SPEC §25). */
 export function isOverviewPage(context: PageContext): boolean {
-  return context.kind === "overview";
+  return context.kind === OVERVIEW_KIND;
 }
 
 export function instantiateDefaults(tripId: string): CreatePageInput[] {
