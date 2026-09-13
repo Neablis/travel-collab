@@ -13,6 +13,45 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `ai-not-entitled` answers 402, not 403 (BREAKING, wire)
+
+- Changed: `POST /api/trips/:tripId/ask` answers **402 Payment Required** with
+  `code: "ai-not-entitled"` where it answered **403 Forbidden**. The body's
+  shape and the `code` string are unchanged
+- Changed: the refusal's `error` text. It was *"AI is not available for this
+  account."*; it is now one exported constant, `AI_NOT_ENTITLED_REASON`
+  (`apps/web/src/server/ai/modelSelection.ts`), which **names the tier**:
+  *"The assistant is part of Plus. This account is on a plan that does not
+  include it."*
+- Added: `AI_NOT_ENTITLED_STATUS` beside `AI_NOT_ENTITLED_CODE`, on both sides
+  of the UI/server wall (`server/ai/modelSelection.ts` and `lib/apiClient.ts`),
+  pinned equal by the existing cross-wall parity test
+- Why: M20 link 4. `modelSelection.ts` recorded the old choice in as many
+  words — *"403, not 402: 402 asserts a payment relationship that does not
+  exist yet"* — and M20 creates one. The two statuses differ by exactly what
+  matters at this surface: a 403 says the account did something it may not, a
+  402 says it does not have a thing it could have. The second is actionable
+- **Breaking? YES, and this is the one wire break M20 makes.** The `code` is
+  unchanged, so a client branching on it — which is what this repo's own
+  client does, and what the code exists for — is unaffected. Anything branching
+  on the status alone moves with it. There is no compatibility window: the
+  status and the meaning changed together, and serving 403 to "old" clients
+  would mean serving the wrong answer to all of them
+- Consumers updated, same PR: `lib/apiClient.ts` (the constant and its error
+  table), `components/board/TripBoardScreen.tsx` (stops rewriting the refusal
+  as *"The assistant is switched off for this account"* — a permission error
+  where the server now sends a tier — and passes `askUpgrade` from the CODE,
+  never from the prose), `components/assistant/useAskThread.ts` (carries
+  `askErrorCode` beside `askError`, because a surface cannot tell an actionable
+  refusal from a failure by reading prose), `components/assistant/AssistantRail.tsx`
+  (renders this one refusal as a `role="status"` upgrade block rather than a
+  `role="alert"` red line)
+- **No price, anywhere on this path.** M20 never learns what a plan costs. The
+  refusal names `Plus` and stops; the rail says plans live in account settings
+  and offers no control, because M20 ships no billing surface for one to open —
+  M21 link 5 fills the `onOpenAccount` seam. A test asserts the rendered
+  refusal carries no currency, amount or period
+
 ## 2026-09-13 — the entitlement vocabulary: what an account may do
 
 - Added: `Entitlement` (`ai.ask` | `ai.command` | `trip.collaborators`),

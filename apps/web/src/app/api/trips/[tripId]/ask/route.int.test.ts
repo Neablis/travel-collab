@@ -46,7 +46,11 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
     ...actual,
     selectAiModel: vi.fn(async (actor: Parameters<typeof actual.selectAiModel>[0]) =>
       denyNextSelection
-        ? { outcome: "denied" as const, reason: "AI is not available for this account." }
+        ? // The server's own sentence, not a second copy of it. One string —
+          // `AI_NOT_ENTITLED_REASON` — so the endpoint, the rail and this test
+          // cannot tell three different stories about the same refusal (M20
+          // link 4).
+          { outcome: "denied" as const, reason: actual.AI_NOT_ENTITLED_REASON }
         : actual.selectAiModel(actor),
     ),
   };
@@ -97,6 +101,7 @@ const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
+const { AI_NOT_ENTITLED_REASON } = await import("@/server/ai/modelSelection");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
 async function seedTrip(): Promise<string> {
@@ -1464,7 +1469,12 @@ describe("POST /api/trips/:id/ask", () => {
       }
     });
 
-    it("403s with ai-not-entitled when selection denies the actor", async () => {
+    // **402, not 403, since M20 link 4.** `modelSelection.ts` recorded the old
+    // reason in as many words — *"403, not 402: 402 asserts a payment
+    // relationship that does not exist yet"* — and M20 creates one. The code is
+    // unchanged, which is what a correctly written client branches on; the
+    // status moved and that is a breaking wire change.
+    it("402s with ai-not-entitled when selection denies the actor", async () => {
       const tripId = await seedTrip();
       denyNextSelection = true;
       // No injected model: `denied` is a decision selectAiModel makes, so the
@@ -1473,10 +1483,38 @@ describe("POST /api/trips/:id/ask", () => {
         req(tripId, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
         tripId,
       );
-      expect(res.status).toBe(403);
-      expect(await res.json()).toEqual({ error: "AI is not available for this account.", code: "ai-not-entitled" });
+      expect(res.status).toBe(402);
+      expect(await res.json()).toEqual({ error: AI_NOT_ENTITLED_REASON, code: "ai-not-entitled" });
+      // The refusal NAMES THE TIER rather than reading as a permission error,
+      // which is the whole difference a 402 claims to carry.
+      expect(AI_NOT_ENTITLED_REASON).toContain("Plus");
+      // And carries no price — M20 never learns what a plan costs.
+      expect(AI_NOT_ENTITLED_REASON).not.toMatch(/\$|\d+\s*(\/|per)\s*month|usd/i);
       // A refused actor is never charged: selection comes first.
       expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
+    });
+
+    // **The gate reached through a real account, not through the test seam.**
+    // The test above injects `denied`; this one has a `free` account meet the
+    // resolver that M20 link 4 wired in, which is the path production runs.
+    it("402s a real free account, through the resolver rather than the seam", async () => {
+      const free = `dev-${randomUUID()}`;
+      await upsertUser({ id: free, email: null, name: null, image: null });
+      // Make the free account the trip's owner, so it clears the access guard
+      // and the ONLY thing left to refuse it is its plan.
+      const ownTrip = randomUUID();
+      const created = await executeTripCommand(
+        { type: "CreateTrip", tripId: ownTrip, name: "Free account's trip" },
+        free,
+      );
+      expect(created.ok).toBe(true);
+      currentUserId = free;
+      const res = await handleAskRequest(
+        req(ownTrip, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
+        ownTrip,
+      );
+      expect(res.status).toBe(402);
+      expect((await res.json()).code).toBe("ai-not-entitled");
     });
 
     // The kill switch's promise, as a test: with AI off the endpoint answers on
@@ -1746,11 +1784,17 @@ describe("the refusal codes the browser branches on", () => {
   it("are the same strings on both sides of the UI/server wall", async () => {
     const client = await import("@/lib/apiClient");
     const { DEMO_TRIP_UNSUPPORTED_CODE } = await import("@/server/ai/handleAskRequest");
-    const { AI_NOT_ENTITLED_CODE } = await import("@/server/ai/modelSelection");
+    const { AI_NOT_ENTITLED_CODE, AI_NOT_ENTITLED_STATUS } = await import(
+      "@/server/ai/modelSelection"
+    );
 
     expect(client.DEMO_TRIP_UNSUPPORTED_CODE).toBe(DEMO_TRIP_UNSUPPORTED_CODE);
     expect(client.AI_NOT_ENTITLED_CODE).toBe(AI_NOT_ENTITLED_CODE);
     expect(DEMO_TRIP_UNSUPPORTED_CODE).toBe("demo-trip-unsupported");
     expect(AI_NOT_ENTITLED_CODE).toBe("ai-not-entitled");
+    // The status is duplicated across the same wall, for the same reason and
+    // with the same risk of drifting. 402 Payment Required (M20 link 4).
+    expect(client.AI_NOT_ENTITLED_STATUS).toBe(AI_NOT_ENTITLED_STATUS);
+    expect(AI_NOT_ENTITLED_STATUS).toBe(402);
   });
 });

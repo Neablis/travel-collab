@@ -25,7 +25,7 @@ vi.mock("@/server/ai/gateway", () => ({
 // `resolvedTierMap` is not destructured here: both cases that assert it need
 // the isolated-import treatment (KI-2026-09-11-c), so every call site reads
 // it off a freshly imported module instead of this one.
-const { aiLive, aiLiveMode, selectAiModel, deniedResponse } = await import(
+const { aiLive, aiLiveMode, selectAiModel, deniedResponse, AI_NOT_ENTITLED_REASON } = await import(
   "@/server/ai/modelSelection"
 );
 const { SIMULATED_MODEL_ID } = await import("@/server/ai/simulatedModel");
@@ -355,12 +355,27 @@ describe("selectAiModel", () => {
 });
 
 describe("deniedResponse", () => {
-  it("returns the documented 403 contract", async () => {
-    const res = deniedResponse("AI is not available for this account.");
-    expect(res.status).toBe(403);
+  // **402 Payment Required since M20 link 4, and the change is the point.**
+  // This read 403 and said so in its name, against a comment in the module that
+  // gave the reason: *"403, not 402: 402 asserts a payment relationship that
+  // does not exist yet."* M20 creates one. Recorded as a breaking wire change
+  // in `docs/contracts/CHANGELOG.md`; the `code` is unchanged, which is what a
+  // correctly written client branches on.
+  it("returns the documented 402 contract", async () => {
+    const res = deniedResponse(AI_NOT_ENTITLED_REASON);
+    expect(res.status).toBe(402);
     await expect(res.json()).resolves.toEqual({
-      error: "AI is not available for this account.",
+      error: AI_NOT_ENTITLED_REASON,
       code: "ai-not-entitled",
     });
+  });
+
+  // The refusal names the TIER rather than reading as a permission error. One
+  // exported string, so the endpoint, the rail and this test cannot tell three
+  // different stories about the same refusal — and no price, because M20 never
+  // learns what a plan costs.
+  it("names the tier and carries no price", () => {
+    expect(AI_NOT_ENTITLED_REASON).toContain("Plus");
+    expect(AI_NOT_ENTITLED_REASON).not.toMatch(/\$|\bUSD\b|per month|\d/i);
   });
 });

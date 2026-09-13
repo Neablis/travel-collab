@@ -621,7 +621,7 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 //
 //   * A **non-200 only ever happens before the stream opens**, and its body is
 //     JSON. That is every row of the endpoint's error table — 400s with
-//     actionable text, 403 `demo-trip-unsupported`, 403 `ai-not-entitled`,
+//     actionable text, 403 `demo-trip-unsupported`, **402** `ai-not-entitled`,
 //     429, 503.
 //   * Once the stream is open the status is 200 forever, and a failure arrives
 //     as an `{"type":"error","errorText":…}` frame inside it.
@@ -706,6 +706,14 @@ export const ASK_ABORTED_CODE = "ask-aborted";
 export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 /** The server's refusal code when the actor has no AI entitlement. */
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
+/**
+ * And its status, since M20 link 4: **402 Payment Required**, not 403.
+ *
+ * Duplicated as a literal for the same reason the code above is — the UI may
+ * not import `@/server/*` (AGENTS.md's dependency rules) — and pinned by a test
+ * that imports both sides, so the two copies cannot drift.
+ */
+export const AI_NOT_ENTITLED_STATUS = 402;
 
 // `SIMULATED_HEADER` is a `@tc/contracts` name since P6 (KI-22). It was
 // re-declared here as a literal because the UI may not import `@/server/*`
