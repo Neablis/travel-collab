@@ -150,7 +150,6 @@ async function openSeededPage(page: Page): Promise<void> {
   // product's own way back to nothing-selected, and it is what makes the rail
   // reliably on screen for whatever the walk does next.
   await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 }
 
@@ -172,21 +171,21 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   // rail rather than clicking straight through is what makes a second insert
   // reliable; the caret click and the React state it drives are two different
   // ticks.
-  // **Escape BEFORE the click, not after**, and the order is the whole of it.
-  // Escape is the product's way out of a node selection (§26 added it), and
-  // when one is live it puts the caret next to THAT widget — so an Escape
-  // pressed after clicking the heading moves the caret back off the heading and
-  // into whichever block the previous insert landed in. The widget then goes
-  // somewhere the walk did not ask for, which is exactly how the heading in
-  // this file's chip-height walk kept coming up empty.
+  // **The click into the heading is what deselects**, and no Escape is needed
+  // or wanted here. Two things had to be true for that to work and both now
+  // are: clicking sets a text selection, which the node view reports as "not
+  // selected"; and `PageScreen` acts on that report (it used to discard it when
+  // the node view had remounted, which is every rebind — the panel then stayed
+  // open forever and no amount of clicking closed it).
   //
-  // Focus is already in the editor here: `insertContent` focuses it, so the
-  // previous insert left it there.
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
+  // Escape was tried in both positions and is wrong in both: after the click it
+  // lands the caret back beside the previously selected widget, undoing the
+  // click; before it, focus is still inside the settings panel, where the
+  // popover consumes it and the editor never hears it.
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
+  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.getByRole("button", { name: "Insert a widget" }).click();
   const list = page.getByRole("dialog");
   await expect(list).toBeVisible();
@@ -375,7 +374,6 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // product's own way back to nothing-selected, and it is what makes the rail
   // reliably on screen for whatever the walk does next.
   await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 });
 
@@ -900,13 +898,11 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   // block that already holds a widget selects that widget — an inline atom —
   // and the next insert REPLACES it. That cost this walk a run.
   const insertInto = async (block: Locator) => {
-    // Escape first, then the click — see `insertFromList` for why the order
-    // matters: Escape lands the caret beside the widget that is selected, so
-    // doing it after the click undoes the click.
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("widget-settings")).toHaveCount(0);
+    // The click deselects — see `insertFromList` for why no Escape belongs
+    // here.
     await block.click();
     await page.keyboard.press("End");
+    await expect(page.getByTestId("widget-settings")).toHaveCount(0);
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const list = page.getByRole("dialog");
     await expect(list).toBeVisible();
