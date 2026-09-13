@@ -198,6 +198,18 @@ async function resolveOne(
   return { location: found, outcome: "unchecked" };
 }
 
+/**
+ * Best-effort geocodes locations in activity commands without relocating
+ * inputs it cannot verify.
+ *
+ * Duplicate normalized names share one rate-limited lookup, up to 15 unique
+ * names; matches are accepted only when they agree with available location
+ * evidence. Lookup failures and over-limit names are reported instead of
+ * rejecting the batch. When no command has a location, the original commands
+ * are returned without constructing a geocoder.
+ *
+ * @param sleep - Optional delay implementation used for throttling
+ */
 export async function enrichCommandLocations(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,

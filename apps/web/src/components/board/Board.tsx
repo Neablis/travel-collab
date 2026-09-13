@@ -127,6 +127,7 @@ export type BoardCallbacks = {
  * @param onToggleTag - Handler for toggling tag focus
  * @param readOnly - Whether to hide controls that modify the trip
  * @param sync - Optional handle for synchronizing scrolling with day selection
+ * @param addSavedDay - Optional control for inserting a saved day from the trailing column
  */
 export function Board({
   trip,

@@ -44,12 +44,12 @@ const SELECTED_RING = "ring-2 ring-primary rounded";
 const EDIT_OUTLINE = "tc-widget-edit relative";
 
 /**
- * Renders a macro node inside the editor.
+ * Renders a macro node and synchronizes its editable selection with the
+ * surrounding page.
  *
- * @param node - The macro node containing its name and parameters
- * @param selected - Whether the node is selected
- * @param updateAttributes - Updates the macro node's attributes
- * @returns The rendered macro node view
+ * Selected widgets report their parameters and updater through context.
+ * Parameter updates reselect the node so its settings stay open, and
+ * unmounting a selected node clears that report.
  */
 export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const { detail, context, user, globals, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();

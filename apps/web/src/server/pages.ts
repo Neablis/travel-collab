@@ -140,6 +140,12 @@ export async function getPage(id: string): Promise<Page | null> {
   return row ? toPage(row) : null;
 }
 
+/**
+ * Updates a stored page while preserving its existing `context.kind` marker.
+ *
+ * Returns the updated page, or `null` for an invalid or missing ID. A supplied
+ * context cannot add, remove, or change the Overview marker.
+ */
 export async function updatePage(id: string, input: UpdatePageInput): Promise<Page | null> {
   // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
   // Unreachable through a route today — both callers validate — but this is the
@@ -186,6 +192,13 @@ export async function updatePage(id: string, input: UpdatePageInput): Promise<Pa
  */
 export type DeletePageOutcome = { ok: true } | { ok: false; reason: "not-found" | "undeletable"; message: string };
 
+/**
+ * Deletes a page unless it is the trip's Overview.
+ *
+ * Returns `not-found` for invalid or missing IDs and `undeletable` for
+ * Overview pages; refusals include a user-facing message. The Overview check
+ * and deletion are atomic.
+ */
 export async function deletePage(id: string): Promise<DeletePageOutcome> {
   // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
   // Unreachable through a route today — both callers validate — but this is the

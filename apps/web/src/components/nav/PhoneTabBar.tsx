@@ -96,15 +96,11 @@ function tripIdFromPathname(pathname: string): string | null {
  * `/playbooks/:path*` matcher), which is not the same as being Playbooks in
  * the design's sense.
  *
- * `lens` is the raw query string value rather than a `View`, because this
- * component sits in `(app)/layout.tsx` — *above* `LensRouter`, which is
- * mounted inside the trip page — so `useLens()` is not available here. The
- * derivation is the same one and there is still no second source of truth:
- * "Map" and "not Map" is the whole of it, and anything else lands on Plan.
- *
- * **Both the new `?view=` and the legacy `?view=`-less `?lens=` are read**, for
- * the reason SPEC §24's mapping exists at all: a link somebody is holding still
- * resolves, and the bar must light the same tab the page actually rendered.
+ * `view` is the URL-derived view rather than a raw query value because this
+ * component sits in `(app)/layout.tsx` — above the `LensRouter` mounted inside
+ * the trip page — so `useLens()` is not available here. Callers use
+ * `resolveView` so both current `?view=` and legacy `?lens=` URLs select the
+ * same tab as the trip screen.
  */
 function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
@@ -302,15 +298,12 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
  * it until hydration, which is worse than the pop-in `md:hidden` was chosen to
  * avoid. Copilot caught it on PR #143.
  *
- * `usePathname()` triggers no such bailout, and the route alone settles which
- * SET the bar shows (§22's trip three vs account pair) and which tab is current
- * in every case but one. The exception is Plan-vs-Map inside a trip, which is
- * the only thing `?lens=` decides — so this renders `lens: null`, which
- * `activePhoneTab` reads as Plan. That is the right guess: a bare
- * `/trips/<id>` is normalised to Timeline (SPEC §10), so Plan is where a trip
- * route without an explicit lens actually lands. A reader who deep-links
- * `?lens=Map` sees Plan lit for one paint and Map thereafter; the bar's
- * contents, position, size and hit targets never move.
+ * `usePathname()` triggers no such bailout. The pathname determines the bar's
+ * scope and every active tab except Plan versus Map; the fallback passes
+ * `view: null`, which selects Plan. A bare trip URL now opens Overview and is
+ * represented by the Plan phone tab, while a Map deep link can show Plan for
+ * one paint until hydration resolves its query. The bar's contents, position,
+ * size, and hit targets never move.
  */
 export function PhoneTabBarFallback() {
   return <PhoneTabBarView pathname={usePathname()} view={null} />;
