@@ -166,6 +166,12 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   // ticks.
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
+  // **Escape with the caret in the editor**, which is the product's own way out
+  // of a node selection (§26 added it). The click above puts focus back in the
+  // document, which is what makes this reach the editor's keymap at all — an
+  // Escape pressed while focus is still in the settings panel is consumed
+  // there and never arrives.
+  await page.keyboard.press("Escape");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.getByRole("button", { name: "Insert a widget" }).click();
@@ -868,9 +874,10 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   const insertInto = async (block: Locator) => {
     await block.click();
     await page.keyboard.press("End");
-    // The click also deselects whatever the previous insert selected, which is
-    // what returns the right column to the insert rail (SPEC §26). Waiting for
-    // it is what makes the SECOND insert reliable.
+    // Escape with the caret in the editor — the product's own way out of a
+    // node selection, and what returns the right column to the insert rail
+    // (SPEC §26). Waiting for it is what makes the SECOND insert reliable.
+    await page.keyboard.press("Escape");
     await expect(page.getByTestId("widget-settings")).toHaveCount(0);
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const list = page.getByRole("dialog");
