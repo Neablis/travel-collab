@@ -1,7 +1,14 @@
 # M21 — An account can pay for itself
 
-**Status:** Scoped and placed 2026-09-01, immediately after M20:
-`M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`.
+**Status:** Scoped and placed 2026-09-01, immediately after M20. **Reordered
+2026-09-13 on Mitchell's call** — the commercial pair runs ahead of M9's
+remaining work, so the live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`. **This
+milestone is placed, not open**: its prerequisite is M20 *closed*, and M20 is
+the current milestone. **Its one owed decision is closed** — the prices, below.
+Reorder note and the costs accepted with it: `docs/milestones/README.md`,
+2026-09-13. Kickoff plan for the pair:
+`docs/plans/2026-09-13-M20-M21-commercial.md`.
 
 **M20 built what a subscription grants. This one makes a subscription real.**
 Stripe checkout, the webhook that is the only writer of subscription state, the
@@ -311,9 +318,53 @@ this milestone drives are M20's. There is nothing here to build without them.
 Production. Vercel injects environment variables at build, so **rotation needs
 a redeploy** — the same trap `INVITE_SUPER_CODE` documents at `.env.example:29`.
 
-**One decision is Mitchell's before this opens: the prices.** M20 defines the
-three plans and what each grants; it deliberately prices none of them, and a
-checkout session cannot ship without a number.
+**~~One decision is Mitchell's before this opens: the prices.~~ DECIDED
+2026-09-13:**
+
+| Plan | Price | What it is |
+|---|---|---|
+| `free` | **$0** | Trip planning, entire. No AI, no collaborators. |
+| `plus` | **$9 / month** | The assistant. What the one-week trial grants, so the trial is a real sample of a real plan. |
+| `premium` | **$19 / month** | Collaborators, and the entitlements M20's `premium` entry enumerates for itself. |
+
+Flat monthly, USD, no annual plan and no metered billing — all three are in
+*Deliberately not here*. M20 defines the three plans and what each grants; it
+deliberately prices none of them, and a checkout session cannot ship without a
+number, which is what this closes.
+
+**Four things this decision is, and one it is not.**
+
+- **It is a positioning call, not a margin one**, exactly as the paragraph
+  below argues: a ceiling-consuming account costs ~$2-$14 a month, so `plus` at
+  $9 covers a typical account comfortably and a genuinely heavy one thinly.
+  **That thin case is the point of link 7's underwater list**, and the list is
+  built to find it rather than to be reassured by it.
+- **It prices `plus` where the trial lands.** M20 grants the trial `plus`, so
+  the week someone samples is the plan they are then asked to buy. Pricing
+  `plus` above what the trial demonstrates would make the trial an advert for a
+  different product.
+- **`premium` is a little over twice `plus` because it sells a different
+  thing** — collaborators, not more assistant. The ladder a buyer reads is
+  presentation; **nothing in code may treat $19 > $9 as meaning `premium` ⊇
+  `plus`**, which is *a plan is a set, not a rank* meeting a price list, and
+  the place it is most likely to die quietly.
+- **It is versioned like everything else.** These are `v1` prices. Changing
+  them publishes a new version and affects new purchases only; an existing
+  subscriber pinned to `v1` keeps paying $9 forever unless they act. There is
+  no mechanism to move them — see link 2.
+
+**What it is not: a price string M20 may use.** M20's *Deliberately not here*
+is explicit — *"if a price string appears in this milestone's diff, the split
+has failed."* These numbers reach `price_minor`, `currency` and
+`stripe_price_id` in **link 2 of this milestone**, added to plan-version entries
+M20 publishes as free by construction. The decision being made early does not
+move it earlier.
+
+**Two numbers still owed, and neither blocks M20.** The **grace window** link 6
+turns on (*"a defined grace window"* — undefined), and whether the trial's
+`plus` week is offered again after a lapse. Both are M21's, both are copy as
+much as code, and both are listed in the kickoff plan's open questions:
+`docs/plans/2026-09-13-M20-M21-commercial.md`.
 
 **Cost is not the constraint on that decision.** M20 link 5 works it through
 against the models actually configured — `deepseek/deepseek-v4-flash-0731` at

@@ -1,10 +1,28 @@
 # M20 — An account knows what it may do
 
-**Status:** Scoped and placed 2026-09-01. Runs **after M9**, before M21, in the
-order set the same day: `M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`.
-Placement is Mitchell's call and the reason is M9: `ai-live` defaults off and
-grounding is what would let it be turned on, so selling AI access before M9
-would sell a feature that is dark.
+**Status: OPEN — this is the current milestone, as of 2026-09-13.**
+
+Scoped and placed 2026-09-01 to run **after M9**, before M21. Placement was
+Mitchell's call and the reason was M9: `ai-live` defaults off and grounding is
+what would let it be turned on, so selling AI access before M9 would sell a
+feature that is dark.
+
+**Reordered 2026-09-13, on Mitchell's call** — asked for directly, *"start the
+milestone that creates the stripe work and ability to pay for the app."* The
+commercial pair runs ahead of M9's remaining work:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
+
+**That supersedes this milestone's own *"M9, and it must be closed"*
+prerequisite below.** The dark-feature argument was not refuted — it was
+accepted and outweighed, and the three costs it carries (a dark AI tier, a
+pricing decision without M9's volume evidence, M9's known issues ageing) are
+recorded with their mitigations in `docs/milestones/README.md` under
+**2026-09-13**. Read that before writing this milestone's retro; the trade was
+deliberate.
+
+**The prerequisite ADR is written and accepted: ADR-045** (*Entitlements is a
+module with two stores*), and `AGENTS.md`'s module map carries the row it adds.
+Kickoff plan: `docs/plans/2026-09-13-M20-M21-commercial.md`.
 
 **This is the first commercial milestone in the product.** Nothing in the repo
 has ever described a paid tier, a plan, a price or a payment — verified by
@@ -736,9 +754,19 @@ It answers `can(account, capability)`; the *caller* knows that
 the boundary violation it would otherwise be, and it is the decision the ADR
 exists to record. Same standing as M13's transport ADR and M14's repeaters ADR.
 
-**M9, and it must be closed.** Not a code dependency — a product one. M9
+~~**M9, and it must be closed.** Not a code dependency — a product one. M9
 grounds the assistant and is what allows `ai-live` to be turned on. Charging
-for a dark feature is the reason this milestone is not placed earlier.
+for a dark feature is the reason this milestone is not placed earlier.~~
+**Superseded 2026-09-13 by Mitchell's reorder** (`docs/milestones/README.md`) —
+this milestone runs *before* M9's remaining work. It was never a code
+dependency and nothing here fails to build without M9; what it bought was not
+selling a dark feature, and that cost is now accepted on the record with its
+mitigation: `ai-live`'s flag is per-entity and only ever widens
+(ADR-019's 2026-09-08 amendment), so live AI can be turned on for paying
+accounts specifically without turning it on for everyone. **Whether to do that
+is a decision for this milestone's build, not a promise already made** — and if
+it is not made, an account buying `plus` gets a simulated assistant until M9
+lands. Say so in the retro either way.
 
 **M11a, and it is closed.** Link 8 builds on `invite_codes` and on
 `created_by`/`redeemed_by` already being recorded.

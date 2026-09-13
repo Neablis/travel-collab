@@ -30,6 +30,28 @@ general setup.
 
 ## Where the work is right now
 
+**M20 — AN ACCOUNT KNOWS WHAT IT MAY DO — IS THE CURRENT MILESTONE, OPENED 2026-09-13.**
+Mitchell's reorder the same day, asked for directly: **the commercial pair M20 → M21 runs
+ahead of M9's remaining work.** Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
+
+**Nothing is built yet. What exists is the decision and what it required:** ADR-045
+(*Entitlements is a module with two stores*), the `AGENTS.md` module-map row it adds, the
+prices (`free` $0 / `plus` $9 / `premium` $19 — recorded in M21's file, and **not to appear
+in M20's diff**), and the kickoff plan. The narrative and the three costs accepted with the
+reorder are in `docs/milestones/README.md` under **2026-09-13**; do not restate them here.
+
+**Start here:** `docs/plans/2026-09-13-M20-M21-commercial.md` — six phases for M20, four for
+M21, with the two open questions M21 still owes.
+
+**The one thing to know before touching this milestone:** *a plan is a set, not a rank.* Code
+asks `can(ent, "ai.ask")` and nothing compares plans. `accessPolicy.ts:11`'s `RANK` is the
+right shape for roles inside a trip and the wrong shape here; copying it is the obvious move
+and it is a one-way door. The buyer's ladder is presentation only.
+
+**M9 is paused, not cancelled**, and keeps its place immediately after M21. Its Phase 0 is
+below, unchanged, because it is what M9's three real pieces of work are still built on.
+
 **M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
 P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and
 **KI-22**, and ticked **no gate box**, by design — it is what M9's three real pieces of work
