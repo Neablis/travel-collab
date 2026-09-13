@@ -92,10 +92,14 @@ describe("the phone front door (SPEC §28)", () => {
       render(<PhoneFrontDoor />);
       const signIn = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Sign in" });
       expect(signIn.getAttribute("href")).toBe("/signin");
-      // SPEC §13.1's 44px floor, taken from the size variant rather than
-      // hand-written — asserted because a header control that is hard to hit on
-      // a phone is the same defect as one that is missing.
-      expect(signIn.className).toContain("min-h-11");
+      // **SPEC §13.1's 44px floor is NOT asserted here**, and the test-quality
+      // wall is right to have refused it: `expect(className).toContain(
+      // "min-h-11")` is asserting a class, and the wall's own message says
+      // roles, labels and values. The floor is a property of the `touch` size
+      // variant and `ui/primitives.test.tsx` owns it — "Button's touch size is
+      // a 44px floor in both axes" — which is the one place `components/ui` is
+      // allowed to read its own token classes. Restating it here would have
+      // been a second, weaker copy of a claim already made properly.
     });
 
     // *"Is also awkward wording ... and missing the graphic"*, twice, and
