@@ -8,16 +8,18 @@ import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
 import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
-import { ScheduleLens } from "@/components/lenses/ScheduleLens";
+import { CalendarLens } from "@/components/lenses/CalendarLens";
+import { OverviewLens } from "@/components/lenses/OverviewLens";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
+import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
@@ -28,6 +30,7 @@ import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
+import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
@@ -80,7 +83,7 @@ function useAssistantVisibility() {
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
-  const { lens } = useLens();
+  const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
@@ -633,7 +636,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Only Map is full-BLEED (no gutter, and it reclaims the assistant rail's
   // reserved strip). Board is a separate case: full WIDTH, normal gutter,
   // rail still respected — see boardUsesFullWidth below.
-  const isFullLens = lens === "Map";
+  const isFullLens = view === "Map";
 
   // Board opts out of the 1120px content cap. That cap (#31, wave-3 Area 1)
   // was decided as one half of a pair: "cap the board to a max content width"
@@ -653,7 +656,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // elsewhere. Timeline and Calendar keep the cap: they scroll vertically, and
   // a 1372px-wide line of prose or a 1372px calendar cell is worse, not
   // better.
-  const boardUsesFullWidth = lens === "Board";
+  const boardUsesFullWidth = view === "Plan";
 
   // The assistant's context line — "Looking at Day N" once a day is focused
   // (Task 4's FocusProvider, already read above for the day chips), else
@@ -690,7 +693,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // can see, in the day rail's own words (`chipModel`). The quick asks are
   // literally `suggestedQuestions` either way, which is deliberate — see that
   // function's note in `phoneAskContext`.
-  const phoneAsk = phoneAskContext(activeTrip, scopedDay, { tab: lens === "Map" ? "map" : "plan" });
+  const phoneAsk = phoneAskContext(activeTrip, scopedDay, { tab: view === "Map" ? "map" : "plan" });
 
   // How many more questions this thread has room for.
   //
@@ -851,7 +854,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}
-            {lens !== "Map" && (
+            {view !== "Map" && (
               <DayChips
                 days={chipModel(activeTrip)}
                 focusedDay={focusedDay}
@@ -881,7 +884,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     double-click-to-create calls `openCreate` from useEditor()
                     directly, not through this callback, so without it a viewer
                     could still raise the editor in create mode. */}
-                {lens === "Map" && (
+                {view === "Map" && (
                   <MapLens
                     detail={activeTrip}
                     onSelectActivity={readOnly ? undefined : openEdit}
@@ -891,7 +894,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             ) : (
               <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
-                {lens === "Board" && (
+                {view === "Plan" && (
                   <Board
                     trip={activeTrip}
                     focusedDay={focusedDay}
@@ -917,6 +920,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // scrolls its column into view here. See the day-sync
                     // contract in `FocusProvider`.
                     sync={columnsSync}
+                    // The insert half of the keep-a-day loop, which SPEC §24
+                    // deleted along with `TimelineLens` — `EndOfTrip` was its
+                    // only mount. Passed from here rather than imported inside
+                    // `Board` because it reads `useTrip()` and `Board` is
+                    // props-only; this screen is inside the provider.
+                    addSavedDay={<AddSavedDayButton />}
                     callbacks={{
                       // "columns", for the same reason the chips row names
                       // itself above: at any width where more than about two
@@ -948,39 +957,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     }}
                   />
                 )}
-                {lens === "Schedule" && (
-                  <ScheduleLens
-                    detail={activeTrip}
-                    readOnly={readOnly}
-                    onSelectActivity={readOnly ? undefined : openEdit}
-                    // The timeline raises real commands through this one seam:
-                    // UpdateActivity for the overlap warning's one-click fix,
-                    // DismissConflict for its dismissal, and — Phase 6 — AddDay
-                    // from the end-of-trip block's "Add a day". That last one is
-                    // deliberately the SAME `dispatch({ type: "AddDay", tripId,
-                    // dayId: crypto.randomUUID() })` the Board lens's `onAddDay`
-                    // above performs, just arriving pre-built (the seam carries
-                    // whole commands) rather than as a bare callback. None of
-                    // the three is ever a CreateTrip, which is the only
-                    // TripCommand dispatch doesn't take. The timeline scrolls
-                    // the appended day into view itself, via the focus effect it
-                    // already owns — see TimelineLens's `addDay`.
-                    onCommand={(command) => {
-                      // All three commands this seam carries (UpdateActivity,
-                      // DismissConflict, AddDay) are writes, so a viewer has
-                      // nothing legitimate to raise through it. Unreachable
-                      // today — the timeline withholds every affordance that
-                      // would raise one (`readOnly` above), and TripProvider's
-                      // `dispatch` refuses a viewer as well — and kept for the
-                      // same reason ActivityEditorSheet's handleSave guard is:
-                      // so the refusal does not depend on a render branch
-                      // somewhere below staying correct. The server refuses each
-                      // of them independently (accessPolicy.ts) and remains the
-                      // real gate; this is defence in depth.
-                      if (readOnly) return;
-                      if (command.type !== "CreateTrip") void dispatch(command);
-                    }}
-                  />
+                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} />}
+                {view === "Calendar" && (
+                  <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
                 )}
               </PageContainer>
             )}
@@ -1005,14 +984,19 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // not disappear the moment the assistant opens. Two entry points to
             // the same panel on one 411px screen is what §23 removes.
             //
-            // >=768px is unchanged: the design's minimized launcher
-            // (`Trip Planner Redesign.dc.html:1058-1063`), a filled-brand pill
-            // pinned bottom-right by `position: fixed`, not the edge-tab
-            // treatment this used to have (variant="secondary",
-            // rounded-r-none, vertically centred against the right edge) — the
-            // design has no bordered edge-tab state for the assistant, only
-            // this pill. Icon mirrors AssistantRail's own open-state mark
-            // glyph (◎, same component's header).
+            // >=768px is the design's minimized launcher
+            // (`Trip Planner Redesign.dc.html:1058-1063`), pinned bottom-right
+            // by `position: fixed`, not the edge-tab treatment this used to
+            // have (variant="secondary", rounded-r-none, vertically centred
+            // against the right edge) — the design has no bordered edge-tab
+            // state for the assistant.
+            //
+            // **It is `AssistantBubble` now, not a button written here.** The
+            // same control existed twice — this pill and the notebook's bubble
+            // — and SPEC §28 changes both in the same two ways (92×44, labelled
+            // `Ask`, no mark). Two copies of one control is how they drifted
+            // apart in the first place; the offset that was genuinely local to
+            // this screen is passed in instead.
             //
             // `hidden md:inline-flex` on the Button itself, and the `flow-root`
             // wrapper, the `PageContainer` and the measured `--launcher-height`
@@ -1028,18 +1012,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // Still deliberately outside the `inert` wrapper above (as before):
             // asking a question about a previewed history state is a read, not
             // a write, so it stays available while the board is inert.
-            <Button
-              variant="primary"
-              onClick={assistant.show}
-              className="fixed right-6 z-40 hidden h-auto gap-2 rounded-full px-4 py-2.5 text-base font-semibold shadow-overlay md:inline-flex"
-              // Only read while the pill is `position: fixed`, which is now the
-              // only way it is ever rendered.
-              // eslint-disable-next-line no-restricted-syntax -- bottom offset clears the unscheduled rack's own measured height (see rackHeight above), which changes with its open state and item count — not expressible as a static token.
-              style={{ bottom: rackHeight > 0 ? rackHeight + 24 : 24 }}
-            >
-              <span aria-hidden>◎</span>
-              Assistant
-            </Button>
+            <AssistantBubble open={assistant.open} onOpen={assistant.show} bottom={rackHeight > 0 ? rackHeight + 24 : 24} />
           )}
         </div>
         {/* The assistant rail — a real streaming conversation against
@@ -1120,7 +1093,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           Its four parked ideas are still part of the plan a reader should see,
           so on a read-only board it renders without the picker rather than
           disappearing (UnscheduledRack drops it when `onAssign` is absent). */}
-      {lensAcceptsDrops(lens) && (
+      {lensAcceptsDrops(view) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
             items={rackItems}

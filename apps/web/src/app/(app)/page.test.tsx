@@ -66,8 +66,10 @@ describe("Home trip actions", () => {
 
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    // **No confirm dialog since SPEC §27**: the card goes on the click, and
+    // the toast's Undo is the recovery. The step that used to follow here was
+    // a modal whose own copy said the action was undoable.
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i })); // confirm dialog
 
     const toast = await screen.findByRole("status");
     expect(toast.textContent).toMatch(/deleted "japan"/i);
@@ -79,7 +81,7 @@ describe("Home trip actions", () => {
     );
   });
 
-  it("removes the row immediately on confirm, before the delete request resolves", async () => {
+  it("removes the row immediately on the click, before the delete request resolves", async () => {
     let resolveDelete: (r: Response) => void;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -98,7 +100,6 @@ describe("Home trip actions", () => {
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i })); // confirm dialog
 
     // The DeleteTrip request is still in flight (we haven't resolved it yet),
     // but the row should already be gone from the list.
@@ -126,7 +127,6 @@ describe("Home trip actions", () => {
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
 
     await screen.findByRole("alert");
     // Two "Japan"s now render: the next-trip hero heading and the trip-list
@@ -404,7 +404,6 @@ describe("Home trip cards' planned-of-budget line", () => {
     // round.
     await userEvent.click(await screen.findByRole("button", { name: /trip actions for chile/i }));
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i })); // confirm dialog
 
     await waitFor(() => expect(secondTripCallCount).toBeGreaterThanOrEqual(2));
     // The stale line from round 1 must not survive a round whose fetch

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, openHistory } from "./helpers";
+import { dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
@@ -30,6 +30,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -67,7 +68,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("tab", { name: "Calendar" }).click();
   await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for Board's own content to mount before
   // interacting with it. (Task 3.3 deleted the Backlog column this used to
@@ -117,7 +118,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // located activities yet" empty state) confirms Fushimi Inari's geocode
   // landed.
   await expect(page.locator(".map-lens-canvas")).toBeVisible();
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   // -- shift the start date; day 1's own date label reflects the change --
   // (D-1: this used to also assert an anchor-violation conflict badge

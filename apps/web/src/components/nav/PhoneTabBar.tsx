@@ -95,13 +95,15 @@ function tripIdFromPathname(pathname: string): string | null {
  * `/playbooks/:path*` matcher), which is not the same as being Playbooks in
  * the design's sense.
  *
- * `lens` is the raw `?lens=` string rather than a `Lens`, because this
+ * `lens` is the raw query string value rather than a `View`, because this
  * component sits in `(app)/layout.tsx` — *above* `LensRouter`, which is
  * mounted inside the trip page — so `useLens()` is not available here. The
  * derivation is the same one and there is still no second source of truth:
- * "Map" and "not Map" is the whole of it, and LensRouter's own fallback
- * ("anything unrecognised is Board") lands an unknown value on Plan, which is
- * where Board lives on a phone.
+ * "Map" and "not Map" is the whole of it, and anything else lands on Plan.
+ *
+ * **Both the new `?view=` and the legacy `?view=`-less `?lens=` are read**, for
+ * the reason SPEC §24's mapping exists at all: a link somebody is holding still
+ * resolves, and the bar must light the same tab the page actually rendered.
  */
 function activePhoneTab(pathname: string, lens: string | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
@@ -136,11 +138,27 @@ function phoneTabHref(tab: PhoneTabId, tripId: string | null): string {
     // rather than a fallback worth designing — a tab with nowhere to go is the
     // disabled state §22 removed.
     case "plan":
-      // Not a bare `/trips/<id>`: that URL resolves to the *Board* lens
-      // (LensRouter's default), and SPEC §10 keeps Day columns off the phone.
-      return tripId ? `/trips/${tripId}?lens=Schedule&view=Timeline` : "";
+      // **`?view=Plan`, and Plan is day columns now.**
+      //
+      // This used to be `?lens=Schedule&view=Timeline`, because SPEC §10 kept
+      // day columns off the phone — *"Day columns and Calendar exist to show
+      // density, which a phone cannot show honestly"* — so the phone's editing
+      // surface was the timeline. SPEC §24 deleted the timeline and made Plan
+      // the only surface that edits, on both surfaces, so there is nothing else
+      // for this tab to point at.
+      //
+      // A bare `/trips/<id>` is still wrong here, for a NEW reason: it resolves
+      // to Overview (§24), which is read-only, and the Plan tab exists to reach
+      // the surface that edits.
+      //
+      // **The phone therefore renders day columns at 390px, which §10 says it
+      // cannot do honestly.** That is a known, accepted, temporary state —
+      // Mitchell, 2026-09-12: *"Lets just build the plan as is for now, and when
+      // its ready we will figure out where editing moved to."* It is on
+      // `TODO.md`. Do not resolve it here with a phone-only fallback.
+      return tripId ? `/trips/${tripId}?view=Plan` : "";
     case "map":
-      return tripId ? `/trips/${tripId}?lens=Map` : "";
+      return tripId ? `/trips/${tripId}?view=Map` : "";
     case "notebook":
       return tripId ? `/trips/${tripId}/pages` : "";
   }

@@ -79,6 +79,11 @@
   --text-4xl--line-height: 1.03;
   --text-4xl--letter-spacing: -0.022em;
 
+  /* 4px, for the brand mark's tile and nothing else so far. SPEC §28 states
+     the radius directly ("32px tile, 4px radius, 18px strokes") and the scale
+     started at 6px, so the mark would otherwise have been the one inline
+     `border-radius` in the app. */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -115,7 +120,263 @@
   }
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   LOOKS — SPEC §28. Four of them, and `ledger` is the default.
+
+   **Nothing here changes behaviour.** Every rule reassigns a token the app
+   already draws from, so the same markup, handlers, layout and hit targets
+   carry across all four. That is the design file's own framing of this layer
+   (`Trip Planner Redesign.dc.html:80-83`) and it is the property that makes a
+   look cheap: a screen never knows which one it is in.
+
+   **The base `@theme` block above IS the `paper` look**, so `paper` has no
+   block of its own — it is what you get by overriding nothing. Naming it in
+   `data-look` still works, and renders identically.
+
+   **Selector is `html[data-look=…]`, not `[data-look=…]`.** `@theme` emits its
+   variables on `:root`, which is the same element and the same specificity
+   (0,1,0), so a bare attribute selector would win only by source order — true
+   today, and quietly untrue the first time this file is reordered or the
+   import moves. The type selector makes it (0,1,1) and settles it.
+
+   **No `oklch` anywhere, deliberately.** `DRIFT.md` build-check 2: MapLibre
+   parses CSS Color 3 only and falls back to black on an `oklch()` it is
+   handed, while `getComputedStyle` and canvas `fillStyle` both PRESERVE the
+   function verbatim and so look like a fix. The app has never used it; a look
+   defining its palette that way would put the trap on every map paint property
+   in one commit. Hex only.
+
+   **What is NOT here:** the design file also carries a `--a-*` family of
+   per-look assistant shape variables (bubble fills, corner radii, the
+   transcript gap). Those describe the design file's own assistant markup,
+   which is not this build's — `AssistantRail` is built from the same tokens
+   and utilities as everything else, so it re-skins with the rest of the app
+   and needs no second variable system. If a look ever needs the assistant to
+   differ in SHAPE rather than colour, that is the moment to port them.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Ledger — the default. Squared, ruled rather than shadowed, headings set
+   like column headers. */
+html[data-look="ledger"] {
+  --color-paper: #faf8f3;
+  --color-surface: #ffffff;
+  --color-moss: #f0ede4;
+  --color-hairline: #dcd6c8;
+  --color-border-strong: #b5ae9d;
+  --color-border-input: #8b8574;
+  --color-slate: #6b6455;
+  --color-ink: #16130d;
+
+  --color-brand: #2c4034;
+  --color-brand-hover: #22332a;
+  --color-brand-pressed: #1a2720;
+  --color-brand-tint: #e9e7dd;
+
+  /* §28: "City colour carries HARDER in Ledger, not less. A pale tint alone
+     reads as grey on cream." The design says this as a chroma bump on an oklch
+     ramp; this build assigns each city one of five SEMANTIC families
+     (`lib/dayAccent.ts`) and colours it with that family's tint token, so the
+     same instruction lands here as a per-family tint that holds its hue
+     against cream. The solid half is the 3px rule below. */
+  --color-brand-tint: #e9e7dd;
+  --color-info-tint: #dbe6f2;
+  --color-success-tint: #dcebe0;
+  --color-warning-tint: #f2e7cc;
+  --color-danger-tint: #f4dedb;
+
+  /* Squared. `--radius-full` is deliberately untouched: avatars, dots and the
+     Keep pennant are SHAPES, not styling, and §28 carves them out by name. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+
+  /* Headings set like column headers.
+
+     **Overriding `--font-next-display`, not `--font-display`.** The latter is
+     declared in `@theme inline`, and `inline` means Tailwind SUBSTITUTES the
+     value at compile time: `font-display` comes out as
+     `font-family: var(--font-next-display), ui-sans-serif, sans-serif`, with no
+     `var(--font-display)` anywhere in the output to override. Redefining
+     `--font-display` here would have compiled, linted, typechecked and done
+     absolutely nothing. The variable that survives into the utility is the
+     next/font one, so that is the one a look reassigns.
+
+     **Headings only, which is narrower than the design file.** §28's prose says
+     Ledger "sets headings in mono"; the design file's own ledger block also
+     sets `--font-next-sans` to mono, putting the entire UI in monospace. The
+     prose is the written contract and the conservative reading, so this follows
+     it. Flip `--font-next-sans` here if the whole-UI version is what was
+     wanted — it is a one-line change, deliberately. */
+  --font-next-display: var(--font-next-mono);
+}
+
+/* Nightdesk — the dark one. */
+html[data-look="nightdesk"] {
+  color-scheme: dark;
+
+  --color-paper: #0f141d;
+  --color-surface: #171e2a;
+  --color-moss: #1f2734;
+  --color-hairline: #2b3441;
+  --color-border-strong: #3b4553;
+  --color-border-input: #4d5867;
+  --color-slate: #9ba7b6;
+  --color-ink: #eef2f7;
+
+  --color-brand: #35a98d;
+  --color-brand-hover: #45b99c;
+  --color-brand-pressed: #b9e8da;
+  --color-brand-tint: #14302a;
+
+  --color-danger: #e0776d;
+  --color-danger-tint: #391e1c;
+  --color-danger-ink: #f2b6b0;
+  --color-warning: #d8a75a;
+  --color-warning-tint: #382d18;
+  --color-warning-ink: #eed296;
+  --color-success: #56b880;
+  --color-success-tint: #143020;
+  --color-success-ink: #a6dcb9;
+  --color-info: #5b9dd6;
+  --color-info-tint: #15273a;
+  --color-info-ink: #aecfec;
+}
+
+/* Airmail — warm paper, rounder than the rest. */
+html[data-look="airmail"] {
+  --color-paper: #fdf5ec;
+  --color-surface: #fffdfa;
+  --color-moss: #f6e9da;
+  --color-hairline: #ead9c5;
+  --color-border-strong: #cfb79b;
+  --color-border-input: #a8927a;
+  --color-slate: #6f6153;
+  --color-ink: #2a2018;
+
+  --color-brand: #a8532f;
+  --color-brand-hover: #954829;
+  --color-brand-pressed: #7c3b21;
+  --color-brand-tint: #f7e3d5;
+
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+}
+
+/* Ledger's two rules that a token cannot carry on its own.
+
+   **Unlayered, on purpose.** Tailwind declares `@layer theme, base, components,
+   utilities` in that order, and a later layer beats an earlier one regardless
+   of specificity — so `html[data-look="ledger"] .shadow-raised` sitting in
+   `@layer components` would lose to the plain `.shadow-raised` utility every
+   time, however specific it looks. Unlayered rules beat all layered ones, which
+   is what these need.
+
+   1. Elevation becomes a hairline. It has to be a RULE and not a token:
+      `shadow-raised` does not compile to `var(--shadow-raised)` — Tailwind
+      inlines the shadow's literal into a `--tw-shadow` of its own — so setting
+      `--shadow-raised: none` in the block above looked like the fix and changed
+      nothing. */
+html[data-look="ledger"] .shadow-raised {
+  box-shadow: none;
+  border: 1px solid var(--color-hairline);
+}
+
+  /* 2. The city's own 3px rule. The design writes this as
+        `[data-app-theme="ledger"] [data-city] { border-left: 3px solid var(--c) }`
+        over an oklch ramp; the build has five semantic families instead, so the
+        element names its family and the look supplies that family's ink. Only
+        surfaces that are genuinely city-coded carry the attribute — today the
+        Plan columns; §28 also names the Overview day table, which is the
+        Overview page's to add when it exists.
+
+        Scoped to this look on purpose: in every other look the tint alone
+        carries the read, and the rule would be noise. */
+  html[data-look="ledger"] [data-city-accent] {
+    border-left: 3px solid;
+  }
+  html[data-look="ledger"] [data-city-accent="brand"] {
+    border-left-color: var(--color-brand);
+  }
+  html[data-look="ledger"] [data-city-accent="info"] {
+    border-left-color: var(--color-info-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="success"] {
+    border-left-color: var(--color-success-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="warning"] {
+    border-left-color: var(--color-warning-ink);
+  }
+  html[data-look="ledger"] [data-city-accent="danger"] {
+    border-left-color: var(--color-danger-ink);
+  }
+  /* A day with no located stop has no city and therefore no colour. Inventing
+     one would claim a place the trip never named (`cityAccents.ts`), so the
+     rule is drawn in the hairline instead of skipped — the column still lines
+     up with its neighbours. */
+  html[data-look="ledger"] [data-city-accent="neutral"] {
+    border-left-color: var(--color-hairline);
+  }
+
+
+
 @layer components {
+  /* SPEC §28's phone front door: the pinned block is three viewports tall, and
+     the sticky stage inside it is one — so scrolling it moves `scrollTop`
+     without moving what you are looking at, which is the whole mechanic. Three
+     is the length of the sequence, not a spacing value, so there is no token
+     for it and `h-[300dvh]` is the arbitrary value the colour wall correctly
+     rejects. It lives here, once, the way `.unscheduled-rack`'s own one-off
+     geometry does. */
+  .front-door-pin {
+    height: 300dvh;
+  }
+
+  /* SPEC §26's edit-mode affordance, and the property that matters is what it
+     does NOT do: **the prose must not move when edit mode opens.**
+
+     > Edit mode used to inject a chrome row — name pill, bind selects, tag
+     > chips — above each widget. That meant the document you were editing was
+     > not the document you had written: it reflowed the moment you hit Edit,
+     > and the thing you were trying to judge moved.
+
+     So neither rule below may take layout space. The outline is drawn with
+     `outline`, not `border`: a border is part of the box and would reflow the
+     line it sits in; an outline is painted outside it and costs nothing.
+     `outline-offset` pushes it clear of the glyphs without touching the
+     measure. The handle is `position: absolute` against the wrapper, so it too
+     is out of flow, and it is allowed to overhang the top edge. */
+  .tc-widget-edit {
+    outline: 1px dashed var(--color-border-strong);
+    outline-offset: 2px;
+  }
+  .tc-widget-handle {
+    position: absolute;
+    /* Above the widget's own top edge, which is what "on its top edge" means
+       when the thing must not displace the line above it. */
+    top: -14px;
+    left: 0;
+    /* §26's 58×20. `line-height` centres the ▸ without a flex context, which
+       matters because this sits inside a ProseMirror inline atom where an
+       unexpected flex container changes how the node's own box is measured. */
+    width: 58px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    font-size: 11px;
+    border-radius: var(--radius-xs);
+    background-color: var(--color-moss);
+    color: var(--color-slate);
+    /* The handle is a marker, not a target: §26 makes "the block itself" the
+       click target, so this must never swallow the click that selects the
+       node underneath it. */
+    pointer-events: none;
+    user-select: none;
+  }
+
   /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
      equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
      would trip the color-wall's "no arbitrary values" check with no inline-style
@@ -1024,9 +1285,36 @@
      `:has()` rather than loosening every block: the leading is right for text
      of words, and only a block carrying a chip has anything to make room for.
 
-     Two values, because the 2px rule costs more relative to a small font than a
-     large one. **Headings: 1.4.** Measured in the walk, an `h2` chip is 30px
-     against a 33.6px line — 3.6px of air. **Prose and list items: 1.7.** This
+     Two rules, and they are not the same KIND of value, because the 2px of
+     clearance a chip needs is a fixed length while the leading it eats into is
+     a multiple of the font-size — so what serves a 30px heading does not serve
+     a 14px paragraph, and within the headings, what serves `h1` does not serve
+     `h6`.
+
+     **Headings: `calc(1.34em + 6px)`, and it was a flat 1.4 until the
+     2026-09-12 retheme.** That retheme put the display register in Bricolage
+     Grotesque, whose em box is far taller than the face it replaced: a chip's
+     content area is 1.333× its font-size where the old one was 1.167×. Nothing
+     in the markup changed, and the leading that had 3.6px of air under it went
+     to −0.4 — the overlap Mitchell reported, back, from a font swap three files
+     away. The walk caught it: `the chip has no room in H2`, measured −0.3999….
+
+     A LENGTH rather than a ratio, because the clearance a chip needs is not
+     proportional and a single ratio therefore cannot serve every heading. The
+     chip paints `1.333em + 2px` (content area plus `border-b-2`), so the ratio
+     that clears it by 2px is `1.333 + 4/size`: 1.47 at `h1`'s 30px, 1.583 at
+     `h4`–`h6`'s 16px. A flat number picked on one heading is wrong on another,
+     and the smallest heading — the tightest, and the one no walk measures —
+     is where it would be wrong first and silently. `1.34em + 6px` instead
+     gives every size the SAME ~4px of air: h1 46.2 vs 42, h2 38.2 vs 34, h3
+     31.5 vs 27.3, h4–h6 27.4 vs 23.3. That is what makes the walk's one `h2`
+     measurement worth anything for the other five — the clearance is
+     `0.007em + 4px`, so if `h2` has room they all do.
+
+     `1.34` is still the current display face's box, so a future retheme moves
+     it. The walk is what will say so, now for every heading at once.
+
+     **Prose and list items: 1.7.** This
      is the half the second report was about and it does not look like an
      overlap in a screenshot: a 14px paragraph at 1.45 is a 20.3px line holding
      a 20px chip, so the tint cleared the line above it by three tenths of a
@@ -1045,7 +1333,7 @@
   .tc-page-editor h4:has([data-widget-value]),
   .tc-page-editor h5:has([data-widget-value]),
   .tc-page-editor h6:has([data-widget-value]) {
-    line-height: 1.4;
+    line-height: calc(1.34em + 6px);
   }
   .tc-page-editor p:has([data-widget-value]),
   .tc-page-editor li:has([data-widget-value]) {

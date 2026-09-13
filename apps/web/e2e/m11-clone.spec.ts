@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
+import { openPlan } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // M11 link 5's exit-gate line: "A shared trip can be cloned into the
@@ -81,7 +82,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   await addDay(page, tripId);
   await addDay(page, tripId);
 
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await shareLinkFor(page);
 
@@ -100,6 +101,10 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
       erin.getByRole("heading", { name: `${tripName} (copy)`, level: 2 }),
     ).toBeVisible();
     await expect(erin.getByText("Viewer", { exact: true })).toHaveCount(0);
+    // The clone drops her on the trip's default view, which is Overview since
+    // SPEC §24 — the one that does not edit. The day columns she is about to
+    // count are on Plan.
+    await openPlan(erin);
     await Promise.all([
       erin.waitForResponse(
         (r) =>
@@ -140,7 +145,7 @@ test("duplicating your own trip records where the copy came from", async ({ page
   test.slow();
   const tripName = e2eTripName("Duplicated");
   const tripId = await createTrip(page, tripName);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
 
   await Promise.all([

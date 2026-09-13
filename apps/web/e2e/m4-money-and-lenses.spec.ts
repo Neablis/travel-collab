@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, openHistory } from "./helpers";
+import { dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
@@ -14,6 +14,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   // -- set the trip currency to EUR --
   // P2 surface move (#12b): currency/budget moved from the always-visible
@@ -23,6 +24,15 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("currency").selectOption("EUR");
   await expect(page.getByLabel("Total for the trip")).toBeVisible();
+  // **A start date, in the same sheet, and it is not decoration.** Since SPEC
+  // §24 the per-day subtotal is read off a Calendar cell, and a Calendar has
+  // nowhere to put an undated day — this walk used to make its money on an
+  // undated trip because Timeline's cost pill did not care. `TripDateControl`
+  // commits on selection rather than on Done, so filling the field IS the
+  // commit; it dates the days that exist and the ones added after it (m8 walks
+  // the same control and then adds three days).
+  await page.getByRole("button", { name: /dates/i }).click();
+  await page.getByLabel(/trip start date/i).fill("2026-08-03");
   await page.getByRole("button", { name: "Close" }).click();
 
   // -- add a day, and a costed activity on it --
@@ -53,14 +63,26 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Travel insurance" })).toBeVisible();
 
-  // -- per-day subtotal on the Timeline lens --
+  // -- per-day subtotal, on the Calendar --
   // This used to read the same rollup off the Itinerary, Daily-overview and
   // Full-trip lenses via `?lens=`; KI-20 retired all three (they had no nav
   // entry and the M10 redesign never contemplated them), so the money
-  // assertions now run against the surfaces that survived. Timeline's per-day
-  // cost pill is the day subtotal.
-  await page.getByRole("tab", { name: "Timeline" }).click();
-  await expect(page.locator('[data-testid^="day-cost-"]').first()).toHaveText("€420.00");
+  // assertions run against the surfaces that survived.
+  //
+  // **It moved again with SPEC §24, from Timeline's per-day cost pill to the
+  // Calendar cell's meta line.** Timeline is deleted and its pill went with it;
+  // §24's Calendar table puts the day's money on the cell — "Meta: `4 stops` ·
+  // day cost — volume and money at a glance" — which is also the tab whose
+  // question is "what shape is this trip", scoped to the whole trip rather
+  // than a day. Plan has no day subtotal now and is not meant to.
+  //
+  // Read out of the cell's accessible NAME rather than its text, because an
+  // `aria-label` on a button replaces its content for assistive technology —
+  // so the label is the only place the figure is actually announced, and a
+  // regression that dropped it from there would be invisible to a text match.
+  // Same reasoning `m11-demo` states at length for the same labels.
+  await page.getByRole("tab", { name: "Calendar" }).click();
+  await expect(page.getByLabel(/^Day 1,.*€420\.00/)).toBeVisible();
 
   // The unscheduled (trip-level) 99.00 EUR stop stays parked in the rack — see
   // its rack-card assertion above; the trip total that rolls both together is
@@ -68,7 +90,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   // -- set a budget below the total: over-budget warning appears --
   // MoneyInput debounces/commits on blur (avoids firing one SetTripBudget

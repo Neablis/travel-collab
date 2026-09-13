@@ -588,6 +588,22 @@ Captured so they aren't lost; not committed to a milestone yet.
     no conflict state"* — which project rule 6 requires — are all designed and
     all unowned. **Placing the phone is a milestone-sized decision**, not
     something to bolt onto whichever milestone touches a screen next.
+  - **WHERE DOES THE PHONE EDIT? Open, and deliberately deferred — 2026-09-12.**
+    SPEC §24 deletes the Timeline lens, and the Timeline lens *was* the phone's
+    editing surface: `PhoneTabBar`'s Plan tab pointed at
+    `?lens=Schedule&view=Timeline`, and `usePhoneTwoViews` existed only to send
+    a bare `/trips/<id>` there, on §10's grounds — *"Day columns and Calendar
+    exist to show density, which a phone cannot show honestly."* §10 and §22
+    are carried forward unchanged in the same handoff, so the bundle now says
+    both that Plan (day columns) is the only surface that edits and that a
+    phone cannot render day columns honestly.
+    **Built as the design states it, on Mitchell's call** (2026-09-12: *"Lets
+    just build the plan as is for now, and when its ready we will figure out
+    where editing moved to"*), so **a phone renders day columns at 390px
+    today** and that is a known, accepted, temporary state rather than an
+    answer. It is not papered over with a phone-only fallback view, and it
+    should not be. Whoever picks this up owes either a phone treatment of Plan
+    or a design decision that §10 no longer holds.
 
 - **Drop Travelers from the trip header bar (2026-08-30, Mitchell, on PR #89's
   preview — "Drop Travelers from this bar, its not needed, it can live just in

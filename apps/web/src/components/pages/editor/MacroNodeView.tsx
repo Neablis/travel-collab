@@ -1,10 +1,10 @@
 "use client";
+import { useEffect, useId, useMemo } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
 import { MacroView } from "../MacroView";
 import { useMacroEditorContext } from "./MacroEditorContext";
-import { WidgetChrome } from "./WidgetChrome";
 
 // The shape a widget renders as, with the one default both readers of it must
 // agree on. `MacroNodeExtension` puts this on the DOM for the stylesheet; the
@@ -23,41 +23,108 @@ export function macroShape(name: string): WidgetShape {
 // §7) and the ring goes round the word. For a `block`/`repeat` widget the
 // stylesheet has already made the outer `.react-renderer` element a block
 // (`[data-macro-shape="block"] { display: block }`), and the card inside it is
-// two stacked flex rows, so the inline wrapper's own fragments are degenerate:
-// measured in Chromium on a selected `day.detail`, the wrapper computed
-// `display: inline` inside an `outerDisplay: block` card, and the ring rendered
-// as two stubs at the card's left and right edges rather than an outline round
-// it. ProseMirror HAD selected the node (`.ProseMirror-selectednode` was on the
-// outer element) — the feedback saying so was just unreadable, which is what
-// made the card feel unselectable.
+// two stacked flex rows, so the inline wrapper's own fragments are degenerate.
 //
 // So a block-shaped wrapper becomes a block box too. That changes no layout —
-// its content is already block-level flex rows, so the inline box it used to be
-// was only ever a container for them — it only gives the ring a box to hug.
+// its content is already block-level flex rows — it only gives the ring a box
+// to hug.
 const SELECTED_RING = "ring-2 ring-primary rounded";
 
-// The NodeView for the `macro` ProseMirror node. Renders `MacroView`
-// (Task 4.2) — this component owns none of the resolution/rendering logic
-// itself, only the TipTap/React wiring: pulling attrs off the node and
+// SPEC §26's edit-mode affordance, and the whole of what edit mode adds to the
+// document:
+//
+// > a dashed outline around each widget block, a small 58×20 handle on its top
+// > edge carrying a ▸ (the widget's name is the tooltip, and the heading of the
+// > panel that opens), and the block itself as the click target. Outline and
+// > handle sit outside the text measure, so **the prose does not move**.
+//
+// `.tc-widget-handle` (globals.css) is what keeps the handle out of the flow —
+// it is absolutely positioned against the wrapper, which is why the wrapper is
+// `relative` in edit mode for every shape now, not only for blocks.
+const EDIT_OUTLINE = "tc-widget-edit relative";
+
 /**
- * Renders a macro node and its editing controls within the editor.
+ * Renders a macro node inside the editor.
  *
  * @param node - The macro node containing its name and parameters
  * @param selected - Whether the node is selected
  * @param updateAttributes - Updates the macro node's attributes
  * @returns The rendered macro node view
  */
-export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeViewProps) {
-  const { detail, context, user, globals, onBindDay, editing } = useMacroEditorContext();
+export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
+  const { detail, context, user, globals, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
   const name = node.attrs.name as string;
-  const params = (node.attrs.params ?? {}) as Record<string, unknown>;
-  // `group relative` on the block shape: `relative` because its chrome is now a
-  // popover anchored here rather than a row in the flow, and `group` because
-  // the popover reveals on hover/focus of the whole widget (see WidgetChrome).
-  // A `single` widget reads as a word in a sentence and keeps its inline
-  // chrome, so it needs neither.
+  // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
+  // fresh object on every render, and this feeds a `useEffect` that reports the
+  // selection upward — so an unmemoised value re-reports on every render, which
+  // re-renders the screen, which re-renders this. `PageScreen` also guards
+  // against that by value, and both are worth having: this stops the loop at
+  // the source, and the guard there stops any other reporter starting one.
+  const rawParams = node.attrs.params;
+  const paramsKey = JSON.stringify(rawParams ?? {});
+  const params = useMemo(
+    () => (rawParams ?? {}) as Record<string, unknown>,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialised value on purpose; `rawParams` is a new object every render and is what this memo exists to stabilise.
+    [paramsKey],
+  );
+  const def = getMacro(name);
+
+  // Stable for the life of this mounted node view, and the reason the surface
+  // can tell "this widget deselected" from "a different widget selected
+  // instead". Without it, two node views racing their effects — the old one
+  // clearing as the new one sets — can clear the selection that was just made,
+  // and which one wins depends on React's effect order rather than on what the
+  // user clicked.
+  const key = useId();
+
+  useEffect(() => {
+    if (!editing || onWidgetSelected === undefined) return;
+    if (selected) {
+      onWidgetSelected(
+        {
+          key,
+          name,
+          params,
+          onChange: (next) => {
+            updateAttributes({ params: next });
+            // **Re-select this node afterwards, or the panel closes on the
+            // first thing you do in it.**
+            //
+            // `updateAttributes` replaces the node in the document, and a
+            // `NodeSelection` pointing at the old one does not survive that —
+            // ProseMirror maps the selection to a text position beside it. So
+            // `selected` went false, this view reported null, and the settings
+            // panel unmounted the moment a binding was picked. That was
+            // invisible while the controls lived in the flow (SPEC §26 moved
+            // them out) because nothing there depended on the selection.
+            //
+            // Deferred a tick: the re-selection has to run against the document
+            // the update produced, not the one it was dispatched from.
+            queueMicrotask(() => {
+              const pos = getPos();
+              if (pos === undefined) return;
+              const at = editor.state.doc.nodeAt(pos);
+              if (at?.type.name !== "macro") return;
+              editor.commands.setNodeSelection(pos);
+            });
+          },
+        },
+        key,
+      );
+      // Deliberately no cleanup that clears: see `PageScreen`, which drops the
+      // selection only when the reporting key matches. A cleanup here would run
+      // on every params change too, closing the panel the user is typing into.
+      return;
+    }
+    onWidgetSelected(null, key);
+    // `params` is in the deps because the panel edits them: a rebind has to
+    // reach the open panel, or its selects would show the value from before the
+    // change and write it back on the next edit.
+  }, [editing, selected, key, name, params, updateAttributes, onWidgetSelected, editor, getPos]);
+
   const className = [
-    macroShape(name) === "single" ? null : "group relative block",
+    macroShape(name) === "single" ? null : "block",
+    editing ? EDIT_OUTLINE : null,
     selected ? SELECTED_RING : null,
   ]
     .filter(Boolean)
@@ -65,21 +132,17 @@ export function MacroNodeView({ node, selected, updateAttributes }: ReactNodeVie
 
   return (
     <NodeViewWrapper as="span" className={className || undefined} data-macro-name={name}>
-      <MacroView detail={detail} context={context} user={user} globals={globals} name={name} params={params} onBindDay={onBindDay} />
-      {/* Editing only. The rebind writes straight onto the node's attrs, which
-          is what makes this the whole flow: ProseMirror updates the document,
-          `onUpdate` fires, and the page autosaves — no separate save path and
-          no second place a binding could live. */}
+      {/* Editing only, and OUTSIDE the text measure (§26). It is not a button:
+          a focusable control inside a ProseMirror atom competes with the node
+          selection that is the actual click target, and §26 makes "the block
+          itself" the target. The name lives in the `title`, which is what §26
+          asks for — a bare ▸ on the handle, the name as its tooltip. */}
       {editing ? (
-        <WidgetChrome
-          name={name}
-          params={params}
-          detail={detail}
-          globals={globals}
-          selected={selected}
-          onChange={(next) => updateAttributes({ params: next })}
-        />
+        <span className="tc-widget-handle" title={def?.title ?? name} aria-hidden data-testid="widget-handle">
+          ▸
+        </span>
       ) : null}
+      <MacroView detail={detail} context={context} user={user} globals={globals} name={name} params={params} onBindDay={onBindDay} />
     </NodeViewWrapper>
   );
 }

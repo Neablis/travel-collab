@@ -98,17 +98,28 @@ describe("PhoneTabBar", () => {
     expect(currentTab()).toBe("Trips");
   });
 
-  // SPEC §10: a bare `/trips/<id>` resolves to the Board lens, which the phone
-  // must never show. Plan therefore names the lens it wants.
+  // A bare `/trips/<id>` resolves to **Overview** since SPEC §24, which is
+  // read-only — so Plan still has to name the view it wants, for a new reason.
+  // (It used to name Timeline, because §10 kept day columns off the phone;
+  // §24 deleted Timeline and Plan IS day columns now. See `PhoneTabBar.tsx`.)
   // No @testing-library/jest-dom in this repo (AccountMenu.test.tsx:151 and
   // SettingsSheet.test.tsx:187 say the same) — read the DOM property.
   const hrefOf = (name: string) => screen.getByRole("link", { name }).getAttribute("href");
 
-  it("points Plan at Timeline, Map at the map lens, and Notebook at the pages route", () => {
+  it("points Plan and Map at their views, and Notebook at the pages route", () => {
     renderAt("/trips/t1");
-    expect(hrefOf("Plan")).toBe("/trips/t1?lens=Schedule&view=Timeline");
-    expect(hrefOf("Map")).toBe("/trips/t1?lens=Map");
+    expect(hrefOf("Plan")).toBe("/trips/t1?view=Plan");
+    expect(hrefOf("Map")).toBe("/trips/t1?view=Map");
     expect(hrefOf("Notebook")).toBe("/trips/t1/pages");
+  });
+
+  // The Plan tab must never point at a read-only view: it exists to reach the
+  // one surface that edits (§24). A bare `/trips/<id>` would now land on
+  // Overview, which is the regression this pins.
+  it("never points Plan at a bare trip URL, which would land on read-only Overview", () => {
+    renderAt("/trips/t1");
+    expect(hrefOf("Plan")).not.toBe("/trips/t1");
+    expect(hrefOf("Plan")).toContain("view=Plan");
   });
 
   // The other half of §22, and its accepted cost: from inside a trip the

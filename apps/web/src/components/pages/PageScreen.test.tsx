@@ -363,14 +363,14 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // which is where it belonged: cancellation and unmounting both leave a
     // window for a frame already in flight, and a guard on "is this page still
     // being edited" does not. `PageAssistant.test.tsx` walks that refusal.
-    expect(screen.getByRole("button", { name: /Assistant/ })).toBeTruthy();
+    expect(screen.getByTestId("assistant-launcher")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
     // The notebook's AI surface is the assistant panel, not a prompt box —
     // Mitchell: *"This should be the same style AI Assistant as on the trip
     // page, not the top of the UI input box"*.
-    const launcher = screen.getByRole("button", { name: /Assistant/ });
+    const launcher = screen.getByTestId("assistant-launcher");
     expect(launcher).toBeTruthy();
     await userEvent.click(launcher);
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
@@ -394,7 +394,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^Assistant$/ })).toBeNull();
   });
@@ -414,7 +414,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
 
     expect(screen.getByText("Looking at Trip Overview")).toBeTruthy();
     expect(screen.queryByTestId("assistant-scrim")).toBeNull();
@@ -461,50 +461,173 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     //
     // ONE control for "which days", not a day select plus a date pair
     // (Mitchell, on the preview: *"combine them into one experience"*).
-    const days = screen.getByRole("button", { name: /What it costs: dates/ });
+    //
+    // **Found inside the settings panel now.** SPEC §26 moved this control out
+    // of the document and into the surface's side channel; the control itself
+    // is unchanged, including its name — the date-range control carries its own
+    // `aria-label` in both layouts, unlike the plain selects beside it, which
+    // take a visible `FormField` label when stacked.
+    const panel = within(await screen.findByTestId("widget-settings"));
+    const days = panel.getByRole("button", { name: /What it costs: dates/ });
     expect(days.textContent).toBe("All days");
     await userEvent.click(days);
     await userEvent.click(
       within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
     );
 
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-    const saved = onUpdate.mock.calls.at(-1)![1].content as { content: unknown[] };
+    // **Waiting for the save that CARRIES the binding, not for any save at
+    // all.** `toHaveBeenCalled()` plus `calls.at(-1)` is a race and it lost one
+    // (2026-09-13, in a full-suite run; it passed on the next). Opening the
+    // panel and clicking through the day picker can each land a save of their
+    // own, so the moment the first one arrives the wait is satisfied and the
+    // LAST call is still the pre-narrowing document. Asserting the content
+    // inside the wait is the same claim without the timing assumption: it
+    // retries until the save that holds the binding shows up, and still fails
+    // if none ever does.
+    //
     // The binding is stored on the widget instance's own params — ADR-035
     // decision 3, and what lets two widgets on one page read two different days.
     // A single day is a range whose ends are equal — `DateRangeRef`'s own shape
     // for one date rather than a second spelling of it.
-    expect(JSON.stringify(saved.content)).toContain('"from":"2027-06-02"');
-    expect(JSON.stringify(saved.content)).toContain('"through":"2027-06-02"');
+    await vi.waitFor(
+      () => {
+        const saved = onUpdate.mock.calls.at(-1)?.[1].content as { content: unknown[] } | undefined;
+        expect(saved).toBeDefined();
+        expect(JSON.stringify(saved!.content)).toContain('"from":"2027-06-02"');
+        expect(JSON.stringify(saved!.content)).toContain('"through":"2027-06-02"');
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  // A BLOCK widget rather than the inline ones the other walks use — and a
+  // note about what this does NOT prove, because it was written to pin a
+  // regression and does not.
+  //
+  // The bug: for a block-shaped widget `insertContent` brings a paragraph with
+  // the macro inside it, so the position the insert started from holds the
+  // paragraph, and a selection that only fired when `nodeAt(from)` was a macro
+  // opened the settings for every inline widget and no block one. **That
+  // positional difference does not reproduce in jsdom** — this test passes with
+  // the old, inline-only check restored, which was checked rather than assumed
+  // (CLAUDE.md rule 3).
+  //
+  // So it is kept as what it honestly is: a cheap assertion that a block
+  // widget's settings open. The witness for the regression is the e2e walk
+  // `a multi-filter widget keeps every binding`, in a real browser, which is
+  // where the difference is real and where it was found.
+  it("opens the settings for a BLOCK widget it inserts", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+
+    const panel = within(await screen.findByTestId("widget-settings"));
+    expect(panel.getByRole("heading", { name: "The days in detail" })).toBeTruthy();
+    expect(panel.getByRole("button", { name: /The days in detail: dates/ })).toBeTruthy();
+  });
+
+  // The panel must close after you have USED it — and, as with the block-widget
+  // test above, a note on what this does not prove.
+  //
+  // The bug: a node view remounts when its attrs change, which is every
+  // rebind, so a clear keyed on the mount id was discarded and the panel stayed
+  // open forever once a binding had been picked. **jsdom does not remount the
+  // node view**, so this test passes with the broken key-matched clear
+  // restored — checked, not assumed (CLAUDE.md rule 3).
+  //
+  // Kept as a cheap assertion that the panel closes when the selection leaves.
+  // The witness for the regression is the e2e walk `two widgets on one page
+  // read two different days`, in a real browser, which is where the remount
+  // happens and where it was found.
+  it("closes the settings panel when the selection leaves", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    const panel = within(await screen.findByTestId("widget-settings"));
+
+    await userEvent.click(panel.getByRole("button", { name: /What it costs: dates/ }));
+    await userEvent.click(
+      within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }),
+    );
+    await userEvent.keyboard("{Escape}");
+
+    // Away, into the prose — what a person does next.
+    await userEvent.click(screen.getByText("Notes"));
+    await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
+    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
   });
 
   it("lets two widgets on one page point at different days", async () => {
     // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
     // notebook that shows day 1, day 3 and day 9". Each widget carries its own
     // binding, so this is the assertion that an aggregated control would break.
-    await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
-    // Re-opened, because the popover closes behind each insert.
-    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
-    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+    //
+    // **Bound in insert order, one at a time**, because SPEC §26 put the
+    // controls in the column and the column shows one widget's settings at a
+    // time. That is not a weaker test: the claim was never "two controls on
+    // screen", it is "two bindings in one document", and the document is
+    // asserted directly at the end.
+    const { onUpdate } = await openPage();
 
-    // Each widget's own days control, found by the widget's name rather than by
-    // position: a primitive declares several controls now, so "the first two on
-    // the page" are both the FIRST widget's and the assertion below would pass
-    // while proving nothing about the second.
-    const pickDay = async (widget: RegExp, day: RegExp) => {
-      await userEvent.click(screen.getByRole("button", { name: widget }));
+    // Binds whatever widget is currently selected, from the column's settings
+    // panel.
+    //
+    // `findByTestId`, not `getBy`: the panel is rendered from an effect the node
+    // view fires on selection, so it lands a tick after the insert.
+    const bindSelectedTo = async (control: RegExp, day: RegExp) => {
+      const panel = within(await screen.findByTestId("widget-settings"));
+      await userEvent.click(panel.getByRole("button", { name: control }));
       const grid = await screen.findByRole("group", { name: "Trip days" });
       await userEvent.click(within(grid).getByRole("button", { name: day }));
-      // Radix leaves the popover open after a pick, so close it before reaching
-      // for the next widget's grid.
-      await userEvent.keyboard("{Escape}");
     };
-    await pickDay(/What it costs: dates/, /Day 1/);
-    await pickDay(/The days in detail: dates/, /Day 2/);
 
-    expect(screen.getByRole("button", { name: /What it costs: dates/ }).textContent).toBe("2027-06-01");
-    expect(screen.getByRole("button", { name: /The days in detail: dates/ }).textContent).toBe("2027-06-02");
+    // **No Escape inside the helper.** It used to close the day popover, and
+    // since §26 the same key also drops the NODE SELECTION — which closes the
+    // panel the control lives in, so the assertion after it found nothing. Two
+    // things now answer to one key, and the order matters: assert while the
+    // widget is still selected, then deselect on purpose.
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    // The widget itself, before its panel: this is the insert landing, and
+    // waiting for it here keeps a failure in the bind below meaning "the panel
+    // did not open" rather than "the insert did not happen".
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+    await bindSelectedTo(/What it costs: dates/, /Day 1/);
+    // Re-queried inside the wait, never captured before it. The control follows
+    // the DOCUMENT, not its own click — the pick writes the node's attrs, the
+    // node view re-reports, and the panel re-renders from what it is handed. A
+    // `within(...)` taken before that round trip is bound to the DOM node React
+    // has since replaced, and reads the value from before the change.
+    await vi.waitFor(() =>
+      expect(
+        within(screen.getByTestId("widget-settings"))
+          .getByRole("button", { name: /What it costs: dates/ })
+          .textContent,
+      ).toBe("2027-06-01"),
+    );
+
+    // Back to the prose, then Escape — which is how a person leaves a widget:
+    // the first Escape closes the day popover, and the click puts focus back in
+    // the editor so the second one reaches the editor's own Escape handler.
+    // (Escape typed while focus is still inside the panel is consumed by the
+    // popover and never reaches the document.)
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByText("Notes"));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(await screen.findByRole("button", { name: "Insert a widget" }));
+    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+    await bindSelectedTo(/The days in detail: dates/, /Day 2/);
+    await vi.waitFor(() =>
+      expect(
+        within(screen.getByTestId("widget-settings"))
+          .getByRole("button", { name: /The days in detail: dates/ })
+          .textContent,
+      ).toBe("2027-06-02"),
+    );
+
+    // The document holds both, which is the actual claim — and the only place
+    // both are visible at once now.
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
+    expect(saved).toContain('"from":"2027-06-01"');
+    expect(saved).toContain('"from":"2027-06-02"');
   });
 
   // The globals seam, end to end, and the only test that walks it. `city`
@@ -779,7 +902,24 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // row — a name chip plus a select per input, inline — wraps into
     // unreadability. So the phone shows the resolved binding on a button and
     // opens the same controls in a sheet.
-    it("shows one 'Showing …' button per widget instead of an inline select row", async () => {
+    // **SPEC §26 deleted the "Showing …" button this used to assert**, and the
+    // rule it deleted it under is absolute: *"The document reads identically in
+    // both modes. No widget control is ever in the document flow."* That button
+    // was the last widget control left in the prose on a phone.
+    //
+    // **What this test can no longer witness, and does not pretend to.** What
+    // replaces the button is the same sheet, opened by SELECTING the widget —
+    // and jsdom does not turn a click on a node view into a ProseMirror
+    // `NodeSelection`, so there is no way to open the phone inspector from
+    // here. Rewriting it to tap the widget produced a test that failed for the
+    // environment's reason rather than the product's, which is the same trap
+    // two other tests on this branch were relabelled for.
+    //
+    // So this asserts the half jsdom CAN see, and it is not a consolation
+    // prize: it is the exact claim behind the phone's divergence from desktop.
+    // The witness for the sheet itself is `e2e/m14-mobile-notebook.spec.ts`,
+    // which taps the widget in a real browser.
+    it("leaves no widget control in the document, and no sheet open, after a phone insert", async () => {
       setPhone(true);
       await openPage({ reachInsert: false });
       await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
@@ -788,36 +928,24 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       );
       await userEvent.click(screen.getByRole("button", { name: "Insert it" }));
 
-      // The inline row is GONE — both halves matter. A phone that showed the
-      // button *and* kept the select row would be the same binding twice
-      // (project rule 4), and would not have fixed the wrapping this replaces.
+      // The widget landed.
+      expect(await screen.findByText("no costs yet")).toBeTruthy();
+
+      // **The phone insert does not open the inspector, and that is the whole
+      // difference between the two surfaces.** On desktop, inserting selects
+      // what it inserted so the side column has something to show (§26). The
+      // phone has no side column, and its insert is already "one sheet with a
+      // bind step" (§19) — the widget arrives pointed — so selecting here would
+      // answer the user by reopening the question they just answered: §19's
+      // "one sheet deep, ever", served twice in a row.
+      expect(screen.queryByTestId("widget-settings")).toBeNull();
+
+      // And the document itself carries no widget control at all. Both halves
+      // were real controls in the flow before §26: the inline select row (the
+      // wrapping the phone treatment originally replaced) and the "Showing …"
+      // button that replaced it.
       expect(screen.queryByRole("combobox")).toBeNull();
-      const bind = await screen.findByRole("button", { name: /^Showing/ });
-      // The label IS the binding, not the widget's name: §19 rule — "binds
-      // render on binds, not on name pills". Inserted with nothing chosen, it
-      // covers everything (ADR-039 decision 2) and says so in one word rather
-      // than listing five unset filters.
-      expect(bind.textContent).toContain("everything");
-
-      await userEvent.click(bind);
-      const sheet = await screen.findByRole("dialog");
-      await userEvent.click(within(sheet).getByRole("button", { name: /dates/i }));
-      await userEvent.click(
-        within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }),
-      );
-      // The sheet is a Radix Dialog, so it `aria-hidden`s the page behind it —
-      // the button below is genuinely unreachable until it closes, and that is
-      // the correct accessibility behaviour rather than something to work
-      // around with a raw DOM query.
-      await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
-
-      // And the button follows the document, rather than being a label written
-      // once at insert time. A widget rebound through the sheet whose button
-      // still reads its old binding is the control-contradicts-the-document
-      // bug, from the third surface.
-      await vi.waitFor(() =>
-        expect(screen.getByRole("button", { name: /Showing 2027-06-01/ })).toBeTruthy(),
-      );
+      expect(screen.queryByRole("button", { name: /^Showing/ })).toBeNull();
     });
   });
 });
@@ -903,7 +1031,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     // assistant offered here would be a control with nowhere to put its
     // answer. The `Ask` pill is named too because SPEC §23 moved the phone's
     // way in and the locked branch must not have quietly regrown one.
-    expect(screen.queryByRole("button", { name: /Assistant/ })).toBeNull();
+    expect(screen.queryByTestId("assistant-launcher")).toBeNull();
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
   });

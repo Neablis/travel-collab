@@ -60,7 +60,57 @@ test.describe("mobile assistant (phone viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    return { tripId, name };
+  }
+
+  /**
+   * The same trip, with enough stops on ONE day that the page is taller than a
+   * 411×852 phone.
+   *
+   * **Why a second fixture exists at all.** SPEC §24 deleted the timeline and
+   * made Plan — day columns — the phone's editing surface too, so the phone
+   * plan grows SIDEWAYS where it used to grow downwards. `threeDayTrip` is 3
+   * days of 2 stops; as three short columns side by side it fits a phone
+   * screen outright, and the scroll-lock walk below then had nothing to prove:
+   * `scrollTop` stayed 0 however broken the lock was, which is the vacuity that
+   * walk's own comment was written to refuse. Stacking stops on day 1 is what
+   * makes the document tall in the new layout, the way three days did in the
+   * old one.
+   *
+   * `commandsFor` is still the source of the trip — this only adds to its FIRST
+   * day, read out of the same command list rather than fetched back, so the
+   * fixture stays one vocabulary (ADR-020).
+   */
+  async function seedTallTrip(page: import("@playwright/test").Page) {
+    const name = e2eTripName("MobileTall");
+    const { tripId } = await page.request.post("/api/trips", { data: { name } }).then((r) => r.json());
+    const commands = commandsFor("threeDayTrip", tripId);
+    for (const command of commands) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    // Days arrive as `SetTripDates.newDayIds`, not as `AddDay` commands — the
+    // factory mints every day id up front and dates the trip in one command
+    // (`packages/factories/src/commands.ts`). Looking for an `AddDay` here
+    // found nothing and failed with the message below, which is at least the
+    // failure a wrong assumption should produce.
+    const dates = commands.find((c) => c.type === "SetTripDates") as
+      | { newDayIds: string[] }
+      | undefined;
+    expect(dates?.newDayIds?.[0], "the threeDayTrip fixture stopped dating the trip").toBeDefined();
+    const dayId = dates!.newDayIds[0]!;
+    for (let i = 0; i < 8; i += 1) {
+      await page.request.post(`/api/trips/${tripId}/commands`, {
+        data: {
+          type: "AddActivity",
+          tripId,
+          activityId: crypto.randomUUID(),
+          dayId,
+          title: `Tall stop ${i + 1}`,
+        },
+      });
+    }
+    await page.goto(`/trips/${tripId}?view=Plan`);
     return { tripId, name };
   }
 
@@ -88,9 +138,18 @@ test.describe("mobile assistant (phone viewport)", () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
 
     // The old phone launcher is GONE, not merely moved — two entry points to
-    // one panel on a 411px screen is what §23 removes. The desktop pill still
+    // one panel on a 411px screen is what §23 removes. The desktop bar still
     // exists in the DOM at this width; `hidden` is what keeps it off screen.
-    await expect(page.getByRole("button", { name: "Assistant", exact: true })).toBeHidden();
+    //
+    // **By testid, because `toBeHidden()` is the assertion that passes when
+    // the element is simply absent.** This named the desktop launcher
+    // "Assistant" until SPEC §28 renamed it to a 92×44 bar reading `Ask`, and
+    // from that moment it was green for the wrong reason — no button by that
+    // name, therefore hidden, therefore proved nothing. It is also why the name
+    // cannot be the handle here: the phone pill beside it reads `Ask` too, by
+    // design (§23), so both launchers now share a word and only the testid
+    // says which one is meant to be off screen.
+    await expect(page.getByTestId("assistant-launcher")).toBeHidden();
 
     // And the pill still opens the thing — an entry point that satisfies
     // §13.5 by being inert satisfies nothing.
@@ -141,8 +200,26 @@ test.describe("mobile assistant (phone viewport)", () => {
     // Neither line can go vacuous. If the plan ever fit the viewport, day 2
     // would be on screen and the second fails; if the arrival ever scrolled,
     // day 1 leaves the screen and the first does.
-    await expect(page.getByRole("heading", { name: "Day 1", exact: true })).toBeInViewport();
-    await expect(page.getByRole("heading", { name: "Day 2", exact: true })).not.toBeInViewport();
+    //
+    // **Day COLUMNS, not timeline headings, and sideways rather than down.**
+    // These two lines named `heading "Day 1"` / `heading "Day 2"`, which were
+    // the timeline's day headers; SPEC §24 deleted that lens and made Plan —
+    // day columns — the phone's editing surface too (see `PhoneTabBar`'s note
+    // on why the phone renders them for now). A day is a `<section>` with a
+    // heading-shaped button in it now, so both locators matched nothing and
+    // `toBeInViewport` failed on an element that does not exist rather than on
+    // one that is off screen.
+    //
+    // The claim is unchanged and so is its shape: the first day is where you
+    // arrive, and arrival does not carry you into the middle of your own plan.
+    // Day THREE is the far end here rather than day two — 268px columns on a
+    // 411px screen leave day 2 partly on screen whether or not anything
+    // scrolled, so asserting on it would be asserting on a coin toss. Neither
+    // line can go vacuous: if the arrival ever scrolled to the end, day 3 is on
+    // screen and the second fails while the first does too.
+    const columns = page.getByTestId("day-column");
+    await expect(columns.nth(0)).toBeInViewport();
+    await expect(columns.nth(2)).not.toBeInViewport();
 
     await askPill(page).click();
     const sheet = page.getByRole("complementary", { name: "Assistant" });
@@ -284,7 +361,9 @@ test.describe("mobile assistant (phone viewport)", () => {
   // so a fifth of the screen above it is still the plan — and a drag there, or
   // one that runs off the end of the transcript, must not move the page behind.
   test("an open sheet does not let the plan behind it scroll", async ({ page }) => {
-    await seedTrip(page);
+    // The one walk here that needs a page taller than the screen — see
+    // `seedTallTrip`, and the vacuity note below that it exists to keep true.
+    await seedTallTrip(page);
 
     // **The witness comes first, and the page is put back where it can move.**
     // "The page did not move" is trivially true of a page that could not have

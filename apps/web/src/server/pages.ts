@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
-import { instantiateDefaults } from "@tc/pages";
+import { instantiateDefaults, isOverviewPage } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
@@ -154,12 +154,42 @@ export async function updatePage(id: string, input: UpdatePageInput): Promise<Pa
   return row ? toPage(row) : null;
 }
 
-export async function deletePage(id: string): Promise<boolean> {
+/**
+ * Why a delete was refused, or `null` if it was performed.
+ *
+ * A tri-state rather than a boolean, because "no such page" and "that page
+ * cannot be deleted" are different answers and the route owes the caller the
+ * difference: the first is a 404, the second is a 409 carrying a reason a
+ * person can read. SPEC §25 is explicit that the Overview's delete control is
+ * **present and refuses**, rather than hidden — so there has to be something to
+ * say when it is pressed.
+ */
+export type DeletePageOutcome = { ok: true } | { ok: false; reason: "not-found" | "undeletable"; message: string };
+
+export async function deletePage(id: string): Promise<DeletePageOutcome> {
   // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
   // Unreachable through a route today — both callers validate — but this is the
   // one place that fix guarded from IN FRONT of the query rather than inside
   // it, so a future caller added here would inherit the old 500.
-  if (!isUuid(id)) return false;
+  if (!isUuid(id)) return { ok: false, reason: "not-found", message: "No such page." };
+
+  // SPEC §25: *"Every trip is created with one notebook page it cannot
+  // delete."* The guard is HERE, at the server, and not only in the UI, for the
+  // same reason §27 gates its mutation entry points at source: a keyboard
+  // shortcut, a stale tab or a direct call that slips past a missing control
+  // has to stop with one explanation rather than half-applying. Hiding the
+  // button would leave the row deletable by anyone who sent the request.
+  const page = await getPage(id);
+  if (page === null) return { ok: false, reason: "not-found", message: "No such page." };
+  if (isOverviewPage(page.context)) {
+    return {
+      ok: false,
+      reason: "undeletable",
+      // The reason, not a refusal — §25 wants the control to explain itself.
+      message: "The Overview comes with the trip and cannot be deleted. You can empty it instead.",
+    };
+  }
+
   const rows = await db.delete(pages).where(eq(pages.id, id)).returning({ id: pages.id });
-  return rows.length > 0;
+  return rows.length > 0 ? { ok: true } : { ok: false, reason: "not-found", message: "No such page." };
 }

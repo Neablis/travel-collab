@@ -10,14 +10,22 @@ import type { WidgetInput } from "./registry-types";
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
 describe("registry", () => {
-  it("registers the twelve primitives keyed by name, and nothing else", () => {
+  it("registers the twelve primitives plus `open`, keyed by name, and nothing else", () => {
     // The seventeen NAMED widgets are gone (ADR-039 decision 4 — a named widget
     // is a preset, which is data). Asserting their absence is the half that
     // matters: a registry that still answered to `cost.day` would let a page
     // keep an un-migrated node forever and nobody would find out.
+    //
+    // **`open` is the thirteenth entry and the twelve primitives are still
+    // twelve** (SPEC §25). It is a registered widget that declares no
+    // `selection`, which is the distinction ADR-039 decision 1 actually draws:
+    // a primitive is `entity + filters + shape`, and `open` has no entity to
+    // narrow — it is the trip's whole open list by definition. So it is in
+    // `MACRO_NAMES` and deliberately NOT in `PRIMITIVE_NAMES`, and the sweep
+    // below that once equated the two is what caught it.
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
-      "count", "dates", "day.detail", "day.rows", "hours", "stop.rows",
+      "count", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -161,7 +169,22 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // populated trip is one nobody has proved renders.
     budget: { amountMinor: 100000, currency: "USD" },
     budgetRemaining: 95000,
+    // `open` resolves to `empty` on a trip with nothing waiting — which is the
+    // honest answer for a settled trip, and means it never reaches `render`
+    // against a fixture that has no open items. Same floor, working the same
+    // way as the two notes above: one parked idea is what makes the widget mean
+    // something, so the fixture carries one.
+    backlog: ["a2"],
   };
+  // Deliberately outside the object literal above: `activities` is cast
+  // through `unknown` there, so an entry added inside it would be unchecked.
+  populated.activities = {
+    ...populated.activities,
+    a2: {
+      activityId: "a2", tripId: detail.tripId, title: "Ghibli Museum", dayId: null, position: 0,
+      timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [],
+    },
+  } as unknown as TripDetail["activities"];
 
   // `day.city` reads its cities from the globals projection rather than from
   // `TripDetail` (they are derived by `citiesOfDay` in `@tc/domain`, which this
@@ -299,10 +322,17 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
       ]),
     );
     for (const name of PRIMITIVE_NAMES) expect(getMacro(name)!.selection).toBeDefined();
-    // Every registered widget is a primitive now, so this sweep covers the whole
-    // registry — which is the state ADR-039 was aiming at, and worth asserting
-    // rather than assuming.
-    expect([...PRIMITIVE_NAMES].sort()).toEqual([...MACRO_NAMES].sort());
+    // **The two lists are no longer equal, and that is the point of keeping
+    // them separate.** This used to assert `PRIMITIVE_NAMES === MACRO_NAMES`,
+    // with a comment calling it "the state ADR-039 was aiming at". `open`
+    // (SPEC §25) is registered and declares no selection, exactly the case
+    // `PRIMITIVE_NAMES`' own doc comment predicted — *"a widget added tomorrow
+    // without one should drop out of those sweeps and fail the count beside
+    // them"*. It did, on the first run. So the invariant is restated as the
+    // containment it always meant: every primitive is registered, and a
+    // registered widget without a selection is not a primitive.
+    expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
+    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined)).toEqual(["open"]);
   });
 
   it("declares only dimensions its entity permits", () => {

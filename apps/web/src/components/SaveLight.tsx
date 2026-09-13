@@ -3,8 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/BrandMark";
 import type { SendFailure } from "@/components/trip/context/optimistic";
-import { cn } from "@/lib/cn";
 
 // RULES.md 1 says the top bar is account scope only, and SPEC §"The logo is
 // the save light" answers the objection head-on rather than leaving it to be
@@ -69,9 +69,13 @@ function useSaveLight(): SaveState {
   return useContext(Context)?.state ?? REST;
 }
 
-// SPEC: "One mark, two jobs. `◎` is brand at rest, breathes (1.5s opacity
+// SPEC: "One mark, two jobs. The mark is brand at rest, breathes (1.5s opacity
 // pulse, no spinner) while saving, and turns `--color-danger` when it cannot
-// reach the trip."
+// reach the trip." The mark itself is `BrandMark` since SPEC §28 replaced the
+// circled dot with the caesura's two strokes; the design puts the beat on the
+// strokes rather than the tile (`dc.html:186`'s `animation: {{ logoBeat }}` is
+// on the inner span), which is why `pulsing` is a prop of the mark and not a
+// class on a wrapper here.
 //
 // One deviation, deliberate: in the failed state the mark is a button that
 // retries. The design gives the failure a colour but no way out of it, and
@@ -87,18 +91,7 @@ export function SaveLightMark() {
   const saving = !failed && unsent > 0;
   const changes = `${unsent} ${unsent === 1 ? "change" : "changes"}`;
 
-  const mark = (
-    <span
-      aria-hidden
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-xl text-surface",
-        failed ? "bg-danger" : "bg-brand",
-        saving && "save-light-breathing",
-      )}
-    >
-      ◎
-    </span>
-  );
+  const mark = <BrandMark size={32} tone={failed ? "danger" : "brand"} pulsing={saving} />;
 
   // The status text lives in a live region beside the mark rather than on it,
   // for the reason SyncIndicator recorded before it: assistive tech registers

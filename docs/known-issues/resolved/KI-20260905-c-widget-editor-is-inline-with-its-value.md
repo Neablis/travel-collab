@@ -1,4 +1,4 @@
-### KI-2026-09-05-c — a widget's filter controls render inline beside its value, so the chrome row crowds the sentence it sits in
+### KI-2026-09-05-c — a widget's filter controls render inline beside its value, so the chrome row crowds the sentence it sits in — RESOLVED 2026-09-12
 
 - **Severity:** cosmetic (user-visible, and it gets worse with every dimension a
   primitive declares — this is the first entry whose symptom is *caused* by an
@@ -72,3 +72,33 @@
 - **Recommended shape of the work, for whoever takes it:** a popover trigger anchored to the widget for `shape === "single"` primitives only (so `block`/`repeat` keep the rendering `KI-2026-09-06-c`'s guard depends on), reusing the phone's existing "Showing …" summary button and `bindSummary` rather than inventing a second vocabulary — the affordance the entry's own Fix path already named. Resolve `KI-2026-09-05-a` with it, not after it.
 
 - **The decision is now an ADR, not only a note here.** `ADR-044 — A widget edits without reflowing` carries the invariant, the five rules that follow from it, the two tests that must change with the implementation, and what would falsify it. This entry stays open as the defect; the ADR is the standing decision it is built against.
+
+
+---
+
+## RESOLVED — 2026-09-12, by SPEC §26
+
+**The chrome row is gone from the document entirely**, which is more than this entry asked for: it
+was filed against `single` widgets crowding a sentence, and §26's rule covers every shape in both
+modes — *"The document reads identically in both modes. No widget control is ever in the document
+flow."*
+
+**Not by the popover this entry's Fix path named.** §26 considers that answer and rejects it on two
+grounds neither this entry nor ADR-044 had: a popover anchored to a widget puts a `<select>` inside
+a popover inside the page, which project rule 3 forbids, and on a phone it covers the very text you
+are pointing at. The controls went to the surface's side channel instead — the desktop's right
+column, which gained a second state, and the phone's existing bind sheet. ADR-044 carries the full
+supersession note; its invariant is what the implementation is built against and is unchanged.
+
+**What edit mode adds to the page now:** a dashed `outline` (painted outside the box, so it costs no
+layout) and a 58×20 handle, absolutely positioned and `pointer-events: none`. The prose does not
+move.
+
+**KI-2026-09-05-a is NOT resolved with it**, contrary to this entry's own recommendation. That entry
+is about the caret parking behind a block widget, and the reason the two were expected to fall
+together was the anchored popover — the thing that would have collided with node selection. With no
+popover, the collision never arises and the caret question is untouched: it stands on its own.
+
+**Dependents, as predicted here:** `WidgetChrome.test.tsx` is deleted along with the row it guarded,
+and `m14-notebook-widgets.spec.ts` gained the "select the widget first" step its widget-binding
+walks now need.

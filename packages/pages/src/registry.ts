@@ -7,6 +7,7 @@ import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
+import { open } from "./macros/primitives/open";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -26,6 +27,11 @@ const DEFS: AnyMacroDef[] = [
   cost, count, dates, hours, city, attribute,
   dayDetail, cityDetail,
   dayRows, cityRows, stopRows, costRows,
+  // The thirteenth (SPEC §25). See `open.ts` for why it is a primitive and not
+  // a preset — the short version is that nothing above it resolves a conflict,
+  // an empty day or the backlog, so there is no primitive for it to be a
+  // preset OF. ADR-039's count in the comment above is amended, not ignored.
+  open,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

@@ -29,11 +29,11 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // The rail is closed until asked for, at every width, so open it before
     // asserting anything about it.
-    await page.getByRole("button", { name: "Assistant" }).click();
+    await page.getByRole("button", { name: "Ask" }).click();
     const rail = page.getByRole("complementary", { name: "Assistant" });
     await expect(rail).toBeVisible();
 
@@ -47,8 +47,14 @@ test.describe("responsive (narrow viewport)", () => {
     // matters, and survives however the rail is implemented, is that the
     // rest of the page keeps responding while the rail is open.
     await expect(page.locator(".assistant-rail-scrim")).toHaveCount(0);
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+    // A tab that is NOT the one we are on, so the click has somewhere to go.
+    // This clicked "Plan" and expected "Timeline" to light up, which was the
+    // two-sub-mode world SPEC §24 replaced: the trip has four views now
+    // (Overview · Plan · Calendar · Map) and Plan is where this walk starts,
+    // so that click asserted that pressing the selected tab selects a lens
+    // that no longer exists. Calendar is a real move from here.
+    await page.getByRole("tab", { name: "Calendar" }).click();
+    await expect(page.getByRole("tab", { name: "Calendar", selected: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Hide" }).click();
     await expect(rail).toBeHidden();
@@ -59,7 +65,7 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // SPEC §9's whole DOCKED claim, in one number: "the plan shrinks instead
     // of being overlaid." Checked at both a wide (1280px) and a narrow
@@ -75,7 +81,7 @@ test.describe("responsive (narrow viewport)", () => {
         .poll(() => plan.evaluate((el) => el.getBoundingClientRect().width))
         .toBe(width);
 
-      await page.getByRole("button", { name: "Assistant" }).click();
+      await page.getByRole("button", { name: "Ask" }).click();
       const rail = page.getByRole("complementary", { name: "Assistant" });
       await expect(rail).toBeVisible();
       await expect
@@ -95,11 +101,18 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
-    await expect(page.getByRole("tab", { name: "Day columns", selected: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+    // The four views of SPEC §24, not the old Timeline/Day columns pair: "Plan"
+    // is the word on both surfaces now (§24 — "the phone tab bar already said
+    // Plan for the editing surface while the desktop said Day columns — one
+    // name now"), and switching lenses means moving between the four.
+    await expect(page.getByRole("tab", { name: "Plan", selected: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Calendar" }).click();
+    await expect(page.getByRole("tab", { name: "Calendar", selected: true })).toBeVisible();
+    // And it is a real navigation, not just a highlight: the view is in the URL
+    // where `resolveView` reads it back on reload.
+    await expect(page).toHaveURL(/view=Calendar/);
   });
 
   test("a sheet opens above the docked rail and its Close button is reachable (KI-17)", async ({ page }) => {
@@ -107,7 +120,7 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // Opened deliberately, unlike before: KI-17 is about a Radix portal
     // stacking underneath a fixed-position layer already on the page, and a
@@ -116,7 +129,7 @@ test.describe("responsive (narrow viewport)", () => {
     // gate on width (it used to be one below 1180px) — the risk this guards
     // against is the same stacking bug in that new shape, so the rail has to
     // actually be open for this assertion to mean anything.
-    await page.getByRole("button", { name: "Assistant" }).click();
+    await page.getByRole("button", { name: "Ask" }).click();
     await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
     await page.getByRole("button", { name: "Trip settings" }).click();
@@ -320,7 +333,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("MapPhone"), 3);
     await page.setViewportSize({ width: 411, height: 760 });
-    await page.goto(`/trips/${tripId}?lens=Map`);
+    await page.goto(`/trips/${tripId}?view=Map`);
 
     const strip = page.getByTestId("map-day-strip");
     await expect(strip).toBeVisible();
@@ -405,7 +418,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   test("keeps the rail and legend at desktop width", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("MapDesktop"), 3);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`/trips/${tripId}?lens=Map`);
+    await page.goto(`/trips/${tripId}?view=Map`);
 
     await expect(page.locator("[data-rail-track]")).toHaveCount(1);
     await expect(page.getByTestId("map-day-strip")).toHaveCount(0);
@@ -417,7 +430,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   });
 });
 
-// Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
+// Mitchell, Vercel toolbar comment on `/trips/:id?view=Map&view=Calendar` at
 // 411x760 (the same phone the Map-lens block above uses): "all three columns
 // from share, trip overview to budget are really crowded and ugly on mobile,
 // if we hid them here would they still be accessible in trip settings?".
@@ -435,7 +448,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // count in the sheet is a number derived from something rather than 0.
     const tripId = await createMappedTrip(page, e2eTripName("HeaderPhone"), 3);
     await page.setViewportSize({ width: 411, height: 760 });
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     const settings = page.getByRole("button", { name: "Trip settings" });
     await expect(settings).toBeVisible();
@@ -555,7 +568,7 @@ test.describe("responsive (trip header on a phone)", () => {
   test("keeps the meta pill and budget in the header at desktop width, and Share nowhere in it", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("HeaderDesktop"), 3);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     await expect(page.getByTestId("trip-meta-row")).toBeVisible();
     // **Share is not in the header at desktop width either**, which is the half
@@ -704,8 +717,17 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     await expect(art.getByText("Nishiki Market")).toBeVisible();
     await expect(art.getByText("Ryokan · unconfirmed")).toBeVisible();
 
-    // ...and drops them on a phone, which is the fix itself.
-    await page.setViewportSize({ width: 375, height: 900 });
+    // ...and drops them on a narrow one, which is the fix itself.
+    //
+    // **800px, not 375px, and SPEC §28 is why.** The labels are gated at `lg`
+    // (1024px) but the whole desktop landing is now gated at `md` (768px) —
+    // below that, `PhoneFrontDoor` replaces it and this art is not on screen at
+    // all. Measuring the label gating at 375px therefore measured nothing: every
+    // assertion below would pass with `hidden lg:inline` deleted, because the
+    // art's own container is `display: none` there. 800px is inside the band
+    // where the desktop composition still renders and the labels are meant to
+    // be off, which is the only width where this claim is testable.
+    await page.setViewportSize({ width: 800, height: 900 });
     await expect(art.getByText("Fushimi Inari")).toBeHidden();
     await expect(art.getByText("Nishiki Market")).toBeHidden();
     await expect(art.getByText("Ryokan · unconfirmed")).toBeHidden();
@@ -726,14 +748,21 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       // Witnesses before measuring: an empty shell, a redirect to /signin, or a
       // 500 all have scrollWidth === clientWidth and would sail through the
       // assertion below (CodeRabbit, PR #58). The h1 proves this is the landing
-      // page rather than somewhere auth sent us; the feature-card h3 proves the
+      // page rather than somewhere auth sent us; the second witness proves the
       // widest content on it actually rendered, which is what can overflow.
+      //
+      // **The second witness is the phone front door's, since SPEC §28.** At
+      // these widths the desktop landing is `display: none` and `PhoneFrontDoor`
+      // is the page, so "Four people, one schedule" — a desktop feature-card
+      // heading — is no longer on screen and this walk waited 30 seconds for
+      // it. The pinned scroll sequence is what this width actually renders, and
+      // it is also the thing most able to push the page sideways: four
+      // absolutely-positioned claims translating horizontally under a headline.
       await expect(
         page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
       ).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: "Four people, one schedule" }),
-      ).toBeVisible();
+      await expect(page.getByTestId("phone-front-door")).toBeVisible();
+      await expect(page.getByTestId("front-door-claim").first()).toBeVisible();
       const { scrollWidth, clientWidth, widest } = await page.evaluate(() => {
         const doc = document.documentElement;
         // Name the worst offender in the failure message — "the page is 40px

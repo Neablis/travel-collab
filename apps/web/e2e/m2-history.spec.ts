@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { dragCardTo, openHistory } from "./helpers";
+import { dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
@@ -36,6 +36,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
 

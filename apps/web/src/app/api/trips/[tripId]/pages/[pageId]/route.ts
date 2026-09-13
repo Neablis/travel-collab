@@ -47,7 +47,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ trip
   if (!isUuid(pageId)) return notFound();
   const existing = await getPage(pageId);
   if (!existing || existing.tripId !== tripId) return notFound();
-  const ok = await deletePage(pageId);
-  if (!ok) return notFound();
-  return Response.json({ ok: true });
+  const outcome = await deletePage(pageId);
+  if (outcome.ok) return Response.json({ ok: true });
+  if (outcome.reason === "not-found") return notFound();
+  // 409, not 403. The caller has every right to delete pages on this trip —
+  // `guard` above already said so — and this particular page is simply not a
+  // page that can be deleted (SPEC §25). A 403 would say "you may not", which
+  // is false and would send an editor looking for a permission they already
+  // have. The body carries the reason, because §25 wants the control to explain
+  // itself rather than go quiet.
+  return Response.json({ error: outcome.message }, { status: 409 });
 }

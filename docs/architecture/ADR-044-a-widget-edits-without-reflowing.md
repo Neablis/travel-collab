@@ -79,3 +79,35 @@ affordance KI-2026-09-05-c's own Fix path already named.
 **What would falsify this.** If anchoring a popover to an inline atom turns out to be unable to avoid
 moving the caret — that is, if rule 4 cannot be satisfied without violating rule 1 — then the inline
 atom is the wrong substrate and ADR-035 Decision 1 has to be reopened rather than worked around.
+
+---
+
+## Superseded in shape, upheld in substance — SPEC §26, 2026-09-12, built the same day
+
+**The invariant stands and is now implemented.** *The value occupies identical space in both
+modes; the chrome never participates in inline flow.* That is what the build does: edit mode adds
+a CSS `outline` (painted outside the box, so it takes no layout space) and an absolutely
+positioned handle, and nothing else enters the document.
+
+**The popover does not.** This ADR recommended "a popover trigger anchored to the widget for
+`shape === 'single'` primitives", reusing the phone's "Showing …" summary button. The design
+handoff's §26, written a week later, considers and rejects exactly that:
+
+> **Why not popovers**, since they are the obvious answer: a popover anchored to a widget puts a
+> `<select>` inside a popover inside the page — the two-level nesting rule 3 forbids — and on a
+> phone it covers the very text you are pointing at.
+
+Both objections are specific and neither was visible from here. So the controls went to the
+**surface's side channel** instead — the desktop's right column, which gained a second state, and
+the phone's existing bind sheet — and the trigger is selecting the widget, which is what the
+document already tracks.
+
+**What that changes about this ADR's own consequences.** The "recommended shape" paragraph and the
+"Showing …" reuse are superseded; the five rules, the invariant and the falsification test are not.
+One of the two dependent tests named above is gone rather than edited — `WidgetChrome.test.tsx`
+went with the chrome row it guarded.
+
+**And it makes rule 4 moot rather than satisfied.** The falsification condition was "if anchoring a
+popover to an inline atom cannot avoid moving the caret". There is no anchored popover, so nothing
+here reopens ADR-035 Decision 1 — the widget stays one inline atom, and the caret is untouched
+because no control is near it.

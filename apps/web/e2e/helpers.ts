@@ -201,3 +201,51 @@ export function watchMapWorker(page: Page): { outcome: () => string } {
 
   return { outcome: () => state };
 }
+
+/**
+ * Opens the desktop assistant rail from its collapsed launcher.
+ *
+ * **The launcher is not called "Assistant" any more.** SPEC §28 replaced the
+ * 56px brand circle with a 92×44 bar reading `Ask` — "a square brand tile
+ * carrying the wordmark's own glyph read as a logo, not a control" — so every
+ * `getByRole("button", { name: "Assistant" })` in this suite went from clicking
+ * a control to waiting 30 seconds for one. Five walks across two specs died
+ * that way in the first full lane after the 2026-09-12 design sync.
+ *
+ * By testid rather than by its new name, and that is not laziness about roles:
+ * the rail's own SEND button is also called "Ask" (m10-simulated-ai types a
+ * question and presses it), so a spec that names the launcher by text has a
+ * second control with the same name one click later. `assistant-launcher` is
+ * the handle `AssistantBubble` publishes for exactly this — see its comment on
+ * why two controls legitimately share the word.
+ */
+export async function openAssistantRail(page: Page): Promise<void> {
+  await page.getByTestId("assistant-launcher").click();
+  await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+}
+
+/**
+ * Moves a walk that has just entered a trip onto the Plan view.
+ *
+ * **A bare `/trips/<id>` does not land on the board any more.** SPEC §24 made
+ * Overview the default of four views (Overview, Plan, Calendar, Map) and the
+ * one that does not edit, so every walk that arrived by clicking a trip's link
+ * and then reached for a board control — "Add a day", a day column, an activity
+ * card, "Keep day 1" — waited 30 seconds for something one tab away. That was
+ * the single largest class of breakage in the 2026-09-12 design sync, and it is
+ * invisible to typecheck, to lint and to review.
+ *
+ * A tab click rather than `?view=Plan` on the `goto`, deliberately: a walk that
+ * got here by pressing a link in the trips list is standing where a person
+ * stands, and what a person does next is press Plan. Specs that navigate by URL
+ * in the first place should put `?view=Plan` in the URL instead — both are
+ * honest, and neither is a workaround for the other.
+ *
+ * Asserting the URL, not just the click: `view` is what `LensRouter.resolveView`
+ * reads, and a click that changed the highlighted tab without writing the query
+ * would leave the next reload back on Overview.
+ */
+export async function openPlan(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "Plan" }).click();
+  await expect(page).toHaveURL(/view=Plan/);
+}

@@ -10,7 +10,10 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { Banner } from "@/components/ui/banner";
+import { NodeSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
+import type { SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
@@ -25,6 +28,8 @@ import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { AskPill } from "@/components/assistant/AskPill";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
+import { Sheet } from "@/components/ui/sheet";
+import { Text } from "@/components/ui/text";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import type { ApiError } from "@/lib/apiClient";
@@ -113,6 +118,65 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   const [editor, setEditor] = useState<Editor | null>(null);
   // Same fail-soft rule as `user` above, and for the same reason.
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
+
+  // SPEC §26: the widget whose settings the side channel is showing.
+  //
+  // **Cleared by KEY, not by the null the reporter sends.** Every mounted node
+  // view runs the same effect, so on a click that moves the selection from A to
+  // B, A's effect (`selected` went false -> report null) and B's (`selected`
+  // went true -> report B) both run, in an order React decides. Dropping the
+  // selection on any null would let A's clear land after B's set and close the
+  // panel that had just opened. Matching the key means a clear only wins if the
+  // widget currently being shown is the one saying it lost selection.
+  const [selectedWidget, setSelectedWidget] = useState<SelectedWidget | null>(null);
+  // **Every report lands in a ref, and the ref is flushed to state once, after
+  // all of this commit's effects have run.**
+  //
+  // Each mounted node view reports independently, so a click that moves the
+  // selection from A to B fires A's "lost it" and B's "have it" in an order
+  // React decides. Two earlier shapes of this both failed:
+  //
+  //  - Applying a bare `null` immediately let A's clear land after B's set and
+  //    close the panel that had just opened.
+  //  - Ignoring a `null` unless its key matched the widget on show fixed that
+  //    and introduced a worse one: a node view REMOUNTS when its attrs change,
+  //    which is every rebind, so afterwards it reported a different `useId`
+  //    than the panel was holding — and its clear was discarded forever. The
+  //    symptom was a settings panel that would not close once you had used it.
+  //
+  // Deferring the flush to a microtask removes the ordering question entirely:
+  // sets and clears both just write the ref, every effect in the commit has run
+  // by the time it is read, and the last writer is the truth. No key matching,
+  // so a remount cannot desync it.
+  const pendingSelection = useRef<SelectedWidget | null>(null);
+  const flushScheduled = useRef(false);
+  const handleWidgetSelected = useCallback((selection: SelectedWidget | null, _reporterKey: string) => {
+    pendingSelection.current = selection;
+    if (flushScheduled.current) return;
+    flushScheduled.current = true;
+    queueMicrotask(() => {
+      flushScheduled.current = false;
+      const next = pendingSelection.current;
+      setSelectedWidget((current) => {
+        if (next === null) return null;
+        // **Keep the existing object when nothing has actually changed.**
+        //
+        // The reporter is a node view effect, and the `params` it sends is
+        // `node.attrs.params ?? {}` — a fresh object on every render. Storing
+        // it unconditionally re-renders this screen, which re-renders the node
+        // view, which reports a new object: a loop that does not settle, and
+        // the panel it is rendering flickers out of the DOM between frames.
+        if (
+          current !== null &&
+          current.name === next.name &&
+          JSON.stringify(current.params) === JSON.stringify(next.params)
+        ) {
+          return current;
+        }
+        return next;
+      });
+    });
+  }, []);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   // The verdict on the document AS LOADED, taken once. It is deliberately not
@@ -378,7 +442,64 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // land the same way a click does. One mechanism, so the AI path cannot
   // develop placement rules of its own.
   const insertAtCursor = (node: MacroNode | readonly unknown[]) => {
-    editor?.chain().focus().insertContent(node as never).run();
+    // **Selects what it just inserted**, which SPEC §26 makes load-bearing
+    // rather than a nicety. Before §26 a widget arrived with its chrome row
+    // already attached, so "inserted" and "configurable" were the same moment.
+    // Now the settings live in the side channel and appear only for the
+    // SELECTED widget — so an insert that left the selection in the text would
+    // land a widget bound to everything and leave the column showing the insert
+    // rail, with no indication that the thing to do next is point it somewhere.
+    //
+    // **Scans the inserted range for the macro rather than assuming it sits at
+    // the start position**, and that distinction is the whole of whether this
+    // works for block-shaped widgets.
+    //
+    // `insertContent` leaves the cursor after what it inserted, so the range
+    // from the old `from` to the new selection is exactly what landed. For an
+    // INLINE widget (`cost`) the macro is the first node in that range and
+    // `nodeAt(from)` finds it. For a BLOCK one (`day.detail`, `stop.rows`) the
+    // insert brings a paragraph with the macro inside it — so `nodeAt(from)` is
+    // the paragraph, the check failed, and nothing was selected. Which meant
+    // every block widget landed with its settings unopened while every inline
+    // one opened them: a split nobody designed, found by an e2e walk on
+    // `stop.rows` after the inline cases had all gone green.
+    //
+    // **On a phone it selects nothing, and that is not an omission.** The
+    // reason above is a DESKTOP reason: settings appear in the side column for
+    // the selected widget, so an insert that selected nothing would leave the
+    // column showing the insert rail with no sign of what to do next. The phone
+    // has no side column — its settings are a sheet — and its insert is already
+    // "one sheet with a bind step" (§19), so the widget arrives POINTED. Select
+    // it there and the sheet the user just dismissed is replaced by a second
+    // sheet asking the question they have already answered: §19's "one sheet
+    // deep, ever" served twice in a row. `m14-mobile-notebook` is what said so,
+    // by watching the insert sheet never close.
+    if (isPhone) {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent(node as never)
+        .run();
+      return;
+    }
+    const at = editor?.state.selection.from;
+    editor
+      ?.chain()
+      .focus()
+      .insertContent(node as never)
+      .command(({ tr, dispatch }) => {
+        if (at === undefined || dispatch === undefined) return true;
+        let macroPos: number | null = null;
+        tr.doc.nodesBetween(at, Math.max(at, tr.selection.to), (child, pos) => {
+          if (macroPos !== null) return false;
+          if (child.type.name === "macro") macroPos = pos;
+          return macroPos === null;
+        });
+        if (macroPos === null) return true;
+        dispatch(tr.setSelection(NodeSelection.create(tr.doc, macroPos)));
+        return true;
+      })
+      .run();
   };
 
   // What the phone sheet says it is looking at, derived rather than written
@@ -525,7 +646,20 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           a card's — bigger than any card in the app, and the point. It steps
           down on a narrow viewport, where 52px of gutter is most of the
           column. */}
-      <Card raised className="overflow-hidden p-0">
+      {/* SPEC §26's desktop side channel. The page and the 320px column are
+          flex siblings, and **the column exists only in Editing**:
+
+          > The column is not reserved while reading: the page runs full width
+          > until edit mode opens it. That means the measure changes when you
+          > enter edit mode (lines rebreak once); switching between rail and
+          > settings does not reflow, since both are 320px. This tradeoff was
+          > chosen deliberately over an empty 320px gutter sitting there the
+          > whole time you read.
+
+          `items-start` so the column does not stretch to the document's height
+          and pin its own sticky position to the bottom of a long page. */}
+      <div className="flex items-start gap-6">
+      <Card raised className="min-w-0 flex-1 overflow-hidden p-0">
         <div className="flex flex-col px-5 py-6 sm:px-12 sm:py-10">
           {/* `h1`, and the document's own — the trip's name is the app chrome
               above this card, not this page's heading. Editable only in
@@ -547,6 +681,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
               onChange={handleContentChange}
               onEditorReady={handleEditorReady}
               editable={editing}
+              onWidgetSelected={handleWidgetSelected}
             />
           </div>
           {/* dc.html:2443 — the insert affordance lives at the FOOT of the
@@ -559,7 +694,28 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
               (`immediatelyRender: false`), so a click landing before it
               resolves reached `editor?.chain()` and was silently dropped — a
               button that looks ready and does nothing (CodeRabbit, PR 139). */}
-          {editing && editor !== null ? (
+          {/* **`md:hidden` since SPEC §26 gave the desktop a column.** The
+              insert rail is now the column's resting state, and two buttons
+              called "Insert a widget" on one screen is the duplication project
+              rule 4 forbids — it was also, concretely, an ambiguous query in
+              every test that reached for one.
+
+              It stays at the foot on a PHONE, which has no column: §26's phone
+              half is an inspector for a widget you already have, not a way to
+              add one, so removing this outright would leave a phone with no
+              insert affordance at all. The `/` hint goes with it, being about
+              the keyboard.
+
+              **`isPhone`, not a `md:hidden` class**, and the pair below is why:
+              the two affordances are the SAME component with the same
+              accessible name, so rendering both and hiding one in CSS leaves
+              two controls called "Insert a widget" in the tree. That is a real
+              ambiguity for assistive tech, not only for a test — unlike
+              `AskPill`/`AssistantBubble`, where the CSS approach is right
+              because the cost of guessing wrong for one paint is a floating
+              button §13.5 forbids. Here a one-paint flash of the wrong
+              affordance is harmless and duplicate naming is not. */}
+          {editing && editor !== null && isPhone ? (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
               <span className="text-xs text-slate">
@@ -569,6 +725,50 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           ) : null}
         </div>
       </Card>
+      {/* The column's two states (§26): the insert rail when nothing is
+          selected, the selected widget's settings when something is. One
+          column, one place to look, no second panel to manage.
+
+          `max-md:hidden` because at 390px a 320px column is the whole screen —
+          the phone gets the sheet below instead, which is §26's other half.
+          `sticky` so the settings stay beside the widget on a long page rather
+          than scrolling away from the thing they configure. */}
+      {editing && !isPhone ? (
+        <aside
+          className="sticky top-6 w-80 shrink-0"
+          aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
+        >
+          <Card raised className="p-4">
+            {selectedWidget === null ? (
+              <div className="flex flex-col gap-3">
+                <Text variant="muted">Pick a widget to add, or select one on the page to change it.</Text>
+                {editor !== null ? (
+                  <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
+                ) : null}
+              </div>
+            ) : (
+              <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
+            )}
+          </Card>
+        </aside>
+      ) : null}
+      </div>
+      {/* §26's phone inspector: the same rows, in the sheet the phone bind
+          controls already used, opened by selecting the widget rather than by a
+          44px button sitting in the document flow. The button was the last
+          widget control left in the prose. */}
+      <Sheet
+        open={isPhone && editing && selectedWidget !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedWidget(null);
+        }}
+        size="bottom"
+        title="Widget settings"
+      >
+        {selectedWidget === null ? null : (
+          <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
+        )}
+      </Sheet>
       {/* **The assistant floats in the corner and is available in both modes.**
           Mitchell, on the preview: *"Assistant shouldnt be at the top, it
           should be on the bottom right on desktop, floating till open, and

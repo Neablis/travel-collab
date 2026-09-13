@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
@@ -60,6 +60,7 @@ export function Column({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  keepFlag,
 }: {
   title: string;
   dayId: string;
@@ -97,6 +98,21 @@ export function Column({
   onToggleTag?: (tag: ActivityTag) => void;
   /** Passed to every card: hide what writes, keep what reads (ADR-031). */
   readOnly?: boolean;
+  /**
+   * SPEC §24's "keep this day" pennant, for the day header this column draws.
+   *
+   * A slot rather than the five props the control itself takes (`tripId`,
+   * `tripName`, `dayIndex`, the day's `SavedStop[]`), because none of them is
+   * anything a COLUMN knows: they are trip-level, and `Board` is already
+   * holding the `TripDetail` they come out of. Handing them through here would
+   * make every column's signature carry the trip in order to draw one button.
+   *
+   * Optional, like `onRemoveDay` and `onAddActivity` above, and for the same
+   * reason: a read-only board simply does not pass it. SPEC §24 — "nothing
+   * renders disabled ... the Keep pennant [is] absent, so the page reads as a
+   * finished thing rather than a form you lack permission for."
+   */
+  keepFlag?: ReactNode;
 }) {
   const ref = useRef<HTMLUListElement>(null);
   // Whether this column itself — not one of its cards — is the innermost
@@ -127,6 +143,14 @@ export function Column({
     <section
       ref={columnRef}
       data-testid="day-column"
+      // SPEC §28's city rule, and the ONLY thing this component does for it.
+      // In Ledger a pale tint reads as grey on cream, so anything city-coded
+      // also gets a 3px solid rule in its own city's colour. The rule itself
+      // lives in the look layer (`globals.css`, `html[data-look="ledger"]
+      // [data-city-accent]`) because it exists in exactly one look; this names
+      // the family so that layer has something to colour it with. Every other
+      // look ignores the attribute entirely.
+      data-city-accent={accent}
       className={cn(
         "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",
         TINT_BG[accent],
@@ -159,11 +183,20 @@ export function Column({
         ) : (
           <span className="text-sm font-semibold text-ink">{title}</span>
         )}
-        {onRemoveDay && (
-          <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
-            <X className="size-3.5" aria-hidden />
-          </Button>
-        )}
+        {/* The day header's own controls, in the order the design draws them:
+            keep this day, then remove it. Wrapped rather than left as two
+            siblings of the title, so `justify-between` keeps meaning "title at
+            one end, controls at the other" whether one, both or neither is
+            given. `items-center` inside a `items-baseline` header because the
+            pennant is a 30px circle with no text baseline to sit on. */}
+        <span className="flex items-center gap-1">
+          {keepFlag}
+          {onRemoveDay && (
+            <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
+              <X className="size-3.5" aria-hidden />
+            </Button>
+          )}
+        </span>
       </header>
       <ul ref={ref} className="m-0 min-h-24 flex-1 list-none rounded-sm p-1">
         {activityIds.map((id) => {

@@ -222,6 +222,20 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Costs, broken down",
     keywords: ["cost", "costs", "money", "breakdown", "table", "spend", "total"],
   },
+  // ---- what is waiting on a decision -------------------------------------
+  // SPEC §25's `w-open`. One preset, no params, because the widget takes none —
+  // and it exists at all because §25 requires the Overview's blocks to be
+  // ordinary registry widgets: *"it must be insertable into an ordinary page."*
+  // A registered widget with no preset is code nobody can reach (the shape of
+  // KI-2026-09-02-d), and `presets.test.ts` fails on exactly that.
+  {
+    id: "open",
+    widget: "open",
+    params: {},
+    title: "What needs you",
+    keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
+    preview: "one row per thing waiting on a decision",
+  },
 ];
 
 const BY_ID: Record<string, WidgetPreset> = Object.fromEntries(PRESETS.map((p) => [p.id, p]));
