@@ -157,9 +157,17 @@ async function openSeededPage(page: Page): Promise<void> {
 // the selection, and opening the list moves focus out of the editor. TipTap
 // keeps the selection across that blur, which is what makes this work at all.
 async function insertFromList(page: Page, name: RegExp, search?: string): Promise<void> {
+  // Clicking into the heading also DESELECTS whatever widget was selected,
+  // which since SPEC §26 is what returns the right column to the insert rail —
+  // while a widget is selected the column shows its settings instead, so the
+  // rail is simply not on screen after any previous insert. Waiting for the
+  // rail rather than clicking straight through is what makes a second insert
+  // reliable; the caret click and the React state it drives are two different
+  // ticks.
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
+  await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   await page.getByRole("button", { name: "Insert a widget" }).click();
   const list = page.getByRole("dialog");
   await expect(list).toBeVisible();
@@ -332,7 +340,9 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // version of this line was written: the assertion has to name the number it
   // expects, or a locator that has drifted to matching nothing keeps passing
   // (CodeRabbit, PR 139).
-  await expect(page.getByRole("button", { name: /Assistant/ })).toHaveCount(1);
+  // §28 renamed the collapsed launcher: a 92×44 bar reading "Ask", not a brand
+  // tile. The PANEL keeps its name, which is the next line.
+  await expect(page.getByRole("button", { name: "Ask" })).toHaveCount(1);
   await expect(page.getByRole("complementary", { name: "Assistant" })).toHaveCount(0);
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.
@@ -358,7 +368,13 @@ test("a repeater renders one line per day", async ({ page }) => {
   // meant to be tables with columns"), so a row is `role="row"` rather than
   // `role="listitem"`. Either way the point stands: the role is what makes a
   // ROW queryable without asserting on classes.
-  const rows = page.locator(".tc-page-editor [role='row']");
+  //
+  // **Scoped to the widget that was just inserted, not to the page.** The
+  // seeded Overview carries `open` ("What needs you", SPEC §25), which is also
+  // a repeater and also renders rows — so a page-wide row count is counting
+  // two widgets. The page stopped being a blank canvas when §25 gave every
+  // trip a real document.
+  const rows = page.locator('[data-macro-name="day.rows"] [role=\'row\']');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
@@ -367,7 +383,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
   // a reload that lost Day 1 would also satisfy.
-  const afterReload = page.locator(".tc-page-editor [role='row']");
+  const afterReload = page.locator('[data-macro-name="day.rows"] [role=\'row\']');
   await expect(afterReload).toHaveCount(2);
   await expect(afterReload.nth(0)).toContainText("Day 1");
   await expect(afterReload.nth(1)).toContainText("Day 2");
@@ -585,37 +601,42 @@ async function addStopViaApi(
   expect(response.ok()).toBe(true);
 }
 
-// Runs in the page: how far the widget's popover spills past the nearest
-// ancestor that clips it. Module-level so the walk below keeps no conditional
-// in its own body, and so the "nothing clips this" case is a thrown error
-// rather than a silent pass.
-function spillPastClipper(el: Element): { below: number; right: number; height: number } {
-  const box = el.getBoundingClientRect();
+// Runs in the page: whether anything between this element and the document
+// clips its overflow.
+//
+// It replaces a `spillPastClipper` that measured how far a popover spilled PAST
+// its clipping ancestor — a measurement that only means something while the
+// controls are inside the card. Since SPEC §26 they are in a sibling column, so
+// the question worth asking is the structural one: is there a clipping ancestor
+// at all? `false` is what makes the PR 149 finding unable to recur.
+function isInsideAClippingAncestor(el: Element): boolean {
   for (let node = el.parentElement; node !== null; node = node.parentElement) {
-    if (getComputedStyle(node).overflow === "visible") continue;
-    const clip = node.getBoundingClientRect();
-    return { below: box.bottom - clip.bottom, right: box.right - clip.right, height: box.height };
+    if (getComputedStyle(node).overflow !== "visible") return true;
   }
-  throw new Error("nothing clips this popover, so this walk proves nothing");
+  return false;
 }
 
-test("the bindings of the last widget in a page are not clipped by the card", async ({ page }) => {
-  // CodeRabbit, PR 149: `PageScreen` puts the editor inside a `Card` with
-  // `overflow-hidden`, and `WidgetChrome`'s popover is `absolute top-full` —
-  // so a widget at the very bottom of the document could open its controls
-  // into a strip the card cuts off, with nothing in the roles to show it.
+test("the bindings of the last widget in a page are reachable, not clipped by the card", async ({ page }) => {
+  // **CodeRabbit's PR 149 finding, and SPEC §26's answer to it.**
   //
-  // Geometry against the CLIPPING ANCESTOR, not `toBeVisible` and not a hit
-  // test after `scrollIntoViewIfNeeded`. Both of those pass on a clipped
-  // popover: an element cut off by `overflow: hidden` still has a box and is
-  // still `visible` to Playwright, and `scrollIntoViewIfNeeded` will scroll an
-  // `overflow: hidden` container — which a person with no scrollbar and no
-  // wheel cannot — and bring the hidden strip into view itself. The first cut
-  // of this walk did exactly that and passed with the popover pushed 900px
+  // The finding: `PageScreen` puts the editor inside a `Card` with
+  // `overflow-hidden`, and `WidgetChrome`'s popover was `absolute top-full` —
+  // so a widget at the very bottom of the document opened its controls into a
+  // strip the card cut off, with nothing in the roles to show it.
+  //
+  // §26 removes the cause rather than tuning the popover: no widget control is
+  // in the document at all, so there is nothing inside the clipping card to
+  // clip. This walk keeps the case that produced the finding — a widget at the
+  // very END of the document, at the width where the editor is widest — and
+  // asserts what must now be true of it: the settings are on screen and inside
+  // the viewport.
+  //
+  // Still geometry, not `toBeVisible`, for the original reason: an element cut
+  // off by `overflow: hidden` still has a box and is still `visible` to
+  // Playwright. The first cut of this walk passed with the popover pushed 900px
   // down.
   //
-  // 1100px because that is inside the band the finding named (768–1179px),
-  // where the editor is at its widest with no sidebar beside it.
+  // 1100px because that is inside the band the finding named (768–1179px).
   await page.setViewportSize({ width: 1100, height: 800 });
   await tripWithTwoDays(page);
   await openSeededPage(page);
@@ -632,15 +653,26 @@ test("the bindings of the last widget in a page are not clipped by the card", as
   await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
   await expect(list).toBeHidden();
 
-  const widget = page.locator('[data-macro-name="day.detail"]');
-  const chrome = widget.getByTestId("widget-chrome");
-  await widget.click();
-  await expect(chrome).toBeVisible();
+  // Inserting selects what it inserted (§26), so the panel is already showing
+  // the widget that just landed at the end of the document.
+  const panel = page.getByTestId("widget-settings");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button", { name: /The days in detail: dates/ })).toBeVisible();
 
-  const spill = await chrome.evaluate(spillPastClipper);
-  expect(spill.height).toBeGreaterThan(0);
-  expect(spill.below).toBeLessThanOrEqual(0);
-  expect(spill.right).toBeLessThanOrEqual(0);
+  // Wholly inside the viewport: a panel pushed below the fold by a document
+  // that ends near the bottom edge would be the same defect in a new place.
+  const box = await panel.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height).toBeGreaterThan(0);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(800);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(1100);
+
+  // And it is NOT inside the card that does the clipping — which is the
+  // structural reason the finding cannot recur, stated as an assertion rather
+  // than left to the comment above.
+  const insideClipper = await panel.evaluate(isInsideAClippingAncestor);
+  expect(insideClipper).toBe(false);
 });
 
 test("a group header in a repeat table is as wide as the table", async ({ page }) => {
@@ -714,48 +746,42 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   for (const rowEdges of otherEdges) expect(rowEdges).toEqual(firstEdges);
 });
 
-test("a selected block widget shows its bindings with the pointer nowhere near it", async ({ page }) => {
-  // The third reveal path, and the one the other two walks cannot see.
-  // `WidgetChrome` reveals its popover on hover, on focus, OR when the caret is
-  // in the widget — the last is what keeps the panel open while you pick a
-  // value from a select inside it, since choosing one moves the pointer off the
-  // widget. CodeRabbit, PR 149: hover and focus are covered by the walks above,
-  // `selected` is not, and a regression that made the selected popover
-  // invisible would pass every one of them.
+test("a widget's settings follow the selection, and leave with it", async ({ page }) => {
+  // **This was "a selected block widget shows its bindings with the pointer
+  // nowhere near it", and SPEC §26 changed what it is testing.**
   //
-  // Read as computed opacity because that is the only observable: any
-  // Playwright action that touches the control moves the pointer onto it and
-  // reveals it by hover instead, which would make this walk prove the thing it
-  // is trying to isolate. The pointer is parked in the far corner throughout.
+  // It used to isolate the third of `WidgetChrome`'s three reveal paths — hover,
+  // focus, or the caret being in the widget — because a regression that made
+  // the SELECTED popover invisible would pass the hover and focus walks
+  // (CodeRabbit, PR 149). §26 deleted all three: there is no popover, no hover
+  // reveal, and no control in the document at all.
+  //
+  // What survives is the claim underneath, and it is now the whole mechanism
+  // rather than one path into it: **a widget's settings are on screen exactly
+  // when that widget is selected.** Both directions, because the second is the
+  // one that rots — without it every widget on a page would end up showing its
+  // controls at once, which is the state SPEC §18 removed and Mitchell asked
+  // not to have back.
   await tripWithTwoDays(page);
   await openSeededPage(page);
   await insertFromList(page, /The days, in detail/);
 
-  const widget = page.locator('[data-macro-name="day.detail"]');
-  const chrome = widget.getByTestId("widget-chrome");
+  // Inserting selects what it inserted, so the panel opens on it — and the
+  // panel names the widget, which is what says the settings belong to THIS one
+  // rather than to whatever was selected before.
+  const panel = page.getByTestId("widget-settings");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "The days in detail" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: /The days in detail: dates/ })).toBeVisible();
 
-  await widget.click();
-  await page.mouse.move(5, 5);
-  await expect
-    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
-      message: "the caret is in the widget and its bindings are still invisible",
-    })
-    .toBe("1");
-
-  // And it goes again when the caret leaves — otherwise every widget on a page
-  // would end up showing its controls at once, which is the state SPEC §18
-  // removed and Mitchell asked not to have back.
+  // And they go when the caret leaves, returning the column to the insert rail.
   //
   // A heading with text in it, not the empty leading paragraph: clicking an
-  // empty block leaves the node selection where it was, so the first attempt at
-  // this assertion read `opacity: 1` and looked like the popover was stuck.
+  // empty block leaves the node selection where it was, which is how the
+  // previous version of this assertion first read as "stuck".
   await page.locator(".tc-page-editor h2").last().click();
-  await page.mouse.move(5, 5);
-  await expect
-    .poll(() => chrome.evaluate((el) => getComputedStyle(el).opacity), {
-      message: "the caret has left the widget and its bindings are still showing",
-    })
-    .toBe("0");
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
 });
 
 test("a repeat widget's rows are striped, and its values are text rather than chips", async ({ page }) => {
@@ -842,6 +868,10 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   const insertInto = async (block: Locator) => {
     await block.click();
     await page.keyboard.press("End");
+    // The click also deselects whatever the previous insert selected, which is
+    // what returns the right column to the insert rail (SPEC §26). Waiting for
+    // it is what makes the SECOND insert reliable.
+    await expect(page.getByTestId("widget-settings")).toHaveCount(0);
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const list = page.getByRole("dialog");
     await expect(list).toBeVisible();
@@ -852,11 +882,19 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
 
   // Prose first, then the heading: inserting into the heading last means no
   // later click has to find its way around the widget already in it.
-  await insertInto(page.locator(".tc-page-editor p").first());
-  await insertInto(page.locator(".tc-page-editor h2").first());
+  //
+  // **`.last()`, not `.first()`, and that is SPEC §25's doing.** The seeded page
+  // opens with "What needs you" and the `open` widget in the paragraph under
+  // it — so the FIRST paragraph already holds a widget, and inserting there
+  // would put two on one line and make the measurement below read the wrong
+  // one. The last heading and paragraph ("Costs") are the empty prose this
+  // walk wants.
+  await insertInto(page.locator(".tc-page-editor p").last());
+  await insertInto(page.locator(".tc-page-editor h2").last());
 
-  const inHeading = page.locator(".tc-page-editor h2 [data-widget-value]").first();
-  const inProse = page.locator(".tc-page-editor p [data-widget-value]").first();
+  // Scoped to the widget this walk inserted, for the same reason.
+  const inHeading = page.locator('.tc-page-editor h2 [data-macro-name="dates"] [data-widget-value]').first();
+  const inProse = page.locator('.tc-page-editor p [data-macro-name="dates"] [data-widget-value]').first();
   await expect(inHeading).toBeVisible();
   await expect(inProse).toBeVisible();
 
