@@ -101,6 +101,8 @@ const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
+const { aiUsage } = await import("@/server/db/schema");
+const { eq } = await import("drizzle-orm");
 const { AI_NOT_ENTITLED_REASON } = await import("@/server/ai/modelSelection");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
@@ -1780,6 +1782,77 @@ describe("POST /api/trips/:id/ask", () => {
 // It asserts the codes are equal AND that they are the strings the deployed
 // clients already parse — equality alone would survive both sides being
 // renamed together, which is exactly the change that breaks a client mid-roll.
+// **M20 link 9's gate box, through the real endpoint** (`usage.int.test.ts`
+// drives the writer directly; this drives `/ask`).
+//
+// *"Every AI request writes one `ai_usage` row, including a request that fails
+// partway — the round-trips were still paid for. A test asserts the failure
+// path writes."*
+describe("the cost ledger", () => {
+  const usageRows = async (userId: string) =>
+    db.select().from(aiUsage).where(eq(aiUsage.userId, userId));
+
+  it("writes one row for a completed turn", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    const res = await ask(tripId, {
+      messages: [userMessage("how long is this trip?")],
+      scope: { kind: "trip" },
+    });
+    expect(res.status).toBe(200);
+    await chunksOf(res);
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    const row = rows[rows.length - 1]!;
+    expect(row.outcome).toBe("completed");
+    expect(row.endpoint).toBe("ask");
+    // The RESOLVED model that actually ran, never a compiled default.
+    expect(row.turnModel).toBe("simulated/no-op");
+    expect(row.steps).toBeGreaterThan(0);
+  });
+
+  // **The failure path.** The provider was paid for the round-trips it made
+  // before it exploded, so a turn that failed partway is not a free turn — and
+  // a ledger that skipped it would understate exactly the accounts that cost
+  // the most to serve.
+  it("writes a row for a turn that failed partway", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
+      tripId,
+      failingModel("provider exploded"),
+    );
+    await chunksOf(res);
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    expect(rows[rows.length - 1]!.outcome).toBe("error");
+  });
+
+  // No question text and no trip content reaches the row — asserted here, on a
+  // turn whose question and trip are both known, rather than only against the
+  // column list.
+  it("stores nothing the person typed and nothing about the trip", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    await chunksOf(
+      await ask(tripId, {
+        messages: [userMessage("what should I do in Fushimi Inari on day one?")],
+        scope: { kind: "trip" },
+      }),
+    );
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    const serialised = JSON.stringify(rows[rows.length - 1]);
+    expect(serialised).not.toContain("Fushimi");
+    expect(serialised).not.toContain("Kyoto");
+    expect(serialised).not.toContain(tripId);
+  });
+});
+
 describe("the refusal codes the browser branches on", () => {
   it("are the same strings on both sides of the UI/server wall", async () => {
     const client = await import("@/lib/apiClient");

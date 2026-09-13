@@ -87,6 +87,7 @@ import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
+import { recordAiUsage } from "@/server/entitlements/usage";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
@@ -266,6 +267,27 @@ export async function handleAskRequest(
       // reconstruction of it.
       (sink ?? logAskAnalytics)(record, ledger);
       recordAskMetrics(record, ledger);
+      // **The fifth reader of the same latch: M20 link 9's durable row.**
+      //
+      // The log is not a ledger. `console.info("ai.ask", …)` already carries
+      // every field this row needs and is still not sufficient — Vercel's
+      // runtime logs are retained briefly and are not queryable as a series
+      // (`M16-assistant-read-agent.md` records finding exactly ONE `ai.ask`
+      // entry across seven days). The table exists because the log cannot
+      // answer a question about last month, which is the question a price has
+      // to be set from.
+      //
+      // Here rather than at three call sites, for the reason the metrics and
+      // the settlement are here: this latch already fires exactly once per
+      // turn on all three end paths, so *"every AI request writes one row,
+      // INCLUDING a request that fails partway"* costs nothing. The
+      // round-trips were still paid for.
+      //
+      // Not awaited, and it cannot be — this fires from inside the agent's own
+      // callback dispatch, long after the Response was returned.
+      // `recordAiUsage` never throws (see its comment): a telemetry write must
+      // not be the reason an answer stops mid-sentence.
+      void recordAiUsage(ledger);
       // The other half of KI-67: admission pre-authorised ONE round-trip, and
       // this settles what the turn actually cost. A third consumer of the same
       // single-writer latch, for the same reason the metrics are — the provider

@@ -537,6 +537,80 @@ export const inviteCodes = pgTable("invite_codes", {
   redeemedAt: timestamp("redeemed_at", { withTimezone: true, mode: "date" }),
 });
 
+// **What an account costs** (M20 link 9). One row per AI request.
+//
+// **Tokens and model ids, never dollars.** Prices move — DeepSeek's rates for
+// the configured model changed on 2026-08-16, mid-scoping, and the milestone's
+// own cost table was wrong by 1.7x on input and 2.5x on output until it was
+// corrected against the live catalogue. A stored dollar figure freezes one
+// price into history, cannot be re-derived, and silently corrupts the series
+// the day a model changes. Tokens plus a dated rate record re-price history
+// correctly and survive a model swap.
+//
+// **`Money` must not be used for this**, and the reason is arithmetic rather
+// than taste. ADR-008 defines `Money` in integer minor units — whole cents for
+// USD — and a live request costs **$0.0006**, six hundredths of a cent, which
+// rounds to **zero**. Every request would record as free. That is the KI-1 /
+// KI-14 / `budgetPerPerson` defect class on its third recurrence, and
+// `aiUsage.noMoney.test.ts` fails if a currency type or a dollar column
+// appears anywhere on this path.
+//
+// **Turn and classifier tokens stay separate, permanently.** *"Did the
+// classifier save more than it cost"* is unanswerable if its spend is folded
+// into the turn's, and the whole reason the classifier has its own model id is
+// that the question is worth asking.
+//
+// **No question text and no trip content.** `askAnalytics` already logs the
+// question to the console deliberately; a durable table is the wrong place for
+// it, and this table has no column one could be written to.
+//
+// CRUD, not evented (invariant 1) — this is not planning state.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`.
+    userId: text("user_id").notNull(),
+    /** `ask` or `ask.apply` — `TurnCost.endpoint`. */
+    endpoint: text("endpoint").notNull(),
+    /** `completed` | `error` | `abort`. A turn that failed partway still has a row. */
+    outcome: text("outcome").notNull(),
+    taskClass: text("task_class").notNull(),
+    // **The RESOLVED model id, never a compiled default.** `config.ts` compiles
+    // `anthropic/claude-haiku-4-5` while production sets `AI_MODEL` to
+    // `deepseek/deepseek-v4-flash-0731`, and costing the compiled default
+    // overstates the bill by roughly an order of magnitude — a mistake made
+    // once already while scoping this milestone. Storing what actually ran is
+    // what makes it unavailable to any later analysis.
+    turnModel: text("turn_model").notNull(),
+    // Null means the provider reported no usage. **Never zero**, which is a
+    // measurement — a turn that really used no tokens and a turn nobody
+    // measured are different facts and a rate join must be able to tell them
+    // apart.
+    turnTokensIn: integer("turn_tokens_in"),
+    turnTokensOut: integer("turn_tokens_out"),
+    // Null when no classification round-trip was made at all: a bare "yes go
+    // ahead" short-circuits the classifier, and a page turn is never
+    // classified. Neither has a round-trip to price.
+    classifierModel: text("classifier_model"),
+    classifierTokensIn: integer("classifier_tokens_in"),
+    classifierTokensOut: integer("classifier_tokens_out"),
+    /** The agent's own round-trips. The classifier's is the column above. */
+    steps: integer("steps").notNull(),
+    // Which per-user ceiling was in force. A purchase PINS a version, so this
+    // is not derivable from `created_at`: two accounts billing on the same day
+    // can sit on different versions.
+    planVersionRef: text("plan_version_ref"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    // Every question the console asks is "this account, over this window" or
+    // "every account, over this window", and both lead with time.
+    index("ai_usage_user_created").on(t.userId, t.createdAt),
+    index("ai_usage_created").on(t.createdAt),
+  ],
+);
+
 // Vendor-spend rate limiting (security review 2026-08-28, H1/L4). Not part of
 // any module's domain data — it is infrastructure, disposable in the same sense
 // projections are: dropping every row costs one window of over-permissiveness

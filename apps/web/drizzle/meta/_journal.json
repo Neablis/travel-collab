@@ -141,6 +141,13 @@
       "when": 1789335948809,
       "tag": "0019_account_plans_and_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789338963216,
+      "tag": "0020_ai_usage_ledger",
+      "breakpoints": true
     }
   ]
 }
