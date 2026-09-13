@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PhoneFrontDoor } from "@/components/front/PhoneFrontDoor";
 import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -109,9 +110,29 @@ const HERO_PLOTS = [
   { x: 10, y: 40, width: 10, height: 20, opacity: 0.45 },
 ] as const;
 
+// SPEC §28 gives the phone a different front door — a pinned scroll sequence,
+// not this page at a narrower width — so both are rendered and the breakpoint
+// picks one.
+//
+// **CSS, not `useIsPhone`.** This is the first paint of the first page an
+// unauthenticated visitor sees, and `useIsPhone` starts `false` on the server
+// and corrects in an effect: a JS-gated switch would render the desktop hero at
+// 390px for one paint on every cold load, which is the one place in the product
+// where a flash is most visible and least forgivable.
+//
+// **The cost, stated honestly: both trees are in the DOM, and they DO share
+// names** — the headline, "Continue with Google" and "Look around a real trip"
+// all appear twice. That is not an accessibility problem, because `hidden`
+// resolves to `display: none` and a `display: none` subtree is not in the
+// accessibility tree at all: a real browser at either width exposes exactly
+// one. It IS a test problem, because jsdom applies no media queries and sees
+// both — so the tests below scope themselves to one tree by testid rather than
+// querying the screen.
 export function LandingScreen() {
   return (
-    <div className="flex min-h-screen flex-col bg-paper text-ink">
+    <>
+      <PhoneFrontDoor />
+      <div data-testid="desktop-landing" className="hidden min-h-screen flex-col bg-paper text-ink md:flex">
       <FrontDoorHeader
         actions={
           <>
@@ -260,6 +281,7 @@ export function LandingScreen() {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
+import { BrandMark } from "@/components/BrandMark";
 import { Input } from "@/components/ui/input";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
@@ -403,14 +404,7 @@ export function AssistantRail({
             scrolling. Harmless in the other two, which never run short. */}
         <div className="shrink-0 border-b border-hairline px-4 py-3">
           <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="grid shrink-0 place-items-center rounded-md bg-brand text-surface"
-              // eslint-disable-next-line no-restricted-syntax -- 22px mark circle has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-              style={{ height: "22px", width: "22px", fontSize: "11px" }}
-            >
-              ◎
-            </span>
+            <BrandMark size={24} />
             {/* The same heading in all three presentations; in the sheet it
                 is additionally the dialog's accessible name, so the modal
                 announces itself with the words already on screen rather than

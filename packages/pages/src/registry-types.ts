@@ -22,7 +22,44 @@ export type InlinePayload = string;
 // `cost` in the trip's currency — because a block component renders what it is
 // handed and has no formatter of its own. `date` was the one field that came
 // through as the ISO it is stored as, and it read on the page as a timestamp.
-export interface ItineraryDayPayload { kind: "itinerary-day"; dayId: string; ordinal: number; date: string | null; activities: { title: string; timeWindow: string | null; cost: string | null }[]; }
+/**
+ * One day, as a card or as a row of the day-by-day table.
+ *
+ * **`cities`, `window` and `cost` are the day's SHAPE**, and they are here
+ * because SPEC §24 deleted the Timeline lens and said its read-only day list
+ * *"became a widget inside the Overview document"*. The list this payload fed
+ * carried only a day's stop TITLES, so the thing that came back was a weaker
+ * read than the thing that went away: the timeline's day header answered "what
+ * is this day" — where it is, how full it is, when it runs, what it costs — and
+ * the widget answered only "what is on it".
+ *
+ * All three are display-ready, like every other string here: `cost` is in the
+ * trip's currency and `window` is a joined clock range, because a block
+ * component renders what it is handed and has no formatter of its own.
+ *
+ * **`cost` is summed from the stops in THIS payload, not taken from the day's
+ * `costSubtotal`.** `day.detail` accepts `tag` and `kind` filters, so a card
+ * showing a day's booked stops beside that day's whole-day total would be two
+ * different selections printed as one fact. Unfiltered the two are equal by
+ * construction; filtered, only this one is true about what is on the card.
+ * (`day.rows` solves the same problem the other way, by refusing those filters.)
+ *
+ * `cities` comes from the globals projection and is `[]` without it — the same
+ * honest degradation `day.rows` documents, rather than a card that vanishes
+ * because a second request is late.
+ */
+export interface ItineraryDayPayload {
+  kind: "itinerary-day";
+  dayId: string;
+  ordinal: number;
+  date: string | null;
+  cities: string[];
+  /** The clock range the day's stops span, `null` when none of them are timed. */
+  window: string | null;
+  /** `null` when nothing on the day is priced — an absence, not a zero. */
+  cost: string | null;
+  activities: { title: string; timeWindow: string | null; cost: string | null }[];
+}
 export interface ItineraryTripPayload { kind: "itinerary-trip"; days: ItineraryDayPayload[]; }
 export interface CostRow { label: string; amount: string; }
 export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total: string; }
@@ -313,6 +350,27 @@ export interface WidgetContext {
   // `citiesOfDay` in `@tc/domain`, which only `apps/web/src/server/**` may
   // import. See `TripGlobals`' own header.
   globals: TripGlobals | null;
+  /**
+   * Today's calendar date, `yyyy-mm-dd`, in the reader's own timezone.
+   *
+   * **Passed in, never read here.** Invariant 4 — *"no wall-clock reads (time
+   * is passed in)"* — and this package is downstream of that rule for the same
+   * reason the domain is: a resolver that reads a clock is a resolver whose
+   * output cannot be asserted except on the day the suite runs.
+   *
+   * It exists for `attribute{field: "trip.countdown"}`, which is the one widget
+   * that reads the trip against the calendar rather than against itself. Every
+   * other resolver ignores it, and they should: a cost that changed with the
+   * date would be a bug.
+   *
+   * **`null` is a real state and the reason it is nullable is not laziness.**
+   * The reader's date is only knowable on the client — a server read is UTC,
+   * which is a different calendar day from the reader's for several hours
+   * every evening west of Greenwich — so a widget rendered before that is
+   * known gets `null` and says it cannot tell yet, the same answer `globals`
+   * and `user` give while their own requests are in flight.
+   */
+  today: string | null;
 }
 
 // The per-iteration scope a repeat renderer passes as it maps a row template

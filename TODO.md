@@ -517,6 +517,120 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **`open` ("What needs you") is built as a two-column table and the design is
+  not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
+  looks nothing like the designs"*, and he is right — the row SHAPE is wrong,
+  not its styling.
+
+  `openBlock` in `Trip Planner Redesign.dc.html:5612` emits
+  `{ label, sub, right, tone, act }` per row:
+
+  | design | what it holds | what is built |
+  |---|---|---|
+  | `label` | *"Overlap on Day 6"*, *"Day 3 has nothing on it"*, *"2 ideas are parked"* — a sentence | a bare tag: "Overlap" / "Empty day" / "Parked" |
+  | `sub` | *"Sat 12 Apr · Kyoto"*, or the parked titles | nothing |
+  | `right` | *"Fix in Plan"*, *"Plan it"*, *"Place them"* — an action | nothing |
+  | `tone` | `warning` / `info` / `plain`, as a row tint and ink colour | nothing |
+  | `act` | navigates to Plan | nothing |
+  | empty | *"Nothing is waiting on you — every day has something on it and no two stops collide."* | "nothing is waiting on you" |
+
+  **Two of those are architecture, not layout.** `RepeatRow` is `lead` +
+  `cells`, so a sub-line and a right-hand action have nowhere to go; and `Seg`
+  is a closed union of text and chip (ADR-037 decision 3 — no HTML crosses the
+  seam), so `act` is a widget emitting an interactive control, which that
+  decision exists to prevent. Either the row type grows a third slot and a tone,
+  or `open` stops being a `repeat` and gets its own shape. That is an ADR-037
+  conversation.
+
+  The `tone` tint is the easy third: `--color-warning-tint` / `--color-info-tint`
+  / `--color-moss` are all in the theme already.
+
+  **Fixed separately and not part of this**: the lead column collapsing under a
+  long value, which is what he saw as *"the Issue text is still going down side
+  of page"*. That was `minmax(0, 1fr)` letting the label track starve, and it
+  hit every repeat widget rather than this one.
+
+- **The Overview notebook's identity moves from `context.kind` into the
+  database (raised by Mitchell on the PR 170 preview, 2026-09-13).** His words:
+  *"let's make sure the overview notebook is special cased in db in some way
+  rather than having to use special logic to know it's a trip overview
+  notebook"*.
+
+  Today it is `PageContext.kind === "overview"` inside the `pages.context`
+  jsonb, and the delete refusal reads it in the `WHERE` clause with
+  `coalesce(context->>'kind', '') <> 'overview'`. That works and is enforced at
+  the database — but it is a string inside a document, so nothing in the schema
+  says a trip has exactly one, and the uniqueness that matters
+  (`pages_system_seed_unique`) is keyed off the seed rather than off this.
+
+  A real column — `pages.kind`, or a nullable `pages.is_overview` with a partial
+  unique index on `(trip_id)` — makes "one undeletable Overview per trip" a
+  constraint rather than a convention, and turns the guard into a plain
+  predicate. **It is a Drizzle migration**, which per ADR-004 means a
+  `migrate-production` dispatch by hand after merge, so it wants its own PR
+  rather than riding one that is green.
+
+  Also needed with it: the contracts changelog entry retiring or narrowing
+  `PageContext.kind`, and a decision on whether the field stays in `context` as
+  a mirror (two sources of truth) or leaves (a breaking read for anything
+  holding an old `PageContext`).
+
+- **The seeded Overview is titled `Overview — <trip name>` (same thread).**
+  *"use the trip name for its title like Overview - <trip name>, since there
+  will be one for every trip"*. `instantiateDefaults(tripId)` is handed an id
+  and not a name, so this needs the trip's name at seed time or a title derived
+  at read time — and a decision about the trips that already have one called
+  "Overview". His premise is a list that spans trips; the index at
+  `/trips/:id/pages` shows one trip's, so it may be aimed at a surface that
+  does not exist yet. Worth asking before building.
+
+  Filed alongside: *"might want to bucket up the notebooks for overviews or not
+  show them here"* — explicitly tentative, and not clear enough to build from.
+
+- **`open` takes filters: which kind of open item, and over which days (raised
+  by Mitchell on the PR 170 preview, 2026-09-13).** His words: *"This component
+  that shows issues should have a optional param for filtering on the type,
+  Overlap / Parked, etc and a date picker that defaults for all trip"*.
+
+  `open.ts` currently says the opposite in a comment — *"It declares no
+  filters… a 'what needs you, on day 3 only' is a question nobody asked"* —
+  which is now false and is part of the work rather than a note to update
+  afterwards.
+
+  **The two halves are not the same size, and that is the whole reason this is
+  here rather than in PR 170.**
+
+  *The date picker is small.* `dates` is an existing `FilterDimension` with a
+  schema, a control and a label already, and "defaults to all trip" is ADR-039
+  decision 2 for free — an absent filter is the widest one. `open` declaring it
+  is `filterParams(["dates"])` plus a predicate per row class, and every row
+  already knows its day except a parked idea, which has none (so it either
+  always shows or never does — a decision, not a lookup).
+
+  *The type filter is not.* It cannot be the existing `kind` dimension: that is
+  `ActivityKind` (booked, idea), and this is a different vocabulary — Overlap,
+  Too far, Anchor, Over budget, Empty day, Parked. Nor can it be a seventh
+  `FilterDimension`: dimensions narrow an entity's selection, `LEGAL_FILTERS`
+  is keyed by entity, and `open` deliberately has none (it is a registered
+  widget, not a primitive — see its own header). So it is an `extra` param, the
+  slot `count`'s `of` and `attribute`'s `field` use — **and neither of those
+  renders a control.** `attribute.field` says why in as many words: chosen once
+  by the preset, with no control that could fill it in afterwards. Mitchell
+  asked for a control, so this needs a new `WidgetInputType`, its option list,
+  its rendering in both the desktop panel and the phone sheet, and its wording
+  in the bind summary.
+
+  **The open design question**, which is why this wants his answer before it is
+  built: does the control offer the three row CLASSES (conflict / empty day /
+  parked) or the six LABELS the left column actually shows? Six matches what is
+  on screen, which argues for six; three matches how the resolver is built, and
+  `Conflict.kind` is `z.string()` in the contract rather than an enum, so a
+  six-value control is a closed vocabulary over an open one and a kind the
+  domain adds later would be unreachable by the filter.
+
+  Either way it is a contracts change with a changelog entry, and it belongs
+  with the widget work rather than bolted onto a design-sync PR that is green.
+
 - **The assistant asks to change the app's own state, and you approve it
   (raised by Mitchell on the PR 141 preview, 2026-09-04).** His words: *"The AI
   assistant needs a tool to toggle the trip overview page to editing, it would
@@ -588,6 +702,22 @@ Captured so they aren't lost; not committed to a milestone yet.
     no conflict state"* — which project rule 6 requires — are all designed and
     all unowned. **Placing the phone is a milestone-sized decision**, not
     something to bolt onto whichever milestone touches a screen next.
+  - **WHERE DOES THE PHONE EDIT? Open, and deliberately deferred — 2026-09-12.**
+    SPEC §24 deletes the Timeline lens, and the Timeline lens *was* the phone's
+    editing surface: `PhoneTabBar`'s Plan tab pointed at
+    `?lens=Schedule&view=Timeline`, and `usePhoneTwoViews` existed only to send
+    a bare `/trips/<id>` there, on §10's grounds — *"Day columns and Calendar
+    exist to show density, which a phone cannot show honestly."* §10 and §22
+    are carried forward unchanged in the same handoff, so the bundle now says
+    both that Plan (day columns) is the only surface that edits and that a
+    phone cannot render day columns honestly.
+    **Built as the design states it, on Mitchell's call** (2026-09-12: *"Lets
+    just build the plan as is for now, and when its ready we will figure out
+    where editing moved to"*), so **a phone renders day columns at 390px
+    today** and that is a known, accepted, temporary state rather than an
+    answer. It is not papered over with a phone-only fallback view, and it
+    should not be. Whoever picks this up owes either a phone treatment of Plan
+    or a design decision that §10 no longer holds.
 
 - **Drop Travelers from the trip header bar (2026-08-30, Mitchell, on PR #89's
   preview — "Drop Travelers from this bar, its not needed, it can live just in

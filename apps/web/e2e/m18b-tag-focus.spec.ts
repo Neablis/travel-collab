@@ -21,11 +21,6 @@ test.describe("tag focus", () => {
     return page.locator('[data-testid^="activity-card-"]').filter({ hasText: title }).first();
   }
 
-  /** The timeline row for a stop, by its title. */
-  function row(page: Page, title: string): Locator {
-    return page.locator('[data-testid^="timeline-item-"]').filter({ hasText: title }).first();
-  }
-
   /**
    * The opacity a browser actually computed, not the class we hoped for.
    *
@@ -55,7 +50,13 @@ test.describe("tag focus", () => {
   }
 
   test("a chip focuses its tag, dims everything else, and survives every lens", async ({ page }) => {
-    await page.goto("/demo");
+    // `?view=Plan` since SPEC §24, in all three walks here: `/demo` is the
+    // ordinary trip surface in read-only (ADR-031), so it takes the ordinary
+    // default, and the ordinary default is Overview — the view that does not
+    // edit. The stops these walks read are one tab away on arrival now, and
+    // asking for them without saying so waited 30 seconds on a page showing
+    // the trip's notebook.
+    await page.goto("/demo?view=Plan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
@@ -99,17 +100,6 @@ test.describe("tag focus", () => {
     // pressed, and it is still clickable on a dimmed card.
     await expect(hotel.getByTestId("tag-chip-lodging")).toHaveAttribute("aria-pressed", "false");
 
-    // --- It survives a lens switch --------------------------------------
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page).toHaveURL(/view=Timeline/);
-    await expect(page.getByTestId("tag-focus-line")).toBeVisible();
-
-    const hanedaRow = row(page, "Land at Haneda");
-    const gonpachiRow = row(page, "Dinner at Gonpachi");
-    await expect(hanedaRow).toBeVisible();
-    await expectOpacity(gonpachiRow, 1);
-    await expectOpacity(hanedaRow, 0.32);
-
     // --- The Calendar counts rather than dimming stops -------------------
     await page.getByRole("tab", { name: "Calendar" }).click();
     await expect(page).toHaveURL(/view=Calendar/);
@@ -121,18 +111,34 @@ test.describe("tag focus", () => {
 
     // --- The Map keeps its own day dimming ------------------------------
     await page.getByRole("tab", { name: "Map" }).click();
-    await expect(page).toHaveURL(/lens=Map/);
+    await expect(page).toHaveURL(/view=Map/);
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
 
+    // --- It survives the round trip through every other tab --------------
+    // This used to switch from Timeline to Day columns and re-read the dimming
+    // off `timeline-item-*` rows. SPEC §24 deleted Timeline, so that switch
+    // became Plan → Plan — a click on the tab already selected, asserting on a
+    // lens that no longer exists — and the claim it was making needed a real
+    // move to keep meaning anything. §24 states the claim outright: *"Day focus
+    // survives tab switches. One `focus` per trip, carried across all four
+    // tabs."* Coming BACK to Plan after Calendar and Map is the strongest
+    // version of it available now, and it reads the same cards the walk opened
+    // with rather than a second set of locators.
+    await page.getByRole("tab", { name: "Plan" }).click();
+    await expect(page).toHaveURL(/view=Plan/);
+    await expect(page.getByTestId("tag-focus-line")).toBeVisible();
+    await expect(haneda).toBeVisible();
+    await expectOpacity(gonpachi, 1);
+    await expectOpacity(haneda, 0.32);
+
     // --- Clear ----------------------------------------------------------
-    await page.getByRole("tab", { name: "Day columns" }).click();
     await page.getByRole("button", { name: "Clear meal focus" }).click();
     await expect(page.getByTestId("tag-focus-line")).toHaveCount(0);
     await expectOpacity(card(page, "Land at Haneda"), 1);
   });
 
   test("clicking the same chip again clears, and a different chip replaces", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo?view=Plan");
     const gonpachi = card(page, "Dinner at Gonpachi");
     const hotel = card(page, "Check in at Trunk Hotel");
     await expect(gonpachi).toBeVisible();
@@ -160,7 +166,7 @@ test.describe("tag focus", () => {
   // against our own components: the filter row this replaced is gone and stays
   // gone (KI-47), and nothing here offers multi-select.
   test("offers no filter row, no Show everything, and no multi-select", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo?view=Plan");
     const gonpachi = card(page, "Dinner at Gonpachi");
     await expect(gonpachi).toBeVisible();
     await gonpachi.getByTestId("tag-chip-meal").click();

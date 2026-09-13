@@ -31,13 +31,80 @@ async function seedTrip() {
 // docs/testing-baseline.md for the isolation-strategy writeup (Phase 2 Task
 // 2.6).
 describe("pages repository", () => {
-  it("lazily instantiates the two default pages on first list", async () => {
+  // **One page, not two, since SPEC §25** — Mitchell, 2026-09-12: *"Only 1
+  // notebook per trip is always generated, this is undeletable notebook that
+  // needs to be created on every new trip."* Counted off `DEFAULT_TEMPLATES`
+  // rather than hard-coded, so the next change to what a trip is seeded with is
+  // one edit rather than a number in three places.
+  it("lazily instantiates the default pages on first list", async () => {
     const { tripId } = await seedTrip();
     const first = await listPages(tripId);
     expect(first.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
-    expect(first).toHaveLength(2);
+    expect(first).toHaveLength(DEFAULT_TEMPLATES.length);
     const second = await listPages(tripId); // idempotent — no duplicate instantiation
-    expect(second).toHaveLength(2);
+    expect(second).toHaveLength(DEFAULT_TEMPLATES.length);
+  });
+
+  // §25: the Overview *"appears in the Notebook index like any other page"* and
+  // its delete control *"refuses with a reason"* rather than being hidden — so
+  // the refusal has to be real at the server, where a keyboard shortcut or a
+  // direct call lands.
+  it("refuses to delete the seeded Overview, and says why", async () => {
+    const { tripId } = await seedTrip();
+    const [overview] = await listPages(tripId);
+    const outcome = await deletePage(overview!.id);
+    expect(outcome).toEqual({
+      ok: false,
+      reason: "undeletable",
+      message: expect.stringContaining("comes with the trip"),
+    });
+    // Still there, which is the half that would matter to a person.
+    expect(await getPage(overview!.id)).not.toBeNull();
+  });
+
+  // **The refusal used to be removable through the front door.**
+  //
+  // `updatePage` stored `input.context` whole, and `PageContext.kind` is what
+  // marks the Overview — so a PATCH carrying `{ tripId }` and nothing else
+  // stripped the marker, and the next DELETE removed the page every trip is
+  // supposed to keep (CodeRabbit, PR 170). The route that PATCHes a page sends
+  // `context` for exactly one reason (re-stating `tripId`), so this was one
+  // ordinary request away.
+  it("keeps the Overview's marker through a PATCH that omits it", async () => {
+    const { tripId } = await seedTrip();
+    const [overview] = await listPages(tripId);
+
+    const patched = await updatePage(overview!.id, { context: { tripId } });
+    expect(patched?.context.kind, "the marker is identity and a PATCH may not drop it").toBe("overview");
+    expect(await deletePage(overview!.id)).toMatchObject({ ok: false, reason: "undeletable" });
+    expect(await getPage(overview!.id)).not.toBeNull();
+  });
+
+  // And the other direction: asserting the marker must not make an ordinary
+  // page undeletable. Same line of code, opposite abuse.
+  it("refuses to let an ordinary page claim the marker through a PATCH", async () => {
+    const { tripId } = await seedTrip();
+    const mine = await createPage(tripId, { title: "Mine", context: { tripId }, content: newPageDoc([]) }, "u1");
+
+    const patched = await updatePage(mine.id, { context: { tripId, kind: "overview" } });
+    expect(patched?.context.kind, "a page cannot promote itself").toBeUndefined();
+    expect(await deletePage(mine.id)).toEqual({ ok: true });
+  });
+
+  // **The delete refuses in SQL, not in JavaScript.** The guard was a read, a
+  // decision and then an unconditional delete; this asserts the property that
+  // made those three statements safe to collapse — a row marked `overview`
+  // cannot be removed by the delete statement at all, whatever a caller
+  // believed when it asked.
+  it("cannot delete a marked page even when the check is bypassed", async () => {
+    const { tripId } = await seedTrip();
+    const mine = await createPage(tripId, { title: "Mine", context: { tripId }, content: newPageDoc([]) }, "u1");
+    // Mark it the way only the database can — around `updatePage`, which now
+    // refuses to. This is the state a race would produce.
+    await db.execute(sql`update pages set context = jsonb_set(context, '{kind}', '"overview"') where id = ${mine.id}`);
+
+    expect(await deletePage(mine.id)).toMatchObject({ ok: false, reason: "undeletable" });
+    expect(await getPage(mine.id)).not.toBeNull();
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
@@ -102,7 +169,7 @@ describe("pages repository", () => {
       // Edit the first row, then the last. Neither may move — this is the half
       // that catches the physical-order reshuffle, since an UPDATE writes a new
       // row version.
-      await updatePage(seeded[0]!.id, { title: "Trip Overview" });
+      await updatePage(seeded[0]!.id, { title: SEEDED_TITLES[0]! });
       await updatePage(mine.id, { title: "Packing" });
       expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
     } finally {
@@ -153,7 +220,7 @@ describe("pages repository", () => {
     const updated = await updatePage(created.id, { title: "Renamed" });
     expect(updated!.title).toBe("Renamed");
     expect(updated!.updatedAt >= created.updatedAt).toBe(true);
-    expect(await deletePage(created.id)).toBe(true);
+    expect(await deletePage(created.id)).toEqual({ ok: true });
     expect(await getPage(created.id)).toBeNull();
   });
 });

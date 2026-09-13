@@ -1,30 +1,41 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LandingScreen } from "./LandingScreen";
 
 afterEach(cleanup);
 
+// SPEC §28 gives the phone its own front door, and both trees are rendered with
+// the breakpoint choosing one (see `LandingScreen.tsx`). A real browser exposes
+// exactly one — a `display: none` subtree is not in the accessibility tree —
+// but jsdom applies no media queries and sees both, so every query here is
+// scoped to the desktop tree by testid. `PhoneFrontDoor.test.tsx` owns the
+// other one.
+// Every query below is scoped INLINE rather than through a named helper. A
+// helper holding the queries reads to `testing-library/prefer-screen-queries`
+// exactly like `render`'s own destructured queries — the shape that rule exists
+// to stop — and the wall rejects it. Verbose, and the wall is right.
+
 describe("LandingScreen", () => {
   it("leads with the product claim", () => {
     render(<LandingScreen />);
     expect(
-      screen.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "The trip everyone actually helped plan." }),
     ).toBeDefined();
   });
 
   it("keeps a Sign in link — e2e/helpers.ts drives sign-in through it", () => {
     render(<LandingScreen />);
-    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
+    expect(within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/signin");
   });
 
   it("sends every primary call to action to sign-up", () => {
     render(<LandingScreen />);
     // "Start a trip" is asked twice — header and closing CTA band — so this
     // enumerates both rather than loosening the assertion to the first match.
-    const startTrip = screen.getAllByRole("link", { name: "Start a trip" });
+    const startTrip = within(screen.getByTestId("desktop-landing")).getAllByRole("link", { name: "Start a trip" });
     expect(startTrip).toHaveLength(2);
     for (const link of startTrip) expect(link.getAttribute("href")).toBe("/signup");
-    expect(screen.getByRole("link", { name: "Continue with Google" }).getAttribute("href")).toBe("/signup");
+    expect(within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Continue with Google" }).getAttribute("href")).toBe("/signup");
   });
 
   // M11 link 4 retired both shells (`landing-peek-trip`,
@@ -36,21 +47,21 @@ describe("LandingScreen", () => {
     const { container } = render(<LandingScreen />);
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelectorAll("[data-preview-id]")).toHaveLength(0);
-    const peek = screen.getByRole("link", { name: "Look around a real trip" });
-    const finished = screen.getByRole("link", { name: "See a finished one" });
+    const peek = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Look around a real trip" });
+    const finished = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "See a finished one" });
     expect(peek.getAttribute("href")).toBe("/demo");
     expect(finished.getAttribute("href")).toBe("/demo");
   });
 
   it("carries the Early access footnote", () => {
     render(<LandingScreen />);
-    expect(screen.getByText(/Early access/)).toBeDefined();
+    expect(within(screen.getByTestId("desktop-landing")).getByText(/Early access/)).toBeDefined();
   });
 
   it("names what the page is for", () => {
     render(<LandingScreen />);
     expect(
-      screen.getByRole("heading", { name: "Planning is the trip, three times over." }),
+      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Planning is the trip, three times over." }),
     ).toBeDefined();
   });
 

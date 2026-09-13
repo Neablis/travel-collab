@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/BrandMark";
 
 // SPEC §23's phone entry point to the assistant: *"An `Ask` pill, last item in
 // the top row, on all four in-trip screens — Plan, Map, the Notebook index and
@@ -52,9 +53,16 @@ export function AskPill({ open, onOpen }: { open: boolean; onOpen: () => void })
       // is satisfied without a fourth variant that has one caller.
       className="shrink-0 gap-1.5 rounded-full bg-brand-tint font-semibold text-brand-pressed hover:bg-brand-tint hover:text-brand-pressed md:hidden"
       aria-expanded={open}
+      // See `AssistantBubble`'s note: same name, two breakpoints, and jsdom
+      // applies neither.
+      data-testid="ask-pill"
       onClick={onOpen}
     >
-      <span aria-hidden>◎</span>
+      {/* Tile-less: the pill is already a brand-tint surface, and a second
+          filled tile inside it would be a mark on a mark. `size={20}` is the
+          proportion, not a drawn box — it yields the design's 2.5px strokes at
+          11px tall (`dc.html:257`). */}
+      <BrandMark size={20} tile={false} />
       Ask
     </Button>
   );

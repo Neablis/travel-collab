@@ -10,6 +10,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: null,
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 // The rendered rows, as text per row. Row CARDINALITY is the thing worth
@@ -112,7 +115,7 @@ describe("day.rows", () => {
     // city we cannot name, and dropping the line because a projection is late
     // would lose the day itself.
     const { trip } = selectionTrip();
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     const rows = lines(ctx, "day.rows");
     expect(rows).toHaveLength(3);
     expect(rows.join(" ")).not.toContain("Rome");
@@ -168,6 +171,30 @@ describe("stop.rows", () => {
       "Lunch",
     ]);
     expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, tag: "lodging" }).status).toBe("empty");
+  });
+
+  it("says nothing is booked yet when a kind filter is what emptied it", () => {
+    // **The limitation this widget's own `emptyText` comment describes,
+    // retired for the one case worth phrasing.** That comment says a fixed
+    // string "cannot see the params, so 'no stops on this day' would be a claim
+    // the widget cannot keep" — true of `emptyText`, and no longer true of the
+    // resolver, which can now carry a reason (`MacroResult.because`). This is
+    // what the Overview's "What's booked" section says on a trip where nothing
+    // is, and "no stops to show" under that heading reads as a fault rather
+    // than as a fact.
+    const ctx = contextOf(selectionTrip());
+    // Day 3 holds a `planned` and an `idea`, and no booking.
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "booked" })).toEqual({
+      status: "empty",
+      because: "nothing booked yet",
+    });
+    // **Only the kinds that make a sentence.** "nothing hold yet" is not
+    // English, so the widget keeps its blanket wording rather than assembling a
+    // phrase out of a stored enum value — asserted, because a `Record` that
+    // covered every kind would pass the line above and read as nonsense here.
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "hold" })).toEqual({
+      status: "empty",
+    });
   });
 
   it("groups under day headers, and gives the backlog its own", () => {
@@ -248,7 +275,7 @@ describe("cost.rows", () => {
     // worth asserting against — so the zero case needs a trip with no prices on
     // it at all, which is the state a notebook opens in.
     const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1, costed: false } });
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     expect(renderMacro(ctx, "cost.rows", {}).status).toBe("empty");
   });
 });

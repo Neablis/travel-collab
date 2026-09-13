@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newPageDoc } from "@tc/contracts";
 import type { PageDoc } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { DEFAULT_TEMPLATES, presetCatalog } from "@tc/pages";
+import { TEMPLATE_LIBRARY, presetCatalog } from "@tc/pages";
 import { widgetMatches } from "@/components/pages/WidgetPicker";
 import { PageEditor } from "./PageEditor";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
@@ -156,7 +156,12 @@ function pageEditorRules(css: string): { selector: string; body: string }[] {
 describe("PageEditor typography (KI-44)", () => {
   it("defines .tc-page-editor rules that match the nodes the editor actually emits", async () => {
     const detail = tripDetailFixture();
-    const overview = DEFAULT_TEMPLATES.find((t) => t.key === "trip-overview");
+    // `TEMPLATE_LIBRARY`, not `DEFAULT_TEMPLATES`: SPEC §25 made the Overview
+    // the one seeded page and Trip Overview a gallery template. This test wants
+    // the PROSE page — its whole premise is that TipTap emits bare `h2`/`p`
+    // with no classes — and the seeded Overview now carries a widget, which
+    // would change what `querySelector("p")` finds.
+    const overview = TEMPLATE_LIBRARY.find((t) => t.key === "trip-overview");
     expect(overview).toBeDefined();
     const { container } = render(
       <PageEditor

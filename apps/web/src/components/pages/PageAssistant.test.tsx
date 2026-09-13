@@ -114,7 +114,7 @@ async function openRail() {
   render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
   await screen.findByText("Notes");
   await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
-  await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+  await userEvent.click(screen.getByTestId("assistant-launcher"));
   return { onUpdate, page, trip };
 }
 
@@ -401,7 +401,7 @@ describe("the assistant on a notebook page", () => {
 
     // No "Edit page" click anywhere above this line.
     expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: /Assistant/ }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 });

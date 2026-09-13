@@ -61,7 +61,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
-  await page.goto(`/trips/${tripId}?lens=Map`);
+  await page.goto(`/trips/${tripId}?view=Map`);
   const rail = page.locator('[aria-label="Days"]');
   await expect(rail).toBeVisible();
   await expect(rail.getByRole("button")).toHaveCount(DAY_COUNT);
@@ -240,14 +240,14 @@ test("map: opens on the current day, and on the first one when none is chosen", 
 
   // Straight to the map with nothing selected — a fresh load, so `focusedDay`
   // starts null exactly as it does for somebody clicking through to a trip.
-  await page.goto(`/trips/${tripId}?lens=Map`);
+  await page.goto(`/trips/${tripId}?view=Map`);
   const rail = page.locator('[aria-label="Days"]');
   await expect(rail).toBeVisible();
   await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(1);
 
   // And a day picked elsewhere is the day the map opens on — the "always use
   // the current select day" half, which the default must not override.
-  await page.goto(`/trips/${tripId}?lens=Board`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   const columns = page.getByTestId("day-column");
   await expect(columns.first()).toBeVisible();
   await columns.nth(4).getByRole("button", { name: /^Day 5/ }).click();
@@ -276,7 +276,7 @@ test("map lens: loads its tile-decoding worker", async ({ page }) => {
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
 
-  await page.goto(`/trips/${tripId}?lens=Map`);
+  await page.goto(`/trips/${tripId}?view=Map`);
 
   // Positive anchor. maplibre attaches this canvas from the Map constructor,
   // which is also what spawns the worker pool — so reaching it proves the page

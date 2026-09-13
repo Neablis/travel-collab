@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("optimistic add renders instantly and persists", async ({ page }) => {
@@ -13,6 +14,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   const days = page.getByTestId("day-column");
   const before = await days.count();
@@ -49,6 +51,7 @@ test("a rejected change stays visible, shows an error, and can be retried", asyn
   await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   // Force the single-command endpoint (AddDay is sent via sendTripCommand,
   // not the batch endpoint — see apiClient.ts) to fail server-side. A short

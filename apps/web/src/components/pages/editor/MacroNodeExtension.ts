@@ -1,4 +1,5 @@
 import { Node, mergeAttributes, ReactNodeViewRenderer } from "@tiptap/react";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { MacroNodeView, macroShape } from "./MacroNodeView";
 
 // The `macro` ProseMirror node. Its attrs shape mirrors `@tc/contracts`'
@@ -82,6 +83,32 @@ export const MacroNodeExtension = Node.create({
   // "what shape is this?" are how the attribute and the ring end up
   // disagreeing. Importing it here keeps the dependency one-way — the node
   // spec already imports its own node view.
+  // **Escape dismisses a selected widget**, which SPEC §26 makes load-bearing:
+  // the widget's settings live in the surface's side channel and are shown for
+  // the SELECTED widget, so "stop configuring this" and "deselect it" are now
+  // the same action — and there was no way to perform it with the keyboard.
+  // A node selection has no caret, so Escape had nothing to do before this and
+  // the panel could only be dismissed by selecting something else.
+  //
+  // `TextSelection.near` rather than a hand-computed position: a macro is an
+  // inline atom and may be the only thing in its paragraph, so "just after it"
+  // is not always a valid text position. `near` finds the closest one that is.
+  addKeyboardShortcuts() {
+    return {
+      Escape: ({ editor }) => {
+        const { selection } = editor.state;
+        if (!(selection instanceof NodeSelection) || selection.node.type.name !== this.name) return false;
+        return editor
+          .chain()
+          .command(({ tr, dispatch }) => {
+            if (dispatch) dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(selection.to))));
+            return true;
+          })
+          .run();
+      },
+    };
+  },
+
   addNodeView() {
     return ReactNodeViewRenderer(MacroNodeView, {
       attrs: ({ node }) => ({ "data-macro-shape": macroShape(node.attrs.name as string) }),

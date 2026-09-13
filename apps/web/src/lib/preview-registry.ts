@@ -55,13 +55,18 @@ export const PREVIEW_REGISTRY = {
   // than left shelved — Mitchell, preview feedback on PR #55: the design's
   // panel has no such block, only the conversation and the ask box. Nothing
   // to wire up in M9 because there is nothing there to wire.
-  // The stated blocker here SHIPPED in PR #88 — propose→review→approve is real,
-  // in the assistant rail (`ProposalCard`, `POST /ask/apply`). This shell is
-  // still genuinely unbuilt, but what it is waiting on is narrower than it was:
-  // rendering an approved-or-pending proposal INLINE IN THE TIMELINE, not the
-  // approval mechanism itself. Corrected 2026-09-01 per the rule below — a tag
-  // is a claim, and so is the reason attached to it.
-  "timeline-ghost": { milestone: "M9", wiredUpBy: "Proposals rendered inline in the timeline — the approval mechanism itself shipped in PR #88" },
+  // `timeline-ghost` was here, and SPEC §24 deleted the surface it was waiting
+  // for. It shelled "an approved-or-pending proposal rendered INLINE IN THE
+  // TIMELINE" — the approval mechanism itself shipped in PR #88 — and there is
+  // no timeline any more: §24 deletes the lens rather than hiding it, and its
+  // read-only day list becomes a widget on the Overview document.
+  //
+  // Removed rather than re-pointed at Plan, on this file's own rule that a tag
+  // is a claim: nothing in the design says a proposal ghost belongs in the day
+  // columns, and re-pointing it would be inventing a placement for a surface
+  // the design has not drawn. M9 keeps the work it actually owns (grounding,
+  // durability, the eval harness) and loses a shell for a screen that no longer
+  // exists. `DRIFT.md` §3 lists this entry and is now one shorter.
   // RETAGGED M9 -> "unplaced", 2026-09-01, on Mitchell's call. M9's scope has no
   // transport-mode link, no contract change and no migration, so "M9 will wire
   // this up" was not a claim M9's file supported — the same species as the cost
@@ -76,7 +81,19 @@ export const PREVIEW_REGISTRY = {
   // adjacent. See docs/reviews/2026-09-01-milestone-audit.md §3b.
   "map-legend-modes": { milestone: "unplaced", wiredUpBy: "Transport mode per leg — no field models it today, and no milestone owns adding one" },
   "rack-provenance": { milestone: "M13", wiredUpBy: "Who parked a stop, and which day it came from — no field models either. Sits with `add-stop-who`, the same absence from the other side; whichever milestone lands per-stop attribution unblocks both" },
-  "cost-estimate-state": { milestone: "M19", wiredUpBy: "Confirmed-vs-estimate flag per cost — no field models it" },
+  // `cost-estimate-state` was here, and SPEC §24 deleted the surface it was
+  // drawn on — the timeline was its only host, the same as `timeline-ghost`
+  // above. The difference is that this one had a real owner: **M19 keeps the
+  // work and loses the shell.** A cost's settled-vs-estimate state is M19
+  // link 2 and is unaffected; what is gone is the one place the design had
+  // drawn it. M19 will have to place it on a surface that exists — most
+  // plausibly the day card — and that is a design question, not a re-point.
+  //
+  // Not re-hosted on Plan here, on this file's own rule that a tag is a claim:
+  // nothing in the handoff shows an estimate flag on a day card, and moving a
+  // shell to a screen the design has not drawn it on is inventing the
+  // placement rather than recording one. `M19-cost-model.md` names the link;
+  // `DRIFT.md` §3 lists this entry and is now two shorter.
   "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },

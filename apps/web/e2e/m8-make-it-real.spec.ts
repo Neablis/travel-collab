@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dragCardTo } from "./helpers";
+import { dragCardTo, openPlan } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
@@ -38,6 +38,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   // -- a start date, then 3 real days (Task 8b.6: the end is derived, never
   // picked — TripDateControl only sets the start, so a range is built via
@@ -138,8 +139,15 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
   await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`trip actions for ${escapeForRegExp(renamedTripName)}`, "i") }).click();
+  // One click, not two: SPEC §27 removed the confirm dialog outright. *"Delete
+  // is optimistic. The card goes on the click; the toast carries a single Undo
+  // that restores it."* The dialog it replaced asked "Delete <name>? You can
+  // undo this from the toast that follows" — a modal whose own copy explained
+  // that the action was reversible, which is a confirm step for something that
+  // does not need confirming. The Undo in the toast below is the safety net now
+  // and it is asserted a few lines down, so nothing this walk proved was lost
+  // with the second click.
   await page.getByRole("menuitem", { name: /delete/i }).click();
-  await page.getByRole("button", { name: /^delete$/i }).click();
   // getByRole("heading", ..., level: 3), not getByText: same substring
   // collision as the rename assertion above — the "Deleted "..."" undo toast
   // this click raises contains the trip's own name as a substring, so a bare
@@ -238,8 +246,9 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
   // ...and it is still a working Delete, not merely a stationary one.
   // Deleting for real also keeps this test from leaving a card behind in the
   // shared "alice" trip list.
+  // One click — SPEC §27's confirm dialog is gone; see the note at the first
+  // delete in this file.
   await deleteItem.click();
-  await page.getByRole("button", { name: /^delete$/i }).click();
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).not.toBeVisible();
 });

@@ -1211,7 +1211,7 @@ describe("POST /api/trips/:id/ask", () => {
       // closed allow-list reaches the model as its exact vocabulary.
       const attribute = catalog.find((entry) => entry.name === "attribute");
       expect(attribute!.params.field).toEqual([
-        "trip.name", "trip.budgetRemaining", "account.name", "account.homeAirport",
+        "trip.name", "trip.budgetRemaining", "trip.countdown", "account.name", "account.homeAirport",
       ]);
       expect(catalog.find((entry) => entry.name === "count")!.params.of).toEqual(["stop", "day", "city"]);
       // None of the planning rules the command endpoint sent on every page

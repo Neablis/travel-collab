@@ -87,11 +87,35 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "how many of them are booked",
   },
   {
+    id: "count.days",
+    widget: "count",
+    params: { of: "day" },
+    title: "How many days",
+    keywords: ["number", "count", "how many", "days", "long", "length", "nights"],
+    description: "How long the trip is, in days. Filter it to count only the days that match.",
+    preview: "how many days it runs",
+  },
+  {
     id: "dates",
     widget: "dates",
     params: {},
     title: "The dates",
     keywords: ["date", "when", "range", "day", "trip", "calendar"],
+  },
+  {
+    // **The one widget that reads the trip against the calendar**, and the
+    // reason the Overview of a brand-new trip has a first line worth reading.
+    // Every other widget answers a question about the trip's own contents; this
+    // one answers "how soon", which is the question somebody who just made a
+    // trip actually has.
+    id: "trip.countdown",
+    widget: "attribute",
+    params: { field: "trip.countdown" },
+    title: "How long until it starts",
+    keywords: ["countdown", "when", "soon", "until", "days", "away", "left", "how long", "upcoming"],
+    description:
+      "How far off the trip is — counting down before it starts, which day of it you are on while it runs, and how long ago it ended after.",
+    preview: "in 34 days",
   },
   {
     id: "hours",
@@ -221,6 +245,20 @@ export const PRESETS: readonly WidgetPreset[] = [
     params: {},
     title: "Costs, broken down",
     keywords: ["cost", "costs", "money", "breakdown", "table", "spend", "total"],
+  },
+  // ---- what is waiting on a decision -------------------------------------
+  // SPEC §25's `w-open`. One preset, no params, because the widget takes none —
+  // and it exists at all because §25 requires the Overview's blocks to be
+  // ordinary registry widgets: *"it must be insertable into an ordinary page."*
+  // A registered widget with no preset is code nobody can reach (the shape of
+  // KI-2026-09-02-d), and `presets.test.ts` fails on exactly that.
+  {
+    id: "open",
+    widget: "open",
+    params: {},
+    title: "What needs you",
+    keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
+    preview: "one row per thing waiting on a decision",
   },
 ];
 
