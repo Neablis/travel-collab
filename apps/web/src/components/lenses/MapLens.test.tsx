@@ -1,10 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ActivityKind, ActivityTag, TripDetail } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, Location, TripDetail } from "@tc/contracts";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { tripDetailFixture } from "@tc/factories";
-import { MapLens } from "./MapLens";
+import { CITY_DISC_ACCENT_VAR, MapLens } from "./MapLens";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX } from "./MapDayStrip";
 
@@ -71,14 +71,31 @@ const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoa
     // element) lets a test find "the marker for stop N" and assert on the
     // opacity MapLens applies to its element, mirroring how it asserts on
     // route-layer opacity via setPaintPropertyMock above.
-    markerInstances: [] as { element: HTMLDivElement; getElement: () => HTMLDivElement }[],
+    //
+    // `options` is what the constructor was given, which nothing recorded until
+    // markers stopped being one stock teardrop each: a city-level group is
+    // `new Marker({ element })` carrying a disc, an ordinary stop is
+    // `new Marker({ color })`, and the difference is invisible unless the stub
+    // keeps the argument.
+    markerInstances: [] as {
+      element: HTMLElement;
+      getElement: () => HTMLElement;
+      options: { color?: string; element?: HTMLElement } | undefined;
+    }[],
   }),
 );
 
 vi.mock("maplibre-gl", () => {
   class Marker {
-    element = document.createElement("div");
-    constructor() {
+    element: HTMLElement;
+    options: { color?: string; element?: HTMLElement } | undefined;
+    // Real maplibre takes the caller's `element` AS the marker's element and
+    // builds its own default pin SVG only when there isn't one. The stub used
+    // to take no arguments at all and always make its own div, so a test could
+    // not see a custom marker element even when MapLens passed one.
+    constructor(options?: { color?: string; element?: HTMLElement }) {
+      this.options = options;
+      this.element = options?.element ?? document.createElement("div");
       markerInstances.push(this);
     }
     setLngLat() {
@@ -87,7 +104,7 @@ vi.mock("maplibre-gl", () => {
     addTo() {
       return this;
     }
-    getElement() {
+    getElement(): HTMLElement {
       return this.element;
     }
     // Real maplibre doesn't accept a direct `element.style.opacity` write as
@@ -248,12 +265,22 @@ function detailFixture() {
 // is what `dayAccents` colours the routes by. It used to come out of the
 // `?? name` fallback that grouping no longer does; naming it here keeps these
 // route-colour tests about colour rather than about city derivation.
-function locatedActivity(id: string, lat: number, lng: number, city = id, kind: ActivityKind = "planned") {
+// `precision` defaults to absent, which is what every existing caller means and
+// what every location written before the field existed carries — UNKNOWN, not
+// `venue` (contracts/src/activity.ts). Only the city-disc tests pass it.
+function locatedActivity(
+  id: string,
+  lat: number,
+  lng: number,
+  city = id,
+  kind: ActivityKind = "planned",
+  precision?: Location["precision"],
+) {
   return {
     activityId: id,
     title: id,
     timeWindow: null,
-    location: { name: id, city, lat, lng },
+    location: { name: id, city, lat, lng, precision },
     notes: null,
     anchors: [],
     kind,
@@ -912,6 +939,226 @@ describe("MapLens tag focus", () => {
     for (const marker of markerInstances) {
       expect(Number(marker.getElement().style.opacity)).toBeCloseTo(0.32);
     }
+  });
+});
+
+// One pin for every city-level stop that shares a coordinate.
+//
+// Runtime enrichment writes city centroids where the vendor cannot corroborate
+// a venue (KI-2026-08-30-f makes that the common case), so several stops of one
+// day land on the EXACT same point. Unfixed, that is a stack of identical
+// teardrops: one clickable, the rest invisible, and a map claiming a day happens
+// at one address — the reason the offline pipeline withheld city pins outright
+// (docs/guidelines/content-bundles.md).
+describe("MapLens city-level stops", () => {
+  // Three stops the geocoder could only place at city level, on one centroid,
+  // plus one ordinary stop. All four share a city so the day has ONE accent —
+  // grouping must not touch the colour axis.
+  function detailWithCityGroup(): TripDetail {
+    return tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["v1", "c1", "c2", "c3"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        v1: locatedActivity("v1", 41.89, 12.49, "a1"),
+        c1: locatedActivity("c1", 41.95, 12.5, "a1", "planned", "city"),
+        c2: locatedActivity("c2", 41.95, 12.5, "a1", "planned", "city"),
+        c3: locatedActivity("c3", 41.95, 12.5, "a1", "planned", "city"),
+      },
+    });
+  }
+
+  it("collapses a day's city-level stops on one centroid into a single disc carrying their count, and leaves the ordinary stop its own marker", async () => {
+    markerInstances.length = 0;
+    renderMap(detailWithCityGroup(), { focusedDay: 0 });
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    // Stop order: v1's marker first, then the group at its first member's place.
+    const [ordinary, disc] = markerInstances;
+    // A teardrop is maplibre's own stock marker — no element of ours.
+    expect(ordinary!.options?.element).toBeUndefined();
+    // The disc is ours, and it says how many stops are under it.
+    expect(disc!.options?.element).toBeDefined();
+    expect(disc!.getElement().dataset.stopCount).toBe("3");
+    expect(disc!.getElement().textContent).toBe("3");
+  });
+
+  // An interactive disc is a real `button`, not a focusable `div`: a click
+  // listener alone never fires on Enter or Space, so a `role="button"` div
+  // would be an affordance that does not work. Native activation is the fix
+  // (CodeRabbit, PR 169).
+  //
+  // Asserted STRUCTURALLY — the tag, the type, the accessible name — and not
+  // by simulating Enter. jsdom does not implement a button's Enter-to-click
+  // translation, so a passing keyboard simulation here would be evidence about
+  // `user-event`'s emulation rather than about this element; the platform
+  // guarantee is what the tag buys, and the tag is the thing we control.
+  //
+  // `renderMap` always supplies its own `onSelectActivity`, so both cases
+  // render `MapLens` directly — the interactivity of the disc IS the variable.
+  it("makes an interactive disc a real button, named for the stop it opens and how many are behind it", async () => {
+    markerInstances.length = 0;
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detailWithCityGroup()} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const element = markerInstances[1]!.getElement();
+    expect(element.tagName).toBe("BUTTON");
+    // `type="button"`, so a future layout wrapping the map in a form cannot
+    // turn a pin into a submit.
+    expect(element.getAttribute("type")).toBe("button");
+    expect(element.getAttribute("aria-label")).toBe("c1 and 2 more here — approximate location");
+    // The behaviour we do own: activating it opens the group's first stop.
+    fireEvent.click(element);
+    expect(onSelectActivity).toHaveBeenCalledWith("c1");
+  });
+
+  // A board with no selection handler activates nothing, so the disc must not
+  // advertise itself as operable.
+  it("leaves a non-interactive disc a plain element with no button semantics", async () => {
+    markerInstances.length = 0;
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detailWithCityGroup()} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const element = markerInstances[1]!.getElement();
+    expect(element.tagName).toBe("DIV");
+    expect(element.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("gives a lone city-level stop the disc but no count — 'raw 1' on a pin says nothing", async () => {
+    markerInstances.length = 0;
+    renderMap(
+      tripDetailFixture({
+        days: [{ dayId: "d1", activityIds: ["v1", "c1"], date: "2027-06-01", costSubtotal: 0 }],
+        activities: {
+          v1: locatedActivity("v1", 41.89, 12.49, "a1"),
+          c1: locatedActivity("c1", 41.95, 12.5, "a1", "planned", "city"),
+        },
+      }),
+      { focusedDay: 0 },
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const [, disc] = markerInstances;
+    expect(disc!.options?.element).toBeDefined();
+    expect(disc!.getElement().dataset.stopCount).toBe("1");
+    expect(disc!.getElement().textContent).toBe("");
+  });
+
+  // Colour means WHICH DAY and nothing else — the disc says "approximate" by
+  // its SHAPE, so it must resolve the same accent token the day's teardrops and
+  // route line do. See the route-colour tests above for why these are opaque
+  // sentinels rather than real hex (the colour wall forbids literals).
+  it("paints the disc and the ordinary marker in the same day accent", async () => {
+    document.documentElement.style.setProperty("--color-danger", "TEST-DANGER");
+    markerInstances.length = 0;
+    renderMap(detailWithCityGroup(), { focusedDay: 0 });
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const [ordinary, disc] = markerInstances;
+    expect(ordinary!.options?.color).toBe("TEST-DANGER");
+    expect(disc!.getElement().style.getPropertyValue(CITY_DISC_ACCENT_VAR)).toBe("TEST-DANGER");
+  });
+
+  // A group is one pin for several stops, so the tag axis has to ask about all
+  // of them: dimming a disc that holds a match would hide it, and leaving one
+  // full when nothing in it matches would claim a match that isn't there.
+  it("dims a group only when every stop in it is off-tag", async () => {
+    markerInstances.length = 0;
+    const detail = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["c1", "c2", "c3", "c4"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        c1: locatedActivity("c1", 41.95, 12.5, "a1", "planned", "city"),
+        c2: locatedActivity("c2", 41.95, 12.5, "a1", "planned", "city"),
+        c3: locatedActivity("c3", 43.77, 11.25, "a1", "planned", "city"),
+        c4: locatedActivity("c4", 43.77, 11.25, "a1", "planned", "city"),
+      },
+    });
+    // One member of the first group carries the focused tag; nothing in the
+    // second does.
+    detail.activities.c2!.tags = ["meal"];
+
+    renderMap(detail, { focusedDay: 0, focusedTag: "meal" });
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    const [withMatch, withoutMatch] = markerInstances;
+    expect(withMatch!.getElement().style.opacity).toBe("1");
+    expect(Number(withoutMatch!.getElement().style.opacity)).toBeCloseTo(0.32);
+  });
+
+  // KNOWN LIMITATION, asserted so it is a decision rather than a surprise: the
+  // disc opens its FIRST stop. Listing the members is a richer affordance and
+  // deliberately out of scope.
+  it("opens the first stop of a group when its disc is clicked", async () => {
+    markerInstances.length = 0;
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    render(
+      <EditorHost>
+        <MapLens detail={detailWithCityGroup()} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+
+    fireEvent.click(markerInstances[1]!.getElement());
+    expect(onSelectActivity).toHaveBeenCalledWith("c1");
+  });
+
+  // The `routeKey` trap, for the third time (after `kind` and stop order):
+  // `precision` decides whether a stop draws a teardrop or joins a disc, so
+  // enrichment flipping it from unknown to `city` without moving the stop has to
+  // rebuild the markers. With it left out of the key, the map keeps two stacked
+  // teardrops forever.
+  it("rebuilds the markers when a stop's precision changes but nothing moves", async () => {
+    markerInstances.length = 0;
+    // Two stops already on one point, before anything says they are city-level:
+    // two stock teardrops, one of them unreachable.
+    const before = tripDetailFixture({
+      days: [{ dayId: "d1", activityIds: ["s1", "s2"], date: "2027-06-01", costSubtotal: 0 }],
+      activities: {
+        s1: locatedActivity("s1", 41.95, 12.5, "a1"),
+        s2: locatedActivity("s2", 41.95, 12.5, "a1"),
+      },
+    });
+    // One stable callback across both renders: it is a dep of the creation
+    // effect, so a fresh `vi.fn()` would re-run the effect for that reason and
+    // the test would pass against the very bug it exists to catch.
+    const onSelectActivity = vi.fn();
+    useFocusMock.mockReturnValue({ ...focusDefaults(), focusedDay: 0 });
+    const { rerender } = render(
+      <EditorHost>
+        <MapLens detail={before} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+    await waitFor(() => expect(markerInstances).toHaveLength(2));
+    expect(markerInstances.every((marker) => marker.options?.element === undefined)).toBe(true);
+
+    // Same ids, same coordinates, same order, same kinds — only the precision.
+    const after = {
+      ...before,
+      activities: {
+        ...before.activities,
+        s1: { ...before.activities.s1!, location: { ...before.activities.s1!.location!, precision: "city" as const } },
+        s2: { ...before.activities.s2!, location: { ...before.activities.s2!.location!, precision: "city" as const } },
+      },
+    };
+    rerender(
+      <EditorHost>
+        <MapLens detail={after} onSelectActivity={onSelectActivity} />
+      </EditorHost>,
+    );
+
+    await waitFor(() =>
+      expect(markerInstances.filter((marker) => marker.getElement().dataset.stopCount === "2")).toHaveLength(1),
+    );
   });
 });
 

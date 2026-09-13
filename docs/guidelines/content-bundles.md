@@ -326,6 +326,26 @@ equally good:
 City pins are withheld because putting every stop of a day on one point draws a
 map that says something false about the day.
 
+**2026-09-12 — the runtime no longer withholds them, and this table's three words
+are now a stored field.** `Location.precision` (`packages/contracts`) carries
+exactly `venue`/`area`/`city`, and `enrichCommandLocations` writes a city-level
+coordinate when no vendor can corroborate a venue — which KI-2026-08-30-f says is
+the common case for any trip not built from landmarks. Two things make that safe,
+and both are what this paragraph's objection was actually about:
+
+* the Map lens draws a city-level stop as a **disc, not a teardrop**, so the pin
+  makes an area claim rather than a point claim; and
+* coincident city-level stops in one day **collapse into a single pin carrying a
+  count**, so five stops sharing one coordinate are drawn as five stops sharing
+  one coordinate rather than as five places.
+
+**This script is unchanged: `--apply` still withholds `city` without
+`--include-city-level`.** A checked-in bundle is authored content that a human
+reviews once and thousands of trips inherit, so "a wrong pin is worse than no
+pin" still binds harder here than it does on one user's own trip. Revisiting that
+is a separate decision; what has changed is that the product can now express the
+difference, so the option is open where before it was not.
+
 `--review` writes `content/.geocode-review.json` with what to actually look at:
 
 * **`cityDisagreements`** — cities where the anchor and the pins disagree, with

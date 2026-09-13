@@ -129,6 +129,28 @@ describe("KI-54 — every persisted Location field is part of equality", () => {
     expect(replayed).toEqual(target);
   });
 
+  // `precision` (2026-09-12). The only Location field whose changes can be
+  // INVISIBLE in the coordinates themselves: a stop re-geocoded from a city
+  // centroid to a venue fix that happens to resolve to the same point, or a
+  // backfill that records what an existing coordinate always described, changes
+  // `precision` and nothing else. Left out of the comparison, the map would go
+  // on drawing an approximate disc for a stop we had since pinned exactly, and
+  // no test anywhere would fail.
+  it("a precision-only change is not equal, diffs, carries the new value, and replays", () => {
+    const current = withLocation({ lat: 35.8242, lng: 127.148, precision: "city" });
+    const target = withLocation({ lat: 35.8242, lng: 127.148, precision: "venue" });
+    expect(tripStatesEqual(current, target)).toBe(false);
+
+    const events = diffTripStates(current, target);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe("ActivityUpdated");
+    if (events[0]!.type !== "ActivityUpdated") throw new Error("wrong type");
+    expect(events[0]!.payload.location?.precision).toBe("venue");
+
+    const replayed = events.reduce<TripState | null>((st, e) => evolveTrip(st, e), current);
+    expect(replayed).toEqual(target);
+  });
+
   it("replaying a city-only diff lands on the target", () => {
     const current = withLocation({ city: "Tokyo" });
     const target = withLocation({ city: "Kyoto" });
