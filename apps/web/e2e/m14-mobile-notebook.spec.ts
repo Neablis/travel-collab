@@ -57,6 +57,15 @@ async function openTripOverview(page: import("@playwright/test").Page): Promise<
  * What is left is the widget's own rendered output: an ordinary `inline-flex`
  * chip with a solid hit area. Selecting the node is what a tap anywhere in the
  * widget does, so which element receives it does not change the claim.
+ *
+ * **`.first()` is the INSERTED one, and that is load-bearing rather than
+ * incidental.** The seeded Overview carries a `cost` of its own under "What it
+ * costs" (2026-09-13), so there are two on the page. `openTripOverview` never
+ * places a caret, and `insertAtCursor` inserts at the editor's default
+ * selection — the start of the document — so this walk's widget lands ahead of
+ * everything the template seeded. Picking the seeded one instead would not fail
+ * loudly: it is wide and unbound, so "the bind control reads All days" would
+ * pass for entirely the wrong reason.
  */
 function widget(page: import("@playwright/test").Page) {
   return page

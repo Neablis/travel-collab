@@ -528,7 +528,14 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // document rather than from controls that are not on screen. That is the
   // stronger reading anyway: four filters survived a round trip, and what
   // proves it is the widget resolving to the one stop that matches all four.
-  await expect(page.locator('[data-macro-name="stop.rows"]')).toBeVisible();
+  //
+  // Two, because the seeded Overview carries a `stop.rows` of its own under
+  // "What's booked" — the fourth locator on this branch to meet a widget the
+  // page now supplies. `toBeVisible()` tripped strict mode on the pair.
+  await expect(page.locator('[data-macro-name="stop.rows"]')).toHaveCount(2);
+  // The claim itself, and it is unaffected by the seeded one: this trip has no
+  // bookings, so the seeded `stop.rows{kind: "booked"}` says "nothing booked
+  // yet" and only this walk's widget can put "Ramen" on the page.
   await expect(page.getByText("Ramen")).toBeVisible();
 });
 
