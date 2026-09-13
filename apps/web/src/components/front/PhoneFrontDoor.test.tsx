@@ -83,6 +83,62 @@ describe("the phone front door (SPEC §28)", () => {
     expect(opacities().every((o) => o === 0)).toBe(true);
   });
 
+  // The five things Mitchell reported missing on the 2026-09-12 preview, each
+  // pinned by the thing he asked for rather than by a class name.
+  describe("what the first build of this screen left out", () => {
+    // *"Missing the top of page signing CTA"*. There was no header at all, so a
+    // returning visitor on a phone had no way into their own account.
+    it("offers a way in for somebody who already has an account", () => {
+      render(<PhoneFrontDoor />);
+      const signIn = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Sign in" });
+      expect(signIn.getAttribute("href")).toBe("/signin");
+      // SPEC §13.1's 44px floor, taken from the size variant rather than
+      // hand-written — asserted because a header control that is hard to hit on
+      // a phone is the same defect as one that is missing.
+      expect(signIn.className).toContain("min-h-11");
+    });
+
+    // *"Is also awkward wording ... and missing the graphic"*, twice, and
+    // *"missing the example. Attached example of what it should look like"*.
+    // Three of the four claims carry a card in the design and none of them did
+    // in the build.
+    it("draws the example under every claim that has one", () => {
+      render(<PhoneFrontDoor />);
+      const claims = screen.getAllByTestId("front-door-claim");
+      // Together: three stops and the change somebody else made.
+      expect(within(claims[1]!).getByText("Fushimi Inari, early")).toBeTruthy();
+      expect(within(claims[1]!).getByText(/Priya moved this an hour later/)).toBeTruthy();
+      // Notebook: a sentence with a value in it, over the costs that value is
+      // the total of.
+      expect(within(claims[2]!).getByText("$596")).toBeTruthy();
+      expect(within(claims[2]!).getByText("Ryokan · Hakone")).toBeTruthy();
+      // Playbooks: somebody else's day, and what happens when you take it.
+      expect(within(claims[3]!).getByText("A beach day in Phuket")).toBeTruthy();
+      expect(within(claims[3]!).getByText(/Dropping in as Day 2/)).toBeTruthy();
+    });
+
+    // The half of "awkward wording" that was a BUILD defect rather than a copy
+    // preference: the `Together` claim ran the design's headline and its card's
+    // caption together into one sentence, because the card was not built.
+    it("keeps the Together headline to the headline", () => {
+      render(<PhoneFrontDoor />);
+      const claims = screen.getAllByTestId("front-door-claim");
+      expect(within(claims[1]!).getByText("Everyone moves the same day.")).toBeTruthy();
+    });
+
+    // *"The mobile homepage styling is missing the background box with
+    // gradiant"*. The plate is what keeps a claim legible while the map moves
+    // under it; the veil is what stops the map reading as a flat block behind
+    // the type. Both are one-off gradients in `globals.css` (the colour wall
+    // refuses arbitrary Tailwind values), so the class IS the handle here —
+    // there is no role or label standing in for "this has a background".
+    it("puts every claim on its plate, and the map under its veil", () => {
+      const html = renderToStaticMarkup(<PhoneFrontDoor />);
+      expect([...html.matchAll(/front-door-plate/g)]).toHaveLength(4);
+      expect(html).toContain("front-door-veil");
+    });
+  });
+
   it("puts the call to action on the paper after the pin, not over the map", () => {
     render(<PhoneFrontDoor />);
     const cta = within(screen.getByTestId("phone-front-door"));

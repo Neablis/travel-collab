@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 import { buttonVariants } from "@/components/ui/button";
+import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
@@ -43,12 +45,148 @@ const EDGE = 0.16;
 const ENTER_FROM = 30;
 const LEAVE_TO = -26;
 
-const CLAIMS = [
-  { label: "One plan", body: "One shared plan your whole group can move around — days, times, costs, who's in." },
-  { label: "Together", body: "Everyone moves the same day. Priya moved this an hour later — everyone sees it." },
-  { label: "Notebook", body: "Write about it. The numbers keep themselves right." },
-  { label: "Playbooks", body: "Borrow a day someone already got right." },
+// `dc.html:7537`, trimmed to the two fields the phone card draws. The desktop
+// blocks carry the same three stops with more on each; a 390px card has room
+// for a time and a title.
+const CLAIM_STOPS = [
+  { time: "9:40 am", title: "Fushimi Inari, early" },
+  { time: "1:15 pm", title: "Lunch at Nishiki Market" },
+  { time: "4:00 pm", title: "Ryokan check-in, Higashiyama" },
 ] as const;
+
+// `dc.html:7486`. Not the desktop block's `COST_ROWS` — that one is two rows
+// totalling $550 and this is three totalling the $596 the paragraph above it
+// names. Both are the design's own numbers for two different screens.
+const CLAIM_COSTS = [
+  { label: "Ryokan · Hakone", amount: "$380" },
+  { label: "Dinner, all four", amount: "$164" },
+  { label: "Romancecar seats", amount: "$52" },
+] as const;
+
+// A card under a claim, in the design's own shape: `--radius-xl` is 14px, which
+// is the value `dc.html` draws these at.
+function ExampleCard({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <span className={cn("block rounded-xl border border-hairline bg-surface p-3.5", className)}>{children}</span>
+  );
+}
+
+/**
+ * The four claims, each with the example the design draws under it.
+ *
+ * **The examples are the half the build shipped without**, and Mitchell said so
+ * three times on the preview — *"missing the graphic"*, *"missing the graphic"*,
+ * *"missing the example. Attached example of what it should look like"*. They
+ * are not decoration: each claim is an assertion about what the product does,
+ * and the card under it is the product doing it.
+ *
+ * It is also why two of those notes also said *"awkward wording"*. The
+ * `Together` claim's body was `"Everyone moves the same day. Priya moved this
+ * an hour later — everyone sees it."` — the design's headline and its card's
+ * caption concatenated into one sentence, because the card they belonged to was
+ * not built. Split back apart, both halves read.
+ */
+const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
+  {
+    label: "One plan",
+    body: "One shared plan your whole group can move around — days, times, costs, who's in.",
+    // No card in the design either: the opening claim is the promise, and the
+    // three that follow are the evidence.
+  },
+  {
+    label: "Together",
+    body: "Everyone moves the same day.",
+    example: (
+      <ExampleCard className="flex flex-col gap-2">
+        {CLAIM_STOPS.map((stop) => (
+          <span key={stop.title} className="flex items-baseline gap-2.5">
+            <DataText size="xs" className="w-14 shrink-0 text-slate">
+              {stop.time}
+            </DataText>
+            <Text as="span" className="truncate text-sm text-ink">
+              {stop.title}
+            </Text>
+          </span>
+        ))}
+        {/* The caption that used to be stuck on the end of the headline. It is
+            a change somebody else made, which is the whole claim, so it wears
+            the brand tint and their initials rather than sitting in the list. */}
+        <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
+          <DataText
+            size="xs"
+            className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
+          >
+            PR
+          </DataText>
+          <Text as="span" className="text-xs text-brand-pressed">
+            Priya moved this an hour later — everyone sees it.
+          </Text>
+        </span>
+      </ExampleCard>
+    ),
+  },
+  {
+    // **"Write it up", not "Write about it".** Mitchell called the original
+    // awkward and did not name a replacement; this is the smallest edit that
+    // answers it — "write about it" is what you do to a topic, "write it up" is
+    // what you do to a trip, and the sentence after it is unchanged.
+    label: "Notebook",
+    body: "Write it up. The numbers keep themselves right.",
+    example: (
+      <ExampleCard>
+        <Text as="span" className="mb-2 block text-sm text-ink">
+          Day 6 is the expensive one —{" "}
+          {/* The product's own widget-value treatment, deliberately: this is a
+              picture of a notebook, and a number that came from the trip rather
+              than from the writer wears brand tint under a brand rule wherever
+              it appears (`MacroView`'s `Segs`). A different treatment here would
+              be advertising a thing the product does not do. */}
+          <span className="rounded-sm border-b-2 border-brand bg-brand-tint px-1">$596</span> across four of us.
+        </Text>
+        {CLAIM_COSTS.map((row) => (
+          <span
+            key={row.label}
+            className="flex items-baseline justify-between gap-2.5 border-t border-hairline py-1.5"
+          >
+            <Text as="span" className="truncate text-xs text-ink">
+              {row.label}
+            </Text>
+            <DataText size="xs" className="shrink-0 text-slate">
+              {row.amount}
+            </DataText>
+          </span>
+        ))}
+      </ExampleCard>
+    ),
+  },
+  {
+    // **"Borrow the perfect day"** — Mitchell's own suggestion on the preview,
+    // against the design's "Borrow a day someone already got right". Shorter,
+    // and it names what you get rather than describing where it came from.
+    label: "Playbooks",
+    body: "Borrow the perfect day.",
+    example: (
+      <ExampleCard className="flex flex-col gap-2.5">
+        <span className="flex items-baseline justify-between gap-2.5">
+          <Text as="span" className="text-sm font-semibold text-ink">
+            A beach day in Phuket
+          </Text>
+          <DataText size="xs" className="shrink-0 text-slate">
+            4.8 ★
+          </DataText>
+        </span>
+        <Text as="span" className="text-xs text-slate">
+          6 stops · Shared 214 times
+        </Text>
+        <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
+          <Text as="span" className="text-xs text-ink">
+            Dropping in as Day 2 — times shift to fit.
+          </Text>
+        </span>
+      </ExampleCard>
+    ),
+  },
+];
 
 export function PhoneFrontDoor() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -116,6 +254,32 @@ export function PhoneFrontDoor() {
 
   return (
     <div ref={scrollerRef} className="h-dvh overflow-y-auto overflow-x-hidden md:hidden" data-testid="phone-front-door">
+      {/* **The top bar, and the sign-in it carries** (`dc.html:3373`). Mitchell,
+          on the preview: *"Missing the top of page signing CTA"* — this screen
+          had no header at all, so a returning visitor on a phone had no way
+          into their own account short of guessing a URL. The desktop landing
+          has always had one; the phone front door was written without it.
+
+          Outside the pinned block on purpose: the pin is a sticky stage that
+          scrolls under itself, and a header inside it would slide away with the
+          map. Here it scrolls off once, like a page header. */}
+      <header className="flex items-center justify-between px-6 pt-6 pb-3">
+        <span className="flex items-center gap-2.5">
+          <BrandMark size={28} />
+          <Text as="span" className="font-display text-md font-semibold text-ink">
+            Caesura
+          </Text>
+        </span>
+        {/* `size="touch"` is SPEC §13.1's 44px floor. Ghost, because the CTA
+            this screen is actually selling is "Start a trip" at the foot — this
+            is the door for somebody who already has an account. */}
+        <Link
+          href="/signin"
+          className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
+        >
+          Sign in
+        </Link>
+      </header>
       {/* The pinned block. It is three viewports tall, and the sticky stage
           inside it is one — so scrolling it moves `scrollTop` without moving
           what you are looking at, which is the whole mechanic. */}
@@ -151,6 +315,12 @@ export function PhoneFrontDoor() {
               <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.4" className="fill-brand" />
             ))}
           </svg>
+          {/* The paper veil (`dc.html:3401`): opaque where the headline and the
+              claims sit, clear through the middle where the route shows. Without
+              it the map is a flat block of moss behind text rather than ground
+              the words are standing on. The gradient itself is in `globals.css`
+              — see `.front-door-veil` for why it cannot be a class attribute. */}
+          <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
 
           {/* The headline holds still while the claims pass underneath. */}
           <div className="relative px-6 pt-16">
@@ -178,10 +348,19 @@ export function PhoneFrontDoor() {
                 // eslint-disable-next-line no-restricted-syntax -- the authored rest state of a scroll-driven sequence; it is overwritten per scroll event and has no token equivalent.
                 style={{ opacity: i === 0 ? 1 : 0, willChange: "transform, opacity" }}
               >
-                <Text variant="muted" className="uppercase tracking-widest">
-                  {claim.label}
-                </Text>
-                <Text className="mt-2 text-lg text-ink">{claim.body}</Text>
+                {/* **The plate, which Mitchell reported missing by name** —
+                    *"The mobile homepage styling is missing the background box
+                    with gradiant"*. It is what keeps a claim legible while the
+                    map moves under it. `-mx-1.5` is the design's `margin: 0
+                    -6px`: the plate bleeds past the text's own gutter so the
+                    words are never near its edge. */}
+                <span className="front-door-plate -mx-1.5 flex flex-col gap-3 px-4 py-5">
+                  <Text variant="muted" className="uppercase tracking-widest">
+                    {claim.label}
+                  </Text>
+                  <Text className="text-lg text-ink">{claim.body}</Text>
+                  {claim.example}
+                </span>
               </div>
             ))}
           </div>
