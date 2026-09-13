@@ -8,10 +8,10 @@ import { simulatedModel } from "@/server/ai/simulatedModel";
 import type { AiSurface } from "@/server/ai/context";
 import { MODEL_TIERS, type ModelTier, type TierModels } from "@/server/assistant/taskClass";
 import {
-  permitEverything,
   type EntitlementResolver,
   type ResolvedEntitlements,
 } from "@/server/assistant/entitlements";
+import { resolveAiEntitlements } from "@/server/entitlements/resolver";
 
 // May THIS request's caller cause a real model call. Every caller that only
 // needs the answer uses this; `aiLiveMode()` below is the same decision with
@@ -210,7 +210,18 @@ export type AiEntitlementCheck = EntitlementResolver;
 // which is why the refusal belongs here rather than in the tool filter.
 export async function selectAiModel(
   actor: AiActor,
-  isEntitled: AiEntitlementCheck = permitEverything,
+  // **M20 link 4 filled the stub, and this is the whole of the wiring.** The
+  // default was `permitEverything` — *"there is no account tier anywhere in the
+  // product"* — and there is one now. It is a change to what the default IS,
+  // not to the signature, exactly as this file's comment required: every caller
+  // is unchanged and the injection seam below still exists for the tests that
+  // need to drive `denied` and `live` without a database.
+  //
+  // `resolveAiEntitlements` reads the account's pinned plan version out of the
+  // committed file and unions its active grants out of `entitlement_grants`,
+  // per request. Never off the session: a downgrade must bite before a token
+  // refreshes (ADR-045 rule 2).
+  isEntitled: AiEntitlementCheck = resolveAiEntitlements,
 ): Promise<ModelSelection> {
   const entitlements = await isEntitled(actor);
   if (!entitlements.has("ai.ask")) {

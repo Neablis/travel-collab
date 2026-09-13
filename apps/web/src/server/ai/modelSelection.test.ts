@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mocked so the real module — and therefore `flags/next`, which reaches for
@@ -27,7 +29,9 @@ const { aiLive, aiLiveMode, selectAiModel, deniedResponse } = await import(
   "@/server/ai/modelSelection"
 );
 const { SIMULATED_MODEL_ID } = await import("@/server/ai/simulatedModel");
-const { PERMITS_EVERYTHING, NO_CEILINGS } = await import("@/server/assistant/entitlements");
+const { PERMITS_EVERYTHING, NO_CEILINGS, permitEverything } = await import(
+  "@/server/assistant/entitlements"
+);
 const { MODEL_TIERS } = await import("@/server/assistant/taskClass");
 
 // An account entitled to nothing. The `denied` branch has no production trigger
@@ -171,7 +175,12 @@ describe("selectAiModel", () => {
     vi.stubEnv("AI_MODEL_STRONG", undefined);
     try {
       const isolated = await import("@/server/ai/modelSelection");
-      const selected = await isolated.selectAiModel(ACTOR);
+      // The seam, because the default resolver now reads `users` and
+      // `entitlement_grants` and this test is about which MODEL a live turn
+      // gets, not about who may have one. Passing the top-level
+      // `permitEverything` across the isolated module graph is fine — the port
+      // is structural, so a second instance of the same shape satisfies it.
+      const selected = await isolated.selectAiModel(ACTOR, permitEverything);
       expect(selected).toMatchObject({
         outcome: "live",
         // Nothing sets AI_MODEL_* here, so all three slots fall through to the
@@ -262,7 +271,7 @@ describe("selectAiModel", () => {
 
   it("returns the simulated model when the flag is off", async () => {
     aiLiveFlag.mockResolvedValue(false);
-    const selected = await selectAiModel(ACTOR);
+    const selected = await selectAiModel(ACTOR, permitEverything);
     expect(selected.outcome).toBe("simulated");
     expect(selected).toMatchObject({
       // Every slot, not just the one a default turn would use: a tier that
@@ -287,8 +296,8 @@ describe("selectAiModel", () => {
   // while the Simulated badge kept saying nothing was being spent.
   it("never constructs a gateway client, of either kind, when the flag is off", async () => {
     aiLiveFlag.mockResolvedValue(false);
-    await selectAiModel(ACTOR);
-    await selectAiModel({ surface: "ask", userId: "user-1" });
+    await selectAiModel(ACTOR, permitEverything);
+    await selectAiModel({ surface: "ask", userId: "user-1" }, permitEverything);
     expect(aiModel).not.toHaveBeenCalled();
     expect(aiClassifierModel).not.toHaveBeenCalled();
   });
@@ -309,12 +318,30 @@ describe("selectAiModel", () => {
     expect(aiClassifierModel).not.toHaveBeenCalled();
   });
 
-  // Everyone-is-entitled is the default until an entitlement source exists —
-  // no caller passes `isEntitled` today, so this is the path production runs.
-  it("is entitled by default, with no isEntitled argument passed", async () => {
+  // **The default is no longer everyone-is-entitled** (M20 link 4). It reads
+  // the account's plan and grants from the database, so what this asserts is
+  // the thing that survived the change: an entitled actor reaches `live`, and
+  // the injection seam is what a test without a database uses to say so.
+  // `entitlementsFor`'s own behaviour is covered by `resolver.int.test.ts`
+  // against a real one.
+  it("reaches live for an entitled actor", async () => {
     aiLiveFlag.mockResolvedValue(true);
-    const selected = await selectAiModel(ACTOR);
+    const selected = await selectAiModel(ACTOR, permitEverything);
     expect(selected.outcome).toBe("live");
+  });
+
+  // The default is wired to the real resolver rather than to a stub, and this
+  // is the cheap proof: the parameter's default is a function this module did
+  // not define. Without it, replacing the wiring with `permitEverything` during
+  // a debugging session would leave every account entitled in production and no
+  // test would notice.
+  it("defaults to the account resolver rather than to a permissive stub", async () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./modelSelection.ts", import.meta.url)),
+      "utf8",
+    );
+    expect(source).toMatch(/isEntitled: AiEntitlementCheck = resolveAiEntitlements/);
+    expect(source).not.toMatch(/isEntitled: AiEntitlementCheck = permitEverything/);
   });
 
   // The entitlement check receives the actor, not just a boolean flag —

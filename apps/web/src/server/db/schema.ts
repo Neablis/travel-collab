@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigserial,
+  boolean,
   index,
   integer,
   jsonb,
@@ -13,6 +14,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   DistanceUnit,
+  GrantSource,
+  PlanId,
   Origin,
   SavedDayAuthorKind,
   SavedDayVisibility,
@@ -53,9 +56,107 @@ export const users = pgTable("users", {
   // ever picks a fallback. `$type` is a compile-time cast only — the read
   // boundary in `server/users.ts` parses it, same as `savedDays.fromRow`.
   distanceUnit: text("distance_unit").$type<DistanceUnit>().notNull().default("km"),
+  // M20 link 2 — WHAT THIS ACCOUNT HOLDS. The Entitlements module's second
+  // store (ADR-045 rule 1): the committed plan file says what a plan *is*,
+  // these two columns say which one this account *has*.
+  //
+  // Two columns rather than one composite string because Phase 6's console
+  // groups by plan ("accounts per plan") and a `LIKE 'premium@%'` is not a
+  // grouping. `planVersionRefOf` composes the `PlanVersionRef` the contracts
+  // schema validates; nothing stores the composed form.
+  //
+  // **`plan_version` is a reference that must resolve or fail loudly**
+  // (ADR-045 rule 3) — never a silent fall back to the newest entry and never
+  // an empty entitlement set. A pinned version whose entry was deleted is the
+  // one failure mode the committed-file move introduced, which is why
+  // published entries are append-only and never removed.
+  planId: text("plan_id").$type<PlanId>().notNull().default("free"),
+  // The SQL default is a floor for a row inserted by hand or by a migration,
+  // NOT the mechanism. `upsertUser` passes `livePlanVersion("free")`
+  // explicitly on insert, which is what makes *"a new account gets v2"* true
+  // once v2 is published — a column default frozen at `1` would hand every
+  // future signup v1 forever.
+  planVersion: integer("plan_version").notNull().default(1),
+  // The operator bit. There is no global role concept in this product and this
+  // is deliberately not one: it is a single boolean gating an operator tool,
+  // not the first rung of a permission ladder. Per-trip roles stay `TripRole`.
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
+
+// **Who holds what they did not buy** (M20 link 2, ADR-045 rule 1).
+//
+// Trials, referral rewards, founder grants and admin comps are not four
+// features. They are ONE time-bounded grant with four values in `source`,
+// resolved by one function — the collapse M20's *The shape* rests on, and the
+// whole reason the milestone is small enough to be one.
+//
+// **A grant pins a version and never restates what it grants** (ADR-045 rule
+// 1). `plan_id` + `plan_version` is the pin; the entitlements come from that
+// entry in the committed file. Storing the list here too would let the two
+// disagree, and the stored copy would win silently.
+//
+// **No foreign keys**, per the schema's standing convention — every user
+// reference in this file is a bare `text` upheld at the sign-in seam
+// (ADR-025), and this table follows it rather than introducing the repo's
+// first FK.
+//
+// **Not event-sourced.** Invariant 1 scopes the log to planning; this is
+// Identity-adjacent CRUD with audit fields, the same reasoning ADR-003 and
+// ADR-029 applied.
+//
+// **NOTHING MAY DELETE OR SWEEP THIS TABLE.** The trial is one time ever per
+// account (Mitchell, 2026-09-13) and eligibility asks *"has this account EVER
+// held a trial grant"* — a question only the row can answer, read with
+// `expires_at` and `revoked_at` ignored. A cleanup job that removes expired
+// rows hands a second trial to everyone who ever had one, and it looks like
+// generosity rather than a bug. `grants.retention.test.ts` fails if one is
+// added.
+export const entitlementGrants = pgTable(
+  "entitlement_grants",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`.
+    userId: text("user_id").notNull(),
+    planId: text("plan_id").$type<PlanId>().notNull(),
+    planVersion: integer("plan_version").notNull(),
+    source: text("source").$type<GrantSource>().notNull(),
+    // Who did it, when a person did. Null for `trial` (issued by signup) and
+    // `referral` (issued by a redemption) — there is no operator behind either,
+    // and naming one would be a lie in an audit column.
+    grantedBy: text("granted_by"),
+    // Why, in the operator's words. Link 7: grant *"with an expiry and a
+    // reason"* — a comp nobody can explain six months later is a billing
+    // dispute with no evidence.
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // Null is PERMANENT, which is what a founder grant is. Expiry is resolved
+    // on read, never swept: the gate box requires the next request after
+    // expiry to be refused with *"nothing revoked by hand and no job run"*.
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    revokedBy: text("revoked_by"),
+  },
+  (t) => [
+    // Every read is "this account's grants", and there is exactly one.
+    index("entitlement_grants_user").on(t.userId),
+    // **The one-time-ever trial, made true by construction.** An application
+    // read-then-write can race two concurrent sign-ins into two trials; a
+    // partial unique index cannot. The insert is `ON CONFLICT DO NOTHING`, so
+    // the second attempt is a no-op rather than an error — a returning account
+    // simply does not get another week.
+    //
+    // Partial on `source`, so the other three sources are unconstrained: an
+    // account may hold many admin comps and many referral rewards.
+    uniqueIndex("entitlement_grants_one_trial_ever")
+      .on(t.userId)
+      .where(sql`${t.source} = 'trial'`),
+    // Phase 6's console counts *accounts per active grant source*, which scans
+    // by source and filters on the two lifecycle columns.
+    index("entitlement_grants_source").on(t.source),
+  ],
+);
 
 export const events = pgTable(
   "events",

@@ -1,6 +1,6 @@
 import { newPageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { createPage } from "@/server/pages";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
@@ -95,6 +95,8 @@ const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
+const { upsertUser } = await import("@/server/users");
+const { issueGrant } = await import("@/server/entitlements/grants");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
 async function seedTrip(): Promise<string> {
@@ -327,6 +329,31 @@ async function ask(tripId: string, body: unknown, sink: (r: AskAnalyticsRecord) 
 // truncation is needed — except `rate_limit_counters`, which is keyed by ACTOR
 // and is therefore genuinely shared state between these tests.
 describe("POST /api/trips/:id/ask", () => {
+  // **`ACTOR_ID` is an ENTITLED account, and since M20 it has to be said out
+  // loud.** Trips here are seeded by command, which mints no `users` row, so
+  // before this the actor had no plan and the entitlement gate — wired at
+  // `selectAiModel`'s default in M20 link 4 — refused every turn that reached
+  // the real selection path. Exactly one test does (the kill-switch one; every
+  // other injects a model), and it went from 200 to 403.
+  //
+  // A permanent `admin` grant of `premium@v1` rather than a `users.plan_id`
+  // write: it is the same path an operator uses, so this fixture exercises
+  // shipped code instead of a shortcut around it. The entitlement gate's own
+  // behaviour is covered in `entitlements/resolver.int.test.ts` and in this
+  // file's `403s with ai-not-entitled` test, which drives the refusal through
+  // the injected seam.
+  beforeAll(async () => {
+    await upsertUser({ id: ACTOR_ID, email: null, name: null, image: null });
+    await issueGrant({
+      userId: ACTOR_ID,
+      planId: "premium",
+      planVersion: 1,
+      source: "admin",
+      grantedBy: "ask-route-int-test",
+      expiresAt: null,
+    });
+  });
+
   beforeEach(async () => {
     currentUserId = ACTOR_ID;
     denyNextSelection = false;

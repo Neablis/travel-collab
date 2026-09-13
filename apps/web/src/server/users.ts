@@ -8,6 +8,8 @@ import {
 } from "./admission";
 import { db } from "./db/client";
 import { users } from "./db/schema";
+import { livePlanVersion } from "./entitlements/planVersions";
+import { offerTrial } from "./entitlements/grants";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
@@ -111,14 +113,32 @@ export function normalizeIdentity(payload: SignInPayload | null | undefined): Si
  * Last sign-in wins, including with a null: a provider is fixed per id, so the
  * fields it omits it always omits, and preferring the stored value would make
  * a genuinely cleared Google avatar unclearable.
+ *
+ * **The plan columns are INSERT-only, and that absence from the `set` list is
+ * load-bearing** (M20 link 2). `onConflictDoUpdate` enumerates what a returning
+ * sign-in overwrites; adding `planId`/`planVersion` to it would reset a paying
+ * account to `free` every time they signed in. The preference columns are
+ * absent for the same reason and the same list — see `displayName` above.
+ *
+ * **The version is read from the file, not left to the column default.** The
+ * SQL `DEFAULT 1` is a floor for a row inserted by hand; passing
+ * `livePlanVersion("free")` here is what makes the gate box's *"a new account
+ * gets v2"* true the day `free@v2` is published.
  */
 export async function upsertUser(
   identity: SignInIdentity,
   now: string = new Date().toISOString(),
 ): Promise<void> {
+  const free = livePlanVersion("free");
   await db
     .insert(users)
-    .values({ ...identity, createdAt: now, updatedAt: now })
+    .values({
+      ...identity,
+      planId: free.planId,
+      planVersion: free.version,
+      createdAt: now,
+      updatedAt: now,
+    })
     .onConflictDoUpdate({
       target: users.id,
       set: { email: identity.email, name: identity.name, image: identity.image, updatedAt: now },
@@ -316,5 +336,27 @@ export async function recordSignIn(
 
   if (!outcome.admitted) return refusalRedirect(outcome.reason);
   await upsertUser(identity);
+  // **The one-week `plus` trial, offered exactly once ever** (M20 link 2,
+  // Mitchell 2026-09-13). Only for an account that had no row before this
+  // sign-in — `returning` was read above, before `upsertUser` created one.
+  //
+  // `offerTrial` is idempotent regardless: it asks whether this account has
+  // EVER held a trial, and a partial unique index refuses a second one even
+  // under a race. The `returning` guard is what keeps the common path — every
+  // sign-in by every existing account — from doing a pointless read.
+  //
+  // **Never fatal.** A failure here means one account silently starts without
+  // its trial, which an admin grant can fix. Letting it throw would mean the
+  // account cannot sign in at all, which nothing can fix from the outside. It
+  // is logged loudly rather than swallowed: a trial that stops being issued is
+  // a retention bug that would otherwise show up as a support ticket months
+  // later.
+  if (!returning) {
+    try {
+      await offerTrial(identity.id);
+    } catch (error) {
+      console.error("entitlements: signup trial was not issued", { userId: identity.id, error });
+    }
+  }
   return true;
 }
