@@ -475,14 +475,29 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
     );
 
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-    const saved = onUpdate.mock.calls.at(-1)![1].content as { content: unknown[] };
+    // **Waiting for the save that CARRIES the binding, not for any save at
+    // all.** `toHaveBeenCalled()` plus `calls.at(-1)` is a race and it lost one
+    // (2026-09-13, in a full-suite run; it passed on the next). Opening the
+    // panel and clicking through the day picker can each land a save of their
+    // own, so the moment the first one arrives the wait is satisfied and the
+    // LAST call is still the pre-narrowing document. Asserting the content
+    // inside the wait is the same claim without the timing assumption: it
+    // retries until the save that holds the binding shows up, and still fails
+    // if none ever does.
+    //
     // The binding is stored on the widget instance's own params — ADR-035
     // decision 3, and what lets two widgets on one page read two different days.
     // A single day is a range whose ends are equal — `DateRangeRef`'s own shape
     // for one date rather than a second spelling of it.
-    expect(JSON.stringify(saved.content)).toContain('"from":"2027-06-02"');
-    expect(JSON.stringify(saved.content)).toContain('"through":"2027-06-02"');
+    await vi.waitFor(
+      () => {
+        const saved = onUpdate.mock.calls.at(-1)?.[1].content as { content: unknown[] } | undefined;
+        expect(saved).toBeDefined();
+        expect(JSON.stringify(saved!.content)).toContain('"from":"2027-06-02"');
+        expect(JSON.stringify(saved!.content)).toContain('"through":"2027-06-02"');
+      },
+      { timeout: 3000 },
+    );
   });
 
   // A BLOCK widget rather than the inline ones the other walks use — and a
