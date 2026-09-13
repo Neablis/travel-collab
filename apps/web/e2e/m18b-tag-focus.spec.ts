@@ -121,7 +121,7 @@ test.describe("tag focus", () => {
 
     // --- The Map keeps its own day dimming ------------------------------
     await page.getByRole("tab", { name: "Map" }).click();
-    await expect(page).toHaveURL(/lens=Map/);
+    await expect(page).toHaveURL(/view=Map/);
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
 
     // --- Clear ----------------------------------------------------------

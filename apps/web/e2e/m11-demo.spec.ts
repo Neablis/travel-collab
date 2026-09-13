@@ -92,7 +92,7 @@ test.describe("the demo trip", () => {
     ).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
-    await expect(page).toHaveURL(/lens=Map/);
+    await expect(page).toHaveURL(/view=Map/);
 
     await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
