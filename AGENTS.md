@@ -72,6 +72,7 @@ Modules own their data and commands; they reference other modules by ID only.
 | **History** | event log, replay, undo/revert, fork lineage | the substrate itself | domain semantics (stores/replays, never interprets) |
 | **Conflict Engine** | validation rules, Conflict objects | pure functions | UI, storage |
 | **Community** (Phase 3) | gallery, votes, reports | CRUD + audit fields | planning internals (consumes published snapshots) |
+| **Entitlements** (Phase 3) | plans, plan versions, grants, capability resolution | committed file (definitions) + CRUD with audit fields (holdings) | trips, invites, anything travel — it answers `can(account, capability)` and the *caller* knows what the capability is about (**ADR-045**) |
 
 **The AccessPolicy seam:** Planning never contains invite/permission logic. It
 asks an `AccessPolicy` interface "may this actor do this?". In Phase 1 the only

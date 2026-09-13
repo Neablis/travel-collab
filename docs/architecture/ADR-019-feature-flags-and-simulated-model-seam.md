@@ -261,6 +261,12 @@ AI *on* for named people; they are never the thing keeping everyone else off it.
 This is a configuration the code cannot enforce, so it is stated where the
 commands that set it are (`docs/guidelines/environments-and-deploys.md`).
 
+> **REVERSED AT RELEASE — see the 2026-09-13 amendment below.** This rule holds
+> until M20's entitlement gate is live in production; from release the
+> fallthrough is "Live" and the flag is the emergency disable. The reasoning
+> above is why it could not be reversed *before* that gate exists, so it is kept
+> rather than rewritten.
+
 ### 4. This is targeting, not entitlement — the amendment above still stands
 
 The 2026-08-25 amendment's three-way outcome is untouched. A user no rule
@@ -329,6 +335,103 @@ import.
   `{ headers, cookies }`, so a `tripId` from the route path is not reachable
   from it; targeting by trip would need a different mechanism, not a wider
   entity.
+
+## Amendment — 2026-09-13: the fallthrough flips to Live at release, and entitlement becomes the spend control
+
+Recorded on Mitchell's decision, 2026-09-13, while opening M20:
+
+> *"Just assume ai live will be on in prod before release, but I still want an
+> emergency flag to disable it so don't remove it."*
+
+**This reverses §3 of the 2026-09-08 amendment** — *"the `ai-live` fallthrough
+must stay 'Simulated'"* — and nothing else. The kill switch stays, the model
+swap stays, `AI_LIVE` stays, failing closed stays. What changes is which
+configuration is the resting state.
+
+### 1. What the rule was protecting, and why that job moves
+
+§3's reasoning was structural, not cautious: **the fallthrough was the only
+thing keeping anyone off live AI.** `identify` publishes no `user` key for an
+unidentifiable caller, so no user-keyed rule can match one; if the fallthrough
+were Live, every caller no rule matched would spend. Rules could therefore only
+ever widen, and the default had to stay Simulated — that is what made it the
+kill switch.
+
+**M20 takes that job away from the flag.** `selectAiModel` checks entitlement
+**before** it consults the flag (`modelSelection.ts:215-218`): an account
+without `ai.ask` returns `denied` and never reaches `aiLive()` at all. Once
+M20's resolver is live, *who may spend* is a database fact about a paid account,
+and the flag is left answering only *is the provider path switched on at all* —
+which is what its name always said and what a kill switch is.
+
+So the two controls stop overlapping:
+
+| Question | Answered by | Wrong answer costs |
+|---|---|---|
+| May this account use AI? | Entitlement (M20), per request, from the database | A 402, or free access to a paid feature |
+| Is live AI on at all, right now? | The `ai-live` flag's fallthrough | Spend, everywhere, until someone flips it |
+
+### 2. The decision
+
+**At release, the `ai-live` fallthrough in Production flips to "Live"**, and the
+flag becomes purely an emergency disable:
+
+```bash
+vercel flags set ai-live --environment production --variant true
+```
+
+**The emergency disable is that same control, set back**, and it is one action
+that reaches everyone:
+
+```bash
+vercel flags set ai-live --environment production --variant false
+```
+
+**This is why the fallthrough — and not a rule — is the on switch.** Turning
+live AI on for everyone by adding a widening rule would leave the fallthrough
+Simulated and make the *rule* the load-bearing thing, so disabling in a hurry
+would mean finding and removing rules rather than flipping one variant. A kill
+switch that requires knowing what rules exist is not a kill switch. Keep
+Production's rule list empty; per-person rules remain the right tool for Preview
+and for a targeted rollout *before* release, and any that exist at release
+should be removed rather than left to shadow the default.
+
+### 3. The ordering constraint, which is the one way to get this wrong
+
+**Do not flip the fallthrough before M20's entitlement gate is live in
+production.** Between the flip and the gate there is no spend control at all —
+that interval is precisely the condition ADR-019 was written for
+(*"any authenticated visitor can call in a loop"*). The flip belongs at release,
+behind the gate, and the two are not independent decisions.
+
+### 4. What is unchanged, stated because "don't remove it" was explicit
+
+- **The flag is not removed and does not become dead configuration.** It keeps
+  its declaration, its `identify`, its entity attributes and its Flags Explorer
+  override.
+- **`defaultValue: false` in code stays** (Decision 3). It is the *code*
+  fallback for an unreachable Flags service, and it must keep failing closed —
+  an adapter outage degrading to "spend" is the one failure this ADR exists to
+  prevent. The dashboard fallthrough being Live is a deployment configuration;
+  the declaration's `defaultValue` is a crash-safety property. **They point
+  opposite ways on purpose, and neither is a mistake to be tidied.**
+- **`AI_LIVE` stays a local/CI override** (Decision 4), ahead of the flag.
+- **e2e still refuses to start unless `AI_LIVE=false`** — `/api/health/ai-mode`
+  requires `source: "env"`. Production going live changes nothing about CI, and
+  this amendment must not be read as licence to relax it.
+- **Targeting is still not entitlement** (§4 of the 2026-09-08 amendment). A
+  caller the flag leaves simulated gets a working simulated assistant;
+  `denied` remains entitlement's answer alone. With M20 live, `denied` stops
+  being unreachable in production — which is the 2026-08-25 amendment's
+  three-way outcome finally being fully exercised, not a new behaviour.
+
+### 5. One consequence that is not a flag question
+
+Live AI in production before M9 means the assistant answers **live but
+ungrounded** — `SearchPlaces` → `placeRef` is M9's grounding work (KI-81,
+KI-15), and it is the reason M9 was placed second. That is a product judgement
+Mitchell has made and it is recorded here only so nobody reads a live assistant
+as evidence that grounding landed. It is not a reason to hold the flip.
 
 ## Alternatives rejected
 

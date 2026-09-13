@@ -7,8 +7,14 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M9 is the current work**, its
-Phase 0 having completed 2026-09-11,
+purpose**, so read the marker, not the position: **M20 is the current work** as
+of **2026-09-13**, when Mitchell reordered the commercial pair ahead of M9's
+remainder — *"start the milestone that creates the stripe work and ability to
+pay for the app."* **M9 is paused, not cancelled**: its Phase 0 completed
+2026-09-11 and ticked no gate box by design, and it keeps its place immediately
+after M21. The note, the three costs accepted with it, and the prices decided
+the same day are in `docs/milestones/README.md` under **2026-09-13**. The
+history below is kept because it is the argument, not the live instruction —
 per the order set on 2026-08-29 when Mitchell placed two of the three
 approved-but-unplaced milestones, of which M18b's gate closed 2026-08-30.
 **M11b Playbooks was scoped and placed on 2026-08-30** — the last of the three —
@@ -24,10 +30,13 @@ note, and the one consequence it carries for M11b, are in
 **Reordered again 2026-09-01 — M9 moves from last to second.** Mitchell's call
 on the audit (`docs/reviews/2026-09-01-milestone-audit.md`): M9 turned out to be
 four-sevenths built, and both of ADR-022's grounds for placing it last — polish
-first, sharing first — have since happened. **The order is now
+first, sharing first — have since happened. **The order was then
 `M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`** — M17's gate closed
 2026-09-11 — **M20 and M21 were
-minted and placed 2026-09-01**, after M9, by Mitchell's call. M19 stays last regardless: its link 3
+minted and placed 2026-09-01**, after M9, by Mitchell's call. **Reordered again
+2026-09-13 — M20 and M21 move ahead of M9's remaining work**, on Mitchell's
+direct request for the payment milestone, so the live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
 
@@ -41,9 +50,9 @@ milestone file it cites is the evidence.
 
 **They disagree right now, and that is expected.** Since M9 Phase 0 was ticked on
 2026-09-11, the first unchecked item *in file order* is **M12** (trust & safety),
-while the marker sits on **M9**, which is the current work by the 2026-09-01 reorder.
-`pnpm state` reports this as one mechanical drift every session; it is the documented
-case above, not a defect.
+while the marker sits on **M20** — the current work by the **2026-09-13** reorder,
+which moved the commercial pair ahead of M9's remainder. `pnpm state` reports this as
+one mechanical drift every session; it is the documented case above, not a defect.
 
 **Nothing is approved-but-unplaced any more.** M11b was the last one, and it was
 unplaced for a specific reason — it had no scope and no exit gate, and writing
@@ -382,7 +391,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       questions resolved: no separate first-run screen, and the landing copy
       ships verbatim selling M11/M12. M10's Phase 9 gate closed after this, on
       2026-08-27; **M18** is the next work.)*
-- [ ] **M9 The assistant cites what it plans** ← **current milestone** (2026-09-11, on M17's gate close; the order M17 → M9 was already recorded — see the note below about work that has merged ahead of it) →
+- [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, the three real pieces of work untouched, and it keeps its place immediately after M21 (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
       `docs/milestones/M9-ai-planning-partner.md`
       *(**Retitled 2026-09-01** — was "AI as a planning partner". An audit
       against `main` found **four of its seven scope items already shipped**
@@ -405,7 +414,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       the split is in the milestone file:
       `docs/reviews/2026-09-01-milestone-audit.md`.)*
 
-- [ ] **M20 An account knows what it may do** →
+- [ ] **M20 An account knows what it may do** ← **current milestone** (2026-09-13, by Mitchell's reorder ahead of M9's remainder — the
+      prerequisite ADR is written and accepted, **ADR-045**, and the kickoff plan is
+      `docs/plans/2026-09-13-M20-M21-commercial.md`) →
       `docs/milestones/M20-account-tiers-and-entitlements.md`
       *(**Minted, scoped and placed 2026-09-01** — the **first commercial
       milestone**: nothing in the repo had ever described a paid tier, a plan,
@@ -470,9 +481,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       `members.ts`, the split has failed. Split from M20 because M20 is
       provable with no external service and this is not, because a hand-grant
       path is permanent infrastructure rather than scaffolding, and because
-      the blast radius here is money. **One decision is Mitchell's before it
-      opens: the plans and their prices** — M20 names plans without pricing
-      them. Also carries the `/ask` step-metering fix
+      the blast radius here is money. ~~**One decision is Mitchell's before it
+      opens: the plans and their prices**~~ — **decided 2026-09-13: `free` $0,
+      `plus` $9/month, `premium` $19/month.** M20 named the plans without
+      pricing them; the numbers live in `M21-subscriptions-and-billing.md`
+      under *Prerequisites* and **must not appear in M20's diff**. Also carries the `/ask` step-metering fix
       (`handleAskRequest.ts:306` charges `aiQuotas()` but never
       `aiStepQuotas()` or `settleAiSteps`), without which AI cannot be
       priced.)*

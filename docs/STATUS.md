@@ -30,6 +30,28 @@ general setup.
 
 ## Where the work is right now
 
+**M20 — AN ACCOUNT KNOWS WHAT IT MAY DO — IS THE CURRENT MILESTONE, OPENED 2026-09-13.**
+Mitchell's reorder the same day, asked for directly: **the commercial pair M20 → M21 runs
+ahead of M9's remaining work.** Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
+
+**Nothing is built yet. What exists is the decision and what it required:** ADR-045
+(*Entitlements is a module with two stores*), the `AGENTS.md` module-map row it adds, the
+prices (`free` $0 / `plus` $9 / `premium` $19 — recorded in M21's file, and **not to appear
+in M20's diff**), and the kickoff plan. The narrative and the three costs accepted with the
+reorder are in `docs/milestones/README.md` under **2026-09-13**; do not restate them here.
+
+**Start here:** `docs/plans/2026-09-13-M20-M21-commercial.md` — six phases for M20, four for
+M21, with the two open questions M21 still owes.
+
+**The one thing to know before touching this milestone:** *a plan is a set, not a rank.* Code
+asks `can(ent, "ai.ask")` and nothing compares plans. `accessPolicy.ts:11`'s `RANK` is the
+right shape for roles inside a trip and the wrong shape here; copying it is the obvious move
+and it is a one-way door. The buyer's ladder is presentation only.
+
+**M9 is paused, not cancelled**, and keeps its place immediately after M21. Its Phase 0 is
+below, unchanged, because it is what M9's three real pieces of work are still built on.
+
 **M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
 P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and
 **KI-22**, and ticked **no gate box**, by design — it is what M9's three real pieces of work
@@ -68,11 +90,17 @@ nothing in CI will tell you when one is broken. The narrative each came from is 
   production content import is incomplete until it is dispatched. Merging does not apply a
   migration: `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`.
   Runbook: `docs/guidelines/content-bundles.md`.
-- **The `ai-live` flag's dashboard fallthrough must stay "Simulated".** Entity targeting
-  (ADR-019's 2026-09-08 amendment) only ever *widens* who gets live AI, and a caller no rule
-  matches — every signed-out visitor included, since `identify` publishes no `user` for them
-  — falls through to the default. That default is the kill switch, it lives in the Vercel
-  dashboard, and no test can assert it.
+- **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips
+  to "Live"** — ADR-019's **2026-09-13 amendment**, which reverses the 2026-09-08 rule that
+  it must stay Simulated forever. Until the flip the old reasoning holds exactly: targeting
+  only ever *widens*, a caller no rule matches falls through to the default, and that default
+  is the only thing keeping anyone off. **The flip is safe only after M20's entitlement gate
+  is live in production** — `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so a paid-account check becomes the spend control and the
+  flag goes back to being an emergency disable. Flipping it early leaves an interval with no
+  spend control at all. After the flip, keep Production's rule list empty: a widening rule
+  would make *the rule* load-bearing, and disabling in a hurry must stay one action. It lives
+  in the Vercel dashboard and no test can assert any of it.
 - **e2e refuses to start unless `AI_LIVE=false`.** `/api/health/ai-mode` reports
   `{ live, source }` and `e2e/global.setup.ts` requires `source: "env"` — an anonymous
   `live: false` from a *targetable* flag stopped being evidence about the signed-in user the

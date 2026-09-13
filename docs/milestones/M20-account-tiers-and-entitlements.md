@@ -1,10 +1,28 @@
 # M20 — An account knows what it may do
 
-**Status:** Scoped and placed 2026-09-01. Runs **after M9**, before M21, in the
-order set the same day: `M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`.
-Placement is Mitchell's call and the reason is M9: `ai-live` defaults off and
-grounding is what would let it be turned on, so selling AI access before M9
-would sell a feature that is dark.
+**Status: OPEN — this is the current milestone, as of 2026-09-13.**
+
+Scoped and placed 2026-09-01 to run **after M9**, before M21. Placement was
+Mitchell's call and the reason was M9: `ai-live` defaults off and grounding is
+what would let it be turned on, so selling AI access before M9 would sell a
+feature that is dark.
+
+**Reordered 2026-09-13, on Mitchell's call** — asked for directly, *"start the
+milestone that creates the stripe work and ability to pay for the app."* The
+commercial pair runs ahead of M9's remaining work:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
+
+**That supersedes this milestone's own *"M9, and it must be closed"*
+prerequisite below.** The dark-feature argument was not refuted — it was
+accepted and outweighed, and the three costs it carries (a dark AI tier, a
+pricing decision without M9's volume evidence, M9's known issues ageing) are
+recorded with their mitigations in `docs/milestones/README.md` under
+**2026-09-13**. Read that before writing this milestone's retro; the trade was
+deliberate.
+
+**The prerequisite ADR is written and accepted: ADR-045** (*Entitlements is a
+module with two stores*), and `AGENTS.md`'s module map carries the row it adds.
+Kickoff plan: `docs/plans/2026-09-13-M20-M21-commercial.md`.
 
 **This is the first commercial milestone in the product.** Nothing in the repo
 has ever described a paid tier, a plan, a price or a payment — verified by
@@ -486,6 +504,32 @@ is created. It needs no ninth link — it is link 2's table and link 3's
 resolver with a different `source`, which is the test of whether the collapse
 in **The shape** actually held.
 
+**The trial is one time ever per account** (Mitchell, 2026-09-13). Not one per
+subscription, not one per lapse — once. An account that trials, lapses,
+subscribes, cancels and comes back is not offered another week. Three
+consequences, and the first is a schema requirement that is easy to violate by
+being tidy:
+
+- **An expired or revoked trial grant is never deleted.** Eligibility is *"has
+  this account ever held a `source: "trial"` grant"*, which is a question only
+  the row can answer. The resolver already reads `expires_at` and `revoked_at`
+  to decide what is **active**; the eligibility check queries the same table
+  **ignoring both**. So `entitlement_grants` is retained, not swept — a cleanup
+  job that removes expired rows silently restores the trial to everyone who
+  ever had one, and it would look like generosity rather than a bug.
+- **"Per account" means the `users` row, and that is the honest limit of the
+  guarantee.** `users` is keyed on the Auth.js user id verbatim (ADR-025), so
+  the same Google account returning is the same row and gets no second trial.
+  Someone with a second Google account gets a second trial. That is accepted:
+  M11a gates who reaches the product at all, and stacking an identity check on
+  top of the invite gate buys little for what it costs.
+- **It makes the trial a weaker retention lever and a cleaner one.** Nothing
+  needs to decide whether *this* lapse deserves another week, which is a policy
+  with no natural stopping point. Comping a second week stays possible and
+  stays deliberate: it is an **admin grant**, `source: "admin"`, by someone
+  with a name in `granted_by` — the permanent hand-grant path, used for exactly
+  what link 7 says it is for.
+
 One consequence is accepted rather than overlooked: **nobody experiences
 collaboration before paying for it**, since `trip.collaborators` is never
 trialled. That makes link 6's refusal copy carry more weight than it otherwise
@@ -642,6 +686,13 @@ refusal to name the tier rather than read as a permission error.
       rather than asserted.
 - [ ] A new account carries a one-week `plus` trial from signup, sees the
       assistant work, and is refused after seven days with no job having run.
+      **Amended 2026-09-13 by Mitchell's decision — the trial is one time ever
+      per account**, so this box also requires: an account whose trial has
+      expired is **not** granted a second one by lapsing, resubscribing,
+      cancelling or returning, and a test proves the eligibility check reads
+      expired and revoked trial rows rather than only active ones. Deleting an
+      expired grant must fail that test — tidying the table is the way this
+      rule dies.
 - [ ] **Upgrading a tier does not reset a quota counter.** A test asserts the
       bucket name is tier-independent while the ceiling is not. Naming the trap
       is not evidence it was avoided.
@@ -736,9 +787,31 @@ It answers `can(account, capability)`; the *caller* knows that
 the boundary violation it would otherwise be, and it is the decision the ADR
 exists to record. Same standing as M13's transport ADR and M14's repeaters ADR.
 
-**M9, and it must be closed.** Not a code dependency — a product one. M9
+~~**M9, and it must be closed.** Not a code dependency — a product one. M9
 grounds the assistant and is what allows `ai-live` to be turned on. Charging
-for a dark feature is the reason this milestone is not placed earlier.
+for a dark feature is the reason this milestone is not placed earlier.~~
+**Superseded 2026-09-13 by Mitchell's reorder** (`docs/milestones/README.md`) —
+this milestone runs *before* M9's remaining work. It was never a code
+dependency and nothing here fails to build without M9; what it bought was not
+selling a dark feature.
+
+**And that cost is now void — Mitchell, 2026-09-13: `ai-live` will be on in
+production before release**, with the flag kept as an emergency disable rather
+than removed (**ADR-019's 2026-09-13 amendment**). An account that buys `plus`
+gets a real assistant. Two consequences land on *this* milestone:
+
+- **The flip comes after this milestone's gate is live in production, never
+  before.** `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so link 4's gate is what replaces the flag's
+  fallthrough as the spend control. Flipping first leaves an interval with no
+  spend control at all.
+- **`denied` stops being unreachable in production**, which is what link 4
+  actually ships. The 2026-08-25 amendment's three-way outcome — `denied` /
+  `simulated` / `live` — is finally exercised end to end rather than only in a
+  test.
+
+**What remains true:** the assistant will be live but **ungrounded** until M9,
+since grounding is M9's work. Say so in the retro.
 
 **M11a, and it is closed.** Link 8 builds on `invite_codes` and on
 `created_by`/`redeemed_by` already being recorded.
