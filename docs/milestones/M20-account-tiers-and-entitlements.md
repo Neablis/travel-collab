@@ -5,8 +5,9 @@
 > **BUILT, NOT CLOSED — 2026-09-13.** All six phases of
 > `docs/plans/2026-09-13-M20-M21-commercial.md` are on
 > `claude/milestone-m20-build-h2mw7b`, one commit each, unmerged.
-> `pnpm check` is green in full and `pnpm --filter web test:e2e:ci-like`
-> passes, with `e2e/m20-entitlements.spec.ts` walking five of the boxes below.
+> `pnpm check` is green in full and **`pnpm --filter web test:e2e:ci-like`
+> passes 120 of 120**, with `e2e/m20-entitlements.spec.ts` walking five of the
+> boxes below.
 > **No box here is ticked**: a gate closes on a **deployed** demo, through
 > `docs/milestones/README.md`'s gate-close checklist, in one commit — and
 > nothing has been deployed. Migrations `0019` and `0020` are applied locally

@@ -54,10 +54,15 @@ branch.** The branch requirement won, so this is six commits rather than six PRs
 commit is a phase and reviewable as one. Say so when opening the PR.
 
 **What is proven:** `pnpm check` green in full (typecheck 0, lint 0, 2,633 web unit tests,
-569 integration tests), and `pnpm --filter web test:e2e:ci-like` — the only e2e verdict that
-counts. `e2e/m20-entitlements.spec.ts` walks five gate boxes, including the milestone's most
-important negative (a free account plans a whole trip with no gate anywhere) and a grant
-biting on the next request with no re-authentication.
+569 integration tests), and **`pnpm --filter web test:e2e:ci-like` — 120 passed, 0 failed, 0
+flaky**, which is the only e2e verdict that counts (`test:e2e` serves `pnpm dev` and produces
+timeouts CI does not have — CLAUDE.md rule 1). `e2e/m20-entitlements.spec.ts` walks five gate
+boxes, including the milestone's most important negative (a free account plans a whole trip
+with no gate anywhere) and a grant biting on the next request with no re-authentication.
+
+**The full run earned its cost once**: an earlier pass failed three `m11-invites` tests on an
+*Invite role* select that link 6 correctly no longer renders for a `free` owner. The gate
+working, not a flake — and something no narrower lane would have found.
 
 **Two migrations are applied locally and NEITHER IS DISPATCHED TO PRODUCTION.** Merging does
 not apply them: `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
