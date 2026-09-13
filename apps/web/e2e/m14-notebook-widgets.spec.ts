@@ -1101,3 +1101,53 @@ test("the mode toggle stays reachable after scrolling to the bottom of a long pa
   // only from the top of the document.
   await expect(page.getByRole("button", { name: "Done editing" })).toBeInViewport();
 });
+
+test("the settings column pins below the sticky chrome, not behind it", async ({ page }) => {
+  // CodeRabbit, PR 170: the column was `sticky top-6`, which is 24px from the
+  // top of the scrollport — and two things are already pinned there, `AppHeader`
+  // (`sticky top-0 h-14`) and the editing toolbar under it (`md:sticky
+  // md:top-14`). So once the page scrolled, the panel slid under both and the
+  // first rows of the thing you were configuring went behind the toggle you
+  // used to start configuring it.
+  //
+  // Asserted as "below the toolbar's bottom edge", not as a pixel: the number
+  // is the sum of two heights this walk can measure and the class cannot say.
+  // Red-checked by putting `top-6` back — `expected >= 104, received 41`.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await tripWithTwoDays(page);
+  await openSeededPage(page);
+
+  // **The page is made long BEFORE the widget is inserted**, and the order is
+  // load-bearing rather than tidy: clicking into the editor sets a text
+  // selection, which is exactly how §26 deselects a widget — so typing after
+  // the insert returns the column to the insert rail and there is no
+  // `widget-settings` left to measure. (It passed alone and failed in the full
+  // lane, which is what a click whose landing spot decides the outcome looks
+  // like.)
+  await page.locator(".tc-page-editor").click();
+  await page.keyboard.press("Control+End");
+  for (let i = 0; i < 30; i += 1) await page.keyboard.press("Enter");
+
+  // Inserting selects what it inserted (§26), so the column is showing the
+  // settings from here on and nothing else touches the document.
+  await insertFromList(page, /The days, in detail/);
+  const panel = settingsPanel(page);
+  await expect(panel).toBeVisible();
+
+  // **The scroll has to be real, and long enough to pin the panel.** A page
+  // that cannot scroll puts every element where it started, and this assertion
+  // would pass on the old `top-6` for want of any scrolling to expose it — the
+  // same vacuity `m16-mobile-assistant`'s scroll-lock walk was caught by twice.
+  await page.mouse.move(640, 400);
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+
+  // The toggle is IN the sticky toolbar, so its bottom edge is the bottom of
+  // the chrome — read from the control rather than from a wrapper with no name
+  // of its own.
+  const toggle = await boxOf(page.getByRole("button", { name: "Done editing" }));
+  const box = await boxOf(panel);
+  expect(box.y, "the settings are under the sticky editing toolbar").toBeGreaterThanOrEqual(
+    toggle.y + toggle.height,
+  );
+});

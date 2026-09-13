@@ -630,10 +630,23 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
     // The document holds both, which is the actual claim — and the only place
     // both are visible at once now.
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-    const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
-    expect(saved).toContain('"from":"2027-06-01"');
-    expect(saved).toContain('"from":"2027-06-02"');
+    //
+    // The content assertions go INSIDE the wait, not after it. `onUpdate` has
+    // already fired for the first widget's binding by the time this line runs,
+    // so `toHaveBeenCalled()` returns on that earlier save and `calls.at(-1)`
+    // can be a document that does not carry the second binding yet — the wait
+    // would be satisfied by the very state it exists to wait past (CodeRabbit,
+    // PR 170; the same shape as the integration flake in `narrows a widget to
+    // one day`). Waiting on the CONTENT is the only form of this that cannot
+    // pass early.
+    await vi.waitFor(
+      () => {
+        const saved = JSON.stringify(onUpdate.mock.calls.at(-1)?.[1].content ?? {});
+        expect(saved).toContain('"from":"2027-06-01"');
+        expect(saved).toContain('"from":"2027-06-02"');
+      },
+      { timeout: 3000 },
+    );
   });
 
   // The globals seam, end to end, and the only test that walks it. `city`

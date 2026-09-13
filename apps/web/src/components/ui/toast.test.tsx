@@ -57,6 +57,24 @@ describe("Toast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  // **A label with no handler is not an action**, and the two gates used to
+  // disagree about that: the button rendered on `actionLabel && onAction`, the
+  // countdown on `actionLabel === undefined`. So this toast showed nothing to
+  // press and still sat there for six seconds (CodeRabbit, PR 170). §27's 6s
+  // is time to reach the button — no button, no reason to wait.
+  //
+  // Asserted on both halves, because either alone would pass on a half-fix.
+  it("takes the short window when it carries a label but nothing to do", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(<Toast message="Deleted" actionLabel="Undo" onDismiss={onDismiss} />);
+    expect(screen.queryByRole("button", { name: /undo/i })).toBeNull();
+    vi.advanceTimersByTime(2399);
+    expect(onDismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it("dismisses immediately when the dismiss control is clicked", async () => {
     const onDismiss = vi.fn();
     render(<Toast message="Deleted" onDismiss={onDismiss} />);

@@ -235,3 +235,83 @@ test.describe("phone Notebook (SPEC §19)", () => {
     await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   });
 });
+
+/**
+ * The two things §26's phone treatment owes that nothing else was watching —
+ * both asked for by CodeRabbit on PR 170, and the second one is Mitchell's own
+ * preview note with a number attached.
+ */
+test.describe("the phone's widget affordances have geometry (SPEC §26)", () => {
+  test("the settings sheet closes, and the selection goes with it", async ({ page }) => {
+    await openTripOverview(page);
+
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const list = page.getByRole("dialog");
+    await list.getByRole("searchbox", { name: "Search widgets" }).fill("costs");
+    await list.getByRole("button", { name: /What it costs/ }).click();
+    await waitForPageSaved(page, () => list.getByRole("button", { name: "Insert it" }).click());
+
+    await widget(page).click();
+    await expect(page.getByTestId("widget-settings")).toBeVisible();
+
+    // **`PageScreen` clears the selection on `onOpenChange(false)`, and nothing
+    // else does.** The sheet is a CONTROLLED dialog — its `open` is
+    // `selectedWidget !== null` — so a regression that drops that one line
+    // leaves the sheet impossible to dismiss: Radix closes it, React reopens
+    // it on the next render, and the walks above would all still pass because
+    // none of them ever tries to close it.
+    await page.getByRole("dialog").getByRole("button", { name: /close/i }).click();
+    await expect(page.getByTestId("widget-settings")).toHaveCount(0);
+    // And it STAYS shut, rather than being reopened by the render that follows.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("the edit handle sits in the gap above its widget, not on the line before it", async ({ page }) => {
+    await openTripOverview(page);
+
+    // A new paragraph at the END of the document, so the block above the
+    // widget is an ordinary paragraph — which is where Mitchell hit this
+    // (`p:nth-of-type(7)` in his report) and where the clearance is decided by
+    // the 12px block gap rather than by a heading's tighter margin.
+    await page.locator(".tc-page-editor").click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const list = page.getByRole("dialog");
+    await list.getByRole("searchbox", { name: "Search widgets" }).fill("costs");
+    await list.getByRole("button", { name: /What it costs/ }).click();
+    await waitForPageSaved(page, () => list.getByRole("button", { name: "Insert it" }).click());
+
+    // Measured from the handle of the widget that just landed, against the
+    // block that precedes it in the document. `-14px` of overhang into a 12px
+    // gap is what *"the indicator to show you can edit it is too much on top of
+    // text"* was: two pixels of the marker sitting on the previous line.
+    // Red-checked by putting `-14px` back — `expected >= 224.046875, received
+    // 222.046875`, which is that overhang measured rather than reasoned about.
+    const geometry = await page.evaluate(() => {
+      const handles = [...document.querySelectorAll('[data-testid="widget-handle"]')];
+      const handle = handles.at(-1);
+      if (handle === undefined) return null;
+      const block = handle.closest(".tc-page-editor > .tiptap > *");
+      const previous = block?.previousElementSibling ?? null;
+      if (previous === null) return null;
+      const h = handle.getBoundingClientRect();
+      return {
+        handleTop: h.top,
+        handleHeight: h.height,
+        previousBottom: previous.getBoundingClientRect().bottom,
+        // The marker must never eat the tap that selects the widget (§26 makes
+        // the block itself the target), so this rides along with the geometry.
+        pointerEvents: getComputedStyle(handle).pointerEvents,
+      };
+    });
+    expect(geometry, "the inserted widget draws a handle with a block above it").not.toBeNull();
+    expect(geometry!.handleTop, "the handle overhangs onto the block above it").toBeGreaterThanOrEqual(
+      geometry!.previousBottom,
+    );
+    // And it is a real marker rather than a zero-height one that trivially
+    // clears everything.
+    expect(geometry!.handleHeight).toBeGreaterThan(0);
+    expect(geometry!.pointerEvents).toBe("none");
+  });
+});

@@ -50,13 +50,26 @@ export function Toast({
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
 
+  // **One boolean, read by the timer and by the markup below.** The longer
+  // countdown exists to give someone time to press the button; the gate was
+  // `actionLabel === undefined` while the BUTTON's gate was `actionLabel &&
+  // onAction`, so a label handed in without a handler rendered nothing and
+  // still bought six seconds of a toast with nothing to do (CodeRabbit, PR
+  // 170). Deriving both from the same value is what stops the two drifting
+  // apart again.
+  //
+  // Safe in the dependency list where `onAction` itself would not be: a
+  // caller's inline arrow is a new reference every render, and `Boolean` of it
+  // is not.
+  const hasAction = Boolean(actionLabel && onAction);
+
   useEffect(() => {
     const timer = setTimeout(
       () => onDismissRef.current(),
-      actionLabel === undefined ? AUTO_DISMISS_MS : AUTO_DISMISS_WITH_ACTION_MS,
+      hasAction ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS,
     );
     return () => clearTimeout(timer);
-  }, [message, actionLabel]);
+  }, [message, hasAction]);
 
   return (
     <div
@@ -73,7 +86,7 @@ export function Toast({
       <Text as="span" variant="secondary" className="text-ink">
         {message}
       </Text>
-      {actionLabel && onAction && (
+      {hasAction && (
         <Button variant="ghost" size="sm" onClick={onAction}>
           {actionLabel}
         </Button>

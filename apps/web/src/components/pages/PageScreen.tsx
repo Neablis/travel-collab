@@ -748,10 +748,22 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           `max-md:hidden` because at 390px a 320px column is the whole screen —
           the phone gets the sheet below instead, which is §26's other half.
           `sticky` so the settings stay beside the widget on a long page rather
-          than scrolling away from the thing they configure. */}
+          than scrolling away from the thing they configure.
+
+          **`top-29`, not `top-6`.** This column shares the page scroll, and
+          24px put it under both bars that are already pinned there: `AppHeader`
+          (`sticky top-0 h-14`, 56px) and the editing toolbar above
+          (`md:sticky md:top-14 md:py-3` around an `h-9` button — 12 + 36 + 12,
+          so 60px). 116px is where those two stop, and `top-29` is that number
+          on the spacing scale rather than an arbitrary value the colour wall
+          would refuse (CodeRabbit, PR 170).
+
+          The toolbar row can wrap, which would make it taller — but only at
+          widths this column does not exist at: it renders on `!isPhone`, and a
+          back link plus two buttons does not wrap at 768px and up. */}
       {editing && !isPhone ? (
         <aside
-          className="sticky top-6 w-80 shrink-0"
+          className="sticky top-29 w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >
           <Card raised className="p-4">

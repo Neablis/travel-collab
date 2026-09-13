@@ -55,6 +55,37 @@ describe("the phone front door (SPEC §28)", () => {
     expect(opacities()).toEqual([1, 0, 0, 0]);
   });
 
+  // **A claim nobody can see is a claim nobody should hear.** All four panes
+  // are in the document at every scroll position and `opacity: 0` is a paint
+  // property, not a presence one — so without `aria-hidden` a screen reader
+  // read the whole sequence stacked on itself, four labels and four bodies,
+  // wherever the page happened to be (CodeRabbit, PR 170).
+  //
+  // Asserted against what is PAINTED rather than against an index, so the two
+  // cannot drift: whatever the effect made visible is exactly what is exposed.
+  it("exposes only the claims that are actually on screen", () => {
+    render(<PhoneFrontDoor />);
+    const exposed = () =>
+      screen.getAllByTestId("front-door-claim").map((el) => el.getAttribute("aria-hidden") !== "true");
+
+    expect(exposed()).toEqual([true, false, false, false]);
+    for (const p of [0.3, 0.5, 0.62, 0.9]) {
+      scrollTo(p);
+      expect(exposed(), `at p=${p}`).toEqual(opacities().map((o) => o > 0));
+    }
+  });
+
+  // And the markup carries it before any effect runs, for the same reason the
+  // authored opacity has to: Next ships the server's HTML and hydration is a
+  // tick later, so a page read in that gap would announce all four.
+  it("carries the hidden state in the server-rendered markup too", () => {
+    const html = renderToStaticMarkup(<PhoneFrontDoor />);
+    const claims = [...html.matchAll(/data-testid="front-door-claim"([^>]*)>/g)].map((m) => m[1]!);
+    expect(claims).toHaveLength(4);
+    expect(claims[0]).not.toContain('aria-hidden="true"');
+    for (const attrs of claims.slice(1)) expect(attrs).toContain('aria-hidden="true"');
+  });
+
   // §28's first note: *"Progress is **scroll position inside the pinned
   // block**, not time — you can stop on one."* Stopping a third of the way in
   // puts a later claim up and the first one away, and it STAYS there, because

@@ -267,7 +267,21 @@ export function PhoneFrontDoor() {
           opacity = Math.min(inF, outF);
           dy = (1 - inF) * ENTER_FROM - (1 - outF) * -LEAVE_TO;
         }
-        chunk.style.opacity = (opacity * tail).toFixed(3);
+        // **One rounded string decides both what is painted and what is
+        // announced**, so the two can never disagree. A claim that is faded
+        // out is still in the document, and nothing here removes it from the
+        // accessibility tree — `opacity: 0` is a paint property, not a
+        // presence one — so without this a screen reader read all four claims
+        // stacked on each other, at every scroll position (CodeRabbit, PR 170).
+        //
+        // Read back off `toFixed(3)` rather than off `opacity * tail`: a value
+        // that rounds to `0.000` is gone from the screen, and a claim nobody
+        // can see is a claim nobody should hear. Nothing inside a claim is
+        // focusable, so hiding one cannot strand the keyboard on it.
+        const painted = (opacity * tail).toFixed(3);
+        chunk.style.opacity = painted;
+        if (Number(painted) > 0) chunk.removeAttribute("aria-hidden");
+        else chunk.setAttribute("aria-hidden", "true");
         chunk.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)`;
       });
     };
@@ -368,6 +382,10 @@ export function PhoneFrontDoor() {
                   chunkRefs.current[i] = el;
                 }}
                 data-testid="front-door-claim"
+                // The authored rest state's other half: the three claims that
+                // start invisible start unannounced too, so the server's HTML
+                // and the paint above agree before any effect has run.
+                aria-hidden={i !== 0}
                 className="absolute inset-0 flex flex-col justify-center px-6"
                 // Note 2: the rest state is AUTHORED, not applied by the
                 // effect. Without it a cold load — or a browser that fires no

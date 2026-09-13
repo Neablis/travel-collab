@@ -189,7 +189,14 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // index carries exactly one page rather than that a second one renders.
   await page.getByRole("link", { name: "← Notebooks" }).click();
   await expectNotebookIndex(page);
-  await expect(page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) })).toHaveCount(1);
+  // **Counted off the LIST, not off the title.** "One link matches Overview"
+  // is true of an index carrying Overview and anything else beside it, which
+  // is the claim this line makes and the one it could not see (CodeRabbit, PR
+  // 170). "Your notebooks" holds one row, full stop — so a template added to
+  // the seeded set fails here, which is the decision worth a failing test.
+  const mine = page.getByRole("region", { name: "Your notebooks" });
+  await expect(mine.getByRole("listitem")).toHaveCount(1);
+  await expect(mine.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) })).toHaveCount(1);
   await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
 });
 
