@@ -24,6 +24,15 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByLabel("currency").selectOption("EUR");
   await expect(page.getByLabel("Total for the trip")).toBeVisible();
+  // **A start date, in the same sheet, and it is not decoration.** Since SPEC
+  // §24 the per-day subtotal is read off a Calendar cell, and a Calendar has
+  // nowhere to put an undated day — this walk used to make its money on an
+  // undated trip because Timeline's cost pill did not care. `TripDateControl`
+  // commits on selection rather than on Done, so filling the field IS the
+  // commit; it dates the days that exist and the ones added after it (m8 walks
+  // the same control and then adds three days).
+  await page.getByRole("button", { name: /dates/i }).click();
+  await page.getByLabel(/trip start date/i).fill("2026-08-03");
   await page.getByRole("button", { name: "Close" }).click();
 
   // -- add a day, and a costed activity on it --
