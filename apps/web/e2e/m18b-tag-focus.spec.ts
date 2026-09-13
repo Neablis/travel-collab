@@ -55,7 +55,13 @@ test.describe("tag focus", () => {
   }
 
   test("a chip focuses its tag, dims everything else, and survives every lens", async ({ page }) => {
-    await page.goto("/demo");
+    // `?view=Plan` since SPEC §24, in all three walks here: `/demo` is the
+    // ordinary trip surface in read-only (ADR-031), so it takes the ordinary
+    // default, and the ordinary default is Overview — the view that does not
+    // edit. The stops these walks read are one tab away on arrival now, and
+    // asking for them without saying so waited 30 seconds on a page showing
+    // the trip's notebook.
+    await page.goto("/demo?view=Plan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
@@ -132,7 +138,7 @@ test.describe("tag focus", () => {
   });
 
   test("clicking the same chip again clears, and a different chip replaces", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo?view=Plan");
     const gonpachi = card(page, "Dinner at Gonpachi");
     const hotel = card(page, "Check in at Trunk Hotel");
     await expect(gonpachi).toBeVisible();
@@ -160,7 +166,7 @@ test.describe("tag focus", () => {
   // against our own components: the filter row this replaced is gone and stays
   // gone (KI-47), and nothing here offers multi-select.
   test("offers no filter row, no Show everything, and no multi-select", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo?view=Plan");
     const gonpachi = card(page, "Dinner at Gonpachi");
     await expect(gonpachi).toBeVisible();
     await gonpachi.getByTestId("tag-chip-meal").click();

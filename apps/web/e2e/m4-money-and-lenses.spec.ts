@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, openHistory } from "./helpers";
+import { dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
@@ -14,6 +14,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
 
   // -- set the trip currency to EUR --
   // P2 surface move (#12b): currency/budget moved from the always-visible

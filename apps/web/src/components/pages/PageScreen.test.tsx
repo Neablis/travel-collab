@@ -907,11 +907,19 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // both modes. No widget control is ever in the document flow."* That button
     // was the last widget control left in the prose on a phone.
     //
-    // What replaces it is the same sheet, opened by SELECTING the widget rather
-    // than by a 44px button sitting under it — so the assertions that still
-    // matter are the ones about the sheet's contents and about the document
-    // being clean, and the one that has to go is the button's own existence.
-    it("puts a widget's settings in a sheet, with no control left in the document", async () => {
+    // **What this test can no longer witness, and does not pretend to.** What
+    // replaces the button is the same sheet, opened by SELECTING the widget —
+    // and jsdom does not turn a click on a node view into a ProseMirror
+    // `NodeSelection`, so there is no way to open the phone inspector from
+    // here. Rewriting it to tap the widget produced a test that failed for the
+    // environment's reason rather than the product's, which is the same trap
+    // two other tests on this branch were relabelled for.
+    //
+    // So this asserts the half jsdom CAN see, and it is not a consolation
+    // prize: it is the exact claim behind the phone's divergence from desktop.
+    // The witness for the sheet itself is `e2e/m14-mobile-notebook.spec.ts`,
+    // which taps the widget in a real browser.
+    it("leaves no widget control in the document, and no sheet open, after a phone insert", async () => {
       setPhone(true);
       await openPage({ reachInsert: false });
       await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
@@ -920,37 +928,22 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       );
       await userEvent.click(screen.getByRole("button", { name: "Insert it" }));
 
-      // Inserting selects what it inserted, so the inspector is already open on
-      // the widget that just landed — the phone's half of §26's side channel.
-      const sheet = within(await screen.findByTestId("widget-settings"));
-      await userEvent.click(sheet.getByRole("button", { name: /What it costs: dates/ }));
-      await userEvent.click(
-        within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }),
-      );
+      // The widget landed.
+      expect(await screen.findByText("no costs yet")).toBeTruthy();
 
-      // And the control follows the DOCUMENT rather than echoing its own click.
-      // A widget rebound through the sheet whose control still reads its old
-      // binding is the control-contradicts-the-document bug, from the surface
-      // §26 moved it to.
-      await vi.waitFor(() =>
-        expect(
-          within(screen.getByTestId("widget-settings"))
-            .getByRole("button", { name: /What it costs: dates/ })
-            .textContent,
-        ).toBe("2027-06-01"),
-      );
+      // **The phone insert does not open the inspector, and that is the whole
+      // difference between the two surfaces.** On desktop, inserting selects
+      // what it inserted so the side column has something to show (§26). The
+      // phone has no side column, and its insert is already "one sheet with a
+      // bind step" (§19) — the widget arrives pointed — so selecting here would
+      // answer the user by reopening the question they just answered: §19's
+      // "one sheet deep, ever", served twice in a row.
+      expect(screen.queryByTestId("widget-settings")).toBeNull();
 
-      // **And with the inspector shut, the document carries no widget control
-      // at all** — asserted here, with nothing selected, because that is the
-      // only state in which the question is meaningful. Checked while the sheet
-      // was open it would fail on the sheet's own selects, which is where §26
-      // wants them.
-      //
-      // Both halves were real controls in the flow before §26: the inline
-      // select row (the wrapping the phone treatment originally replaced) and
-      // the "Showing …" button that replaced it.
-      await userEvent.keyboard("{Escape}");
-      await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
+      // And the document itself carries no widget control at all. Both halves
+      // were real controls in the flow before §26: the inline select row (the
+      // wrapping the phone treatment originally replaced) and the "Showing …"
+      // button that replaced it.
       expect(screen.queryByRole("combobox")).toBeNull();
       expect(screen.queryByRole("button", { name: /^Showing/ })).toBeNull();
     });

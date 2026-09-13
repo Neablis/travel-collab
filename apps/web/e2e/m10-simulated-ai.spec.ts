@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { createMappedTrip, openHistory, signInAsDevUser } from "./helpers";
+import { createMappedTrip, openAssistantRail, openHistory, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // This spec's own webServer runs with AI_LIVE=false (playwright.config.ts's
@@ -38,7 +38,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
 
   // The Assistant rail is closed until asked for, at every width
   // (TripBoardScreen.tsx's useAssistantVisibility), so open it first.
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("how is the trip looking?");
   const [response] = await Promise.all([
     page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
@@ -76,7 +76,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   // Deliberately the BUTTON, not Enter. The Ask control has been covered by
   // the fixed unscheduled rack before, and every keyboard-driven test missed
@@ -131,7 +131,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   // whole projection rather than whatever happens to be on screen.
   const before = await (await page.request.get(`/api/trips/${tripId}`)).text();
 
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   await page.getByRole("button", { name: "Ask" }).click();
 
@@ -248,11 +248,13 @@ test("a playbook day the assistant found reaches the board once it is approved",
   const target = await tripWithStops(finder, e2eTripName("AI Library"), [
     { title: `Already here ${city}`, city },
   ]);
-  await finder.goto(`/trips/${target.tripId}`);
+  // `?view=Plan`: a bare trip URL lands on Overview since SPEC §24, and every
+  // board assertion below reads `.trip-board-content`, which only Plan renders.
+  await finder.goto(`/trips/${target.tripId}?view=Plan`);
   const board = finder.locator(".trip-board-content");
   await expect(board.getByText(`Already here ${city}`)).toBeVisible();
 
-  await finder.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(finder);
   await finder.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
   await finder.getByRole("button", { name: "Ask" }).click();
 

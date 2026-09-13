@@ -18,6 +18,8 @@ import {
 } from "@/components/trip/context/FocusProvider";
 import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/components/lenses/overlapData";
 import { dayAccents } from "@/lib/dayAccent";
+import { stopsForDay } from "@/lib/savedStops";
+import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { type ActivityFormValue } from "./ActivityEditor";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
@@ -415,6 +417,34 @@ export function Board({
             focusedTag={focusedTag}
             onToggleTag={onToggleTag}
             readOnly={readOnly}
+            // SPEC §24's "keep this day" pennant, which lived in the day
+            // header of a lens this milestone DELETED. Timeline going was the
+            // handoff's own instruction ("deleted, not hidden ... do not port
+            // it"), but the pennant was not Timeline's — §24 still calls it
+            // "one entry point: a flag pill in the desktop day header", and
+            // Plan is the desktop day header now. It went out with the lens
+            // and left `KeepDayFlag` imported by nothing but its own test:
+            // the control, its dialog, its celebration and its whole server
+            // route, all still built, all unreachable. `m11-saved-days` is
+            // what said so, by waiting 90 seconds for a button nothing
+            // rendered.
+            //
+            // The stops come from this day's own row, so what gets kept is
+            // exactly what is drawn above it — the same reading TimelineLens
+            // did, and the reason this is a `Board` concern rather than a
+            // `Column` one: `stopsForDay` needs the whole `TripDetail`.
+            keepFlag={
+              readOnly ? undefined : (
+                <KeepDayFlag
+                  dayIndex={index}
+                  accent={accents[index]?.ink ?? "neutral"}
+                  tripId={trip.tripId}
+                  dayId={day.dayId}
+                  tripName={trip.name}
+                  stops={stopsForDay(trip, day.dayId) ?? []}
+                />
+              )
+            }
           />
         ))}
         {/* "One more day?" is an invitation to change the trip, so it is the

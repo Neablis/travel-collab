@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, openAssistantRail } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M16's happy path: a discussion you can see in the sidebar and continue.
@@ -27,7 +27,7 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(page);
   const rail = page.getByRole("complementary", { name: "Assistant" });
   await expect(rail).toContainText(`Looking at ${tripName}`);
 
@@ -133,7 +133,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
-  await page.getByRole("button", { name: "Assistant", exact: true }).click();
+  await openAssistantRail(page);
   const rail = page.getByRole("complementary", { name: "Assistant" });
   const suggestions = rail.getByRole("list", { name: "Suggested questions" });
   const log = page.getByRole("log", { name: "Conversation" });

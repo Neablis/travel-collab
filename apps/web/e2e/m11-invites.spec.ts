@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M11 link 3's exit-gate line: "An invited person can open the trip and modify
@@ -157,6 +157,9 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
     // Lands on the trip, editable, with no "Viewer" badge.
     await expect(bob.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     await expect(bob.getByText("Viewer", { exact: true })).toHaveCount(0);
+    // Joining lands him on the trip's default view — Overview since SPEC §24,
+    // the one that does not edit. "One more day?" is on Plan.
+    await openPlan(bob);
 
     // …and can actually change it. "Add a day" lives in the board's trailing
     // "One more day?" column (Board.tsx).
@@ -218,6 +221,9 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     // "Viewer" (2026-08-30 design pass, was "View only") a substring match
     // found the heading too and the assertion stopped being about the badge.
     await expect(carol.getByText("Viewer", { exact: true })).toBeVisible();
+    // Same as the editor above: the board she is about to read is on Plan, and
+    // a bare trip URL lands on Overview now (SPEC §24).
+    await openPlan(carol);
 
     // The badge was the whole of this assertion until
     // docs/reviews/2026-08-28-m11-pr71-review.md §5: it passed while the board

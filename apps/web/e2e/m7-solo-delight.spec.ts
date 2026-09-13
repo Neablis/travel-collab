@@ -14,10 +14,21 @@ import { e2eTripName } from "./tripNames";
 // overview are gallery templates now, and the page every trip comes with is the
 // Overview. Read from `DEFAULT_TEMPLATES` for the same reason it always was: a
 // rename should not be a failing assertion about a word.
-const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [
-  (typeof DEFAULT_TEMPLATES)[number],
-  (typeof DEFAULT_TEMPLATES)[number],
-];
+// The cast is a one-tuple now, and that is the point of writing it out: it was
+// `[T, T]` — left over from when two templates were seeded — which typechecked
+// against a one-element array and would have gone on typechecking if the list
+// emptied. A tuple whose length is a claim has to state the length it claims.
+const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [(typeof DEFAULT_TEMPLATES)[number]];
+
+// A heading INSIDE the seeded page, as opposed to the page's own title — this
+// walk clicks one to put its cursor somewhere and types prose under it.
+//
+// It was "Overview", which is the page's title and used to be its first heading
+// too. SPEC §25 rewrote the seed: it opens with "What needs you" over the `open`
+// widget, and the prose sections come after. Picking one of THOSE, rather than
+// the first heading, also keeps this walk away from the widget — a click into a
+// block that holds one selects the widget instead of placing a caret.
+const PROSE_HEADING = "About this trip";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -259,7 +270,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await page.getByRole("button", { name: "Edit page" }).click();
 
   const proseText = `Hand-typed notes ${Date.now()}`;
-  await page.locator(".tc-page-editor h2", { hasText: "Overview" }).click();
+  await page.locator(".tc-page-editor h2", { hasText: PROSE_HEADING }).click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await waitForPageSaved(page, () => page.keyboard.type(proseText));

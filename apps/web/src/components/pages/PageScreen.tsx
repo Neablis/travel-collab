@@ -463,6 +463,25 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     // every block widget landed with its settings unopened while every inline
     // one opened them: a split nobody designed, found by an e2e walk on
     // `stop.rows` after the inline cases had all gone green.
+    //
+    // **On a phone it selects nothing, and that is not an omission.** The
+    // reason above is a DESKTOP reason: settings appear in the side column for
+    // the selected widget, so an insert that selected nothing would leave the
+    // column showing the insert rail with no sign of what to do next. The phone
+    // has no side column — its settings are a sheet — and its insert is already
+    // "one sheet with a bind step" (§19), so the widget arrives POINTED. Select
+    // it there and the sheet the user just dismissed is replaced by a second
+    // sheet asking the question they have already answered: §19's "one sheet
+    // deep, ever" served twice in a row. `m14-mobile-notebook` is what said so,
+    // by watching the insert sheet never close.
+    if (isPhone) {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent(node as never)
+        .run();
+      return;
+    }
     const at = editor?.state.selection.from;
     editor
       ?.chain()

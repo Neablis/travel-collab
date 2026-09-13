@@ -18,10 +18,20 @@ async function buildTrip(page: Page, name: string, dayCount: number): Promise<st
   return tripId;
 }
 
-async function openTimeline(page: Page, tripId: string, tripName: string): Promise<void> {
+/**
+ * Opens a trip on Plan, where the day headers — and the Keep pennant in them —
+ * live.
+ *
+ * It was called `openTimeline` and clicked a "Plan" tab after already asking
+ * for `?view=Plan`, which is the shape left over from when Plan and Timeline
+ * were two sub-modes of one view. SPEC §24 deleted Timeline, so the tab click
+ * was re-selecting the tab it had arrived on and the name pointed at a lens
+ * that no longer exists.
+ */
+async function openPlanView(page: Page, tripId: string, tripName: string): Promise<void> {
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-  await page.getByRole("tab", { name: "Plan" }).click();
+  await expect(page.getByRole("tab", { name: "Plan", selected: true })).toBeVisible();
 }
 
 test("keep a day out of one trip, and drop it into another", async ({ page }) => {
@@ -34,7 +44,7 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
   const targetId = await buildTrip(page, targetName, 1);
 
   // -- Keep day 1 of the source trip --
-  await openTimeline(page, sourceId, sourceName);
+  await openPlanView(page, sourceId, sourceName);
   await page.getByRole("button", { name: "Keep day 1" }).first().click();
   await expect(page.getByRole("heading", { name: "Keep this day" })).toBeVisible();
 
@@ -57,7 +67,7 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
   await expect(page.getByText(`Kept "${savedName}"`)).toBeVisible();
 
   // -- Drop it into the other trip --
-  await openTimeline(page, targetId, targetName);
+  await openPlanView(page, targetId, targetName);
   await page.getByRole("button", { name: "Add a saved day" }).click();
   const row = page
     .getByTestId("saved-days-list")
@@ -109,7 +119,7 @@ test("a day with nothing on it cannot be kept", async ({ page }) => {
     data: { type: "AddDay", tripId, dayId: crypto.randomUUID() },
   });
 
-  await openTimeline(page, tripId, tripName);
+  await openPlanView(page, tripId, tripName);
   const flag = page.getByRole("button", { name: "Keep day 1" }).first();
   await expect(flag).toBeDisabled();
   await expect(flag).toHaveAttribute("title", "Add a stop to this day first");
