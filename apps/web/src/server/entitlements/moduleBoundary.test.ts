@@ -14,6 +14,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "@/test-support/stripComments";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,9 +67,7 @@ describe("the Entitlements module knows nothing about trips", () => {
   it("takes no tripId in any signature", () => {
     const offenders = moduleFiles()
       .filter((file) => {
-        const code = source(file)
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/.*$/gm, "");
+        const code = stripComments(source(file));
         return /\btripId\b|\bsavedDayId\b|\bdayId\b|\bactivityId\b/.test(code);
       })
       .map(named);
@@ -81,9 +80,7 @@ describe("the Entitlements module knows nothing about trips", () => {
     const offenders = moduleFiles()
       .filter((file) => named(file) !== "planVersions.ts")
       .filter((file) => {
-        const code = source(file)
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/.*$/gm, "");
+        const code = stripComments(source(file));
         // A comparison against a specific capability string is a branch.
         return /===\s*"(ai\.ask|ai\.command|trip\.collaborators)"/.test(code);
       })

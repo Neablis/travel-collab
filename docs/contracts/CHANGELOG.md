@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `AdminGrantInput`, and a fourth `PlanId`
+
+- Added: `AdminGrantInput` — `{ userId, planId, expiresAt: string|null, reason }`
+  (`packages/contracts/src/entitlement.ts`), the operator console's one write
+- Changed: `PlanId` gains **`studio`**. Its version entry ships `enabled: false`
+- Why: M20 links 7 and 8. `studio` is the milestone's **fourth-plan proof** — a
+  plan granting `trip.collaborators` **without** `ai.command`, so it is
+  incomparable with `plus` and no rank can place it. The gate box asks for a
+  plan that can be *added*, not one that could be, and adding it cost this one
+  member plus one entry in the committed plan file: **no gate, resolver or
+  authorisation path changed.** `planVersions.fourthPlan.test.ts` proves that
+  by sweeping the whole app for a *comparison* against a plan id
+- **The honest limit, written down rather than left to be found as a
+  contradiction:** `studio` IS a subset of `premium`, because `premium` holds
+  the entire three-word vocabulary. That is a fact about there being three
+  capability strings, not about the plans, and it stops being true the moment a
+  fourth capability exists that `premium` does not grant. The incomparability
+  with `plus` never depended on it
+- **`AdminGrantInput` carries no version field**, deliberately: a grant pins the
+  version live when it is issued, resolved server-side. An operator typing a
+  version number is an operator who can type one that does not exist, and the
+  failure would be a silent entitlement hole rather than a 400. `expiresAt` is
+  nullable rather than optional — "forever" is a decision, and an omitted field
+  would let one be made by accident. `reason` is required: a comp nobody can
+  explain six months later is a billing dispute with no evidence
+- **No price field.** M20 never learns what a plan costs
+- Consumers updated, same PR: `app/api/admin/grants/route.ts` (the only write on
+  the operator surface — it refuses a disabled plan, so `studio` is published,
+  typed and resolvable while being unreceivable),
+  `components/admin/GrantForm.tsx`, `server/entitlements/planVersions.ts`
+- Breaking? no — `AdminGrantInput` is new, and widening a `z.enum` accepts
+  strictly more. Nothing that parsed before stops parsing
+
 ## 2026-09-13 — `TripAccess.collaboratorsEntitled`: is this trip collaborative
 
 - Added: `collaboratorsEntitled: z.boolean()` on `TripAccess`

@@ -16,6 +16,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "@/test-support/stripComments";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.resolve(HERE, "../../..");
@@ -43,9 +44,7 @@ describe("entitlement_grants is retained, never swept", () => {
     const offenders = filesUnder(path.join(WEB, "src"), /\.(ts|tsx)$/)
       .filter((file) => RELATIVE(file) !== "src/server/entitlements/grants.retention.test.ts")
       .filter((file) => {
-        const code = readFileSync(file, "utf8")
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/.*$/gm, "");
+        const code = stripComments(readFileSync(file, "utf8"));
         return (
           /\.delete\s*\(\s*entitlementGrants\s*\)/.test(code) ||
           /delete\s+from\s+"?entitlement_grants"?/i.test(code)
@@ -60,7 +59,7 @@ describe("entitlement_grants is retained, never swept", () => {
   it("has no delete against it in any migration", () => {
     const offenders = filesUnder(path.join(WEB, "drizzle"), /\.sql$/)
       .filter((file) => {
-        const sql = readFileSync(file, "utf8").replace(/^--.*$/gm, "");
+        const sql = stripComments(readFileSync(file, "utf8")).replace(/^--.*$/gm, "");
         return (
           /delete\s+from\s+"?entitlement_grants"?/i.test(sql) ||
           /truncate\s+"?entitlement_grants"?/i.test(sql) ||
@@ -86,9 +85,7 @@ describe("entitlement_grants is retained, never swept", () => {
   // `deleteGrant` export is the shape the sweep would be built from, and it
   // would pass every sweep above until something called it.
   it("offers revoking and nothing that removes a row", () => {
-    const code = readFileSync(path.join(HERE, "grants.ts"), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/.*$/gm, "");
+    const code = stripComments(readFileSync(path.join(HERE, "grants.ts"), "utf8"));
     expect(code).toMatch(/export async function revokeGrant/);
     expect(code).not.toMatch(/deleteGrant|purgeGrants|sweepGrants|expireGrants|cleanupGrants/i);
     expect(code).not.toMatch(/\bdb\s*\.\s*delete\b/);

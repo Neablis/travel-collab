@@ -12,7 +12,16 @@ import {
 } from "../src/entitlement.ts";
 
 const SOURCE = readFileSync(fileURLToPath(new URL("../src/entitlement.ts", import.meta.url)), "utf8");
-const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+// **Line comments first, then block comments, and the order is load-bearing.**
+// A `//` comment containing `@/server/*` — which this repo has, because that is
+// how the lint wall is written down — opens a `/*` that a non-greedy matcher
+// then closes against the next `*/` anywhere in the file, swallowing real code
+// in between. It cost `app/admin/admin.console.test.ts` 2,800 characters of
+// JSX before it was caught by breaking the page on purpose.
+//
+// `apps/web/src/test-support/stripComments.ts` is the shared version; this
+// package depends on nothing, so it is spelled out rather than imported.
+const CODE = SOURCE.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("Entitlement", () => {
   it("names the three capabilities M20 gates on", () => {
@@ -38,8 +47,13 @@ describe("Entitlement", () => {
 });
 
 describe("PlanId", () => {
-  it("names the three launch plans and nothing more", () => {
-    expect(PLAN_IDS).toEqual(["free", "plus", "premium"]);
+  it("names the three launch plans, and the fourth-plan proof", () => {
+    // `studio` is M20's gate-box proof that the split architecture is real:
+    // a plan granting `trip.collaborators` WITHOUT `ai.command`, which no rank
+    // can place. Its version entry ships **disabled**, so nothing sells it —
+    // what it costs to exist is this one member and one entry in the plan file,
+    // and no change to any gate.
+    expect(PLAN_IDS).toEqual(["free", "plus", "premium", "studio"]);
   });
 
   // **A plan is a set, not a rank** (ADR-045 rule 4). This file may not export
@@ -73,7 +87,7 @@ describe("PlanVersionRef", () => {
   // unresolvable reference a loud failure, and the cheapest way to keep that
   // rare is to refuse the shapes that can never resolve.
   it("refuses a shape that could never resolve", () => {
-    for (const ref of ["premium", "premium@1", "premium@v0", "premium@v01", "studio@v1", "PREMIUM@v1", ""]) {
+    for (const ref of ["premium", "premium@1", "premium@v0", "premium@v01", "atelier@v1", "PREMIUM@v1", ""]) {
       expect(PlanVersionRef.safeParse(ref).success).toBe(false);
     }
   });

@@ -23,6 +23,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "@/test-support/stripComments";
 import ts from "typescript";
 import { Entitlement, PLAN_IDS } from "@tc/contracts";
 import { PLAN_VERSIONS } from "./planVersions";
@@ -31,7 +32,7 @@ const PLAN_FILE = fileURLToPath(new URL("./planVersions.ts", import.meta.url));
 const SOURCE = readFileSync(PLAN_FILE, "utf8");
 const AST = ts.createSourceFile(PLAN_FILE, SOURCE, ts.ScriptTarget.ESNext, true);
 /** The file with its prose removed — for the sweeps that are about code, not about comments. */
-const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const CODE = stripComments(SOURCE);
 
 /** The `PLAN_VERSIONS = [...]` initializer — the plan definitions themselves. */
 function planVersionsInitializer(): ts.ArrayLiteralExpression {
@@ -148,6 +149,16 @@ describe("the ladder is presentation only", () => {
   const DISPLAY_ORDER_READERS_ALLOWED = [
     "src/server/entitlements/planVersions.ts",
     "src/server/entitlements/planVersions.noExtension.test.ts",
+    // **Rendering, which is what the field is for.** The operator console
+    // carries a plan's display order across the wire so a pricing page can one
+    // day sort three cards by it; neither of these compares two plans with it,
+    // and a GATE joining this list is the failure this test exists to catch.
+    //
+    // `server/entitlements/admin.ts` is deliberately NOT here: it hands whole
+    // `PlanVersion` objects to the console without naming this field, so it
+    // never appears in its source. Exact equality rather than a subset, so an
+    // allowlist entry that stops being needed fails too.
+    "src/lib/adminOverview.ts",
   ];
 
   it("is read by no authorisation path", () => {
@@ -166,7 +177,8 @@ describe("the ladder is presentation only", () => {
     expect(code).not.toMatch(/rank|atleast|tierof|compareplans|ordinal/i);
     // A rank needs an index into an ordered list of plan ids.
     expect(code).not.toMatch(/PLAN_IDS\s*\.\s*indexOf/);
-    expect(PLAN_IDS.length).toBe(3);
+    // Four, since the fourth-plan proof landed — three sold and one disabled.
+    expect(PLAN_IDS.length).toBe(4);
   });
 });
 

@@ -138,6 +138,28 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
     publishedAt: "2026-09-13",
     enabled: true,
   },
+  {
+    // **The fourth-plan proof** (M20's gate box). A plan that is not a subset
+    // of any other: `trip.collaborators` WITHOUT `ai.command`. No rank can
+    // express it — it is above `premium` on one axis and below `plus` on
+    // another — and that is exactly why it exists.
+    //
+    // **It ships disabled.** Nothing sells it and nobody holds it. Adding it
+    // cost one member of the contracts enum and this entry, and no change to
+    // any gate, resolver or authorisation path. `planVersions.fourthPlan.test.ts`
+    // proves that rather than asserting it.
+    //
+    // Do not delete it because nothing ships it. The claim *"the split
+    // architecture is real rather than asserted"* is only worth something while
+    // something unprovable-by-a-ladder is actually expressed.
+    planId: "studio",
+    version: 1,
+    entitlements: ["ai.ask", "trip.collaborators"],
+    ceilings: { perUserRequestsPerDay: 50, perUserStepsPerDay: 400, maxTier: null },
+    displayOrder: 4,
+    publishedAt: "2026-09-13",
+    enabled: false,
+  },
 ];
 
 // **Frozen at module load, so immutability is enforced rather than conventional.**

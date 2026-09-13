@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { DistanceUnit, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
 import {
   cookiePendingAdmission,
+  normalizeCredential,
   redeemAdmission,
   refusalRedirect,
   type PendingAdmission,
@@ -10,6 +11,7 @@ import { db } from "./db/client";
 import { users } from "./db/schema";
 import { livePlanVersion } from "./entitlements/planVersions";
 import { offerTrial } from "./entitlements/grants";
+import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
@@ -322,11 +324,20 @@ export async function recordSignIn(
   const gateAppliesAnyway = process.env.DEV_LOGIN_HONOURS_INVITE_GATE === "true";
   const viaDevLogin =
     isDevLoginEnabled() && payload?.account?.provider === "dev-login" && !gateAppliesAnyway;
+  // Read ONCE into a local, because two things need it and the jar is cleared
+  // below: the gate redeems it, and — if a single-use code is what admitted a
+  // brand-new account — M20 link 8 has to know which code, to reward whoever
+  // minted it. Reading it twice would mean reading it after `clear()`, which
+  // is the same bug as not reading it at all but harder to see.
+  //
+  // Not read at all on the two paths that never consult it (a returning user,
+  // dev login), so neither pays for a cookie read it has no use for.
+  const presented = returning || viaDevLogin ? null : await pending.read();
   const outcome = returning
     ? ({ admitted: true, via: "returning-user" } as const)
     : viaDevLogin
       ? ({ admitted: true, via: "dev-login" } as const)
-      : await redeemAdmission(await pending.read(), identity.id);
+      : await redeemAdmission(presented, identity.id);
 
   // After the decision and before either answer, so a refusal cannot leave the
   // rejected credential behind to be replayed by the next sign-in attempt. Not
@@ -356,6 +367,27 @@ export async function recordSignIn(
       await offerTrial(identity.id);
     } catch (error) {
       console.error("entitlements: signup trial was not issued", { userId: identity.id, error });
+    }
+    // **The referral reward** (M20 link 8): *someone I invited got an account*.
+    // Only for a genuinely new account, and only when a single-use code was
+    // what admitted them — `via` is the gate's own answer, so a super code, a
+    // trip invite and dev login each earn nobody anything, which is correct:
+    // none of them was somebody's referral.
+    //
+    // **After admission, never in its path.** A reward that failed must not
+    // stop someone getting an account. M11a decides who reaches the product;
+    // this decides what their inviter earns, and keeping them separate is why
+    // `rewardReferrer` reports its refusals rather than throwing them.
+    if (outcome.admitted && outcome.via === "invite-code") {
+      try {
+        const code = normalizeCredential(presented);
+        if (code !== null) await rewardReferrer(code, identity.id);
+      } catch (error) {
+        console.error("entitlements: referral reward was not issued", {
+          userId: identity.id,
+          error,
+        });
+      }
     }
   }
   return true;

@@ -66,8 +66,20 @@ export const ENTITLEMENTS: readonly Entitlement[] = Entitlement.options;
  *
  * What a plan *contains* is a plan-version entry, not a constant here. This
  * enum answers "is `premium` a plan we sell" and nothing further.
+ *
+ * **`studio` is the fourth-plan proof** (M20's gate box), and it is here rather
+ * than in a comment because the box asks for a plan that can be **added**, not
+ * one that could be. It grants `trip.collaborators` WITHOUT `ai.command`, so it
+ * is a subset of nothing: no rank can express it, and every reader that asked
+ * `plan >= "plus"` would have to be unpicked to add it.
+ *
+ * It ships **disabled** — `enabled: false` on its version entry — so nothing
+ * sells it and nobody holds it. That is the point: adding it cost one member
+ * here and one entry in the plan file, and **no change to any gate, resolver or
+ * authorisation path**. `planVersions.fourthPlan.test.ts` is what proves that
+ * claim rather than asserting it.
  */
-export const PlanId = z.enum(["free", "plus", "premium"]);
+export const PlanId = z.enum(["free", "plus", "premium", "studio"]);
 export type PlanId = z.infer<typeof PlanId>;
 
 /** Every plan id we sell today. Order is declaration order and means nothing. */
@@ -110,3 +122,33 @@ export type PlanVersionRef = z.infer<typeof PlanVersionRef>;
  */
 export const GrantSource = z.enum(["trial", "referral", "admin", "founder"]);
 export type GrantSource = z.infer<typeof GrantSource>;
+
+/**
+ * What an operator hands out (M20 link 7).
+ *
+ * **No version field**, and that is deliberate: a grant pins the version that
+ * is live when it is issued, resolved server-side. An operator typing a version
+ * number is an operator who can type one that does not exist, and the failure
+ * would be a silent entitlement hole rather than a 400.
+ *
+ * **No price field either.** M20 never learns what a plan costs.
+ */
+export const AdminGrantInput = z.object({
+  userId: z.string().min(1),
+  planId: PlanId,
+  /**
+   * ISO timestamp, or `null` for permanent.
+   *
+   * Nullable rather than optional: "forever" is a decision an operator makes,
+   * and an omitted field would let one be made by accident. The design says
+   * *"grant a plan at a version with an expiry and a reason"* — all three are
+   * present in the request, and one of them may be `null` on purpose.
+   */
+  expiresAt: z.string().datetime().nullable(),
+  /**
+   * Why, in the operator's words. A comp nobody can explain six months later
+   * is a billing dispute with no evidence, so it is required and non-empty.
+   */
+  reason: z.string().min(1).max(500),
+});
+export type AdminGrantInput = z.infer<typeof AdminGrantInput>;

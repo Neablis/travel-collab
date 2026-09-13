@@ -13,8 +13,20 @@ import {
 } from "./planVersions";
 
 describe("plan versions", () => {
-  it("publishes v1 of all three launch plans", () => {
-    expect(PLAN_VERSIONS.map(planVersionRefOf)).toEqual(["free@v1", "plus@v1", "premium@v1"]);
+  it("publishes v1 of the three launch plans, and the disabled fourth", () => {
+    expect(PLAN_VERSIONS.map(planVersionRefOf)).toEqual([
+      "free@v1",
+      "plus@v1",
+      "premium@v1",
+      // The fourth-plan proof. Published, resolvable and typed — and disabled,
+      // so nothing sells it and nobody holds it (M20's gate box).
+      "studio@v1",
+    ]);
+    expect(PLAN_VERSIONS.filter((entry) => entry.enabled).map((e) => e.planId)).toEqual([
+      "free",
+      "plus",
+      "premium",
+    ]);
   });
 
   it("mints a reference the contracts schema accepts", () => {
@@ -35,7 +47,7 @@ describe("plan versions", () => {
   it("throws on a reference this deploy does not publish", () => {
     expect(() => planVersionFromRef("premium@v9")).toThrow(UnknownPlanVersionError);
     expect(() => planVersionFromRef("premium@v9")).toThrow(/not published in this deploy/);
-    expect(() => planVersionFromRef("studio@v1")).toThrow(UnknownPlanVersionError);
+    expect(() => planVersionFromRef("atelier@v1")).toThrow(UnknownPlanVersionError);
     expect(isPublishedRef("premium@v9")).toBe(false);
   });
 

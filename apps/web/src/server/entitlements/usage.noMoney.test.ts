@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "@/test-support/stripComments";
 import { MODEL_RATES, microUsdFor } from "./modelRates";
 import { aiUsage } from "@/server/db/schema";
 
@@ -25,9 +26,7 @@ const WEB = path.resolve(HERE, "../../..");
 
 /** A file with its prose removed — a comment explaining the rule is not the rule broken. */
 function codeOf(file: string): string {
-  return readFileSync(file, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/.*$/gm, "");
+  return stripComments(readFileSync(file, "utf8"));
 }
 
 // The whole path a token count travels: the kernel's ledger type, the writer,
