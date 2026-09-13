@@ -116,20 +116,67 @@ describe("the phone front door (SPEC §28)", () => {
   // segment where it could never have noticed.
   it("always has a claim on screen through every transition", () => {
     render(<PhoneFrontDoor />);
-    // The boundaries themselves and a hair either side: the gap was exactly one
-    // point wide, so sampling only the midpoints would have missed it and
-    // sampling only the boundaries would miss a fade that is merely too fast.
-    for (const boundary of [0.25, 0.5, 0.75]) {
-      for (const p of [boundary - 0.01, boundary, boundary + 0.01]) {
-        scrollTo(p);
-        const lit = opacities().filter((o) => o > 0);
-        expect(lit.length, `nothing is on screen at p=${p}`).toBeGreaterThan(0);
-        // And it is READABLE, not a sliver: the brightest claim at a boundary
-        // is one of the two crossfading, and a crossfade whose peak is 0.2 is
-        // the same complaint in a different shape.
-        expect(Math.max(...lit), `what is on screen at p=${p} is barely there`).toBeGreaterThan(0.5);
-      }
+    // **A dense sweep rather than named boundaries.** The first version sampled
+    // 0.25 / 0.5 / 0.75 and a hair either side, which was right when the four
+    // claims divided the whole pin — and silently wrong the moment they were
+    // re-spread over `[0, TAIL_START]` so the last one stopped being squeezed
+    // by the clear-out. A test that knows the boundaries has to be edited every
+    // time they move, and the edit is exactly what nobody remembers to do.
+    //
+    // Sweeping asserts the property instead: at no point in the whole sequence
+    // is the stage blank or nearly so. It covers the boundaries wherever they
+    // are, and the midpoints, and everything between.
+    //
+    // Stops at 0.9 rather than 1: past `TAIL_START` the stage is SUPPOSED to
+    // clear, and asserting a lit claim there would be asserting the opposite of
+    // §28's "then the map clears out".
+    for (let p = 0; p <= 0.9; p += 0.01) {
+      scrollTo(p);
+      const lit = opacities().filter((o) => o > 0);
+      expect(lit.length, `nothing is on screen at p=${p.toFixed(2)}`).toBeGreaterThan(0);
+      // And it is READABLE, not a sliver: at a crossfade one of the two is
+      // always fully in, and a crossfade whose peak is 0.2 is the same
+      // complaint Mitchell filed in a different shape.
+      expect(Math.max(...lit), `what is on screen at p=${p.toFixed(2)} is barely there`).toBeGreaterThan(0.5);
     }
+  });
+
+  // **Every claim gets the same share of the scroll**, which is the half of
+  // *"the last chunk … doesn't last long enough"* that is arithmetic rather
+  // than taste. The claims used to divide the WHOLE pin while the clear-out ate
+  // the end of it, so the fourth one held at full strength for 0.07 of the
+  // scroll against the first one's 0.25 — a quarter of the reading time, for
+  // one claim in four.
+  //
+  // Measured as "how much scroll is this claim the brightest thing on screen
+  // for", which is what a reader experiences, and compared between the first
+  // and the last — the two the old arithmetic separated most.
+  it("gives the last claim as much of the scroll as the first", () => {
+    render(<PhoneFrontDoor />);
+    const held = [0, 0, 0, 0];
+    for (let p = 0; p <= 0.92; p += 0.005) {
+      scrollTo(p);
+      const os = opacities();
+      const best = os.indexOf(Math.max(...os));
+      // `?? 0` for `noUncheckedIndexedAccess`, not for doubt: `best` comes from
+      // `indexOf` on the same array. Vitest transpiles without typechecking, so
+      // this only failed at `next build` — which is the point of that step.
+      held[best] = (held[best] ?? 0) + 1;
+    }
+    expect(held[0]).toBeGreaterThan(0);
+    expect(held[3]).toBeGreaterThan(0);
+    // Within a fifth of each other. Not exact: the first claim starts already
+    // lit and the last runs into the clear-out, so the two ends are genuinely
+    // shaped differently — what must not happen is one of them getting a
+    // fraction of another's.
+    //
+    // Red-checked by dividing the pin instead of `TAIL_START`: `first claim
+    // held for 51 samples, last for 33` — the fourth claim on two thirds of the
+    // first one's scroll, which is what he was reading when he filed it.
+    expect(
+      Math.abs(held[3]! - held[0]!) / held[0]!,
+      `first claim held for ${held[0]} samples, last for ${held[3]}`,
+    ).toBeLessThan(0.2);
   });
 
   // §28: *"then the map clears out and the call to action arrives on empty

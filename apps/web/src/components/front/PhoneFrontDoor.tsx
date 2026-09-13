@@ -39,16 +39,32 @@ import { cn } from "@/lib/cn";
  * Where the stage starts clearing, and over how much of the scroll. §28's "the
  * map clears out".
  *
- * **0.82, not 0.72.** Mitchell, on the preview: *"there needs to be more time
- * between the scroll transitions between blocks, right now the last few are
- * almost unreadable"* — and the tail is half of why. Everything before it is
- * shared by four claims, so ten points of scroll taken off the front is two and
- * a half points off each of them, and the LAST claim pays twice because the
- * clear-out lands on top of it. The pin is also three times longer now (see
- * `.front-door-pin`), which is the other half.
+ * **The two numbers now say the whole story, because they sum to 1 and the
+ * claims no longer reach past the first of them.**
+ *
+ * Mitchell, second round on the preview: *"the last chunk before start a trip
+ * takes over doesn't last long enough, and when it does fade it takes too much
+ * scrolling to get start a trip to appear"*. Both halves were arithmetic:
+ *
+ * - The claims were spread over the WHOLE pin while the tail ate the end of it,
+ *   so the last claim's window was its own quarter MINUS everything after
+ *   `TAIL_START` — 0.75 to 0.82 at full strength against the first claim's 0.25.
+ *   One claim in four got a quarter of the reading time. They are spread over
+ *   `[0, TAIL_START]` now (see `seg` in `paint`), so all four get the same
+ *   ~0.23 — about 184dvh of thumb each on the 900dvh pin — and the last one
+ *   holds until the exact moment the clear-out starts.
+ * - The tail used to END at 0.96, leaving four points of pin (~32dvh) with a
+ *   cleared stage and nothing in it, and the clear-out itself ran 112dvh before
+ *   that. `TAIL_START + TAIL_LENGTH === 1` now: the fade finishes exactly as the
+ *   pin releases, and it is ~64dvh rather than 112 — a deliberate clear, not a
+ *   long one. There is no dead scroll left in the block at all.
+ *
+ * (The previous note here explained 0.82 over 0.72, from the first round. That
+ * move was right and is subsumed: the reason the last claim "paid twice" is the
+ * overlap this fixes properly rather than by moving the boundary.)
  */
-const TAIL_START = 0.82;
-const TAIL_LENGTH = 0.14;
+const TAIL_START = 0.92;
+const TAIL_LENGTH = 0.08;
 /** How far the map drifts up across the whole pin, in px. */
 const MAP_DRIFT = 74;
 /**
@@ -240,7 +256,13 @@ export function PhoneFrontDoor() {
         map.style.opacity = tail.toFixed(3);
       }
 
-      const seg = 1 / CLAIMS.length;
+      // **The claims share the scroll BEFORE the tail, not the whole pin.**
+      // Dividing by `CLAIMS.length` alone gave every claim an equal quarter on
+      // paper and an unequal one on screen, because the clear-out overlapped the
+      // last quarter and nothing else. Dividing `TAIL_START` is what makes the
+      // four windows actually equal — and it is why `EDGE` needs no adjustment,
+      // being a fraction of a segment rather than of the pin.
+      const seg = TAIL_START / CLAIMS.length;
       chunkRefs.current.forEach((chunk, i) => {
         if (chunk === null) return;
         const t = (p - i * seg) / seg;
@@ -302,10 +324,22 @@ export function PhoneFrontDoor() {
           into their own account short of guessing a URL. The desktop landing
           has always had one; the phone front door was written without it.
 
-          Outside the pinned block on purpose: the pin is a sticky stage that
-          scrolls under itself, and a header inside it would slide away with the
-          map. Here it scrolls off once, like a page header. */}
-      <header className="flex items-center justify-between px-6 pt-6 pb-3">
+          **It stays on screen for the whole page** — Mitchell, second round:
+          *"the header with the logo and site name and sign in button should
+          still be visible"*. It used to scroll off once, like a page header,
+          and the reasoning for that was about the wrong thing: it is outside
+          the pinned block so that it does not slide away WITH the map, which is
+          still why it lives here rather than inside the stage. Being outside
+          the pin does not require scrolling away — `sticky top-0` keeps it put
+          over the stage, over the empty paper the pin releases onto, and over
+          the call to action at the foot.
+
+          `z-10` because the pinned stage is also `sticky top-0` and comes after
+          it in the document: without it the map's own stacking context would
+          paint over the one control on this screen for somebody who already has
+          an account. The headline below clears it without a spacer — the
+          stage's `pt-16` is 64px and this bar is 64 (24 + a 28px mark + 12). */}
+      <header className="sticky top-0 z-10 flex items-center justify-between px-6 pt-6 pb-3">
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
           <Text as="span" className="font-display text-md font-semibold text-ink">

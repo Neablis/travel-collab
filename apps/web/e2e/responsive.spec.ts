@@ -781,6 +781,56 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       expect(scrollWidth, `widest element: ${widest}`).toBeLessThanOrEqual(clientWidth);
     });
   }
+
+  // Mitchell, second round on the preview: *"the header with the logo and site
+  // name and sign in button should still be visible"*.
+  //
+  // It scrolled away with the first flick, and the reasoning that put it there
+  // was about the wrong thing: the header sits OUTSIDE the pinned block so it
+  // does not slide with the map, which is still right — but outside the pin is
+  // not the same as scrolling off. `sticky top-0` keeps it over the stage, over
+  // the empty paper the pin releases onto, and over the call to action.
+  //
+  // e2e rather than jsdom, because `position: sticky` is layout: jsdom reports
+  // every box at its flow position and would pass this with the property
+  // deleted. Red-checked by removing it: the header came back 3840px above the
+  // fold, which is how far off screen it had been all along.
+  test("the phone front door keeps its header on screen through the sequence", async ({ page }) => {
+    await page.setViewportSize({ width: 411, height: 760 });
+    await page.goto("/welcome");
+    const signIn = page.getByRole("link", { name: "Sign in" });
+    await expect(signIn).toBeVisible();
+    const atRest = (await signIn.boundingBox())!;
+
+    // **The scroll has to be real.** A front door that could not scroll would
+    // pass "the header did not move" for the wrong reason — the same vacuity
+    // this suite has been caught by twice elsewhere.
+    const scroller = page.getByTestId("phone-front-door");
+    await scroller.evaluate((el) => {
+      el.scrollTop = el.scrollHeight * 0.5;
+    });
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(500);
+
+    // Still where it was, rather than merely still in the document: a header
+    // that scrolled to y = -400 is `toBeVisible()` to Playwright and gone to a
+    // reader.
+    const afterScroll = (await signIn.boundingBox())!;
+    expect(Math.abs(afterScroll.y - atRest.y), "the header scrolled away with the page").toBeLessThan(2);
+    expect(afterScroll.y).toBeLessThan(120);
+
+    // And it is on TOP of the pinned stage, not under it — the stage is also
+    // `sticky top-0` and comes after the header in the document, so without a
+    // stacking order the map paints over the one control this screen offers
+    // somebody who already has an account.
+    const onTop = await page.evaluate(() => {
+      const link = [...document.querySelectorAll("a")].find((a) => a.textContent?.trim() === "Sign in");
+      if (!link) return null;
+      const box = link.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit === link || link.contains(hit);
+    });
+    expect(onTop, "something is painted over the Sign in link").toBe(true);
+  });
 });
 
 // `FirstTripStart` (Mitchell, 2026-09-01 — see its own file header) is the
