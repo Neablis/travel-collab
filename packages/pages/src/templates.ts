@@ -163,12 +163,57 @@ const overviewPage: TemplateSeed = {
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, kind: "overview" }),
   content: newPageDoc([
+    // ---- The hook -------------------------------------------------------
+    // What the trip IS, and how soon. Mitchell, 2026-09-13: *"Think through
+    // what someone looking at a brand new upcoming trip would want to see and
+    // make it front and center."* This is that sentence — the name they just
+    // typed, and the one fact about it that is about to change every day.
+    para(
+      widget("attribute", { field: "trip.name" }),
+      text(" — "),
+      widget("attribute", { field: "trip.countdown" }),
+    ),
+    // ---- The shape, in four self-describing values -----------------------
+    // No labels, deliberately: every value here says what it is in its own
+    // words, full OR empty — "Fri 3 Apr – Thu 17 Apr", "14 days", "47 stops",
+    // "Tokyo, Kyoto" when there is a plan; "no dates set", "0 days", "0 stops",
+    // "no cities yet" when there is not. A label would be redundant on the
+    // first reading and would make the second one a sentence with a hole in it.
+    //
+    // `count` twice, pointed at two different entities, is ADR-039 decision 1
+    // working exactly as intended: one primitive, two selections, no second
+    // widget to maintain.
+    para(
+      widget("dates"),
+      text(" · "),
+      widget("count", { of: "day" }),
+      text(" · "),
+      widget("count"),
+      text(" · "),
+      widget("city"),
+    ),
+    // ---- What to do next -------------------------------------------------
     heading("What needs you"),
     block("open"),
-    heading("About this trip"),
-    para(text("What's this trip about? Jot down the highlights, the why, who's coming.")),
-    heading("Costs"),
-    para(text("Track budget notes, splurges, and who's paying for what.")),
+    // ---- The trip itself -------------------------------------------------
+    // The read the deleted Timeline lens used to give, as a widget anyone can
+    // insert into any page (SPEC §24: *"its read-only day list became a widget
+    // inside the Overview document"*).
+    heading("The trip, day by day"),
+    block("day.detail"),
+    // ---- Money -----------------------------------------------------------
+    // **Labels here and nowhere else above, and the difference is not style.**
+    // "$1,240.00" does not say whether it is spent, budgeted or left, so these
+    // two are the only values on the page that are ambiguous alone — and a
+    // label is also what keeps the line readable when they are empty ("Spent so
+    // far — no costs yet" rather than a bare grey chip).
+    heading("What it costs"),
+    para(
+      text("Spent so far — "),
+      widget("cost"),
+      text(" · budget left — "),
+      widget("attribute", { field: "trip.budgetRemaining" }),
+    ),
   ]),
 };
 

@@ -20,6 +20,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" },
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 describe("the preset table", () => {

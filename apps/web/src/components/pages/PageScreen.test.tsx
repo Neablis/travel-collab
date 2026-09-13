@@ -255,7 +255,13 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // dependency. Failing it must cost one widget, never the notebook — the
     // page below must still render rather than showing the error screen.
     await renderWithPreferences(null);
-    expect(await screen.findByText("nothing to show")).toBeTruthy();
+    // **"your name is not set", not "nothing to show".** `attribute` is five
+    // different questions behind one primitive and they all used to share the
+    // widget's one `emptyText`; a resolver can now say which of the five is
+    // empty (`MacroResult.because`). Asserting the specific line is also what
+    // makes this test non-vacuous — the old string matched a missing budget, a
+    // missing name and a missing airport equally.
+    expect(await screen.findByText("your name is not set")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -277,7 +283,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // either — breaking the resolver to fall back to `homeAirport` fails the
     // first assertion below on its own, which is how this was checked.
     await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
-    expect(await screen.findByText("nothing to show")).toBeTruthy();
+    expect(await screen.findByText("your name is not set")).toBeTruthy();
     expect(screen.queryByText("SFO")).toBeNull();
   });
 });

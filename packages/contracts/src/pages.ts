@@ -183,8 +183,19 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
  * it is PERSISTED, and a renamed contract field must become a failing test here
  * rather than a broken widget in somebody's saved page.
  *
- * The four that ship are the four named widgets `attribute` replaces —
+ * The four that shipped first are the four named widgets `attribute` replaces —
  * `trip.name`, `budget.remaining`, `account.name`, `account.homeAirport`.
+ *
+ * **`trip.countdown` is the fifth, and it is the one fact about an upcoming
+ * trip nothing else could answer.** Every other widget reads the trip against
+ * itself; this one reads it against TODAY — "in 34 days", "starts tomorrow",
+ * "day 3 of 14", "ended last week". A brand-new trip's Overview is otherwise a
+ * page of empty states, and this is the line on it that is about to be true.
+ *
+ * It is an `attribute` field rather than a thirteenth primitive for the reason
+ * ADR-039 decision 6 gives: it reads one fact about one thing and there is no
+ * set to narrow. `LEGAL_FILTERS.trip` is empty, so a countdown filtered by city
+ * would be a control resolving against nothing.
  *
  * `…Ref`, like `DayRef` and `CityRef`, and not `AttributeField`: `manifest.ts`
  * already exports that name for a describable field of a collection, which is a
@@ -194,6 +205,7 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
 export const AttributeFieldRef = z.enum([
   "trip.name",
   "trip.budgetRemaining",
+  "trip.countdown",
   "account.name",
   "account.homeAirport",
 ]);

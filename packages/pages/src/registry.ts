@@ -66,7 +66,15 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
   // pass. Callers that need account widgets go through `renderMacro`, which
   // takes a whole `WidgetContext`; this one keeps working for everything that
   // reads the trip.
-  return def.resolve({ trip: detail, page: ctx, user: null, globals: null }, parsed.data as never);
+  //
+  // `today: null` for the same reason, and it is the honest value rather than a
+  // placeholder: this entry point has no reader and therefore no calendar day.
+  // The one widget that reads it (`attribute{field: "trip.countdown"}`) answers
+  // "no dates set yet" here, which is what a countdown with no today is.
+  return def.resolve(
+    { trip: detail, page: ctx, user: null, globals: null, today: null },
+    parsed.data as never,
+  );
 }
 
 // Resolve AND render in one call, which is what every UI wants and what keeps
@@ -79,7 +87,10 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
 // ever joined by the def they both came from.
 export type RenderOutcome =
   | { status: "ok"; rendered: Rendered }
-  | { status: "empty" }
+  // `because` rides through: a resolver that said WHY it is empty has said the
+  // only useful thing it had, and dropping it here would have made
+  // `MacroResult.because` unreachable from the one call site that renders.
+  | { status: "empty"; because?: string }
   | { status: "unbound"; needs: UnboundNeeds }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };

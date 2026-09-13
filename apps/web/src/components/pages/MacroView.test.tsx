@@ -405,7 +405,10 @@ describe("every widget is legal where widgets actually go", () => {
     // it, and this is the line that says so by name.
     for (const widget of presetCatalog()) {
       const outcome = renderMacro(
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals },
+        // A fixed `today` well before the fixture's dates, so `trip.countdown`
+        // resolves rather than reporting "no dates set yet" — and so this
+        // sweep's answer does not change with the calendar.
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01" },
         widget.widget,
         boundParams(widget),
       );

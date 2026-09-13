@@ -229,13 +229,20 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // which is the point of Reading. The BINDING is what survived; the control
   // that shows it is an authoring affordance, and since §26 it lives in the
   // side channel rather than beside the value.
-  // The widget's own rendered value is what survived, and it is what a reader
-  // sees: a cost bound to Day 2 of a trip with no costs renders that day's
-  // empty text rather than the whole trip's total. Reading it here — in
-  // Reading, before any authoring control exists — is the round trip this test
-  // is named for.
-  await expect(page.locator('[data-macro-name="cost"]')).toBeVisible();
-  await expect(page.getByText("no costs yet")).toBeVisible();
+  // The widget survived the round trip, and it is read here — in Reading,
+  // before any authoring control exists — because what a traveller sees is what
+  // persisted.
+  //
+  // **By COUNT, because the seeded Overview carries a `cost` of its own.**
+  // Mitchell, 2026-09-13: *"Every element on there needs to be a existing
+  // widget"*, so the page now opens with ten widgets on it including a wide
+  // `cost` under "What it costs". `toBeVisible()` on `[data-macro-name="cost"]`
+  // was therefore green whether or not this walk's insert survived anything —
+  // and so was the "no costs yet" beside it, since a wide cost on a trip with
+  // no prices says exactly the same words. Two is the number that can fall to
+  // one.
+  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(2);
+  await expect(page.getByText("no costs yet").first()).toBeVisible();
 });
 
 /**
@@ -331,9 +338,17 @@ test("two widgets on one page read two different days", async ({ page }) => {
   //
   // Read in Reading, before any authoring control exists, which is the
   // stronger place to read it from: what a traveller sees is what persisted.
-  await expect(page.locator('[data-macro-name="cost"]')).toBeVisible();
-  await expect(page.locator('[data-macro-name="day.detail"]')).toBeVisible();
-  await expect(page.getByText("Day 2")).toBeVisible();
+  // **Counts, not `toBeVisible()`, for the reason the walk above states at
+  // length: the seeded Overview carries a `cost` AND a `day.detail` of its
+  // own.** Both assertions were green on a page where neither insert survived.
+  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(2);
+  await expect(page.locator('[data-macro-name="day.detail"]')).toHaveCount(2);
+  // And the two `day.detail`s resolve DIFFERENTLY, which is the actual claim:
+  // the seeded one is wide and draws the day-by-day table, while this walk's is
+  // bound to Day 2 of a trip with no stops and says so. A binding lost in the
+  // round trip would make the second one wide too, and this line is what
+  // notices.
+  await expect(page.getByText("no days yet")).toBeVisible();
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -911,21 +926,31 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
     await expect(list).toBeHidden();
   };
 
-  // Prose first, then the heading: inserting into the heading last means no
-  // later click has to find its way around the widget already in it.
+  // **The walk makes its own empty paragraph, because the seeded page no longer
+  // has one.** The Overview is composed entirely of widgets now — every
+  // paragraph on it holds at least one — so "the last paragraph" is a line with
+  // a `cost` and a `budget.remaining` already in it. Inserting there would put
+  // a third widget on that line and, worse, the `dates` this walk measures
+  // would not be the only `dates` on the page: the seeded stats line carries
+  // one too, and `.first()` would have measured THAT one while the assertion
+  // read as though it measured the inserted one.
   //
-  // **`.last()`, not `.first()`, and that is SPEC §25's doing.** The seeded page
-  // opens with "What needs you" and the `open` widget in the paragraph under
-  // it — so the FIRST paragraph already holds a widget, and inserting there
-  // would put two on one line and make the measurement below read the wrong
-  // one. The last heading and paragraph ("Costs") are the empty prose this
-  // walk wants.
+  // Pressing Enter at the end of the last heading gives a paragraph that is
+  // this walk's alone. The heading itself is still plain text, so the heading
+  // half needs no such trick.
+  const lastHeading = page.locator(".tc-page-editor h2").last();
+  await lastHeading.click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
   await insertInto(page.locator(".tc-page-editor p").last());
+  // The heading second, so no later click has to find its way around the widget
+  // already in it.
   await insertInto(page.locator(".tc-page-editor h2").last());
 
-  // Scoped to the widget this walk inserted, for the same reason.
+  // Scoped to the widgets this walk inserted: `.last()` on the prose one,
+  // because the seeded stats line holds a `dates` of its own further up.
   const inHeading = page.locator('.tc-page-editor h2 [data-macro-name="dates"] [data-widget-value]').first();
-  const inProse = page.locator('.tc-page-editor p [data-macro-name="dates"] [data-widget-value]').first();
+  const inProse = page.locator('.tc-page-editor p [data-macro-name="dates"] [data-widget-value]').last();
   await expect(inHeading).toBeVisible();
   await expect(inProse).toBeVisible();
 

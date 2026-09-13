@@ -23,11 +23,29 @@ export type UnboundNeeds = "day" | "days" | "person" | "trip";
 
 export type MacroResult<T> =
   | { status: "ok"; value: T }
-  | { status: "empty" }
+  | {
+      status: "empty";
+      /**
+       * Why this one is empty, when the widget has more than one way to be.
+       *
+       * `MacroDef.emptyText` is a single string per widget, which is right for
+       * a widget with one empty meaning — `day.rows` is empty because there are
+       * no days, and there is nothing else it could be. It is wrong for
+       * `attribute`, which is five different questions behind one primitive:
+       * "nothing to show" is the same shrug whether the trip has no name, no
+       * budget or no dates, and on a brand-new trip's Overview that shrug is
+       * the entire page.
+       *
+       * Absent means "use the widget's own `emptyText`", so every existing
+       * resolver keeps the state it had.
+       */
+      because?: string;
+    }
   | { status: "unbound"; needs: UnboundNeeds };
 
 export const ok = <T>(value: T): MacroResult<T> => ({ status: "ok", value });
-export const empty = (): MacroResult<never> => ({ status: "empty" });
+export const empty = (because?: string): MacroResult<never> =>
+  because === undefined ? { status: "empty" } : { status: "empty", because };
 export const unbound = (needs: UnboundNeeds): MacroResult<never> => ({ status: "unbound", needs });
 
 // The answer every trip-reading widget gives when handed a context with no

@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `trip.countdown` joins the `attribute` allow-list
+- Added: `"trip.countdown"` to `AttributeFieldRef`
+  (`packages/contracts/src/pages.ts`). Nothing else changed shape
+- Why: the Overview a brand-new trip opens on is otherwise a page of empty
+  states. Every other widget reads the trip against itself; this one reads it
+  against **today** — "in 34 days", "starts tomorrow", "day 3 of 14", "ended
+  last week" — and it is the one line on a new trip's Overview that is about to
+  be true. It is an `attribute` field rather than a thirteenth primitive for
+  ADR-039 decision 6's reason: it reads one fact about one thing and there is no
+  set to narrow, so `LEGAL_FILTERS.trip` being empty is the right answer for it
+- **Additive to a live database, and it does not migrate anything.** A preset is
+  data, not a stored identifier (ADR-039 decision 4): a document stores
+  `attribute` and `{ field: "trip.countdown" }`, and no page written before this
+  can contain the new value. Widening a `z.enum` accepts strictly more, so every
+  stored `attribute` node parses exactly as it did
+- Consumers updated: `packages/pages` (`attribute`'s `read()` and its
+  `NOTHING_TO_SHOW` map, the `trip.countdown` preset, `WidgetContext.today`),
+  `apps/web` (`MacroView` passes the reader's date, `lib/today.ts` reads it).
+  The registry's own tests enumerate the enum — `registry.test.ts`'s
+  "names each primitive's non-filter params" and `attribute.test.ts`'s
+  "accepts every field on the list" both failed on the new member, which is what
+  those tests are for
+- Breaking? no
+
 ## 2026-09-12 — `placeRef` on `AddActivity`/`UpdateActivity`: the grounding citation (M9 link 1, KI-81/KI-15)
 - Added: `placeRef: z.number().int().nonnegative().optional()` on `AddActivity`
   and `UpdateActivity` (`packages/contracts/src/activity.ts`). Nothing else

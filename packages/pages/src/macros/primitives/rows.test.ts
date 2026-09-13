@@ -10,6 +10,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: null,
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 // The rendered rows, as text per row. Row CARDINALITY is the thing worth
@@ -112,7 +115,7 @@ describe("day.rows", () => {
     // city we cannot name, and dropping the line because a projection is late
     // would lose the day itself.
     const { trip } = selectionTrip();
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     const rows = lines(ctx, "day.rows");
     expect(rows).toHaveLength(3);
     expect(rows.join(" ")).not.toContain("Rome");
@@ -248,7 +251,7 @@ describe("cost.rows", () => {
     // worth asserting against — so the zero case needs a trip with no prices on
     // it at all, which is the state a notebook opens in.
     const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1, costed: false } });
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     expect(renderMacro(ctx, "cost.rows", {}).status).toBe("empty");
   });
 });

@@ -24,3 +24,71 @@ export function formatDate(iso: string | null): string {
   const date = new Date(Date.UTC(y, m - 1, d));
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
 }
+
+/**
+ * Whole days from `from` to `to`, both `yyyy-mm-dd`. Negative when `to` is
+ * earlier.
+ *
+ * `Date.UTC` on the split parts, the same construction `formatDate` uses and
+ * for the same reason: no wall-clock read, no timezone, no DST. Two UTC
+ * midnights are always an exact multiple of a day apart, so the division is
+ * integral rather than rounded.
+ */
+function isoDaysBetween(from: string, to: string): number | null {
+  const a = isoToUtcMs(from);
+  const b = isoToUtcMs(to);
+  if (a === null || b === null) return null;
+  return Math.round((b - a) / 86_400_000);
+}
+
+function isoToUtcMs(iso: string): number | null {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return Date.UTC(y, m - 1, d);
+}
+
+/**
+ * Where a trip sits relative to today, as the phrase a person would say.
+ *
+ * **`today` is passed in, never read.** Invariant 4 — *"no wall-clock reads
+ * (time is passed in)"* — and it is what keeps this testable at every branch
+ * rather than only on the day the suite happens to run.
+ *
+ * The five states, and why each is worded the way it is:
+ *
+ * - **Before it starts.** "in 34 days" is the countdown people actually keep,
+ *   and the two near days get their own words because "in 1 days" is wrong and
+ *   "in 0 days" is not what anybody says about today.
+ * - **During.** "day 3 of 14" — once a trip has started, how long until it
+ *   started stops being the question, and which day of it you are on starts
+ *   being one. Counted INCLUSIVE of both ends, which is how a person counts the
+ *   days of their own trip.
+ * - **After.** Past tense, so a finished trip cannot read as an upcoming one.
+ *   A notebook outlives the trip it describes.
+ *
+ * Returns `null` when it cannot say — no dates, or no today — and the caller
+ * turns that into the widget's empty state rather than inventing a phrase.
+ */
+export function formatCountdown(today: string, first: string, last: string): string | null {
+  const toStart = isoDaysBetween(today, first);
+  const toEnd = isoDaysBetween(today, last);
+  if (toStart === null || toEnd === null) return null;
+
+  if (toStart > 1) return `in ${toStart} days`;
+  if (toStart === 1) return "starts tomorrow";
+  if (toStart === 0) return "starts today";
+
+  // Started. Still running while today is on or before the last day; `toEnd` is
+  // how many days are left, so 0 is the last day itself rather than over.
+  if (toEnd >= 0) {
+    const length = isoDaysBetween(first, last);
+    if (length === null) return null;
+    // Inclusive of both ends: a trip from the 3rd to the 3rd is one day long
+    // and today is day 1 of 1.
+    return `day ${-toStart + 1} of ${length + 1}`;
+  }
+
+  const since = -toEnd;
+  if (since === 1) return "ended yesterday";
+  return `ended ${since} days ago`;
+}

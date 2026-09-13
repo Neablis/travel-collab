@@ -212,7 +212,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals },
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01" },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`.
@@ -409,7 +409,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // Derived from the schema, so the vocabulary is the enum's own — a fifth
     // `AttributeFieldRef` member reaches the model with no edit anywhere.
     expect(paramsOf("attribute")).toEqual({
-      field: ["trip.name", "trip.budgetRemaining", "account.name", "account.homeAirport"],
+      field: ["trip.name", "trip.budgetRemaining", "trip.countdown", "account.name", "account.homeAirport"],
     });
     expect(paramsOf("count")).toEqual({ of: ["stop", "day", "city"] });
     // And a primitive that takes only filters says so with an empty object

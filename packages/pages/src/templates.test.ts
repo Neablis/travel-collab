@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { CreatePageInput, PageDoc } from "@tc/contracts";
 import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults } from "./templates";
 import { insertWidget } from "./insert";
-import { getMacro } from "./registry";
+import { getMacro, renderMacro } from "./registry";
+import { tripDetailFactory } from "@tc/factories";
+import type { WidgetContext } from "./registry-types";
 
 /** Every node in a document, depth-first, including nodes inside paragraphs and list items. */
 function walk(node: unknown, out: { type?: string; attrs?: { name?: string; params?: unknown } }[] = []) {
@@ -159,21 +161,72 @@ describe("templates", () => {
    * resolves to nothing. Two of the gallery's widgets do not, and those are
    * exactly the ones that must never be seeded.
    */
-  it("seeds only widgets that have something to say when empty", () => {
+  // **The rule this file's header states, enforced by running the widgets
+  // rather than by reading their declarations.**
+  //
+  // > A widget that reads well on an empty trip may be seeded. One that does
+  // > not, may not.
+  //
+  // It used to check that each seeded widget HAD an `emptyText`, which is a
+  // much weaker claim: a widget can carry one and still come out `unbound` — a
+  // grey "needs a day" chip on a page nobody has bound anything on — and it
+  // never resolved a single one to find out. This builds the trip a person
+  // actually lands on a minute after pressing "New trip" — no dates, no days,
+  // no stops, no budget — and renders every seeded widget against it.
+  it("seeds only widgets that say something readable on a brand-new empty trip", () => {
+    // dayCount 0 is the whole point: a trip whose wizard has just closed.
+    const bare = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 0 } });
+    const ctx: WidgetContext = {
+      trip: bare,
+      page: { tripId: bare.tripId },
+      user: null,
+      // No globals and no today either — the two things that arrive after the
+      // first paint. A widget that only reads well once its projection has
+      // landed is a widget that reads badly on arrival.
+      globals: null,
+      today: null,
+    };
+
     for (const t of DEFAULT_TEMPLATES) {
       for (const node of widgetsIn(t.content)) {
         const name = String(node.attrs?.name ?? "(unnamed)");
         const macro = getMacro(name);
         expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+
+        const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+        // `unbound` is the state this test exists to refuse: it renders as a
+        // chip asking for a binding the seeded page never made, and there are
+        // six widgets on this page — six of those is not a first impression.
         expect(
-          macro!.emptyText,
-          `${t.key} seeds ${name}, which renders nothing on an empty trip`,
-        ).toBeTruthy();
+          outcome.status,
+          `${t.key} seeds ${name}, which asks to be bound before it will say anything`,
+        ).not.toBe("unbound");
+        expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve`).toContain(outcome.status);
+        if (outcome.status === "empty") {
+          // Something a person can read, from the resolver's own reason or the
+          // widget's blanket one. A blank chip in a sentence reads as a
+          // rendering fault, which is worse than any wording.
+          const said = outcome.because ?? macro!.emptyText;
+          expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it`).toBeTruthy();
+        }
       }
     }
-    // Non-vacuous: the Overview really does seed a widget, so the loop above is
-    // not passing by iterating over nothing.
-    expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual(["open"]);
+
+    // Non-vacuous, and it pins the composition: the Overview is built out of
+    // widgets and this is which ones. A change here is a deliberate change to
+    // the page every trip opens on.
+    expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual([
+      "attribute",
+      "attribute",
+      "dates",
+      "count",
+      "count",
+      "city",
+      "open",
+      "day.detail",
+      "cost",
+      "attribute",
+    ]);
     // And the gallery still builds itself — the other half of the old line,
     // which is unchanged and still worth holding.
     for (const t of TEMPLATE_LIBRARY) {

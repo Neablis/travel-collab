@@ -24,11 +24,16 @@ const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [(typeof DEFAULT_TEMPLATES)[number]];
 // walk clicks one to put its cursor somewhere and types prose under it.
 //
 // It was "Overview", which is the page's title and used to be its first heading
-// too. SPEC §25 rewrote the seed: it opens with "What needs you" over the `open`
-// widget, and the prose sections come after. Picking one of THOSE, rather than
-// the first heading, also keeps this walk away from the widget — a click into a
-// block that holds one selects the widget instead of placing a caret.
-const PROSE_HEADING = "About this trip";
+// too. SPEC §25 rewrote the seed once, and Mitchell rewrote it again on
+// 2026-09-13 — *"Every element on there needs to be a existing widget"* — so
+// the prose sections this used to reach for are gone and every paragraph on the
+// page now holds a widget.
+//
+// A HEADING is what is left that is plain text, and it is all this walk needs:
+// it clicks one, presses End and then Enter, which makes a paragraph of its own
+// to type into. Clicking a paragraph would land in a block that holds a widget
+// and select it instead of placing a caret.
+const PROSE_HEADING = "What it costs";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate

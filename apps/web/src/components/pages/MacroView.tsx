@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
+import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -117,7 +118,12 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // widgets. It is cheap, but it is not free and the answer cannot change
   // between two widgets on the same trip — that invariance is the point.
   const accents = useMemo(() => cityAccents(detail), [detail]);
-  const outcome = renderMacro({ trip: detail, page: context, user, globals }, name, params);
+  // The reader's own calendar day, for the one widget that reads the trip
+  // against it (`attribute{field: "trip.countdown"}`). Every other resolver
+  // ignores it — see `WidgetContext.today` for why it is passed rather than
+  // read inside the package.
+  const today = useToday();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
   // The chip is a control only when something can act on it. `PageScreen`
@@ -177,7 +183,12 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
       }
     }
   }
-  if (outcome.status === "empty") return <EmptyChip tone="muted" label={def?.emptyText ?? "—"} />;
+  // The resolver's own reason first, the widget's blanket one second. Five
+  // different questions sit behind `attribute` and they used to share one
+  // shrug — see `MacroResult`'s `because`.
+  if (outcome.status === "empty") {
+    return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
+  }
 
   const { rendered } = outcome;
   switch (rendered.kind) {
