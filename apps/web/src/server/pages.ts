@@ -140,6 +140,15 @@ export async function getPage(id: string): Promise<Page | null> {
   return row ? toPage(row) : null;
 }
 
+/**
+ * Updates a stored page, and **cannot move the Overview marker in either
+ * direction** — the stored `context.kind` is carried across and the caller's is
+ * discarded. A PATCH carrying `{ tripId }`, which is exactly what the one route
+ * that PATCHes a page sends, used to strip the marker and leave the page every
+ * trip is supposed to keep one DELETE away from gone.
+ *
+ * `null` for an id that is not a uuid, or names no page.
+ */
 export async function updatePage(id: string, input: UpdatePageInput): Promise<Page | null> {
   // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
   // Unreachable through a route today — both callers validate — but this is the
@@ -186,6 +195,15 @@ export async function updatePage(id: string, input: UpdatePageInput): Promise<Pa
  */
 export type DeletePageOutcome = { ok: true } | { ok: false; reason: "not-found" | "undeletable"; message: string };
 
+/**
+ * Deletes a page unless it is the trip's Overview, which §25 says a reader may
+ * edit but not remove.
+ *
+ * **The refusal is in the `WHERE` clause**, not in a read-then-delete pair, so
+ * it holds against a caller that believed otherwise and against a race. The
+ * read only happens on the failure path, to tell `not-found` from
+ * `undeletable`; both carry a message meant for a person to read.
+ */
 export async function deletePage(id: string): Promise<DeletePageOutcome> {
   // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
   // Unreachable through a route today — both callers validate — but this is the

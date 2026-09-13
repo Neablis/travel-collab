@@ -44,12 +44,20 @@ const SELECTED_RING = "ring-2 ring-primary rounded";
 const EDIT_OUTLINE = "tc-widget-edit relative";
 
 /**
- * Renders a macro node inside the editor.
+ * Renders a macro node inside the editor, and reports its selection outwards.
  *
- * @param node - The macro node containing its name and parameters
- * @param selected - Whether the node is selected
- * @param updateAttributes - Updates the macro node's attributes
- * @returns The rendered macro node view
+ * The rendering is the smaller half. This node view is also the only thing that
+ * knows a widget is selected, and SPEC §26 puts every widget control in a side
+ * channel that has to be told: so a selected node reports its params and its
+ * updater up through the editor context, a param change reselects the node so
+ * the panel it opened does not close under the person using it, and a selected
+ * node that UNMOUNTS reports its own release — deleting a widget destroys this
+ * view without `selected` ever going false, which would otherwise leave the
+ * panel holding a node that is gone (CodeRabbit, PR 170).
+ *
+ * The `@param` list this replaces named `node`, `selected` and
+ * `updateAttributes` and said of each what its own name says. None of the above
+ * is visible in the signature, which is what a docstring here is for.
  */
 export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const { detail, context, user, globals, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
