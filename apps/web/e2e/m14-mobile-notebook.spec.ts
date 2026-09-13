@@ -128,7 +128,10 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // widget is how a person opens it.
     await widget(page).click();
     const settings = page.getByTestId("widget-settings");
-    await expect(settings.getByRole("button", { name: /: dates/ })).not.toHaveText(/everything/);
+    // Narrow, stated as "not the wide value" rather than as a date: the seeded
+    // trip's days are relative to today. "All days" is what this control reads
+    // when nothing is bound — see the rebinding walk below.
+    await expect(settings.getByRole("button", { name: /: dates/ })).not.toHaveText("All days");
 
     // And it survives the round trip, which is the thing no unit test sees —
     // nor can: jsdom does not turn a click on a node view into a ProseMirror
@@ -139,7 +142,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     await widget(page).click();
     await expect(
       page.getByTestId("widget-settings").getByRole("button", { name: /: dates/ }),
-    ).not.toHaveText(/everything/);
+    ).not.toHaveText("All days");
   });
 
   test("rebinding is a sheet, and the inline select row is gone", async ({ page }) => {
@@ -174,10 +177,15 @@ test.describe("phone Notebook (SPEC §19)", () => {
     const days = bindSheet.getByRole("button", { name: /: dates/ });
     // §13 rule 1's 44px floor, on the control the sheet exists for.
     expect((await days.boundingBox())?.height).toBeGreaterThanOrEqual(44);
-    // Left WIDE by the insert, and saying so in one word rather than listing
+    // Left WIDE by the insert, and saying so in one phrase rather than listing
     // five unset filters (ADR-039 decision 2 — an absent filter is the widest
     // true answer, not an unfilled blank).
-    await expect(days).toContainText("everything");
+    //
+    // "All days" is the DATE CONTROL's own word for wide. "everything" was
+    // `bindSummary`'s, written for the "Showing …" button §26 deleted — it
+    // summarised every dimension at once, where this control answers one. The
+    // desktop walk asserts the same string on the same control.
+    await expect(days).toHaveText("All days");
     await days.click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 3/ }).click(),
@@ -188,7 +196,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // panel), asserted here because the phone reaches it through a sheet.
     await expect(
       page.getByTestId("widget-settings").getByRole("button", { name: /: dates/ }),
-    ).not.toHaveText(/everything/);
+    ).not.toHaveText("All days");
   });
 
   test("Reading is the default, and it takes the phone's authoring surface away too", async ({ page }) => {
