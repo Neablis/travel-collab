@@ -35,14 +35,27 @@ Mitchell's reorder the same day, asked for directly: **the commercial pair M20 �
 ahead of M9's remaining work.** Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
 
-**Nothing is built yet. What exists is the decision and what it required:** ADR-045
-(*Entitlements is a module with two stores*), the `AGENTS.md` module-map row it adds, the
-prices (`free` $0 / `plus` $9 / `premium` $19 — recorded in M21's file, and **not to appear
-in M20's diff**), and the kickoff plan. The narrative and the three costs accepted with the
-reorder are in `docs/milestones/README.md` under **2026-09-13**; do not restate them here.
+**Nothing is built yet, and that is the whole position.** The opening landed in
+**`85b6cd2` (#173, merged 2026-09-13)** and is prose only: ADR-045 (*Entitlements is a module
+with two stores*), the `AGENTS.md` module-map row it adds, five recorded decisions, and the
+kickoff plan. **No line of M20 exists.** Exit gate: 0 of 29 live boxes. The narrative and the
+three costs accepted with the reorder are in `docs/milestones/README.md` under **2026-09-13**;
+do not restate them here.
 
-**Start here:** `docs/plans/2026-09-13-M20-M21-commercial.md` — six phases for M20, four for
-M21, with the two open questions M21 still owes.
+**The work hands over here, to a fresh branch off `main`.** #173 was **squash-merged**, so
+`claude/stripe-payment-milestone-ptyuph` still reports as commits ahead of main while its
+content is entirely in main (`git diff origin/main <branch>` is empty). **Do not continue that
+branch** — it is the squash-merge hazard M9 Phase 0's retro named as its most expensive
+lesson, arriving a second time.
+
+**Start here:** `docs/plans/2026-09-13-M20-M21-commercial.md` — six phases for M20, four
+sketched for M21, and **no open questions left**: all three the plan opened were closed
+2026-09-13. Begin with its **Preflight**, which names two live migration hazards, then
+Phase 1.
+
+**M21 is placed, not open.** Its prerequisite is M20 *closed*. Its prices are decided
+(`free` $0 / `plus` $9 / `premium` $19) and live in M21's file — **a price string in M20's
+diff means the split has failed.**
 
 **The one thing to know before touching this milestone:** *a plan is a set, not a rank.* Code
 asks `can(ent, "ai.ask")` and nothing compares plans. `accessPolicy.ts:11`'s `RANK` is the
