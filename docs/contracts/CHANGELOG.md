@@ -13,6 +13,49 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — the entitlement vocabulary: what an account may do
+
+- Added: `Entitlement` (`ai.ask` | `ai.command` | `trip.collaborators`),
+  `PlanId` (`free` | `plus` | `premium`), `PlanVersionRef`
+  (`"<planId>@v<n>"`, regex built from `PlanId.options`), `GrantSource`
+  (`trial` | `referral` | `admin` | `founder`), plus the `ENTITLEMENTS` and
+  `PLAN_IDS` iteration constants — all in
+  `packages/contracts/src/entitlement.ts`, re-exported from the index
+- Why: M20 link 1 — the first commercial vocabulary in the product. ADR-045
+  rule 6 splits the Entitlements module in two: **contracts owns the words,
+  the committed plan file owns the offers.** A capability no code checks is
+  meaningless, and a check for a capability that does not exist must fail to
+  compile — which is why the strings are an enum here rather than data in the
+  plan file
+- **`PlanId` is an identity, not a rank.** There is no ordering export beside
+  it and none inside the file; `z.enum` preserves declaration order in
+  `.options`, and that order is an artifact of how the constant is written,
+  never authority. `accessPolicy.ts`'s `RANK` is the right shape for roles
+  inside one trip and the wrong shape here — a comparison operator near a plan
+  forces every later tier to be a superset of an earlier one, permanently
+  (ADR-045 rule 4). `test/entitlement.test.ts` sweeps the file's own source
+- **This package says the words and never what a plan contains.** No `PLANS`
+  constant, no ceilings, and **no price of any kind** — M20 publishes versions
+  that are free by construction and M21 link 2 adds `priceMinor`, `currency`
+  and `stripePriceId` to the plan file's entries. A price string in a M20 diff
+  means the split failed, and a test asserts its absence here
+- **No trip type is imported and no planning capability is named.** ADR-045
+  rule 5: Entitlements answers `can(account, "trip.collaborators")` and the
+  *caller* knows that capability is about invites. There is deliberately no
+  `trip.plan` string, because trip planning is free for every account and a
+  capability that exists is one somebody will eventually check
+- Consumers updated: `apps/web` —
+  `src/server/entitlements/planVersions.ts` (the committed plan-version file,
+  typed against `Entitlement`), `src/server/entitlements/capability.ts`
+  (`can()`), and `src/server/assistant/entitlements.ts`, whose `AiCapability`
+  becomes `Extract<Entitlement, "ai.ask" | "ai.command">` rather than two
+  hand-written strings — exactly what that file's comment said would happen
+  when link 1 landed — so the kernel's subset is provably a subset
+- Breaking? no — every name is new. Nothing parsed differently, no stored
+  payload changed shape, and no wire response moved. *(M20 Phase 3's 403→402
+  on `/ask` and `/ai` **is** a breaking wire change and gets its own entry
+  when it lands.)*
+
 ## 2026-09-13 — `PageContext.kind`: which page this is, stored
 - Added: `kind: z.literal("overview").optional()` on `PageContext`
   (`packages/contracts/src/pages.ts`). Nothing else changed shape
