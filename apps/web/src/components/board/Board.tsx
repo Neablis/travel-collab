@@ -222,7 +222,19 @@ export function Board({
   // Contract clauses 2 and 3: a day picked on the chips row above (or arrowed
   // to below, which is an explicit pick) centres its column here, and switching
   // to this lens arrives already scrolled to the selected day.
-  useFollowFocusedDay(sync, focusedDay, trip.days.length, (index) => columnRefs.current[index]);
+  //
+  // **The column's HEADER, not the column.** The measurement above reads the
+  // column — it is the day's horizontal extent and that is what a reading line
+  // is measured against — but the thing scrolled into view is the header,
+  // because `scrollIntoView` moves every scrollable ancestor including the
+  // page, and a day column is never small enough for `block: "nearest"` to
+  // leave the page alone. See `Column`'s `data-day-header` for the measured
+  // numbers and the report. Horizontally the two are the same element: the
+  // header spans the column's width, so `inline: "center"` lands on the same
+  // `scrollLeft`.
+  useFollowFocusedDay(sync, focusedDay, trip.days.length, (index) =>
+    columnRefs.current[index]?.querySelector("[data-day-header]"),
+  );
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {

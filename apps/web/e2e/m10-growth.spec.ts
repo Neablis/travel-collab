@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { commandsFor } from "@tc/factories";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -240,4 +241,93 @@ test("scrolling the phone map's day strip changes the selected day", async ({ pa
   // The detail line under the strip is the focused day's, so it moved too —
   // the strip's selection is the map's selection, not a second one.
   await expect(page.getByTestId("map-day-strip-detail")).toContainText(/stop|km/);
+});
+
+/**
+ * Mitchell, on the preview, 2026-09-13: *"When you first switch to plan page,
+ * its half way scroll down the actual columns, it should start at the top so i
+ * can see the days. This might be because this plan has warnings though"*.
+ *
+ * Not the warnings — the height. Clause 3 scrolls the selected day into view on
+ * arrival, and `scrollIntoView` moves EVERY scrollable ancestor, the page
+ * included. `block: "nearest"` is "move nothing" only while the target already
+ * fits on screen, and a day column never does: the columns are flex siblings,
+ * so each stretches to the tallest, and a trip with a few stops a day reaches
+ * past the fold. So `nearest` fell through to "align its top edge with the top
+ * of the scrollport" — a page scroll of exactly the height of everything above
+ * the columns, putting the day headers under the sticky trip header. A plan
+ * with warnings only made the columns taller, which is why it looked like the
+ * cause.
+ *
+ * Red-checked by putting the column back as the scroll target: `window.scrollY`
+ * came back 444 in a 720px viewport — not a pixel of drift, most of a screen.
+ *
+ * **This walk needs a real browser twice over**, which is why it is here and
+ * not in `Board.test.tsx`: jsdom implements no `scrollIntoView` at all (see
+ * `jumpTo`'s feature detection) and has no layout for `nearest` to resolve
+ * against even if it did. The whole defect is one branch of the CSSOM-View
+ * algorithm reading real box heights.
+ */
+test("switching to Plan lands at the top of the columns, not part-way down them", async ({ page }) => {
+  test.setTimeout(90_000);
+  const tripName = e2eTripName("PlanArrival");
+  const { tripId } = await page.request
+    .post("/api/trips", { data: { name: tripName } })
+    .then((r) => r.json());
+  // Six stops a day, which is what makes the columns taller than the viewport —
+  // the condition the defect needs, stated as data rather than hoped for. With
+  // one stop a day (`createMappedTrip`'s shape) the whole row fits above the
+  // fold and there is no page scroll for `nearest` to get wrong.
+  for (const command of commandsFor("mappedTrip", tripId, {
+    dayCount: 10,
+    activitiesPerDay: 6,
+    timeWindows: [
+      { start: "09:00", end: "10:00" },
+      { start: "10:00", end: "11:00" },
+      { start: "11:00", end: "12:00" },
+      { start: "12:00", end: "13:00" },
+      { start: "13:00", end: "14:00" },
+      { start: "14:00", end: "15:00" },
+    ],
+  })) {
+    await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+  }
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/trips/${tripId}`);
+
+  // Pick a day somewhere down the trip from the chips row, exactly as he did —
+  // the row is inside the sticky header, so this pick has nowhere to scroll the
+  // page to and the page is still at the top when the Plan tab is clicked.
+  const chips = page.getByRole("group", { name: "Days" });
+  // By index, not by name: a chip is labelled with its weekday, city and stop
+  // count, and this trip's dates are relative to today. Same reason the walk
+  // above reads `data-day-index` rather than parsing a label.
+  await chips.locator('[data-day-index="7"]').click();
+  await expect(chips.locator('button[aria-pressed="true"]')).toHaveAttribute("data-day-index", "7");
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.getByRole("tab", { name: "Plan" }).click();
+  const columns = page.getByTestId("day-column");
+  await expect(columns).toHaveCount(10);
+
+  // Clause 3 still happened — the point is not that the jump was skipped, it is
+  // that it moved the axis it was asked to move.
+  await expect(columns.nth(7)).toBeInViewport();
+
+  // *"it should start at the top so i can see the days"*, in the two halves he
+  // asked for. The page did not move…
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  // …and the day's own name is readable, rather than scrolled up under the
+  // sticky header — asserted against the header's bottom edge, because
+  // `toBeInViewport` counts an element behind a sticky bar as in the viewport
+  // and that is precisely the state being ruled out.
+  const nameBox = (await columns.nth(7).getByRole("button", { name: /^Day 8/ }).boundingBox())!;
+  // By attribute rather than by role: a `<header>` inside `<main>` is a plain
+  // generic, not a `banner`, so there is no role to ask for — and this is the
+  // element whose bottom edge the assertion is actually about.
+  const stickyBottom = (await page.locator('header[aria-label="Trip"]').boundingBox())!;
+  expect(nameBox.y, "the day's name sits below the sticky header, not behind it").toBeGreaterThanOrEqual(
+    stickyBottom.y + stickyBottom.height,
+  );
 });

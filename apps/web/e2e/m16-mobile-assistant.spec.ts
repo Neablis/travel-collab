@@ -381,6 +381,21 @@ test.describe("mobile assistant (phone viewport)", () => {
         const el = document.scrollingElement;
         return el === null ? 0 : el.scrollHeight - el.clientHeight;
       });
+    // **Wait for the arrival jump before probing, or the probe races it.**
+    // The phone plan picks day 1 when nothing is selected, and it lands a tick
+    // late by construction — `useIsPhone` is false on the first client paint
+    // (`TripBoardScreen`, and its own comment says so). That pick then scrolls
+    // day 1's header into view, which from anywhere down the page means back to
+    // the top. Wheel first and the jump undoes the wheel; `scrollTop` reads 0
+    // and the message below fires on a page that scrolls perfectly well.
+    //
+    // Found by the day-columns arrival fix (2026-09-13): the same jump used to
+    // scroll the page DOWN by a few hundred pixels, so this probe passed on the
+    // jump's own scrolling rather than on its wheel — vacuously, in the third
+    // shape of the vacuity the note above already tells twice.
+    await expect(page.locator('[data-day-index="0"][aria-pressed="true"]')).toBeVisible();
+    await expect.poll(scrollTop).toBe(0);
+
     // The gesture, at these coordinates, does move the plan.
     await page.mouse.move(206, 120);
     await page.mouse.wheel(0, 400);

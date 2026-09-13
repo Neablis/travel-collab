@@ -161,7 +161,27 @@ export function Column({
       // eslint-disable-next-line no-restricted-syntax -- 268px day-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
       style={{ width: DAY_COLUMN_WIDTH_PX }}
     >
-      <header className="flex items-baseline justify-between">
+      {/* `data-day-header` is what the day-sync contract scrolls to, and it is
+          the header rather than the `section` above for a reason a person
+          reported: *"When you first switch to plan page, its half way scroll
+          down the actual columns, it should start at the top so i can see the
+          days"* (Mitchell, preview, 2026-09-13). `scrollIntoView` moves EVERY
+          scrollable ancestor, the page included, and `block: "nearest"` is only
+          "move nothing" while the target already fits on screen. A day column
+          never does: the columns are flex siblings, so every one of them
+          stretches to the tallest, and the row is routinely taller than the
+          viewport — so `nearest` fell through to "align its top edge with the
+          top of the scrollport", which is a page scroll of exactly the height
+          of everything above the columns, landing the day headers underneath
+          the sticky trip header. Measured in Chromium on the real geometry:
+          targeting the column put the page at `scrollY` 180 and targeting this
+          header left it at 0, with an identical `scrollLeft` on the row — the
+          header spans the column's full width, so centring it horizontally IS
+          centring the column.
+
+          It is also the more honest target. What must come into view is the
+          day's NAME; the cards under it are what you scroll to next. */}
+      <header data-day-header className="flex items-baseline justify-between">
         {/* Mitchell, preview feedback on PR #55: "You should also be able to
             select the day here, and it syncs to the day card above." The chips
             row was the only way to focus a day; the column you are already
