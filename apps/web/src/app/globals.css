@@ -1285,9 +1285,36 @@ html[data-look="ledger"] .shadow-raised {
      `:has()` rather than loosening every block: the leading is right for text
      of words, and only a block carrying a chip has anything to make room for.
 
-     Two values, because the 2px rule costs more relative to a small font than a
-     large one. **Headings: 1.4.** Measured in the walk, an `h2` chip is 30px
-     against a 33.6px line — 3.6px of air. **Prose and list items: 1.7.** This
+     Two rules, and they are not the same KIND of value, because the 2px of
+     clearance a chip needs is a fixed length while the leading it eats into is
+     a multiple of the font-size — so what serves a 30px heading does not serve
+     a 14px paragraph, and within the headings, what serves `h1` does not serve
+     `h6`.
+
+     **Headings: `calc(1.34em + 6px)`, and it was a flat 1.4 until the
+     2026-09-12 retheme.** That retheme put the display register in Bricolage
+     Grotesque, whose em box is far taller than the face it replaced: a chip's
+     content area is 1.333× its font-size where the old one was 1.167×. Nothing
+     in the markup changed, and the leading that had 3.6px of air under it went
+     to −0.4 — the overlap Mitchell reported, back, from a font swap three files
+     away. The walk caught it: `the chip has no room in H2`, measured −0.3999….
+
+     A LENGTH rather than a ratio, because the clearance a chip needs is not
+     proportional and a single ratio therefore cannot serve every heading. The
+     chip paints `1.333em + 2px` (content area plus `border-b-2`), so the ratio
+     that clears it by 2px is `1.333 + 4/size`: 1.47 at `h1`'s 30px, 1.583 at
+     `h4`–`h6`'s 16px. A flat number picked on one heading is wrong on another,
+     and the smallest heading — the tightest, and the one no walk measures —
+     is where it would be wrong first and silently. `1.34em + 6px` instead
+     gives every size the SAME ~4px of air: h1 46.2 vs 42, h2 38.2 vs 34, h3
+     31.5 vs 27.3, h4–h6 27.4 vs 23.3. That is what makes the walk's one `h2`
+     measurement worth anything for the other five — the clearance is
+     `0.007em + 4px`, so if `h2` has room they all do.
+
+     `1.34` is still the current display face's box, so a future retheme moves
+     it. The walk is what will say so, now for every heading at once.
+
+     **Prose and list items: 1.7.** This
      is the half the second report was about and it does not look like an
      overlap in a screenshot: a 14px paragraph at 1.45 is a 20.3px line holding
      a 20px chip, so the tint cleared the line above it by three tenths of a
@@ -1306,7 +1333,7 @@ html[data-look="ledger"] .shadow-raised {
   .tc-page-editor h4:has([data-widget-value]),
   .tc-page-editor h5:has([data-widget-value]),
   .tc-page-editor h6:has([data-widget-value]) {
-    line-height: 1.4;
+    line-height: calc(1.34em + 6px);
   }
   .tc-page-editor p:has([data-widget-value]),
   .tc-page-editor li:has([data-widget-value]) {
