@@ -215,7 +215,7 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   ]);
   // It arrived: the trip has the day's stop in it. Day columns is where a day
   // count is easiest to assert (m10-growth, m11-saved-days do the same).
-  await bob.getByRole("tab", { name: "Day columns" }).click();
+  await bob.getByRole("tab", { name: "Plan" }).click();
   await expect(bob.getByText(`Stop in ${city}`)).toBeVisible();
 
   // ── The add counted, on the ledger, and the board says so ─────────────────
@@ -316,7 +316,7 @@ test("a shared day can start a new trip, as day 1, and the add still counts", as
   // `SetTripDates` being used instead of `SetTripStartDate`: that command
   // reconciles day count and would have minted an empty day 1, leaving the day
   // somebody actually came for sitting second.
-  await bob.getByRole("tab", { name: "Day columns" }).click();
+  await bob.getByRole("tab", { name: "Plan" }).click();
   await expect(bob.getByTestId("day-column")).toHaveCount(1);
   await expect(bob.getByTestId("day-column").getByText(`Stop in ${city}`)).toBeVisible();
 

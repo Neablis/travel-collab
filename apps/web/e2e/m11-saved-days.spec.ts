@@ -19,9 +19,9 @@ async function buildTrip(page: Page, name: string, dayCount: number): Promise<st
 }
 
 async function openTimeline(page: Page, tripId: string, tripName: string): Promise<void> {
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-  await page.getByRole("tab", { name: "Timeline" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
 }
 
 test("keep a day out of one trip, and drop it into another", async ({ page }) => {
@@ -80,7 +80,7 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
 
   // The target trip gained a day, and its stops came with it. Day columns is
   // where a day count is easiest to assert (m10-growth does the same).
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(2);
   // The day count alone passes if the insert creates an EMPTY day, which is
   // most of what could go wrong here (CodeRabbit, PR #71). The saved stop is

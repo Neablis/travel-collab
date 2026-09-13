@@ -14,6 +14,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see
   // m2/m3/m4/smoke's fix commit); this spec hadn't hit it until now.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  // SPEC §24: entering a trip lands on Overview — *"You read a trip before you
+  // change it."* This spec is about the board, so it goes to the one view that
+  // edits.
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   await page.getByRole("button", { name: "Add a day", exact: true }).click();
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -81,6 +85,9 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
 // which is long enough to overflow the scroller at the desktop width.
 test("board: scrolling to either end selects the first and the last day", async ({ page }) => {
   await page.goto("/demo");
+  // §24 again: `/demo` is the ordinary trip surface in read-only, so it lands on
+  // Overview like any other trip.
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   const columns = page.getByRole("group", { name: "Day columns" });
   await expect(columns).toBeVisible();

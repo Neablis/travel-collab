@@ -68,7 +68,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await signInAsDevUser(page, username);
 
   const tripId = await createTripWithADistance(page, e2eTripName("M17Prefs"));
-  await page.goto(`/trips/${tripId}?lens=Map`);
+  await page.goto(`/trips/${tripId}?view=Map`);
 
   const dayTile = page.locator('[aria-label="Days"] button[data-day-index="0"]');
   // Kilometres is the storage default, so this is what a brand-new account

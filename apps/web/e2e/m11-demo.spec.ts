@@ -46,11 +46,11 @@ test.describe("the demo trip", () => {
     await expect(page.getByText("This is an example trip — look around.")).toBeVisible();
 
     // The four lenses, each rendering the fixture's own content.
-    await expect(page.getByRole("tab", { name: "Day columns" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Plan" })).toBeVisible();
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
 
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page).toHaveURL(/view=Timeline/);
+    await page.getByRole("tab", { name: "Plan" }).click();
+    await expect(page).toHaveURL(/view=Plan/);
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "Calendar" }).click();
@@ -88,7 +88,7 @@ test.describe("the demo trip", () => {
     await page.getByRole("tab", { name: "Map" }).click();
     await expect(page).toHaveURL(/lens=Map/);
 
-    await page.getByRole("tab", { name: "Day columns" }).click();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
   });
 

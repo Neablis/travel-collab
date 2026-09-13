@@ -67,7 +67,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("tab", { name: "Calendar" }).click();
   await expect(page.getByText("Day 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Day 2", { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
   // LensRouter navigation (ADR-012, URL-as-truth) is a real client-side route
   // update, not instant — wait for Board's own content to mount before
   // interacting with it. (Task 3.3 deleted the Backlog column this used to
@@ -117,7 +117,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // located activities yet" empty state) confirms Fushimi Inari's geocode
   // landed.
   await expect(page.locator(".map-lens-canvas")).toBeVisible();
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   // -- shift the start date; day 1's own date label reflects the change --
   // (D-1: this used to also assert an anchor-violation conflict badge

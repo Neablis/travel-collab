@@ -33,7 +33,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
   // origin before a relative request URL means anything.
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // The Assistant rail is closed until asked for, at every width
@@ -73,7 +73,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   const tripName = e2eTripName("AI Yes");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
@@ -124,7 +124,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   const tripName = e2eTripName("AI No");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // Read the trip through the API before and after, so "unchanged" is the

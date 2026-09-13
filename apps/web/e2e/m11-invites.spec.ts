@@ -43,7 +43,7 @@ async function createTrip(page: Page, name: string): Promise<string> {
   const response = await page.request.post("/api/trips", { data: { name } });
   expect(response.ok()).toBe(true);
   const { tripId } = (await response.json()) as { tripId: string };
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
   return tripId;
 }
@@ -201,7 +201,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   // command-API idiom the file already prefers to re-walking a wizard.
   const tripId = await createMappedTrip(page, tripName, 1);
   const stopTitle = "Stop on day 1";
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can view");

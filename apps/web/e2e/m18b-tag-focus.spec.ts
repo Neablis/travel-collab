@@ -100,8 +100,8 @@ test.describe("tag focus", () => {
     await expect(hotel.getByTestId("tag-chip-lodging")).toHaveAttribute("aria-pressed", "false");
 
     // --- It survives a lens switch --------------------------------------
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page).toHaveURL(/view=Timeline/);
+    await page.getByRole("tab", { name: "Plan" }).click();
+    await expect(page).toHaveURL(/view=Plan/);
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
 
     const hanedaRow = row(page, "Land at Haneda");
@@ -125,7 +125,7 @@ test.describe("tag focus", () => {
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
 
     // --- Clear ----------------------------------------------------------
-    await page.getByRole("tab", { name: "Day columns" }).click();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await page.getByRole("button", { name: "Clear meal focus" }).click();
     await expect(page.getByTestId("tag-focus-line")).toHaveCount(0);
     await expectOpacity(card(page, "Land at Haneda"), 1);

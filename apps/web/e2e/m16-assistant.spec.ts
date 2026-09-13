@@ -24,7 +24,7 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   // origin before a relative request URL means anything.
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("button", { name: "Assistant", exact: true }).click();
@@ -130,7 +130,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // Zero days: the empty-trip chip is the whole of the rail's opening offer,
   // and it is literally the first step of "plan a trip from start to finish".
   const tripId = await createMappedTrip(page, tripName, 0);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await page.getByRole("button", { name: "Assistant", exact: true }).click();

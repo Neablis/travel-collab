@@ -60,7 +60,7 @@ test.describe("mobile assistant (phone viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
     return { tripId, name };
   }
 

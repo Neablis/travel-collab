@@ -29,7 +29,7 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // The rail is closed until asked for, at every width, so open it before
     // asserting anything about it.
@@ -47,7 +47,7 @@ test.describe("responsive (narrow viewport)", () => {
     // matters, and survives however the rail is implemented, is that the
     // rest of the page keeps responding while the rail is open.
     await expect(page.locator(".assistant-rail-scrim")).toHaveCount(0);
-    await page.getByRole("tab", { name: "Timeline" }).click();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Hide" }).click();
@@ -59,7 +59,7 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // SPEC §9's whole DOCKED claim, in one number: "the plan shrinks instead
     // of being overlaid." Checked at both a wide (1280px) and a narrow
@@ -95,10 +95,10 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     await expect(page.getByRole("tab", { name: "Day columns", selected: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Timeline" }).click();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
   });
 
@@ -107,7 +107,7 @@ test.describe("responsive (narrow viewport)", () => {
     for (const command of commandsFor("threeDayTrip", tripId)) {
       await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
     }
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     // Opened deliberately, unlike before: KI-17 is about a Radix portal
     // stacking underneath a fixed-position layer already on the page, and a
@@ -320,7 +320,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("MapPhone"), 3);
     await page.setViewportSize({ width: 411, height: 760 });
-    await page.goto(`/trips/${tripId}?lens=Map`);
+    await page.goto(`/trips/${tripId}?view=Map`);
 
     const strip = page.getByTestId("map-day-strip");
     await expect(strip).toBeVisible();
@@ -405,7 +405,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   test("keeps the rail and legend at desktop width", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("MapDesktop"), 3);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`/trips/${tripId}?lens=Map`);
+    await page.goto(`/trips/${tripId}?view=Map`);
 
     await expect(page.locator("[data-rail-track]")).toHaveCount(1);
     await expect(page.getByTestId("map-day-strip")).toHaveCount(0);
@@ -417,7 +417,7 @@ test.describe("responsive (Map lens on a phone)", () => {
   });
 });
 
-// Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
+// Mitchell, Vercel toolbar comment on `/trips/:id?view=Map&view=Calendar` at
 // 411x760 (the same phone the Map-lens block above uses): "all three columns
 // from share, trip overview to budget are really crowded and ugly on mobile,
 // if we hid them here would they still be accessible in trip settings?".
@@ -435,7 +435,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // count in the sheet is a number derived from something rather than 0.
     const tripId = await createMappedTrip(page, e2eTripName("HeaderPhone"), 3);
     await page.setViewportSize({ width: 411, height: 760 });
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     const settings = page.getByRole("button", { name: "Trip settings" });
     await expect(settings).toBeVisible();
@@ -555,7 +555,7 @@ test.describe("responsive (trip header on a phone)", () => {
   test("keeps the meta pill and budget in the header at desktop width, and Share nowhere in it", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("HeaderDesktop"), 3);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`/trips/${tripId}`);
+    await page.goto(`/trips/${tripId}?view=Plan`);
 
     await expect(page.getByTestId("trip-meta-row")).toBeVisible();
     // **Share is not in the header at desktop width either**, which is the half

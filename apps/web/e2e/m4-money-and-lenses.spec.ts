@@ -59,7 +59,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // entry and the M10 redesign never contemplated them), so the money
   // assertions now run against the surfaces that survived. Timeline's per-day
   // cost pill is the day subtotal.
-  await page.getByRole("tab", { name: "Timeline" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
   await expect(page.locator('[data-testid^="day-cost-"]').first()).toHaveText("€420.00");
 
   // The unscheduled (trip-level) 99.00 EUR stop stays parked in the rack — see
@@ -68,7 +68,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
 
   // The conflict banner only renders on the Board lens; switch there for the
   // budget-conflict assertions below.
-  await page.getByRole("tab", { name: "Day columns" }).click();
+  await page.getByRole("tab", { name: "Plan" }).click();
 
   // -- set a budget below the total: over-budget warning appears --
   // MoneyInput debounces/commits on blur (avoids firing one SetTripBudget

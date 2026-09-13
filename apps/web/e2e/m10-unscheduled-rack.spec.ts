@@ -18,7 +18,7 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
 
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   const rack = page.getByTestId("unscheduled-rack");
   // ActivityCard's testid carries the activity id (`activity-card-<uuid>`), so
   // every spec in this suite matches it by regex — there is no bare
@@ -66,7 +66,7 @@ test("undo reverses an unschedule", async ({ page }) => {
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
 
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await dragCardTo(page.getByTestId(/activity-card-/).first(), page.getByTestId("unscheduled-rack"));
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
 
@@ -103,7 +103,7 @@ test("a stop dragged out of the rack lands with a real time, taken from what it 
   // outcomes, depending on how you performed it.
   const name = e2eTripName("RackTime");
   const tripId = await createMappedTrip(page, name, 2);
-  await page.goto(`/trips/${tripId}?lens=Board`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
   // Park day 2's stop. Unscheduling strips the window, so what comes back out

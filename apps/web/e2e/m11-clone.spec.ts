@@ -81,7 +81,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   await addDay(page, tripId);
   await addDay(page, tripId);
 
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await shareLinkFor(page);
 
@@ -140,7 +140,7 @@ test("duplicating your own trip records where the copy came from", async ({ page
   test.slow();
   const tripName = e2eTripName("Duplicated");
   const tripId = await createTrip(page, tripName);
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
   await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
 
   await Promise.all([
