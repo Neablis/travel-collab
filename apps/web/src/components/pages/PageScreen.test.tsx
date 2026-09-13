@@ -510,6 +510,36 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(panel.getByRole("button", { name: /The days in detail: dates/ })).toBeTruthy();
   });
 
+  // The panel must close after you have USED it — and, as with the block-widget
+  // test above, a note on what this does not prove.
+  //
+  // The bug: a node view remounts when its attrs change, which is every
+  // rebind, so a clear keyed on the mount id was discarded and the panel stayed
+  // open forever once a binding had been picked. **jsdom does not remount the
+  // node view**, so this test passes with the broken key-matched clear
+  // restored — checked, not assumed (CLAUDE.md rule 3).
+  //
+  // Kept as a cheap assertion that the panel closes when the selection leaves.
+  // The witness for the regression is the e2e walk `two widgets on one page
+  // read two different days`, in a real browser, which is where the remount
+  // happens and where it was found.
+  it("closes the settings panel when the selection leaves", async () => {
+    await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    const panel = within(await screen.findByTestId("widget-settings"));
+
+    await userEvent.click(panel.getByRole("button", { name: /What it costs: dates/ }));
+    await userEvent.click(
+      within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }),
+    );
+    await userEvent.keyboard("{Escape}");
+
+    // Away, into the prose — what a person does next.
+    await userEvent.click(screen.getByText("Notes"));
+    await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
+    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
+  });
+
   it("lets two widgets on one page point at different days", async () => {
     // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
     // notebook that shows day 1, day 3 and day 9". Each widget carries its own

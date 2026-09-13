@@ -129,30 +129,52 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // panel that had just opened. Matching the key means a clear only wins if the
   // widget currently being shown is the one saying it lost selection.
   const [selectedWidget, setSelectedWidget] = useState<SelectedWidget | null>(null);
-  const handleWidgetSelected = useCallback((selection: SelectedWidget | null, reporterKey: string) => {
-    setSelectedWidget((current) => {
-      if (selection === null) {
-        // A clear from a widget that is not the one on show is a stale effect
-        // from the widget that just lost selection — ignore it.
-        return current?.key === reporterKey ? null : current;
-      }
-      // **Keep the existing object when nothing has actually changed.**
-      //
-      // The reporter is a node view effect, and the `params` it sends is
-      // `node.attrs.params ?? {}` — a fresh object on every render. Storing it
-      // unconditionally re-renders this screen, which re-renders the node view,
-      // which reports a new object, which re-renders this screen: a loop that
-      // does not settle, and the panel it is rendering flickers out of the DOM
-      // between frames. Comparing by value is what stops it; `key` plus the
-      // serialised params is the whole of what the panel reads.
-      if (
-        current !== null &&
-        current.key === selection.key &&
-        JSON.stringify(current.params) === JSON.stringify(selection.params)
-      ) {
-        return current;
-      }
-      return selection;
+  // **Every report lands in a ref, and the ref is flushed to state once, after
+  // all of this commit's effects have run.**
+  //
+  // Each mounted node view reports independently, so a click that moves the
+  // selection from A to B fires A's "lost it" and B's "have it" in an order
+  // React decides. Two earlier shapes of this both failed:
+  //
+  //  - Applying a bare `null` immediately let A's clear land after B's set and
+  //    close the panel that had just opened.
+  //  - Ignoring a `null` unless its key matched the widget on show fixed that
+  //    and introduced a worse one: a node view REMOUNTS when its attrs change,
+  //    which is every rebind, so afterwards it reported a different `useId`
+  //    than the panel was holding — and its clear was discarded forever. The
+  //    symptom was a settings panel that would not close once you had used it.
+  //
+  // Deferring the flush to a microtask removes the ordering question entirely:
+  // sets and clears both just write the ref, every effect in the commit has run
+  // by the time it is read, and the last writer is the truth. No key matching,
+  // so a remount cannot desync it.
+  const pendingSelection = useRef<SelectedWidget | null>(null);
+  const flushScheduled = useRef(false);
+  const handleWidgetSelected = useCallback((selection: SelectedWidget | null, _reporterKey: string) => {
+    pendingSelection.current = selection;
+    if (flushScheduled.current) return;
+    flushScheduled.current = true;
+    queueMicrotask(() => {
+      flushScheduled.current = false;
+      const next = pendingSelection.current;
+      setSelectedWidget((current) => {
+        if (next === null) return null;
+        // **Keep the existing object when nothing has actually changed.**
+        //
+        // The reporter is a node view effect, and the `params` it sends is
+        // `node.attrs.params ?? {}` — a fresh object on every render. Storing
+        // it unconditionally re-renders this screen, which re-renders the node
+        // view, which reports a new object: a loop that does not settle, and
+        // the panel it is rendering flickers out of the DOM between frames.
+        if (
+          current !== null &&
+          current.name === next.name &&
+          JSON.stringify(current.params) === JSON.stringify(next.params)
+        ) {
+          return current;
+        }
+        return next;
+      });
     });
   }, []);
   const [status, setStatus] = useState<Status>("loading");
