@@ -216,16 +216,21 @@ describe("templates", () => {
     // widgets and this is which ones. A change here is a deliberate change to
     // the page every trip opens on.
     expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual([
-      "attribute",
-      "attribute",
+      // The hook, then the shape.
+      "attribute", // trip.name
+      "attribute", // trip.countdown
       "dates",
-      "count",
-      "count",
+      "count", // days
+      "count", // stops
       "city",
+      // Then the document, in reading order.
       "open",
+      "city.detail",
       "day.detail",
+      "stop.rows", // booked only
       "cost",
-      "attribute",
+      "attribute", // trip.budgetRemaining
+      "cost.rows",
     ]);
     // And the gallery still builds itself — the other half of the old line,
     // which is unchanged and still worth holding.

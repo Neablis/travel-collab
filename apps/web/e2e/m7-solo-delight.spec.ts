@@ -130,11 +130,30 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // -- the Overview: the one page a trip comes with --
   await overviewLink.click();
   await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
-  await expect(page.getByText(/what's this trip about/i)).toBeVisible();
-  await expect(page.getByText(/track budget notes/i)).toBeVisible();
-  // Its one widget (SPEC §25's `w-open`), on a trip with nothing waiting: the
-  // empty state is the good one here, and it is a sentence rather than a blank.
+  // **What the page says now, which is the trip rather than a prompt to write
+  // about it.** Mitchell, 2026-09-13: *"Every element on there needs to be a
+  // existing widget"*. The two sentences this used to assert — "What's this
+  // trip about? Jot down the highlights" and "Track budget notes" — were
+  // placeholders asking the reader to type, and they are gone.
+  //
+  // The headings are the page's structure and the widgets are its content, so
+  // both are read: a heading alone would pass on a page whose widgets all
+  // failed to resolve.
+  await expect(page.getByRole("heading", { name: "What needs you" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The trip, day by day" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What it costs" })).toBeVisible();
+  // The trip's own name, resolved by a widget rather than typed. This walk's
+  // trip came from "Create empty", so it has no dates and no days and the rest
+  // of the page is its empty states — which is the state this page has to be
+  // good in, and the countdown below is the line that makes it useful.
+  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
+  // `open` (SPEC §25's `w-open`) on a trip with nothing waiting: the empty
+  // state is the good one here, and it is a sentence rather than a blank.
   await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
+  // And the countdown, which is the line SPEC §25's Overview now opens with.
+  // A trip with no dates says so in words that name the next thing to do,
+  // rather than sharing `attribute`'s blanket "nothing to show".
+  await expect(page.getByText("no dates set yet")).toBeVisible();
 
   // -- the assistant opens on a page, in EITHER mode (no real AI call) --
   // It used to be an editing-only control, hidden in Reading because what it
@@ -191,8 +210,20 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await openNotebookIndex(page);
   await page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) }).click();
   await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
-  await expect(page.getByText(/what's this trip about/i)).toBeVisible();
-  await expect(page.getByText(/track budget notes/i)).toBeVisible();
+  // The page a BRAND-NEW trip opens on — no dates, no days, no stops — which is
+  // the state Mitchell asked to be made good. Every line of it resolves to
+  // something a person can read and act on rather than to a blank or a shrug:
+  // the trip's name, how far off it is, how long it is, and what is waiting.
+  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("no dates set yet")).toBeVisible();
+  await expect(page.getByText("0 days")).toBeVisible();
+  await expect(page.getByText("no days yet")).toBeVisible();
+  await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
+  await expect(page.getByText("no budget set")).toBeVisible();
+  // Non-vacuous from the other side: the placeholders it used to carry are
+  // gone, not merely unasserted.
+  await expect(page.getByText(/what's this trip about/i)).toHaveCount(0);
+  await expect(page.getByText(/track budget notes/i)).toHaveCount(0);
 
   // The gallery still offers the pages a trip is no longer seeded with, and
   // this is where that is checked: "Day overview" exists to CHOOSE now (SPEC

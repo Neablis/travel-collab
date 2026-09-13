@@ -193,14 +193,27 @@ const overviewPage: TemplateSeed = {
       widget("city"),
     ),
     // ---- What to do next -------------------------------------------------
+    // First, because it is the reason to open the page rather than a tab.
     heading("What needs you"),
     block("open"),
+    // ---- The route -------------------------------------------------------
+    // Where the trip GOES, which is the most evocative thing a notebook can
+    // say about one and the thing no other section covers: the stats line
+    // names the cities and this says how long is spent in each.
+    heading("Where it goes"),
+    block("city.detail"),
     // ---- The trip itself -------------------------------------------------
-    // The read the deleted Timeline lens used to give, as a widget anyone can
-    // insert into any page (SPEC §24: *"its read-only day list became a widget
-    // inside the Overview document"*).
+    // The body of the page. This is the read the deleted Timeline lens used to
+    // give, as a widget anyone can insert into any page (SPEC §24: *"its
+    // read-only day list became a widget inside the Overview document"*).
     heading("The trip, day by day"),
     block("day.detail"),
+    // ---- What is settled --------------------------------------------------
+    // `booking.line`'s selection — one line per booked stop, with its time and
+    // what it cost. Before a trip this is the section people re-read: it is the
+    // part that is certain.
+    heading("What's booked"),
+    block("stop.rows", { kind: "booked" }),
     // ---- Money -----------------------------------------------------------
     // **Labels here and nowhere else above, and the difference is not style.**
     // "$1,240.00" does not say whether it is spent, budgeted or left, so these
@@ -214,6 +227,11 @@ const overviewPage: TemplateSeed = {
       text(" · budget left — "),
       widget("attribute", { field: "trip.budgetRemaining" }),
     ),
+    // The breakdown under the summary. `cost.rows` says "nothing priced yet"
+    // when empty rather than repeating the `cost` above it word for word —
+    // which is what it used to do, and two identical grey chips one under the
+    // other read as a rendering fault.
+    block("cost.rows"),
   ]),
 };
 

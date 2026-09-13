@@ -379,7 +379,14 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await expect(page.getByRole("complementary", { name: "Assistant" })).toHaveCount(0);
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.
-  await expect(page.getByText(tripName, { exact: true })).toBeVisible();
+  //
+  // **Two, because the seeded Overview opens with a `trip.name` of its own.**
+  // The page is composed entirely of widgets since 2026-09-13 and the first
+  // line of it is the trip's name, so one match is the seed and the second is
+  // this walk's insert. `toBeVisible()` tripped strict mode on the pair; a
+  // count is both legal and the stronger claim, since it falls to one if
+  // Reading removes the widget instead of only its controls.
+  await expect(page.getByText(tripName, { exact: true })).toHaveCount(2);
 
   await page.getByRole("button", { name: "Edit page" }).click();
   // **The seeded Overview opens with a widget in its first paragraph** (§25's
@@ -907,17 +914,21 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   await tripWithTwoDays(page);
   await openSeededPage(page);
 
-  // Into the block itself, not under it: `insertFromList` presses Enter first,
-  // which puts the widget in a paragraph of its own. The click lands at the
-  // END of the block rather than its centre, because a click in the middle of a
-  // block that already holds a widget selects that widget — an inline atom —
-  // and the next insert REPLACES it. That cost this walk a run.
-  const insertInto = async (block: Locator) => {
-    // The click deselects — see `insertFromList` for why no Escape belongs
-    // here.
+  // **Where the caret goes decides which block the widget lands in**, and this
+  // walk needs two different answers — one widget inside a heading, one inside
+  // a paragraph — from the same insert.
+  //
+  // The click lands at the END of the block rather than its centre, because a
+  // click in the middle of a block that already holds a widget selects that
+  // widget — an inline atom — and the next insert REPLACES it. That cost this
+  // walk a run. The click also deselects whatever was selected; see
+  // `insertFromList` for why no Escape belongs here.
+  const caretAtEndOf = async (block: Locator) => {
     await block.click();
     await page.keyboard.press("End");
     await expect(page.getByTestId("widget-settings")).toHaveCount(0);
+  };
+  const insertDatesHere = async () => {
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const list = page.getByRole("dialog");
     await expect(list).toBeVisible();
@@ -926,26 +937,22 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
     await expect(list).toBeHidden();
   };
 
-  // **The walk makes its own empty paragraph, because the seeded page no longer
-  // has one.** The Overview is composed entirely of widgets now — every
-  // paragraph on it holds at least one — so "the last paragraph" is a line with
-  // a `cost` and a `budget.remaining` already in it. Inserting there would put
-  // a third widget on that line and, worse, the `dates` this walk measures
-  // would not be the only `dates` on the page: the seeded stats line carries
-  // one too, and `.first()` would have measured THAT one while the assertion
-  // read as though it measured the inserted one.
-  //
-  // Pressing Enter at the end of the last heading gives a paragraph that is
-  // this walk's alone. The heading itself is still plain text, so the heading
-  // half needs no such trick.
+  // **The walk makes its own empty paragraph, because the seeded page has none
+  // left.** The Overview is composed entirely of widgets since 2026-09-13, so
+  // every paragraph on it already holds one and there is nowhere empty to
+  // insert into. Pressing Enter at the end of the last heading opens a
+  // paragraph that belongs to this walk alone — and doing it from a HEADING
+  // rather than from the last paragraph matters, because clicking a paragraph
+  // whose only content is a block widget selects the widget instead of placing
+  // a caret.
   const lastHeading = page.locator(".tc-page-editor h2").last();
-  await lastHeading.click();
-  await page.keyboard.press("End");
+  await caretAtEndOf(lastHeading);
   await page.keyboard.press("Enter");
-  await insertInto(page.locator(".tc-page-editor p").last());
+  await insertDatesHere();
   // The heading second, so no later click has to find its way around the widget
   // already in it.
-  await insertInto(page.locator(".tc-page-editor h2").last());
+  await caretAtEndOf(lastHeading);
+  await insertDatesHere();
 
   // Scoped to the widgets this walk inserted: `.last()` on the prose one,
   // because the seeded stats line holds a `dates` of its own further up.

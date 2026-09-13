@@ -173,6 +173,30 @@ describe("stop.rows", () => {
     expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, tag: "lodging" }).status).toBe("empty");
   });
 
+  it("says nothing is booked yet when a kind filter is what emptied it", () => {
+    // **The limitation this widget's own `emptyText` comment describes,
+    // retired for the one case worth phrasing.** That comment says a fixed
+    // string "cannot see the params, so 'no stops on this day' would be a claim
+    // the widget cannot keep" — true of `emptyText`, and no longer true of the
+    // resolver, which can now carry a reason (`MacroResult.because`). This is
+    // what the Overview's "What's booked" section says on a trip where nothing
+    // is, and "no stops to show" under that heading reads as a fault rather
+    // than as a fact.
+    const ctx = contextOf(selectionTrip());
+    // Day 3 holds a `planned` and an `idea`, and no booking.
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "booked" })).toEqual({
+      status: "empty",
+      because: "nothing booked yet",
+    });
+    // **Only the kinds that make a sentence.** "nothing hold yet" is not
+    // English, so the widget keeps its blanket wording rather than assembling a
+    // phrase out of a stored enum value — asserted, because a `Record` that
+    // covered every kind would pass the line above and read as nonsense here.
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "hold" })).toEqual({
+      status: "empty",
+    });
+  });
+
   it("groups under day headers, and gives the backlog its own", () => {
     // A line with no heading over it reads as belonging to whatever came before
     // it, which for the unscheduled stops would be the last day of the trip.
