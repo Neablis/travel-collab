@@ -517,6 +517,50 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **`open` takes filters: which kind of open item, and over which days (raised
+  by Mitchell on the PR 170 preview, 2026-09-13).** His words: *"This component
+  that shows issues should have a optional param for filtering on the type,
+  Overlap / Parked, etc and a date picker that defaults for all trip"*.
+
+  `open.ts` currently says the opposite in a comment — *"It declares no
+  filters… a 'what needs you, on day 3 only' is a question nobody asked"* —
+  which is now false and is part of the work rather than a note to update
+  afterwards.
+
+  **The two halves are not the same size, and that is the whole reason this is
+  here rather than in PR 170.**
+
+  *The date picker is small.* `dates` is an existing `FilterDimension` with a
+  schema, a control and a label already, and "defaults to all trip" is ADR-039
+  decision 2 for free — an absent filter is the widest one. `open` declaring it
+  is `filterParams(["dates"])` plus a predicate per row class, and every row
+  already knows its day except a parked idea, which has none (so it either
+  always shows or never does — a decision, not a lookup).
+
+  *The type filter is not.* It cannot be the existing `kind` dimension: that is
+  `ActivityKind` (booked, idea), and this is a different vocabulary — Overlap,
+  Too far, Anchor, Over budget, Empty day, Parked. Nor can it be a seventh
+  `FilterDimension`: dimensions narrow an entity's selection, `LEGAL_FILTERS`
+  is keyed by entity, and `open` deliberately has none (it is a registered
+  widget, not a primitive — see its own header). So it is an `extra` param, the
+  slot `count`'s `of` and `attribute`'s `field` use — **and neither of those
+  renders a control.** `attribute.field` says why in as many words: chosen once
+  by the preset, with no control that could fill it in afterwards. Mitchell
+  asked for a control, so this needs a new `WidgetInputType`, its option list,
+  its rendering in both the desktop panel and the phone sheet, and its wording
+  in the bind summary.
+
+  **The open design question**, which is why this wants his answer before it is
+  built: does the control offer the three row CLASSES (conflict / empty day /
+  parked) or the six LABELS the left column actually shows? Six matches what is
+  on screen, which argues for six; three matches how the resolver is built, and
+  `Conflict.kind` is `z.string()` in the contract rather than an enum, so a
+  six-value control is a closed vocabulary over an open one and a kind the
+  domain adds later would be unreachable by the filter.
+
+  Either way it is a contracts change with a changelog entry, and it belongs
+  with the widget work rather than bolted onto a design-sync PR that is green.
+
 - **The assistant asks to change the app's own state, and you approve it
   (raised by Mitchell on the PR 141 preview, 2026-09-04).** His words: *"The AI
   assistant needs a tool to toggle the trip overview page to editing, it would
