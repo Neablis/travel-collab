@@ -1187,3 +1187,66 @@ test("the settings column pins below the sticky chrome, not behind it", async ({
     toggle.y + toggle.height,
   );
 });
+
+test("a long value does not squeeze a repeat table's lead column to nothing", async ({ page }) => {
+  // Mitchell, on the preview, at 1728px with a screenshot: *"The Issue text is
+  // still going down side of page"*. "Still" is the finding — the 767px rule
+  // that stacks these tables on a phone fixed the symptom where he first saw
+  // it, and this is the same cause on a desktop, which that rule never touched.
+  //
+  // `grid-template-columns: minmax(0, 1fr) auto`. The lead's minimum was ZERO,
+  // and an `auto` value track resolves toward max-content — the only thing
+  // stopping it is the other track's floor. With none, a row whose value is a
+  // conflict's description drives "Empty day" down to a word a line.
+  //
+  // Reproduced with a real conflict rather than a fixture: two stops that
+  // overlap in time on one day, with titles long enough that the domain's
+  // description is the longest thing in the table.
+  //
+  // Red-checked by putting the zero floor back: `the lead wrapped:
+  // 182.578125px tall for one line of 23.8px ("Overlap")`. One seven-letter
+  // word, seven lines — which is what "going down the side of the page" is.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  const dayId = trip.days[0]!.dayId;
+  await addStopViaApi(page, tripId, "Breakfast at the covered market by the river", {
+    dayId,
+    timeWindow: { start: "09:00", end: "11:00" },
+  });
+  await addStopViaApi(page, tripId, "The long walk up to the shrine above the town", {
+    dayId,
+    timeWindow: { start: "10:00", end: "12:00" },
+  });
+
+  await openSeededPage(page);
+  await insertFromList(page, /What needs you/, "needs");
+
+  const table = page.getByRole("table").first();
+  const lead = table.getByRole("rowheader").first();
+  await expect(lead).toBeVisible();
+
+  // **The witness: the value really is long.** A table whose description
+  // happened to be short would pass this with the floor removed, which is the
+  // vacuity every other geometry walk here has been caught by.
+  const valueBox = await boxOf(table.getByRole("cell").first());
+  expect(valueBox.width, "the value is not long enough for this walk to prove anything").toBeGreaterThan(200);
+
+  // One line, not a column of words. Measured against the lead's own line
+  // height rather than a pixel: "goes down the side of the page" is a box
+  // several lines tall where its text is one line long.
+  const geometry = await lead.evaluate((el) => ({
+    height: el.getBoundingClientRect().height,
+    line: parseFloat(getComputedStyle(el).lineHeight),
+    text: el.textContent ?? "",
+  }));
+  expect(geometry.text.length, "the lead is empty, so this measures nothing").toBeGreaterThan(3);
+  // `py-2` is 8px top and bottom on the cell, so one line of text is
+  // `line + 16`. Two lines would clear `line * 2`.
+  expect(
+    geometry.height,
+    `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px ("${geometry.text}")`,
+  ).toBeLessThan(geometry.line * 2);
+});

@@ -257,8 +257,23 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
         <span
           role="table"
           className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface"
+          // **`min-content`, not `0`, as the lead's floor.** Mitchell, on the
+          // preview: *"The Issue text is still going down side of page"* — on a
+          // 1728px DESKTOP, so the phone rule was not the whole of it.
+          //
+          // `minmax(0, 1fr)` says the lead may be squeezed to nothing, and an
+          // `auto` value column will do exactly that when its content is prose:
+          // `auto` resolves toward max-content, and the only thing stopping it
+          // is the other track's minimum. At zero there is none, so a row whose
+          // value is a conflict's description drove "Empty day" down to a word
+          // — or a letter — a line.
+          //
+          // `min-content` is the honest floor: a track may not be starved below
+          // what its own content needs. It costs nothing to the widgets whose
+          // lead already has room, and it is the same fix as the 767px rule
+          // below, made general instead of made twice.
           // eslint-disable-next-line no-restricted-syntax -- the column count is data, not design: it comes from the widget's own rows and no token can name it
-          style={{ gridTemplateColumns: `minmax(0, 1fr)${" auto".repeat(columns)}` }}
+          style={{ gridTemplateColumns: `minmax(min-content, 1fr)${" auto".repeat(columns)}` }}
         >
           {rendered.rows.map((row, i) => (
             <span

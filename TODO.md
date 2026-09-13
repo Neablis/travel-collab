@@ -517,6 +517,39 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **`open` ("What needs you") is built as a two-column table and the design is
+  not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
+  looks nothing like the designs"*, and he is right — the row SHAPE is wrong,
+  not its styling.
+
+  `openBlock` in `Trip Planner Redesign.dc.html:5612` emits
+  `{ label, sub, right, tone, act }` per row:
+
+  | design | what it holds | what is built |
+  |---|---|---|
+  | `label` | *"Overlap on Day 6"*, *"Day 3 has nothing on it"*, *"2 ideas are parked"* — a sentence | a bare tag: "Overlap" / "Empty day" / "Parked" |
+  | `sub` | *"Sat 12 Apr · Kyoto"*, or the parked titles | nothing |
+  | `right` | *"Fix in Plan"*, *"Plan it"*, *"Place them"* — an action | nothing |
+  | `tone` | `warning` / `info` / `plain`, as a row tint and ink colour | nothing |
+  | `act` | navigates to Plan | nothing |
+  | empty | *"Nothing is waiting on you — every day has something on it and no two stops collide."* | "nothing is waiting on you" |
+
+  **Two of those are architecture, not layout.** `RepeatRow` is `lead` +
+  `cells`, so a sub-line and a right-hand action have nowhere to go; and `Seg`
+  is a closed union of text and chip (ADR-037 decision 3 — no HTML crosses the
+  seam), so `act` is a widget emitting an interactive control, which that
+  decision exists to prevent. Either the row type grows a third slot and a tone,
+  or `open` stops being a `repeat` and gets its own shape. That is an ADR-037
+  conversation.
+
+  The `tone` tint is the easy third: `--color-warning-tint` / `--color-info-tint`
+  / `--color-moss` are all in the theme already.
+
+  **Fixed separately and not part of this**: the lead column collapsing under a
+  long value, which is what he saw as *"the Issue text is still going down side
+  of page"*. That was `minmax(0, 1fr)` letting the label track starve, and it
+  hit every repeat widget rather than this one.
+
 - **The Overview notebook's identity moves from `context.kind` into the
   database (raised by Mitchell on the PR 170 preview, 2026-09-13).** His words:
   *"let's make sure the overview notebook is special cased in db in some way
