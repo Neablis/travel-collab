@@ -13,6 +13,7 @@ import { livePlanVersion } from "./entitlements/planVersions";
 import { offerTrial } from "./entitlements/grants";
 import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
+import { isBootstrapAdmin } from "@/lib/adminBootstrap";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
 // is created or refreshed on sign-in and nothing else touches it. Identity is
@@ -132,18 +133,34 @@ export async function upsertUser(
   now: string = new Date().toISOString(),
 ): Promise<void> {
   const free = livePlanVersion("free");
+  // **The operator bootstrap** (M20 link 7). Nothing in the product sets
+  // `is_admin` — granting writes `entitlement_grants`, not this column — so
+  // without a configured allowlist the first operator could only be made with a
+  // psql session. It only ever PROMOTES: `isAdmin` is absent from the `set`
+  // list below unless the id is configured, so an id removed from the variable
+  // keeps the bit until somebody takes it away deliberately. Demoting on
+  // absence would mean a deploy that forgot the variable locking every operator
+  // out of the console.
+  const bootstrapAdmin = isBootstrapAdmin(identity.id);
   await db
     .insert(users)
     .values({
       ...identity,
       planId: free.planId,
       planVersion: free.version,
+      isAdmin: bootstrapAdmin,
       createdAt: now,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: users.id,
-      set: { email: identity.email, name: identity.name, image: identity.image, updatedAt: now },
+      set: {
+        email: identity.email,
+        name: identity.name,
+        image: identity.image,
+        updatedAt: now,
+        ...(bootstrapAdmin ? { isAdmin: true } : {}),
+      },
     });
 }
 

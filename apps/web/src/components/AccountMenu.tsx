@@ -11,7 +11,7 @@ import { AccountSettingsSheet } from "@/components/account/AccountSettingsSheet"
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
-import { resetDemoData } from "@/lib/apiClient";
+import { fetchIsAdmin, resetDemoData } from "@/lib/apiClient";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -52,6 +52,20 @@ export function AccountMenu({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  // Read once on mount, beside the preferences read the provider already makes.
+  // `false` until it comes back, so the item never flashes for a non-operator.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchIsAdmin().then((result) => {
+      // Any failure reads as "not an operator": the item is advisory, and the
+      // route and every admin endpoint answer 404 regardless of what this does.
+      if (!cancelled) setIsAdmin(result.ok && result.value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const initials = initialsFor(name);
 
   // Discards the caller's trips (via DeleteTrip — recoverable server-side,
@@ -119,6 +133,24 @@ export function AccountMenu({
         >
           Your account
         </Button>
+        {/* **The operator console's entry point** (M20 link 7). Rendered only
+            for an operator, and **not on the phone at all** — the design says
+            the console is not available there, entry point included, and a
+            menu item that leads to a "not on a small screen" page is a worse
+            answer than no item.
+
+            Advisory only: the route and every admin endpoint answer 404 to a
+            non-admin whatever this renders. What it buys is that the console is
+            reachable by clicking rather than by knowing the URL. */}
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="mt-1 hidden h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink no-underline md:block"
+            onClick={() => setOpen(false)}
+          >
+            Operator console
+          </Link>
+        )}
         <Button
           variant="ghost"
           className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"

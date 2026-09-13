@@ -96,6 +96,15 @@ export async function grantSourcePanel(now: Date = new Date()): Promise<Record<s
   return Object.fromEntries(rows.map((row) => [row.source, row.count]));
 }
 
+/** One active grant, as the console shows it. */
+export interface AdminGrantRow {
+  id: string;
+  source: string;
+  planVersionRef: string;
+  /** ISO, or `null` for permanent — which is what a founder grant is. */
+  expiresAt: string | null;
+}
+
 /** One row of the accounts table. */
 export interface AdminAccountRow {
   userId: string;
@@ -105,6 +114,15 @@ export interface AdminAccountRow {
   isAdmin: boolean;
   /** Why they hold what they hold: every active grant's source. */
   grantSources: readonly string[];
+  /**
+   * The grants themselves — link 7's *"grant history"*, and what makes
+   * **revoking** possible from the console rather than only granting.
+   *
+   * Active grants only: a revoked or expired row is retained forever (nothing
+   * sweeps that table) but there is nothing left to revoke about it, and
+   * offering a Revoke button for one would be a control that does nothing.
+   */
+  grants: readonly AdminGrantRow[];
   /** Their effective capabilities, as the resolver answers them right now. */
   entitlements: readonly string[];
   /** Requests and micro-dollars over the trailing window. */
@@ -149,6 +167,12 @@ export async function adminAccounts(
         planVersionRef: planVersionRefOf(resolved.held),
         isAdmin: row.isAdmin,
         grantSources: resolved.grants.map((grant) => grant.source),
+        grants: resolved.grants.map((grant) => ({
+          id: grant.id,
+          source: grant.source,
+          planVersionRef: `${grant.planId}@v${grant.planVersion}`,
+          expiresAt: grant.expiresAt?.toISOString() ?? null,
+        })),
         entitlements: [...resolved.entitlements],
         requests: counts.get(row.id) ?? 0,
         microUsd: cost?.microUsd ?? 0,

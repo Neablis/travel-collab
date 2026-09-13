@@ -1,6 +1,7 @@
 import { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { readPreferences, writePreferences } from "@/server/users";
+import { isAdmin } from "@/server/entitlements/admin";
 
 // The Identity module's only read/write surface outside the sign-in callback
 // (M17). Account scope, so there is no `requireUser()` here and no access seam
@@ -26,7 +27,22 @@ export async function GET() {
   // Never 404s. `readPreferences` answers with the storage defaults for a
   // session whose row has gone (JWT sessions outlive rows, ADR-025), so the
   // account screen renders rather than erroring at someone who is signed in.
-  return Response.json({ preferences: await readPreferences(session.user.id) });
+  // **`isAdmin` rides alongside, not inside `UserPreferences`** (M20 link 7).
+  // It is not a preference — nobody sets it, and it is not theirs to change —
+  // so widening that DTO would put an authorisation fact in a shape whose whole
+  // contract is "what this person chose about themselves". It is a sibling
+  // field on the same response because the account menu already reads this
+  // endpoint on mount and the operator console needs an entry point: without
+  // one it is reachable only by typing the URL.
+  //
+  // **Advisory, exactly like `myRole`.** The console's layout, its page and
+  // every admin endpoint answer 404 to a non-admin regardless of what a client
+  // does with this.
+  const [preferences, admin] = await Promise.all([
+    readPreferences(session.user.id),
+    isAdmin(session.user.id),
+  ]);
+  return Response.json({ preferences, isAdmin: admin });
 }
 
 /**

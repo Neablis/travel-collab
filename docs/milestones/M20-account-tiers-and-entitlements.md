@@ -2,6 +2,24 @@
 
 **Status: OPEN — this is the current milestone, as of 2026-09-13.**
 
+> **BUILT, NOT CLOSED — 2026-09-13.** All six phases of
+> `docs/plans/2026-09-13-M20-M21-commercial.md` are on
+> `claude/milestone-m20-build-h2mw7b`, one commit each, unmerged.
+> `pnpm check` is green in full and `pnpm --filter web test:e2e:ci-like`
+> passes, with `e2e/m20-entitlements.spec.ts` walking five of the boxes below.
+> **No box here is ticked**: a gate closes on a **deployed** demo, through
+> `docs/milestones/README.md`'s gate-close checklist, in one commit — and
+> nothing has been deployed. Migrations `0019` and `0020` are applied locally
+> and **neither is dispatched to production**.
+>
+> **One thing this file does not name and the build needed: an operator
+> bootstrap.** `/admin` is gated on `users.is_admin`, and nothing in the
+> product sets that column — granting writes `entitlement_grants`, not this —
+> so the first operator could only be made with a psql session. `ADMIN_USER_IDS`
+> (`.env.example`, `apps/web/src/lib/adminBootstrap.ts`) is read at sign-in and
+> **only ever promotes**. It must be set in production before the console is
+> reachable there.
+
 Scoped and placed 2026-09-01 to run **after M9**, before M21. Placement was
 Mitchell's call and the reason was M9: `ai-live` defaults off and grounding is
 what would let it be turned on, so selling AI access before M9 would sell a
@@ -38,7 +56,12 @@ and no PCI surface.
 **It needs one migration** — `entitlement_grants`, plus `plan` and `is_admin`
 on `users`. Merging does not apply it; dispatch with
 `gh workflow run migrate-production.yml -f confirm=migrate` from `main`, and say
-so in the PR body. Highest migration in `main` today is `0014`.
+so in the PR body. ~~Highest migration in `main` today is `0014`.~~
+**Corrected 2026-09-13 at build time: it was `0018`, so this took `0019`** —
+the `0014` was written 2026-09-01 and four migrations landed after it. **It
+turned out to need TWO**: link 9's `ai_usage` is a second table and took
+`0020`. Both are applied locally and **neither is dispatched**; they go out in
+order.
 
 **A design handoff now covers three of the four billing surfaces**
 (2026-09-02): `.design-sync/handoff/SPEC.md` §17 is the design,
@@ -75,8 +98,14 @@ cheap to keep and expensive to lose:
 
 **The seam was built for this and has been waiting since M16.**
 
-`apps/web/src/server/ai/modelSelection.ts:88` declares `AiEntitlementCheck`.
-Line 89 stubs it `EVERYONE_IS_ENTITLED`. Line 47 says why:
+~~`apps/web/src/server/ai/modelSelection.ts:88` declares `AiEntitlementCheck`.
+Line 89 stubs it `EVERYONE_IS_ENTITLED`.~~ **Stale, and in this milestone's
+favour** — M9 Phase 0's P5 widened both (ADR-043 decision 5) before this
+milestone opened. At build time it was `:195` declaring
+`AiEntitlementCheck = EntitlementResolver`, defaulted at `:213`, with the port
+itself — already async, already per-request, already carrying `has()`,
+`ceilings` and `planVersionRef` — at `server/assistant/entitlements.ts:92`. So
+link 4 was genuinely *fill the stub*. Line 47 says why:
 
 > *"the day a pro-tier check exists it lands inside `isEntitled` below, not as
 > a signature change."*

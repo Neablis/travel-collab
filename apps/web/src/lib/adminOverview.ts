@@ -32,12 +32,20 @@ export interface AdminPlanPanelRow {
   accounts: number;
 }
 
+export interface AdminGrantRow {
+  id: string;
+  source: string;
+  planVersionRef: string;
+  expiresAt: string | null;
+}
+
 export interface AdminAccountRow {
   userId: string;
   email: string | null;
   planVersionRef: string;
   isAdmin: boolean;
   grantSources: readonly string[];
+  grants: readonly AdminGrantRow[];
   entitlements: readonly string[];
   requests: number;
   microUsd: number;

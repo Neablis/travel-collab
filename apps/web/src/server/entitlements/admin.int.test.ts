@@ -232,3 +232,45 @@ describe("granting is the only write", () => {
     expect(still!.revokedBy).toBe(currentUserId);
   });
 });
+
+describe("the operator bootstrap", () => {
+  // **How the first operator exists at all.** Nothing in the product sets
+  // `is_admin` — granting writes `entitlement_grants`, not this column — so
+  // without a configured allowlist the first operator could only be made with
+  // a psql session, and an operator surface nobody can reach is one that does
+  // not exist. Found by trying to walk the gate end to end.
+  it("promotes a configured id on sign-in", async () => {
+    const id = newUser();
+    vi.stubEnv("ADMIN_USER_IDS", id);
+    try {
+      await upsertUser({ id, email: null, name: null, image: null });
+      expect(await isAdmin(id)).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // **It only ever promotes.** An id removed from the variable keeps the bit
+  // until somebody takes it away deliberately — demoting on absence would mean
+  // a deploy that forgot the variable silently locking every operator out of
+  // the console, which is the failure you notice at the worst moment.
+  it("does not demote on a later sign-in with the id removed", async () => {
+    const id = newUser();
+    vi.stubEnv("ADMIN_USER_IDS", id);
+    await upsertUser({ id, email: null, name: null, image: null });
+    vi.unstubAllEnvs();
+    await upsertUser({ id, email: "later@example.test", name: null, image: null });
+    expect(await isAdmin(id)).toBe(true);
+  });
+
+  it("leaves an unconfigured account alone", async () => {
+    const id = newUser();
+    vi.stubEnv("ADMIN_USER_IDS", "somebody-else");
+    try {
+      await upsertUser({ id, email: null, name: null, image: null });
+      expect(await isAdmin(id)).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

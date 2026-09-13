@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { GrantForm } from "@/components/admin/GrantForm";
+import { GrantList } from "@/components/admin/GrantList";
 import type { AdminOverview } from "@/lib/adminOverview";
 
 // **The console, read-only over plans and granting as its only write**
@@ -178,7 +179,10 @@ export default async function AdminPage() {
                 </TD>
                 <TD className="text-ink">{account.planVersionRef}</TD>
                 <TD className="text-ink">
-                  {account.grantSources.length === 0 ? "—" : account.grantSources.join(", ")}
+                  {/* Link 7's grant history, and the console's second write.
+                      Revoking marks the row rather than removing it — the row
+                      is what answers "has this account ever held a trial". */}
+                  <GrantList grants={account.grants} />
                 </TD>
                 <TD className="text-ink">
                   {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
