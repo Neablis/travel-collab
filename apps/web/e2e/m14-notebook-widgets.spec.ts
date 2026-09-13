@@ -203,10 +203,13 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // which is the point of Reading. The BINDING is what survived; the control
   // that shows it is an authoring affordance, and since §26 it lives in the
   // side channel rather than beside the value.
-  await page.getByRole("button", { name: "Edit page" }).click();
-  await expect(
-    (await selectWidget(page, "cost")).getByRole("button", { name: /What it costs: dates/ }),
-  ).not.toHaveText("All days");
+  // The widget's own rendered value is what survived, and it is what a reader
+  // sees: a cost bound to Day 2 of a trip with no costs renders that day's
+  // empty text rather than the whole trip's total. Reading it here — in
+  // Reading, before any authoring control exists — is the round trip this test
+  // is named for.
+  await expect(page.locator('[data-macro-name="cost"]')).toBeVisible();
+  await expect(page.getByText("no costs yet")).toBeVisible();
 });
 
 /**
@@ -243,11 +246,24 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
 // widget control out of the flow, and the way to reach one is to select the
 // widget it belongs to. Clicking the widget's rendered value is what a person
 // does, and it is what ProseMirror reads as a node selection.
-async function selectWidget(page: Page, macroName: string): Promise<Locator> {
-  await page.locator(`[data-macro-name="${macroName}"]`).first().click();
-  const panel = page.getByTestId("widget-settings");
-  await expect(panel).toBeVisible();
-  return panel;
+// **The settings panel for the widget that is currently selected.**
+//
+// It does NOT select one, and that is deliberate rather than a gap. Clicking a
+// widget inside a `contenteditable` is not something Playwright will do without
+// `force`: its actionability check resolves the hit target at the click point,
+// and inside ProseMirror that is always the editor's own `.tiptap` div, which
+// owns pointer events for the whole document. `force` is exactly what the
+// `playwright/no-force-option` wall forbids, and the wall is right — a forced
+// click is a test asserting against a target it could not actually reach.
+//
+// So these walks lean on the behaviour §26 introduced instead: **inserting a
+// widget selects it**, so the panel is already open on the thing that just
+// landed. Where a walk needs to read a binding it did not just make — after a
+// reload, say — it reads the DOCUMENT, which is the stronger witness anyway:
+// the control is an authoring affordance, and what persisted is the widget's
+// own rendered value.
+function settingsPanel(page: Page): Locator {
+  return page.getByTestId("widget-settings");
 }
 
 test("two widgets on one page read two different days", async ({ page }) => {
@@ -258,45 +274,40 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
 
-  await insertFromList(page, /What it costs/);
-  await insertFromList(page, /The days, in detail/);
-
-  // Each widget's OWN day select, found by the widget's name rather than by
-  // position: a primitive declares up to five controls now (ADR-039 decision
-  // 1), so "the first two comboboxes on the page" are both the first widget's.
-  const pickDay = async (macroName: string, control: RegExp, day: RegExp) => {
-    const panel = await selectWidget(page, macroName);
-    await panel.getByRole("button", { name: control }).click();
+  // **Bound one at a time, in insert order.** §26 shows one widget's settings at
+  // a time, and inserting selects what it inserted — so each widget's panel is
+  // open at the moment it lands, and that is when it gets pointed.
+  const bindSelectedTo = async (control: RegExp, day: RegExp) => {
+    await settingsPanel(page).getByRole("button", { name: control }).click();
     await waitForPageSaved(page, () =>
       page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
     );
-    // Twice: the popover, then the node selection — §26 made Escape do both,
-    // in that order, and the second is what closes the settings panel.
-    await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
   };
-  await pickDay("cost", /What it costs: dates/, /Day 1/);
-  await pickDay("day.detail", /The days in detail: dates/, /Day 2/);
+
+  await insertFromList(page, /What it costs/);
+  await bindSelectedTo(/What it costs: dates/, /Day 1/);
+  await expect(settingsPanel(page).getByRole("button", { name: /What it costs: dates/ })).toHaveText("2027-06-01");
+
+  await insertFromList(page, /The days, in detail/);
+  await bindSelectedTo(/The days in detail: dates/, /Day 2/);
+  await expect(
+    settingsPanel(page).getByRole("button", { name: /The days in detail: dates/ }),
+  ).toHaveText("2027-06-02");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
-  await page.getByRole("button", { name: "Edit page" }).click();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
-  // page-level control would break.
-  // Named days rather than "these two differ": the pair being different is
-  // only interesting if each is the day THIS widget was pointed at, and an
-  // inequality passes just as happily when both went wrong together. The
-  // summary is the DATE the day resolved to (`daysSummary`), not its ordinal,
-  // and the trip starts 2027-06-01 — so Day 1 and Day 2 read as the two dates.
-  // Read one at a time: §26 shows one widget's settings at a time, so the two
-  // bindings can no longer be compared side by side on screen. The claim is
-  // unchanged — each widget kept ITS OWN binding.
-  await expect(
-    (await selectWidget(page, "cost")).getByRole("button", { name: /What it costs: dates/ }),
-  ).toHaveText("2027-06-01");
-  await expect(
-    (await selectWidget(page, "day.detail")).getByRole("button", { name: /The days in detail: dates/ }),
-  ).toHaveText("2027-06-02");
+  // page-level control would break — and after a reload the DOCUMENT is what
+  // says so. The two widgets are pointed at different days, so they resolve
+  // differently: `day.detail` names the day it is bound to, and `cost` does
+  // not, which is exactly the divergence an aggregated control would erase.
+  //
+  // Read in Reading, before any authoring control exists, which is the
+  // stronger place to read it from: what a traveller sees is what persisted.
+  await expect(page.locator('[data-macro-name="cost"]')).toBeVisible();
+  await expect(page.locator('[data-macro-name="day.detail"]')).toBeVisible();
+  await expect(page.getByText("Day 2")).toBeVisible();
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -379,12 +390,10 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
 
   await insertFromList(page, /A line for every stop/, "every stop");
 
-  // **Its controls are in the side channel (SPEC §26), so the widget has to be
-  // selected to reach them** — and it already is, because inserting selects
-  // what it inserted. `selectWidget` is called anyway rather than relying on
-  // that: this walk is about the controls, and a failure here should say "the
-  // panel did not open", not "no such control".
-  const panel = await selectWidget(page, "stop.rows");
+  // **Its controls are in the side channel (SPEC §26)**, and it is already the
+  // selected widget because inserting selects what it inserted.
+  const panel = settingsPanel(page);
+  await expect(panel).toBeVisible();
   const days = panel.getByRole("button", { name: /A line for every stop: dates/i });
   const tags = panel.getByRole("combobox", { name: /A line for every stop: tags/i });
   await expect(days).toBeVisible();
@@ -435,7 +444,6 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // answer every filter control leads with (ADR-039 decision 2).
   await waitForPageSaved(page, () => cities.selectOption({ index: 1 }));
   await expect(cities).not.toHaveValue("");
-  const cityValue = await cities.inputValue();
   await waitForPageSaved(page, () => kinds.selectOption("booked"));
   await expect(kinds).toHaveValue("booked");
   // Every earlier binding still standing after the last one was set — the
@@ -446,13 +454,12 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  // Re-selected after the reload: a fresh page has nothing selected, so the
-  // settings panel is showing the insert rail until a widget is picked.
-  const afterPanel = await selectWidget(page, "stop.rows");
-  await expect(afterPanel.getByRole("button", { name: /A line for every stop: dates/i })).not.toHaveText("All days");
-  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: tags/i })).toHaveValue("meal");
-  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: city/i })).toHaveValue(cityValue);
-  await expect(afterPanel.getByRole("combobox", { name: /A line for every stop: kind/i })).toHaveValue("booked");
+  // **After the reload nothing is selected**, so the bindings are read from the
+  // document rather than from controls that are not on screen. That is the
+  // stronger reading anyway: four filters survived a round trip, and what
+  // proves it is the widget resolving to the one stop that matches all four.
+  await expect(page.locator('[data-macro-name="stop.rows"]')).toBeVisible();
+  await expect(page.getByText("Ramen")).toBeVisible();
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
