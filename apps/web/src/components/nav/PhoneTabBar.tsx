@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, List, Luggage, Map, NotebookText } from "lucide-react";
+import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -105,10 +106,15 @@ function tripIdFromPathname(pathname: string): string | null {
  * the reason SPEC §24's mapping exists at all: a link somebody is holding still
  * resolves, and the bar must light the same tab the page actually rendered.
  */
-function activePhoneTab(pathname: string, lens: string | null): PhoneTabId | null {
+function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
     if (/^\/trips\/[^/]+\/pages(?:\/|$)/.test(pathname)) return "notebook";
-    return lens === "Map" ? "map" : "plan";
+    // **Every non-Map view lights Plan, including Overview and Calendar**, and
+    // that is the bar's scope rather than a fallback: SPEC §10 gives the phone
+    // two in-trip destinations, and the desktop's four views all live behind
+    // them. What it must NOT do is light Plan while the reader is on Map, which
+    // is what reading the wrong query parameter did.
+    return view === "Map" ? "map" : "plan";
   }
   if (pathname === "/") return "trips";
   if (pathname === "/playbooks/board" || pathname.startsWith("/playbooks/profile/")) return "trips";
@@ -171,11 +177,11 @@ const TAB_CLASS =
  * The bar itself, taking the route as plain values so it can be rendered from
  * both the server-safe path and the `useSearchParams()` one below.
  */
-function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | null }) {
+function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | null }) {
   const barRef = useRef<HTMLElement>(null);
 
   const tripId = tripIdFromPathname(pathname);
-  const active = activePhoneTab(pathname, lens);
+  const active = activePhoneTab(pathname, view);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -307,9 +313,16 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
  * contents, position, size and hit targets never move.
  */
 export function PhoneTabBarFallback() {
-  return <PhoneTabBarView pathname={usePathname()} lens={null} />;
+  return <PhoneTabBarView pathname={usePathname()} view={null} />;
 }
 
 export function PhoneTabBar() {
-  return <PhoneTabBarView pathname={usePathname()} lens={useSearchParams().get("lens")} />;
+  // **`resolveView`, not `params.get("lens")`.** This bar's own Map link has
+  // written `?view=Map` since SPEC §24, and this line still read the parameter
+  // the link stopped using — so tapping Map navigated correctly and left Plan
+  // lit (CodeRabbit, PR 170). Going through `resolveView` rather than reading
+  // `view` directly is the other half: it is the one place that knows the
+  // legacy URL shapes, so a bookmark carrying `?lens=Map` lights the same tab
+  // it navigates to instead of disagreeing with the screen under it.
+  return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} />;
 }

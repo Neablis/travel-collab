@@ -37,6 +37,38 @@ import { ok, empty, needsTrip, type MacroResult } from "../../result";
 // therefore an empty object rather than `filterParams([])`, which keeps it out
 // of the bind controls entirely: a widget with nothing to bind shows no bind
 // row, and §26 wants the settings panel to say only true things.
+/**
+ * What each conflict kind is CALLED in the left column.
+ *
+ * Every row here said "Overlap", which was true of one of the four kinds
+ * `detectConflicts` emits and a lie about the other three: an impossible
+ * journey between two cities, a stop that broke the day it was anchored to, and
+ * a trip over its budget were all announced as overlaps (CodeRabbit, PR 170).
+ * The description beside them was always right, so the effect was a label
+ * arguing with the sentence next to it.
+ *
+ * `Conflict.kind` is `z.string()` in the contract rather than an enum, so this
+ * cannot be exhaustive by type — hence the fallback below, which is a word that
+ * is true of anything the domain might add later. `open.test.ts` asserts this
+ * map covers every kind `packages/domain` actually emits, which is the check
+ * the type cannot make.
+ */
+const CONFLICT_LABEL: Record<string, string> = {
+  "time-overlap": "Overlap",
+  "impossible-geography": "Too far",
+  "anchor-violation": "Anchor",
+  "over-budget": "Over budget",
+};
+
+/**
+ * For a kind this file has not heard of.
+ *
+ * "Conflict" rather than the raw `kind`: a stored identifier printed into a
+ * page is how `time-overlap` would end up as a label somebody reads, and the
+ * description beside it already says what happened.
+ */
+const FALLBACK_CONFLICT_LABEL = "Conflict";
+
 const OpenParams = z.object({});
 type OpenParams = z.infer<typeof OpenParams>;
 
@@ -68,15 +100,15 @@ export const open: MacroDef<OpenParams, RepeatPayload> = {
 
     const rows: RepeatRow[] = [];
 
-    // 1. Overlaps. Dismissed conflicts are NOT open items — dismissing one is
-    //    the decision this widget is asking for, so a list that kept showing it
+    // 1. Conflicts. Dismissed ones are NOT open items — dismissing one is the
+    //    decision this widget is asking for, so a list that kept showing it
     //    would be asking twice. `dismissedConflictIds` is the same set the
     //    board filters on, read the same way.
     const dismissed = new Set(trip.dismissedConflictIds);
     for (const conflict of trip.conflicts) {
       if (dismissed.has(conflict.id)) continue;
       rows.push({
-        lead: rowLabel("Overlap"),
+        lead: rowLabel(CONFLICT_LABEL[conflict.kind] ?? FALLBACK_CONFLICT_LABEL),
         cells: [[rowValue(conflict.description)]],
       });
     }

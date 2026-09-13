@@ -73,6 +73,18 @@ describe("PhoneTabBar", () => {
     ["/trips/t1?lens=Schedule&view=Timeline", "Plan"],
     ["/trips/t1?lens=Board", "Plan"],
     ["/trips/t1?lens=Map", "Map"],
+    // **The parameter this bar's own links actually write**, and the one the
+    // active-tab check did not read: SPEC §24 moved every trip link to `?view=`
+    // and this line kept reading `?lens=`, so tapping Map navigated to Map and
+    // left Plan lit (CodeRabbit, PR 170). The `lens=` rows above stay — a
+    // bookmark still carries them — and now both vocabularies light the same
+    // tab the URL resolves to.
+    ["/trips/t1?view=Map", "Map"],
+    ["/trips/t1?view=Plan", "Plan"],
+    // Overview and Calendar have no tab of their own: SPEC §10 gives the phone
+    // two in-trip destinations, so they light Plan rather than nothing.
+    ["/trips/t1?view=Overview", "Plan"],
+    ["/trips/t1?view=Calendar", "Plan"],
     ["/trips/t1/pages", "Notebook"],
     ["/trips/t1/pages/p1", "Notebook"],
     ["/invite/tok", null],

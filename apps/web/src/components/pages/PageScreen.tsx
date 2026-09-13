@@ -13,7 +13,7 @@ import { Banner } from "@/components/ui/banner";
 import { NodeSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
-import type { SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
+import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
@@ -129,12 +129,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // panel that had just opened. Matching the key means a clear only wins if the
   // widget currently being shown is the one saying it lost selection.
   const [selectedWidget, setSelectedWidget] = useState<SelectedWidget | null>(null);
-  // **Every report lands in a ref, and the ref is flushed to state once, after
-  // all of this commit's effects have run.**
+  // **Every report lands in a queue, and the queue is resolved once, after all
+  // of this commit's effects have run.**
   //
   // Each mounted node view reports independently, so a click that moves the
   // selection from A to B fires A's "lost it" and B's "have it" in an order
-  // React decides. Two earlier shapes of this both failed:
+  // React decides — which is DOCUMENT order, not the order the user did
+  // anything in. Three shapes of this have now failed:
   //
   //  - Applying a bare `null` immediately let A's clear land after B's set and
   //    close the panel that had just opened.
@@ -143,20 +144,35 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   //    which is every rebind, so afterwards it reported a different `useId`
   //    than the panel was holding — and its clear was discarded forever. The
   //    symptom was a settings panel that would not close once you had used it.
+  //  - Deferring to a microtask and taking the LAST writer fixed both of those
+  //    and left the first one half-alive. Last-writer-wins is still document
+  //    order: selecting a widget that sits EARLIER in the page than the one
+  //    already open means B reports first and A's clear lands second, so the
+  //    panel closes instead of moving. Mitchell, on the preview: *"opening edit
+  //    ui is inconsistent, not sure why it sometimes works and sometimes
+  //    doesnt"* — the thing that decides is which of the two widgets is higher
+  //    up the document. CodeRabbit found the same race from the other end.
   //
-  // Deferring the flush to a microtask removes the ordering question entirely:
-  // sets and clears both just write the ref, every effect in the commit has run
-  // by the time it is read, and the last writer is the truth. No key matching,
-  // so a remount cannot desync it.
-  const pendingSelection = useRef<SelectedWidget | null>(null);
+  // **The rule is: a non-null report beats a null one in the same flush.** Not
+  // key matching, which the remount defeats — a claim always wins over a
+  // release, because the only way to get both in one commit is a selection
+  // MOVING, and the claim is where it moved to. Every report being null is the
+  // only state that means nothing is selected: a click into the prose, or the
+  // selected widget being deleted (which `MacroNodeView`'s unmount cleanup
+  // reports, or the panel would go on showing a widget that is gone).
+  const pendingReports = useRef<(SelectedWidget | null)[]>([]);
   const flushScheduled = useRef(false);
   const handleWidgetSelected = useCallback((selection: SelectedWidget | null, _reporterKey: string) => {
-    pendingSelection.current = selection;
+    pendingReports.current.push(selection);
     if (flushScheduled.current) return;
     flushScheduled.current = true;
     queueMicrotask(() => {
       flushScheduled.current = false;
-      const next = pendingSelection.current;
+      const reports = pendingReports.current;
+      pendingReports.current = [];
+      // The last CLAIM, or null when nobody claimed it this flush. The rule and
+      // its reasoning live beside the type — `winningReport`.
+      const next = winningReport(reports);
       setSelectedWidget((current) => {
         if (next === null) return null;
         // **Keep the existing object when nothing has actually changed.**

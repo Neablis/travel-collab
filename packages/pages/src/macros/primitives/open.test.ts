@@ -50,7 +50,11 @@ describe("`open` — what needs you (SPEC §25)", () => {
       tripWith({
         days: [dayWith(["a1"]), dayWith([])],
         conflicts: [
-          { id: "c1", kind: "overlap", severity: "warn", subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] },
+          // `time-overlap`, which is what `detectConflicts` actually emits.
+          // This fixture said `"overlap"` — a kind the domain has never
+          // produced — and passed, because every conflict was labelled
+          // "Overlap" regardless (CodeRabbit, PR 170).
+          { id: "c1", kind: "time-overlap", severity: "warn", subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] },
         ],
         backlog: ["a2"],
         activities: { a2: idea("Ghibli Museum") } as unknown as TripDetail["activities"],
@@ -60,11 +64,55 @@ describe("`open` — what needs you (SPEC §25)", () => {
     expect(texts(result)).toEqual(["Two stops at 09:00", "Day 2", "Ghibli Museum"]);
   });
 
+  it("names each kind of conflict for what it is, not all of them 'Overlap'", () => {
+    // **Every row said "Overlap"**, which was true of one of the four kinds
+    // `packages/domain/src/trip/conflicts.ts` emits and a lie about the other
+    // three: an impossible journey, a broken anchor and a trip over budget were
+    // all announced as overlaps, with a correct description sitting beside the
+    // wrong label (CodeRabbit, PR 170).
+    //
+    // The kinds are listed here rather than imported: `Conflict.kind` is
+    // `z.string()` in the contract, and this package may not import
+    // `@tc/domain`. So this is a transcription, and the fallback below is what
+    // makes a missed one degrade instead of lie.
+    const conflictOf = (kind: string, id: string) => ({
+      id, kind, severity: "warn" as const, subjects: ["a1"], description: `${kind} happened`, resolutions: [],
+    });
+    const result = resolve(
+      tripWith({
+        days: [dayWith(["a1"])],
+        conflicts: [
+          conflictOf("time-overlap", "c1"),
+          conflictOf("impossible-geography", "c2"),
+          conflictOf("anchor-violation", "c3"),
+          conflictOf("over-budget", "c4"),
+        ],
+      }),
+    );
+    expect(leads(result)).toEqual(["Overlap", "Too far", "Anchor", "Over budget"]);
+  });
+
+  it("calls an unknown kind a conflict rather than printing its stored name", () => {
+    // A kind the domain adds later. "Conflict" is true of anything, and the
+    // description beside it already says what happened — where printing the raw
+    // `kind` would put a stored identifier on a page somebody reads.
+    const result = resolve(
+      tripWith({
+        days: [dayWith(["a1"])],
+        conflicts: [
+          { id: "c9", kind: "something-new", severity: "warn", subjects: ["a1"], description: "Something new", resolutions: [] },
+        ],
+      }),
+    );
+    expect(leads(result)).toEqual(["Conflict"]);
+    expect(texts(result)).toEqual(["Something new"]);
+  });
+
   it("drops a dismissed conflict, because dismissing it WAS the decision", () => {
     // Asking twice about something already answered is the failure this guards:
     // the board filters the same set the same way, and an Overview that
     // disagrees with Plan is worse than no Overview (§25).
-    const conflict = { id: "c1", kind: "overlap", severity: "warn" as const, subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] };
+    const conflict = { id: "c1", kind: "time-overlap", severity: "warn" as const, subjects: ["a1"], description: "Two stops at 09:00", resolutions: [] };
     const days = [dayWith(["a1"])];
     expect(leads(resolve(tripWith({ days, conflicts: [conflict] })))).toEqual(["Overlap"]);
     expect(resolve(tripWith({ days, conflicts: [conflict], dismissedConflictIds: ["c1"] })).status).toBe("empty");

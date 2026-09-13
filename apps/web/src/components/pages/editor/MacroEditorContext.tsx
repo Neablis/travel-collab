@@ -61,6 +61,31 @@ export interface SelectedWidget {
   onChange: (params: Record<string, unknown>) => void;
 }
 
+/**
+ * Which of one commit's selection reports wins.
+ *
+ * **A claim beats a release.** Every mounted node view reports independently,
+ * so moving the selection from A to B produces both "A lost it" and "B has it"
+ * in one commit — in DOCUMENT order, which has nothing to do with what the user
+ * clicked. Taking the last report therefore closed the panel whenever the newly
+ * clicked widget sat higher up the page than the open one. Mitchell, on the
+ * preview: *"opening edit ui is inconsistent, not sure why it sometimes works
+ * and sometimes doesnt"*; the thing that decided was which widget came first.
+ *
+ * Not key matching, which a node view's remount on every rebind defeats (see
+ * `PageScreen`). The asymmetry is the rule: the only way to get a claim and a
+ * release in one commit is a selection MOVING, and the claim is where it moved
+ * to. Every report being null is the one state that means nothing is selected —
+ * a click into the prose, or the selected widget being deleted.
+ *
+ * Pure and exported so it can be argued with directly: the surrounding flush is
+ * a microtask inside a screen, which is not where a rule like this should only
+ * be readable.
+ */
+export function winningReport(reports: readonly (SelectedWidget | null)[]): SelectedWidget | null {
+  return reports.reduce<SelectedWidget | null>((won, report) => report ?? won, null);
+}
+
 export const MacroEditorContext = createContext<MacroEditorContextValue | null>(null);
 
 export function useMacroEditorContext(): MacroEditorContextValue {

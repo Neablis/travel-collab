@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
@@ -77,6 +77,33 @@ export function MacroNodeView({ node, selected, updateAttributes, editor, getPos
   // user clicked.
   const key = useId();
 
+  // **The one report this view owes on the way out: it was selected, and now it
+  // does not exist.**
+  //
+  // Deleting the selected widget destroys this view without `selected` ever
+  // going false, so nothing else can say the selection is gone — and
+  // `PageScreen` would go on showing the settings of a widget that is no longer
+  // in the document, writing its edits back through an `onChange` closed over a
+  // dead node (CodeRabbit, PR 170).
+  //
+  // Through REFS, with `key` as the only dependency, so this runs on unmount
+  // and on nothing else. The selection effect below deliberately re-runs on
+  // every params change — a rebind is a params change — and a cleanup sharing
+  // those deps would fire a clear every time somebody used the panel, which is
+  // the bug the comment in `PageScreen` records as the second shape this went
+  // through. A remount's clear is harmless anyway: a claim beats a release in
+  // the same flush, and the remounted view claims immediately.
+  const selectedRef = useRef(selected);
+  const reporterRef = useRef(onWidgetSelected);
+  selectedRef.current = selected;
+  reporterRef.current = onWidgetSelected;
+  useEffect(
+    () => () => {
+      if (selectedRef.current) reporterRef.current?.(null, key);
+    },
+    [key],
+  );
+
   useEffect(() => {
     if (!editing || onWidgetSelected === undefined) return;
     if (selected) {
@@ -125,7 +152,14 @@ export function MacroNodeView({ node, selected, updateAttributes, editor, getPos
   const className = [
     macroShape(name) === "single" ? null : "block",
     editing ? EDIT_OUTLINE : null,
-    selected ? SELECTED_RING : null,
+    // **The ring is an EDITING affordance, so Reading does not draw it.**
+    // ProseMirror will happily select an atom in a read-only document, and this
+    // used to ring it — while the settings panel stayed shut, because the
+    // effect above reports nothing outside Editing and `PageScreen` gates the
+    // sheet on it. Mitchell, on the preview: *"wheres the edit ui when I select
+    // the widget?"* The honest answer was that there is none in Reading (§18 —
+    // Reading is the traveller's view), and the ring was promising one.
+    editing && selected ? SELECTED_RING : null,
   ]
     .filter(Boolean)
     .join(" ");
