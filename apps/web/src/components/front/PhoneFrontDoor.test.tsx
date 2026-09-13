@@ -71,6 +71,36 @@ describe("the phone front door (SPEC §28)", () => {
     expect(opacities()).toEqual(stopped);
   });
 
+  // **The stage is never blank between two claims**, which is half of what
+  // Mitchell reported as *"there needs to be more time between the scroll
+  // transitions between blocks, right now the last few are almost
+  // unreadable"*. The other half is the length of the pin, which is geometry
+  // this layer cannot see (`.front-door-pin` is 900dvh of CSS and jsdom reports
+  // every height as 0 — `scrollTo` above fakes the two it needs).
+  //
+  // A claim used to finish fading out exactly where the next began fading in,
+  // so at every segment boundary both were at zero. CodeRabbit found the same
+  // thing as arithmetic — at `p = 0.25`, `0.5` and `0.75` neither neighbour was
+  // rendered — and the existing sample at `0.4` sat comfortably inside a
+  // segment where it could never have noticed.
+  it("always has a claim on screen through every transition", () => {
+    render(<PhoneFrontDoor />);
+    // The boundaries themselves and a hair either side: the gap was exactly one
+    // point wide, so sampling only the midpoints would have missed it and
+    // sampling only the boundaries would miss a fade that is merely too fast.
+    for (const boundary of [0.25, 0.5, 0.75]) {
+      for (const p of [boundary - 0.01, boundary, boundary + 0.01]) {
+        scrollTo(p);
+        const lit = opacities().filter((o) => o > 0);
+        expect(lit.length, `nothing is on screen at p=${p}`).toBeGreaterThan(0);
+        // And it is READABLE, not a sliver: the brightest claim at a boundary
+        // is one of the two crossfading, and a crossfade whose peak is 0.2 is
+        // the same complaint in a different shape.
+        expect(Math.max(...lit), `what is on screen at p=${p} is barely there`).toBeGreaterThan(0.5);
+      }
+    }
+  });
+
   // §28: *"then the map clears out and the call to action arrives on empty
   // paper."* The stage clears as ONE — the map and whatever claim is still on
   // it go together — so the pin never releases onto a line of type floating

@@ -35,12 +35,36 @@ import { cn } from "@/lib/cn";
 // needs scheduling: two style properties on five elements is cheap, and the
 // browser coalesces the paint itself.
 
-/** Where the stage starts clearing, and over how much of the scroll. §28's "the map clears out". */
-const TAIL_START = 0.72;
-const TAIL_LENGTH = 0.18;
+/**
+ * Where the stage starts clearing, and over how much of the scroll. §28's "the
+ * map clears out".
+ *
+ * **0.82, not 0.72.** Mitchell, on the preview: *"there needs to be more time
+ * between the scroll transitions between blocks, right now the last few are
+ * almost unreadable"* — and the tail is half of why. Everything before it is
+ * shared by four claims, so ten points of scroll taken off the front is two and
+ * a half points off each of them, and the LAST claim pays twice because the
+ * clear-out lands on top of it. The pin is also three times longer now (see
+ * `.front-door-pin`), which is the other half.
+ */
+const TAIL_START = 0.82;
+const TAIL_LENGTH = 0.14;
 /** How far the map drifts up across the whole pin, in px. */
 const MAP_DRIFT = 74;
-/** The fraction of a chunk's own window spent fading in, and out. */
+/**
+ * The fraction of a chunk's own window spent fading in, and out.
+ *
+ * **The fades OVERLAP the segment boundary rather than sitting inside it**, and
+ * that is the other half of *"the last few are almost unreadable"*. A claim used
+ * to finish fading out exactly where the next one started fading in — so at
+ * every boundary both were at zero and the stage went blank for a moment, four
+ * times down the page. CodeRabbit found the same thing as arithmetic: at
+ * `p = 0.25`, `0.5` and `0.75` neither neighbour was rendered.
+ *
+ * Now each claim is fully in by the start of its own segment and only begins to
+ * leave at the end of it, fading out ACROSS the next one, which is what a
+ * crossfade is.
+ */
 const EDGE = 0.16;
 const ENTER_FROM = 30;
 const LEAVE_TO = -26;
@@ -227,15 +251,19 @@ export function PhoneFrontDoor() {
         const last = i === CLAIMS.length - 1;
         let opacity: number;
         let dy: number;
-        if (t < 0 && !first) {
+        // The window a claim is visible in runs from `-EDGE` to `1 + EDGE` of
+        // its own segment, so it is already at full when its segment begins and
+        // only starts leaving when it ends. Both bounds widen with it, or the
+        // early returns would blank the very frames the overlap exists for.
+        if (t < -EDGE && !first) {
           opacity = 0;
           dy = ENTER_FROM;
-        } else if (t > 1 && !last) {
+        } else if (t > 1 + EDGE && !last) {
           opacity = 0;
           dy = LEAVE_TO;
         } else {
-          const inF = first ? 1 : Math.min(1, Math.max(0, t / EDGE));
-          const outF = last ? 1 : Math.min(1, Math.max(0, (1 - t) / EDGE));
+          const inF = first ? 1 : Math.min(1, Math.max(0, (t + EDGE) / EDGE));
+          const outF = last ? 1 : Math.min(1, Math.max(0, (1 + EDGE - t) / EDGE));
           opacity = Math.min(inF, outF);
           dy = (1 - inF) * ENTER_FROM - (1 - outF) * -LEAVE_TO;
         }

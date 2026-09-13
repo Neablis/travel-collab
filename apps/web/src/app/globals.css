@@ -332,7 +332,20 @@ html[data-look="ledger"] .shadow-raised {
      rejects. It lives here, once, the way `.unscheduled-rack`'s own one-off
      geometry does. */
   .front-door-pin {
-    height: 300dvh;
+    /* **900dvh, and it was 300.** Mitchell, on the preview: *"there needs to be
+       more time between the scroll transitions between blocks, right now the
+       last few are almost unreadable"*.
+
+       One of these viewports is the sticky stage, so the height is the sequence
+       plus one: at 300dvh four claims and the clear-out shared TWO screens of
+       scroll — about a third of a screen each, which is a flick of the thumb
+       per claim. At 900 they share eight, so a claim holds for most of a screen
+       and stopping on one is something you can actually do, which is §28's own
+       first note about this block ("you can stop on one").
+
+       Still a count rather than a spacing value, so still no token for it and
+       still an arbitrary Tailwind value the colour wall correctly refuses. */
+    height: 900dvh;
   }
 
   /* The paper veil over the front door's map (`dc.html:3401`), and the reason
@@ -391,22 +404,33 @@ html[data-look="ledger"] .shadow-raised {
     outline: 1px dashed var(--color-border-strong);
     outline-offset: 2px;
   }
+  /* **It was §26's 58×20 filled bar, and Mitchell asked for less of it**: *"the
+     indicator to show you can edit it is too much on top of text"*.
+
+     Two things made it heavy, and both are geometry rather than taste. It was
+     58px of filled moss — three times the width of the glyph it carries, for a
+     marker whose only job is to say "this is a widget" beside an outline that
+     already says so. And it hung 14px above the widget, which is MORE than the
+     12px `my-3` gap between blocks: so it did not sit in the margin, it sat on
+     the line above.
+
+     Now it is the glyph and nothing else, hung 11px — inside the gap, so on an
+     ordinary paragraph it touches no text at all. A heading's `mb-2` is 8px and
+     it still reaches 3px into that, which is the one case left and is a
+     descender's worth of a quiet 10px chevron rather than a filled bar.
+
+     No background: the gap it now sits in is empty, so the box was covering
+     nothing but paper, and the outline two pixels below is the affordance. */
   .tc-widget-handle {
     position: absolute;
-    /* Above the widget's own top edge, which is what "on its top edge" means
-       when the thing must not displace the line above it. */
-    top: -14px;
+    top: -11px;
     left: 0;
-    /* §26's 58×20. `line-height` centres the ▸ without a flex context, which
-       matters because this sits inside a ProseMirror inline atom where an
-       unexpected flex container changes how the node's own box is measured. */
-    width: 58px;
-    height: 20px;
-    line-height: 20px;
-    text-align: center;
-    font-size: 11px;
-    border-radius: var(--radius-xs);
-    background-color: var(--color-moss);
+    /* `line-height` centres the ▸ without a flex context, which matters because
+       this sits inside a ProseMirror inline atom where an unexpected flex
+       container changes how the node's own box is measured. */
+    height: 11px;
+    line-height: 11px;
+    font-size: 10px;
     color: var(--color-slate);
     /* The handle is a marker, not a target: §26 makes "the block itself" the
        click target, so this must never swallow the click that selects the
@@ -610,6 +634,45 @@ html[data-look="ledger"] .shadow-raised {
   .tc-widget-row > .tc-widget-cell:only-child {
     grid-column: 1 / -1;
     text-align: left;
+  }
+
+  /* **On a phone the table stacks: the label above its value, one pair per
+     row.** Mitchell, on the preview, pointing at `open` on a 411px Overview:
+     *"I think this is a widget, it should be, but it looks really bad on
+     mobile, the text is all wrapped"*.
+
+     Two columns in a 411px page do not fit, and which of them collapses is
+     decided by the track sizes rather than by what is worth reading: the lead
+     is `minmax(0, 1fr)` and every value column is `auto`, so a row whose value
+     is PROSE — an overlap's description, a parked idea's title — takes the
+     width it wants and squeezes "Empty day" down to one word per line. Naming
+     one of them the loser would fix `open` and break `cost.rows`, whose value
+     is a number and whose label is the prose.
+
+     So neither loses. The container drops to one column and each cell takes the
+     full width of it, which is the ordinary answer for a two-column table on a
+     phone and reads the same for every repeat widget.
+
+     `!important` because `grid-template-columns` is set INLINE by `MacroView` —
+     the column count is the widget's data, not a design value, so it cannot
+     live in this file. This is the one thing a stylesheet cannot otherwise
+     override, and a responsive rule is exactly what the escape hatch is for.
+
+     767px, the same line every other phone rule in this app draws. */
+  @media (max-width: 767px) {
+    .tc-widget-table {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+    .tc-widget-row > .tc-widget-cell {
+      grid-column: 1 / -1;
+    }
+    /* The label reads as a label rather than as a first line of the value:
+       smaller, quieter, and tight to the thing under it. */
+    .tc-widget-row > [role="rowheader"] {
+      padding-bottom: 0;
+      font-size: var(--text-2xs);
+      color: var(--color-slate);
+    }
   }
 
   .phone-tab-bar-inset {
