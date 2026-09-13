@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TEMPLATE_LIBRARY, type TemplateSeed } from "@tc/pages";
+import { TEMPLATE_LIBRARY, isOverviewPage, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
@@ -386,9 +386,26 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                 </Link>
 
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
-                    Delete
-                  </Button>
+                  {/* **No Delete on the Overview** — Mitchell, on the preview:
+                      *"should not have a delete button for the overview
+                      notebook for a trip since it's not deletable"*.
+
+                      The server has refused this since §25, in the DELETE's own
+                      `WHERE` clause, so pressing it produced a message rather
+                      than a loss — but offering a control that always refuses
+                      is a worse answer than not offering it. §25 says the
+                      Overview *"appears in the Notebook index like any other
+                      page"*, which is about it being LISTED, not about it
+                      carrying a control it cannot honour.
+                      
+                      Read through `isOverviewPage` rather than by title: a
+                      reader may rename this page, and the marker is what
+                      identity means here. */}
+                  {isOverviewPage(page.context) ? null : (
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}

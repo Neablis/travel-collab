@@ -854,7 +854,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}
-            {view !== "Map" && (
+            {/* **And not on the phone's Overview** — Mitchell, on the preview:
+                *"in mobile, hide the day bar here, leave on desktop"*.
+
+                The row narrows the OTHER views: it picks the day the columns
+                scroll to, the day the calendar centres, the day the assistant
+                takes as its scope. The Overview is a notebook page whose
+                widgets carry their own bindings (ADR-035 decision 1 — two
+                widgets on one page can read two different days), so nothing on
+                that screen answers to it. On a desktop it costs a strip of a
+                wide header and keeps the four views' chrome identical, which is
+                worth more than the strip; at 411px it is a scrolling row of
+                fourteen chips above a page that ignores every one of them.
+
+                `isPhone`, not `md:hidden`, for `DayChips`' own reason: the row
+                renders fourteen focusable buttons, and hiding them in CSS
+                leaves fourteen controls in the tree for a screen reader to walk
+                past on a page where none of them does anything. */}
+            {view !== "Map" && !(isPhone && view === "Overview") && (
               <DayChips
                 days={chipModel(activeTrip)}
                 focusedDay={focusedDay}

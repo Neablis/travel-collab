@@ -266,6 +266,44 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
+  test("the Overview offers no Delete in the index, and no day bar on the trip screen", async ({ page }) => {
+    const tripId = await openTripOverview(page);
+    await page.getByRole("button", { name: "Done editing" }).click();
+
+    // **No Delete on the row for a page that cannot be deleted.** Mitchell, on
+    // the preview: *"should not have a delete button for the overview notebook
+    // for a trip since it's not deletable"*. The server has refused this since
+    // §25 — in the DELETE's own `WHERE` clause — so the control produced a
+    // message rather than a loss, which is still a control that always says no.
+    await page.goto(`/trips/${tripId}/pages`);
+    const mine = page.getByRole("region", { name: "Your notebooks" });
+    await expect(mine.getByRole("listitem")).toHaveCount(1);
+    // Named per row, so this is the Overview's own button rather than any.
+    await expect(mine.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+
+    // **And the day bar is gone from the phone's Overview**: *"in mobile, hide
+    // the day bar here, leave on desktop"*. Asserted as absent from the TREE,
+    // not merely hidden — `DayChips` renders one focusable button per day, and
+    // `display: none` would leave a screen reader fourteen controls to walk
+    // past on a page none of them narrows.
+    //
+    // By URL rather than by tab, and the witness is the page body rather than a
+    // heading: SPEC §10 hides the four-view strip below 768px — the phone's two
+    // in-trip destinations stand for it — so there is no "Overview" tab to
+    // click and no `h1` on this route (the notebook's own title lives one route
+    // down, on `/pages/:id`). A bare `/trips/:id` resolves to Overview, and
+    // what it renders is the seeded page.
+    await page.goto(`/trips/${tripId}`);
+    await expect(page.locator(".tc-page-editor")).toBeVisible();
+    await expect(page.getByRole("group", { name: "Days" })).toHaveCount(0);
+
+    // Still there on Plan, which is the half that makes the claim a scope
+    // rather than a deletion: the row narrows the day columns, and the phone
+    // keeps it where it does something.
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    await expect(page.getByRole("group", { name: "Days" })).toBeVisible();
+  });
+
   test("the edit handle sits in the gap above its widget, not on the line before it", async ({ page }) => {
     await openTripOverview(page);
 

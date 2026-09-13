@@ -517,6 +517,43 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **The Overview notebook's identity moves from `context.kind` into the
+  database (raised by Mitchell on the PR 170 preview, 2026-09-13).** His words:
+  *"let's make sure the overview notebook is special cased in db in some way
+  rather than having to use special logic to know it's a trip overview
+  notebook"*.
+
+  Today it is `PageContext.kind === "overview"` inside the `pages.context`
+  jsonb, and the delete refusal reads it in the `WHERE` clause with
+  `coalesce(context->>'kind', '') <> 'overview'`. That works and is enforced at
+  the database — but it is a string inside a document, so nothing in the schema
+  says a trip has exactly one, and the uniqueness that matters
+  (`pages_system_seed_unique`) is keyed off the seed rather than off this.
+
+  A real column — `pages.kind`, or a nullable `pages.is_overview` with a partial
+  unique index on `(trip_id)` — makes "one undeletable Overview per trip" a
+  constraint rather than a convention, and turns the guard into a plain
+  predicate. **It is a Drizzle migration**, which per ADR-004 means a
+  `migrate-production` dispatch by hand after merge, so it wants its own PR
+  rather than riding one that is green.
+
+  Also needed with it: the contracts changelog entry retiring or narrowing
+  `PageContext.kind`, and a decision on whether the field stays in `context` as
+  a mirror (two sources of truth) or leaves (a breaking read for anything
+  holding an old `PageContext`).
+
+- **The seeded Overview is titled `Overview — <trip name>` (same thread).**
+  *"use the trip name for its title like Overview - <trip name>, since there
+  will be one for every trip"*. `instantiateDefaults(tripId)` is handed an id
+  and not a name, so this needs the trip's name at seed time or a title derived
+  at read time — and a decision about the trips that already have one called
+  "Overview". His premise is a list that spans trips; the index at
+  `/trips/:id/pages` shows one trip's, so it may be aimed at a surface that
+  does not exist yet. Worth asking before building.
+
+  Filed alongside: *"might want to bucket up the notebooks for overviews or not
+  show them here"* — explicitly tentative, and not clear enough to build from.
+
 - **`open` takes filters: which kind of open item, and over which days (raised
   by Mitchell on the PR 170 preview, 2026-09-13).** His words: *"This component
   that shows issues should have a optional param for filtering on the type,
