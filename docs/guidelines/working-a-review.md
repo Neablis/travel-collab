@@ -28,9 +28,23 @@ PR #141 until Mitchell asked why. `mcp__github__resolve_review_thread` takes
 `owner`, `repo`, and the `threadId` from `pull_request_read`'s
 `get_review_comments`.
 
-CodeRabbit's own threads *do* resolve themselves, which is exactly what makes
-this easy to miss: the review surface appears to be keeping itself tidy while
-half of it silently is not.
+CodeRabbit's own threads resolve themselves **only when a review actually
+re-runs**, and in this repository one never does unless somebody asks for it.
+Its walkthrough says why, in the run-configuration block: *"This repository does
+not receive automatic reviews because it has fewer than 10 stars."* So a
+CodeRabbit thread here behaves exactly like a Copilot one — it stays open
+forever, including after the fix it asked for is pushed.
+
+Measured on PR #170, 2026-09-13: fourteen findings, every one fixed and pushed
+across four commits, all fourteen still open hours later. **Resolve them as you
+land each fix**, on the same terms as Copilot's.
+
+The original wording of this paragraph said CodeRabbit's threads do resolve
+themselves, and that is true of a repository whose reviews run automatically —
+which is what makes this worth stating rather than deleting. If this repo
+crosses ten stars, or the review trigger changes, the old behaviour comes back
+and resolving by hand becomes redundant rather than wrong. **Check the
+walkthrough's run-configuration block before assuming either.**
 
 ### CodeRabbit puts findings outside the diff
 
@@ -46,6 +60,14 @@ all. Counting or reading review threads misses them entirely.
   <sha>`). On PR #141 it read `🟠 High · up to ad3c1` for hours after four
   more commits had landed, including the ones fixing what it was flagging.
   Check the sha before believing the verdict, and say so when reporting it.
+- **Where reviews do not re-run automatically, that staleness is permanent**,
+  not a lag. On PR #170 the Merge Risk stayed stamped at the PR's opening commit
+  through sixteen more, still naming four defects that were fixed — and the
+  pre-merge docstring percentage was measured against the same dead commit.
+  Nothing recomputes either line until a review is triggered. The reviewer
+  reading the PR sees the stale verdict, so correcting it is a **comment on the
+  PR mapping each claim to the commit that answered it**, not a note to your
+  user.
 
 ### Vercel toolbar threads are a fourth inbox, and they gate the PR
 
