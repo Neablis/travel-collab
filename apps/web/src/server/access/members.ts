@@ -3,6 +3,12 @@ import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Db } from "../db/client";
 import { memberRole } from "../accessPolicy";
 import { tripMemberships, users } from "../db/schema";
+// **Access & Membership reads a boolean out of Entitlements, never the other
+// way round** (ADR-045 rule 5). This import is the direction the module map
+// allows: the gate lives here, because this module is the one that knows an
+// invite is a collaboration; `trip.collaborators` is an opaque capability
+// string on the other side of the call.
+import { accountCan } from "../entitlements/resolver";
 
 type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -118,7 +124,63 @@ export async function effectiveMembers(
   tripId: string,
   projected: readonly TripMember[],
 ): Promise<TripMember[]> {
-  return mergeMembers(projected, await grantedMembers(tx, tripId));
+  const granted = await grantedMembers(tx, tripId);
+  return mergeMembers(projected, await capGrantedOnLapse(projected, granted));
+}
+
+/**
+ * Who pays for this trip's collaboration.
+ *
+ * The trip's owner — `members[0]` out of the projection, which `TripCreated`
+ * mints and no planning command ever reorders. Not the reader: an editor
+ * reading a premium owner's trip is collaborating on something that is paid
+ * for, and keying on whoever happens to be looking would make a trip's member
+ * list different for each of them.
+ */
+function billingSubject(projected: readonly TripMember[]): string | null {
+  return projected[0]?.userId ?? null;
+}
+
+/**
+ * **The collaboration gate, applied on READ** (M20 link 6).
+ *
+ * On lapse, granted memberships cap at `viewer`. Three things follow, and they
+ * are the whole reason for the read-boundary form rather than a write:
+ *
+ *   * **Resubscribing restores every collaborator with zero writes** and no
+ *     re-invite. The rows never changed, so there is nothing to put back.
+ *   * **A billing lapse cannot corrupt membership data.** The worst a lapse can
+ *     do is narrow what a read reports.
+ *   * `members.ts`'s standing rule — *"Changing a role stays the owner's
+ *     operation — revoke and re-invite"* — is not violated, because nothing
+ *     changes a role. The read caps it.
+ *
+ * **The owner is untouched by construction.** This caps GRANTED memberships
+ * only; the owner's role comes from the projection and never appears in this
+ * list. So solo planning stays free with no special case, which is the
+ * milestone's most important negative.
+ *
+ * Pure over the boolean. The one I/O is asking Entitlements, and the question
+ * it asks is `can(account, "trip.collaborators")` — **Entitlements never learns
+ * that this is about invites** (ADR-045 rule 5). The gate lives here, in Access
+ * & Membership, and reads a boolean out of that module.
+ */
+export function capGranted(granted: readonly TripMember[], entitled: boolean): TripMember[] {
+  if (entitled) return [...granted];
+  return granted.map((member) => ({ ...member, role: "viewer" as TripRole }));
+}
+
+async function capGrantedOnLapse(
+  projected: readonly TripMember[],
+  granted: readonly TripMember[],
+): Promise<TripMember[]> {
+  // Nothing granted, nothing to cap — and, more to the point, nothing to ask
+  // Entitlements about. A solo trip is the overwhelming majority of reads, and
+  // this is what keeps the gate off that path entirely.
+  if (granted.length === 0) return [...granted];
+  const owner = billingSubject(projected);
+  if (owner === null) return [...granted];
+  return capGranted(granted, await accountCan(owner, "trip.collaborators"));
 }
 
 /** Trip ids this user reaches through an accepted invite (not the ones they own). */

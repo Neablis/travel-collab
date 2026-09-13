@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/client";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { tripInvites, users } from "../db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { getTripDetail } from "../projections";
@@ -32,11 +33,18 @@ let GUEST = "";
 // The third party: someone holding a link who is on neither side of the trip.
 let CARA = "";
 
-beforeEach(() => {
+beforeEach(async () => {
   const run = randomUUID().slice(0, 8);
   OWNER = `dev-alice-${run}`;
   GUEST = `dev-bob-${run}`;
   CARA = `dev-cara-${run}`;
+  // **M20 link 6: this suite's owner has to be able to collaborate.** Seeding a
+  // trip by command mints no `users` row, and `entitlementsFor` reads a session
+  // with no row as bare `free` — so without this the owner's granted members
+  // cap to `viewer` on read and `createInvite`'s route refuses. All three are
+  // the gate working; this suite is about invites, not about entitlements, and
+  // says so here rather than asserting around it.
+  await entitleAccounts([OWNER]);
 });
 
 async function seedTrip(name = "Kyoto"): Promise<string> {
@@ -593,14 +601,14 @@ describe("invite preview", () => {
 
   it("names the inviter when Identity knows them", async () => {
     const tripId = await seedTrip();
-    await db.insert(users).values({
-      id: OWNER,
-      email: "alice@example.com",
-      name: "Alice",
-      image: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    });
+    // An UPDATE, not an insert: since M20 the suite's `beforeEach` gives this
+    // owner a `users` row so the collaboration gate lets them invite at all, so
+    // an insert here is a primary-key conflict. What this test is about is the
+    // profile fields, which is what it now sets.
+    await db
+      .update(users)
+      .set({ email: "alice@example.com", name: "Alice", image: null })
+      .where(eq(users.id, OWNER));
     const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
     const preview = await previewInvite(invite.token, GUEST);
     expect(preview.ok && preview.value.invitedByName).toBe("Alice");

@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `TripAccess.collaboratorsEntitled`: is this trip collaborative
+
+- Added: `collaboratorsEntitled: z.boolean()` on `TripAccess`
+  (`packages/contracts/src/access.ts`). Nothing else changed shape
+- Why: M20 link 6. Inviting anyone requires the trip **owner's**
+  `trip.collaborators`, and the Travelers panel has to know before it renders a
+  control — the design handoff (§17.3) does not disable the *Invite someone*
+  button for an unentitled owner, it does not render it at all and puts a
+  named-tier block in its place
+- **The OWNER's entitlement, not the reader's**, and the asymmetry is the
+  design: the owner is the billing subject, so an editor reading this learns
+  whether the trip they are on is collaborative, not whether their own account
+  could pay for one
+- **Advisory, exactly like `myRole`.** `POST /api/trips/:tripId/invites`
+  refuses with **402** and `code: "collaborators-not-entitled"` whatever a
+  client does with this field
+- **Entitlements never learns what a trip is** (ADR-045 rule 5). This is the
+  boolean Access & Membership reads out of that module and puts on its own DTO;
+  `trip.collaborators` is an opaque capability string on the other side of that
+  call, and `moduleBoundary.test.ts` enforces the direction
+- Consumers updated, same PR: `app/api/trips/[tripId]/access/route.ts`
+  (computes it from the owner; the demo trip is entitled by construction,
+  because its travellers are invented people and that path must touch no
+  database), `components/trip/TravelersPanel.tsx` (the named-tier block and the
+  lapse banner)
+- Breaking? no — a new required field on a response DTO, produced by the one
+  route that builds it. No stored payload and no request shape moved
+
 ## 2026-09-13 — `ai-not-entitled` answers 402, not 403 (BREAKING, wire)
 
 - Changed: `POST /api/trips/:tripId/ask` answers **402 Payment Required** with

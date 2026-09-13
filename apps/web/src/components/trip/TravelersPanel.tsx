@@ -126,7 +126,18 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
     }
   }
 
-  const canInvite = access?.myRole === "owner";
+  const isOwner = access?.myRole === "owner";
+  // **Two conditions, and the second is M20 link 6.** Owner-only was already
+  // true; inviting anyone now also requires the trip owner's
+  // `trip.collaborators`. Advisory only — `POST /invites` refuses with 402
+  // server-side whatever this decides.
+  const collaboratorsEntitled = access?.collaboratorsEntitled ?? true;
+  const canInvite = isOwner && collaboratorsEntitled;
+  // Everyone who is on this trip because they accepted an invite — i.e. not the
+  // owner. When the owner is not entitled these are the rows the server capped
+  // to `viewer` on read, which is what the banner below explains.
+  const grantedCount = (access?.members ?? []).filter((m) => m.role !== "owner").length;
+  const lapsed = isOwner && !collaboratorsEntitled && grantedCount > 0;
   const pending = (access?.invites ?? []).filter((i) => i.status === "pending");
 
   return (
@@ -150,6 +161,51 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
           </div>
         ))}
       </div>
+
+      {/* **The lapse banner, in the same words the read boundary uses.**
+          Everyone except the owner is capped at reading, nothing was removed,
+          no role was rewritten, and paying again restores all of them with no
+          re-invites — which is literally true, because `capGranted` narrows a
+          READ and `trip_memberships` was never written. */}
+      {lapsed && (
+        <div role="status" className="flex flex-col gap-1 border-t border-hairline pt-3">
+          <Text as="span" className="text-xs text-ink">
+            {grantedCount === 1 ? "Your collaborator can" : `Your ${grantedCount} collaborators can`}{" "}
+            read this trip but not edit it, because this account is not on Premium.
+          </Text>
+          <Text as="span" className="text-xs text-slate">
+            Nobody was removed and no role was changed. Subscribing again restores everyone exactly
+            as they were.
+          </Text>
+        </div>
+      )}
+
+      {/* **The invite form is NOT RENDERED for an unentitled owner** — a
+          named-tier block takes its place (design handoff §17.3, 2026-09-02).
+          A disabled button beside an explanation would be the obvious move and
+          the worse one: it offers a control that can never work.
+
+          This is the half of M20's gate box the server cannot satisfy on its
+          own. The endpoint refuses with the tier named; this is where a person
+          actually reads it, and they read it BEFORE trying rather than after.
+
+          No price and no checkout: M20 takes no money, and M21 link 5 is where
+          a chooser arrives. */}
+      {isOwner && !collaboratorsEntitled && (
+        <div
+          role="note"
+          data-testid="collaborators-gate"
+          className="flex flex-col gap-1 border-t border-hairline pt-3"
+        >
+          <Text as="span" className="text-xs text-ink">
+            Inviting people to a trip is part of Premium.
+          </Text>
+          <Text as="span" className="text-xs text-slate">
+            Planning a trip on your own is always free — days, activities, costs, saved days and
+            publishing to Discover are all included.
+          </Text>
+        </div>
+      )}
 
       {canInvite && (
         <form className="flex flex-col gap-2" onSubmit={(e) => void handleInvite(e)}>
