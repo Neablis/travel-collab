@@ -31,13 +31,35 @@ async function seedTrip() {
 // docs/testing-baseline.md for the isolation-strategy writeup (Phase 2 Task
 // 2.6).
 describe("pages repository", () => {
-  it("lazily instantiates the two default pages on first list", async () => {
+  // **One page, not two, since SPEC §25** — Mitchell, 2026-09-12: *"Only 1
+  // notebook per trip is always generated, this is undeletable notebook that
+  // needs to be created on every new trip."* Counted off `DEFAULT_TEMPLATES`
+  // rather than hard-coded, so the next change to what a trip is seeded with is
+  // one edit rather than a number in three places.
+  it("lazily instantiates the default pages on first list", async () => {
     const { tripId } = await seedTrip();
     const first = await listPages(tripId);
     expect(first.map((p) => p.title).sort()).toEqual(SEEDED_TITLES_SORTED);
-    expect(first).toHaveLength(2);
+    expect(first).toHaveLength(DEFAULT_TEMPLATES.length);
     const second = await listPages(tripId); // idempotent — no duplicate instantiation
-    expect(second).toHaveLength(2);
+    expect(second).toHaveLength(DEFAULT_TEMPLATES.length);
+  });
+
+  // §25: the Overview *"appears in the Notebook index like any other page"* and
+  // its delete control *"refuses with a reason"* rather than being hidden — so
+  // the refusal has to be real at the server, where a keyboard shortcut or a
+  // direct call lands.
+  it("refuses to delete the seeded Overview, and says why", async () => {
+    const { tripId } = await seedTrip();
+    const [overview] = await listPages(tripId);
+    const outcome = await deletePage(overview!.id);
+    expect(outcome).toEqual({
+      ok: false,
+      reason: "undeletable",
+      message: expect.stringContaining("comes with the trip"),
+    });
+    // Still there, which is the half that would matter to a person.
+    expect(await getPage(overview!.id)).not.toBeNull();
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
@@ -102,7 +124,7 @@ describe("pages repository", () => {
       // Edit the first row, then the last. Neither may move — this is the half
       // that catches the physical-order reshuffle, since an UPDATE writes a new
       // row version.
-      await updatePage(seeded[0]!.id, { title: "Trip Overview" });
+      await updatePage(seeded[0]!.id, { title: SEEDED_TITLES[0]! });
       await updatePage(mine.id, { title: "Packing" });
       expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
     } finally {
@@ -153,7 +175,7 @@ describe("pages repository", () => {
     const updated = await updatePage(created.id, { title: "Renamed" });
     expect(updated!.title).toBe("Renamed");
     expect(updated!.updatedAt >= created.updatedAt).toBe(true);
-    expect(await deletePage(created.id)).toBe(true);
+    expect(await deletePage(created.id)).toEqual({ ok: true });
     expect(await getPage(created.id)).toBeNull();
   });
 });
