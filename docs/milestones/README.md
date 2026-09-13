@@ -276,6 +276,23 @@ opens — not written mid-build"*, and `AGENTS.md`'s module map now carries the
 **Entitlements** row it adds. That was the first act of this reorder, ahead of
 any plan.
 
+**Two more decisions the same day, both closing questions the kickoff plan
+opened.** Neither changes the placement; both change what gets built.
+
+1. **The grace window is 3 days**, from the decline rather than the period end
+   (M21 link 6). It is deliberately **shorter than Stripe's own retry
+   schedule**, so an account lapses while Stripe is still retrying and a later
+   successful retry restores it through the ordinary webhook path.
+2. **The `plus` trial is one time ever per account** — not per subscription and
+   not per lapse. **This one is M20's to build, not M21's**, because the trial
+   is a grant issued at signup, and it carries a schema requirement that is
+   easy to violate by being tidy: **an expired or revoked trial grant is never
+   deleted**, since eligibility is *"has this account ever held one"*. A
+   cleanup job over `entitlement_grants` silently returns the trial to everyone
+   who ever had one. M20's trial gate box is **amended** to require it, which
+   is a gate change and is therefore recorded here as Mitchell's decision, per
+   this file's own rule.
+
 **What was NOT decided here.** The landing page's pricing section (`SPEC.md`
 §17.1) still has no owner — Mitchell ruled on 2026-09-02 that it is neither
 M20's nor M21's, and `TODO.md`'s Candidate ideas says to revisit it *"when M21

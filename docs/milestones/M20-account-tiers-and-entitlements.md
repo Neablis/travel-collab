@@ -504,6 +504,32 @@ is created. It needs no ninth link — it is link 2's table and link 3's
 resolver with a different `source`, which is the test of whether the collapse
 in **The shape** actually held.
 
+**The trial is one time ever per account** (Mitchell, 2026-09-13). Not one per
+subscription, not one per lapse — once. An account that trials, lapses,
+subscribes, cancels and comes back is not offered another week. Three
+consequences, and the first is a schema requirement that is easy to violate by
+being tidy:
+
+- **An expired or revoked trial grant is never deleted.** Eligibility is *"has
+  this account ever held a `source: "trial"` grant"*, which is a question only
+  the row can answer. The resolver already reads `expires_at` and `revoked_at`
+  to decide what is **active**; the eligibility check queries the same table
+  **ignoring both**. So `entitlement_grants` is retained, not swept — a cleanup
+  job that removes expired rows silently restores the trial to everyone who
+  ever had one, and it would look like generosity rather than a bug.
+- **"Per account" means the `users` row, and that is the honest limit of the
+  guarantee.** `users` is keyed on the Auth.js user id verbatim (ADR-025), so
+  the same Google account returning is the same row and gets no second trial.
+  Someone with a second Google account gets a second trial. That is accepted:
+  M11a gates who reaches the product at all, and stacking an identity check on
+  top of the invite gate buys little for what it costs.
+- **It makes the trial a weaker retention lever and a cleaner one.** Nothing
+  needs to decide whether *this* lapse deserves another week, which is a policy
+  with no natural stopping point. Comping a second week stays possible and
+  stays deliberate: it is an **admin grant**, `source: "admin"`, by someone
+  with a name in `granted_by` — the permanent hand-grant path, used for exactly
+  what link 7 says it is for.
+
 One consequence is accepted rather than overlooked: **nobody experiences
 collaboration before paying for it**, since `trip.collaborators` is never
 trialled. That makes link 6's refusal copy carry more weight than it otherwise
@@ -660,6 +686,13 @@ refusal to name the tier rather than read as a permission error.
       rather than asserted.
 - [ ] A new account carries a one-week `plus` trial from signup, sees the
       assistant work, and is refused after seven days with no job having run.
+      **Amended 2026-09-13 by Mitchell's decision — the trial is one time ever
+      per account**, so this box also requires: an account whose trial has
+      expired is **not** granted a second one by lapsing, resubscribing,
+      cancelling or returning, and a test proves the eligibility check reads
+      expired and revoked trial rows rather than only active ones. Deleting an
+      expired grant must fail that test — tidying the table is the way this
+      rule dies.
 - [ ] **Upgrading a tier does not reset a quota counter.** A test asserts the
       bucket name is tier-independent while the ceiling is not. Naming the trap
       is not evidence it was avoided.

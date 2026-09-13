@@ -152,10 +152,33 @@ Seven links.
      clears — which is link 4's *a redirect is a hint, never a grant*, said to
      the person rather than to the code.
 6. **Failed payment.** A `past_due` subscription keeps its entitlements for a
-   defined grace window and then lapses. The account is told, in the product,
+   grace window and then lapses. The account is told, in the product,
    before anything is taken away — a capability that disappears silently is
    indistinguishable from a bug, and M20's collaborator cap means the owner's
    guests feel it too.
+
+   **The grace window is 3 days** (Mitchell, 2026-09-13), measured from the
+   decline, not from the period end. Four things follow:
+
+   - **3 days is shorter than Stripe's own retry schedule**, which by default
+     spreads several attempts over about two weeks. So the window is **not**
+     "wait for Stripe to give up" — the account lapses while Stripe is still
+     retrying, and a later successful retry restores it through the ordinary
+     webhook path. That is the right way round: the lapse is reversible and
+     the access is not free in the meantime.
+   - **It is short enough that the copy has to be immediate**, which is what
+     §17.4 already asks for: the decline date, the date the window ends, and
+     what stops then — named, not announced. With 3 days there is no room for
+     a gentle first notice followed by a firm one; the first notice is the
+     only one that matters.
+   - **A card fixed inside the window costs the account nothing** — no lapse,
+     no collaborator cap, no re-invite. This is the case the window exists
+     for, and it is the one to walk first.
+   - **The number is a constant with one definition, not a literal in three
+     branches.** The resolver reads it, the copy reads it, and the test reads
+     it. Changing it is then a one-line change rather than a hunt, which
+     matters because 3 days is a guess that first contact with real declines
+     will want to revise.
 7. **The revenue half of the unit economics.** M20 link 9 builds the cost
    ledger — `ai_usage`, tokens not dollars, one row per AI request. This link
    adds what it has to be compared against, and the comparison itself. Four
@@ -273,7 +296,10 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
 - [ ] Cancelling keeps access to the end of the paid period, then lapses
       through **M20's resolver** — no second downgrade path exists.
 - [ ] A `past_due` account is told in the product before it loses anything, and
-      lapses only after the grace window.
+      lapses only after the grace window — **3 days from the decline**
+      (decided 2026-09-13). Walked both ways: a card fixed on day 2 lapses
+      nothing and caps no collaborator, and a card never fixed lapses on day 4
+      and not on day 3.
 - [ ] A lapse walks M20's collaborator cap: three collaborators drop to
       `viewer`, `trip_memberships` is unchanged, and paying again restores them.
 - [ ] **This milestone's diff touches no gate.** `modelSelection.ts`,
@@ -360,11 +386,14 @@ has failed."* These numbers reach `price_minor`, `currency` and
 M20 publishes as free by construction. The decision being made early does not
 move it earlier.
 
-**Two numbers still owed, and neither blocks M20.** The **grace window** link 6
-turns on (*"a defined grace window"* — undefined), and whether the trial's
-`plus` week is offered again after a lapse. Both are M21's, both are copy as
-much as code, and both are listed in the kickoff plan's open questions:
-`docs/plans/2026-09-13-M20-M21-commercial.md`.
+**~~Two numbers still owed~~ — both decided 2026-09-13.** The **grace window**
+link 6 turns on is **3 days** from the decline (link 6, above). And the
+trial's `plus` week is **one time ever per account** — which is **M20's**
+decision to implement, not this milestone's, because the trial is a grant
+issued at signup: see `M20-account-tiers-and-entitlements.md`, link 8's trial
+paragraph, and the schema requirement it carries (an expired trial grant is
+never deleted, or the rule silently stops holding). Nothing is owed on either
+before this milestone opens.
 
 **Cost is not the constraint on that decision.** M20 link 5 works it through
 against the models actually configured — `deepseek/deepseek-v4-flash-0731` at
