@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { renderMacro, getMacro, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
+import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -117,7 +118,12 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // widgets. It is cheap, but it is not free and the answer cannot change
   // between two widgets on the same trip — that invariance is the point.
   const accents = useMemo(() => cityAccents(detail), [detail]);
-  const outcome = renderMacro({ trip: detail, page: context, user, globals }, name, params);
+  // The reader's own calendar day, for the one widget that reads the trip
+  // against it (`attribute{field: "trip.countdown"}`). Every other resolver
+  // ignores it — see `WidgetContext.today` for why it is passed rather than
+  // read inside the package.
+  const today = useToday();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
   // The chip is a control only when something can act on it. `PageScreen`
@@ -177,7 +183,12 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
       }
     }
   }
-  if (outcome.status === "empty") return <EmptyChip tone="muted" label={def?.emptyText ?? "—"} />;
+  // The resolver's own reason first, the widget's blanket one second. Five
+  // different questions sit behind `attribute` and they used to share one
+  // shrug — see `MacroResult`'s `because`.
+  if (outcome.status === "empty") {
+    return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
+  }
 
   const { rendered } = outcome;
   switch (rendered.kind) {
@@ -246,8 +257,23 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
         <span
           role="table"
           className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface"
+          // **`min-content`, not `0`, as the lead's floor.** Mitchell, on the
+          // preview: *"The Issue text is still going down side of page"* — on a
+          // 1728px DESKTOP, so the phone rule was not the whole of it.
+          //
+          // `minmax(0, 1fr)` says the lead may be squeezed to nothing, and an
+          // `auto` value column will do exactly that when its content is prose:
+          // `auto` resolves toward max-content, and the only thing stopping it
+          // is the other track's minimum. At zero there is none, so a row whose
+          // value is a conflict's description drove "Empty day" down to a word
+          // — or a letter — a line.
+          //
+          // `min-content` is the honest floor: a track may not be starved below
+          // what its own content needs. It costs nothing to the widgets whose
+          // lead already has room, and it is the same fix as the 767px rule
+          // below, made general instead of made twice.
           // eslint-disable-next-line no-restricted-syntax -- the column count is data, not design: it comes from the widget's own rows and no token can name it
-          style={{ gridTemplateColumns: `minmax(0, 1fr)${" auto".repeat(columns)}` }}
+          style={{ gridTemplateColumns: `minmax(min-content, 1fr)${" auto".repeat(columns)}` }}
         >
           {rendered.rows.map((row, i) => (
             <span
@@ -269,6 +295,15 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
                 // 2026-09-06, when a `block` utility on the container beat the
                 // display type; same rule, working in our favour this time.)
                 row.kind === "total" && "bg-moss font-semibold text-ink",
+                // A grouping header, which until now was styled as nothing at
+                // all — `kind` carried both values and this line read one of
+                // them, so a day header was an ordinary row with an empty value
+                // column (Mitchell, on the preview: *"The 'Day 14' on this
+                // widget should be more pronounced, its not clear its a day
+                // header"*). The treatment is in `globals.css`: a rule, a tint
+                // and micro-caps, none of which a utility can express without
+                // an arbitrary letter-spacing the colour wall refuses.
+                row.kind === "header" && "tc-widget-group",
               )}
             >
               <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left">

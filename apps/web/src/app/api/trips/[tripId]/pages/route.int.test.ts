@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 
@@ -49,13 +50,16 @@ describe("/api/trips/:id/pages", () => {
       expect(res.status).toBe(403);
     });
 
-    it("returns the two lazily-instantiated default pages for a member", async () => {
+    // One seeded page since SPEC §25, not two. Counted off `DEFAULT_TEMPLATES`
+    // so the next change to what a trip is seeded with is one edit.
+    it("returns the lazily-instantiated default pages for a member", async () => {
       const tripId = await seedTrip();
       const req = new Request(`http://test/api/trips/${tripId}/pages`);
       const res = await GET(req, { params: Promise.resolve({ tripId }) });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.pages).toHaveLength(2);
+      expect(body.pages).toHaveLength(DEFAULT_TEMPLATES.length);
+      expect(body.pages[0].context.kind).toBe("overview");
     });
 
     it("creates a page", async () => {

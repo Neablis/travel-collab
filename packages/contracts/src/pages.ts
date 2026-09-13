@@ -183,8 +183,19 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
  * it is PERSISTED, and a renamed contract field must become a failing test here
  * rather than a broken widget in somebody's saved page.
  *
- * The four that ship are the four named widgets `attribute` replaces —
+ * The four that shipped first are the four named widgets `attribute` replaces —
  * `trip.name`, `budget.remaining`, `account.name`, `account.homeAirport`.
+ *
+ * **`trip.countdown` is the fifth, and it is the one fact about an upcoming
+ * trip nothing else could answer.** Every other widget reads the trip against
+ * itself; this one reads it against TODAY — "in 34 days", "starts tomorrow",
+ * "day 3 of 14", "ended last week". A brand-new trip's Overview is otherwise a
+ * page of empty states, and this is the line on it that is about to be true.
+ *
+ * It is an `attribute` field rather than a thirteenth primitive for the reason
+ * ADR-039 decision 6 gives: it reads one fact about one thing and there is no
+ * set to narrow. `LEGAL_FILTERS.trip` is empty, so a countdown filtered by city
+ * would be a control resolving against nothing.
  *
  * `…Ref`, like `DayRef` and `CityRef`, and not `AttributeField`: `manifest.ts`
  * already exports that name for a describable field of a collection, which is a
@@ -194,6 +205,7 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
 export const AttributeFieldRef = z.enum([
   "trip.name",
   "trip.budgetRemaining",
+  "trip.countdown",
   "account.name",
   "account.homeAirport",
 ]);
@@ -215,6 +227,23 @@ export const FILTER_VALUE_SCHEMAS = {
 // actually belongs.
 export const PageContext = z.object({
   tripId: z.string().uuid(),
+  /**
+   * Marks the trip's **Overview** page — SPEC §25's *"every trip is created
+   * with one notebook page it cannot delete"*, and the page the Overview tab
+   * renders. Absent on every ordinary page, which is what "ordinary" means.
+   *
+   * **Here, and not as a column, because `pages.context` is `jsonb`.** An
+   * optional field on a JSON document needs no migration and no backfill: a
+   * page written before this existed simply has no `kind`, and reads back as
+   * an ordinary page, which is exactly true of it.
+   *
+   * **A literal rather than a boolean.** `isOverview: true` would answer one
+   * question and close the door on the next one; a page that comes with the
+   * trip is a KIND of page, and §25 is explicit that Overview is "a real page"
+   * rather than a flag on a tab. If a second seeded kind ever exists, this
+   * union grows and nothing that reads it has to change shape.
+   */
+  kind: z.literal("overview").optional(),
 });
 export type PageContext = z.infer<typeof PageContext>;
 

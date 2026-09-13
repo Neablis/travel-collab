@@ -5,7 +5,7 @@ import type { MacroDef, WidgetContext } from "../../registry-types";
 import { chip, inlineOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { formatMoney } from "../../format";
+import { formatCountdown, formatMoney } from "../../format";
 
 // `attribute` — one primitive over an allow-listed field (ADR-039 decision 6).
 //
@@ -46,6 +46,28 @@ const ATTRIBUTE_FILTERS = [] as const satisfies readonly FilterDimension[];
 const AttributeParams = filterParams(ATTRIBUTE_FILTERS, { field: AttributeFieldRef.optional() });
 type AttributeParams = z.infer<typeof AttributeParams>;
 
+/**
+ * What each field says when it has nothing — one line per field, because they
+ * do not mean the same thing.
+ *
+ * They all read "nothing to show" before this, which is the widget's own
+ * `emptyText` and the right answer for a widget with one empty state.
+ * `attribute` has five, and on a brand-new trip's Overview several of them are
+ * true at once: the shrug was the whole page. Each of these names the absence
+ * and, where there is one, the thing to do about it.
+ */
+const NOTHING_TO_SHOW: Record<AttributeFieldRef, string> = {
+  "trip.name": "this trip has no name",
+  "trip.budgetRemaining": "no budget set",
+  // The one a NEW trip most often hits, and the reason `because` exists: the
+  // countdown is the first line of the Overview, and "nothing to show" there
+  // says nothing about what to do. "yet" is doing real work — an undated trip
+  // is not a trip without dates, it is one whose dates have not been picked.
+  "trip.countdown": "no dates set yet",
+  "account.name": "your name is not set",
+  "account.homeAirport": "no home airport set",
+};
+
 // What each allow-listed field reads, in one place.
 //
 // `null` means "nothing to show", and every branch below reaches it honestly
@@ -55,6 +77,7 @@ function read(
   field: AttributeFieldRef,
   trip: TripDetail | undefined,
   user: UserPreferences | null,
+  today: string | null,
 ): string | null | "needs-trip" {
   switch (field) {
     case "trip.name":
@@ -71,6 +94,24 @@ function read(
       // suppress the only reading that changes a decision. `null` means no
       // budget is set — a different fact from "nothing left".
       return trip.budgetRemaining === null ? null : formatMoney(trip.budgetRemaining, trip.currency);
+    case "trip.countdown": {
+      if (!trip) return "needs-trip";
+      // **No `today`, no answer.** The reader's calendar date is only knowable
+      // on the client (see `WidgetContext.today`), and a countdown computed
+      // against a UTC server date is off by one for several hours every evening
+      // west of Greenwich — which on a widget whose whole content is a number
+      // of days is the difference between right and wrong, not a rounding.
+      if (today === null) return null;
+      // The extremes of the DATED days, not the ends of the list — the rule
+      // `dates` states at length. A trip dated at the front and open-ended at
+      // the back has a first day and no last one, and reading `days.at(-1)`
+      // blindly would count down to `null`.
+      const dated = trip.days.map((day) => day.date).filter((date): date is string => date !== null);
+      if (dated.length === 0) return null;
+      const first = dated.reduce((a, b) => (b < a ? b : a));
+      const last = dated.reduce((a, b) => (b > a ? b : a));
+      return formatCountdown(today, first, last);
+    }
     case "account.name": {
       // **The chosen name and nothing else — no fallback chain.** The app has
       // one (`apps/web/src/lib/displayName.ts`) which ends at the provider
@@ -93,19 +134,19 @@ export const attribute: MacroDef<AttributeParams, string> = {
   params: AttributeParams, inputs: filterInputs(ATTRIBUTE_FILTERS),
   selection: { entity: "trip", filters: ATTRIBUTE_FILTERS },
   description:
-    "One named fact about the trip or your account: its name, what's left of the budget, your name, your home airport.",
+    "One named fact about the trip or your account: its name, how long until it starts, what's left of the budget, your name, your home airport.",
   emptyText: "nothing to show",
   preview: "a single fact, spelled out",
-  resolve: ({ trip, user }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, user, today }: WidgetContext, params): MacroResult<string> => {
     // No field chosen. Not `unbound`: `UnboundNeeds` has one member per input
     // type that can be WAITING for a choice, and `field` is not an input at all
     // — it is chosen once, by the preset, and there is no control that could
     // fill it in afterwards. `empty()` is the state ADR-037 decision 6 calls
     // "not set up", which is what this is.
     if (!params.field) return empty();
-    const value = read(params.field, trip, user);
+    const value = read(params.field, trip, user, today);
     if (value === "needs-trip") return needsTrip();
-    return value === null ? empty() : ok(value);
+    return value === null ? empty(NOTHING_TO_SHOW[params.field]) : ok(value);
   },
   render: (value) => inlineOf(chip("value", value)),
 };

@@ -45,12 +45,18 @@ test.describe("the demo trip", () => {
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
     await expect(page.getByText("This is an example trip — look around.")).toBeVisible();
 
-    // The four lenses, each rendering the fixture's own content.
-    await expect(page.getByRole("tab", { name: "Day columns" })).toBeVisible();
-    await expect(page.getByText("Land at Haneda").first()).toBeVisible();
+    // The four views, each rendering the fixture's own content.
+    //
+    // **`/demo` lands on Overview since SPEC §24** — it is the ordinary trip
+    // surface in read-only (ADR-031), so it gets the ordinary default, and the
+    // ordinary default is the view that does not edit. The stops are one tab
+    // away rather than on arrival, so Plan is clicked BEFORE they are asserted;
+    // the previous order waited 30s for a stop title on a page showing the
+    // trip's notebook.
+    await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Timeline" }).click();
-    await expect(page).toHaveURL(/view=Timeline/);
+    await page.getByRole("tab", { name: "Plan" }).click();
+    await expect(page).toHaveURL(/view=Plan/);
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "Calendar" }).click();
@@ -86,9 +92,9 @@ test.describe("the demo trip", () => {
     ).toBeVisible();
 
     await page.getByRole("tab", { name: "Map" }).click();
-    await expect(page).toHaveURL(/lens=Map/);
+    await expect(page).toHaveURL(/view=Map/);
 
-    await page.getByRole("tab", { name: "Day columns" }).click();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
   });
 
@@ -104,7 +110,7 @@ test.describe("the demo trip", () => {
     // A write, and owner-gated at that.
     await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
     // Needs a session and is a write; it has no read-only half to fall back to.
-    await expect(page.getByRole("button", { name: "Assistant" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Ask" })).toHaveCount(0);
     // Withheld, exactly as it is for an invited viewer. This asserted
     // `toBeDisabled()` until KI-64: the header was the one place still
     // offering a greyed control on a board ADR-031 had otherwise gone quiet.

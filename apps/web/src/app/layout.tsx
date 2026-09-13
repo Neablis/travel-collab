@@ -47,9 +47,26 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
+// SPEC §28: *"`look` (not `theme` — the old key holds a stale stored value)
+// defaults to **ledger**. Four looks ship: ledger, paper, nightdesk, airmail."*
+//
+// Written on `<html>` in the server-rendered markup rather than by an effect,
+// so the first paint is already in the right look. A client-side write would
+// flash the base palette — which is `paper` — on every cold load, and the
+// palette is the whole of what a look is.
+//
+// **There is no picker yet, and that is the open question, not an oversight.**
+// Whether `look` is a stored account preference is unanswered
+// (`docs/plans/2026-09-12-design-sync-2026-09-12.md`): storing it means a
+// column on `UserPreferences` and a migration. The token layer and the default
+// do not need that answer, so they land first. When the answer arrives, this
+// constant is what the resolved preference replaces, and nothing else here
+// moves — every other look already works by setting the attribute.
+const DEFAULT_LOOK = "ledger";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+    <html lang="en" data-look={DEFAULT_LOOK} className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
         {/* Above the header AND the page, because the header's logo is the
             save light and the state it shows is published from inside the

@@ -7,6 +7,7 @@ import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
+import { open } from "./macros/primitives/open";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -26,6 +27,11 @@ const DEFS: AnyMacroDef[] = [
   cost, count, dates, hours, city, attribute,
   dayDetail, cityDetail,
   dayRows, cityRows, stopRows, costRows,
+  // The thirteenth (SPEC §25). See `open.ts` for why it is a primitive and not
+  // a preset — the short version is that nothing above it resolves a conflict,
+  // an empty day or the backlog, so there is no primitive for it to be a
+  // preset OF. ADR-039's count in the comment above is amended, not ignored.
+  open,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -60,7 +66,15 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
   // pass. Callers that need account widgets go through `renderMacro`, which
   // takes a whole `WidgetContext`; this one keeps working for everything that
   // reads the trip.
-  return def.resolve({ trip: detail, page: ctx, user: null, globals: null }, parsed.data as never);
+  //
+  // `today: null` for the same reason, and it is the honest value rather than a
+  // placeholder: this entry point has no reader and therefore no calendar day.
+  // The one widget that reads it (`attribute{field: "trip.countdown"}`) answers
+  // "no dates set yet" here, which is what a countdown with no today is.
+  return def.resolve(
+    { trip: detail, page: ctx, user: null, globals: null, today: null },
+    parsed.data as never,
+  );
 }
 
 // Resolve AND render in one call, which is what every UI wants and what keeps
@@ -73,7 +87,10 @@ export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string,
 // ever joined by the def they both came from.
 export type RenderOutcome =
   | { status: "ok"; rendered: Rendered }
-  | { status: "empty" }
+  // `because` rides through: a resolver that said WHY it is empty has said the
+  // only useful thing it had, and dropping it here would have made
+  // `MacroResult.because` unreachable from the one call site that renders.
+  | { status: "empty"; because?: string }
   | { status: "unbound"; needs: UnboundNeeds }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };

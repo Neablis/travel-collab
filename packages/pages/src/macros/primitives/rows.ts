@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension } from "@tc/contracts";
+import type { FilterDimension, KindRef } from "@tc/contracts";
 import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } from "../../registry-types";
 import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
@@ -161,6 +161,24 @@ type StopRowsParams = z.infer<typeof StopRowsParams>;
 const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), cells: [], kind: "header" });
 
 /**
+ * What an empty `stop.rows` says when a `kind` filter is what emptied it.
+ *
+ * Only the kinds that make a sentence. "nothing booked yet" is a fact about the
+ * trip that names the next thing to do; "nothing hold yet" and "nothing idea
+ * yet" are not English, and a widget is better off with its blanket
+ * `emptyText` than with a phrase assembled out of a stored enum value. An
+ * absent entry therefore falls back, deliberately, rather than being a gap.
+ *
+ * This is the limitation `emptyText`'s own comment above describes — a fixed
+ * string that cannot see the params — retired for the one case where the
+ * params make the difference a reader cares about. `booking.line` is the preset
+ * this serves, and the Overview's "What's booked" is where it shows.
+ */
+const NOTHING_MATCHED: Partial<Record<KindRef, string>> = {
+  booked: "nothing booked yet",
+};
+
+/**
  * `stop.rows` — one line per stop: when it is, and what it cost.
  *
  * Wide this is `stop.line` over the whole trip; with `kind: "booked"` it is
@@ -183,6 +201,11 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
   // True whether the selection held no stops at all or the filters matched none
   // of them. `emptyText` is a fixed string on the definition and cannot see the
   // params, so "no stops on this day" would be a claim the widget cannot keep.
+  //
+  // **The resolver can now say more when it knows more** (`MacroResult.because`,
+  // added 2026-09-13 for `attribute`'s five fields). See `NOTHING_MATCHED`
+  // below: this stays the answer for a selection whose filters the widget
+  // cannot phrase, and a `kind` filter gets its own words.
   emptyText: "no stops to show",
   preview: "one line per stop, with its time and cost",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
@@ -190,7 +213,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     const stops = selection.value.stops;
-    if (stops.length === 0) return empty();
+    if (stops.length === 0) return empty(params.kind === undefined ? undefined : NOTHING_MATCHED[params.kind]);
 
     // Two columns: when it is, and what it cost. A stop with no time still
     // leaves the time column open, so the costs stay in one line down the page.
@@ -246,7 +269,11 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
   selection: { entity: "stop", filters: COST_ROWS_FILTERS },
   description:
     "What each day of a selection costs, plus unscheduled stops, plus the total. Filter it to a tag or a kind for the breakdown of what matches.",
-  emptyText: "no costs yet",
+  // "nothing priced yet", not "no costs yet" — which is `cost`'s wording, and
+  // the two sit on the same page: the Overview's "What it costs" is a `cost`
+  // summary line over this breakdown. The same three words twice, one under the
+  // other, reads as a rendering fault rather than as two widgets agreeing.
+  emptyText: "nothing priced yet",
   preview: "each day's spend, and the total",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();

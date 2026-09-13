@@ -10,7 +10,6 @@ import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
-import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
 import { formatTripDateLong } from "@/lib/formatDate";
@@ -85,7 +84,6 @@ export default function Home() {
   // below for the same reason.
   const [cloningDemo, setCloningDemo] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
-  const [confirmTrip, setConfirmTrip] = useState<TripSummary | null>(null);
   const [toast, setToast] = useState<{ tripId: string; name: string } | null>(null);
   // Optimistically-deleted trip ids: filtered from the render the instant the
   // user confirms, before the DeleteTrip request even starts — there's no
@@ -209,21 +207,20 @@ export default function Home() {
     });
   }, [trips, unauthenticated, router]);
 
-  function requestDelete(trip: TripSummary) {
+  // **SPEC §27: the card goes on the CLICK, and there is no confirm dialog.**
+  //
+  // > Delete is optimistic. The card goes on the click; the toast carries a
+  // > single Undo that restores it. **The undo window is a toast, not a trash
+  // > view** — that is the one thing the design asserts beyond the contract.
+  //
+  // The dialog that used to sit here asked "Delete <name>? You can undo this
+  // from the toast that follows", which is a modal whose own copy explains that
+  // the action is reversible — a confirm step for something that does not need
+  // confirming. The recovery is real and immediate (`RestoreTrip`, below, is a
+  // command the server already has), so the toast IS the safety net and the
+  // dialog was a second one charging for the first.
+  async function deleteTrip(trip: TripSummary) {
     setOpenMenuTripId(null);
-    setConfirmTrip(trip);
-  }
-
-  // Optimistic: drop the row immediately on CONFIRM (before the DeleteTrip
-  // request even starts), not on its response. A failure re-adds the id so
-  // the row reappears alongside the error; a success removes it from `trips`
-  // for good and raises the undo toast. RestoreTrip (below) reconciles via a
-  // real reload — the deleted trip is no longer in local state to restore in
-  // place.
-  async function confirmDelete() {
-    const trip = confirmTrip;
-    if (!trip) return;
-    setConfirmTrip(null);
     setDeletingIds((prev) => new Set(prev).add(trip.tripId));
     const result = await sendTripCommand({ type: "DeleteTrip", tripId: trip.tripId });
     if (!result.ok) {
@@ -515,7 +512,7 @@ export default function Home() {
                             role="menuitem"
                             variant="ghost"
                             className="justify-start text-danger-ink"
-                            onClick={() => requestDelete(t)}
+                            onClick={() => void deleteTrip(t)}
                           >
                             Delete
                           </Button>
@@ -529,20 +526,6 @@ export default function Home() {
           )}
         </div>
       </div>
-
-      <Dialog open={confirmTrip !== null} onOpenChange={(open) => !open && setConfirmTrip(null)} title="Delete trip">
-        <Text variant="secondary">
-          Delete &quot;{confirmTrip?.name}&quot;? You can undo this from the toast that follows.
-        </Text>
-        <DialogFooter>
-          <Button variant="secondary" onClick={() => setConfirmTrip(null)}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={() => void confirmDelete()}>
-            Delete
-          </Button>
-        </DialogFooter>
-      </Dialog>
 
       {toast && (
         <Toast

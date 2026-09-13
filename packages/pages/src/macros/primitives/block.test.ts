@@ -14,6 +14,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: null,
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 describe("day.detail", () => {
@@ -35,6 +38,21 @@ describe("day.detail", () => {
           // asserted the raw `"2027-06-01"` until 2026-09-06, which is how the
           // date reached the page as a timestamp with a green suite behind it.
           date: formatDate("2027-06-01"),
+          // **The day's SHAPE, which SPEC §24's timeline had and this card did
+          // not.** The Timeline lens's day header answered "what is this day" —
+          // where it is, how full, when it runs, what it costs — and when §24
+          // deleted the lens and made this widget the replacement, only the
+          // stop titles came across. These three are the rest of that answer.
+          //
+          // `cities` comes from the globals projection, `window` from the
+          // extremes of the stops' own times (09:00 to 13:00 across the two
+          // below, not the first stop's range), and `cost` is summed from the
+          // stops ON THE CARD rather than read off `day.costSubtotal` — see
+          // `ItineraryDayPayload` for why a filtered card and a whole-day total
+          // must not be printed as the same fact.
+          cities: ["Rome"],
+          window: "09:00–13:00",
+          cost: expect.any(String),
           activities: [
             { title: "Colosseum", timeWindow: "09:00–10:00", cost: expect.any(String) },
             { title: "Lunch", timeWindow: "12:00–13:00", cost: expect.any(String) },
@@ -76,6 +94,35 @@ describe("day.detail", () => {
     expect(payload.days.map((d) => d.ordinal)).toEqual([1, 2]);
     // Only the booked stop survives inside each card.
     expect(payload.days.flatMap((d) => d.activities.map((a) => a.title))).toEqual(["Colosseum", "Ryokan"]);
+  });
+
+  it("costs a filtered card by the stops ON it, not by the day's whole subtotal", () => {
+    // **The one place the day's shape could become a lie**, and the reason
+    // `ItineraryDayPayload.cost` is summed rather than read off
+    // `day.costSubtotal`. `day.detail` accepts `kind` and `tag`, so a card
+    // showing day 1's booked stop beside day 1's whole-day total would print
+    // two different selections as one fact — and the total is the larger, so
+    // the error reads as "this one booking cost everything the day cost".
+    //
+    // (`day.rows` refuses those filters outright for the same reason. Two
+    // primitives, two answers to one problem, both stated where they are made.)
+    const fixture = selectionTrip();
+    const ctx = contextOf(fixture);
+    const outcome = renderMacro(ctx, "day.detail", { kind: "booked", day: { kind: "index", index: 0 } });
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`not a block: ${outcome.status}`);
+    const card = outcome.rendered.block as { activities: { cost: string | null }[]; cost: string | null };
+    // One stop survived the filter, and the card's cost is exactly that stop's
+    // — asserted against the card's own contents rather than against a literal,
+    // so the fixture's prices stay the factory's (see `selectionTrip`).
+    expect(card.activities).toHaveLength(1);
+    expect(card.cost).toBe(card.activities[0]!.cost);
+    // Non-vacuous: the day really does hold more than the filter kept, so the
+    // subtotal and this number are genuinely different.
+    const wide = renderMacro(ctx, "day.detail", { day: { kind: "index", index: 0 } });
+    if (wide.status !== "ok" || wide.rendered.kind !== "block") throw new Error("not a block");
+    const wideCard = wide.rendered.block as { activities: unknown[]; cost: string | null };
+    expect(wideCard.activities.length).toBeGreaterThan(1);
+    expect(wideCard.cost).not.toBe(card.cost);
   });
 
   it("numbers a card by its day of the TRIP, not its place in the selection", () => {
@@ -143,7 +190,7 @@ describe("city.detail", () => {
 
   it("is empty without the globals projection, rather than inventing a city list", () => {
     const { trip } = selectionTrip();
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     expect(renderMacro(ctx, "city.detail", {}).status).toBe("empty");
   });
 });

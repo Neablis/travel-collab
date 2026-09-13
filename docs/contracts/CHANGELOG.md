@@ -13,6 +13,61 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `PageContext.kind`: which page this is, stored
+- Added: `kind: z.literal("overview").optional()` on `PageContext`
+  (`packages/contracts/src/pages.ts`). Nothing else changed shape
+- Why: SPEC §25 — *"every trip is created with one notebook page it cannot
+  delete"*. Something has to say WHICH page that is, and it cannot be the title
+  (a reader may rename it) or the position (sorting decides that). It is in
+  `context` rather than as a column because `pages.context` is already `jsonb`
+  and this is a fact about the page's identity, which is what that field holds
+- **Not a scope.** A page is trip-bound and about nothing in particular (§18);
+  `kind` says which page it is, not what it is about
+- **This entry is late, and that is the finding rather than the fix.** The field
+  landed with the §25 work and Invariant 5 says contracts change by protocol,
+  not by drift — CodeRabbit flagged the missing entry on PR 170. Recorded here
+  with the behaviour it turned out to need, which is worth more than a
+  same-day stub would have been
+- **Optional, so every page written before it parses unchanged**, and its
+  absence is the ordinary case: `isOverviewPage` is `context.kind ===
+  OVERVIEW_KIND`, false for every page that has no `kind` at all
+- **It is IMMUTABLE once stored, and that is enforced rather than assumed.**
+  `updatePage` carries the stored `kind` across a PATCH and discards the
+  caller's, and `deletePage` refuses in its own `WHERE` clause rather than in a
+  read-then-delete pair. Before both, a PATCH carrying `{ tripId }` — which is
+  exactly what the one route that PATCHes a page sends — stripped the marker,
+  and the next DELETE removed the page every trip is supposed to keep. Three
+  integration tests pin it, including one that marks a row through raw SQL to
+  prove the refusal is the database's
+- Consumers updated: `packages/pages` (`OVERVIEW_KIND`, `isOverviewPage`,
+  `overviewPage`'s `buildContext`), `apps/web` (`server/pages.ts`,
+  `OverviewLens`, the pages routes)
+- Breaking? no
+
+## 2026-09-13 — `trip.countdown` joins the `attribute` allow-list
+- Added: `"trip.countdown"` to `AttributeFieldRef`
+  (`packages/contracts/src/pages.ts`). Nothing else changed shape
+- Why: the Overview a brand-new trip opens on is otherwise a page of empty
+  states. Every other widget reads the trip against itself; this one reads it
+  against **today** — "in 34 days", "starts tomorrow", "day 3 of 14", "ended
+  last week" — and it is the one line on a new trip's Overview that is about to
+  be true. It is an `attribute` field rather than a thirteenth primitive for
+  ADR-039 decision 6's reason: it reads one fact about one thing and there is no
+  set to narrow, so `LEGAL_FILTERS.trip` being empty is the right answer for it
+- **Additive to a live database, and it does not migrate anything.** A preset is
+  data, not a stored identifier (ADR-039 decision 4): a document stores
+  `attribute` and `{ field: "trip.countdown" }`, and no page written before this
+  can contain the new value. Widening a `z.enum` accepts strictly more, so every
+  stored `attribute` node parses exactly as it did
+- Consumers updated: `packages/pages` (`attribute`'s `read()` and its
+  `NOTHING_TO_SHOW` map, the `trip.countdown` preset, `WidgetContext.today`),
+  `apps/web` (`MacroView` passes the reader's date, `lib/today.ts` reads it).
+  The registry's own tests enumerate the enum — `registry.test.ts`'s
+  "names each primitive's non-filter params" and `attribute.test.ts`'s
+  "accepts every field on the list" both failed on the new member, which is what
+  those tests are for
+- Breaking? no
+
 ## 2026-09-12 — `Location.precision`: what a coordinate DESCRIBES, so the map can stop overclaiming
 - Added: `LocationPrecision = z.enum(["venue", "area", "city"])`, exported, and
   `precision: LocationPrecision.optional()` on `Location`

@@ -319,7 +319,7 @@ export interface ProposalCommitResult {
  * Commit an approved proposal as ONE atomic batch (ADR-013): one history
  * entry, one undo — never one command per tool call.
  *
- * The two steps are the command endpoint's own, in its order and for its
+ * The three steps are the command endpoint's own, in its order and for its
  * reasons:
  *
  *   0. **Every `{ savedDayId }` is RE-READ**, through `readableSavedDay` as the

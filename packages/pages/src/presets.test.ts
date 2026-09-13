@@ -20,6 +20,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" },
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 describe("the preset table", () => {
@@ -188,7 +191,13 @@ describe("presetCatalog", () => {
     // its only day control with nothing failing.
     let checked = 0;
     for (const preset of PRESETS) {
-      const filters = getMacro(preset.widget)!.selection!.filters;
+      // A registered widget need not declare a selection: `open` (SPEC §25) is
+      // the trip's whole open list by definition and narrows along nothing, so
+      // it has no `filters` to inspect. Skipping it is the honest read of this
+      // property — it is about primitives that DO declare `day`.
+      const selection = getMacro(preset.widget)!.selection;
+      if (selection === undefined) continue;
+      const filters = selection.filters;
       if (!filters.includes("day")) continue;
       expect(filters, `${preset.widget} declares day but not dates`).toContain("dates");
       checked += 1;

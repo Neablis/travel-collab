@@ -20,6 +20,9 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   page: { tripId: trip.tripId },
   user: null,
   globals,
+  // No widget under test here reads it; `attribute{trip.countdown}` is the
+  // only one that does and `attribute.test.ts` pins its every branch.
+  today: null,
 });
 
 describe("cost", () => {
@@ -66,13 +69,13 @@ describe("cost", () => {
 
   it("says there are no costs rather than printing a formatted zero", () => {
     const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1, costed: false } });
-    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null };
+    const ctx: WidgetContext = { trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
     expect(renderMacro(ctx, "cost", {}).status).toBe("empty");
   });
 
   it("needs a trip, and needs a person field", () => {
     const { globals } = selectionTrip();
-    const noTrip: WidgetContext = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals };
+    const noTrip: WidgetContext = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals, today: null };
     expect(renderMacro(noTrip, "cost", {})).toEqual({ status: "unbound", needs: "trip" });
     const fixture = selectionTrip();
     expect(renderMacro(contextOf(fixture), "cost", { person: "dev-alice" })).toEqual({

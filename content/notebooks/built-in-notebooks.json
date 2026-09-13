@@ -17,7 +17,7 @@
       "key": "trip-overview",
       "title": "Trip Overview",
       "description": "The whole trip in one place — the why, the shape, the money.",
-      "seedIntoNewTrips": true,
+      "seedIntoNewTrips": false,
       "content": {
         "v": 2,
         "type": "doc",
@@ -92,7 +92,7 @@
       "key": "day-overview",
       "title": "Day overview",
       "description": "One day, close up. Times, reservations, notes for the group.",
-      "seedIntoNewTrips": true,
+      "seedIntoNewTrips": false,
       "content": {
         "v": 2,
         "type": "doc",

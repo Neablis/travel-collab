@@ -1,4 +1,5 @@
 import type { ItineraryDayPayload } from "@tc/pages";
+import { dayMetaParts } from "./dayMeta";
 
 // Read-only block: renders a single day's activity list from the resolver
 // payload only — no markup ever crosses the resolver boundary (C-era swap seam).
@@ -24,6 +25,15 @@ import type { ItineraryDayPayload } from "@tc/pages";
 export function ItineraryDayBlock({ payload }: { payload: ItineraryDayPayload }) {
   return (
     <span className="block rounded-md border border-hairline bg-surface p-3">
+      {/* **The day's own header, restored with SPEC §24's timeline.** This card
+          rendered a bare list of stops — no date, no city, no total — so a
+          notebook page pointed at one day said less about that day than the
+          board's own column header did. `dayMetaParts` is the same line the
+          day-by-day table draws, so one day reads the same whichever widget is
+          looking at it. */}
+      <span className="mb-2 block border-b border-hairline pb-2 text-xs text-slate">
+        {`Day ${payload.ordinal} · ${dayMetaParts(payload).join(" · ")}`}
+      </span>
       <span role="list" className="flex flex-col gap-2">
         {payload.activities.map((activity, i) => (
           <span

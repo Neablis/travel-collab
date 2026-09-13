@@ -29,11 +29,44 @@ import { formatDate, formatMoney } from "../../format";
 // from the day's whole `activityIds`. That difference is the whole of
 // `day.detail{kind: booked}` — "everything on a day, booked only", the spec's
 // own example of a preset no widget covers today.
-function dayCard(trip: TripDetail, index: number, stops: readonly SelectedStop[]): ItineraryDayPayload {
+/**
+ * The clock range a set of stops spans — earliest start, latest end.
+ *
+ * The rule is `hours`', inherited whole rather than reimplemented differently:
+ * the extremes of the TIMES, not the first and last stop in the column, because
+ * stored order is the board's order and a day can hold a 09:00 stop after a
+ * 14:00 one until somebody tidies it. Untimed stops are skipped rather than
+ * counted as midnight, and a day of nothing but untimed stops has no window at
+ * all and says so with `null`.
+ *
+ * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison.
+ */
+function windowOf(stops: readonly SelectedStop[]): string | null {
+  const windows = stops.map(({ activity }) => activity.timeWindow).filter((w) => w != null);
+  if (windows.length === 0) return null;
+  const start = windows.reduce((a, w) => (w.start < a ? w.start : a), windows[0]!.start);
+  const end = windows.reduce((a, w) => (w.end > a ? w.end : a), windows[0]!.end);
+  return `${start}–${end}`;
+}
+
+function dayCard(
+  trip: TripDetail,
+  globals: WidgetContext["globals"],
+  index: number,
+  stops: readonly SelectedStop[],
+): ItineraryDayPayload {
   const day = trip.days[index]!;
+  // Summed from the stops on the card rather than read off `day.costSubtotal`
+  // — see `ItineraryDayPayload`. A filtered card and a whole-day total are two
+  // different selections, and printing one as the other is the kind of
+  // disagreement between two surfaces this repo keeps finding.
+  const costMinor = stops.reduce((total, { activity }) => total + (activity.cost?.amountMinor ?? 0), 0);
   return {
     kind: "itinerary-day",
     dayId: day.dayId,
+    cities: globals?.days[index]?.cities ?? [],
+    window: windowOf(stops),
+    cost: costMinor === 0 ? null : formatMoney(costMinor, trip.currency),
     // Which day of the TRIP this is, counting from 1 — not its position in the
     // selection. `day.detail{kind: booked}` can leave days 2 and 5, and
     // labelling them "Day 1" and "Day 2" would be the selection's private
@@ -86,7 +119,12 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
   selection: { entity: "day", filters: DAY_DETAIL_FILTERS },
   description:
     "The stops on a selection of days. Unfiltered it is every day at a glance; filter it to a day for that day's card, or to a kind or tag for only the stops that match.",
-  emptyText: "No days to show",
+  // "no days yet", not "No days to show". This is the first thing a brand-new
+  // trip's Overview says under "The trip, day by day", and "to show" is a shrug
+  // about the widget where "yet" is a fact about the trip — one of them tells
+  // the reader that adding a day is the next thing to do. Lower case to match
+  // every other empty state in the registry; this was the one that shouted.
+  emptyText: "no days yet",
   preview: "every stop on the days you selected",
   resolve: (
     { trip, globals }: WidgetContext,
@@ -107,7 +145,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
 
     const kept = contentNarrowed ? days.filter((index) => byDay.has(index)) : days;
     if (kept.length === 0) return empty();
-    const cards = kept.map((index) => dayCard(trip, index, byDay.get(index) ?? []));
+    const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? []));
     if (cards.length === 1) {
       const only = cards[0]!;
       return only.activities.length === 0 ? empty() : ok(only);

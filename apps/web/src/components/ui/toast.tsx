@@ -11,7 +11,13 @@ import { cn } from "@/lib/cn";
 // and an auto-dismiss timer so it never has to be a persistent fixture. No
 // stacking/queueing — this milestone only ever shows one at a time, fired
 // from local component state in the caller (page.tsx, SettingsSheet).
-const AUTO_DISMISS_MS = 8000;
+// SPEC §27: *"The toast holds 6s when it carries an action, 2.4s when it does
+// not."* One flat 8s before this, which is the wrong shape in both directions —
+// too long to read "Saved", and an arbitrary amount of time to notice an Undo
+// and reach it. A toast you can act on has to outlast the moment you realise
+// you want to; one you cannot act on only has to be read.
+const AUTO_DISMISS_WITH_ACTION_MS = 6000;
+const AUTO_DISMISS_MS = 2400;
 
 export function Toast({
   message,
@@ -44,10 +50,26 @@ export function Toast({
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
 
+  // **One boolean, read by the timer and by the markup below.** The longer
+  // countdown exists to give someone time to press the button; the gate was
+  // `actionLabel === undefined` while the BUTTON's gate was `actionLabel &&
+  // onAction`, so a label handed in without a handler rendered nothing and
+  // still bought six seconds of a toast with nothing to do (CodeRabbit, PR
+  // 170). Deriving both from the same value is what stops the two drifting
+  // apart again.
+  //
+  // Safe in the dependency list where `onAction` itself would not be: a
+  // caller's inline arrow is a new reference every render, and `Boolean` of it
+  // is not.
+  const hasAction = Boolean(actionLabel && onAction);
+
   useEffect(() => {
-    const timer = setTimeout(() => onDismissRef.current(), AUTO_DISMISS_MS);
+    const timer = setTimeout(
+      () => onDismissRef.current(),
+      hasAction ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS,
+    );
     return () => clearTimeout(timer);
-  }, [message]);
+  }, [message, hasAction]);
 
   return (
     <div
@@ -64,7 +86,7 @@ export function Toast({
       <Text as="span" variant="secondary" className="text-ink">
         {message}
       </Text>
-      {actionLabel && onAction && (
+      {hasAction && (
         <Button variant="ghost" size="sm" onClick={onAction}>
           {actionLabel}
         </Button>

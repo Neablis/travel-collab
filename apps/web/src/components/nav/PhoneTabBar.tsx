@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, List, Luggage, Map, NotebookText } from "lucide-react";
+import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
@@ -95,18 +96,28 @@ function tripIdFromPathname(pathname: string): string | null {
  * `/playbooks/:path*` matcher), which is not the same as being Playbooks in
  * the design's sense.
  *
- * `lens` is the raw `?lens=` string rather than a `Lens`, because this
- * component sits in `(app)/layout.tsx` — *above* `LensRouter`, which is
- * mounted inside the trip page — so `useLens()` is not available here. The
- * derivation is the same one and there is still no second source of truth:
- * "Map" and "not Map" is the whole of it, and LensRouter's own fallback
- * ("anything unrecognised is Board") lands an unknown value on Plan, which is
- * where Board lives on a phone.
+ * **`view` is a resolved `View`, not the raw query string**, and it used to be
+ * the string — the paragraph here still said so after the parameter changed,
+ * which CodeRabbit caught on PR 170. Worth correcting rather than deleting,
+ * because the reason it is a parameter at all has not changed: this component
+ * sits in `(app)/layout.tsx`, *above* the `LensRouter` mounted inside the trip
+ * page, so `useLens()` is not available here and the value has to be handed in.
+ *
+ * Handed in as a `View` rather than a string so there is one place that knows
+ * how a URL becomes a view: `resolveView` reads **both the new `?view=` and the
+ * legacy `?lens=`**, which is the reason SPEC §24's mapping exists at all — a
+ * link somebody is still holding resolves, and the bar must light the same tab
+ * the page actually rendered. Deriving it twice is how those two drift apart.
  */
-function activePhoneTab(pathname: string, lens: string | null): PhoneTabId | null {
+function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
     if (/^\/trips\/[^/]+\/pages(?:\/|$)/.test(pathname)) return "notebook";
-    return lens === "Map" ? "map" : "plan";
+    // **Every non-Map view lights Plan, including Overview and Calendar**, and
+    // that is the bar's scope rather than a fallback: SPEC §10 gives the phone
+    // two in-trip destinations, and the desktop's four views all live behind
+    // them. What it must NOT do is light Plan while the reader is on Map, which
+    // is what reading the wrong query parameter did.
+    return view === "Map" ? "map" : "plan";
   }
   if (pathname === "/") return "trips";
   if (pathname === "/playbooks/board" || pathname.startsWith("/playbooks/profile/")) return "trips";
@@ -136,11 +147,27 @@ function phoneTabHref(tab: PhoneTabId, tripId: string | null): string {
     // rather than a fallback worth designing — a tab with nowhere to go is the
     // disabled state §22 removed.
     case "plan":
-      // Not a bare `/trips/<id>`: that URL resolves to the *Board* lens
-      // (LensRouter's default), and SPEC §10 keeps Day columns off the phone.
-      return tripId ? `/trips/${tripId}?lens=Schedule&view=Timeline` : "";
+      // **`?view=Plan`, and Plan is day columns now.**
+      //
+      // This used to be `?lens=Schedule&view=Timeline`, because SPEC §10 kept
+      // day columns off the phone — *"Day columns and Calendar exist to show
+      // density, which a phone cannot show honestly"* — so the phone's editing
+      // surface was the timeline. SPEC §24 deleted the timeline and made Plan
+      // the only surface that edits, on both surfaces, so there is nothing else
+      // for this tab to point at.
+      //
+      // A bare `/trips/<id>` is still wrong here, for a NEW reason: it resolves
+      // to Overview (§24), which is read-only, and the Plan tab exists to reach
+      // the surface that edits.
+      //
+      // **The phone therefore renders day columns at 390px, which §10 says it
+      // cannot do honestly.** That is a known, accepted, temporary state —
+      // Mitchell, 2026-09-12: *"Lets just build the plan as is for now, and when
+      // its ready we will figure out where editing moved to."* It is on
+      // `TODO.md`. Do not resolve it here with a phone-only fallback.
+      return tripId ? `/trips/${tripId}?view=Plan` : "";
     case "map":
-      return tripId ? `/trips/${tripId}?lens=Map` : "";
+      return tripId ? `/trips/${tripId}?view=Map` : "";
     case "notebook":
       return tripId ? `/trips/${tripId}/pages` : "";
   }
@@ -153,11 +180,11 @@ const TAB_CLASS =
  * The bar itself, taking the route as plain values so it can be rendered from
  * both the server-safe path and the `useSearchParams()` one below.
  */
-function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | null }) {
+function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | null }) {
   const barRef = useRef<HTMLElement>(null);
 
   const tripId = tripIdFromPathname(pathname);
-  const active = activePhoneTab(pathname, lens);
+  const active = activePhoneTab(pathname, view);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -281,17 +308,30 @@ function PhoneTabBarView({ pathname, lens }: { pathname: string; lens: string | 
  * `usePathname()` triggers no such bailout, and the route alone settles which
  * SET the bar shows (§22's trip three vs account pair) and which tab is current
  * in every case but one. The exception is Plan-vs-Map inside a trip, which is
- * the only thing `?lens=` decides — so this renders `lens: null`, which
- * `activePhoneTab` reads as Plan. That is the right guess: a bare
- * `/trips/<id>` is normalised to Timeline (SPEC §10), so Plan is where a trip
- * route without an explicit lens actually lands. A reader who deep-links
- * `?lens=Map` sees Plan lit for one paint and Map thereafter; the bar's
+ * the only thing the query decides — so this renders `view: null`, which
+ * `activePhoneTab` reads as Plan.
+ *
+ * **That is still the right guess, for a different reason than it used to be.**
+ * This said a bare `/trips/<id>` normalises to Timeline, so Plan is where such
+ * a route lands; §24 deleted Timeline and a bare trip URL opens Overview now,
+ * which made the sentence false while the conclusion stayed true (CodeRabbit,
+ * PR 170). Overview is one of the three desktop views the phone's Plan tab
+ * stands for — see `activePhoneTab` — so a trip route with no view in it lights
+ * Plan whichever way you get there. A reader who deep-links
+ * `?view=Map` sees Plan lit for one paint and Map thereafter; the bar's
  * contents, position, size and hit targets never move.
  */
 export function PhoneTabBarFallback() {
-  return <PhoneTabBarView pathname={usePathname()} lens={null} />;
+  return <PhoneTabBarView pathname={usePathname()} view={null} />;
 }
 
 export function PhoneTabBar() {
-  return <PhoneTabBarView pathname={usePathname()} lens={useSearchParams().get("lens")} />;
+  // **`resolveView`, not `params.get("lens")`.** This bar's own Map link has
+  // written `?view=Map` since SPEC §24, and this line still read the parameter
+  // the link stopped using — so tapping Map navigated correctly and left Plan
+  // lit (CodeRabbit, PR 170). Going through `resolveView` rather than reading
+  // `view` directly is the other half: it is the one place that knows the
+  // legacy URL shapes, so a bookmark carrying `?lens=Map` lights the same tab
+  // it navigates to instead of disagreeing with the screen under it.
+  return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} />;
 }

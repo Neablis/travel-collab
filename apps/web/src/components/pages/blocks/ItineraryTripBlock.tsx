@@ -1,11 +1,21 @@
 import type { ItineraryDayPayload, ItineraryTripPayload } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { CITY_INK, CITY_TINT, type CityAccents } from "../cityAccents";
+import { dayMetaParts } from "./dayMeta";
 
 // How many stops a day's summary line names before it counts the rest. Three,
 // per dc.html:5123 — the line answers "what is this day", not "what is on it";
 // `itinerary.day` is the widget that answers the second question.
 const NAMED_STOPS = 3;
+
+// The day's shape, minus its date — the left column of every row already
+// carries that, and a table that printed it twice on one line would be using
+// the reader's attention on the one fact they had just read.
+function meta(day: ItineraryDayPayload): string {
+  return dayMetaParts(day)
+    .filter((part) => part !== day.date)
+    .join(" · ");
+}
 
 // dc.html:5123. A day with nothing on it says so rather than rendering an empty
 // cell, because an empty cell in a bordered table reads as a rendering fault.
@@ -47,7 +57,10 @@ export function ItineraryTripBlock({ payload, accents }: { payload: ItineraryTri
             role="row"
             key={day.dayId}
             className={cn(
-              "flex items-baseline gap-3 border-b border-hairline px-3 py-2 last:border-b-0",
+              // `items-start`, not `items-baseline`: the right cell is two lines
+              // now, and a baseline alignment would hang the day label off the
+              // first of them and leave the second below the row's own box.
+              "flex items-start gap-3 border-b border-hairline px-3 py-2 last:border-b-0",
               CITY_TINT[family],
             )}
           >
@@ -61,7 +74,17 @@ export function ItineraryTripBlock({ payload, accents }: { payload: ItineraryTri
                   survives the formatter. */}
               <span className="text-2xs text-slate">{day.date ?? "No date"}</span>
             </span>
-            <span role="cell" className="min-w-0 text-sm text-ink">{summarise(day)}</span>
+            <span role="cell" className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm text-ink">{summarise(day)}</span>
+              {/* **The day's shape under its contents, which is the half SPEC
+                  §24's timeline had and this table did not.** A glance at a trip
+                  is not only "what is on each day" — it is where the day is, how
+                  full it is, when it runs and what it costs, which is exactly
+                  what the deleted lens's day header carried. The date is in the
+                  left column already, so it is dropped from this line rather
+                  than printed twice. */}
+              <span className="text-2xs text-slate">{meta(day)}</span>
+            </span>
           </span>
         );
       })}
