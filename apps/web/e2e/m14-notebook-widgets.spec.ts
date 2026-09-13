@@ -805,6 +805,42 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   const [firstEdges, ...otherEdges] = edges;
   expect(firstEdges?.length).toBeGreaterThan(1);
   for (const rowEdges of otherEdges) expect(rowEdges).toEqual(firstEdges);
+
+  // **And it READS as a header, not as a row that happens to be short.**
+  // Mitchell, on the preview: *"The 'Day 14' on this widget should be more
+  // pronounced, its not clear its a day header"*. `MacroView` styled
+  // `kind: "total"` and ignored `kind: "header"`, so a day header wore
+  // whatever the stripe gave it and nothing else — on a striped table, a row
+  // you read past.
+  //
+  // Asserted as computed style against a real data row rather than as classes,
+  // for the reason the striping walk gives: "reads as a header" has no other
+  // observable, and the lint wall forbids asserting the class. Three
+  // properties, because any one alone is a treatment somebody could remove
+  // while believing the header still stood out.
+  // By their own text, not `has: header` — a `has:` locator resolves relative
+  // to the element being filtered, and `header` above is anchored to the table,
+  // so it matches nothing inside a row and the filter waits forever.
+  const headerRow = table.getByRole("row").filter({ hasText: /^Day 1$/ });
+  const stopRow = table.getByRole("row").filter({ hasText: "Breakfast at the market" });
+  const styleOf = (locator: typeof headerRow) =>
+    locator.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        background: s.backgroundColor,
+        transform: s.textTransform,
+        size: parseFloat(s.fontSize),
+        weight: Number(s.fontWeight),
+      };
+    });
+  const headerStyle = await styleOf(headerRow);
+  const rowStyle = await styleOf(stopRow);
+
+  expect(headerStyle.transform, "a day header is set in caps and the row under it is not").toBe("uppercase");
+  expect(rowStyle.transform).toBe("none");
+  expect(headerStyle.background, "a day header is lifted off the stripe").not.toBe(rowStyle.background);
+  expect(headerStyle.size, "a day header is micro-type, not body text").toBeLessThan(rowStyle.size);
+  expect(headerStyle.weight).toBeGreaterThan(rowStyle.weight);
 });
 
 test("a widget's settings follow the selection, and leave with it", async ({ page }) => {

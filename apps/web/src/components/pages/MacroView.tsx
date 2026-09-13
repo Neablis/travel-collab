@@ -280,6 +280,15 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
                 // 2026-09-06, when a `block` utility on the container beat the
                 // display type; same rule, working in our favour this time.)
                 row.kind === "total" && "bg-moss font-semibold text-ink",
+                // A grouping header, which until now was styled as nothing at
+                // all — `kind` carried both values and this line read one of
+                // them, so a day header was an ordinary row with an empty value
+                // column (Mitchell, on the preview: *"The 'Day 14' on this
+                // widget should be more pronounced, its not clear its a day
+                // header"*). The treatment is in `globals.css`: a rule, a tint
+                // and micro-caps, none of which a utility can express without
+                // an arbitrary letter-spacing the colour wall refuses.
+                row.kind === "header" && "tc-widget-group",
               )}
             >
               <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left">

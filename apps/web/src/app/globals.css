@@ -636,6 +636,43 @@ html[data-look="ledger"] .shadow-raised {
     text-align: left;
   }
 
+  /* **A group header is a section break, not another row.** Mitchell, on the
+     preview: *"The "Day 14" on this widget should be more pronounced, its not
+     clear its a day header"*.
+
+     It carried NO treatment at all — `MacroView` styled `kind: "total"` and
+     ignored `kind: "header"`, so a day header was an ordinary row whose lead
+     happened to say "Day 14" and whose value column happened to be empty. On a
+     striped table that is a row you read past.
+
+     Three signals, because one was not enough and each does a different job:
+     the rule above it ends the group before it; the tint takes it out of the
+     stripe; and the micro-caps say "label", which is the part that makes it
+     read as a HEADER rather than as another entry. Deliberately not the total's
+     treatment — that is `bg-moss` with bold ink at body size, and the two must
+     not be mistaken for each other: a tinted row here is structural, and which
+     structure it is, is in the type.
+
+     `.tc-widget-row.tc-widget-group` rather than the class alone: the stripe is
+     `.tc-widget-row:nth-child(even)`, two classes' worth of specificity, and a
+     single class after it would still lose on every even row. */
+  .tc-widget-row.tc-widget-group {
+    background-color: var(--color-moss);
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    font-weight: 600;
+    text-transform: uppercase;
+    /* Letter-spacing at 11px is what stops uppercase reading as a shout. The
+       same pairing the front door's eyebrows use (`uppercase tracking-widest`). */
+    letter-spacing: 0.08em;
+    color: var(--color-slate);
+  }
+  /* Not on the first row: the table already draws its own border there, and a
+     second line 1px inside it reads as a mistake rather than as a division. */
+  .tc-widget-row.tc-widget-group:not(:first-child) {
+    border-top: 1px solid var(--color-hairline);
+  }
+
   /* **On a phone the table stacks: the label above its value, one pair per
      row.** Mitchell, on the preview, pointing at `open` on a 411px Overview:
      *"I think this is a widget, it should be, but it looks really bad on
@@ -668,7 +705,11 @@ html[data-look="ledger"] .shadow-raised {
     }
     /* The label reads as a label rather than as a first line of the value:
        smaller, quieter, and tight to the thing under it. */
-    .tc-widget-row > [role="rowheader"] {
+    /* `:not(:only-child)` — a LABEL sits above its value, and a group header
+       has no value under it to sit above. Without this the header lost its
+       bottom padding to a row that ends there, and took the label treatment on
+       top of its own. */
+    .tc-widget-row > [role="rowheader"]:not(:only-child) {
       padding-bottom: 0;
       font-size: var(--text-2xs);
       color: var(--color-slate);
