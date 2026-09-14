@@ -11,6 +11,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { cityFor } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
+import { cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { formatTripDate } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
@@ -114,7 +116,11 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
     setPlannedOfBudget(null);
     setConflictCount(null);
     setNotBooked(null);
-    void fetchTripDetail(trip.tripId).then((result) => {
+    // The same key `TripProvider` reads under, which is the point: the stats
+    // below and the board you reach by clicking them are the same document,
+    // and this page used to fetch it seconds before the trip route fetched it
+    // again. Whichever mounts first pays; the other is free.
+    void cachedRead(tripKeys.detail(trip.tripId), () => fetchTripDetail(trip.tripId)).then((result) => {
       if (cancelled) return;
       if (result.ok) {
         const detail = result.value;

@@ -6,6 +6,8 @@ import type { PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contract
 import { isOverviewPage } from "@tc/pages";
 import { fetchPage, fetchPages } from "@/lib/pagesClient";
 import { fetchTripGlobals } from "@/lib/apiClient";
+import { DEDUPE, cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { buttonVariants } from "@/components/ui/button";
@@ -57,13 +59,28 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
     | { status: "unreadable"; page: PageSummary }
   >({ status: "loading" });
 
+  // Read through the cache, because this component is UNMOUNTED whenever you
+  // leave the tab — `TripBoardScreen` renders it as `{view === "Overview" &&
+  // <OverviewLens/>}` — so before this, a glance at Calendar and back re-ran
+  // all three requests below for data that could not have changed in the
+  // second you were away. The lens switcher is a search param (ADR-012
+  // invariant 2), so this is a remount per tab visit, not per page load.
+  //
+  // `DEDUPE.DOCUMENT` rather than the shorter navigation window: these are the
+  // trip's documents, read far more often than written, and every local write
+  // to the trip invalidates them by prefix (`tripKeys.all`) — so the window
+  // can only ever hide a REMOTE edit, and only for as long as it lasts.
   useEffect(() => {
     let live = true;
-    void fetchTripGlobals(tripId).then((r) => {
+    void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
+      dedupeMs: DEDUPE.DOCUMENT,
+    }).then((r) => {
       if (live && r.ok) setGlobals(r.value);
     });
     void (async () => {
-      const list = await fetchPages(tripId);
+      const list = await cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), {
+        dedupeMs: DEDUPE.DOCUMENT,
+      });
       if (!live) return;
       if (!list.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
       const summary = list.value.pages.find((p: PageSummary) => isOverviewPage(p.context));
@@ -73,7 +90,11 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
       // seeds only into a trip with zero pages). That is a real state and it
       // gets a real answer rather than a spinner that never resolves.
       if (summary === undefined) return setState({ status: "error", message: "This trip has no Overview page." });
-      const page = await fetchPage(tripId, summary.id);
+      const page = await cachedRead(
+        tripKeys.page(tripId, summary.id),
+        () => fetchPage(tripId, summary.id),
+        { dedupeMs: DEDUPE.DOCUMENT },
+      );
       if (!live) return;
       if (!page.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
       // ADR-038 decision 4: whoever mounts `PageEditor` has already been told
