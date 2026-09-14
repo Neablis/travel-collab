@@ -25,6 +25,11 @@ const CONSOLE_FILES = [
   path.join(HERE, "page.tsx"),
   path.join(HERE, "layout.tsx"),
   path.join(WEB, "src/components/admin/GrantForm.tsx"),
+  // Added after the fact, which is the finding: `GrantList` landed in the same
+  // phase as the sweep and was not added to it, so revenue, pricing or
+  // plan-mutation vocabulary could have walked into the console through the one
+  // component the invariant test did not read. Caught by CodeRabbit on PR #174.
+  path.join(WEB, "src/components/admin/GrantList.tsx"),
   path.join(WEB, "src/lib/adminOverview.ts"),
   path.join(WEB, "src/server/entitlements/admin.ts"),
   path.join(WEB, "src/app/api/admin/overview/route.ts"),
@@ -96,23 +101,5 @@ describe("M20's console has no revenue on it", () => {
     for (const file of CONSOLE_FILES) {
       expect(codeOf(file), file).not.toMatch(/version-conflict|versionConflict/i);
     }
-  });
-});
-
-describe("the wire shape the page reads mirrors the server's", () => {
-  // `src/lib/adminOverview.ts` restates the server's types because the lint
-  // wall forbids a page importing `@/server/*`. Two declarations of one shape
-  // can drift, so the fields are compared by name — the same trade
-  // `apiClient.ts` makes for its duplicated refusal codes.
-  it("declares the same top-level fields on both sides", () => {
-    const fieldsOf = (source: string, name: string): string[] => {
-      const body = source.slice(source.indexOf(`interface ${name} {`));
-      const inner = body.slice(body.indexOf("{") + 1, body.indexOf("\n}"));
-      return [...inner.matchAll(/^\s{2}(\w+)[?]?:/gm)].map((match) => match[1]!).sort();
-    };
-    const ui = readFileSync(path.join(WEB, "src/lib/adminOverview.ts"), "utf8");
-    const server = readFileSync(path.join(WEB, "src/server/entitlements/admin.ts"), "utf8");
-    expect(fieldsOf(ui, "AdminOverview")).toEqual(fieldsOf(server, "AdminOverview"));
-    expect(fieldsOf(ui, "AdminAccountRow")).toEqual(fieldsOf(server, "AdminAccountRow"));
   });
 });

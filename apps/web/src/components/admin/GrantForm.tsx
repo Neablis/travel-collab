@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -32,6 +33,7 @@ export function GrantForm({ plans }: { plans: readonly string[] }) {
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -57,6 +59,12 @@ export function GrantForm({ plans }: { plans: readonly string[] }) {
           ? "Granted. It applies on this account's next request — no sign-out, no token refresh."
           : `Refused (${res.status}).`,
       );
+      // **Re-read the server-rendered overview.** Without this the page still
+      // shows the account's pre-grant row — its plan, its grant history, its
+      // entitlements — while the message above says the grant landed. An
+      // operator would reasonably read that as the grant having failed, and
+      // reissue it. Caught by CodeRabbit on PR #174.
+      if (res.ok) router.refresh();
     } catch {
       setMessage("The grant did not reach the server.");
     } finally {

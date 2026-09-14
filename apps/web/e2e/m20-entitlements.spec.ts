@@ -157,6 +157,33 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
+  // **The console is not on the phone at all, ENTRY POINT INCLUDED** — the
+  // design says so, and `AccountMenu` renders the link `hidden md:block`.
+  // Nothing asserted it: the component tests set no viewport, and the
+  // responsive spec's account-menu walk checks *Your account* and *Sign out*
+  // but not this. Flagged by CodeRabbit on PR #174, which suggested asserting
+  // the class — this repo's lint forbids that ("assert behaviour, not
+  // classes"), so it is asserted as what a person can actually see.
+  test("the operator link is on the desktop menu and not the phone one", async ({ browser }) => {
+    const operator = await openOperator(browser);
+
+    await operator.setViewportSize({ width: 411, height: 823 });
+    await operator.goto("/");
+    await operator.getByRole("button", { name: "Account menu" }).click();
+    await expect(operator.getByRole("button", { name: "Your account" })).toBeVisible();
+    // Present in the DOM (the link is rendered, then hidden by the breakpoint)
+    // and not VISIBLE, which is the thing a person experiences.
+    await expect(operator.getByRole("link", { name: "Operator console" })).toBeHidden();
+
+    // The same account, the same menu, one breakpoint wider.
+    await operator.setViewportSize({ width: 1280, height: 800 });
+    await operator.goto("/");
+    await operator.getByRole("button", { name: "Account menu" }).click();
+    await expect(operator.getByRole("link", { name: "Operator console" })).toBeVisible();
+
+    await operator.context().close();
+  });
+
   test("a grant bites on the next request, with the JWT unchanged", async ({ page, browser }) => {
     const who = newcomer("m20granted");
     await signInAs(page, who);

@@ -1,6 +1,6 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
-import { db, type Db } from "../db/client";
+import { db, type Queryable } from "../db/client";
 import { memberRole } from "../accessPolicy";
 import { tripMemberships, users } from "../db/schema";
 // **Access & Membership reads a boolean out of Entitlements, never the other
@@ -10,7 +10,9 @@ import { tripMemberships, users } from "../db/schema";
 // string on the other side of the call.
 import { accountCan } from "../entitlements/resolver";
 
-type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+// Declared in `db/client.ts` since a second module needed it (the referral
+// loop). Re-exported here so this file's own callers are unaffected.
+export type { Queryable };
 
 const RANK: Record<TripRole, number> = { viewer: 0, editor: 1, owner: 2 };
 

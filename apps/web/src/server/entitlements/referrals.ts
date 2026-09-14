@@ -24,10 +24,82 @@
 // Self-referral still earns nothing and the per-account cap still holds, but
 // neither is now load-bearing.
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
-import { db } from "@/server/db/client";
+import { db, type Queryable } from "@/server/db/client";
 import { entitlementGrants, inviteCodes } from "@/server/db/schema";
 import { heldPlanFor, issueGrant } from "./grants";
 import { planVersionFromRef } from "./planVersions";
+
+/**
+ * The alphabet a code is drawn from: no `I`, `L`, `O`, `0` or `1`, because
+ * these are read aloud and retyped.
+ */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/**
+ * Ten characters drawn UNIFORMLY from that alphabet.
+ *
+ * **Rejection sampling, not modulo.** This was
+ * `bytes.map((byte) => ALPHABET[byte % 31])`, and 256 is not a multiple of 31:
+ * bytes 0-7 map to the first eight letters twice as often as the rest, so `A`
+ * was about twice as likely as `9`. Caught by CodeQL on PR #174
+ * ("creating biased random numbers from a cryptographically secure source"),
+ * which is the right place for it to be caught — the bias is invisible in any
+ * sample a person would eyeball.
+ *
+ * It costs the guessing bound roughly a bit and a half of the 49 a uniform
+ * ten-character draw carries, which is not the reason to fix it. The reason is
+ * that a code is an admission credential (M11a), and a credential whose
+ * distribution is skewed in a way nobody wrote down is one nobody can reason
+ * about later.
+ *
+ * The loop discards any byte at or above the largest multiple of the alphabet
+ * length that fits in a byte (248), so every accepted byte has exactly one of
+ * 31 equally likely residues. It draws more bytes than it needs up front,
+ * because rejecting ~3% of them one at a time would mean a syscall per
+ * rejection.
+ */
+function mintCode(length = 10): string {
+  const limit = Math.floor(256 / CODE_ALPHABET.length) * CODE_ALPHABET.length;
+  const out: string[] = [];
+  while (out.length < length) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(length * 2))) {
+      if (byte >= limit) continue;
+      out.push(CODE_ALPHABET[byte % CODE_ALPHABET.length]!);
+      if (out.length === length) break;
+    }
+  }
+  return out.join("");
+}
+
+/**
+ * Serialise a referral decision for one account.
+ *
+ * **Both caps below are count-then-write, and a count-then-write is not a
+ * cap.** Two concurrent requests each read four outstanding codes, each decide
+ * there is room, and each insert — five becomes six, and the same shape lets a
+ * referrer earn past the reward cap. Flagged twice by CodeRabbit on PR #174.
+ *
+ * A transaction alone does not fix it: under READ COMMITTED both transactions
+ * see the same pre-insert count, and neither writes a row the other conflicts
+ * on. The trial's one-time-ever rule is enforced by a partial unique index for
+ * exactly that reason — but a COUNT has no row to be unique about, so there is
+ * nothing to index.
+ *
+ * `pg_advisory_xact_lock` is the mechanism for that case: a lock on an
+ * arbitrary key, held to the end of the transaction, released by commit or
+ * rollback without a cleanup path. Keyed on the account, so two different
+ * referrers never wait on each other — which matters because this sits on the
+ * sign-in path, where the referral reward is issued.
+ *
+ * `hashtext` is Postgres's own hash over the id; a collision costs two
+ * unrelated accounts a moment of serialisation and nothing else.
+ */
+async function withAccountLock<T>(userId: string, run: (tx: Queryable) => Promise<T>): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    return run(tx);
+  });
+}
 
 /** How long a referral reward runs. One month, as one constant. */
 export const REFERRAL_REWARD_DAYS = 30;
@@ -58,19 +130,18 @@ export async function mintReferralCode(
   userId: string,
   now: Date = new Date(),
 ): Promise<{ ok: true; code: string } | { ok: false; reason: "too-many-outstanding" }> {
-  const outstanding = await db
-    .select({ code: inviteCodes.code })
-    .from(inviteCodes)
-    .where(and(eq(inviteCodes.createdBy, userId), isNull(inviteCodes.redeemedBy)));
-  if (outstanding.length >= OUTSTANDING_CODE_CAP) {
-    return { ok: false, reason: "too-many-outstanding" };
-  }
-  // Base32-ish, no ambiguous characters: these are read aloud and retyped.
-  const code = Array.from(crypto.getRandomValues(new Uint8Array(10)))
-    .map((byte) => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[byte % 31])
-    .join("");
-  await db.insert(inviteCodes).values({ code, createdBy: userId, createdAt: now });
-  return { ok: true, code };
+  return withAccountLock(userId, async (tx) => {
+    const outstanding = await tx
+      .select({ code: inviteCodes.code })
+      .from(inviteCodes)
+      .where(and(eq(inviteCodes.createdBy, userId), isNull(inviteCodes.redeemedBy)));
+    if (outstanding.length >= OUTSTANDING_CODE_CAP) {
+      return { ok: false, reason: "too-many-outstanding" } as const;
+    }
+    const code = mintCode();
+    await tx.insert(inviteCodes).values({ code, createdBy: userId, createdAt: now });
+    return { ok: true, code } as const;
+  });
 }
 
 /** Every code this account minted, redeemed or not. */
@@ -120,32 +191,38 @@ export async function rewardReferrer(
     return { rewarded: false, reason: "referrer-holds-no-paid-plan" };
   }
 
-  if (await rewardsInWindow(row.createdBy, now) >= REFERRAL_REWARD_CAP) {
-    return { rewarded: false, reason: "cap-reached" };
-  }
+  // **The cap and the grant in one transaction, under the referrer's lock**, so
+  // "count says there is room" and "write the row" cannot be interleaved by a
+  // concurrent redemption. See `withAccountLock`.
+  return withAccountLock(row.createdBy, async (tx) => {
+    if ((await rewardsInWindow(row.createdBy, now, tx)) >= REFERRAL_REWARD_CAP) {
+      return { rewarded: false, reason: "cap-reached" } as const;
+    }
 
-  // **Minted at redemption, for the tier held at that moment.** Cancelling
-  // afterwards does not claw it back: the month was earned, and the grant's own
-  // expiry is the only thing that ends it.
-  await issueGrant(
-    {
-      userId: row.createdBy,
-      planId: version.planId,
-      planVersion: version.version,
-      source: "referral",
-      grantedBy: null,
-      reason: `Referral: an invited account joined.`,
-      expiresAt: new Date(now.getTime() + REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000),
-    },
-    now,
-  );
-  return { rewarded: true, planId: version.planId };
+    // **Minted at redemption, for the tier held at that moment.** Cancelling
+    // afterwards does not claw it back: the month was earned, and the grant's
+    // own expiry is the only thing that ends it.
+    await issueGrant(
+      {
+        userId: row.createdBy,
+        planId: version.planId,
+        planVersion: version.version,
+        source: "referral",
+        grantedBy: null,
+        reason: `Referral: an invited account joined.`,
+        expiresAt: new Date(now.getTime() + REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000),
+      },
+      now,
+      tx,
+    );
+    return { rewarded: true, planId: version.planId } as const;
+  });
 }
 
 /** Referral grants this account has earned inside the cap's rolling window. */
-async function rewardsInWindow(userId: string, now: Date): Promise<number> {
+async function rewardsInWindow(userId: string, now: Date, tx: Queryable = db): Promise<number> {
   const since = new Date(now.getTime() - REFERRAL_CAP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const [row] = await db
+  const [row] = await tx
     .select({ count: sql<number>`count(*)::int` })
     .from(entitlementGrants)
     .where(

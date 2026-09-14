@@ -91,9 +91,20 @@ Object.freeze(MODEL_RATES);
  * a row nobody can price must not silently contribute nothing to a total, so
  * every caller decides what to do with it rather than being handed a lie.
  */
-export function rateAt(model: string, at: Date): ModelRate | null {
+export function rateAt(
+  model: string,
+  at: Date,
+  // **Injected, defaulting to the committed record**, for the reason
+  // `consumeQuota` takes its counters: the interesting property of this
+  // function is *which* entry it picks when a model has several, and the
+  // committed file has exactly one per model today. Proving re-pricing against
+  // it would mean inventing a rate change that never happened in a file whose
+  // whole value is being a truthful append-only record. The test supplies its
+  // own two-entry history instead.
+  history: readonly ModelRate[] = MODEL_RATES,
+): ModelRate | null {
   const asIso = at.toISOString().slice(0, 10);
-  const candidates = MODEL_RATES.filter(
+  const candidates = history.filter(
     (rate) => rate.model === model && rate.effectiveFrom <= asIso,
   );
   if (candidates.length === 0) return null;
@@ -116,10 +127,19 @@ export function microUsdFor(
   tokensIn: number | null,
   tokensOut: number | null,
   at: Date,
+  history: readonly ModelRate[] = MODEL_RATES,
 ): number | null {
-  const rate = rateAt(model, at);
-  if (rate === null) return null;
-  const input = ((tokensIn ?? 0) * rate.inputMicroUsdPerMTok) / 1_000_000;
-  const output = ((tokensOut ?? 0) * rate.outputMicroUsdPerMTok) / 1_000_000;
+  const rate = rateAt(model, at, history);
+  // **`null` is unmeasured, and unmeasured is not free.** This read
+  // `tokensIn ?? 0`, which is the exact defect the schema's own comment forbids
+  // three files away — *"nullable token columns mean the provider reported no
+  // usage, never zero. Zero is a measurement, and a rate join has to be able to
+  // tell them apart."* Coercing here made `costPerAccount` report an unmeasured
+  // request as costing nothing instead of counting it as `unpriced`, which is
+  // the same "a number that understates and looks precise" failure the whole
+  // no-`Money` rule exists to prevent. Found by CodeRabbit on PR #174.
+  if (rate === null || tokensIn === null || tokensOut === null) return null;
+  const input = (tokensIn * rate.inputMicroUsdPerMTok) / 1_000_000;
+  const output = (tokensOut * rate.outputMicroUsdPerMTok) / 1_000_000;
   return Math.round(input + output);
 }

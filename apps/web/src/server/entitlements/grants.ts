@@ -9,7 +9,7 @@
 // `moduleBoundary.test.ts` enforces it.
 import { and, eq, isNull, or, gt, sql } from "drizzle-orm";
 import type { GrantSource, PlanId } from "@tc/contracts";
-import { db } from "@/server/db/client";
+import { db, type Queryable } from "@/server/db/client";
 import { entitlementGrants, users } from "@/server/db/schema";
 import { livePlanVersion } from "./planVersions";
 
@@ -115,8 +115,18 @@ export interface IssueGrant {
  * Returns whether a row was actually written, which is what the caller needs to
  * know at signup.
  */
-export async function issueGrant(grant: IssueGrant, now: Date = new Date()): Promise<boolean> {
-  const written = await db
+export async function issueGrant(
+  grant: IssueGrant,
+  now: Date = new Date(),
+  // The referral loop counts a rolling window and then writes, and a
+  // count-then-write is not a cap unless both happen under one lock — so it
+  // passes its transaction in (`referrals.ts`'s `withAccountLock`). Defaults to
+  // the pool for every other caller, which needs no serialisation: the trial's
+  // one-time-ever rule is a partial unique index, and an admin grant is one
+  // operator pressing one button.
+  tx: Queryable = db,
+): Promise<boolean> {
+  const written = await tx
     .insert(entitlementGrants)
     .values({
       id: crypto.randomUUID(),

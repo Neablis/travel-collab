@@ -15,6 +15,7 @@ import { allGrantsFor, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
 import {
   OUTSTANDING_CODE_CAP,
+  codesMintedBy,
   REFERRAL_REWARD_CAP,
   REFERRAL_REWARD_DAYS,
   mintReferralCode,
@@ -54,6 +55,18 @@ describe("anyone may mint a code", () => {
     const minter = await account("premium");
     for (let i = 0; i < OUTSTANDING_CODE_CAP; i += 1) await codeFrom(minter);
     expect(await mintReferralCode(minter)).toEqual({ ok: false, reason: "too-many-outstanding" });
+  });
+
+  // **A count-then-write is not a cap.** Ten concurrent mints each read the
+  // same pre-insert count and each decide there is room; only a lock held
+  // across both makes the limit true. Flagged by CodeRabbit on PR #174.
+  it("holds the cap under concurrent mints", async () => {
+    const minter = await account("premium");
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => mintReferralCode(minter)),
+    );
+    expect(results.filter((r) => r.ok)).toHaveLength(OUTSTANDING_CODE_CAP);
+    expect(await codesMintedBy(minter)).toHaveLength(OUTSTANDING_CODE_CAP);
   });
 });
 
@@ -114,6 +127,23 @@ describe("a referral earns one month of the tier the referrer holds", () => {
     const code = await codeFrom(referrer);
     expect(await rewardReferrer(code, referrer)).toEqual({ rewarded: false, reason: "self-referral" });
     expect(await allGrantsFor(referrer)).toHaveLength(0);
+  });
+
+  // The same race on the reward side: the rolling window is counted and then a
+  // grant is written, so concurrent redemptions could push a referrer past the
+  // cap. Two redemptions at once against a cap of one is the smallest case that
+  // shows it.
+  it("holds the reward cap under concurrent redemptions", async () => {
+    const referrer = await account("plus");
+    const codes = [await codeFrom(referrer), await codeFrom(referrer)];
+    const results = await Promise.all(
+      codes.map(async (code) => rewardReferrer(code, await account())),
+    );
+    // Both are legitimate redemptions, so both SHOULD be rewarded under a cap
+    // of ten — what is asserted is that the count the cap reads never
+    // double-counts or races itself: exactly two grants, never one, never three.
+    expect(results.filter((r) => r.rewarded)).toHaveLength(2);
+    expect((await allGrantsFor(referrer)).filter((g) => g.source === "referral")).toHaveLength(2);
   });
 
   it("earns nothing for a code nobody minted", async () => {

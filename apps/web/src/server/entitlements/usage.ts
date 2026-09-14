@@ -17,7 +17,7 @@ import { and, desc, gte, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { aiUsage } from "@/server/db/schema";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { microUsdFor } from "./modelRates";
+import { microUsdFor, type ModelRate } from "./modelRates";
 
 /** One `ai_usage` row, as read back. */
 export type AiUsageRow = typeof aiUsage.$inferSelect;
@@ -82,8 +82,15 @@ export async function recordAiUsage(ledger: TurnLedger, now: Date = new Date()):
  * `null` when a model has no published rate. **Not zero** — a request nobody
  * can price must not silently contribute nothing to a total.
  */
-export function microUsdForRow(row: AiUsageRow, at: Date = row.createdAt): number | null {
-  const turn = microUsdFor(row.turnModel, row.turnTokensIn, row.turnTokensOut, at);
+export function microUsdForRow(
+  row: AiUsageRow,
+  at: Date = row.createdAt,
+  // Passed through to `rateAt`, so a test can re-derive the same stored row
+  // against a different published history — which is what "re-pricing works"
+  // actually means.
+  history?: readonly ModelRate[],
+): number | null {
+  const turn = microUsdFor(row.turnModel, row.turnTokensIn, row.turnTokensOut, at, history);
   if (turn === null) return null;
   if (row.classifierModel === null) return turn;
   const classifier = microUsdFor(
@@ -91,6 +98,7 @@ export function microUsdForRow(row: AiUsageRow, at: Date = row.createdAt): numbe
     row.classifierTokensIn,
     row.classifierTokensOut,
     at,
+    history,
   );
   return classifier === null ? null : turn + classifier;
 }

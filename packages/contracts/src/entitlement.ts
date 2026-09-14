@@ -149,6 +149,13 @@ export const AdminGrantInput = z.object({
    * Why, in the operator's words. A comp nobody can explain six months later
    * is a billing dispute with no evidence, so it is required and non-empty.
    */
-  reason: z.string().min(1).max(500),
+  reason: z
+    .string()
+    .max(500)
+    // `.min(1)` accepted `"   "`, which is a grant with no audit evidence
+    // wearing the shape of one — and this package validates without
+    // transforming, so the value is checked trimmed and STORED as typed.
+    // Caught by CodeRabbit on PR #174.
+    .refine((reason) => reason.trim().length > 0, "Give a reason — a blank one is not an audit trail."),
 });
 export type AdminGrantInput = z.infer<typeof AdminGrantInput>;

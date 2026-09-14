@@ -1713,6 +1713,26 @@ describe("POST /api/trips/:id/ask", () => {
       // A user who navigated away is not a failure, and must not read as one
       // to anyone counting error rates off these lines.
       expect(records[0]).toMatchObject({ outcome: "abort", cause: null });
+
+      // **And it still writes an `ai_usage` row** (M20 link 9). This asserted
+      // only the analytics record, so the abort path's durable write was
+      // covered by a direct `recordAiUsage` test and by nothing that drove the
+      // endpoint. Abort is the outcome a reader is most likely to assume is
+      // free — the user closed the rail — and the round-trips the provider had
+      // already been paid for are exactly what the ledger must not lose.
+      // Caught by CodeRabbit on PR #174.
+      //
+      // **`waitFor`, because this path does not await the write and that is
+      // deliberate** — the response is already gone, so the abort and error
+      // paths are best-effort on the same terms `settleAiSteps` has been since
+      // ADR-033. Asserting it synchronously passed alone and failed in the full
+      // suite, which is the honest signal that the guarantee is eventual rather
+      // than immediate. KI-2026-09-14-b carries what closing that gap properly
+      // would take.
+      await vi.waitFor(async () => {
+        const rows = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
+        expect(rows.filter((row) => row.outcome === "abort").length).toBeGreaterThan(0);
+      });
     });
   });
 
@@ -1789,8 +1809,17 @@ describe("POST /api/trips/:id/ask", () => {
 // partway — the round-trips were still paid for. A test asserts the failure
 // path writes."*
 describe("the cost ledger", () => {
+  // **Ordered, because these tests read the LAST element as the newest row.**
+  // SQL result order is undefined without an `ORDER BY`, and `ACTOR_ID`
+  // accumulates rows across this describe — so the unordered version could
+  // inspect an older row and assert the wrong turn's outcome. `id` breaks ties
+  // within the same millisecond. Caught by CodeRabbit on PR #174.
   const usageRows = async (userId: string) =>
-    db.select().from(aiUsage).where(eq(aiUsage.userId, userId));
+    db
+      .select()
+      .from(aiUsage)
+      .where(eq(aiUsage.userId, userId))
+      .orderBy(aiUsage.createdAt, aiUsage.id);
 
   it("writes one row for a completed turn", async () => {
     const tripId = await seedTrip();

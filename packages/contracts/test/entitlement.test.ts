@@ -1,8 +1,10 @@
 // The vocabulary, and the two things it must never grow.
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  AdminGrantInput,
   ENTITLEMENTS,
   Entitlement,
   GrantSource,
@@ -12,16 +14,38 @@ import {
 } from "../src/entitlement.ts";
 
 const SOURCE = readFileSync(fileURLToPath(new URL("../src/entitlement.ts", import.meta.url)), "utf8");
-// **Line comments first, then block comments, and the order is load-bearing.**
-// A `//` comment containing `@/server/*` — which this repo has, because that is
-// how the lint wall is written down — opens a `/*` that a non-greedy matcher
-// then closes against the next `*/` anywhere in the file, swallowing real code
-// in between. It cost `app/admin/admin.console.test.ts` 2,800 characters of
-// JSX before it was caught by breaking the page on purpose.
+// **A real parse, because a comment is a lexical construct.** Three earlier
+// versions of this were wrong: a regex that stripped block comments before line
+// comments (a `//` naming `@/server/*` opened a block comment that ate 2,800
+// characters elsewhere in this repo), the same regex with the order fixed (a
+// `/*` inside a string, template or regex literal still opened one), and
+// `ts.createScanner` alone — which cannot tokenise a template literal with a
+// substitution without parser feedback, and on THIS file returned one
+// 734-character template token starting at the backtick in `new RegExp(\`…\`)`
+// that swallowed the JSDoc after it. The last two were found by CodeRabbit on
+// PR #174 and by the fix for the second failing a test that had been passing.
 //
-// `apps/web/src/test-support/stripComments.ts` is the shared version; this
-// package depends on nothing, so it is spelled out rather than imported.
-const CODE = SOURCE.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+// `apps/web/src/test-support/stripComments.ts` is the shared version and has
+// its own tests; this package depends on nothing, so it is spelled out here.
+// `getChildren`, not `forEachChild`: trivia hangs off TOKENS, which the latter
+// never yields.
+const CODE = (() => {
+  const parsed = ts.createSourceFile("entitlement.ts", SOURCE, ts.ScriptTarget.Latest, true);
+  const out = SOURCE.split("");
+  const blank = (node: ts.Node): void => {
+    for (const range of [
+      ...(ts.getLeadingCommentRanges(SOURCE, node.getFullStart()) ?? []),
+      ...(ts.getTrailingCommentRanges(SOURCE, node.getEnd()) ?? []),
+    ]) {
+      for (let i = range.pos; i < range.end && i < out.length; i += 1) {
+        if (out[i] !== "\n") out[i] = " ";
+      }
+    }
+    for (const child of node.getChildren(parsed)) blank(child);
+  };
+  blank(parsed);
+  return out.join("");
+})();
 
 describe("Entitlement", () => {
   it("names the three capabilities M20 gates on", () => {
@@ -106,5 +130,42 @@ describe("PlanVersionRef", () => {
 describe("GrantSource", () => {
   it("names the four ways an account holds something it did not buy", () => {
     expect(GrantSource.options).toEqual(["trial", "referral", "admin", "founder"]);
+  });
+});
+
+describe("AdminGrantInput", () => {
+  const grant = { userId: "dev-ana", planId: "premium", expiresAt: null, reason: "Comped." };
+
+  it("accepts a grant with an account, a plan, an expiry and a reason", () => {
+    expect(AdminGrantInput.safeParse(grant).success).toBe(true);
+    // `null` is PERMANENT, and it is nullable rather than optional so that
+    // "forever" is a decision an operator makes rather than one an omitted
+    // field makes for them.
+    expect(AdminGrantInput.safeParse({ ...grant, expiresAt: "2026-10-01T00:00:00Z" }).success).toBe(true);
+    expect(AdminGrantInput.safeParse({ userId: "dev-ana", planId: "premium", reason: "x" }).success).toBe(false);
+  });
+
+  // **A reason nobody can read is not an audit trail.** `.min(1)` accepted
+  // `"   "` — a comp with no evidence behind it, six months before the billing
+  // dispute that asks what it was for.
+  it("refuses a blank or whitespace-only reason", () => {
+    for (const reason of ["", " ", "   ", "\t\n"]) {
+      expect(AdminGrantInput.safeParse({ ...grant, reason }).success, JSON.stringify(reason)).toBe(false);
+    }
+  });
+
+  // Validated trimmed, STORED as typed: this package validates and never
+  // transforms, so an operator's own spacing survives.
+  it("keeps the operator's own wording, spacing included", () => {
+    const parsed = AdminGrantInput.parse({ ...grant, reason: "  Comped for a support case.  " });
+    expect(parsed.reason).toBe("  Comped for a support case.  ");
+  });
+
+  // **No version field**, deliberately: a grant pins the version live when it
+  // is issued, resolved server-side. And no price — M20 never learns what a
+  // plan costs.
+  it("carries no version and no price", () => {
+    const keys = Object.keys(AdminGrantInput.shape);
+    expect(keys.sort()).toEqual(["expiresAt", "planId", "reason", "userId"]);
   });
 });

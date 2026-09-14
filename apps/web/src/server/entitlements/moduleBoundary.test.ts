@@ -81,8 +81,17 @@ describe("the Entitlements module knows nothing about trips", () => {
       .filter((file) => named(file) !== "planVersions.ts")
       .filter((file) => {
         const code = stripComments(source(file));
-        // A comparison against a specific capability string is a branch.
-        return /===\s*"(ai\.ask|ai\.command|trip\.collaborators)"/.test(code);
+        // **Every branch form, not just `===`.** The first version of this
+        // matched equality alone, so a module could branch on a named
+        // capability with `!==`, a `switch` case, or `.includes(...)` and the
+        // invariant test stayed green. Caught by CodeRabbit on PR #174.
+        const capability = String.raw`"(ai\.ask|ai\.command|trip\.collaborators)"`;
+        return [
+          new RegExp(String.raw`[!=]==?\s*${capability}`),
+          new RegExp(String.raw`${capability}\s*[!=]==?`),
+          new RegExp(String.raw`case\s+${capability}`),
+          new RegExp(String.raw`\.\s*(includes|indexOf|has|startsWith)\s*\(\s*${capability}`),
+        ].some((pattern) => pattern.test(code));
       })
       .map(named);
     expect(offenders).toEqual([]);

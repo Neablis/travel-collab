@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -26,16 +27,20 @@ import type { AdminOverview } from "@/lib/adminOverview";
 // server-side check, so the route and the endpoint cannot disagree about who is
 // an operator.
 //
-// The origin comes from `headers()`, the same way the signup page's Server
-// Action derives its cookie host — `BASE_URL` is a local-dev default and would
-// be wrong on Vercel. The cookie header is forwarded because the endpoint
-// authenticates the caller and a server-side `fetch` carries no jar of its own.
+// **The origin is CONFIGURATION, never a request header** (`lib/deploymentOrigin.ts`).
+// This built the URL from `host` and `x-forwarded-proto`, which are request
+// input, and then forwarded an operator's session cookie to it. On Vercel the
+// edge sets both and a forged host does not route here at all — but that is an
+// infrastructure guarantee standing in for a code one, on the one surface where
+// the credential is an operator's. Flagged by CodeRabbit on PR #174.
+//
+// The cookie is still forwarded, and now it is safe to: the destination is a
+// value this deployment was configured with, and a server-side `fetch` carries
+// no jar of its own.
 
 async function loadOverview(): Promise<AdminOverview> {
   const incoming = await headers();
-  const host = incoming.get("host");
-  const proto = incoming.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
-  const res = await fetch(`${proto}://${host}/api/admin/overview`, {
+  const res = await fetch(`${deploymentOrigin()}/api/admin/overview`, {
     headers: { cookie: incoming.get("cookie") ?? "" },
     // An operator console must never render a cached view of who holds what:
     // a grant made a moment ago has to be visible, and a revoked one gone.

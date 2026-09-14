@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { aiUsage } from "@/server/db/schema";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { microUsdFor, rateAt } from "./modelRates";
+import { microUsdFor, rateAt, type ModelRate } from "./modelRates";
 import { costPerAccount, microUsdForRow, recordAiUsage, topSpenders, usageFor } from "./usage";
 
 const TURN_MODEL = "deepseek/deepseek-v4-flash-0731";
@@ -140,27 +140,79 @@ describe("the row carries no content", () => {
 describe("re-pricing history", () => {
   // **The gate box, proven by re-deriving a known month at two different
   // rates.** The stored row does not move; the answer does.
+  // **Two published rates for one model, and the same stored row priced at
+  // both.** The first version of this compared a priced date with a date that
+  // returned `null`, which proves only that an unpriceable row is unpriceable —
+  // it never showed a later rate CHANGING a non-null historical cost, which is
+  // the whole of the gate box ("proven by re-deriving a known month at two
+  // different rates"). Caught by CodeRabbit on PR #174.
+  //
+  // The two-entry history is supplied by the test rather than added to
+  // `modelRates.ts`: that file is a truthful append-only record of rates that
+  // really applied, and inventing a rate change in it to make a test pass is
+  // exactly the kind of edit it exists to make visible.
+  const TWO_RATES: ModelRate[] = [
+    {
+      model: TURN_MODEL,
+      effectiveFrom: "2026-08-16",
+      inputMicroUsdPerMTok: 130_000,
+      outputMicroUsdPerMTok: 260_000,
+    },
+    {
+      model: TURN_MODEL,
+      effectiveFrom: "2026-09-01",
+      inputMicroUsdPerMTok: 260_000,
+      outputMicroUsdPerMTok: 520_000,
+    },
+    {
+      model: CLASSIFIER_MODEL,
+      effectiveFrom: "2026-08-16",
+      inputMicroUsdPerMTok: 70_000,
+      outputMicroUsdPerMTok: 400_000,
+    },
+  ];
+
   it("changes what past usage cost without touching a stored row", async () => {
     const entry = ledger();
     await recordAiUsage(entry, new Date("2026-08-20T00:00:00Z"));
     const [row] = await rowsFor(entry.cost.userId);
     const before = { ...row! };
 
-    const atAugust = microUsdForRow(row!, new Date("2026-08-20T00:00:00Z"));
-    // The one live record: 3,363 in + 512 out on the turn, 198 + 49 on the
-    // classifier. At $0.13/$0.26 and $0.07/$0.40 per MTok that is ~$0.0006 —
-    // six ten-thousandths of a dollar, which is the number the milestone
-    // measured and the number `Money` would have rounded to zero.
-    expect(atAugust).toBe(
-      Math.round((3363 * 130_000 + 512 * 260_000) / 1_000_000) +
-        Math.round((198 * 70_000 + 49 * 400_000) / 1_000_000),
-    );
-    expect(atAugust).toBeGreaterThan(0);
-    expect(atAugust).toBeLessThan(1000); // under one cent, in micro-dollars
+    const atAugust = microUsdForRow(row!, new Date("2026-08-20T00:00:00Z"), TWO_RATES);
+    const atSeptember = microUsdForRow(row!, new Date("2026-09-13T00:00:00Z"), TWO_RATES);
 
-    // A rate that predates every published entry prices nothing — and answers
-    // `null` rather than zero, because a row nobody can price must not
-    // silently contribute nothing to a total.
+    // Both real numbers, and DIFFERENT: the turn model doubled on 2026-09-01
+    // while the classifier's rate did not move, so the September figure is the
+    // August one plus the turn's own cost again.
+    expect(atAugust).toBeGreaterThan(0);
+    expect(atSeptember).toBeGreaterThan(0);
+    expect(atSeptember).not.toBe(atAugust);
+    // Each leg rounds ONCE, so September is not August doubled: the turn's own
+    // figure is 570.31 → 570 in August and 1140.62 → 1141 in September. Writing
+    // it as `turnAtAugust * 2` gave 1140 and failed by one — which is the
+    // rounding this ledger stores integers to avoid arguing about, showing up
+    // in the test that measures it.
+    const turnAtAugust = Math.round((3363 * 130_000 + 512 * 260_000) / 1_000_000);
+    const turnAtSeptember = Math.round((3363 * 260_000 + 512 * 520_000) / 1_000_000);
+    const classifier = Math.round((198 * 70_000 + 49 * 400_000) / 1_000_000);
+    expect(atAugust).toBe(turnAtAugust + classifier);
+    expect(atSeptember).toBe(turnAtSeptember + classifier);
+
+    // `rateAt` picks the NEWEST entry on or before the date, not the first or
+    // the last in the list.
+    expect(rateAt(TURN_MODEL, new Date("2026-08-31T00:00:00Z"), TWO_RATES)!.effectiveFrom).toBe("2026-08-16");
+    expect(rateAt(TURN_MODEL, new Date("2026-09-01T00:00:00Z"), TWO_RATES)!.effectiveFrom).toBe("2026-09-01");
+
+    // The one live record against the COMMITTED rates: ~$0.0006, six
+    // ten-thousandths of a dollar — the number the milestone measured, and the
+    // number `Money` would have rounded to zero.
+    const committed = microUsdForRow(row!, new Date("2026-09-13T00:00:00Z"));
+    expect(committed).toBe(turnAtAugust + classifier);
+    expect(committed).toBeLessThan(1000);
+
+    // A date predating every published rate prices nothing — and answers `null`
+    // rather than zero, because a row nobody can price must not silently
+    // contribute nothing to a total.
     expect(microUsdForRow(row!, new Date("2026-01-01T00:00:00Z"))).toBeNull();
     expect(rateAt(TURN_MODEL, new Date("2026-01-01T00:00:00Z"))).toBeNull();
 
@@ -168,6 +220,27 @@ describe("re-pricing history", () => {
     // writes.
     const [after] = await rowsFor(entry.cost.userId);
     expect(after).toEqual(before);
+  });
+
+  // **An unmeasured token count is unpriceable, not free.** `microUsdFor` used
+  // to coerce `null` to `0`, which reported a request nobody measured as
+  // costing nothing — the same "a number that understates and looks precise"
+  // failure the whole no-`Money` rule exists to prevent. Caught by CodeRabbit
+  // on PR #174.
+  it("prices an unmeasured turn as null rather than as free", async () => {
+    const entry = ledger({ turn: { model: TURN_MODEL, tokensIn: null, tokensOut: null } });
+    await recordAiUsage(entry);
+    const [row] = await rowsFor(entry.cost.userId);
+    expect(microUsdForRow(row!)).toBeNull();
+
+    // A measured ZERO is different, and still prices as zero.
+    const measured = ledger({
+      turn: { model: TURN_MODEL, tokensIn: 0, tokensOut: 0 },
+      classifier: null,
+    });
+    await recordAiUsage(measured);
+    const [zeroRow] = await rowsFor(measured.cost.userId);
+    expect(microUsdForRow(zeroRow!)).toBe(0);
   });
 
   // A model with no published rate is unpriceable, and that is reported rather

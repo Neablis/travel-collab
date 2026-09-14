@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import type { AdminGrantRow } from "@/lib/adminOverview";
@@ -17,6 +18,7 @@ import type { AdminGrantRow } from "@/lib/adminOverview";
 export function GrantList({ grants }: { grants: readonly AdminGrantRow[] }) {
   const [revoked, setRevoked] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
+  const router = useRouter();
 
   async function revoke(grantId: string) {
     setBusy(grantId);
@@ -26,7 +28,16 @@ export function GrantList({ grants }: { grants: readonly AdminGrantRow[] }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ grantId }),
       });
-      if (res.ok) setRevoked((current) => new Set(current).add(grantId));
+      if (res.ok) {
+        // Hidden locally AND re-read from the server. The local set is what
+        // makes the row disappear immediately; the refresh is what makes every
+        // OTHER cell agree with it — revoking a grant changes that account's
+        // effective entitlements, and leaving those stale shows an account that
+        // can still do something it no longer can. Caught by CodeRabbit on
+        // PR #174.
+        setRevoked((current) => new Set(current).add(grantId));
+        router.refresh();
+      }
     } finally {
       setBusy(null);
     }
