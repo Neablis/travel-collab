@@ -142,7 +142,13 @@ M20 link 9's `ai_usage` row — with **model identity and cost as variable input
 hands back its live array).
 
 **Two fixture trips are still on the preview database** from #162's browser walk: `Kyoto
-pass 162` and `Blank slate 162`.
+pass 162` and `Blank slate 162`. **M20's gate walk (2026-09-14) left three more things
+there**: the account `dev-gatewalk314819` (created through `/signup` with a real referral
+code, so it carries the signup trial), its trip `GateWalk Kyoto 9583`, and an unredeemed
+referral code minted by `dev-alice`. None is load-bearing; all four dev accounts on preview
+also carry `0019`'s permanent `founder` premium grant, which is why a preview account cannot
+demonstrate the free tier's refusals — that negative belongs to the e2e lane, which controls
+its own grant state.
 
 ## Live rules that the code cannot enforce
 
