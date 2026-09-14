@@ -78,7 +78,16 @@ test("passes against the checked-in config, and every rejection names the rule t
   // introduced. If you touch `apps/web/eslint.config.mjs` or
   // `scripts/check-lint-wall.mjs`, the sufficient subset includes THIS FILE, not
   // just the wall it tests.
-  assert.equal(stdout.trim().split("\n").length, 26, `the wall's assertion count changed:\n${stdout}`);
+  //
+  // **26 → 29 on 2026-09-14**, for the three `src/app/admin` fixtures that pin
+  // the operator console's exemption (one pattern open, two shut). And the trap
+  // above caught its third victim on the way: that change touched
+  // `eslint.config.mjs` AND `check-lint-wall.mjs`, both named in the paragraph
+  // above, and I ran `node scripts/check-lint-wall.mjs` — which exits 0,
+  // because the wall is fine — without running this file. It surfaced in
+  // `pnpm check`, exactly where the comment says it will. The warning is
+  // correct and being correct is not the same as being read.
+  assert.equal(stdout.trim().split("\n").length, 29, `the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

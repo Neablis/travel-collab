@@ -73,6 +73,23 @@ export const TripAccess = z.object({
   myRole: TripRole,
   members: z.array(TripMemberProfile).min(1),
   invites: z.array(TripInvite),
+  /**
+   * Whether this trip's **owner** holds `trip.collaborators` (M20 link 6).
+   *
+   * **The owner's, not the reader's**, and the asymmetry is the design. The
+   * owner is the billing subject: a trip's collaboration is paid for by whoever
+   * owns it, so an editor reading this sees whether the trip they are on is
+   * collaborative — not whether their own account could pay for one.
+   *
+   * Advisory, exactly like `myRole`: it decides whether the invite form is
+   * rendered at all, and every write is refused server-side regardless of what
+   * the client did with it.
+   *
+   * **Entitlements never learns what a trip is** (ADR-045 rule 5). This field
+   * is the boolean Access & Membership reads out of that module and puts on its
+   * own DTO; the capability string is opaque on the other side of that call.
+   */
+  collaboratorsEntitled: z.boolean(),
 });
 export type TripAccess = z.infer<typeof TripAccess>;
 

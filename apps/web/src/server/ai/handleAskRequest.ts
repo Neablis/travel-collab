@@ -87,6 +87,7 @@ import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
+import { recordAiUsage } from "@/server/entitlements/usage";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
@@ -266,6 +267,30 @@ export async function handleAskRequest(
       // reconstruction of it.
       (sink ?? logAskAnalytics)(record, ledger);
       recordAskMetrics(record, ledger);
+      // **The fifth reader of the same latch: M20 link 9's durable row.**
+      //
+      // The log is not a ledger. `console.info("ai.ask", …)` already carries
+      // every field this row needs and is still not sufficient — Vercel's
+      // runtime logs are retained briefly and are not queryable as a series
+      // (`M16-assistant-read-agent.md` records finding exactly ONE `ai.ask`
+      // entry across seven days). The table exists because the log cannot
+      // answer a question about last month, which is the question a price has
+      // to be set from.
+      //
+      // Here rather than at three call sites, for the reason the metrics and
+      // the settlement are here: this latch already fires exactly once per
+      // turn on all three end paths, so *"every AI request writes one row,
+      // INCLUDING a request that fails partway"* costs nothing. The
+      // round-trips were still paid for.
+      //
+      // **Tracked on `settled`, not fire-and-forget.** It was
+      // `void recordAiUsage(ledger)`, which reads as harmless beside a
+      // never-throwing writer — but "never throws" is not "finishes", and a
+      // Vercel invocation may stop once the streaming response closes. See
+      // `settled`'s own comment. Neither writer throws, so the combined promise
+      // cannot reject and the abort and error paths, which still do not await,
+      // cannot produce an unhandled rejection.
+      const recorded = recordAiUsage(ledger);
       // The other half of KI-67: admission pre-authorised ONE round-trip, and
       // this settles what the turn actually cost. A third consumer of the same
       // single-writer latch, for the same reason the metrics are — the provider
@@ -297,11 +322,10 @@ export async function handleAskRequest(
       // fall back to the default would meter the settlement on a different plan
       // than the admission charge, which is a silent mis-charge on exactly the
       // accounts M20 exists to bill.
-      settled = settleAiSteps(
-        aiStepQuotas(grant.entitlements.ceilings),
-        userId,
-        billableRoundTrips(ledger),
-      );
+      settled = Promise.all([
+        settleAiSteps(aiStepQuotas(grant.entitlements.ceilings), userId, billableRoundTrips(ledger)),
+        recorded,
+      ]).then(() => undefined);
     },
   });
 

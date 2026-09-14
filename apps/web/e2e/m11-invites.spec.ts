@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
+import { grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -126,6 +127,19 @@ async function signedInAs(
   ]);
   return page;
 }
+
+// **M20 link 6 reached this file.** Inviting requires the trip OWNER's
+// `trip.collaborators`, and the suite's shared identity (alice, from
+// `auth.setup.ts`) holds `free` — so the *Invite role* select this spec drives
+// is correctly no longer rendered for her, and all three tests timed out on it.
+// The gate working, not a regression.
+//
+// So the owner is made an account that may collaborate, through the operator
+// console's own grant endpoint — the path a real operator uses. Once, for the
+// file, because the grant is permanent and the identity is shared.
+test.beforeAll(async ({ browser }) => {
+  await grantCollaborators(browser, "dev-alice");
+});
 
 test("an invited editor opens the trip and changes it; the owner sees them listed", async ({
   page,

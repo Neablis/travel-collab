@@ -9,6 +9,7 @@ import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useAccountPreferences } from "./PreferencesProvider";
+import { PlanSection } from "./PlanSection";
 
 const UNIT_OPTIONS = [
   { value: "km" as const, label: "Kilometres" },
@@ -114,6 +115,13 @@ export function AccountSettingsSheet({
   return (
     <Sheet title="Your account" open={open} onOpenChange={onOpenChange}>
       <div className="flex flex-col gap-5 pt-1">
+        {/* **Plan first**, as the design orders it (handoff `SPEC.md` §17.4):
+            what you hold, what you have used of it today, and your referral
+            code — then name and identity below. It loads its own data rather
+            than taking props, because this sheet is opened from the header on
+            every route and threading a plan through every one of them would
+            make an unrelated surface care about entitlements. */}
+        <PlanSection />
         <div className="flex flex-col gap-4">
           <FormField
             id="account-display-name"

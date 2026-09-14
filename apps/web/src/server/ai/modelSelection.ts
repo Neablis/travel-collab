@@ -8,10 +8,10 @@ import { simulatedModel } from "@/server/ai/simulatedModel";
 import type { AiSurface } from "@/server/ai/context";
 import { MODEL_TIERS, type ModelTier, type TierModels } from "@/server/assistant/taskClass";
 import {
-  permitEverything,
   type EntitlementResolver,
   type ResolvedEntitlements,
 } from "@/server/assistant/entitlements";
+import { resolveAiEntitlements } from "@/server/entitlements/resolver";
 
 // May THIS request's caller cause a real model call. Every caller that only
 // needs the answer uses this; `aiLiveMode()` below is the same decision with
@@ -166,12 +166,40 @@ function tierModels(build: (modelId: string) => LanguageModel): TierModels {
 
 // The HTTP contract for a `denied` outcome, defined once here so /ask's two
 // halves (the turn and the approval) render the same refusal rather than each
-// inventing its own shape. 403, not 402: 402 asserts a payment relationship
-// that does not exist yet.
+// inventing its own shape.
+//
+// **402, since M20 link 4 — and the reason it was 403 is the reason it is not
+// any more.** The line this replaces read *"403, not 402: 402 asserts a
+// payment relationship that does not exist yet."* M20 creates one. 402 Payment
+// Required is now the honest answer, and it is the difference between *you may
+// not* and *this is not included in your plan* — the first is a permission
+// error and the second is a thing the person can act on.
+//
+// **A BREAKING WIRE CHANGE**, recorded in `docs/contracts/CHANGELOG.md`. The
+// `code` is unchanged, which is what any client branching correctly reads;
+// anything branching on the status alone moves with it.
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
 
+export const AI_NOT_ENTITLED_STATUS = 402;
+
+/**
+ * What a refused account is told. One string, so the endpoint, the rail and the
+ * test cannot drift into three different accounts of the same refusal.
+ *
+ * Names `Plus` because that is the cheapest plan whose v1 carries `ai.ask` —
+ * stated as copy rather than derived from the plan file, deliberately: deriving
+ * it would mean an authorisation path reading a display order to decide which
+ * plan to *name*, which is the exact read `planVersions.noExtension.test.ts`
+ * refuses. The ladder is presentation, and this is presentation.
+ */
+export const AI_NOT_ENTITLED_REASON =
+  "The assistant is part of Plus. This account is on a plan that does not include it.";
+
 export function deniedResponse(reason: string): Response {
-  return Response.json({ error: reason, code: AI_NOT_ENTITLED_CODE }, { status: 403 });
+  return Response.json(
+    { error: reason, code: AI_NOT_ENTITLED_CODE },
+    { status: AI_NOT_ENTITLED_STATUS },
+  );
 }
 
 // No entitlement source exists yet — there is no account tier anywhere in the
@@ -210,11 +238,30 @@ export type AiEntitlementCheck = EntitlementResolver;
 // which is why the refusal belongs here rather than in the tool filter.
 export async function selectAiModel(
   actor: AiActor,
-  isEntitled: AiEntitlementCheck = permitEverything,
+  // **M20 link 4 filled the stub, and this is the whole of the wiring.** The
+  // default was `permitEverything` — *"there is no account tier anywhere in the
+  // product"* — and there is one now. It is a change to what the default IS,
+  // not to the signature, exactly as this file's comment required: every caller
+  // is unchanged and the injection seam below still exists for the tests that
+  // need to drive `denied` and `live` without a database.
+  //
+  // `resolveAiEntitlements` reads the account's pinned plan version out of the
+  // committed file and unions its active grants out of `entitlement_grants`,
+  // per request. Never off the session: a downgrade must bite before a token
+  // refreshes (ADR-045 rule 2).
+  isEntitled: AiEntitlementCheck = resolveAiEntitlements,
 ): Promise<ModelSelection> {
   const entitlements = await isEntitled(actor);
   if (!entitlements.has("ai.ask")) {
-    return { outcome: "denied", reason: "AI is not available for this account." };
+    // **The refusal names the TIER, not a permission** (M20 link 6's rule,
+    // which applies here for the same reason). *"AI is not available for this
+    // account"* reads as something being wrong with the account; naming what
+    // the assistant is part of is what makes the answer actionable, and it is
+    // the difference a 402 is claiming to carry.
+    //
+    // No price. M20 never learns what a plan costs — only what it grants — and
+    // a price string here would be M21's leaking into this milestone.
+    return { outcome: "denied", reason: AI_NOT_ENTITLED_REASON };
   }
   if (!(await aiLive())) {
     // ONE instance, used for every tier and for the classifier. The

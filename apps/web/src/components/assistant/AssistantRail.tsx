@@ -122,6 +122,8 @@ export function AssistantRail({
   onNewConversation,
   asking = false,
   askError = null,
+  askUpgrade = false,
+  onOpenAccount,
   simulated = false,
   presentation = "docked",
   onHide,
@@ -205,6 +207,17 @@ export function AssistantRail({
   /** Set when the last ask failed — rendered inline, not a toast, so it
    * stays visible next to the box the user just submitted from. */
   askError?: string | null;
+  /**
+   * Render `askError` as an upgrade prompt rather than as a failure.
+   *
+   * True for exactly one refusal — the server's `ai-not-entitled`, which is a
+   * 402 since M20 link 4. The board decides it from the refusal's `code`, never
+   * from its prose: wording is free to change and a surface that pattern-matched
+   * on it would silently fall back to a red alert the day it did.
+   */
+  askUpgrade?: boolean;
+  /** Opens the account sheet, where M21 link 5 puts the Plan section. */
+  onOpenAccount?: () => void;
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The answer is real; the authorship is not a model. */
   simulated?: boolean;
@@ -528,11 +541,46 @@ export function AssistantRail({
               Simulated
             </Badge>
           )}
-          {askError !== null && (
-            <p role="alert" className="mb-1.5 text-xs text-danger">
-              {askError}
-            </p>
-          )}
+          {askError !== null &&
+            (askUpgrade ? (
+              // **An upgrade path, not a permission error** (M20 link 4's gate
+              // box). The server answers 402 Payment Required rather than 403
+              // here, and the two differ by exactly this: a 403 says the
+              // account did something it may not, and a 402 says the account
+              // does not have a thing it could have. Rendering both as a red
+              // alert throws that distinction away at the one surface where it
+              // is worth anything.
+              //
+              // `role="status"`, not `role="alert"`: nothing has gone wrong.
+              //
+              // **No price and no checkout.** M20 takes no money — Stripe,
+              // prices and the plan chooser are M21 — so the honest affordance
+              // today is the account sheet, which is where M21 link 5 puts the
+              // Plan section. The copy names the tier and what is behind it and
+              // stops there, which is what the milestone's *"the refusal names
+              // the tier, not a permission"* asks for.
+              <div role="status" className="mb-1.5 flex flex-col items-start gap-1">
+                <p className="text-xs text-ink">{askError}</p>
+                {onOpenAccount === undefined ? (
+                  // **No button, because there is nowhere for it to go yet.**
+                  // M20 builds no billing surface at all — M21 link 5 puts the
+                  // Plan section at the top of the account sheet — so a "See
+                  // your plan" button here today would be a control that does
+                  // nothing, which is worse than a sentence that is true. The
+                  // prop is the seam M21 fills; the copy stands on its own
+                  // until it does.
+                  <p className="text-xs text-slate">Plans live in your account settings.</p>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={onOpenAccount}>
+                    See your plan
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <p role="alert" className="mb-1.5 text-xs text-danger">
+                {askError}
+              </p>
+            ))}
           {threadFull ? (
             // The composer is REPLACED, not disabled beside a warning: at this
             // point there is exactly one thing to do, and the only previous signal

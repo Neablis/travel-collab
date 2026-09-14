@@ -4,6 +4,7 @@
 // Nothing here chooses a tier, a plan, a ceiling or a price. The default
 // resolver below permits everything and names no ceiling, which is exactly
 // today's behaviour: there is no account tier anywhere in the product yet.
+import type { Entitlement } from "@tc/contracts";
 import type { ModelTier } from "./taskClass";
 
 /**
@@ -19,12 +20,16 @@ import type { ModelTier } from "./taskClass";
  * **M20 link 1 owns the full vocabulary**, in `packages/contracts`, and it has
  * a third member (`trip.collaborators`) the assistant never asks about. This
  * union is deliberately the kernel's SUBSET — the two capabilities that gate a
- * turn — rather than a second copy of an enum that does not exist yet. When
- * link 1 lands, this alias becomes an indexed access into the contracts enum
- * and every `has()` call site is unchanged. A contracts change is its own
- * reviewed PR (AGENTS.md invariant 5), so it is not this one.
+ * turn — rather than a second copy of an enum.
+ *
+ * **Link 1 has landed, and this is now an `Extract` from the contracts enum**
+ * rather than two hand-written strings, exactly as this comment promised. Every
+ * `has()` call site is unchanged. What the change buys is that the subset is
+ * *provably* a subset: renaming `ai.ask` in contracts, or dropping it, is a
+ * compile error here rather than a silent divergence between two lists that
+ * happen to agree today.
  */
-export type AiCapability = "ai.ask" | "ai.command";
+export type AiCapability = Extract<Entitlement, "ai.ask" | "ai.command">;
 
 /**
  * The per-user ceilings a plan version sells.

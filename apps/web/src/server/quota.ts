@@ -22,7 +22,7 @@
 // the assistant drafts — yet still pays for the round-trips, and the geocode
 // proxy never writes an event at all. Counting events would meter exactly the
 // requests that are cheapest to make and miss the abusive ones.
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
 import type { Db } from "./db/client";
@@ -407,6 +407,60 @@ export function quotaRefusal(decision: Extract<QuotaDecision, { allowed: false }
 }
 
 /** Fixed windows aligned to the epoch, so every instance agrees without coordinating. */
+/** One policy's current standing for one account: what is used, and the cap. */
+export interface QuotaStanding {
+  used: number;
+  limit: number;
+}
+
+/**
+ * **Read a per-user counter without charging it** (M20 link 5's display half).
+ *
+ * The account sheet's two meters need what `consumeQuota` knows, and must not
+ * do what `consumeQuota` does: rendering a page is not a request, and a meter
+ * that costs a question to look at would be a quota bug wearing a progress bar.
+ * So this reads `rate_limit_counters` directly and never calls `bump`.
+ *
+ * **A bucket whose row is from an older window reads as zero**, which mirrors
+ * `bump`'s own rule that a count from a stale window is discarded rather than
+ * added to. Without the `window_start` predicate a meter would show yesterday's
+ * total against today's ceiling until the account's next request rolled it.
+ *
+ * The GLOBAL half of each policy is deliberately not read. It is not this
+ * account's to see, and the milestone is explicit that the environment's global
+ * ceiling is never shown to a holder because it was never sold to anyone.
+ */
+export async function peekQuota(
+  policy: QuotaPolicy,
+  userId: string,
+  now: Date = new Date(),
+  database: Db = db,
+): Promise<QuotaStanding> {
+  const windowStart = windowStartFor(policy, now);
+  const [row] = await database
+    .select({ hits: rateLimitCounters.hits })
+    .from(rateLimitCounters)
+    .where(
+      and(
+        eq(rateLimitCounters.bucket, `${policy.name}:user:${userId}`),
+        eq(rateLimitCounters.windowStart, windowStart),
+      ),
+    )
+    .limit(1);
+  return { used: row?.hits ?? 0, limit: policy.perUser };
+}
+
+/** The policy a meter is about: the DAILY one, which is the one that is sold. */
+export function dailyPolicy(policies: readonly QuotaPolicy[]): QuotaPolicy {
+  // The hourly policies are operational guard rails from env vars; the daily
+  // ones carry `ceilings.perUser*` and are therefore the numbers a plan
+  // version actually promises. Picking by window rather than by name so a
+  // renamed policy cannot silently swap which number a holder is shown.
+  const daily = policies.find((policy) => policy.windowMs === DAY_MS);
+  if (daily === undefined) throw new Error("no daily policy — a meter has nothing to show");
+  return daily;
+}
+
 function windowStartFor(policy: QuotaPolicy, now: Date): Date {
   return new Date(Math.floor(now.getTime() / policy.windowMs) * policy.windowMs);
 }

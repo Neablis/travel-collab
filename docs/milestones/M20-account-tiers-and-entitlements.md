@@ -2,6 +2,36 @@
 
 **Status: OPEN — this is the current milestone, as of 2026-09-13.**
 
+> **BUILT, NOT CLOSED — 2026-09-13.** All six phases of
+> `docs/plans/2026-09-13-M20-M21-commercial.md` are on
+> `claude/milestone-m20-build-h2mw7b`, one commit each, unmerged.
+> `pnpm check` is green in full and **`pnpm --filter web test:e2e:ci-like`
+> passes 120 of 120**, with `e2e/m20-entitlements.spec.ts` walking five of the
+> boxes below.
+> **No box here is ticked**: a gate closes on a **deployed** demo, through
+> `docs/milestones/README.md`'s gate-close checklist, in one commit — and
+> nothing has been deployed. Migrations `0019` and `0020` are applied locally
+> and **neither is dispatched to production**.
+>
+> **One thing this file does not name and the build needed: an operator
+> bootstrap.** `/admin` is gated on `users.is_admin`, and nothing in the
+> product sets that column — granting writes `entitlement_grants`, not this —
+> so the first operator could only be made with a psql session. `ADMIN_USER_IDS`
+> (`.env.example`, `apps/web/src/lib/adminBootstrap.ts`) is read at sign-in and
+> **only ever promotes**.
+>
+> **And a second way, added 2026-09-14 on Mitchell's ask** — *"add me also
+> using feature flags to turn on admin for accounts so I don't need a
+> redeploy"*: the **`admin-console` flag**, targeted per account from the Vercel
+> dashboard, read in `callerIsAdmin()`. It takes effect on the next request with
+> no deploy and no sign-out. **It is not entitlement and does not make
+> entitlement a flag** — `is_admin` is an operator bit nobody buys, nothing
+> pins, and no plan version records; ADR-019's objection is to a *paid tier*
+> being a flag value, and that objection still stands. It only ever widens:
+> revoking is clearing the column, so a Flags outage cannot empty the console.
+> Commands and the three-way division are in
+> `docs/guidelines/environments-and-deploys.md`.
+
 Scoped and placed 2026-09-01 to run **after M9**, before M21. Placement was
 Mitchell's call and the reason was M9: `ai-live` defaults off and grounding is
 what would let it be turned on, so selling AI access before M9 would sell a
@@ -38,7 +68,12 @@ and no PCI surface.
 **It needs one migration** — `entitlement_grants`, plus `plan` and `is_admin`
 on `users`. Merging does not apply it; dispatch with
 `gh workflow run migrate-production.yml -f confirm=migrate` from `main`, and say
-so in the PR body. Highest migration in `main` today is `0014`.
+so in the PR body. ~~Highest migration in `main` today is `0014`.~~
+**Corrected 2026-09-13 at build time: it was `0018`, so this took `0019`** —
+the `0014` was written 2026-09-01 and four migrations landed after it. **It
+turned out to need TWO**: link 9's `ai_usage` is a second table and took
+`0020`. Both are applied locally and **neither is dispatched**; they go out in
+order.
 
 **A design handoff now covers three of the four billing surfaces**
 (2026-09-02): `.design-sync/handoff/SPEC.md` §17 is the design,
@@ -75,8 +110,14 @@ cheap to keep and expensive to lose:
 
 **The seam was built for this and has been waiting since M16.**
 
-`apps/web/src/server/ai/modelSelection.ts:88` declares `AiEntitlementCheck`.
-Line 89 stubs it `EVERYONE_IS_ENTITLED`. Line 47 says why:
+~~`apps/web/src/server/ai/modelSelection.ts:88` declares `AiEntitlementCheck`.
+Line 89 stubs it `EVERYONE_IS_ENTITLED`.~~ **Stale, and in this milestone's
+favour** — M9 Phase 0's P5 widened both (ADR-043 decision 5) before this
+milestone opened. At build time it was `:195` declaring
+`AiEntitlementCheck = EntitlementResolver`, defaulted at `:213`, with the port
+itself — already async, already per-request, already carrying `has()`,
+`ceilings` and `planVersionRef` — at `server/assistant/entitlements.ts:92`. So
+link 4 was genuinely *fill the stub*. Line 47 says why:
 
 > *"the day a pro-tier check exists it lands inside `isEntitled` below, not as
 > a signature change."*
@@ -725,6 +766,38 @@ refusal to name the tier rather than read as a permission error.
       re-deriving a known month at two different rates.
 - [ ] `/ask` charges `aiStepQuotas()` and settles its real step count, so both
       AI endpoints bound their round-trips rather than only one.
+- [ ] **An account can see its own plan, and what it has used of it today.**
+      Account settings shows the plan and version held, the capabilities it
+      grants, and two meters — questions and steps — against **the per-user
+      ceilings actually in force**: the resolver's most-generous union of the
+      held version and every active grant, which is what `/ask` charges
+      against. Not the pinned version's alone — a new account holds `free` (no
+      assistant) and carries a `plus` trial, so a meter reading the held
+      version would show `0` beside an assistant that answers 50 questions.
+      The environment's global ceiling is still not on the screen, because it
+      was never sold to anyone. Opening the sheet must
+      not CHARGE either counter: a meter that costs a question to look at is a
+      quota bug wearing a progress bar, and a test asserts the read path never
+      calls `bump`.
+- [ ] **An account can get a referral code from the browser.** Link 8's whole
+      premise is that *"codes are minted by hand, so nobody could earn a
+      referral they could not issue"* — so a server that mints codes with no UI
+      to ask it leaves that premise standing. Minting from the account sheet
+      and copying the code closes it.
+- [ ] **The plan chooser is drawn from the committed plan file and is shelled,
+      not faked.** Every enabled plan, its entitlements and its ceilings, from
+      the same source the operator console's tier panel reads — wrapped in
+      `<Preview id="account-plan-change">` so no control inside it can fire.
+      **No price string appears on the screen or in its wire shape**, which a
+      test asserts over the field names of both sides.
+      *(**Added 2026-09-14, on Mitchell's call.** These three were drawn in
+      `SPEC.md` §17.4 and owed by links 5 and 8, and no gate box required any of
+      them — so M20 could have closed green with every entitlement it built
+      invisible to the person holding it, and with link 8's stated purpose
+      unmet. His words: "the exit gates are incorrect if it's in the designs but
+      wasn't included in the gates". The lesson generalises and is filed as
+      `KI-2026-09-14-c`: a gate written from the server's behaviour will not
+      notice a missing surface.)*
 - [ ] The admin surface answers, from real data: **accounts per plan**,
       **accounts per active grant source**, **cost per account over a trailing
       window**, and **the top spenders**. Each is walked, not just queried.

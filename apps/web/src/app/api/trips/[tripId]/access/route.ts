@@ -4,6 +4,7 @@ import { withProfiles } from "@/server/access/members";
 import { listInvites } from "@/server/access/invites";
 import { demoTripMembers } from "@/server/demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { accountCan } from "@/server/entitlements/resolver";
 
 // The Travelers panel's one read: who is on this trip, what am I, and (owner
 // only) which links are outstanding.
@@ -23,7 +24,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   const members = isDemoTripId(tripId)
     ? demoTripMembers()
     : await withProfiles(access.detail.members);
+  // **The OWNER's entitlement, not the reader's** (M20 link 6). The owner is
+  // the billing subject — collaboration on a trip is paid for by whoever owns
+  // it — so an editor reading this learns whether the trip they are on is
+  // collaborative, not whether their own account could pay for one.
+  //
+  // Advisory, exactly like `myRole`: it decides whether the invite form renders
+  // at all, and `POST /invites` refuses server-side regardless of what the
+  // client did with it.
+  //
+  // The demo trip is entitled by construction. Its travellers are invented
+  // people (ADR-031) and it is served without touching the database, so asking
+  // Entitlements about an owner who is not an account would be both a lookup
+  // that cannot succeed and the one database read this path exists to avoid.
+  const owner = access.detail.members[0]?.userId ?? null;
+  const collaboratorsEntitled =
+    isDemoTripId(tripId) || owner === null
+      ? true
+      : await accountCan(owner, "trip.collaborators");
   return Response.json({
-    access: TripAccess.parse({ tripId, myRole: access.role, members, invites }),
+    access: TripAccess.parse({ tripId, myRole: access.role, members, invites, collaboratorsEntitled }),
   });
 }

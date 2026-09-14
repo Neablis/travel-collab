@@ -2,13 +2,18 @@ import { eq } from "drizzle-orm";
 import { DistanceUnit, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
 import {
   cookiePendingAdmission,
+  normalizeCredential,
   redeemAdmission,
   refusalRedirect,
   type PendingAdmission,
 } from "./admission";
 import { db } from "./db/client";
 import { users } from "./db/schema";
+import { livePlanVersion } from "./entitlements/planVersions";
+import { offerTrial } from "./entitlements/grants";
+import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
+import { isBootstrapAdmin } from "@/lib/adminBootstrap";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
 // is created or refreshed on sign-in and nothing else touches it. Identity is
@@ -111,17 +116,51 @@ export function normalizeIdentity(payload: SignInPayload | null | undefined): Si
  * Last sign-in wins, including with a null: a provider is fixed per id, so the
  * fields it omits it always omits, and preferring the stored value would make
  * a genuinely cleared Google avatar unclearable.
+ *
+ * **The plan columns are INSERT-only, and that absence from the `set` list is
+ * load-bearing** (M20 link 2). `onConflictDoUpdate` enumerates what a returning
+ * sign-in overwrites; adding `planId`/`planVersion` to it would reset a paying
+ * account to `free` every time they signed in. The preference columns are
+ * absent for the same reason and the same list — see `displayName` above.
+ *
+ * **The version is read from the file, not left to the column default.** The
+ * SQL `DEFAULT 1` is a floor for a row inserted by hand; passing
+ * `livePlanVersion("free")` here is what makes the gate box's *"a new account
+ * gets v2"* true the day `free@v2` is published.
  */
 export async function upsertUser(
   identity: SignInIdentity,
   now: string = new Date().toISOString(),
 ): Promise<void> {
+  const free = livePlanVersion("free");
+  // **The operator bootstrap** (M20 link 7). Nothing in the product sets
+  // `is_admin` — granting writes `entitlement_grants`, not this column — so
+  // without a configured allowlist the first operator could only be made with a
+  // psql session. It only ever PROMOTES: `isAdmin` is absent from the `set`
+  // list below unless the id is configured, so an id removed from the variable
+  // keeps the bit until somebody takes it away deliberately. Demoting on
+  // absence would mean a deploy that forgot the variable locking every operator
+  // out of the console.
+  const bootstrapAdmin = isBootstrapAdmin(identity.id);
   await db
     .insert(users)
-    .values({ ...identity, createdAt: now, updatedAt: now })
+    .values({
+      ...identity,
+      planId: free.planId,
+      planVersion: free.version,
+      isAdmin: bootstrapAdmin,
+      createdAt: now,
+      updatedAt: now,
+    })
     .onConflictDoUpdate({
       target: users.id,
-      set: { email: identity.email, name: identity.name, image: identity.image, updatedAt: now },
+      set: {
+        email: identity.email,
+        name: identity.name,
+        image: identity.image,
+        updatedAt: now,
+        ...(bootstrapAdmin ? { isAdmin: true } : {}),
+      },
     });
 }
 
@@ -302,11 +341,20 @@ export async function recordSignIn(
   const gateAppliesAnyway = process.env.DEV_LOGIN_HONOURS_INVITE_GATE === "true";
   const viaDevLogin =
     isDevLoginEnabled() && payload?.account?.provider === "dev-login" && !gateAppliesAnyway;
+  // Read ONCE into a local, because two things need it and the jar is cleared
+  // below: the gate redeems it, and — if a single-use code is what admitted a
+  // brand-new account — M20 link 8 has to know which code, to reward whoever
+  // minted it. Reading it twice would mean reading it after `clear()`, which
+  // is the same bug as not reading it at all but harder to see.
+  //
+  // Not read at all on the two paths that never consult it (a returning user,
+  // dev login), so neither pays for a cookie read it has no use for.
+  const presented = returning || viaDevLogin ? null : await pending.read();
   const outcome = returning
     ? ({ admitted: true, via: "returning-user" } as const)
     : viaDevLogin
       ? ({ admitted: true, via: "dev-login" } as const)
-      : await redeemAdmission(await pending.read(), identity.id);
+      : await redeemAdmission(presented, identity.id);
 
   // After the decision and before either answer, so a refusal cannot leave the
   // rejected credential behind to be replayed by the next sign-in attempt. Not
@@ -316,5 +364,48 @@ export async function recordSignIn(
 
   if (!outcome.admitted) return refusalRedirect(outcome.reason);
   await upsertUser(identity);
+  // **The one-week `plus` trial, offered exactly once ever** (M20 link 2,
+  // Mitchell 2026-09-13). Only for an account that had no row before this
+  // sign-in — `returning` was read above, before `upsertUser` created one.
+  //
+  // `offerTrial` is idempotent regardless: it asks whether this account has
+  // EVER held a trial, and a partial unique index refuses a second one even
+  // under a race. The `returning` guard is what keeps the common path — every
+  // sign-in by every existing account — from doing a pointless read.
+  //
+  // **Never fatal.** A failure here means one account silently starts without
+  // its trial, which an admin grant can fix. Letting it throw would mean the
+  // account cannot sign in at all, which nothing can fix from the outside. It
+  // is logged loudly rather than swallowed: a trial that stops being issued is
+  // a retention bug that would otherwise show up as a support ticket months
+  // later.
+  if (!returning) {
+    try {
+      await offerTrial(identity.id);
+    } catch (error) {
+      console.error("entitlements: signup trial was not issued", { userId: identity.id, error });
+    }
+    // **The referral reward** (M20 link 8): *someone I invited got an account*.
+    // Only for a genuinely new account, and only when a single-use code was
+    // what admitted them — `via` is the gate's own answer, so a super code, a
+    // trip invite and dev login each earn nobody anything, which is correct:
+    // none of them was somebody's referral.
+    //
+    // **After admission, never in its path.** A reward that failed must not
+    // stop someone getting an account. M11a decides who reaches the product;
+    // this decides what their inviter earns, and keeping them separate is why
+    // `rewardReferrer` reports its refusals rather than throwing them.
+    if (outcome.admitted && outcome.via === "invite-code") {
+      try {
+        const code = normalizeCredential(presented);
+        if (code !== null) await rewardReferrer(code, identity.id);
+      } catch (error) {
+        console.error("entitlements: referral reward was not issued", {
+          userId: identity.id,
+          error,
+        });
+      }
+    }
+  }
   return true;
 }

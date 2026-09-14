@@ -43,6 +43,9 @@ function access(overrides: Partial<TripAccess> = {}): TripAccess {
       { userId: "dev-bob", role: "editor", name: null, email: "bob@example.com", image: null },
     ],
     invites: [invite],
+    // M20 link 6. The default is entitled, so every test written before the
+    // collaboration gate keeps describing the behaviour it was written for.
+    collaboratorsEntitled: true,
     ...overrides,
   };
 }
@@ -242,5 +245,76 @@ describe("TravelersPanel", () => {
     render(<TravelersPanel tripId={tripId} />);
     await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
     expect(await screen.findByText("could not revoke")).toBeTruthy();
+  });
+  // **The collaboration gate's client half** (M20 link 6, design handoff §17.3).
+  //
+  // M20's gate box was written against a surface that refuses — *"a free owner
+  // cannot create a trip invite; the refusal names the tier, not a
+  // permission"* — and the design does not refuse: it never renders the
+  // control. That reading makes the box satisfiable by the server alone, with
+  // nobody ever seeing the copy. So both halves are asserted: the endpoint
+  // refuses with the tier named (`collaborationGate.int.test.ts`), and this is
+  // where a person actually reads it — before trying, rather than after.
+  describe("when the trip owner is not entitled to collaborators", () => {
+    const unentitled = (overrides: Partial<TripAccess> = {}) =>
+      access({ collaboratorsEntitled: false, ...overrides });
+
+    it("does not render the invite form at all", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
+      render(<TravelersPanel tripId={tripId} />);
+      await screen.findByTestId("collaborators-gate");
+      // Not disabled — absent. A disabled button beside an explanation offers a
+      // control that can never work.
+      expect(screen.queryByRole("button", { name: "Invite someone" })).toBeNull();
+      expect(screen.queryByLabelText("Invite by email")).toBeNull();
+    });
+
+    it("names the tier, says planning is free, and shows no price", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
+      render(<TravelersPanel tripId={tripId} />);
+      const block = await screen.findByTestId("collaborators-gate");
+      expect(block.textContent).toContain("Premium");
+      expect(block.textContent).toContain("always free");
+      expect(block.textContent).not.toMatch(/\$|\bUSD\b|per month/i);
+    });
+
+    // The lapse banner states the read boundary in the same words the server
+    // uses — nothing removed, no role rewritten, restored by paying again.
+    it("explains the cap when collaborators are already on the trip", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
+      render(<TravelersPanel tripId={tripId} />);
+      const banner = await screen.findByRole("status");
+      expect(banner.textContent).toContain("read this trip but not edit it");
+      expect(banner.textContent).toContain("Nobody was removed");
+      expect(banner.textContent).toContain("restores everyone");
+    });
+
+    // A solo trip is not a lapse. With nobody else on it there is nothing
+    // capped, so the banner would be describing a loss that did not happen.
+    it("shows no lapse banner on a trip with no collaborators", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: unentitled({
+          members: [{ userId: "dev-alice", role: "owner", name: "Alice", email: null, image: null }],
+          invites: [],
+        }),
+      });
+      render(<TravelersPanel tripId={tripId} />);
+      await screen.findByTestId("collaborators-gate");
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    // An editor reading an unentitled owner's trip is told nothing about that
+    // owner's billing. The gate block and the banner are the OWNER's surfaces.
+    it("says nothing to a non-owner", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: unentitled({ myRole: "editor" }),
+      });
+      render(<TravelersPanel tripId={tripId} />);
+      await screen.findByTestId("travelers-panel");
+      expect(screen.queryByTestId("collaborators-gate")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
   });
 });
