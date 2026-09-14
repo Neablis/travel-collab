@@ -161,6 +161,25 @@ describe("the ladder is presentation only", () => {
     "src/lib/adminOverview.ts",
   ];
 
+  // **The file's declaration order and `displayOrder` agree**, and that is now a
+  // checked fact rather than a coincidence.
+  //
+  // `accountPlan.ts` builds the account sheet's plan chooser and needs the
+  // plans in the order a person should read them. Sorting by `displayOrder`
+  // there put the ladder inside a module that also resolves entitlements, and
+  // this suite refused it in CI — correctly, per the rule above. It takes the
+  // file's own order instead, which is only safe while the two agree. This
+  // asserts they do, from inside the one file already allowed to name the
+  // field, so a future edit that reorders the plans without moving their
+  // `displayOrder` fails here instead of quietly reordering a pricing page.
+  it("declares plans in the order the ladder claims", () => {
+    const firstVersionPerPlan = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))].map(
+      (planId) => PLAN_VERSIONS.find((entry) => entry.planId === planId)!,
+    );
+    const ladder = firstVersionPerPlan.map((entry) => entry.displayOrder);
+    expect(ladder).toEqual([...ladder].sort((a, b) => a - b));
+  });
+
   it("is read by no authorisation path", () => {
     const root = path.resolve(path.dirname(PLAN_FILE), "../../..");
     const hits = grepRepo(root, /\bdisplayOrder\b/);

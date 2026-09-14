@@ -89,10 +89,25 @@ export async function accountPlanView(
   // the "what you hold" marker are both about the plan, and a grant does not
   // move an account onto a tier.
   const heldPlanId = resolved.held.planId;
+  // **In the plan file's own declaration order, and the presentation ladder is
+  // deliberately not read here.**
+  //
+  // `planVersions.noExtension.test.ts` allows that sort field to be named only
+  // by the plan file itself and by RENDERING — *"a GATE joining this list is
+  // the failure this test exists to catch"*. This function calls
+  // `entitlementsFor`, so it is exactly the kind of module that rule is pointed
+  // at, even though ordering a chooser is a presentation use. It caught the
+  // first version of this line in CI, and then caught the comment explaining
+  // the fix: that check greps RAW source, so merely spelling the field's name
+  // here — even to say it is not used — puts this file back on the list.
+  //
+  // Declaration order answers the same question without touching the ladder,
+  // and the two are pinned to agree by an assertion inside that same
+  // (allowlisted) test, so a future edit that reorders the plans without moving
+  // their sort values fails loudly instead of quietly reordering a chooser.
   const catalogue = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))]
     .map((planId) => livePlanVersion(planId))
     .filter((version) => version.enabled)
-    .sort((a, b) => a.displayOrder - b.displayOrder)
     .map((version) => choiceOf(version, heldPlanId));
 
   return {
