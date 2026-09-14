@@ -208,6 +208,38 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
+  // **There is a way out of the console** (Mitchell, #174 preview: *"Introduce a
+  // navigation back to the account homepage here so i dont need to memorize
+  // urls"*). The route group sits outside `(app)`, so it inherited none of the
+  // app chrome and could only be left by typing a URL.
+  //
+  // The second assertion is the one that matters more than it looks. The header
+  // is mounted under `PreferencesProvider`, and `AccountSettingsSheet` calls
+  // `useAccountPreferences`, which THROWS outside that provider — so a header
+  // mounted bare would look right and blow up when an operator opened the menu
+  // item they came for. Clicking it is the only way to catch that.
+  test("the console has a way back, and its account menu opens", async ({ browser }) => {
+    const operator = await openOperator(browser);
+    await operator.setViewportSize({ width: 1440, height: 900 });
+    await operator.goto("/admin");
+
+    await operator.getByRole("link", { name: "Trips" }).click();
+    await expect(operator.getByRole("heading", { name: "Your trips" })).toBeVisible();
+
+    // Back in, through the menu rather than the address bar — the round trip is
+    // the thing being asserted, not either half of it.
+    await operator.getByRole("button", { name: "Account menu" }).click();
+    await operator.getByRole("link", { name: "Operator console" }).click();
+    await expect(operator.getByRole("heading", { name: "Operator console", level: 1 })).toBeVisible();
+
+    // The provider trap: this throws without `PreferencesProvider`.
+    await operator.getByRole("button", { name: "Account menu" }).click();
+    await operator.getByRole("button", { name: "Your account" }).click();
+    await expect(operator.getByRole("dialog")).toBeVisible();
+
+    await operator.context().close();
+  });
+
   // **The console is not on the phone at all, ENTRY POINT INCLUDED** — the
   // design says so, and `AccountMenu` renders the link `hidden md:block`.
   // Nothing asserted it: the component tests set no viewport, and the
