@@ -1,4 +1,4 @@
-### KI-2026-09-14-a — `/api/cities` runs an unindexed aggregate on every settled keystroke, and the client cannot cache its way out
+### KI-2026-09-14-d — `/api/cities` runs an unindexed aggregate on every settled keystroke, and the client cannot cache its way out
 
 - **Severity:** cost / latency — not a correctness defect. The endpoint is correct; it is just the most expensive read per call in the app, and it is called from a typeahead.
 - **Area:** `apps/web/src/server/cities.ts:46` (`searchCities`), reached from `apps/web/src/app/api/cities/route.ts` and `apps/web/src/components/playbooks/CitySearch.tsx:75` (250ms debounce, no memo).

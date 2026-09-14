@@ -34,7 +34,7 @@ import type { ApiResult } from "@/lib/apiClient";
  * and keeping the failure state reachable are mutually exclusive on that
  * endpoint — a background revalidation would keep the state and save nothing.
  * The cost it was aimed at is real and belongs on the server. See ADR-046's
- * Consequences and KI-2026-09-14-a.
+ * Consequences and KI-2026-09-14-d.
  *
  * ADR-046 records the decision and the migration.
  */

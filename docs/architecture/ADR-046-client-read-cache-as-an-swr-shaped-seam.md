@@ -147,7 +147,7 @@ test blind spot is worse than shipping neither.
 - What this does NOT do: it does not make the app realtime. Every window here is
   a bet that a co-traveller has not edited in the last few seconds, and the way
   to stop betting is a subscription, not a longer cache.
-- **The city-search cost is real and still unpaid** — `KI-2026-09-14-a`. It
+- **The city-search cost is real and still unpaid** — `KI-2026-09-14-d`. It
   belongs on the server, where the request still happens and every
   client-observable state survives: a short server-side memo, an `ETag` with
   `must-revalidate` so a repeat is a 304, or a maintained `city -> count`
