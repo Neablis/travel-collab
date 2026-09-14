@@ -22,6 +22,8 @@ import {
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
+import { clearQueryCache, invalidate } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { CitySearchResponse, type CityMatch } from "@/lib/cities";
 import {
   DiscoverResponse,
@@ -175,6 +177,8 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
     return { ok: true, value: parseOutcome(data) };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    invalidate(tripKeys.all(command.tripId));
   }
 }
 
@@ -199,6 +203,8 @@ export async function sendTripCommandBatch(
     return { ok: true, value: parseOutcome(data) };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -233,6 +239,13 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
     return { ok: true, value: data };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    // The whole cache, not one trip's keys: this endpoint deletes every trip
+    // the account has and reseeds the demo. A per-trip `invalidate` would be
+    // the wrong shape — there is no one trip it moved — and the cache would go
+    // on serving trips that no longer exist. Preview-only, but a stale board
+    // after a reset is exactly the confusion the reset exists to clear.
+    clearQueryCache();
   }
 }
 
@@ -271,6 +284,10 @@ export async function createTripInvite(
     return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    // Membership is what `fetchTripAccess` reports, so an invite written or
+    // revoked moves a cached `access` read as surely as a command moves detail.
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -283,6 +300,10 @@ export async function revokeTripInvite(
     return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    // Membership is what `fetchTripAccess` reports, so an invite written or
+    // revoked moves a cached `access` read as surely as a command moves detail.
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -499,6 +520,8 @@ export async function insertSavedDay(
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -961,5 +984,7 @@ export async function applyAssistantProposal(
     };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }

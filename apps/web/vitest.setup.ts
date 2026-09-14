@@ -1,5 +1,6 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { clearQueryCache } from "./src/lib/queryCache";
 
 // `src/server/config.ts` throws at import time if DATABASE_URL is unset (main's
 // "fail loudly, no silent localhost fallback" change). Unit tests run in jsdom
@@ -16,6 +17,15 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 // leaks into the next test in the same file. Register cleanup explicitly.
 afterEach(() => {
   cleanup();
+  // The API read cache (ADR-046) is a module-level Map, so it outlives an
+  // `it()` the way MSW's handlers do — and a cache is the worst possible thing
+  // to leak between tests, because it does not fail, it PASSES with the
+  // previous test's answer. Found the moment it landed: four TripProvider
+  // tests that mock a failing read went green against the success a test above
+  // them had cached ("expected 'ready' to be 'error'"). Reset it here rather
+  // than per file, for the reason cleanup() is here — the file that forgets is
+  // the one that debugs this for an afternoon.
+  clearQueryCache();
 });
 
 // jsdom ships no matchMedia. Components that adapt to a breakpoint (the

@@ -1,11 +1,13 @@
 import { newPageDoc } from "@tc/contracts";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import * as pagesClientModule from "@/lib/pagesClient";
 import { instantiateDefaults } from "@tc/pages";
 import { createPage, deletePage, fetchPage, fetchPages, updatePage } from "@/lib/pagesClient";
 import { pageFixture } from "@tc/factories";
+import { cachedRead, clearQueryCache } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { makePagesHandlers } from "@/mocks/handlers";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -114,5 +116,79 @@ describe("pagesClient totality — no helper ever rejects", () => {
     // caller can tell a network failure from a refusal.
     expect(result.error?.status).toBe(0);
     expect(typeof result.error?.message).toBe("string");
+  });
+});
+
+// The notebook half of ADR-046's second invariant — see the matching block in
+// `apiClient.test.ts` for why it is asserted against a FAILING write.
+//
+// This one has teeth the trip-command half does not: `PageScreen` autosaves
+// through `updatePage` while you type, and the Overview tab caches the very
+// document being typed into (`tripKeys.page`). A page write that did not
+// invalidate would show the Overview tab a version of the page the author had
+// already moved past.
+describe("notebook writes invalidate the trip's cached reads", () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => clearQueryCache());
+
+  const PAGE_ID = "9f8e7d6c-5b4a-4938-8271-615243342516";
+
+  const WRITERS: Record<string, () => Promise<unknown>> = {
+    createPage: () => createPage(TRIP_ID, instantiateDefaults(TRIP_ID)[0]!),
+    updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "Renamed" }),
+    deletePage: () => deletePage(TRIP_ID, PAGE_ID),
+  };
+
+  async function seed(): Promise<void> {
+    await cachedRead(tripKeys.pages(TRIP_ID), async () => ({ ok: true, value: "stale" }));
+  }
+
+  async function cached(): Promise<unknown> {
+    const result = await cachedRead(tripKeys.pages(TRIP_ID), async () => ({ ok: true, value: "fresh" }));
+    return result.ok ? result.value : null;
+  }
+
+  it("the seed really is served from cache — otherwise every case below is vacuous", async () => {
+    await seed();
+    expect(await cached()).toBe("stale");
+  });
+
+  it.each(Object.keys(WRITERS))("%s clears the trip's cache even when it fails", async (name) => {
+    server.use(http.all("*", () => HttpResponse.error()));
+    await seed();
+
+    await WRITERS[name]!();
+
+    expect(await cached()).toBe("fresh");
+  });
+
+  // The case that makes `finally` the right place and "clear it first" the
+  // wrong one. Clearing before the request passes every assertion above and
+  // still loses this: a read that starts after that clear and lands before the
+  // write's response caches a pre-write answer, and nothing afterwards clears
+  // it — the page you just saved, missing from the list until the window ends.
+  //
+  // Without the `finally` this test is the only thing that goes red, which is
+  // exactly why it is here: the mutation was tried, and the other four cases
+  // stayed green.
+  it("clears a read that landed WHILE the write was in flight, not just before it", async () => {
+    let release!: () => void;
+    const inFlight = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.patch("*", async () => {
+        await inFlight;
+        return HttpResponse.error();
+      }),
+    );
+
+    const write = updatePage(TRIP_ID, PAGE_ID, { title: "Renamed" });
+    // Lands mid-write, and caches an answer that the write is about to falsify.
+    await cachedRead(tripKeys.pages(TRIP_ID), async () => ({ ok: true, value: "read during the write" }));
+    release();
+    await write;
+
+    expect(await cached()).toBe("fresh");
   });
 });

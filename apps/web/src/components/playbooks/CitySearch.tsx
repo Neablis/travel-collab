@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { Text } from "@/components/ui/text";
 import { searchCities } from "@/lib/apiClient";
+import { DEDUPE, cachedRead } from "@/lib/queryCache";
+import { cityKeys } from "@/lib/queryKeys";
 import type { CityMatch } from "@/lib/cities";
 import { cn } from "@/lib/cn";
 
@@ -62,7 +64,19 @@ export function CitySearch({
       return;
     }
     setState({ kind: "loading" });
-    const result = await searchCities(q);
+    // Cached because city search is a pure function of the query over a public
+    // index: backspacing through "Kyoto" and typing it again asked the server
+    // the same question five times, and each one is an `unnest` + aggregate
+    // over every published saved day (`server/cities.ts`). The key normalises
+    // case and surrounding space the way the route's `ilike` already does, so
+    // the three spellings of one question share one entry.
+    //
+    // `DEDUPE.SEARCH` matches the `max-age` the route sends. Two layers is not
+    // redundant: this one answers a repeat within the session with no request
+    // at all, the header answers one across a reload.
+    const result = await cachedRead(cityKeys.search(q), () => searchCities(q), {
+      dedupeMs: DEDUPE.SEARCH,
+    });
     if (mine !== generation.current) return;
     if (!result.ok) {
       setState({ kind: "failed", message: result.error.message });

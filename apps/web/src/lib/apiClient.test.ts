@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setupServer } from "msw/node";
 import { HttpResponse, http } from "msw";
 import * as apiClientModule from "@/lib/apiClient";
@@ -40,6 +40,8 @@ import {
   updatePreferences,
   type ApiResult,
 } from "@/lib/apiClient";
+import { cachedRead, clearQueryCache } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
@@ -332,6 +334,81 @@ const ANSWER_FRAMES = [
   '{"type":"finish","finishReason":"stop"}',
   "[DONE]",
 ];
+
+// ---------------------------------------------------------------------------
+// The second module invariant (ADR-046): a helper that writes to a trip clears
+// that trip's cached reads, in a `finally`, whatever the outcome.
+//
+// This is the half of a cache that is easy to get right once and then lose. A
+// write helper added next year without an `invalidate` does not fail anything
+// — it makes the board show a stale trip for five seconds after an edit, which
+// nobody reproduces on purpose. So the rule is asserted per helper, and the
+// table is the list of helpers that write to a trip.
+//
+// Asserted against a FAILING write on purpose: "whatever the outcome" is the
+// part that is load-bearing and the part a `finally` is for. A response that
+// never arrived may still have been applied, so a cache that believes a failed
+// write changed nothing is exactly how an edit goes missing.
+// ---------------------------------------------------------------------------
+
+const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
+  sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
+  sendTripCommandBatch: () =>
+    sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
+  insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
+  createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
+  revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  applyAssistantProposal: () =>
+    applyAssistantProposal(TRIP_ID, {
+      proposalId: "p1",
+      changes: [],
+      commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }],
+      inserts: [],
+      skipped: [],
+    }),
+};
+
+describe("trip writes invalidate the trip's cached reads", () => {
+  beforeEach(() => clearQueryCache());
+  afterEach(() => clearQueryCache());
+
+  /** Put a known answer in the cache under one of the trip's keys. */
+  async function seed(): Promise<void> {
+    await cachedRead(tripKeys.detail(TRIP_ID), async () => ({ ok: true, value: "stale" }));
+  }
+
+  /** What the cache would serve now, without going near the network. */
+  async function cached(): Promise<unknown> {
+    const result = await cachedRead(tripKeys.detail(TRIP_ID), async () => ({ ok: true, value: "fresh" }));
+    return result.ok ? result.value : null;
+  }
+
+  it("the seed really is served from cache — otherwise every case below is vacuous", async () => {
+    await seed();
+    expect(await cached()).toBe("stale");
+  });
+
+  it.each(Object.keys(TRIP_WRITERS))("%s clears the trip's cache even when it fails", async (name) => {
+    server.use(http.all("*", () => HttpResponse.error()));
+    await seed();
+
+    const result = await TRIP_WRITERS[name]!();
+
+    expect(result.ok).toBe(false);
+    expect(await cached()).toBe("fresh");
+  });
+
+  it("leaves another trip's cache alone", async () => {
+    server.use(http.all("*", () => HttpResponse.error()));
+    const other = "33333333-3333-4333-8333-333333333333";
+    await cachedRead(tripKeys.detail(other), async () => ({ ok: true, value: "theirs" }));
+
+    await sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID });
+
+    const still = await cachedRead(tripKeys.detail(other), async () => ({ ok: true, value: "refetched" }));
+    expect(still.ok && still.value).toBe("theirs");
+  });
+});
 
 describe("askAssistant", () => {
   it("posts the whole thread and the scope to /ask", async () => {

@@ -1,5 +1,7 @@
 import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
 import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
+import { invalidate } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 
 // INVARIANT: every helper below RESOLVES an ApiResult and never rejects —
 // the same invariant `apiClient.ts` states for its own helpers, and for the
@@ -23,6 +25,26 @@ import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
 function networkError(err: unknown): { ok: false; error: ApiError } {
   return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
 }
+
+// SECOND INVARIANT, added with the read cache (ADR-046): every WRITE below
+// invalidates the trip's cached reads, in a `finally`, whatever the outcome.
+//
+// **In a `finally`, i.e. on the way OUT, and that is the whole of it.**
+// Invalidating before the request looks equivalent and is not: a read that
+// starts after that clear and lands before the write's response caches a
+// pre-write answer that nothing then clears — the page you just saved, gone
+// from the list for the rest of the window. Clearing on the way out covers
+// both that read and any entry cached while the write was in flight.
+//
+// **Whatever the outcome**, rather than on success only, because the ambiguous
+// case is the one that matters: a write whose response never arrived may still
+// have been applied. Being wrong in this direction costs one extra read; in
+// the other it costs a document the user edited and cannot see.
+//
+// It lives here rather than at the call sites for the reason the keys live in
+// one file: `createPage`, `updatePage` and `deletePage` have five callers
+// between them, and an invalidation you have to remember to write is one you
+// will one day not write.
 
 // Not-ok responses read the same way everywhere: the body's `error` field when
 // there is one, the status text when there is not.
@@ -85,6 +107,8 @@ export async function createPage(tripId: string, input: CreatePageInput): Promis
     return { ok: true, value: Page.parse(data.page) };
   } catch (err) {
     return networkError(err);
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -104,6 +128,8 @@ export async function updatePage(
     return { ok: true, value: Page.parse(data.page) };
   } catch (err) {
     return networkError(err);
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }
 
@@ -114,5 +140,7 @@ export async function deletePage(tripId: string, pageId: string): Promise<ApiRes
     return { ok: true, value: { ok: true } };
   } catch (err) {
     return networkError(err);
+  } finally {
+    invalidate(tripKeys.all(tripId));
   }
 }

@@ -86,6 +86,37 @@ describe("GET /api/cities", () => {
     expect(res.status).toBe(401);
   });
 
+  // The route is cacheable because its answer is a pure function of `?q=`, and
+  // expensive enough to be worth caching (an `unnest` + aggregate over every
+  // published day). `CitySearch` holds the same window in memory; this is the
+  // half that survives a reload.
+  it("lets an answer be cached for five minutes, privately", async () => {
+    const savedDayId = await saveDayIn([city("Kyoto")]);
+    await publish(savedDayId);
+    const res = await GET(new Request("http://test/api/cities?q=Kyoto"));
+
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=300");
+  });
+
+  // `private`, not `public`: the body carries no per-user content today, but
+  // the response is served under a session cookie and a shared cache holding
+  // one is a habit worth not forming.
+  it("never lets a shared cache store the answer", async () => {
+    const res = await GET(new Request("http://test/api/cities?q=Kyoto"));
+
+    expect(res.headers.get("Cache-Control")).not.toContain("public");
+  });
+
+  // A refusal is not an answer, and caching one would make a signed-out moment
+  // outlive the session that caused it.
+  it("does not let a 401 be cached", async () => {
+    currentUserId = "";
+    const res = await GET(new Request("http://test/api/cities?q=Kyoto"));
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get("Cache-Control")).toBeNull();
+  });
+
   // Geocode's shape, deliberately: an empty box is not a search for everything,
   // and the short-circuit is before any work.
   it("answers an empty or blank query with an empty list, not everything", async () => {
