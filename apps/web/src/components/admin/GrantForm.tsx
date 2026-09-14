@@ -25,6 +25,16 @@ import { Text } from "@/components/ui/text";
 // and the plan file is server-side. Disabled plans are not offered — `enabled`
 // bounds what an operator may hand out, which is what lets the fourth-plan
 // proof ship without anyone being able to receive it.
+//
+// **Every field carries an explicit width, and that is not decoration.** The
+// row below is `flex-wrap` and always was, but `Input` is `w-full` by design —
+// which is right for a stacked form and wrong here: a `w-full` flex item takes
+// a 100% basis, so each of the three inputs claimed a whole line and wrapped
+// the next one under it. The markup said "row" and the widths said "column",
+// and the widths win. Reported by Mitchell on the PR #174 preview at 1728px,
+// where nothing about the JSX suggests it — the same class of defect as KI-16
+// and KI-19, which is why the e2e walk now asserts the controls share a row by
+// comparing their positions rather than by reading their classes.
 
 export function GrantForm({ plans }: { plans: readonly string[] }) {
   const [userId, setUserId] = useState("");
@@ -78,6 +88,10 @@ export function GrantForm({ plans }: { plans: readonly string[] }) {
         <Input
           aria-label="Account id"
           placeholder="Account id"
+          // Wide enough for an Auth.js subject, which is what an account id is
+          // here (ADR-025) — it is pasted, not typed, and a box that truncates
+          // it invites pasting half of one.
+          className="w-64"
           value={userId}
           onChange={(event) => setUserId(event.target.value)}
         />
@@ -95,12 +109,17 @@ export function GrantForm({ plans }: { plans: readonly string[] }) {
         <Input
           aria-label="Expires"
           type="date"
+          className="w-40"
           value={expiresAt}
           onChange={(event) => setExpiresAt(event.target.value)}
         />
         <Input
           aria-label="Reason"
           placeholder="Why"
+          // The one field that should absorb the leftover width: it holds a
+          // sentence, and it is the grant's audit trail. `min-w-0` so it can
+          // shrink below its content instead of forcing a wrap.
+          className="min-w-0 flex-1"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
         />

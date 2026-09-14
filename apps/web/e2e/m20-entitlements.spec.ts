@@ -157,6 +157,45 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
+  // **The grant form is one row, and the only honest way to assert that is to
+  // measure it.** The markup has said `flex flex-wrap` since it was written,
+  // and the form still rendered one control per line, because `Input` is
+  // `w-full` — a 100% flex basis wraps every item onto its own line while the
+  // JSX reads as a row. Mitchell reported it from the PR #174 preview at
+  // 1728px; no unit test could have seen it, since nothing about the class
+  // list is wrong in isolation and this repo's lint rightly forbids asserting
+  // class names.
+  //
+  // So: same row means same top edge. Compared with a tolerance because the
+  // select and the button are not the same height as the inputs and are
+  // centred against them (`items-center`), which moves their tops by a few
+  // pixels legitimately. A wrapped control would be a full row-height away —
+  // 36px plus the gap — so the tolerance cannot hide the defect.
+  test("the grant form's controls sit on one row", async ({ browser }) => {
+    const operator = await openOperator(browser);
+    await operator.setViewportSize({ width: 1440, height: 900 });
+    await operator.goto("/admin");
+
+    // `exact` because the page also has a *Plans* region, and a substring
+    // match on "Plan" resolves to both.
+    const controls = ["Account id", "Plan", "Expires", "Reason"].map((name) =>
+      operator.getByLabel(name, { exact: true }),
+    );
+    const tops: number[] = [];
+    for (const control of controls) {
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      expect(box).not.toBeNull();
+      tops.push(box!.y);
+    }
+    const grant = operator.getByRole("button", { name: "Grant" });
+    tops.push((await grant.boundingBox())!.y);
+
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(12);
+
+    await operator.context().close();
+  });
+
   // **The console is not on the phone at all, ENTRY POINT INCLUDED** — the
   // design says so, and `AccountMenu` renders the link `hidden md:block`.
   // Nothing asserted it: the component tests set no viewport, and the
