@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-14 — `SubscriptionStatus`, and what still confers
+
+- Added: `SubscriptionStatus` — the eight statuses a Stripe subscription can
+  hold, spelled as Stripe spells them
+  (`packages/contracts/src/entitlement.ts`)
+- Added: `CONFERRING_STATUSES` — the three under which a subscription is still
+  handing its account the plan it pinned (`trialing`, `active`, `past_due`)
+- Why: M21 link 1. The subscription row stores what Stripe told us, and the
+  vocabulary for that has to cross a boundary — the webhook writes it, the
+  account sheet renders it, and the Entitlements resolver reads whether it still
+  confers
+- **A transcription, not a model.** M21 link 2's division of authority is that
+  the plan version is the source of truth for what is granted and Stripe is the
+  source of truth for what is charged. Translating a status at the write
+  boundary is how two sources of truth start to disagree: a status we had no
+  word for would have to be mapped onto one we did, and the first such mapping
+  is silent. A status Stripe adds later fails *parsing* instead, loudly, at the
+  one place equipped to say so
+- **`past_due` confers**, and that is the milestone's grace window rather than
+  an oversight: a declined card keeps its entitlements for three days from the
+  decline (M21 link 6). The window — not the status — is what ends that, so this
+  list answers only the first half of the question and
+  `server/billing/standing.ts` answers the second
+- **No member of this enum is an entitlement**, and no gate reads one. What an
+  account may do is still `can(ent, capability)` over the resolver's answer.
+  M21 adds no entitlement and no gate
+- **Presentation is a different vocabulary and is not here.** The account sheet
+  reads `Active` / `Free week` / `Payment failed` / `Lapsed` — four words over
+  eight statuses plus a window — and that mapping is a rendering decision
+- Consumers updated: `apps/web` (`server/db/schema.ts`, the whole
+  `server/billing/**` module)
+- Breaking? no — additive
+
 ## 2026-09-13 — `AdminGrantInput`, and a fourth `PlanId`
 
 - Added: `AdminGrantInput` — `{ userId, planId, expiresAt: string|null, reason }`

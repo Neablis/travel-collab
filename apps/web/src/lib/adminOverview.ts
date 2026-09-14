@@ -14,9 +14,13 @@
 // from UI (the wall covers `@/server/*` and `@tc/domain`, not contracts), so
 // there is no reason to widen anything.
 //
-// **No revenue field, and that is the split.** MRR, ARPU and margin all need a
-// subscription to exist and are M21 link 7's. A field for one here is where the
-// strip would arrive.
+// **The split, as it stands mid-M21.** MRR, ARPU and margin need a subscription
+// to exist and are M21 link 7's; no field for one is here yet, and
+// `admin.console.test.ts` still refuses their vocabulary. What DID arrive is
+// `AdminPlanPriceView` below — M21 link 2 puts a price on the plan-version
+// record itself, and this file mirrors that record field for field under a
+// compile-time identity check, so the price crosses the wall the moment it is
+// published rather than when a screen wants it.
 import type { Entitlement, PlanId } from "@tc/contracts";
 
 /**
@@ -33,12 +37,26 @@ export interface AdminCeilingsView {
   maxTier: "cheap" | "mid" | "strong" | null;
 }
 
+/**
+ * Mirrors `PlanPrice` (`@/server/entitlements/planVersions`) — M21 link 2.
+ *
+ * `null` on the version above means *not sold for money*, which is a different
+ * fact from a zero amount. The distinction is the plan file's and is preserved
+ * across the wall rather than flattened here.
+ */
+export interface AdminPlanPriceView {
+  minor: number;
+  currency: "usd";
+  stripePriceId: string | null;
+}
+
 /** Mirrors `PlanVersion` (`@/server/entitlements/planVersions`). */
 export interface AdminPlanVersionView {
   planId: PlanId;
   version: number;
   entitlements: readonly Entitlement[];
   ceilings: AdminCeilingsView;
+  price: AdminPlanPriceView | null;
   displayOrder: number;
   publishedAt: string;
   enabled: boolean;

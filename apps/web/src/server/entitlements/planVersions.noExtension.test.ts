@@ -205,14 +205,45 @@ describe("M20 publishes versions that are free by construction", () => {
   // M21 link 2 adds `priceMinor`, `currency` and `stripePriceId` to these same
   // entries. A price here today means the M20/M21 split failed — which is the
   // one thing both milestone files say in the same words.
-  it("carries no price of any kind", () => {
-    // Comments are stripped first: the header explains the rule by naming the
-    // fields M21 adds, and a sentence saying "no price here" is not a price.
-    expect(CODE).not.toMatch(/\b(price|priceMinor|amountMinor|currency|stripe|usd|money)\b/i);
-    for (const entry of PLAN_VERSIONS) {
-      const keys = Object.keys(entry);
-      expect(keys.filter((key) => /price|currency|stripe|money|amount/i.test(key))).toEqual([]);
+  // **This was `carries no price of any kind`, and M21 link 2 is where it goes**
+  // — deliberately, which is the point M21's own file makes about it: *"that
+  // second test is the one to delete in this milestone, and deleting it
+  // deliberately is the point — it exists so the price arrives on purpose
+  // rather than by drift."* It did its job: the price is here because a
+  // milestone decided it, in a diff that had to remove this guard to land.
+  //
+  // What replaces it is not nothing. A price that arrives on purpose can still
+  // arrive WRONG, and the three assertions below are the ones that would have
+  // caught each way it could: a plan the product sells with no price at all, a
+  // price that is not the decided number, and a currency nobody decided.
+  it("prices exactly what Mitchell decided on 2026-09-13, and nothing else", () => {
+    const priceOf = (planId: string, version: number) =>
+      PLAN_VERSIONS.find((entry) => entry.planId === planId && entry.version === version)?.price;
+
+    expect(priceOf("free", 1)).toEqual({ minor: 0, currency: "usd", stripePriceId: null });
+    expect(priceOf("plus", 1)).toEqual({ minor: 900, currency: "usd", stripePriceId: null });
+    expect(priceOf("premium", 1)).toEqual({ minor: 1900, currency: "usd", stripePriceId: null });
+    // `studio` ships disabled and nothing sells it, so it has NO price rather
+    // than a price of nothing — the distinction `isPurchasable` rests on.
+    expect(priceOf("studio", 1)).toBeNull();
+  });
+
+  it("gives every enabled plan a price, so nothing sellable is unpriced", () => {
+    const enabled = PLAN_VERSIONS.filter((entry) => entry.enabled);
+    expect(enabled.length).toBeGreaterThanOrEqual(3);
+    for (const entry of enabled) {
+      expect(entry.price, `${entry.planId}@v${entry.version}`).not.toBeNull();
     }
+  });
+
+  it("sells in one currency, because multi-currency is a decision nobody has made", () => {
+    // M21's *Deliberately not here* lists multi-currency. A second currency
+    // appearing in this file is that decision being taken by drift, which is
+    // the same species of arrival this describe block exists to refuse.
+    const currencies = new Set(
+      PLAN_VERSIONS.flatMap((entry) => (entry.price === null ? [] : [entry.price.currency])),
+    );
+    expect([...currencies]).toEqual(["usd"]);
   });
 });
 
@@ -225,12 +256,20 @@ describe("a published entry is append-only", () => {
   //
   // **Publishing `v2` does not touch this test.** Adding an entry is expected;
   // changing one of these three is not.
+  //
+  // **Since M21 link 2 the pin covers the PRICE**, which makes this the
+  // mechanical half of the gate box *"no published plan version's price is ever
+  // edited"*. Naming a price for the first time was a one-time act — there was
+  // nothing to edit, because nothing had been sold and the field did not exist
+  // — and from here the numbers below are frozen: changing $9 to $10 fails this
+  // test, and the way to change $9 to $10 is to publish `plus@v2`.
   const V1_AS_PUBLISHED = [
     {
       planId: "free",
       version: 1,
       entitlements: [],
       ceilings: { perUserRequestsPerDay: 0, perUserStepsPerDay: 0, maxTier: null },
+      price: { minor: 0, currency: "usd", stripePriceId: null },
       displayOrder: 1,
       publishedAt: "2026-09-13",
       enabled: true,
@@ -240,6 +279,7 @@ describe("a published entry is append-only", () => {
       version: 1,
       entitlements: ["ai.ask", "ai.command"],
       ceilings: { perUserRequestsPerDay: 50, perUserStepsPerDay: 400, maxTier: null },
+      price: { minor: 900, currency: "usd", stripePriceId: null },
       displayOrder: 2,
       publishedAt: "2026-09-13",
       enabled: true,
@@ -249,6 +289,7 @@ describe("a published entry is append-only", () => {
       version: 1,
       entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
       ceilings: { perUserRequestsPerDay: 200, perUserStepsPerDay: 1600, maxTier: null },
+      price: { minor: 1900, currency: "usd", stripePriceId: null },
       displayOrder: 3,
       publishedAt: "2026-09-13",
       enabled: true,

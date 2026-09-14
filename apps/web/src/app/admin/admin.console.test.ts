@@ -48,6 +48,25 @@ const CONSOLE_FILES = [
 /** Prose removed: a comment saying "MRR is M21's" is the rule, not a breach. */
 const codeOf = (file: string) => stripComments(readFileSync(file, "utf8"));
 
+// **The console may now name what a PLAN costs, and may still not name what an
+// ACCOUNT pays.** That line moved on 2026-09-14 and it moved for one reason:
+// M21 link 2 puts `price` on the plan-version record itself, and both wire
+// shapes mirror that record field for field under a compile-time identity
+// check. A price reaching `lib/adminOverview.ts` is therefore the plan file
+// arriving, not the revenue strip arriving.
+//
+// Everything the split actually turns on is still refused below — MRR, ARPU,
+// margin, underwater, subscription, invoice — because each needs a
+// subscription and belongs to link 7, which has not built them yet. When it
+// does, THIS file is the first thing to change, not a wall to route around.
+//
+// `stripePriceId` crosses with the record; `stripe` as a word does not, and
+// this ONE file is exempted for it. `server/entitlements/admin.ts` passes the
+// record through without naming any of its fields, so it needs no exemption —
+// and it is deliberately not given one, because an exemption nothing needs is a
+// hole nothing is watching.
+const PLAN_RECORD_FILES = new Set([path.join(WEB, "src/lib/adminOverview.ts")]);
+
 describe("M20's console has no revenue on it", () => {
   it("names no MRR, ARPU or margin anywhere", () => {
     // The witness floor this repo's own test guidance asks for: an empty or
@@ -73,22 +92,26 @@ describe("M20's console has no revenue on it", () => {
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
       expect(code, file).not.toMatch(/\bsubscription/i);
-      expect(code, file).not.toMatch(/\bstripe/i);
+      // `stripePriceId` is a field of the plan-version record (M21 link 2) and
+      // rides across the wall with it; a Stripe CALL from the console is still
+      // the thing being refused, and no such call can hide inside that one
+      // identifier.
+      if (!PLAN_RECORD_FILES.has(file)) expect(code, file).not.toMatch(/\bstripe/i);
       expect(code, file).not.toMatch(/\bwebhook/i);
       expect(code, file).not.toMatch(/\binvoice/i);
       expect(code, file).not.toMatch(/\bcheckout/i);
     }
   });
 
-  // **No price string in M20's diff, anywhere**, and the console is the surface
-  // most likely to grow one: it is where an operator would want to see what a
-  // plan costs.
   it("carries no price", () => {
     // The witness floor this repo's own test guidance asks for: an empty or
     // mis-pathed glob would make every loop below vacuous.
     expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
+      // The two files that mirror the plan-version record carry its `price`
+      // field and nothing else about money — see the note above.
+      if (PLAN_RECORD_FILES.has(file)) continue;
       // `pric(e|ing)` as a whole word, so the ledger's honest `unpriced`
       // count — rows whose model has no published rate — is not mistaken for a
       // price the operator charges. Reporting those separately is the opposite
