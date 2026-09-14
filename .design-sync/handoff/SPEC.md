@@ -825,9 +825,11 @@ place to see what the trip costs.
   window ends, and what stops then — including the collaborators dropping to read-only.
 - Referral: a code, and one line saying it earns a month of whatever tier you hold when
   they join. A `free` or trial-only account has no referral row, because it earns nothing.
-- **Upgrading has somewhere to land** — an inline three-plan chooser in the same sheet, so
-  the invite gate's CTA does not need a pricing route inside the app. Payment happens on
-  Stripe; the copy says nothing changes here until it clears.
+- ~~**Upgrading has somewhere to land** — an inline three-plan chooser in the same sheet, so
+  the invite gate's CTA does not need a pricing route inside the app.~~ **Superseded by §29
+  (2026-09-14): the chooser is a route.** Everything else in this section is unchanged and
+  stays in the sheet. Payment still happens on Stripe and the copy still says nothing
+  changes here until it clears.
 
 ### What a build owes before any of this is real
 
@@ -1259,3 +1261,90 @@ Two notes a build needs:
 Settled at the source: days are normalised into start order once, so Plan's cards, the drag
 keys and the Overview list all read the same order and cannot drift. **This answers the build
 audit's open question — yes, a day column sorts by start time.**
+
+
+---
+
+## 29. Plans is a route, and paying has a confirm step — 2026-09-14
+
+**Supersedes the last bullet of §17.4.** The inline three-plan chooser is gone. Changing
+plan leaves the account sheet for a route, `plans`, and picking a plan there goes to a
+confirm step before Stripe.
+
+### Why the sheet lost it
+
+Two reasons, in order of weight:
+
+1. **It had no room to answer the question being asked.** A person clicking *Change plan*
+   or arriving from the invite gate wants to know what the upper tiers are *for*. The
+   inline chooser gave each plan a price and one line, because three rows inside a sheet
+   is all there was. The gate's CTA landed somewhere that could not make the case.
+2. **It grew the page under the pointer.** Expanding three rows between the plan card and
+   the meters pushed everything below it down — the meters, the past-due banner, the
+   referral row all moved. Nothing was wrong with the copy; the reflow was the defect.
+
+§17.4's own framing — *"not a new route, and not a second place to see what the trip
+costs"* — is still honoured. **Plans is not a second view of the same information.** The
+sheet keeps plan, version, state, the two meters, past-due and referral. The route holds
+what the sheet never had: what each plan grants, side by side, and the order.
+That is rule 4 satisfied rather than broken — nothing appears twice.
+
+### What is on the route
+
+Three states, one route, no overlay in any of them.
+
+1. **Chooser.** The held plan stated once in a line at the top (held plan, price, renewal
+   date, and that a change now is prorated to the day). Three cards in display order, each
+   with its own price, one line of who it is for, and **four bullets enumerating what it
+   grants** — never "everything in Plus". The held card is the only emphasised one:
+   `--color-moss` head, `--color-border-strong` border, a `success` Badge, and its CTA
+   disabled reading "What you hold". Then a **side-by-side table** (7 rows: trips/days/stops,
+   map+costs+saved days, questions a day, steps a day, other people editing, votes and
+   comments, price) with the **held plan's column tinted** and its values at weight 600.
+2. **Confirm.** Two columns: *What changes*, in the product's own terms and **with the
+   real collaborator names** ("Mei, Priya, Sam and Kenji go back to editing Japan — no
+   re-invites"), and an *Order* card — line items, the proration credit, `Due today`, the
+   renewal sentence, the card on file, and one primary button reading
+   `Pay $11.47 with Stripe`.
+3. **Result.** Plan is active (or the Free move is scheduled), the amount taken, and that
+   everything is live with no sign-out.
+
+Moving to **Free** uses the same three states with no money in them: the order card
+collapses to one button, and *What changes* names the losses on the date they happen
+(1 October: the assistant stops; the four people on Japan keep reading and stop editing).
+
+### What the design asserts, and what it does not
+
+- **The table is not a ranking.** Column order is display metadata, the same rule as §17.
+  A `—` cell is `--color-slate`, not a red cross, and no cell reads "not included in your
+  plan". The only comparison on the page is the one the reader makes.
+- **The numbers in the order card are fixture data** — `$16.00`, `−$4.53`, `17 days`.
+  The design has chosen no price and no proration rule. In a build every figure comes from
+  Stripe's preview of the change against the plan version being bought; none of it is
+  computed from a price string in the UI.
+- **The result state is faked in the design file.** It is reached by a click. In a build it
+  is only reachable after the webhook has written subscription state — *a redirect is a
+  hint, never a grant* (M21 link 4). **Return-from-Stripe-before-webhook has no design
+  yet** and needs one: a pending state, not this one, and not a spinner that lies.
+- **Stale plan version at pay time is a conflict, not an error.** If an admin publishes
+  while someone is on the confirm step, the session must be created against the version
+  shown or the step re-renders with the new numbers and says so. Never charge the old
+  amount silently. (Rule 6 — the console already has `version-conflict`; this is the
+  customer-facing half.)
+- **Offline / plan data unavailable:** show the held plan and a `warning` Banner, and do
+  not offer a CTA that opens a checkout that cannot succeed. Not drawn yet.
+
+### The assistant is hidden, not unmounted
+
+On `plans` the floating dock keeps its place in the tree with
+`visibility: hidden; pointer-events: none`. Account scope has nothing for it to act on
+(rule 2), but unmounting it loses the thread, the open/closed state and the dragged
+position, so coming back from Plans would reset it. **A build must hide it the same way.**
+Note this differs from route `admin`, where the assistant is genuinely not rendered —
+the console is a separate operator context you do not pass through.
+
+### What a build owes
+
+Nothing beyond M20 + M21 as already scoped, plus the two undrawn states above. One thing
+it removes: the sheet no longer needs an expanding region, so M21 link 5's surface is the
+smaller of the two halves.

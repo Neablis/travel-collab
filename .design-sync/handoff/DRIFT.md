@@ -73,6 +73,19 @@ design touches — whether the usage row carries a `planVersionRef`, **which quo
 a Vercel Flag or an env var. The second one is the expensive one, and the plan-and-usage
 screen is where a wrong answer becomes visible to a customer. Settle it before M20 opens.
 
+**New 2026-09-14 — the plan chooser is a route (`SPEC.md` §29).** M21 link 5 said *"an
+inline three-plan chooser in the same sheet … without a pricing route inside the app"*.
+**The design now adds that route** (`plans`), and only the chooser and a new confirm step
+moved out — §17.4's plan/version/state, meters, past-due copy and referral row all stay in
+the account sheet. This is a deliberate deviation from a written milestone link and wants
+agreeing before M21 opens; it makes link 5's sheet work smaller, not larger. Three things
+it owes that are not drawn: **return-from-Stripe before the webhook lands** (a pending
+state — the design's success state is reached by a click and must not be built that way),
+**a stale plan version at pay time**, and **plan data unavailable / offline**. The order
+card's `$16.00` / `−$4.53` / `17 days` are fixtures; proration comes from Stripe's preview
+of the change, never from the UI. And the assistant dock on this route is
+`visibility: hidden`, still mounted — unlike `admin`, where it is not rendered at all.
+
 **§2e / §18 — Notebook widgets.** A page has no scope; each widget owns its inputs.
 Still the correct model and now largely agreed with the build (ADR-037). The design was
 re-cut onto the build's model in the 2026-09-04 pass — insert is a sidebar + click-at-cursor

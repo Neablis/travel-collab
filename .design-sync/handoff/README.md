@@ -4,13 +4,22 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-12 — the largest since the bundle started.** The trip's tab
-structure changed (§24), the trip gained a landing page that is a real notebook document
-(§25), widget settings left the document flow entirely (§26), trip lifecycle and read-only
-were designed (§27), and the product's mark, default look and phone front door changed (§28).
+Last substantive pass: **2026-09-14 — small and surgical.** The in-app plan chooser left
+the account sheet and became a route with a confirm-and-pay step (§29, superseding the last
+bullet of §17.4). Nothing else in the bundle changed.
 
-**If you read nothing else, read §24 and §26.** §24 renames and rescopes every tab and
-deletes one; §26 supersedes how every widget control works on both surfaces.
+**If you are estimating M21, read §29 before link 5** — it deviates from that link on
+purpose and shrinks it. Everything from the 2026-09-12 pass below is unchanged and still
+current.
+
+### What changed on 2026-09-14, in build terms
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| Plan chooser is a route, not an inline region in the account sheet | §29 | A `plans` route with three states (chooser / confirm / result); the sheet loses its expanding chooser |
+| Paying has a confirm step before Stripe | §29 | Order lines + proration from **Stripe's preview**, never computed in the UI; the success state needs the webhook, not the redirect |
+| Two states the design does not draw | §29 | Return-from-Stripe-before-webhook (pending), and stale plan version at pay time |
+| The assistant is hidden on `plans`, not unmounted | §29 | `visibility: hidden; pointer-events: none` — unmounting loses thread, state and dragged position |
 
 ### What changed on 2026-09-12, in build terms
 
@@ -117,7 +126,7 @@ what may exist on a page — read `RULES.md` first.
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§29 (plans route) is this pass**; §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
 | **`specs/notebook-widget-framework.md`** | **The notebook widget framework** — three shape components, four states per shape, the ghost. `SPEC.md` §21 summarises it; this file is the contract |
 | `design/NotebookInline.dc.html` | Component — an inline widget: a segment list of your text, its values, and ghosts |

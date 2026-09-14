@@ -16,6 +16,13 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
 @keyframes om-save-pulse { 0% { transform: scale(0.5); opacity: 0.7; } 75% { transform: scale(2.1); opacity: 0; } 100% { transform: scale(2.1); opacity: 0; } }
+/* Placeholders are outlines only — the shape of the page, nothing filled. The slow
+   breathe is the one thing that separates "still arriving" from "empty" or "broken". */
+@keyframes om-sk { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+[data-sk] { animation: om-sk 1.8s ease-in-out infinite; }
+[data-sk="2"] { animation-delay: 220ms; }
+[data-sk="3"] { animation-delay: 440ms; }
+@media (prefers-reduced-motion: reduce) { [data-sk] { animation: none; opacity: 0.62; } }
 html, body { height: 100%; margin: 0; background: var(--color-paper); }
 * { box-sizing: border-box; }
 a { color: var(--color-brand); text-decoration: none; }
@@ -751,7 +758,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
               </sc-if>
               <div style="display: flex; align-items: center; gap: 10px; padding-top: 10px;">
-                <span style="flex: 1; min-width: 0; font-size: 12.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ resultLine }}</span>
+                <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
+                  <span data-sk="1" style="flex: 1; display: block; max-width: 180px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                </sc-if>
+                <sc-if value="{{ showResultLine }}" hint-placeholder-val="{{ true }}">
+                  <span style="flex: 1; min-width: 0; font-size: 12.5px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ resultLine }}</span>
+                </sc-if>
                 <button onClick="{{ openPbSheet }}" style="flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 999px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-ink); cursor: pointer;">
                   Filter
                   <sc-if value="{{ hasPbFilters }}" hint-placeholder-val="{{ false }}">
@@ -767,11 +779,15 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </sc-if>
               <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
                 <sc-for list="{{ skeletons }}" as="sk" hint-placeholder-count="3">
-                  <div style="height: 132px; border: 1px solid var(--color-hairline); border-radius: 13px; background: var(--color-surface); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-                    <span style="width: 76px; height: 18px; border-radius: 999px; background: var(--color-moss);"></span>
-                    <span style="width: 80%; height: 18px; border-radius: 5px; background: var(--color-moss);"></span>
-                    <span style="width: 52%; height: 11px; border-radius: 5px; background: var(--color-moss);"></span>
-                    <span style="height: 34px; border-radius: 10px; background: var(--color-moss);"></span>
+                  <div role="status" aria-busy="true" aria-label="Loading shared days" style="height: 132px; border: 1px solid var(--color-hairline); border-radius: 13px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                    <span data-sk="1" style="display: block; width: 76px; height: 18px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="1" style="display: block; width: 80%; height: 18px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                    <span data-sk="2" style="display: block; width: 52%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <div style="display: flex; align-items: flex-end; gap: 4px; height: 34px;">
+                      <sc-for list="{{ skShape }}" as="b" hint-placeholder-count="5">
+                        <span data-sk="3" style="flex: 1; display: block; height: {{ b.h }}; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                      </sc-for>
+                    </div>
                   </div>
                 </sc-for>
               </sc-if>
@@ -1097,6 +1113,77 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </div>
             </div>
 
+            <sc-if value="{{ loadHomeHero }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="p-0 overflow-hidden">
+                <div data-r="hero" role="status" aria-busy="true" aria-label="Loading your next trip" style="display: grid; grid-template-columns: 1.15fr 1fr;">
+                  <div style="padding: 30px 32px; display: flex; flex-direction: column; gap: 18px; border-right: 1px solid var(--color-hairline);">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <span data-sk="1" style="display: block; width: 76px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="1" style="display: block; width: 64px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 9px;">
+                      <span data-sk="1" style="display: block; width: 78%; height: 26px; border: 1px solid var(--color-hairline); border-radius: 7px;"></span>
+                      <span data-sk="1" style="display: block; width: 44%; height: 26px; border: 1px solid var(--color-hairline); border-radius: 7px;"></span>
+                      <div style="display: flex; align-items: center; gap: 8px; padding-top: 3px;">
+                        <span data-sk="2" style="display: block; width: 116px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="2" style="display: block; width: 54px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="2" style="display: block; width: 62px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="display: flex;">
+                        <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
+                          <span data-sk="2" style="display: block; width: 30px; height: 30px; border: 1px solid var(--color-hairline); border-radius: 999px; margin-left: -8px; background: var(--color-surface);"></span>
+                        </sc-for>
+                      </div>
+                      <span data-sk="2" style="display: block; width: 148px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                      <sc-for list="{{ sk3 }}" as="sk" hint-placeholder-count="3">
+                        <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 62px; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 0 16px;">
+                          <span data-sk="2" style="display: block; width: 34px; height: 17px; border: 1px solid var(--color-hairline); border-radius: 4px;"></span>
+                          <span data-sk="3" style="display: block; width: 74%; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                      <span data-sk="3" style="display: block; width: 104px; height: 36px; border: 1px solid var(--color-hairline); border-radius: 8px;"></span>
+                      <span data-sk="3" style="display: block; width: 84px; height: 36px; border: 1px solid var(--color-hairline); border-radius: 8px;"></span>
+                    </div>
+                  </div>
+                  <div style="padding: 28px 30px; display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                      <span data-sk="1" style="display: block; width: 128px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="1" style="display: block; width: 74px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <div style="display: flex; align-items: flex-end; gap: 5px; height: 96px;">
+                      <sc-for list="{{ skSpark }}" as="b" hint-placeholder-count="14">
+                        <span data-sk="2" style="flex: 1; display: block; height: {{ b.h }}; border: 1px solid var(--color-hairline); border-radius: 4px;"></span>
+                      </sc-for>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                      <span data-sk="3" style="display: block; width: 64px; height: 22px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="3" style="display: block; width: 78px; height: 22px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="3" style="display: block; width: 56px; height: 22px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="3" style="display: block; width: 70px; height: 22px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                  </div>
+                </div>
+              </x-import>
+            </sc-if>
+
+            <sc-if value="{{ emptyHomeHero }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: 58px 28px; text-align: center;">
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,28px" level="{{ 3 }}">No trips yet</x-import>
+                <div style="font-size: 14px; line-height: 1.6; color: var(--color-slate); max-width: 46ch; text-wrap: pretty;">A trip is a set of days you fill in any order. Start an empty one, or begin from a day someone has already written.</div>
+                <div style="display: flex; gap: 8px; padding-top: 10px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Start from a Playbook</x-import>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showHomeHero }}" hint-placeholder-val="{{ true }}">
             <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="p-0 overflow-hidden">
               <div data-r="hero" style="display: grid; grid-template-columns: 1.15fr 1fr;">
                 <div style="padding: 30px 32px; display: flex; flex-direction: column; gap: 20px; border-right: 1px solid var(--color-hairline);">
@@ -1161,11 +1248,55 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
               </div>
             </x-import>
+            </sc-if>
 
+            <sc-if value="{{ homeSections }}" hint-placeholder-val="{{ true }}">
             <div>
               <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;">
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,26px" level="{{ 3 }}">All trips</x-import>
               </div>
+
+              <sc-if value="{{ loadHomeTrips }}" hint-placeholder-val="{{ false }}">
+                <div data-r="grid3" role="status" aria-busy="true" aria-label="Loading your trips" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                  <sc-for list="{{ sk3 }}" as="sk" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 12px; height: 168px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: 20px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span data-sk="1" style="display: block; width: 46px; height: 6px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="1" style="display: block; width: 16px; height: 16px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 7px;">
+                        <span data-sk="1" style="display: block; width: 72%; height: 18px; border: 1px solid var(--color-hairline); border-radius: 6px;"></span>
+                        <span data-sk="2" style="display: block; width: 44%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <span data-sk="2" style="display: block; width: 94%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="2" style="display: block; width: 62%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                      <span data-sk="3" style="display: block; width: 38%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <div style="flex: 1;"></div>
+                      <div style="display: flex; align-items: center; gap: 8px; padding-top: 13px; border-top: 1px solid var(--color-hairline);">
+                        <span data-sk="3" style="display: block; width: 26px; height: 26px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 26px; height: 26px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 54px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <div style="flex: 1;"></div>
+                        <span data-sk="3" style="display: block; width: 62px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ failHomeTrips }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); padding: 18px 20px;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 240px;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">Your trips didn’t load</span>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Only this list failed. Everything else on the page is current.</span>
+                  </span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryHomeTrips }}">Try again</x-import>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showHomeTrips }}" hint-placeholder-val="{{ true }}">
               <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <sc-for list="{{ tripCards }}" as="t" hint-placeholder-count="3">
                   <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,168px" className="flex flex-col gap-4 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ t.open }}">
@@ -1201,6 +1332,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </x-import>
                 </sc-for>
               </div>
+              </sc-if>
             </div>
 
             <div>
@@ -1209,6 +1341,28 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <a href="#playbooks" onClick="{{ goPlaybooks }}" style="font-size: 13px;">See all</a>
               </div>
               <div style="font-size: 13px; color: var(--color-slate); margin-bottom: 12px;">Saved days you can drop into any trip. Times shift to fit the day you drop them on.</div>
+              <sc-if value="{{ loadHomePb }}" hint-placeholder-val="{{ false }}">
+                <div data-r="grid4" role="status" aria-busy="true" aria-label="Loading your Playbooks" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                  <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
+                    <div style="display: flex; flex-direction: column; gap: 10px; height: 136px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: 20px;">
+                      <span data-sk="1" style="display: block; width: 62px; height: 18px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="2" style="display: block; width: 84%; height: 14px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                      <div style="flex: 1;"></div>
+                      <div style="display: flex; align-items: flex-end; gap: 4px; height: 34px;">
+                        <sc-for list="{{ skShape }}" as="b" hint-placeholder-count="5">
+                          <span data-sk="3" style="flex: 1; display: block; height: {{ b.h }}; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                        </sc-for>
+                      </div>
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span data-sk="3" style="display: block; width: 52px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 38px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showHomePb }}" hint-placeholder-val="{{ true }}">
               <div data-r="grid4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
                 <sc-for list="{{ playbooksShort }}" as="pb" hint-placeholder-count="4">
                   <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,136px" className="flex flex-col gap-3 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ pb.open }}">
@@ -1227,7 +1381,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </x-import>
                 </sc-for>
               </div>
+              </sc-if>
             </div>
+            </sc-if>
 
           </div>
         </x-import>
@@ -1250,12 +1406,31 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <div style="position: sticky; top: 0; z-index: 5; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
             <div data-r="triphead" style="padding: 14px 26px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 10px; align-items: end;">
               <div style="grid-column: 1; grid-row: 1; min-width: 0;">
+                <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
+                  <div role="status" aria-busy="true" aria-label="Loading the trip" style="display: flex; align-items: center; gap: 10px; margin: 2px 0 0 0; padding: 2px 0;">
+                    <span data-sk="1" style="display: block; width: 320px; max-width: 52vw; height: 27px; border: 1px solid var(--color-hairline); border-radius: 7px;"></span>
+                    <span data-sk="1" style="display: block; width: 74px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
                 <button onClick="{{ openSettings }}" title="Open trip settings" style="display: flex; align-items: center; gap: 10px; margin: 2px 0 0 -8px; padding: 2px 8px; background: none; border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; text-align: left; transition: background 140ms ease;" style-hover="background: var(--color-moss);">
                   <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,30px" level="{{ 2 }}">{{ trip.name }}</x-import>
                   <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="neutral">{{ trip.state }}</x-import>
                 </button>
+                </sc-if>
               </div>
               <div style="grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap;">
+                <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: inline-flex; align-items: center; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 999px; padding: 7px 14px 7px 12px;">
+                    <span data-sk="2" style="display: block; width: 9px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="2" style="display: block; width: 128px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
+                    <span data-sk="2" style="display: block; width: 54px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
+                    <span data-sk="2" style="display: block; width: 48px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
                 <div data-r="meta" style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
                   <span style="display: inline-flex; align-items: center; gap: 8px;">
                     <span style="width: 9px; height: 9px; border-radius: 999px; background: {{ tripAccent }};"></span>
@@ -1266,6 +1441,20 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
                   <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ tripCities }}</span>
                 </div>
+                </sc-if>
+                <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
+                  <div role="status" aria-busy="true" aria-label="Loading the budget" style="display: flex; align-items: center; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px;">
+                    <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 5px;">
+                      <span style="display: flex; align-items: center; gap: 6px;">
+                        <span data-sk="2" style="display: block; width: 92px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="2" style="display: block; width: 44px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </span>
+                      <span data-sk="3" style="display: block; width: 132px; height: 4px; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                    </span>
+                    <span data-sk="3" style="display: block; width: 68px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
                 <button onClick="{{ openSettings }}" title="Open trip settings" style="display: flex; align-items: center; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px; cursor: pointer; font-family: inherit; transition: border-color 140ms ease;" style-hover="border-color: var(--color-border-strong);">
                   <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px;">
                     <span style="display: flex; align-items: baseline; gap: 6px;">
@@ -1327,6 +1516,26 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
             </div>
             <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
+            <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
+              <div role="status" aria-busy="true" aria-label="Loading the days" style="display: flex; align-items: stretch; gap: 6px; padding: 12px 26px 10px; overflow-x: hidden;">
+                <sc-for list="{{ skPills }}" as="sk" hint-placeholder-count="14">
+                  <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; width: 92px; height: 72px; border: 1px solid var(--color-hairline); border-radius: 12px; padding: 8px 10px;">
+                    <span data-sk="1" style="display: block; width: 26px; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span data-sk="1" style="display: block; width: 18px; height: 14px; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                      <span data-sk="2" style="display: block; flex: 1; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <div style="display: flex; gap: 2px;">
+                      <sc-for list="{{ sk.dots }}" as="d" hint-placeholder-count="4">
+                        <span data-sk="3" style="display: block; width: 8px; height: 3px; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline);"></span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
             <div style="display: flex; align-items: stretch; gap: 6px; padding: 12px 26px 10px; overflow-x: auto;">
               <sc-for list="{{ chips }}" as="c" hint-placeholder-count="14">
                 <button onClick="{{ c.jump }}" style="flex: 0 0 auto; width: 92px; text-align: left; padding: 8px 10px; border-radius: 12px; cursor: pointer; font-family: inherit; border: 0; background: {{ c.tint }}; box-shadow: {{ c.ring }};">
@@ -1354,6 +1563,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </button>
               </sc-for>
             </div>
+            </sc-if>
             </sc-if>
             <div style="display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 4px 26px 12px; overflow-x: auto;">
               <div style="flex: 0 0 auto;">
@@ -1407,6 +1617,78 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </sc-if>
               </div>
 
+              <sc-if value="{{ loadOvBody }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-busy="true" aria-label="Loading the overview" style="display: flex; flex-direction: column; gap: 26px;">
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <span data-sk="1" style="display: block; width: 38%; height: 19px; border: 1px solid var(--color-hairline); border-radius: 6px;"></span>
+                    <span data-sk="1" style="display: block; width: 96%; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="1" style="display: block; width: 88%; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="2" style="display: block; width: 54%; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                  <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+                    <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
+                      <div style="display: grid; grid-template-columns: 136px 1fr; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--color-hairline);">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                          <span data-sk="2" style="display: block; width: 78px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                          <span data-sk="2" style="display: block; width: 54px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 2px;">
+                          <span data-sk="2" style="display: block; width: 88%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                          <span data-sk="3" style="display: block; width: 52%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <span data-sk="3" style="display: block; width: 30%; height: 19px; border: 1px solid var(--color-hairline); border-radius: 6px;"></span>
+                    <sc-for list="{{ sk3 }}" as="sk" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: center; gap: 14px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px;">
+                        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+                          <span data-sk="3" style="display: block; width: 42%; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                          <span data-sk="3" style="display: block; width: 68%; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        </div>
+                        <span data-sk="3" style="display: block; width: 64px; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+                    <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--color-hairline);">
+                        <span data-sk="3" style="display: block; width: 38%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 66px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </sc-for>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px;">
+                      <span data-sk="3" style="display: block; width: 96px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="3" style="display: block; width: 78px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ failOvBody }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); padding: 18px 20px;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 240px;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">This page didn’t load</span>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Nothing was lost — the trip itself is fine, and the other tabs still work.</span>
+                  </span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryOvBody }}">Try again</x-import>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ emptyOvBody }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 9px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: 34px 30px;">
+                  <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">Nothing written here yet</span>
+                  <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); max-width: 54ch; text-wrap: pretty;">Overview is this trip’s first page. Write what the trip is for, and any number you pull in from the plan — dates, costs, who is coming — keeps itself right as the plan changes.</span>
+                  <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                    <span style="display: inline-flex; padding-top: 6px;">
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openTripHomeDoc }}">Write the overview</x-import>
+                    </span>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showOvBody }}" hint-placeholder-val="{{ true }}">
               <sc-for list="{{ homeBlocks }}" as="b" hint-placeholder-count="6">
                 <div style="padding-bottom: 20px;">
                   <sc-if value="{{ b.isH }}" hint-placeholder-val="{{ false }}">
@@ -1480,6 +1762,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </sc-if>
                 </div>
               </sc-for>
+              </sc-if>
             </div>
           </sc-if>
 
@@ -1646,7 +1929,28 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
           <sc-if value="{{ isMap }}" hint-placeholder-val="{{ false }}">
             <div data-r="mapwrap" style="position: relative; flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--color-hairline); background: var(--color-paper);">
+              <sc-if value="{{ mapRailOn }}" hint-placeholder-val="{{ true }}">
               <div id="maprail" data-r="maprail" style="position: absolute; left: 16px; top: 16px; bottom: 16px; z-index: 4; width: 268px; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 14px; box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.14));">
+                <sc-if value="{{ loadMapRail }}" hint-placeholder-val="{{ false }}">
+                  <div role="status" aria-busy="true" aria-label="Loading the days">
+                    <sc-for list="{{ sk6 }}" as="sk" hint-placeholder-count="6">
+                      <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--color-hairline); border-left: 3px solid var(--color-hairline);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span data-sk="1" style="display: block; width: 42px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                          <span data-sk="1" style="display: block; width: 52px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        </div>
+                        <span data-sk="2" style="display: block; width: 62%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                        <span data-sk="2" style="display: block; width: 84px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                          <sc-for list="{{ sk.bars }}" as="b" hint-placeholder-count="4">
+                            <span data-sk="3" style="display: block; flex: {{ b.grow }}; height: 6px; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ showMapRail }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ mapDays }}" as="d" hint-placeholder-count="6">
                   <button data-mapday="{{ d.i }}" onClick="{{ d.jump }}" style="display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer; border: 0; border-bottom: 1px solid var(--color-hairline); border-left: 3px solid {{ d.edge }}; background: {{ d.bg }}; padding: 11px 14px 12px; transition: background 160ms ease;">
                     <div style="display: flex; align-items: baseline; gap: 8px;">
@@ -1665,9 +1969,63 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </sc-if>
                   </button>
                 </sc-for>
+                </sc-if>
               </div>
+              </sc-if>
               <div style="position: absolute; inset: 0;">
                 <div id="tripmap" style="position: absolute; inset: 0;"></div>
+
+                <sc-if value="{{ loadMapCanvas }}" hint-placeholder-val="{{ false }}">
+                  <div role="status" aria-busy="true" aria-label="Loading the map" style="position: absolute; inset: 0; z-index: 2; background: var(--color-paper); display: grid; place-items: center;">
+                    <div data-sk="1" style="position: relative; width: 460px; height: 300px; margin-left: 268px;">
+                      <span style="position: absolute; left: 34px; top: 212px; width: 170px; border-top: 1px dashed var(--color-hairline); transform: rotate(-38deg); transform-origin: left center;"></span>
+                      <span style="position: absolute; left: 166px; top: 110px; width: 128px; border-top: 1px dashed var(--color-hairline); transform: rotate(14deg); transform-origin: left center;"></span>
+                      <span style="position: absolute; left: 290px; top: 142px; width: 96px; border-top: 1px dashed var(--color-hairline); transform: rotate(-52deg); transform-origin: left center;"></span>
+                      <span style="position: absolute; left: 348px; top: 64px; width: 84px; border-top: 1px dashed var(--color-hairline); transform: rotate(46deg); transform-origin: left center;"></span>
+                      <span style="position: absolute; left: 20px; top: 198px; width: 28px; height: 28px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-paper);"></span>
+                      <span style="position: absolute; left: 152px; top: 96px; width: 28px; height: 28px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-paper);"></span>
+                      <span style="position: absolute; left: 276px; top: 128px; width: 28px; height: 28px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-paper);"></span>
+                      <span style="position: absolute; left: 334px; top: 50px; width: 28px; height: 28px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-paper);"></span>
+                      <span style="position: absolute; left: 392px; top: 118px; width: 28px; height: 28px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-paper);"></span>
+                    </div>
+                  </div>
+                  <div data-sk="2" style="position: absolute; left: 300px; bottom: 18px; z-index: 3; display: flex; flex-direction: column; gap: 9px; width: 256px; border: 1px solid var(--color-hairline); border-radius: 12px; background: var(--color-surface); padding: 14px 15px;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="display: block; width: 9px; height: 9px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span style="display: block; width: 108px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <span style="display: block; width: 72%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span style="display: block; width: 92%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span style="display: block; width: 46%; height: 10px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                  <span data-sk="3" style="position: absolute; right: 18px; bottom: 18px; z-index: 3; display: block; width: 318px; height: 34px; border: 1px solid var(--color-hairline); border-radius: 999px; background: var(--color-surface);"></span>
+                </sc-if>
+
+                <sc-if value="{{ failMapCanvas }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; inset: 0; z-index: 3; background: var(--color-paper); display: grid; place-items: center; padding-left: 268px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 360px; text-align: center; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.12)); padding: 24px 26px;">
+                      <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">The map didn’t load</span>
+                      <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Only the map itself. Your days are still listed on the left, and everything on them is current.</span>
+                      <span style="display: inline-flex; padding-top: 6px;">
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryMapCanvas }}">Try again</x-import>
+                      </span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ emptyMapCanvas }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; inset: 0; z-index: 3; background: var(--color-paper); display: grid; place-items: center;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 420px; text-align: center; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: 40px 34px;">
+                      <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">Nothing to map yet</span>
+                      <span style="font-size: 13.5px; line-height: 1.6; color: var(--color-slate); text-wrap: pretty;">A stop draws itself here as soon as it has a place. Add one and the day’s walk appears with it.</span>
+                      <span style="display: inline-flex; padding-top: 6px;">
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ goPlanView }}">Go to Plan</x-import>
+                      </span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ showMapCanvas }}" hint-placeholder-val="{{ true }}">
                 <div style="position: absolute; left: 300px; bottom: 18px; z-index: 3; width: 256px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.12)); padding: 13px 15px 14px; animation: riseIn 220ms ease both;">
                   <div style="display: flex; align-items: center; gap: 7px;">
                     <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ mapFocusSolid }};"></span>
@@ -1681,6 +2039,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 3px dotted {{ mapFocusSolid }};"></span>By train or taxi</span>
                   <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 3px; border-radius: 2px; background: #9AA6A3; opacity: 0.55;"></span>Rest of trip</span>
                 </div>
+                </sc-if>
               </div>
             </div>
           </sc-if>
@@ -1810,7 +2169,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </div>
 
             <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-top: 4px; border-top: 1px solid var(--color-hairline);">
-              <span style="font-size: 13.5px; color: var(--color-ink);">{{ resultLine }}</span>
+              <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
+                <span data-sk="1" style="display: block; width: 196px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+              </sc-if>
+              <sc-if value="{{ showResultLine }}" hint-placeholder-val="{{ true }}">
+                <span style="font-size: 13.5px; color: var(--color-ink);">{{ resultLine }}</span>
+              </sc-if>
               <div style="flex: 1;"></div>
               <button onClick="{{ goBoard }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px;">Who shares the most →</button>
               <sc-if value="{{ filtersOn }}" hint-placeholder-val="{{ false }}">
@@ -1823,17 +2187,39 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </sc-if>
 
             <sc-if value="{{ loadingDays }}" hint-placeholder-val="{{ false }}">
-              <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+              <div data-r="grid3" role="status" aria-busy="true" aria-label="Loading shared days" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <sc-for list="{{ skeletons }}" as="sk" hint-placeholder-count="3">
-                  <div style="height: 292px; border: 1px solid var(--color-hairline); border-radius: 12px; background: var(--color-surface); padding: 18px; display: flex; flex-direction: column; gap: 12px;">
-                    <span style="width: 84px; height: 20px; border-radius: 999px; background: var(--color-moss);"></span>
-                    <span style="width: 78%; height: 20px; border-radius: 5px; background: var(--color-moss);"></span>
-                    <span style="width: 46%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
-                    <span style="height: 72px; border-radius: 12px; background: var(--color-moss);"></span>
-                    <span style="width: 90%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
-                    <span style="width: 70%; height: 12px; border-radius: 5px; background: var(--color-moss);"></span>
+                  <div style="height: 292px; border: 1px solid var(--color-hairline); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; gap: 6px;">
+                      <span data-sk="1" style="display: block; width: 64px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="1" style="display: block; width: 48px; height: 20px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <span data-sk="1" style="display: block; width: 78%; height: 20px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                    <span data-sk="2" style="display: block; width: 46%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <div style="display: flex; align-items: flex-end; gap: 4px; height: 72px; border: 1px solid var(--color-hairline); border-radius: 12px; padding: 10px;">
+                      <sc-for list="{{ skShape }}" as="b" hint-placeholder-count="5">
+                        <span data-sk="2" style="flex: 1; display: block; height: {{ b.h }}; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                      </sc-for>
+                    </div>
+                    <span data-sk="3" style="display: block; width: 92%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="3" style="display: block; width: 68%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <div style="flex: 1;"></div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                      <span data-sk="3" style="display: block; width: 84px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <span data-sk="3" style="display: block; width: 52px; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
                   </div>
                 </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ failPbDays }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); padding: 18px 20px;">
+                <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 240px;">
+                  <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">Shared days didn’t load</span>
+                  <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Your filters are still set the way you left them.</span>
+                </span>
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryPbDays }}">Try again</x-import>
               </div>
             </sc-if>
 
@@ -2138,6 +2524,138 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         </x-import>
       </sc-if>
 
+      <sc-if value="{{ isPlansRoute }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div data-screen-label="Plans" style="padding: 22px 0 90px; display: flex; flex-direction: column; gap: 22px; max-width: 1040px;">
+
+            <sc-if value="{{ plansList }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column; gap: 22px;">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <button onClick="{{ plansBack }}" style="align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--font-next-sans); font-size: 12.5px; color: var(--color-slate);">← Account settings</button>
+                  <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,36px" level="{{ 2 }}">Plans</x-import>
+                  <span style="font-size: 14px; line-height: 1.55; color: var(--color-slate); max-width: 620px; text-wrap: pretty;">{{ plansHeldLine }}</span>
+                </div>
+
+                <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch;">
+                  <sc-for list="{{ planCards }}" as="p" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; border: 1px solid {{ p.border }}; border-radius: 12px; background: var(--color-surface); box-shadow: {{ p.shadow }}; overflow: hidden;">
+                      <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px 16px; background: {{ p.headBg }}; border-bottom: 1px solid var(--color-hairline);">
+                        <div style="display: flex; align-items: center; gap: 8px; min-height: 20px;">
+                          <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
+                          <sc-if value="{{ p.held }}" hint-placeholder-val="{{ false }}">
+                            <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="success">Your plan</x-import>
+                          </sc-if>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 6px;">
+                          <span style="font-family: var(--font-next-mono); font-size: 26px; color: var(--color-ink);">{{ p.price }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ p.per }}</span>
+                        </div>
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ p.forWho }}</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: 9px; padding: 16px 20px; flex: 1 1 auto;">
+                        <sc-for list="{{ p.bullets }}" as="bl" hint-placeholder-count="4">
+                          <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 9px; align-items: start;">
+                            <span style="width: 5px; height: 5px; border-radius: 999px; background: var(--color-border-strong); margin: 7px 0 0 4px;"></span>
+                            <span style="font-size: 13px; line-height: 1.5; color: var(--color-ink); text-wrap: pretty;">{{ bl.b }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="padding: 0 20px 18px;">
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,38px" variant="{{ p.variant }}" className="w-full" disabled="{{ p.held }}" onClick="{{ p.pick }}">{{ p.cta }}</x-import>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Side by side</span>
+                  <div data-r="calwrap" style="border: 1px solid var(--color-hairline); border-radius: 12px; background: var(--color-surface); overflow: hidden;">
+                    <div data-r="cal" style="min-width: 620px;">
+                      <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--color-hairline);">
+                        <span style="padding: 11px 16px;"></span>
+                        <sc-for list="{{ cmpHead }}" as="h" hint-placeholder-count="3">
+                          <span style="padding: 11px 16px; background: {{ h.bg }}; font-size: 12.5px; font-weight: 600; color: var(--color-ink); border-left: 1px solid var(--color-hairline);">{{ h.label }}</span>
+                        </sc-for>
+                      </div>
+                      <sc-for list="{{ cmpRows }}" as="r" hint-placeholder-count="7">
+                        <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--color-hairline);">
+                          <span style="padding: 11px 16px; font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ r.k }}</span>
+                          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3">
+                            <span style="padding: 11px 16px; background: {{ c.bg }}; border-left: 1px solid var(--color-hairline); font-family: var(--font-next-mono); font-size: 12.5px; font-weight: {{ c.weight }}; color: {{ c.ink }};">{{ c.v }}</span>
+                          </sc-for>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Every plan keeps everything you have already planned. Moving between them never deletes a trip, a day or a saved day.</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ coOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 20px; max-width: 880px;">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <button onClick="{{ coCancel }}" style="align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--font-next-sans); font-size: 12.5px; color: var(--color-slate);">← Plans</button>
+                  <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">{{ coTitle }}</x-import>
+                  <span style="font-size: 13.5px; line-height: 1.55; color: var(--color-slate); max-width: 560px; text-wrap: pretty;">{{ coSub }}</span>
+                </div>
+
+                <div data-r="grid3col" style="display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start;">
+                  <div style="display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 12px; background: var(--color-surface); padding: 18px 20px;">
+                    <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">What changes</span>
+                    <sc-for list="{{ coUnlocks }}" as="u" hint-placeholder-count="3">
+                      <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 9px; align-items: start;">
+                        <span style="width: 5px; height: 5px; border-radius: 999px; background: var(--color-border-strong); margin: 7px 0 0 4px;"></span>
+                        <span style="font-size: 13px; line-height: 1.55; color: var(--color-ink); text-wrap: pretty;">{{ u.b }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-surface); padding: 18px 20px;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Order</span>
+                    <sc-if value="{{ coPaidPlan }}" hint-placeholder-val="{{ true }}">
+                      <div style="display: flex; flex-direction: column; gap: 7px;">
+                        <sc-for list="{{ coLines }}" as="l" hint-placeholder-count="3">
+                          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+                            <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ l.k }}</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ l.v }}</span>
+                          </div>
+                        </sc-for>
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-hairline); padding-top: 9px;">
+                          <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ coDueLabel }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 17px; color: var(--color-ink);">{{ coDue }}</span>
+                        </div>
+                        <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ coRenews }}</span>
+                        <div style="display: flex; align-items: center; gap: 8px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 9px 11px;">
+                          <span style="width: 26px; height: 18px; border-radius: 3px; background: var(--color-moss); flex: 0 0 auto;"></span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ coCard }}</span>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ coPay }}">{{ coPayLabel }}</x-import>
+                    <sc-if value="{{ coPaidPlan }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size: 11.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">You finish on Stripe's secure checkout. Caesura never sees the card.</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ coDone }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 16px; max-width: 620px;">
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">{{ coDoneTitle }}</x-import>
+                <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); text-wrap: pretty;">{{ coDoneBody }}</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,38px" variant="primary" onClick="{{ coDoneCta }}">{{ coDoneCtaLabel }}</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,38px" variant="ghost" onClick="{{ coInvoices }}">Payment and invoices</x-import>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+        </x-import>
+      </sc-if>
+
       <sc-if value="{{ isAdminRoute }}" hint-placeholder-val="{{ false }}">
         <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
           <div style="padding: 26px 0 90px; display: flex; flex-direction: column; gap: 20px;">
@@ -2412,6 +2930,42 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 10px;">
+              <sc-if value="{{ loadNbPages }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-busy="true" aria-label="Loading pages" style="display: flex; flex-direction: column; gap: 10px;">
+                  <sc-for list="{{ sk3 }}" as="sk" hint-placeholder-count="3">
+                    <div style="display: flex; align-items: flex-start; gap: 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: 20px;">
+                      <span data-sk="1" style="display: block; width: 4px; align-self: stretch; min-height: 46px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+                        <span data-sk="1" style="display: block; width: 46%; height: 16px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                        <span data-sk="2" style="display: block; width: 84%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 30%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ failNbPages }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); background: var(--color-surface); padding: 18px 20px;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 240px;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">Your pages didn’t load</span>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Nothing has been lost. You can still start a new page from a template below.</span>
+                  </span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryNbPages }}">Try again</x-import>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ emptyNbPages }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 9px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: 34px 30px;">
+                  <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">No pages yet</span>
+                  <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); max-width: 54ch; text-wrap: pretty;">A page is prose that reads itself out of the plan — what you are doing, when, and what it costs, without you retyping any of it. Start blank, or from one of the templates below.</span>
+                  <span style="display: inline-flex; padding-top: 6px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ newDoc }}">Blank page</x-import>
+                  </span>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showNbPages }}" hint-placeholder-val="{{ true }}">
               <sc-for list="{{ docs }}" as="dc" hint-placeholder-count="3">
                 <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,96px" className="flex items-start gap-4 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ dc.open }}">
                   <div style="width: 4px; align-self: stretch; border-radius: 999px; background: {{ dc.solid }};"></div>
@@ -2425,10 +2979,24 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <button onClick="{{ dc.del }}" disabled="{{ dc.locked }}" title="{{ dc.delLabel }}" style="flex: 0 0 auto; align-self: center; background: none; border: 0; padding: 6px 8px; border-radius: 7px; cursor: {{ dc.delCursor }}; font-family: inherit; font-size: 12px; color: {{ dc.delInk }};">{{ dc.delLabel }}</button>
                 </x-import>
               </sc-for>
+              </sc-if>
             </div>
 
             <div>
               <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 10px;">Start from a template</div>
+              <sc-if value="{{ loadNbTpl }}" hint-placeholder-val="{{ false }}">
+                <div data-r="grid3" role="status" aria-busy="true" aria-label="Loading templates" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                  <sc-for list="{{ sk3 }}" as="sk" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 10px; height: 132px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: 20px;">
+                      <span data-sk="1" style="display: block; width: 56%; height: 15px; border: 1px solid var(--color-hairline); border-radius: 5px;"></span>
+                      <span data-sk="2" style="display: block; width: 92%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      <div style="flex: 1;"></div>
+                      <span data-sk="3" style="display: block; width: 44%; height: 11px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ showNbTpl }}" hint-placeholder-val="{{ true }}">
               <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
                 <sc-for list="{{ docTemplates }}" as="t" hint-placeholder-count="3">
                   <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,132px" className="flex flex-col gap-2 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ t.use }}">
@@ -2438,6 +3006,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </x-import>
                 </sc-for>
               </div>
+              </sc-if>
             </div>
           </div>
         </x-import>
@@ -2467,6 +3036,56 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <div style="min-width: 0;">
             <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,620px" raised="{{ true }}" className="p-0 overflow-hidden">
             <div style="padding: 40px 52px 52px; display: flex; flex-direction: column;">
+              <sc-if value="{{ loadDocBody }}" hint-placeholder-val="{{ false }}">
+                <div role="status" aria-busy="true" aria-label="Loading the page" style="display: flex; flex-direction: column; gap: 22px;">
+                  <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <span data-sk="1" style="display: block; width: 62%; height: 33px; border: 1px solid var(--color-hairline); border-radius: 7px;"></span>
+                    <span data-sk="1" style="display: block; width: 26%; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <span data-sk="2" style="display: block; width: 97%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="2" style="display: block; width: 93%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="2" style="display: block; width: 98%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <span data-sk="2" style="display: block; width: 48%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                  </div>
+                  <span data-sk="3" style="display: block; width: 34%; height: 19px; border: 1px solid var(--color-hairline); border-radius: 6px;"></span>
+                  <div style="border-left: 2px dashed var(--color-hairline); padding-left: 16px; display: flex; flex-direction: column; gap: 12px;">
+                    <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
+                      <div style="display: grid; grid-template-columns: 78px 1fr; gap: 14px; align-items: center;">
+                        <span data-sk="3" style="display: block; width: 62px; height: 12px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                        <span data-sk="3" style="display: block; width: 78%; height: 13px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ failDocBody }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; border: 1px solid var(--color-hairline); border-radius: var(--radius-lg); padding: 18px 20px;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 240px;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">This page didn’t load</span>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Nothing was lost, and nothing was saved over. Try it again before you edit.</span>
+                  </span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ retryDocBody }}">Try again</x-import>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ emptyDocBody }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                  <div style="font-family: var(--font-next-display); font-size: 33px; font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink); line-height: 1.12;">{{ docTitle }}</div>
+                  <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 9px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); padding: 30px 28px;">
+                    <span style="font-size: 15px; font-weight: 600; color: var(--color-ink);">A blank page</span>
+                    <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); max-width: 54ch; text-wrap: pretty;">Start writing. Press <span style="font-family: var(--font-next-mono); background: var(--color-moss); border-radius: 4px; padding: 1px 5px;">/</span> anywhere in the text to drop in a value from the plan — a date, a cost, every stop on a day.</span>
+                    </sc-if>
+                    <sc-if value="{{ docReadOnlyMode }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size: 14px; line-height: 1.6; color: var(--color-slate); max-width: 54ch; text-wrap: pretty;">Switch to Edit and start writing. Press <span style="font-family: var(--font-next-mono); background: var(--color-moss); border-radius: 4px; padding: 1px 5px;">/</span> anywhere in the text to drop in a value from the plan — a date, a cost, every stop on a day.</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showDocBody }}" hint-placeholder-val="{{ true }}">
               <div style="font-family: var(--font-next-display); font-size: 33px; font-weight: 600; letter-spacing: -0.015em; color: var(--color-ink); line-height: 1.12;">{{ docTitle }}</div>
               <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding: 7px 0 22px;">{{ docSubtitle }}</div>
 
@@ -2597,6 +3216,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </sc-if>
                 </div>
               </sc-for>
+              </sc-if>
 
               <sc-if value="{{ docEditing }}" hint-placeholder-val="{{ true }}">
                 <div style="display: flex; align-items: center; gap: 10px; border-top: 1px dashed var(--color-hairline); padding-top: 14px;">
@@ -2726,7 +3346,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
     </main>
 
-    <div data-r="asstdock" style="position: {{ asstPosMode }}; left: {{ asstX }}; top: {{ asstY }}; flex: {{ asstFlex }}; align-self: stretch; min-height: 0; z-index: 55; touch-action: none;">
+    <div data-r="asstdock" style="position: {{ asstPosMode }}; left: {{ asstX }}; top: {{ asstY }}; flex: {{ asstFlex }}; align-self: stretch; min-height: 0; z-index: 55; touch-action: none; visibility: {{ asstVis }}; pointer-events: {{ asstPE }};">
       <sc-if value="{{ asstClosed }}" hint-placeholder-val="{{ true }}">
         <button onPointerDown="{{ asstGrabBubble }}" aria-label="Ask the assistant" title="Ask the assistant — drag to move" style="display: grid; place-items: center; width: 92px; height: 44px; padding: 0; border-radius: 6px; border: 0; background: var(--color-brand); color: var(--color-surface); font-family: var(--font-next-display); font-size: 15px; font-weight: 600; cursor: {{ asstCursor }}; box-shadow: 0 8px 22px rgba(21, 29, 46, 0.24); transition: transform 140ms ease, box-shadow 140ms ease;" style-hover="transform: translateY(-1px); box-shadow: 0 12px 26px rgba(21, 29, 46, 0.28);">Ask</button>
       </sc-if>
@@ -2918,25 +3538,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </sc-if>
           </div>
         </div>
-
-        <sc-if value="{{ pickOpen }}" hint-placeholder-val="{{ false }}">
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <sc-for list="{{ planOptions }}" as="p" hint-placeholder-count="3">
-              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: {{ p.bg }}; border: 1px solid {{ p.border }}; border-radius: 10px; padding: 11px 13px;">
-                <div style="display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0;">
-                  <div style="display: flex; align-items: baseline; gap: 7px;">
-                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
-                    <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink);">{{ p.price }}</span>
-                    <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ p.per }}</span>
-                  </div>
-                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ p.line }}</span>
-                </div>
-                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ p.variant }}" size="sm" onClick="{{ p.pick }}">{{ p.cta }}</x-import>
-              </div>
-            </sc-for>
-            <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Payment happens on Stripe, not here. Nothing about your account changes until the payment clears.</span>
-          </div>
-        </sc-if>
 
         <sc-if value="{{ pastDue }}" hint-placeholder-val="{{ false }}">
           <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="{{ dueTitle }}">{{ dueBody }}</x-import>
@@ -3949,7 +4550,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;look&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ledger&quot;,&quot;paper&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;ledger&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;ledger&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;look&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ledger&quot;,&quot;paper&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;ledger&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;ledger&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -3969,7 +4570,7 @@ class Component extends DCLogic {
     q: '', searching: false, cityHits: null, searchMs: 186, qCities: [], daysLoading: false, dayId: null,
     pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added',
     revStars: 0, revNote: '', revBusy: false, myReviews: {}, profileName: null, profileFrom: 'playbooks', saved: { 'pb-naoshima': 1, 'pb-kyoto3': 1 },
-    blOpen: false,
+    blOpen: false, ld: {},
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
     acctOpen: false, acctSheet: false, acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
     histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
@@ -4593,6 +5194,103 @@ class Component extends DCLogic {
   }
   ENT_WHAT = { 'ai.ask': 'ask about the plan', 'ai.command': 'let it move things', 'trip.collaborators': 'invite other people' };
 
+  PLAN_VALUE = {
+    free: ['Unlimited trips, days and stops', 'Map, costs, saved days, export', 'No assistant', 'Nobody else editing'],
+    plus: ['The assistant on your own trips', '100 questions and 800 steps a day', 'It moves stops, clears clashes, fills an empty day', 'Still only you editing'],
+    premium: ['300 questions and 2,400 steps a day', 'Invite anyone to add stops, vote and comment', 'The people you invite never pay', 'You stay the only one who can move dates or delete days']
+  };
+  PLAN_FOR = {
+    free: 'One trip at a time, planned by hand.',
+    plus: 'You plan alone and want the work done for you.',
+    premium: 'The trip is a group, and the group plans it with you.'
+  };
+  CMP_ROWS = [
+    { k: 'Trips, days, stops', v: ['Unlimited', 'Unlimited', 'Unlimited'] },
+    { k: 'Map, costs, saved days', v: ['Yes', 'Yes', 'Yes'] },
+    { k: 'Assistant questions a day', v: ['—', '100', '300'] },
+    { k: 'Assistant steps a day', v: ['—', '800', '2,400'] },
+    { k: 'Other people editing', v: ['—', '—', 'Anyone you invite'] },
+    { k: 'Votes and comments', v: ['—', '—', 'Yes'] },
+    { k: 'A month', v: ['$0', '$8', '$16'] }
+  ];
+  plansPage(eff, meta, paid, trial) {
+    const s = this.state;
+    const order = ['free', 'plus', 'premium'];
+    const co = s.coPlan || null;
+    const target = this.PLAN_META[co] || meta;
+    const amt = co === 'premium' ? 16 : co === 'plus' ? 8 : 0;
+    const credit = co !== 'free' && paid && !trial ? (eff === 'plus' ? 4.53 : 0) : 0;
+    const dueToday = Math.max(0, amt - credit);
+    const money = n => '$' + n.toFixed(2);
+    return {
+      isPlansRoute: s.route === 'plans',
+      plansBack: () => this.setState({ route: s.plansFrom && s.plansFrom !== 'plans' ? s.plansFrom : 'home', acctSheet: true, coPlan: null }),
+      plansHeldLine: paid && !trial
+        ? 'You hold ' + meta.label + ' at ' + meta.price + ' a month. It renews Thursday 1 October — changing now is prorated to the day.'
+        : trial ? 'You are in the free week of Plus. It ends Thursday 10 September and nothing is charged when it does.'
+        : 'You are on Free. Nothing is charged and nothing expires.',
+      plansList: !co,
+      planCards: order.map(id => {
+        const m = this.PLAN_META[id];
+        const held = id === eff;
+        return {
+          id: id, name: m.label, price: m.price, per: m.per || 'free forever', forWho: this.PLAN_FOR[id],
+          bullets: this.PLAN_VALUE[id].map(b => ({ b: b })),
+          held: held, notHeld: !held,
+          cta: held ? 'What you hold' : id === 'free' ? 'Move to Free' : 'Get ' + m.label,
+          variant: held ? 'ghost' : id === 'premium' ? 'primary' : 'secondary',
+          border: held ? 'var(--color-border-strong)' : 'var(--color-hairline)',
+          shadow: held ? 'none' : '0 1px 2px rgba(0,0,0,0.03)',
+          headBg: held ? 'var(--color-moss)' : 'var(--color-surface)',
+          pick: () => { if (held) return; this.setState({ coPlan: id, coStep: 'review' }); }
+        };
+      }),
+      cmpRows: this.CMP_ROWS.map(r => ({ k: r.k, cells: r.v.map((v, i) => ({
+        v: v,
+        ink: v === '—' ? 'var(--color-slate)' : 'var(--color-ink)',
+        weight: order[i] === eff ? '600' : '400',
+        bg: order[i] === eff ? 'var(--color-moss)' : 'transparent'
+      })) })),
+      cmpHead: order.map(id => ({ label: this.PLAN_META[id].label, bg: id === eff ? 'var(--color-moss)' : 'var(--color-surface)' })),
+
+      coOpen: !!co && s.coStep !== 'done',
+      coDone: !!co && s.coStep === 'done',
+      coFree: co === 'free',
+      coPaidPlan: !!co && co !== 'free',
+      coName: target.label,
+      coTitle: co === 'free' ? 'Move to Free' : 'Get ' + target.label,
+      coSub: co === 'free'
+        ? 'Nothing is charged and nothing is deleted. You keep ' + meta.label + ' until 1 October, then the assistant stops answering and everyone else on your trips drops to reading.'
+        : 'Payment runs on Stripe. Your card never touches Caesura, and nothing about your account changes until Stripe confirms it.',
+      coLines: co === 'free' ? [] : [
+        { k: target.label + ', monthly', v: money(amt) },
+        { k: 'Unused ' + meta.label + ', 17 days', v: credit ? '−' + money(credit) : '—', muted: true },
+        { k: 'Tax', v: 'Calculated by Stripe', muted: true }
+      ],
+      coDueLabel: 'Due today',
+      coDue: money(dueToday),
+      coRenews: co === 'free' ? '' : 'Then ' + money(amt) + ' on the 1st of every month. Cancel any time in Stripe — you keep the month you paid for.',
+      coUnlocks: co === 'premium'
+        ? [{ b: 'Mei, Priya, Sam and Kenji go back to editing Japan — no re-invites' }, { b: 'The assistant answers 300 times a day and can move things itself' }, { b: 'Votes and comments open on every day' }]
+        : co === 'plus'
+        ? [{ b: 'The assistant starts answering on all your trips' }, { b: '100 questions, 800 steps a day' }, { b: 'Your trips stay yours alone — inviting is Premium' }]
+        : [{ b: 'Every trip, day, stop and saved day stays exactly as it is' }, { b: 'The assistant stops answering on 1 October' }, { b: 'The four people on Japan keep reading it, but stop editing' }],
+      coCard: 'Visa ···· 4242 · expires 04 / 28',
+      coPayLabel: co === 'free' ? 'Confirm the move to Free' : 'Pay ' + money(dueToday) + ' with Stripe',
+      coPay: () => {
+        this.setState({ coStep: 'done', planOv: co, billOv: 'active' });
+        this.flash(co === 'free' ? 'Moving to Free on 1 October' : target.label + ' is active — receipt on its way from Stripe');
+      },
+      coCancel: () => this.setState({ coPlan: null }),
+      coDoneTitle: co === 'free' ? 'You move to Free on 1 October' : target.label + ' is active',
+      coDoneBody: co === 'free'
+        ? 'Nothing changed today. On 1 October the assistant stops and your trips become yours alone to edit. Coming back is one payment away and puts everyone back exactly as they were.'
+        : 'Stripe took ' + money(dueToday) + ' and emailed the receipt. Everything below is live right now — no sign-out, no reload.',
+      coDoneCta: () => this.setState({ route: s.plansFrom && s.plansFrom !== 'plans' ? s.plansFrom : 'home', coPlan: null }),
+      coDoneCtaLabel: 'Back to the trip',
+      coInvoices: () => this.flash('Opens Stripe — card, invoices and cancelling all live there')
+    };
+  }
   billing() {
     const s = this.state, P = this.props;
     const plan = s.planOv || P.plan || 'premium';
@@ -4634,24 +5332,13 @@ class Component extends DCLogic {
       hasBilling: paid && !trial,
       planCtaLabel: paid && !trial ? 'Change plan' : 'Choose a plan',
       planCtaVariant: paid && !trial ? 'secondary' : 'primary',
-      planCta: () => this.setState(st => ({ pickOpen: !st.pickOpen })),
+      planCta: () => this.setState({ route: 'plans', plansFrom: s.route, acctSheet: false, setOpen: false, coPlan: null, coStep: 'review' }),
       openPortal: () => this.flash('Opens Stripe — card, invoices and cancelling all live there'),
       pastDue: due,
       dueTitle: 'Your card was declined on 31 August',
       dueBody: 'You keep everything until Monday 7 September. After that the assistant stops and the four people on Japan drop to read-only — nothing is deleted, and paying puts them back.',
 
-      pickOpen: !!s.pickOpen,
-      planOptions: ['free', 'plus', 'premium'].map(id => {
-        const m = this.PLAN_META[id];
-        return {
-          id: id, name: m.label, price: m.price, per: m.per, line: this.PLAN_LINES[id],
-          held: id === eff, cta: id === eff ? 'What you hold' : id === 'free' ? 'Downgrade' : 'Pick ' + m.label,
-          variant: id === eff ? 'ghost' : id === 'premium' ? 'primary' : 'secondary',
-          bg: id === eff ? 'var(--color-moss)' : 'var(--color-surface)',
-          border: id === eff ? 'var(--color-border-strong)' : 'var(--color-hairline)',
-          pick: () => { if (id === eff) return; this.setState({ pickOpen: false }); this.flash(id === 'free' ? 'You keep ' + meta.label + ' until 1 October, then it lapses' : 'Opens Stripe checkout — nothing changes here until the payment clears'); }
-        };
-      }),
+      ...this.plansPage(eff, meta, paid, trial),
 
       hasMeters: paid,
       noMeters: !paid,
@@ -4675,7 +5362,7 @@ class Component extends DCLogic {
         ? 'Mei, Priya, Sam and Kenji are still on this trip and can still read it. Going back to Premium puts them back to editing, exactly as they were.'
         : 'Premium is the plan where other people can open your trip and add to it. It is not in the free week, so this is the first time you have met it — everyone you invite can add stops, vote and comment, and you stay the only one who can move dates or delete days.',
       inviteGateCta: lapsed ? 'Sort the plan out' : 'See Premium',
-      openAccountBilling: () => this.setState({ setOpen: false, acctSheet: true, pickOpen: true }),
+      openAccountBilling: () => this.setState({ setOpen: false, acctSheet: false, route: 'plans', plansFrom: s.route, coPlan: null, coStep: 'review' }),
       crewCapped: lapsed,
       cappedTitle: 'Everyone here is read-only',
       cappedBody: 'Nobody was removed and nothing was rewritten — while the plan is lapsed, everyone except you is capped at reading. Paying again restores all four to editing with no re-invites.',
@@ -5265,8 +5952,99 @@ class Component extends DCLogic {
     this.syncMap(null);
     this.dragBind();
     this.heroStart();
+    this.syncLoad(true);
   }
-  componentWillUnmount() { window.removeEventListener('resize', this._rz); document.removeEventListener('scroll', this._sc, true); clearInterval(this._hero); }
+  componentWillUnmount() { window.removeEventListener('resize', this._rz); document.removeEventListener('scroll', this._sc, true); clearInterval(this._hero); (this._lt || []).forEach(clearTimeout); }
+
+  // ---- Arriving at a page ------------------------------------------------
+  // A page paints its own shape immediately and fills in region by region: each
+  // one swaps the moment its own request lands, so a slow list never holds up a
+  // fast one. Placeholders are outlines, never invented values — nothing on a
+  // loading page is ever mistaken for data.
+  LOAD_PLAN = {
+    home: [['homeHero', 320], ['homeTrips', 680], ['homePb', 1020]],
+    playbooks: [['pbDays', 540]],
+    overview: [['ovBody', 620]],
+    map: [['mapRail', 360], ['mapCanvas', 940]],
+    notebook: [['nbPages', 430], ['nbTpl', 720]],
+    doc: [['docBody', 560]]
+  };
+  // Which region fails when the prototype is showing a failure. Never the first
+  // one to land: the point is that a page survives losing a piece of itself.
+  LOAD_FAIL = { home: 'homeTrips', overview: 'ovBody', map: 'mapCanvas', notebook: 'nbPages', doc: 'docBody', playbooks: 'pbDays' };
+  LOAD_KEYS = ['homeHero', 'homeTrips', 'homePb', 'ovBody', 'mapRail', 'mapCanvas', 'nbPages', 'nbTpl', 'docBody', 'tripRail', 'pbDays'];
+  surfaceKey() {
+    const s = this.state;
+    if (s.screen !== 'app') return null;
+    if (s.route === 'home') return 'home';
+    if (s.route === 'playbooks') return 'playbooks';
+    if (s.route === 'notebook') return 'notebook';
+    if (s.route === 'doc') return 'doc';
+    if (s.route === 'trip') return s.view === 'home' ? 'overview' : s.view === 'map' ? 'map' : null;
+    return null;
+  }
+  loadMode() { return this.props.dataState || 'live'; }
+  syncLoad(force) {
+    const key = this.surfaceKey(), mode = this.loadMode();
+    if (!force && key === this._loadKey && mode === this._loadMode) return;
+    const wasTrip = this._loadKey === 'overview' || this._loadKey === 'map';
+    const isTrip = key === 'overview' || key === 'map';
+    // The day strip belongs to the trip, not to a tab: it loads once on the way in
+    // and holds still while you move between Overview, Plan, Calendar and Map.
+    const fresh = isTrip && (!wasTrip || this._loadTripId !== this.state.tripId || mode !== this._loadMode);
+    this._loadKey = key; this._loadMode = mode;
+    if (isTrip) this._loadTripId = this.state.tripId;
+    if (key) this.startLoad(key, mode, fresh ? [['tripRail', 300]] : null);
+  }
+  startLoad(key, mode, extra) {
+    (this._lt || []).forEach(clearTimeout);
+    this._lt = [];
+    const plan = (this.LOAD_PLAN[key] || []).concat(extra || []), ld = Object.assign({}, this.state.ld);
+    plan.forEach(p => { ld[p[0]] = 'wait'; });
+    if (mode === 'loading') { this.setState({ ld: ld }); return; }
+    if (mode === 'empty') { plan.forEach(p => { ld[p[0]] = 'ok'; }); this.setState({ ld: ld }); return; }
+    this.setState({ ld: ld });
+    const failKey = mode === 'failed' ? this.LOAD_FAIL[key] : null;
+    plan.forEach(p => {
+      this._lt.push(setTimeout(() => this.setLoad(p[0], p[0] === failKey ? 'fail' : 'ok'), p[1]));
+    });
+  }
+  setLoad(k, v) { this.setState(st => ({ ld: Object.assign({}, st.ld, { [k]: v }) })); }
+  // Retry is per region: whatever already arrived stays on the page, and only the
+  // piece that failed goes back to a placeholder.
+  retryLoad(k) {
+    this.setLoad(k, 'wait');
+    (this._lt = this._lt || []).push(setTimeout(() => this.setLoad(k, 'ok'), 760));
+  }
+  loadFlags() {
+    const hollow = this.loadMode() === 'empty';
+    const out = {
+      sk3: [{}, {}, {}], sk4: [{}, {}, {}, {}],
+      sk6: [3, 4, 5, 4, 3, 5].map(n => ({ bars: [3, 2, 4, 1, 3].slice(0, n).map(g => ({ grow: g })) })),
+      // A loading page should read as a trip, not as a blank form: the shapes carry
+      // the real proportions — a fortnight of days, a stops-per-day chart, a route.
+      skSpark: [34, 58, 72, 46, 88, 64, 52, 76, 40, 68, 84, 50, 62, 44].map(h => ({ h: h + '%' })),
+      skShape: [46, 72, 58, 84, 64].map(h => ({ h: h + '%' })),
+      skPills: [4, 5, 3, 5, 4, 6, 5, 4, 3, 5, 4, 5, 6, 4].map(n => ({ dots: Array.apply(null, { length: n }).map(() => ({})) })),
+      homeSections: !hollow,
+      mapRailOn: !hollow,
+      docReadOnlyMode: !((this.state.docMode || 'read') === 'edit'),
+      goPlanView: () => this.setState({ view: 'columns' })
+    };
+    this.LOAD_KEYS.forEach(k => {
+      const v = (this.state.ld || {})[k] || 'ok';
+      const K = k.charAt(0).toUpperCase() + k.slice(1);
+      // Templates are not the account's data — an account with nothing in it still has them.
+      // The day strip is the trip itself: a trip always has days, so it has no empty state.
+      const blank = hollow && k !== 'nbTpl' && k !== 'tripRail';
+      out['load' + K] = v === 'wait';
+      out['fail' + K] = v === 'fail';
+      out['show' + K] = v === 'ok' && !blank;
+      out['empty' + K] = v === 'ok' && blank;
+      out['retry' + K] = () => this.retryLoad(k);
+    });
+    return out;
+  }
   // The landing hero cycles three real views of the same trip. A click on a day
   // stops the rotation for good — once you have chosen, it should stay put.
   heroStart() {
@@ -5703,6 +6481,7 @@ class Component extends DCLogic {
       setTimeout(() => this._landPar(document.getElementById('landscroll')), 0);
     }
     this._prevScreen = this.state.screen;
+    this.syncLoad();
     if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
     if (prev.look !== this.props.look || prev.theme !== this.props.theme) { this._applyTheme(); this.forceUpdate(); }
     if (prev.showSyncError !== this.props.showSyncError) this.setState({ syncOff: false });
@@ -7378,9 +8157,11 @@ class Component extends DCLogic {
     const sp = this.spend();
 
     const dv = this.discover();
+    const LF = this.loadFlags();
     const dayView = this.dayView(s.dayId);
     return {
       ...this.billing(),
+      ...LF,
       isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks', isDay: route === 'day', isBoard: route === 'board', isProfile: route === 'profile',
 
       acctOpen: !!s.acctOpen,
@@ -8084,6 +8865,10 @@ class Component extends DCLogic {
       // Rule 2: the assistant is trip-scoped chrome. The operator console has
       // nothing for it to act on, so neither the panel nor the bubble renders there.
       asstOpen: s.asst && s.route !== 'admin', asstClosed: !s.asst && s.route !== 'admin',
+      // Plans/checkout is account scope — the assistant has nothing to act on, so it is
+      // hidden (state and position kept) rather than unmounted.
+      asstVis: route === 'plans' ? 'hidden' : 'visible',
+      asstPE: route === 'plans' ? 'none' : 'auto',
       asstX: s.asstDock ? 'auto' : this.asstAt(s.asst).x + 'px',
       asstY: s.asstDock ? 'auto' : this.asstAt(s.asst).y + 'px',
       asstCursor: s.asstDock ? 'default' : (s.asstDragging ? 'grabbing' : 'grab'),
@@ -8328,10 +9113,11 @@ class Component extends DCLogic {
       clearFilters: () => { this.setState({ pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added' }); this.refetch(); },
 
       resultLine: dv.line,
-      loadingDays: !!s.daysLoading,
+      showResultLine: !s.daysLoading && !LF.loadPbDays,
+      loadingDays: !!s.daysLoading || LF.loadPbDays,
       skeletons: [{}, {}, {}],
-      showDays: !s.daysLoading && dv.days.length > 0,
-      noResults: !s.daysLoading && dv.days.length === 0,
+      showDays: !s.daysLoading && LF.showPbDays && dv.days.length > 0,
+      noResults: !s.daysLoading && !LF.loadPbDays && !LF.failPbDays && (LF.emptyPbDays || dv.days.length === 0),
       pbResults: dv.days,
       emptyTitle: dv.emptyTitle, emptyBody: dv.emptyBody,
       offline: !!s.syncOff,
