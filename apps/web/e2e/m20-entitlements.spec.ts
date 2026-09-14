@@ -240,6 +240,71 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
+  // **An account can see what it holds, and reach its referral code**
+  // (M20 link 5's display half and link 8's missing half; gate boxes added
+  // 2026-09-14). Before this the sheet had no plan surface at all, so every
+  // entitlement the milestone built was invisible to the person holding it.
+  test("the account sheet shows the plan, the meters and a referral code", async ({ page }) => {
+    const who = newcomer("m20plan");
+    await signInAs(page, who);
+
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("button", { name: "Your account" }).click();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByTestId("plan-held")).toContainText("free");
+
+    // **The meters read the ceilings actually in force, not the held
+    // version's** — and this account proves why the distinction matters. It
+    // holds `free`, which grants no assistant at all, and carries the one-week
+    // `plus` trial every new account gets. `/ask` charges it against the
+    // trial's 50, so 50 is what the meter must say; `0` would be the held
+    // version's number and would contradict an assistant that answers.
+    await expect(sheet.getByTestId("meter-questions")).toContainText("/ 50");
+
+    // **Looking is not spending.** Re-opening must not move the used count —
+    // a meter that charged the counter it reports would be a quota bug.
+    const before = await sheet.getByTestId("meter-questions").textContent();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("button", { name: "Your account" }).click();
+    await expect(page.getByRole("dialog").getByTestId("meter-questions")).toHaveText(before ?? "");
+
+    // Link 8's whole premise: a code you can actually issue.
+    await page.getByRole("dialog").getByRole("button", { name: "Create a code" }).click();
+    await expect(page.getByRole("dialog").getByTestId("referral-code")).not.toBeEmpty();
+  });
+
+  // **The plan chooser is shelled, and shelled means INERT.** It is drawn from
+  // the committed plan file — real plans, real entitlements — and cannot charge
+  // anyone, because paying is M21. `Preview` puts a shield over its children
+  // that swallows pointer events, so this asserts the behaviour rather than the
+  // presence of a badge.
+  test("the plan chooser is real data behind a shell that cannot fire", async ({ page }) => {
+    const who = newcomer("m20chooser");
+    await signInAs(page, who);
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("button", { name: "Your account" }).click();
+
+    const chooser = page.getByRole("dialog").getByTestId("plan-chooser");
+    // Real plans from the plan file, and the held one marked rather than offered.
+    await expect(chooser.getByTestId("plan-choice-premium")).toBeVisible();
+    await expect(chooser.getByTestId("plan-choice-free")).toContainText("What you hold");
+    // The disabled fourth-plan proof is published and NOT offered for purchase.
+    await expect(chooser.getByTestId("plan-choice-studio")).toHaveCount(0);
+
+    // **No price anywhere on the screen.** M20 never learns what a plan costs.
+    await expect(page.getByRole("dialog")).not.toContainText("$");
+
+    // **The shield, asserted as a click that cannot land.** Asserting "the held
+    // plan did not change" would have been worthless: these buttons carry no
+    // handler, so that passes with or without the shell. What `Preview`
+    // actually guarantees is that no control inside it is reachable — it lays a
+    // pointer-event-swallowing layer over its children — so the honest test is
+    // that Playwright's actionability wait never resolves.
+    const pick = chooser.getByRole("button", { name: "Pick premium" });
+    await expect(pick.click({ timeout: 2_000 })).rejects.toThrow();
+  });
+
   // **The console is not on the phone at all, ENTRY POINT INCLUDED** — the
   // design says so, and `AccountMenu` renders the link `hidden md:block`.
   // Nothing asserted it: the component tests set no viewport, and the

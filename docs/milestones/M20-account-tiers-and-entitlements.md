@@ -766,6 +766,38 @@ refusal to name the tier rather than read as a permission error.
       re-deriving a known month at two different rates.
 - [ ] `/ask` charges `aiStepQuotas()` and settles its real step count, so both
       AI endpoints bound their round-trips rather than only one.
+- [ ] **An account can see its own plan, and what it has used of it today.**
+      Account settings shows the plan and version held, the capabilities it
+      grants, and two meters — questions and steps — against **the per-user
+      ceilings actually in force**: the resolver's most-generous union of the
+      held version and every active grant, which is what `/ask` charges
+      against. Not the pinned version's alone — a new account holds `free` (no
+      assistant) and carries a `plus` trial, so a meter reading the held
+      version would show `0` beside an assistant that answers 50 questions.
+      The environment's global ceiling is still not on the screen, because it
+      was never sold to anyone. Opening the sheet must
+      not CHARGE either counter: a meter that costs a question to look at is a
+      quota bug wearing a progress bar, and a test asserts the read path never
+      calls `bump`.
+- [ ] **An account can get a referral code from the browser.** Link 8's whole
+      premise is that *"codes are minted by hand, so nobody could earn a
+      referral they could not issue"* — so a server that mints codes with no UI
+      to ask it leaves that premise standing. Minting from the account sheet
+      and copying the code closes it.
+- [ ] **The plan chooser is drawn from the committed plan file and is shelled,
+      not faked.** Every enabled plan, its entitlements and its ceilings, from
+      the same source the operator console's tier panel reads — wrapped in
+      `<Preview id="account-plan-change">` so no control inside it can fire.
+      **No price string appears on the screen or in its wire shape**, which a
+      test asserts over the field names of both sides.
+      *(**Added 2026-09-14, on Mitchell's call.** These three were drawn in
+      `SPEC.md` §17.4 and owed by links 5 and 8, and no gate box required any of
+      them — so M20 could have closed green with every entitlement it built
+      invisible to the person holding it, and with link 8's stated purpose
+      unmet. His words: "the exit gates are incorrect if it's in the designs but
+      wasn't included in the gates". The lesson generalises and is filed as
+      `KI-2026-09-14-c`: a gate written from the server's behaviour will not
+      notice a missing surface.)*
 - [ ] The admin surface answers, from real data: **accounts per plan**,
       **accounts per active grant source**, **cost per account over a trailing
       window**, and **the top spenders**. Each is walked, not just queried.

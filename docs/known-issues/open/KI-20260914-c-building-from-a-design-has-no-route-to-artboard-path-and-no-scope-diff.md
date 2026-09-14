@@ -30,4 +30,6 @@
 
 - **What is deliberately NOT in scope:** fetching the preview attachments. The egress denial is correct behaviour for a cloud session, and the right answer was never "get the image" — it was "read the design the image is a photograph of". A guideline that says so is worth more than a proxy rule.
 
+- **A sixth gap, found the same day and by the same route:** a milestone's exit gate can be written entirely from the server's behaviour and never notice that a SURFACE is missing. M20's 29 boxes covered every entitlement rule, the resolver, the ledger and the admin console — and not one required the account sheet the design draws, so the milestone could have closed green with every entitlement it built invisible to the person holding it, and with link 8's stated purpose (*"gives an account a way to mint its own codes"*) unmet by a UI that never called the endpoint built for it. Mitchell: *"the exit gates are incorrect if it's in the designs but wasn't included in the gates."* Three boxes were added on 2026-09-14; the generalisation belongs in the guideline below — **when a milestone owns a surface in the design, the gate needs a box a person could fail by looking at the screen**, not only boxes a test can pass against the server.
+
 - **First noted:** 2026-09-14, building M20's operator console on PR #174.
