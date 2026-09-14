@@ -157,41 +157,53 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
-  // **The grant form is one row, and the only honest way to assert that is to
-  // measure it.** The markup has said `flex flex-wrap` since it was written,
-  // and the form still rendered one control per line, because `Input` is
-  // `w-full` — a 100% flex basis wraps every item onto its own line while the
-  // JSX reads as a row. Mitchell reported it from the PR #174 preview at
-  // 1728px; no unit test could have seen it, since nothing about the class
-  // list is wrong in isolation and this repo's lint rightly forbids asserting
-  // class names.
+  // **Granting happens in a dialog opened from the account's own row**
+  // (Mitchell, on the #174 preview: *"Grants are spose to be a modal that is
+  // triggered off a button here"*).
   //
-  // So: same row means same top edge. Compared with a tolerance because the
-  // select and the button are not the same height as the inputs and are
-  // centred against them (`items-center`), which moves their tops by a few
-  // pixels legitimately. A wrapped control would be a full row-height away —
-  // 36px plus the gap — so the tolerance cannot hide the defect.
-  test("the grant form's controls sit on one row", async ({ browser }) => {
+  // This replaces a test that measured whether the old inline form's controls
+  // shared a row. That form is gone, and a geometry assertion about a layout
+  // that no longer exists is worse than no assertion — it passes, so it reads
+  // as coverage. What is worth asserting now is the property the move was FOR:
+  // the account is carried by the row rather than retyped, so the grant cannot
+  // land on a different account than the one the operator clicked.
+  test("an operator grants from an account's row, and the row updates", async ({ page, browser }) => {
+    // A fresh account, so the row's before-state is known rather than whatever
+    // the shared fixtures have accumulated. `adminAccounts` orders by
+    // `createdAt` descending, so the newest account is on the first page of the
+    // console's 100-row bound.
+    const who = newcomer("m20modal");
+    await signInAs(page, who);
+    const userId = `dev-${who}`;
+
     const operator = await openOperator(browser);
     await operator.setViewportSize({ width: 1440, height: 900 });
     await operator.goto("/admin");
 
-    // `exact` because the page also has a *Plans* region, and a substring
-    // match on "Plan" resolves to both.
-    const controls = ["Account id", "Plan", "Expires", "Reason"].map((name) =>
-      operator.getByLabel(name, { exact: true }),
-    );
-    const tops: number[] = [];
-    for (const control of controls) {
-      await expect(control).toBeVisible();
-      const box = await control.boundingBox();
-      expect(box).not.toBeNull();
-      tops.push(box!.y);
-    }
-    const grant = operator.getByRole("button", { name: "Grant" });
-    tops.push((await grant.boundingBox())!.y);
+    const row = operator.getByTestId(`account-${userId}`);
+    await expect(row).toContainText("free@v1");
 
-    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(12);
+    // The dialog is not open until the row's own button opens it.
+    await expect(operator.getByRole("dialog")).toBeHidden();
+    await row.getByRole("button", { name: `Grant a plan to ${userId}` }).click();
+
+    const dialog = operator.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // **The account is shown, not typed** — the whole point of opening from the
+    // row. A text box here would be the mistyped-id defect back again.
+    await expect(dialog).toContainText(userId);
+    await expect(dialog.getByRole("textbox", { name: "Account id" })).toBeHidden();
+
+    await dialog.getByLabel("Plan", { exact: true }).selectOption("premium");
+    await dialog.getByLabel("Reason", { exact: true }).fill("e2e: granted from the row");
+    await dialog.getByRole("button", { name: "Grant" }).click();
+
+    // Closing IS the confirmation, and the refreshed row is the evidence: the
+    // console re-reads server-side after a write, so a stale row here would
+    // mean an operator reissuing a grant that already landed.
+    await expect(dialog).toBeHidden();
+    await expect(row).toContainText("premium");
+    await expect(row).toContainText("ai.ask");
 
     await operator.context().close();
   });

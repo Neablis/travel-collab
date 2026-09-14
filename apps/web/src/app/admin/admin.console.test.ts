@@ -12,7 +12,7 @@
 // That is the failure this file exists to catch: not a bug, a **scope leak**,
 // and one that would look like extra credit in review. Every one of those
 // numbers needs a subscription to exist, and M20 takes no money.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -21,15 +21,24 @@ import { stripComments } from "@/test-support/stripComments";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.resolve(HERE, "../../..");
 
+const ADMIN_COMPONENTS_DIR = path.join(WEB, "src/components/admin");
+const ADMIN_COMPONENTS = readdirSync(ADMIN_COMPONENTS_DIR)
+  .filter((name) => name.endsWith(".tsx"))
+  .map((name) => path.join(ADMIN_COMPONENTS_DIR, name));
+
 const CONSOLE_FILES = [
   path.join(HERE, "page.tsx"),
   path.join(HERE, "layout.tsx"),
-  path.join(WEB, "src/components/admin/GrantForm.tsx"),
-  // Added after the fact, which is the finding: `GrantList` landed in the same
-  // phase as the sweep and was not added to it, so revenue, pricing or
-  // plan-mutation vocabulary could have walked into the console through the one
-  // component the invariant test did not read. Caught by CodeRabbit on PR #174.
-  path.join(WEB, "src/components/admin/GrantList.tsx"),
+  // **Every component in the admin directory, read off disk rather than
+  // listed.** This was two hand-written entries, and the list was wrong twice:
+  // `GrantList` landed in the same phase as the sweep and was never added (so
+  // revenue or pricing vocabulary could enter through the one component the
+  // test did not read — CodeRabbit, PR #174), and then `GrantDialog` arrived
+  // and would have repeated it exactly. A sweep whose coverage depends on
+  // somebody remembering to extend it is a sweep with a hole per new file, so
+  // the directory is the list. `ADMIN_COMPONENTS` below asserts it is not
+  // empty, because a glob that matches nothing passes every assertion in here.
+  ...ADMIN_COMPONENTS,
   path.join(WEB, "src/lib/adminOverview.ts"),
   path.join(WEB, "src/server/entitlements/admin.ts"),
   path.join(WEB, "src/app/api/admin/overview/route.ts"),
@@ -41,6 +50,9 @@ const codeOf = (file: string) => stripComments(readFileSync(file, "utf8"));
 
 describe("M20's console has no revenue on it", () => {
   it("names no MRR, ARPU or margin anywhere", () => {
+    // The witness floor this repo's own test guidance asks for: an empty or
+    // mis-pathed glob would make every loop below vacuous.
+    expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
       expect(code, file).not.toMatch(/\bMRR\b/i);
@@ -55,6 +67,9 @@ describe("M20's console has no revenue on it", () => {
   // these exists yet, and a reference to one here would be M20 building into
   // M21 rather than beside it.
   it("names nothing a subscription would be needed for", () => {
+    // The witness floor this repo's own test guidance asks for: an empty or
+    // mis-pathed glob would make every loop below vacuous.
+    expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
       expect(code, file).not.toMatch(/\bsubscription/i);
@@ -69,6 +84,9 @@ describe("M20's console has no revenue on it", () => {
   // most likely to grow one: it is where an operator would want to see what a
   // plan costs.
   it("carries no price", () => {
+    // The witness floor this repo's own test guidance asks for: an empty or
+    // mis-pathed glob would make every loop below vacuous.
+    expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
       // `pric(e|ing)` as a whole word, so the ledger's honest `unpriced`
@@ -88,6 +106,9 @@ describe("M20's console has no revenue on it", () => {
   // plan-version operations left M20 with the table; a publish or migrate path
   // here is the amendment being undone.
   it("has no publish or migrate path over plan versions", () => {
+    // The witness floor this repo's own test guidance asks for: an empty or
+    // mis-pathed glob would make every loop below vacuous.
+    expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       const code = codeOf(file);
       expect(code, file).not.toMatch(/publishVersion|publishPlan|migrateAccount|migratePlan/i);
@@ -98,6 +119,9 @@ describe("M20's console has no revenue on it", () => {
   // a git conflict is where that collision now happens, and it is better
   // handled there. Named explicitly because the design still lists it.
   it("has no version-conflict state", () => {
+    // The witness floor this repo's own test guidance asks for: an empty or
+    // mis-pathed glob would make every loop below vacuous.
+    expect(ADMIN_COMPONENTS.length).toBeGreaterThanOrEqual(3);
     for (const file of CONSOLE_FILES) {
       expect(codeOf(file), file).not.toMatch(/version-conflict|versionConflict/i);
     }

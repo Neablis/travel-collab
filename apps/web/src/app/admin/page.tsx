@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { GrantForm } from "@/components/admin/GrantForm";
+import { GrantDialog } from "@/components/admin/GrantDialog";
 import { GrantList } from "@/components/admin/GrantList";
 import { adminOverview } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
@@ -154,18 +154,6 @@ export default async function AdminPage() {
         </ul>
       </section>
 
-      <section className="flex flex-col gap-2" aria-labelledby="grant-heading">
-        <Heading level={2} id="grant-heading">
-          Grant
-        </Heading>
-        {/* Only enabled plans are offered: `enabled` bounds what an operator
-            may hand out, never what a holder may do, which is what lets the
-            disabled fourth-plan proof ship without anyone receiving it. */}
-        <GrantForm
-          plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
-        />
-      </section>
-
       <section className="flex flex-col gap-2" aria-labelledby="accounts-heading">
         <Heading level={2} id="accounts-heading">
           Accounts
@@ -179,6 +167,7 @@ export default async function AdminPage() {
               <TH>Can</TH>
               <TH>Requests ({overview.windowDays}d)</TH>
               <TH>Cost ({overview.windowDays}d)</TH>
+              <TH>Grant</TH>
             </TR>
           </THead>
           <TBody>
@@ -200,6 +189,18 @@ export default async function AdminPage() {
                 </TD>
                 <TD className="text-ink">{account.requests}</TD>
                 <TD className="text-ink">{microUsd(account.microUsd)}</TD>
+                <TD className="text-ink">
+                  {/* Only enabled plans are offered: `enabled` bounds what an
+                      operator may hand out, never what a holder may do, which
+                      is what lets the disabled fourth-plan proof ship without
+                      anyone receiving it. */}
+                  <GrantDialog
+                    userId={account.userId}
+                    plans={overview.plans
+                      .filter((plan) => plan.live.enabled)
+                      .map((plan) => plan.planId)}
+                  />
+                </TD>
               </TR>
             ))}
           </TBody>
