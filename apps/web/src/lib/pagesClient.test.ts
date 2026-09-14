@@ -133,7 +133,7 @@ describe("notebook writes invalidate the trip's cached reads", () => {
 
   const PAGE_ID = "9f8e7d6c-5b4a-4938-8271-615243342516";
 
-  const WRITERS: Record<string, () => Promise<unknown>> = {
+  const WRITERS: Record<string, () => Promise<{ ok: boolean }>> = {
     createPage: () => createPage(TRIP_ID, instantiateDefaults(TRIP_ID)[0]!),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "Renamed" }),
     deletePage: () => deletePage(TRIP_ID, PAGE_ID),
@@ -157,8 +157,13 @@ describe("notebook writes invalidate the trip's cached reads", () => {
     server.use(http.all("*", () => HttpResponse.error()));
     await seed();
 
-    await WRITERS[name]!();
+    const result = await WRITERS[name]!();
 
+    // The write really did take the failure path (CodeRabbit, PR #175). Without
+    // this the case is vacuous the day a handler stops matching: the writer
+    // would SUCCEED, invalidate for that reason, and the test would still pass
+    // while covering nothing it claims to.
+    expect(result).toMatchObject({ ok: false });
     expect(await cached()).toBe("fresh");
   });
 

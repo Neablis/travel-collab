@@ -145,6 +145,70 @@ describe("invalidate", () => {
   // The race the generation counter exists for. Without it, the pre-command
   // read lands after the write and is cached, and the next mount inside the
   // window serves a board that has silently reverted the edit.
+  // CodeRabbit, PR #175: stopping the stale read from STORING was only half of
+  // it. The promise stayed in `inFlight`, so a read starting after the write
+  // JOINED the pre-write request and got its answer directly — the cache never
+  // had to be involved. Invalidation has to detach, not just mark.
+  it("a read starting after a write does not join the pre-write request still in flight", async () => {
+    const stale = deferredReader({ name: "before the command" });
+    const fresh = reader({ name: "after the command" });
+
+    const pending = cachedRead(tripKeys.detail(TRIP), stale.read);
+    invalidate(tripKeys.all(TRIP)); // the command lands mid-read
+    // Starts while the pre-write read is STILL pending — this is the case the
+    // first version of this suite stepped over by awaiting the stale read first.
+    const after = cachedRead(tripKeys.detail(TRIP), fresh.read);
+    stale.release();
+
+    expect(await after).toEqual({ ok: true, value: { name: "after the command" } });
+    expect(fresh.calls.count).toBe(1);
+    await pending;
+  });
+
+  // The `finally` guard, which the two cases above do not reach. Once
+  // invalidation DETACHES, a superseded request can still finish afterwards —
+  // and if its cleanup deleted the slot unconditionally it would evict the
+  // newer read that replaced it. Nothing breaks visibly; the cache just stops
+  // de-duplicating, and every later reader starts its own request.
+  it("a detached request finishing late does not evict the read that replaced it", async () => {
+    const stale = deferredReader({ name: "before the command" });
+    const fresh = deferredReader({ name: "after the command" });
+
+    const pending = cachedRead(tripKeys.detail(TRIP), stale.read);
+    invalidate(tripKeys.all(TRIP));
+    const replacement = cachedRead(tripKeys.detail(TRIP), fresh.read);
+    stale.release(); // the detached request lands while `replacement` is still open
+    await pending;
+
+    // A third reader arriving now must JOIN `replacement`, not start a second
+    // request — which it can only do if `replacement` still holds the slot.
+    const joiner = cachedRead(tripKeys.detail(TRIP), fresh.read);
+    fresh.release();
+
+    expect(await joiner).toEqual({ ok: true, value: { name: "after the command" } });
+    expect(fresh.calls.count).toBe(1);
+    await replacement;
+  });
+
+  // CodeRabbit, PR #175: `clearQueryCache` reset the per-key generation counter
+  // to zero, and a read that started before the clear had captured zero — so it
+  // compared equal and repopulated the cache it was supposed to have been
+  // flushed out of. `resetDemoData` is the live caller: it deletes every trip
+  // the account has, and this let a deleted one come straight back.
+  it("a read that was in flight when the cache was cleared does not repopulate it", async () => {
+    const stale = deferredReader({ name: "before the reset" });
+    const fresh = reader({ name: "after the reset" });
+
+    const pending = cachedRead(tripKeys.detail(TRIP), stale.read);
+    clearQueryCache();
+    stale.release();
+    await pending;
+
+    const next = await cachedRead(tripKeys.detail(TRIP), fresh.read);
+    expect(next).toEqual({ ok: true, value: { name: "after the reset" } });
+    expect(fresh.calls.count).toBe(1);
+  });
+
   it("stops a read that was already in flight from storing its stale answer", async () => {
     const stale = deferredReader({ name: "before the command" });
     const fresh = reader({ name: "after the command" });

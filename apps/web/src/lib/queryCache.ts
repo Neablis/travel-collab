@@ -67,25 +67,48 @@ type Entry = {
   storedAt: number;
 };
 
+/** A read on the wire, tagged so a later one can tell whether it is still its own. */
+type Pending = { token: number; promise: Promise<ApiResult<unknown>> };
+
 const entries = new Map<CacheKey, Entry>();
-const inFlight = new Map<CacheKey, Promise<ApiResult<unknown>>>();
+const inFlight = new Map<CacheKey, Pending>();
 
 /**
- * Per-key write counter, bumped by `invalidate`.
+ * One monotonic clock for the whole cache. Every read takes a ticket from it;
+ * every invalidation and every clear stamps itself with one.
  *
- * This is the same monotonic-ticket shape as `(app)/page.tsx`'s `loadTicket`,
- * and it is here for a race that ticket does not cover: a read already on the
- * wire when a write lands. Without it, `dispatch(command)` → (the in-flight
- * `GET /api/trips/:id` resolves) would STORE the pre-command trip, and the
- * next mount inside the window would serve it — a board that silently reverts
- * the edit you just made. The read still returns its stale value to the caller
- * that asked for it (it asked before the write, and TripProvider reconciles
- * from the command's own response anyway); it just may not be cached.
+ * This is the same shape as `(app)/page.tsx`'s `loadTicket`, and it is here for
+ * a race that ticket does not cover: a read already on the wire when a write
+ * lands. Without it, `dispatch(command)` → (the in-flight `GET /api/trips/:id`
+ * resolves) would STORE the pre-command trip, and the next mount inside the
+ * window would serve it — a board that silently reverts the edit you just made.
+ * The read still returns its stale value to the caller that asked for it (it
+ * asked before the write, and TripProvider reconciles from the command's own
+ * response anyway); it just may not be CACHED.
+ *
+ * **It never resets, and that is the point** (CodeRabbit, PR #175). This was a
+ * per-key counter that `clearQueryCache` cleared along with everything else —
+ * so a read that started before the clear had captured `0`, compared equal to a
+ * freshly-cleared `0`, and repopulated the cache it had just been flushed out
+ * of. `resetDemoData` is the live caller, and it deletes every trip the account
+ * has: a deleted trip came straight back. A clock that only ever goes up cannot
+ * have that bug, because a ticket taken before a stamp is always below it.
  */
-const generation = new Map<CacheKey, number>();
+let clock = 0;
 
-function generationOf(key: CacheKey): number {
-  return generation.get(key) ?? 0;
+/** When each key was last invalidated, by clock ticket. */
+const invalidatedAt = new Map<CacheKey, number>();
+
+/** When the whole cache was last cleared, by clock ticket. */
+let clearedAt = 0;
+
+/**
+ * May a read that took ticket `token` still store its result under `key`?
+ *
+ * No if the key was invalidated, or the cache cleared, after it started.
+ */
+function mayStore(key: CacheKey, token: number): boolean {
+  return (invalidatedAt.get(key) ?? 0) < token && clearedAt < token;
 }
 
 export type CachedReadOptions = {
@@ -121,15 +144,18 @@ export function cachedRead<T>(
     return Promise.resolve(hit.result as ApiResult<T>);
   }
 
+  // Only a read that is still current may be joined. `invalidate` and
+  // `clearQueryCache` DETACH the requests they supersede (rather than merely
+  // marking them), so what is left here is never pre-write.
   const pending = inFlight.get(key);
-  if (pending !== undefined) return pending as Promise<ApiResult<T>>;
+  if (pending !== undefined) return pending.promise as Promise<ApiResult<T>>;
 
-  const startedAt = generationOf(key);
+  const token = ++clock;
   const request = (async (): Promise<ApiResult<T>> => {
     try {
       const result = await read();
-      // The generation check is what makes a write during this read win.
-      if (result.ok && generationOf(key) === startedAt) {
+      // The clock check is what makes a write during this read win.
+      if (result.ok && mayStore(key, token)) {
         entries.set(key, { result, storedAt: Date.now() });
       }
       return result;
@@ -139,11 +165,14 @@ export function cachedRead<T>(
         error: { status: 0, message: err instanceof Error ? err.message : "Network error" },
       };
     } finally {
-      inFlight.delete(key);
+      // Only if this slot is still OURS. A detached request finishing late must
+      // not evict the newer read that replaced it, or that newer read's
+      // followers would each start a duplicate request.
+      if (inFlight.get(key)?.token === token) inFlight.delete(key);
     }
   })();
 
-  inFlight.set(key, request as Promise<ApiResult<unknown>>);
+  inFlight.set(key, { token, promise: request as Promise<ApiResult<unknown>> });
   return request;
 }
 
@@ -156,11 +185,21 @@ export function cachedRead<T>(
  * The keys are built so a prefix names a family; see `queryKeys.ts`.
  */
 export function invalidate(prefix: string): void {
+  const at = ++clock;
   for (const key of entries.keys()) {
     if (key.startsWith(prefix)) entries.delete(key);
   }
-  for (const key of inFlight.keys()) {
-    if (key.startsWith(prefix)) generation.set(key, generationOf(key) + 1);
+  // A COPY of the keys: the loop deletes from the map it is walking.
+  for (const key of [...inFlight.keys()]) {
+    if (!key.startsWith(prefix)) continue;
+    invalidatedAt.set(key, at);
+    // DETACHED, not just stamped (CodeRabbit, PR #175). Stamping alone stopped
+    // the pre-write read from being stored but left its promise here to be
+    // JOINED — so the next read after the write got the pre-write answer handed
+    // straight to it, without the cache being consulted at all. The request
+    // still resolves for whoever already awaits it; it is simply no longer the
+    // answer anyone new receives.
+    inFlight.delete(key);
   }
 }
 
@@ -175,7 +214,11 @@ export function invalidate(prefix: string): void {
  * is the whole point, and cannot outlive a sign-out.
  */
 export function clearQueryCache(): void {
+  // Stamp BEFORE emptying, and never reset `clock` — see its comment. Every
+  // read already on the wire holds a ticket below this stamp, so none of them
+  // can store.
+  clearedAt = ++clock;
   entries.clear();
   inFlight.clear();
-  generation.clear();
+  invalidatedAt.clear();
 }
