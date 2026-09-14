@@ -1,7 +1,14 @@
 # M21 — An account can pay for itself
 
-**Status:** Scoped and placed 2026-09-01, immediately after M20:
-`M17 → M9 → M20 → M21 → M12 → M13 → M14 → M19`.
+**Status:** Scoped and placed 2026-09-01, immediately after M20. **Reordered
+2026-09-13 on Mitchell's call** — the commercial pair runs ahead of M9's
+remaining work, so the live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`. **This
+milestone is placed, not open**: its prerequisite is M20 *closed*, and M20 is
+the current milestone. **Its one owed decision is closed** — the prices, below.
+Reorder note and the costs accepted with it: `docs/milestones/README.md`,
+2026-09-13. Kickoff plan for the pair:
+`docs/plans/2026-09-13-M20-M21-commercial.md`.
 
 **M20 built what a subscription grants. This one makes a subscription real.**
 Stripe checkout, the webhook that is the only writer of subscription state, the
@@ -145,10 +152,64 @@ Seven links.
      clears — which is link 4's *a redirect is a hint, never a grant*, said to
      the person rather than to the code.
 6. **Failed payment.** A `past_due` subscription keeps its entitlements for a
-   defined grace window and then lapses. The account is told, in the product,
+   grace window and then lapses. The account is told, in the product,
    before anything is taken away — a capability that disappears silently is
    indistinguishable from a bug, and M20's collaborator cap means the owner's
    guests feel it too.
+
+   **The grace window is 3 days** (Mitchell, 2026-09-13), measured from the
+   decline, not from the period end. Four things follow:
+
+   - **3 days is shorter than Stripe's own retry schedule**, which by default
+     spreads several attempts over about two weeks. So the window is **not**
+     "wait for Stripe to give up" — the account lapses while Stripe is still
+     retrying, and a later successful retry restores it through the ordinary
+     webhook path. That is the right way round: the lapse is reversible and
+     the access is not free in the meantime.
+   - **It is short enough that the copy has to be immediate**, which is what
+     §17.4 already asks for: the decline date, the date the window ends, and
+     what stops then — named, not announced. With 3 days there is no room for
+     a gentle first notice followed by a firm one; the first notice is the
+     only one that matters.
+   - **A card fixed inside the window costs the account nothing** — no lapse,
+     no collaborator cap, no re-invite. This is the case the window exists
+     for, and it is the one to walk first.
+   - **The number is a constant with one definition, not a literal in three
+     branches.** The resolver reads it, the copy reads it, and the test reads
+     it. Changing it is then a one-line change rather than a hunt, which
+     matters because 3 days is a guess that first contact with real declines
+     will want to revise.
+7. **What M20 left standing for you, and exactly where to attach.** *(Added
+   2026-09-14 while M20 was in review, on Mitchell's instruction: "I just want
+   you to start setting it up in a way the next session builds it correctly.")*
+
+   Four surfaces are already drawn, already fed by real data, and already
+   inert. **None of them needs redesigning — each needs one thing supplied**,
+   and in every case the thing missing is a price, a customer or a session,
+   which are this milestone's to add.
+
+   | Surface | Where | What is missing |
+   |---|---|---|
+   | Change plan | `components/account/PlanSection.tsx` → **`startPlanChange(planId)`** | Create a Checkout session and redirect. The function exists, is named, is a no-op, and is the ONLY thing to replace on that screen. |
+   | Payment and invoices | same file, `<Preview id="account-plan-billing">` | A customer to open the Stripe portal for. |
+   | The four-number strip | `app/admin/page.tsx` (absent by design) | MRR, ARPU ×2, median margin — all four need a subscription. M20's console deliberately has no strip; its `admin.console.test.ts` will fail the moment a revenue word appears, so **that test is the first thing to update when the strip lands**, not a wall to route around. |
+   | `Pays` / `State` columns, red row highlight, the `Past due` and `Costs more than it pays` chips | `components/admin/AccountsPanel.tsx` | What an account pays. The filter ids are already semantic (`entitled`/`unentitled`) rather than plan names, so adding two is additive. |
+
+   **The plan catalogue is not yours to invent.** `server/entitlements/planVersions.ts`
+   is the committed, append-only definition of what each plan grants, and the
+   account chooser and the operator console's tier panel both read it. M21 adds
+   **price** to that record — as a new dated version, never an edit to a
+   published one — and the two surfaces pick it up without changing shape.
+   `lib/accountPlan.ts` and its server twin are pinned by a compile-time
+   identity test, and a second test asserts no price-shaped word appears in
+   either; **that second test is the one to delete in this milestone**, and
+   deleting it deliberately is the point — it exists so the price arrives on
+   purpose rather than by drift.
+
+   Both shells are registered in `lib/preview-registry.ts` tagged `M21`. The
+   registry's rule is that a tag is a claim that this milestone wires it up, so
+   removing those two entries is part of this link's definition of done.
+
 7. **The revenue half of the unit economics.** M20 link 9 builds the cost
    ledger — `ai_usage`, tokens not dollars, one row per AI request. This link
    adds what it has to be compared against, and the comparison itself. Four
@@ -266,7 +327,10 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
 - [ ] Cancelling keeps access to the end of the paid period, then lapses
       through **M20's resolver** — no second downgrade path exists.
 - [ ] A `past_due` account is told in the product before it loses anything, and
-      lapses only after the grace window.
+      lapses only after the grace window — **3 days from the decline**
+      (decided 2026-09-13). Walked both ways: a card fixed on day 2 lapses
+      nothing and caps no collaborator, and a card never fixed lapses on day 4
+      and not on day 3.
 - [ ] A lapse walks M20's collaborator cap: three collaborators drop to
       `viewer`, `trip_memberships` is unchanged, and paying again restores them.
 - [ ] **This milestone's diff touches no gate.** `modelSelection.ts`,
@@ -311,9 +375,56 @@ this milestone drives are M20's. There is nothing here to build without them.
 Production. Vercel injects environment variables at build, so **rotation needs
 a redeploy** — the same trap `INVITE_SUPER_CODE` documents at `.env.example:29`.
 
-**One decision is Mitchell's before this opens: the prices.** M20 defines the
-three plans and what each grants; it deliberately prices none of them, and a
-checkout session cannot ship without a number.
+**~~One decision is Mitchell's before this opens: the prices.~~ DECIDED
+2026-09-13:**
+
+| Plan | Price | What it is |
+|---|---|---|
+| `free` | **$0** | Trip planning, entire. No AI, no collaborators. |
+| `plus` | **$9 / month** | The assistant. What the one-week trial grants, so the trial is a real sample of a real plan. |
+| `premium` | **$19 / month** | Collaborators, and the entitlements M20's `premium` entry enumerates for itself. |
+
+Flat monthly, USD, no annual plan and no metered billing — all three are in
+*Deliberately not here*. M20 defines the three plans and what each grants; it
+deliberately prices none of them, and a checkout session cannot ship without a
+number, which is what this closes.
+
+**Four things this decision is, and one it is not.**
+
+- **It is a positioning call, not a margin one**, exactly as the paragraph
+  below argues: a ceiling-consuming account costs ~$2-$14 a month, so `plus` at
+  $9 covers a typical account comfortably and a genuinely heavy one thinly.
+  **That thin case is the point of link 7's underwater list**, and the list is
+  built to find it rather than to be reassured by it.
+- **It prices `plus` where the trial lands.** M20 grants the trial `plus`, so
+  the week someone samples is the plan they are then asked to buy. Pricing
+  `plus` above what the trial demonstrates would make the trial an advert for a
+  different product.
+- **`premium` is a little over twice `plus` because it sells a different
+  thing** — collaborators, not more assistant. The ladder a buyer reads is
+  presentation; **nothing in code may treat $19 > $9 as meaning `premium` ⊇
+  `plus`**, which is *a plan is a set, not a rank* meeting a price list, and
+  the place it is most likely to die quietly.
+- **It is versioned like everything else.** These are `v1` prices. Changing
+  them publishes a new version and affects new purchases only; an existing
+  subscriber pinned to `v1` keeps paying $9 forever unless they act. There is
+  no mechanism to move them — see link 2.
+
+**What it is not: a price string M20 may use.** M20's *Deliberately not here*
+is explicit — *"if a price string appears in this milestone's diff, the split
+has failed."* These numbers reach `price_minor`, `currency` and
+`stripe_price_id` in **link 2 of this milestone**, added to plan-version entries
+M20 publishes as free by construction. The decision being made early does not
+move it earlier.
+
+**~~Two numbers still owed~~ — both decided 2026-09-13.** The **grace window**
+link 6 turns on is **3 days** from the decline (link 6, above). And the
+trial's `plus` week is **one time ever per account** — which is **M20's**
+decision to implement, not this milestone's, because the trial is a grant
+issued at signup: see `M20-account-tiers-and-entitlements.md`, link 8's trial
+paragraph, and the schema requirement it carries (an expired trial grant is
+never deleted, or the rule silently stops holding). Nothing is owed on either
+before this milestone opens.
 
 **Cost is not the constraint on that decision.** M20 link 5 works it through
 against the models actually configured — `deepseek/deepseek-v4-flash-0731` at

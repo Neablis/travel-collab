@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { TripAccess } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { effectiveMembers, grantMembership } from "@/server/access/members";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 // KI-65. `revokeMembership` had exactly one production caller — `revokeInvite`
 // — so a membership row from any other cause could only be cleared with SQL.
@@ -54,6 +55,15 @@ async function memberIds(tripId: string): Promise<string[]> {
     (member) => member.userId,
   );
 }
+
+// **M20 link 6: this suite's trip owner has to be able to collaborate.**
+// Seeding a trip by command mints no `users` row, and `entitlementsFor` reads a
+// session with no row as bare `free` — so without this the owner's granted
+// members cap to `viewer` on read and `POST /invites` refuses with 402. All of
+// that is the gate working; this suite is about access, not entitlements.
+beforeAll(async () => {
+  await entitleAccounts([OWNER]);
+});
 
 beforeEach(() => {
   currentUserId = OWNER;

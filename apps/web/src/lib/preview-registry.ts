@@ -99,6 +99,17 @@ export const PREVIEW_REGISTRY = {
   "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
   "wizard-destination-chips": { milestone: "unplaced", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from — and no milestone owns adding one. `unplaced` rather than a guess: see the note above the registry" },
   "wizard-longer-chip": { milestone: "unplaced", wiredUpBy: "Manual day-count entry beyond the four preset lengths. NOT blocked on a field — the only shell here that is purely unbuilt UI, so any milestone could take it" },
+  // **M20 built the plan, M21 sells it.** The account sheet's plan chooser is
+  // drawn from the committed plan file — real names, real entitlements, real
+  // ceilings — and cannot do the one thing it is for, because paying needs
+  // Stripe and Stripe is M21 link 7. Shelled rather than omitted (Mitchell,
+  // 2026-09-14) so the surface exists and the data behind it is exercised:
+  // "something needs to exist so we can even use all this work".
+  //
+  // Note the registry's own rule holds here — the tag is a claim that M21 wires
+  // it up, and M21's file carries the link that does.
+  "account-plan-change": { milestone: "M21", wiredUpBy: "Changing tier is a Stripe checkout. The control is built and the seam is named: replace `startPlanChange` in components/account/PlanSection.tsx with a Checkout session and a redirect — M21 link 7 has the table" },
+  "account-plan-billing": { milestone: "M21", wiredUpBy: "Payment method and invoices live in Stripe's portal; M20 stores no customer to open one for — M21 link 7" },
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
 } as const;

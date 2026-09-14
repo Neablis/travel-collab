@@ -22,6 +22,8 @@ import {
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
+import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { CitySearchResponse, type CityMatch } from "@/lib/cities";
 import {
   DiscoverResponse,
@@ -158,6 +160,8 @@ function parseOutcome(data: { detail: unknown; history: unknown }): CommandOutco
 }
 
 export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(command.tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
       method: "POST",
@@ -175,6 +179,8 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
     return { ok: true, value: parseOutcome(data) };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }
 
@@ -182,6 +188,8 @@ export async function sendTripCommandBatch(
   tripId: string,
   commands: BatchableCommand[],
 ): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
       method: "POST",
@@ -199,6 +207,8 @@ export async function sendTripCommandBatch(
     return { ok: true, value: parseOutcome(data) };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }
 
@@ -223,6 +233,11 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
 // src/lib/demoDataReset.ts). Clears the signed-in user's own trips and
 // reseeds the Japan demo trip; POST, no body, 200 with the new trip's id.
 export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
+  // The whole cache, not one trip's keys: this endpoint deletes every trip the
+  // account has and reseeds the demo. A per-trip scope would be the wrong shape
+  // — there is no one trip it moved.
+  const scope = ALL_KEYS;
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
     if (!res.ok) {
@@ -233,6 +248,9 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
     return { ok: true, value: data };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
+    clearQueryCache();
   }
 }
 
@@ -262,6 +280,8 @@ export async function createTripInvite(
   tripId: string,
   input: CreateInviteInput,
 ): Promise<ApiResult<TripInvite>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/invites`), {
       method: "POST",
@@ -271,6 +291,8 @@ export async function createTripInvite(
     return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }
 
@@ -278,11 +300,15 @@ export async function revokeTripInvite(
   tripId: string,
   inviteId: string,
 ): Promise<ApiResult<TripInvite>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/invites/${inviteId}`), { method: "DELETE" });
     return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }
 
@@ -407,6 +433,34 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
   }
 }
 
+/**
+ * Whether this account is an operator (M20 link 7).
+ *
+ * Reads the same endpoint `fetchPreferences` does — `is_admin` rides alongside
+ * `preferences` rather than inside it, because it is not a preference and
+ * widening that DTO would put an authorisation fact in a shape whose contract
+ * is "what this person chose about themselves".
+ *
+ * **Advisory, and it decides one link.** The console's layout, its page and
+ * every admin endpoint answer 404 to a non-admin regardless.
+ *
+ * An `ApiResult` like every other helper here, not a bare boolean: this
+ * module's stated contract is that **no helper ever rejects and every one
+ * answers an `ApiResult`**, and `apiClient.test.ts`'s totality witness is what
+ * keeps that true as helpers are added. A second return shape would have made
+ * that witness unable to cover this one. The caller treats any failure as
+ * `false` — a menu item that fails to appear costs an operator one typed URL,
+ * and one that appears wrongly is a 404 nobody expected.
+ */
+export async function fetchIsAdmin(): Promise<ApiResult<boolean>> {
+  try {
+    const res = await fetch(apiUrl("/api/account/preferences"));
+    return await readJson(res, (data) => (data as { isAdmin?: unknown }).isAdmin === true);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
 export async function fetchPreferences(): Promise<ApiResult<UserPreferences>> {
   try {
     const res = await fetch(apiUrl("/api/account/preferences"));
@@ -492,6 +546,8 @@ export async function insertSavedDay(
   tripId: string,
   savedDayId: string,
 ): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
       method: "POST",
@@ -499,6 +555,8 @@ export async function insertSavedDay(
     return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }
 
@@ -621,7 +679,7 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
 //
 //   * A **non-200 only ever happens before the stream opens**, and its body is
 //     JSON. That is every row of the endpoint's error table — 400s with
-//     actionable text, 403 `demo-trip-unsupported`, 403 `ai-not-entitled`,
+//     actionable text, 403 `demo-trip-unsupported`, **402** `ai-not-entitled`,
 //     429, 503.
 //   * Once the stream is open the status is 200 forever, and a failure arrives
 //     as an `{"type":"error","errorText":…}` frame inside it.
@@ -706,6 +764,14 @@ export const ASK_ABORTED_CODE = "ask-aborted";
 export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 /** The server's refusal code when the actor has no AI entitlement. */
 export const AI_NOT_ENTITLED_CODE = "ai-not-entitled";
+/**
+ * And its status, since M20 link 4: **402 Payment Required**, not 403.
+ *
+ * Duplicated as a literal for the same reason the code above is — the UI may
+ * not import `@/server/*` (AGENTS.md's dependency rules) — and pinned by a test
+ * that imports both sides, so the two copies cannot drift.
+ */
+export const AI_NOT_ENTITLED_STATUS = 402;
 
 // `SIMULATED_HEADER` is a `@tc/contracts` name since P6 (KI-22). It was
 // re-declared here as a literal because the UI may not import `@/server/*`
@@ -933,6 +999,8 @@ export async function applyAssistantProposal(
   tripId: string,
   proposal: AssistantProposal,
 ): Promise<ApiResult<PlanOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/ask/apply`), {
       method: "POST",
@@ -961,5 +1029,7 @@ export async function applyAssistantProposal(
     };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
   }
 }

@@ -68,3 +68,13 @@ content/.geocode-review.json
 # shared chunk under their original names. Copied from node_modules so the
 # shipped worker cannot drift from the installed version; never edit by hand.
 apps/web/public/maplibre/
+
+# Transient fixtures written INTO THE WORKING TREE by scripts/check-lint-wall.mjs
+# (and by scripts/__tests__/check-lint-wall.test.mjs, which drives it) while a
+# lint run is in flight: the wall proves each rule by writing a file that should
+# be rejected, linting it, and deleting it. They exist for a second or two, and
+# `git add -A` during a run commits them — which is how two of them reached
+# b80da5e. Ignored rather than relocated: the fixture has to sit at the path the
+# rule guards, or it proves nothing.
+apps/web/**/__lint_wall_*__.*
+apps/web/eslint.config.__walltest__*

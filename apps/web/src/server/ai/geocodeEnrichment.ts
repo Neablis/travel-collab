@@ -308,6 +308,45 @@ function cityLookupOf(location: Location): { key: string; query: string } | null
   return { key: `${normalize(city)}|${countryCode.toUpperCase()}`, query: `${city}, ${countryCode}` };
 }
 
+/**
+ * Looks a resolved batch's locations up against a real geocoder, and returns
+ * the batch with whatever it could corroborate folded in.
+ *
+ * **Two passes over one budget.** Venue lookups first, deduped by normalized
+ * name so one real-world place costs one request; then a city fallback for the
+ * stops the venue pass could not place, deduped by city and country. Both spend
+ * `MAX_LOOKUPS_PER_BATCH` and both go through the same throttle, because the
+ * cap is about the request a person is waiting on and the vendor's 2/second
+ * ceiling — neither of which cares which kind of question is being asked. Names
+ * past the cap keep the model's coordinates and are reported `skipped`.
+ *
+ * **The invariant every branch here serves is refine, never relocate, never
+ * subtract** (KI-15, and the file header for the incident). A lookup is biased
+ * toward what we already believe and accepted only if it agrees; what commits
+ * is always at least as informative as what the human approved. No lookup
+ * failure propagates: a vendor outage, a rate limit or a 404 costs a stop its
+ * pin and lands in the report, never the batch. (`getGeocoder()` itself still
+ * throws on a missing key — but only once there is something to look up.)
+ *
+ * **Region comes from the batch when the trip cannot supply one.** A brand-new
+ * trip has no geocoded activities, so `tripRegion` is null and the first lookup
+ * has nothing to check against; lookups are sequential, so each coordinate
+ * settled on anchors the rest. Only the first lookup of a region-less trip can
+ * come back `unchecked`.
+ *
+ * **Dedupe is one lookup per name, not one answer per name.** Two commands
+ * sharing a display name are not guaranteed to be the same place, so the
+ * per-command resolution reuses a verified match but never another command's
+ * fallback — and the city fallback is decided per COMMAND for the same reason.
+ * One name can therefore report `cityLevel` and `unverified` at once.
+ *
+ * No command carrying a location means no geocoder is constructed at all:
+ * `getGeocoder` is a thunk because it throws without LOCATIONIQ_API_KEY, and a
+ * batch with nothing to look up must not require the key (see `writeTools.ts`).
+ *
+ * @param tripRegion - Bias from the trip's already-geocoded activities, if any
+ * @param sleep - Throttle delay, injected as a no-op by tests
+ */
 export async function enrichCommandLocations(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,

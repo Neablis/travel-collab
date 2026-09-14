@@ -72,7 +72,14 @@ import { cn } from "@/lib/cn";
 // 4000 characters or fewer") and rewriting them here would throw that away.
 function askErrorMessage(error: ApiError): string {
   if (error.code === DEMO_TRIP_UNSUPPORTED_CODE) return "The assistant isn't available on the demo trip.";
-  if (error.code === AI_NOT_ENTITLED_CODE) return "The assistant is switched off for this account.";
+  // **Falls through to the server's own words since M20 link 4.** This used to
+  // rewrite the refusal as *"The assistant is switched off for this account"*,
+  // which was true when nothing could be entitled and is now a permission error
+  // where the server sent a 402 naming a tier. The server owns this sentence
+  // (`AI_NOT_ENTITLED_REASON`) precisely so the rail, the endpoint and the test
+  // cannot tell three different stories about the same refusal; what the rail
+  // still decides is how it is PRESENTED, which is `askUpgrade` below.
+  if (error.code === AI_NOT_ENTITLED_CODE) return error.message;
   return error.message;
 }
 
@@ -1073,6 +1080,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             approvalBlockedReason={approvalBlockedReason}
             asking={ask.asking}
             askError={ask.askError}
+            // **From the CODE, never from the prose** (M20 link 4). The refusal's
+            // wording is free to change; a surface that pattern-matched on it
+            // would silently fall back to a red alert the day it did.
+            askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
             onHide={assistant.hide}
           />

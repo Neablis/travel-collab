@@ -12,6 +12,8 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
+import { cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
   activeHistory,
@@ -100,12 +102,24 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const load = useCallback(async () => {
     try {
       const [detailResult, historyResult, accessResult] = await Promise.all([
-        fetchTripDetail(tripId),
-        fetchTripHistory(tripId),
+        // Read through the cache (ADR-046). These three fire on every MOUNT of
+        // this provider, which is every arrival at the trip route — so home →
+        // trip → home → trip paid for six reads of documents that had not
+        // moved, and the first of them duplicated the `TripDetail` the home
+        // page's hero had just fetched for its stats.
+        //
+        // `DEDUPE.NAVIGATION` (5s) and not longer, deliberately: with no
+        // polling and no socket anywhere in this app, remounting IS how you
+        // find out a co-traveller edited the trip. The window is sized to one
+        // navigation round trip for that reason, and every command invalidates
+        // it (`sendTripCommand`'s `finally`), so it can only ever hide a
+        // REMOTE write, never one of yours.
+        cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
+        cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
         // Failure here is deliberately non-fatal: `myRole` stays null and the
         // board behaves exactly as it did before roles existed. The server is
         // the boundary; this read only decides what the UI *offers*.
-        fetchTripAccess(tripId),
+        cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
       setMyRole(accessResult.ok ? accessResult.value.myRole : null);
       // Reviewed and kept non-fatal, deliberately, against the alternative

@@ -89,19 +89,48 @@ describe("TripAccess", () => {
   const member = { userId: "dev-alice", role: "owner", name: null, email: null, image: null };
 
   it("round-trips a full access document", () => {
-    const access = { tripId, myRole: "owner", members: [member], invites: [invite] };
+    const access = {
+      tripId,
+      myRole: "owner",
+      members: [member],
+      invites: [invite],
+      collaboratorsEntitled: true,
+    };
     expect(TripAccess.parse(access)).toEqual(access);
   });
 
   it("requires at least one member — a trip always has an owner", () => {
-    expect(TripAccess.safeParse({ tripId, myRole: "owner", members: [], invites: [] }).success).toBe(
-      false,
-    );
+    expect(
+      TripAccess.safeParse({
+        tripId,
+        myRole: "owner",
+        members: [],
+        invites: [],
+        collaboratorsEntitled: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  // **Required, not optional** (M20 link 6). An optional boolean would default
+  // to `undefined` at every reader, and the reader that treated that as "yes"
+  // would render an invite form for an owner the server will refuse. The one
+  // route that builds this DTO computes it; there is no caller entitled to
+  // leave it out.
+  it("requires collaboratorsEntitled", () => {
+    expect(
+      TripAccess.safeParse({ tripId, myRole: "owner", members: [member], invites: [] }).success,
+    ).toBe(false);
   });
 
   it("allows an empty invite list, which is what a non-owner is served", () => {
     expect(
-      TripAccess.parse({ tripId, myRole: "editor", members: [member], invites: [] }).invites,
+      TripAccess.parse({
+        tripId,
+        myRole: "editor",
+        members: [member],
+        invites: [],
+        collaboratorsEntitled: true,
+      }).invites,
     ).toEqual([]);
   });
 

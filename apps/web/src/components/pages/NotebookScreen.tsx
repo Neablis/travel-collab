@@ -7,6 +7,8 @@ import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
+import { DEDUPE, cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { PageContainer } from "@/components/ui/page-container";
@@ -132,7 +134,14 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetchPages(tripId), fetchTripDetail(tripId)]).then(([pagesResult, tripResult]) => {
+    // Both cached (ADR-046): this screen is a separate ROUTE from the board,
+    // so moving between the trip and its notebook remounted it and re-read a
+    // notebook list and a trip detail that the board had already fetched.
+    // Page writes invalidate the list from inside `pagesClient`.
+    void Promise.all([
+      cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), { dedupeMs: DEDUPE.DOCUMENT }),
+      cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
+    ]).then(([pagesResult, tripResult]) => {
       if (cancelled) return;
       if (!pagesResult.ok) {
         setError(pagesResult.error.message);

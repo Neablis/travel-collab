@@ -30,6 +30,42 @@ general setup.
 
 ## Where the work is right now
 
+**M21 — AN ACCOUNT CAN PAY FOR ITSELF — IS THE CURRENT MILESTONE, OPENED 2026-09-14**, when
+M20's gate closed. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M12 → M13 → M14 → M19`. Nothing is built;
+scope, the seven links and the decided prices are in
+`docs/milestones/M21-subscriptions-and-billing.md`, and the kickoff plan it shares with M20 is
+`docs/plans/2026-09-13-M20-M21-commercial.md`.
+
+**M20's gate closed 2026-09-14** — 32 of 32 live boxes, built as #174 and #175, migrations
+0019 and 0020 dispatched to production (`migrate-production` run 20) and checked against the
+database, the operator console walked on production and the account surfaces on a preview.
+**The narrative is not here**: what it cost, the two findings a browser produced that no test
+could, and the two boxes ticked with a caveat named are the retro in
+`docs/milestones/M20-account-tiers-and-entitlements.md`.
+
+**Four things M20 leaves live, which is why they are here rather than in its retro:**
+
+- **A plan is a set, not a rank.** Code asks `can(ent, "ai.ask")` and nothing compares plans.
+  `accessPolicy.ts:11`'s `RANK` is the right shape for roles inside a trip and the wrong shape
+  here; copying it is the obvious move and it is a one-way door. The buyer's ladder is
+  presentation only.
+- **The console has no revenue half, and a test keeps it that way.** The four-number strip and
+  the per-tier MRR and median-margin columns are M21 link 7's; `admin.console.test.ts` sweeps
+  the admin files for that vocabulary. M21 link 7 also replaces one function body,
+  `startPlanChange` in `PlanSection.tsx`. **A price string in M20's files means the split
+  failed, in either direction.**
+- **The first operator exists and the path is not obvious**: `ADMIN_USER_IDS` takes `users.id`
+  verbatim (`google-<sub>`, never an email), comma-separated and not a JSON array, injected at
+  deploy time so it needs a redeploy, and written to `users.is_admin` on that account's next
+  sign-in. It fails closed on every one of those, which is why a mistake looks like silence.
+  The `admin-console` flag is the same promotion with no deploy.
+- **`ai_usage` is best-effort on the abort and error paths** — `KI-2026-09-14-b`. The ledger
+  M21 prices against is complete for every turn that finishes and eventual for the rest.
+
+**M9 is paused, not cancelled**, and keeps its place immediately after M21. Its Phase 0 is
+below, unchanged, because it is what M9's three real pieces of work are still built on.
+
 **M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
 P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and
 **KI-22**, and ticked **no gate box**, by design — it is what M9's three real pieces of work
@@ -55,7 +91,13 @@ M20 link 9's `ai_usage` row — with **model identity and cost as variable input
 hands back its live array).
 
 **Two fixture trips are still on the preview database** from #162's browser walk: `Kyoto
-pass 162` and `Blank slate 162`.
+pass 162` and `Blank slate 162`. **M20's gate walk (2026-09-14) left three more things
+there**: the account `dev-gatewalk314819` (created through `/signup` with a real referral
+code, so it carries the signup trial), its trip `GateWalk Kyoto 9583`, and an unredeemed
+referral code minted by `dev-alice`. None is load-bearing; all four dev accounts on preview
+also carry `0019`'s permanent `founder` premium grant, which is why a preview account cannot
+demonstrate the free tier's refusals — that negative belongs to the e2e lane, which controls
+its own grant state.
 
 ## Live rules that the code cannot enforce
 
@@ -63,16 +105,29 @@ Three standing facts, kept here because each is instruction rather than history 
 nothing in CI will tell you when one is broken. The narrative each came from is in
 `docs/retros/2026-09-11-status-archive.md`.
 
-- **Migration `0018` (`saved_days.source_bundle`) is NOT applied to production.** It is
-  what makes `--prune` answerable for content a bundle has stopped declaring, so the
-  production content import is incomplete until it is dispatched. Merging does not apply a
-  migration: `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`.
-  Runbook: `docs/guidelines/content-bundles.md`.
-- **The `ai-live` flag's dashboard fallthrough must stay "Simulated".** Entity targeting
-  (ADR-019's 2026-09-08 amendment) only ever *widens* who gets live AI, and a caller no rule
-  matches — every signed-out visitor included, since `identify` publishes no `user` for them
-  — falls through to the default. That default is the kill switch, it lives in the Vercel
-  dashboard, and no test can assert it.
+- **Merging does not apply a migration. Production is at `0020` and nothing pending.**
+  `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`, is the only thing
+  that applies one, and the answer is checkable rather than remembered: 21 rows in
+  `drizzle.__drizzle_migrations` on the production branch, which is `0000`-`0020`. *(This
+  entry used to say `0018` was NOT applied; it was dispatched as run 19 on 2026-09-13 and the
+  rule outlived its example. `0019`/`0020` went out as run 20 on 2026-09-14.)* Runbook:
+  `docs/guidelines/content-bundles.md` for what `0018` unblocks (`--prune` against a bundle
+  that has stopped declaring content).
+- **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips
+  to "Live"** — ADR-019's **2026-09-13 amendment**, which reverses the 2026-09-08 rule that
+  it must stay Simulated forever. Until the flip the old reasoning holds exactly: targeting
+  only ever *widens*, a caller no rule matches falls through to the default, and that default
+  is the only thing keeping anyone off. **The flip is safe only after M20's entitlement gate
+  is live in production** — `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so a paid-account check becomes the spend control and the
+  flag goes back to being an emergency disable. Flipping it early leaves an interval with no
+  spend control at all. **That precondition was met 2026-09-14**: the gate is live in
+  production and migrated, so the flip is now a decision rather than a dependency — and
+  Mitchell's, not a session's. Note what it would expose today: every account that predates
+  0019 holds a permanent `founder` grant, so the spend control binds on new accounts and not
+  on those. After the flip, keep Production's rule list empty: a widening rule
+  would make *the rule* load-bearing, and disabling in a hurry must stay one action. It lives
+  in the Vercel dashboard and no test can assert any of it.
 - **e2e refuses to start unless `AI_LIVE=false`.** `/api/health/ai-mode` reports
   `{ live, source }` and `e2e/global.setup.ts` requires `source: "env"` — an anonymous
   `live: false` from a *targetable* flag stopped being evidence about the signed-in user the
@@ -154,17 +209,26 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**The current work is M9 — the assistant cites what it plans**
-(`docs/milestones/M9-ai-planning-partner.md`), now that Phase 0 is complete. M17's gate
-closed 2026-09-11; the order `M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19` is unchanged.
+**M21 is open and nothing of it is built.** Read
+`docs/milestones/M21-subscriptions-and-billing.md` before planning anything: seven links, the
+prices already decided (`free` $0, `plus` $9, `premium` $19) and living in that file alone,
+and a gate whose hard parts are signature verification, idempotency under Stripe's retries,
+out-of-order tolerance, and *no card number ever reaches this application*. **It adds no
+entitlement and no gate** — a diff touching `modelSelection.ts`, `quota.ts` or `members.ts`
+means the split from M20 failed.
 
-**The exit gate is 0 of 10 ticked.** Three of the original six were annotated as satisfied by
-shipped code in the 2026-09-01 audit and deliberately **not** ticked — ticking is part of a
-gate close, which that was not. So the gate is smaller than 0/10 makes it look, and the
-milestone file says which.
+**Two things are waiting rather than blocked, and both are Mitchell's.** Whether to flip
+`ai-live` now that its precondition is met (above, with what it would expose), and whether
+the three open questions M9 Phase 0 raised get answered before M21 prices anything — the
+second of them, *which quota window a sold ceiling binds*, is the one M21 pays for if it is
+left: it is implemented per-day and stated in no contract.
 
-Three real pieces of work remain, per the 2026-09-01 audit
-(`docs/reviews/2026-09-01-milestone-audit.md`):
+*(This section named M9 as the current work until 2026-09-14, on the day M20 was already
+built and merged — the second time this file's most-read section went stale while its length
+stayed respectable. The section above is where the work is; this one is what happens next.)*
+
+**M9 stays paused behind M21**, and its three real pieces of work are unchanged, per the
+2026-09-01 audit (`docs/reviews/2026-09-01-milestone-audit.md`):
 
 - **Grounding** — a `SearchPlaces` read tool, with `AddActivity`/`UpdateActivity` citing a
   `placeRef: N` against that turn's search cache instead of a free-text `location`. This is

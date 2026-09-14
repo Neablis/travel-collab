@@ -4,6 +4,7 @@ import { effectiveMembers, removeMember, withProfiles } from "@/server/access/me
 import { listInvites } from "@/server/access/invites";
 import { getTripDetail } from "@/server/projections";
 import { db } from "@/server/db/client";
+import { accountCan } from "@/server/entitlements/resolver";
 
 /**
  * Take a person off a trip (KI-65). Owner-only; the policy itself lives in
@@ -61,12 +62,22 @@ export async function DELETE(
   // owner who ALSO held a stray granted row, whose row is gone but who is
   // still, per the log, the owner.
   const members = await effectiveMembers(db, tripId, projected.members);
+  // The same field `GET /access` serves, from the same source: the trip
+  // OWNER's `trip.collaborators` (M20 link 6). Removing a member does not
+  // change it, but this response IS a `TripAccess` and the panel re-renders
+  // from it — serving a stale or absent value here would flip the invite form
+  // back on for an unentitled owner until the next read.
+  //
+  // `projected.members[0]` is the owner, per the planning log, which is exactly
+  // the list this handler already insists on using over the merged one.
+  const owner = projected.members[0]?.userId ?? null;
   return Response.json({
     access: TripAccess.parse({
       tripId,
       myRole: access.role,
       members: await withProfiles(members),
       invites: await listInvites(tripId),
+      collaboratorsEntitled: owner === null ? true : await accountCan(owner, "trip.collaborators"),
     }),
   });
 }

@@ -146,6 +146,8 @@ export function makeTripHandlers(
     onCommand?: (command: TripCommand) => void;
     geocode?: GeocodeResult[];
     myRole?: TripRole;
+    /** M20 link 6 — whether the trip's OWNER holds `trip.collaborators`. */
+    collaboratorsEntitled?: boolean;
   },
 ) {
   let detail = structuredClone(initial);
@@ -205,6 +207,11 @@ export function makeTripHandlers(
           myRole: options?.myRole ?? "owner",
           members: detail.members.map((m) => ({ ...m, name: null, email: null, image: null })),
           invites: [],
+          // M20 link 6. Entitled by default so every board test written before
+          // the collaboration gate keeps describing the behaviour it was
+          // written for; the gate's own surfaces are covered in
+          // `TravelersPanel.test.tsx` and `collaborationGate.int.test.ts`.
+          collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
         },
       }),
     ),
