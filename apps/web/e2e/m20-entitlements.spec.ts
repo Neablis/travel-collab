@@ -286,11 +286,14 @@ test.describe("M20 — an account knows what it may do", () => {
     await page.getByRole("button", { name: "Your account" }).click();
 
     const chooser = page.getByRole("dialog").getByTestId("plan-chooser");
-    // Real plans from the plan file, and the held one marked rather than offered.
-    await expect(chooser.getByTestId("plan-choice-premium")).toBeVisible();
-    await expect(chooser.getByTestId("plan-choice-free")).toContainText("What you hold");
-    // The disabled fourth-plan proof is published and NOT offered for purchase.
-    await expect(chooser.getByTestId("plan-choice-studio")).toHaveCount(0);
+    const select = chooser.getByLabel("Change plan", { exact: true });
+    // Real plans from the committed plan file, and the held one named as held
+    // rather than offered for sale.
+    await expect(select.locator("option", { hasText: "premium" })).toHaveCount(1);
+    await expect(select.locator("option", { hasText: "free — what you hold" })).toHaveCount(1);
+    // The disabled fourth-plan proof is published and NOT offered: `enabled`
+    // bounds what can be handed out, which is what lets it ship unreachable.
+    await expect(select.locator("option", { hasText: "studio" })).toHaveCount(0);
 
     // **No price anywhere on the screen.** M20 never learns what a plan costs.
     await expect(page.getByRole("dialog")).not.toContainText("$");
@@ -301,7 +304,7 @@ test.describe("M20 — an account knows what it may do", () => {
     // actually guarantees is that no control inside it is reachable — it lays a
     // pointer-event-swallowing layer over its children — so the honest test is
     // that Playwright's actionability wait never resolves.
-    const pick = chooser.getByRole("button", { name: "Pick premium" });
+    const pick = chooser.getByRole("button", { name: /^Change to |^This is your plan$/ });
     await expect(pick.click({ timeout: 2_000 })).rejects.toThrow();
   });
 

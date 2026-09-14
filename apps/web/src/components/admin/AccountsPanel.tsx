@@ -164,7 +164,14 @@ export function AccountsPanel({
             <Button
               key={option.id}
               type="button"
-              size="sm"
+              // **`md`, not `sm`** — Mitchell: *"These tabs should be the same
+              // size as the Find an address input"*. `Input` is `h-9` and
+              // `size="sm"` is `h-7`, so the row read as two different kinds of
+              // control on one line. Taking the size from the same scale rather
+              // than writing a height keeps them matched if the scale moves.
+              size="md"
+              // Pills, as the design draws them.
+              className="rounded-full text-sm"
               variant={option.id === filter ? "secondary" : "ghost"}
               aria-pressed={option.id === filter}
               onClick={() => {

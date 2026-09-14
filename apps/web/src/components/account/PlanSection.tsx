@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
+import { FormField } from "@/components/ui/form-field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanView } from "@/lib/accountPlan";
@@ -78,10 +80,30 @@ function describe(choice: AccountPlanView["catalogue"][number]): string {
   return `${choice.entitlements.join(", ")}.${limits}`;
 }
 
+/**
+ * **The M21 seam, named so it is findable.**
+ *
+ * M21 link 7 replaces this body with: create a Stripe Checkout session for
+ * `planId`, then redirect. Everything it needs is already on this screen — the
+ * plan catalogue comes from the committed plan file, and the held plan is
+ * resolved per request — so what is missing is a price, a customer and a
+ * session, all three of which are M21's to add.
+ *
+ * It is a no-op rather than absent on purpose: the control above is wrapped in
+ * `<Preview>`, whose shield means this can never be reached today, and leaving
+ * a named function is what makes the next session's change a one-symbol diff
+ * instead of a redesign. `docs/milestones/M21-subscriptions-and-billing.md`
+ * link 7 points here by name.
+ */
+function startPlanChange(_planId: string): void {
+  // Intentionally empty until M21. See the doc comment above.
+}
+
 export function PlanSection() {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [chosen, setChosen] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -115,6 +137,12 @@ export function PlanSection() {
   if (plan === null) return null;
 
   const [planId, version] = plan.planVersionRef.split("@");
+  // Defaults to what the account holds, so the control opens on the truth
+  // rather than on the first row of a list.
+  const selected =
+    plan.catalogue.find((choice) => choice.planId === chosen) ??
+    plan.catalogue.find((choice) => choice.held) ??
+    plan.catalogue[0]!;
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="plan-heading" data-testid="plan-section">
@@ -196,34 +224,48 @@ export function PlanSection() {
         )}
       </div>
 
-      {/* **The chooser: real plans, no prices, no payment.** */}
+      {/* **The chooser is a dropdown, and its shape is a handoff.**
+          Mitchell, on the #174 preview: *"This should be a drop down where you
+          select this, and selecting a new tier starts the stripe flow"* — and
+          then: *"I just want you to start setting it up in a way the next
+          session builds it correctly."*
+
+          So the surface M21 inherits is the one it will keep. A stack of cards
+          would have been thrown away; a select plus a confirm is the control
+          the checkout actually hangs off, and M21 replaces one function rather
+          than the section. **The seam is `startPlanChange` below — that is the
+          whole of what M21 link 7 has to fill in here.** */}
       <Preview id="account-plan-change" size="container" note="Paying for a plan arrives in M21">
         <div className="flex flex-col gap-2" data-testid="plan-chooser">
-          {plan.catalogue.map((choice) => (
-            <div
-              key={choice.planId}
-              className="flex items-start justify-between gap-3 rounded-lg border border-hairline p-3"
-              data-testid={`plan-choice-${choice.planId}`}
+          <FormField
+            id="plan-change"
+            label="Change plan"
+            hint={describe(selected)}
+          >
+            <NativeSelect
+              id="plan-change"
+              aria-label="Change plan"
+              className="w-full"
+              value={selected.planId}
+              onChange={(event) => setChosen(event.target.value)}
             >
-              <div className="flex flex-col">
-                <Text as="span" className="text-sm font-semibold text-ink">
+              {plan.catalogue.map((choice) => (
+                <option key={choice.planId} value={choice.planId}>
                   {choice.planId}
-                </Text>
-                <Text variant="secondary" className="text-xs">
-                  {describe(choice)}
-                </Text>
-              </div>
-              {choice.held ? (
-                <Text as="span" className="text-xs text-slate">
-                  What you hold
-                </Text>
-              ) : (
-                <Button variant="secondary" size="sm">
-                  Pick {choice.planId}
-                </Button>
-              )}
-            </div>
-          ))}
+                  {choice.held ? " — what you hold" : ""}
+                </option>
+              ))}
+            </NativeSelect>
+          </FormField>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="self-start"
+            disabled={selected.held}
+            onClick={() => startPlanChange(selected.planId)}
+          >
+            {selected.held ? "This is your plan" : `Change to ${selected.planId}`}
+          </Button>
           <Text variant="secondary" className="text-xs">
             Payment happens on Stripe, not here. Nothing about your account changes until the
             payment clears.

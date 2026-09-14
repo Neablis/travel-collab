@@ -108,8 +108,8 @@ export const PREVIEW_REGISTRY = {
   //
   // Note the registry's own rule holds here — the tag is a claim that M21 wires
   // it up, and M21's file carries the link that does.
-  "account-plan-change": { milestone: "M21", wiredUpBy: "Changing tier is a Stripe checkout — no subscription, no customer and no price exists until M21 link 7" },
-  "account-plan-billing": { milestone: "M21", wiredUpBy: "Payment method and invoices live in Stripe's portal; M20 stores no customer to open one for" },
+  "account-plan-change": { milestone: "M21", wiredUpBy: "Changing tier is a Stripe checkout. The control is built and the seam is named: replace `startPlanChange` in components/account/PlanSection.tsx with a Checkout session and a redirect — M21 link 7 has the table" },
+  "account-plan-billing": { milestone: "M21", wiredUpBy: "Payment method and invoices live in Stripe's portal; M20 stores no customer to open one for — M21 link 7" },
   "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
   "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
 } as const;

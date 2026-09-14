@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getSession, signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
 import { AccountSettingsSheet } from "@/components/account/AccountSettingsSheet";
@@ -142,10 +143,21 @@ export function AccountMenu({
             Advisory only: the route and every admin endpoint answer 404 to a
             non-admin whatever this renders. What it buys is that the console is
             reachable by clicking rather than by knowing the URL. */}
+        {/* **Styled from `buttonVariants`, not by hand.** Mitchell, on the
+            #174 preview: *"Why is this the only button that doesnt light up
+            when hovered over?"* — because it is the only `<Link>` in a column
+            of `<Button variant="ghost">`, and its class list restated the
+            ghost look from memory while leaving the hover out. Deriving it
+            from the same source means it cannot drift again; `md:block`
+            overrides the variant's `inline-flex` to keep the console off the
+            phone (SPEC §17.2), and `hidden` wins below that breakpoint. */}
         {isAdmin && (
           <Link
             href="/admin"
-            className="mt-1 hidden h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink no-underline md:block"
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "mt-1 hidden h-auto w-full justify-start px-2.5 py-2 text-sm font-normal text-ink no-underline md:block",
+            )}
             onClick={() => setOpen(false)}
           >
             Operator console

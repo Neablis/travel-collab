@@ -23,10 +23,17 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
   return (
     <Panel title="How each tier is doing">
       <div className="flex flex-col gap-4" data-testid="tier-panel">
-        {plans.map((plan) => (
-          <div key={plan.planId} className="flex flex-col gap-2" data-testid={`plan-${plan.planId}`}>
+        {plans.map((plan, index) => (
+          // A rule between tiers, not around each one: the design separates
+          // them with a hairline rather than boxing three cards inside a panel
+          // that is already a box.
+          <div
+            key={plan.planId}
+            className={`flex flex-col gap-2${index > 0 ? " border-t border-hairline pt-4" : ""}`}
+            data-testid={`plan-${plan.planId}`}
+          >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <Text as="span" className="text-sm font-semibold text-ink">
+              <Text as="span" className="text-base font-semibold text-ink">
                 {plan.planId}
                 {!plan.live.enabled && <span className="ml-1 text-xs text-slate">(disabled)</span>}
               </Text>
@@ -40,9 +47,12 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
               </Text>
             </div>
 
-            <div className="flex flex-wrap gap-6">
+            {/* The stat row the design draws: the number is the thing being
+                read, so it carries the weight and the label sits under it in
+                slate — not a label-colon-value line, which is what this was. */}
+            <div className="flex flex-wrap gap-8">
               <div className="flex flex-col">
-                <Text as="span" className="text-base text-ink">
+                <Text as="span" className="text-lg font-semibold text-ink">
                   {plan.accounts}
                 </Text>
                 <Text as="span" className="text-xs text-slate">
@@ -50,7 +60,7 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
                 </Text>
               </div>
               <div className="flex flex-col">
-                <Text as="span" className="text-base text-ink">
+                <Text as="span" className="text-lg font-semibold text-ink">
                   {microUsd(plan.medianMicroUsd)}
                 </Text>
                 <Text as="span" className="text-xs text-slate">
@@ -58,7 +68,7 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
                 </Text>
               </div>
               <div className="flex flex-col">
-                <Text as="span" className="text-base text-ink">
+                <Text as="span" className="text-lg font-semibold text-ink">
                   {plan.live.ceilings.perUserRequestsPerDay ?? "env"}
                   {" / "}
                   {plan.live.ceilings.perUserStepsPerDay ?? "env"}
