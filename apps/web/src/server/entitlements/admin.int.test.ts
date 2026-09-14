@@ -130,6 +130,17 @@ describe("the console answers from real data", () => {
     expect(
       Object.values(premium.holdsByVersion).reduce((total, held) => total + held, 0),
     ).toBe(premium.accounts);
+    // **A version nobody holds is PRESENT with a zero**, not absent. The map was
+    // built from the group-by, so it was sparse, and a sparse map makes "nobody
+    // is on studio v1" and "studio v1 is not a version" the same shape at every
+    // call site. Asserted on `studio` because it is the disabled fourth-plan
+    // proof — published, and by construction held by nobody. CodeRabbit,
+    // PR #174.
+    const studio = panel.find((row) => row.planId === "studio")!;
+    for (const version of studio.versions) {
+      expect(studio.holdsByVersion[version.version]).toBe(0);
+    }
+    expect(Object.keys(studio.holdsByVersion)).toHaveLength(studio.versions.length);
   });
 
   it("counts accounts per ACTIVE grant source", async () => {

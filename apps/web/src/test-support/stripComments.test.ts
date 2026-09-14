@@ -22,11 +22,29 @@ describe("stripComments", () => {
   });
 
   // Hole 2: `/*` inside a string, template or regex literal is not a comment.
+  //
+  // **Each case asserts the LITERAL's body survived**, not merely that the
+  // `KEEP` after it did. Checking the trailing marker only proves the stripper
+  // did not eat the rest of the file; it says nothing about whether it blanked
+  // the literal itself, which is precisely the defect — a swept file whose
+  // string contents vanished would pass an absence test for the wrong reason.
+  // CodeRabbit, PR #174.
   it("leaves a comment opener inside a literal alone", () => {
-    expect(stripComments('const s = "/* not a comment */"; const KEEP = 1;')).toContain("KEEP");
-    expect(stripComments('const s = "/* not a comment */"; const KEEP = 1;')).toContain("not a comment");
-    expect(stripComments("const t = `/* nor this */`; const KEEP = 2;")).toContain("KEEP");
-    expect(stripComments("const r = /\\/\\*/; const KEEP = 3;")).toContain("KEEP");
+    const inString = stripComments('const s = "/* not a comment */"; const KEEP = 1;');
+    expect(inString).toContain("KEEP");
+    expect(inString).toContain("/* not a comment */");
+
+    const inTemplate = stripComments("const t = `/* nor this */`; const KEEP = 2;");
+    expect(inTemplate).toContain("KEEP");
+    expect(inTemplate).toContain("/* nor this */");
+
+    const inSubstitution = stripComments("const t = `a ${`/* deep */`} b`; const KEEP = 4;");
+    expect(inSubstitution).toContain("KEEP");
+    expect(inSubstitution).toContain("/* deep */");
+
+    const inRegex = stripComments("const r = /\\/\\*keepme/; const KEEP = 3;");
+    expect(inRegex).toContain("KEEP");
+    expect(inRegex).toContain("keepme");
   });
 
   // Keeps line numbers stable, so a sweep that reports a line is reporting the

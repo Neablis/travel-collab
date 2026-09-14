@@ -213,9 +213,16 @@ export function PlanSection() {
             <Button
               variant="secondary"
               size="sm"
+              // **"Copied" only after the write resolves.** `writeText` rejects
+              // on a denied permission or an unavailable clipboard API, and the
+              // old `void` + immediate `setCopied(true)` told the operator their
+              // code was on the clipboard when it was not — on the one control
+              // whose entire job is to put it there. CodeRabbit, PR #174.
               onClick={() => {
-                void navigator.clipboard.writeText(plan.referralCode ?? "");
-                setCopied(true);
+                navigator.clipboard
+                  .writeText(plan.referralCode ?? "")
+                  .then(() => setCopied(true))
+                  .catch(() => setCopied(false));
               }}
             >
               {copied ? "Copied" : "Copy"}

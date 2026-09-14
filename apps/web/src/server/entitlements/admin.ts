@@ -162,7 +162,17 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
       versions,
       live: versions[versions.length - 1]!,
       accounts: mine.reduce((total, row) => total + row.count, 0),
-      holdsByVersion: Object.fromEntries(mine.map((row) => [row.planVersion, row.count])),
+      // **Every published version, including the ones nobody holds.** Built
+      // from `versions` rather than from the query, so a version with no
+      // holders reads `0` instead of being absent — a sparse map makes "nobody
+      // is on v1" and "v1 is not a version" the same shape at the call site,
+      // and the panel renders `?? 0` for both. CodeRabbit, PR #174.
+      holdsByVersion: Object.fromEntries(
+        versions.map((version) => [
+          version.version,
+          mine.find((row) => row.planVersion === version.version)?.count ?? 0,
+        ]),
+      ),
       medianMicroUsd: median(costs.get(planId) ?? []),
     };
   });
@@ -187,6 +197,15 @@ async function costByPlan(now: Date): Promise<Map<PlanId, number[]>> {
   for (const cost of costs) {
     const planId = planOf.get(cost.userId);
     if (planId === undefined) continue;
+    // **An account whose every request is unpriceable contributes NOTHING, not
+    // zero.** `costPerAccount` reports such an account as
+    // `{ microUsd: 0, unpriced: n }` — the 0 is "nothing could be priced", not
+    // "this was free — and pushing it into the sample drags the median to zero
+    // exactly when no cost is measurable, which is the `null` this function
+    // documents arriving as a confident `$0.0000` instead. Caught by CodeRabbit
+    // on PR #174; it is the same null-is-not-zero rule `microUsdFor` follows,
+    // one more level up.
+    if (cost.requests === cost.unpriced) continue;
     const bucket = byPlan.get(planId) ?? [];
     bucket.push(cost.microUsd);
     byPlan.set(planId, bucket);

@@ -20,6 +20,39 @@ type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B 
   : { mismatch: [A, B] };
 type AssertEquals<A, B> = Equals<A, B>;
 
+/**
+ * **The no-price rule, as a type rather than a list.**
+ *
+ * This was a loop over hand-written arrays of the CURRENT key names — so adding
+ * `price` to either interface left the arrays unchanged, the loop checking the
+ * old keys, and the test green. It listed what exists instead of constraining
+ * what may exist, which is the same failure as a field-name wire check passing
+ * while a type changed. CodeRabbit, PR #174.
+ *
+ * `keyof` is exhaustive by construction: a new key is in the union the moment
+ * it is declared, so a field named for money cannot be added without breaking
+ * the build. M20 never learns what a plan costs (link 7's split note), and M21
+ * link 7 names deleting this as part of its own definition of done — which is
+ * the point of making it a compile error rather than a runtime scan: the price
+ * arrives on purpose.
+ */
+type PriceWord = "price" | "amount" | "cost" | "renew" | "subscription" | "invoice" | "currency";
+
+/** The keys of `T` that read as money, as a union — `never` when there are none. */
+type MoneyKeys<T> = Extract<
+  {
+    [K in Extract<keyof T, string>]: Lowercase<K> extends `${string}${PriceWord}${string}`
+      ? K
+      : never;
+  }[Extract<keyof T, string>],
+  string
+>;
+
+type NoMoneyKeys<T> = [MoneyKeys<T>] extends [never] ? true : { forbidden: MoneyKeys<T> };
+
+const viewIsPriceFree: NoMoneyKeys<UiView> = true;
+const choiceIsPriceFree: NoMoneyKeys<UiChoice> = true;
+
 const standing: AssertEquals<UiStanding, ServerStanding> = true;
 const choice: AssertEquals<UiChoice, ServerChoice> = true;
 const view: AssertEquals<UiView, ServerView> = true;
@@ -34,35 +67,8 @@ describe("the account plan wire shape", () => {
   });
 
   it("carries no price, renewal date or subscription state", () => {
-    // M20 never learns what a plan costs (link 7's split note), and the design
-    // draws all three on this screen. A field for one arriving here is the M21
-    // half crossing into M20, which is the split failing quietly.
-    const forbidden = ["price", "amount", "renew", "subscription", "invoice", "currency"];
-    const keys: (keyof UiView)[] = [
-      "planVersionRef",
-      "entitlements",
-      "questions",
-      "steps",
-      "catalogue",
-      "referralCode",
-    ];
-    for (const key of keys) {
-      for (const word of forbidden) {
-        expect(String(key).toLowerCase()).not.toContain(word);
-      }
-    }
-    const choiceKeys: (keyof UiChoice)[] = [
-      "planId",
-      "version",
-      "entitlements",
-      "perUserRequestsPerDay",
-      "perUserStepsPerDay",
-      "held",
-    ];
-    for (const key of choiceKeys) {
-      for (const word of forbidden) {
-        expect(String(key).toLowerCase()).not.toContain(word);
-      }
-    }
+    // The assertions are the two constants below, checked by the compiler. This
+    // body only keeps the file a test.
+    expect([viewIsPriceFree, choiceIsPriceFree]).toEqual([true, true]);
   });
 });

@@ -1696,6 +1696,8 @@ describe("POST /api/trips/:id/ask", () => {
 
     it("records an abandoned turn", async () => {
       const tripId = await seedTrip();
+      // The baseline, taken BEFORE the request — see the assertion below.
+      const usageRowsBefore = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
       const records: AskAnalyticsRecord[] = [];
       const controller = new AbortController();
       controller.abort();
@@ -1729,9 +1731,19 @@ describe("POST /api/trips/:id/ask", () => {
       // suite, which is the honest signal that the guarantee is eventual rather
       // than immediate. KI-2026-09-14-b carries what closing that gap properly
       // would take.
+      // **One NEW row from THIS request**, counted against a baseline taken
+      // before it. `ACTOR_ID` is shared and accumulates rows across the file,
+      // so `> 0` passed whenever any earlier test had aborted — including when
+      // this request wrote nothing at all, which is the exact case the
+      // assertion exists for. CodeRabbit, PR #174.
       await vi.waitFor(async () => {
         const rows = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
-        expect(rows.filter((row) => row.outcome === "abort").length).toBeGreaterThan(0);
+        expect(rows.length).toBe(usageRowsBefore.length + 1);
+        const added = rows.filter(
+          (row) => !usageRowsBefore.some((before) => before.id === row.id),
+        );
+        expect(added).toHaveLength(1);
+        expect(added[0]!.outcome).toBe("abort");
       });
     });
   });

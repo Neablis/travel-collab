@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { inviteCodes, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
-import { allGrantsFor, offerTrial } from "./grants";
+import { allGrantsFor, issueGrant, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
 import {
   OUTSTANDING_CODE_CAP,
@@ -144,6 +144,47 @@ describe("a referral earns one month of the tier the referrer holds", () => {
     // double-counts or races itself: exactly two grants, never one, never three.
     expect(results.filter((r) => r.rewarded)).toHaveLength(2);
     expect((await allGrantsFor(referrer)).filter((g) => g.source === "referral")).toHaveLength(2);
+  });
+
+  // **The cap, at its boundary, under concurrency — which the test above does
+  // not prove.** Two redemptions against a cap of ten both succeed with or
+  // without the lock, so that test shows the happy path is not double-counted
+  // and nothing more. The race only has consequences on the LAST seat: two
+  // callers each read `cap - 1`, each decide there is room, and both write.
+  // CodeRabbit, PR #174.
+  it("lets exactly one of two concurrent redemptions take the last reward", async () => {
+    const referrer = await account("plus");
+    // **Seeded through `issueGrant`, not through nine redemptions.** Driving
+    // the endpoint nine times hits a different cap first — `OUTSTANDING_CODE_CAP`
+    // is 5, and `rewardReferrer` does not mark a code redeemed (admission does
+    // that), so the ninth mint fails with `too-many-outstanding` and the test
+    // never reaches the boundary it is about. The rewards are the precondition
+    // here; the race is the subject.
+    for (let i = 0; i < REFERRAL_REWARD_CAP - 1; i += 1) {
+      await issueGrant({
+        userId: referrer,
+        planId: "plus",
+        planVersion: 1,
+        source: "referral",
+        grantedBy: null,
+        reason: "Seeded precondition: a referral reward already earned.",
+        expiresAt: new Date(Date.now() + REFERRAL_REWARD_DAYS * 24 * 60 * 60 * 1000),
+      });
+    }
+    expect(
+      (await allGrantsFor(referrer)).filter((g) => g.source === "referral"),
+    ).toHaveLength(REFERRAL_REWARD_CAP - 1);
+
+    const codes = [await codeFrom(referrer), await codeFrom(referrer)];
+    const results = await Promise.all(
+      codes.map(async (code) => rewardReferrer(code, await account())),
+    );
+
+    expect(results.filter((r) => r.rewarded)).toHaveLength(1);
+    expect(results.filter((r) => !r.rewarded && r.reason === "cap-reached")).toHaveLength(1);
+    expect(
+      (await allGrantsFor(referrer)).filter((g) => g.source === "referral"),
+    ).toHaveLength(REFERRAL_REWARD_CAP);
   });
 
   it("earns nothing for a code nobody minted", async () => {

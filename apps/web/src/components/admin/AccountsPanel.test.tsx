@@ -78,10 +78,27 @@ describe("AccountsPanel", () => {
 
   it("searches by address", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    // **A needle that lives ONLY in the email.** Searching `paid0` matched both
+    // the address and the id, so the test passed whether or not `matchesQuery`
+    // looked at addresses at all — and "address search" is the feature's name.
+    // CodeRabbit, PR #174.
+    const accounts = [
+      ...tenAccounts(),
+      account({ userId: "opaque-id-1", email: "wren@elsewhere.test" }),
+    ];
+    render(<AccountsPanel accounts={accounts} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Find an account" }), "paid0");
-    expect(rowIds()).toEqual(["paid0"]);
+    await user.type(screen.getByRole("textbox", { name: "Find an account" }), "wren");
+    expect(rowIds()).toEqual(["opaque-id-1"]);
+  });
+
+  it("falls back to the account id when a row has no address", async () => {
+    const user = userEvent.setup();
+    const accounts = [...tenAccounts(), account({ userId: "no-address-1", email: null })];
+    render(<AccountsPanel accounts={accounts} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+
+    await user.type(screen.getByRole("textbox", { name: "Find an account" }), "no-address");
+    expect(rowIds()).toEqual(["no-address-1"]);
   });
 
   it("counts each filter over the whole matching set, not the page", async () => {

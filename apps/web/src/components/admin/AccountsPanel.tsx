@@ -234,7 +234,18 @@ export function AccountsPanel({
                     {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
                   </TD>
                   <TD className="text-ink">{account.requests}</TD>
-                  <TD className="text-ink">{microUsd(account.microUsd)}</TD>
+                  <TD className="text-ink">
+                    {microUsd(account.microUsd)}
+                    {account.unpriced > 0 && (
+                      // **A cost with unpriceable rows behind it is not the
+                      // cost.** An account whose every request used a model
+                      // with no published rate rendered a confident `$0.0000`.
+                      // Reported rather than folded in, the same way the ledger
+                      // itself refuses to price an unmeasurable row. CodeRabbit,
+                      // PR #174.
+                      <span className="ml-1 text-slate">({account.unpriced} unpriced)</span>
+                    )}
+                  </TD>
                   <TD className="text-ink">
                     <GrantDialog userId={account.userId} plans={plans} />
                   </TD>

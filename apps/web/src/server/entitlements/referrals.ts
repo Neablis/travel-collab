@@ -23,7 +23,7 @@
 //
 // Self-referral still earns nothing and the per-account cap still holds, but
 // neither is now load-bearing.
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, type Queryable } from "@/server/db/client";
 import { entitlementGrants, inviteCodes } from "@/server/db/schema";
 import { heldPlanFor, issueGrant } from "./grants";
@@ -144,9 +144,21 @@ export async function mintReferralCode(
   });
 }
 
-/** Every code this account minted, redeemed or not. */
+/**
+ * Every code this account minted, redeemed or not, **oldest first**.
+ *
+ * The order is not cosmetic. The account sheet shows the oldest unredeemed
+ * code, so that the code a person has already sent to a friend keeps appearing
+ * on the screen; without an `ORDER BY` the row order is undefined and the code
+ * displayed could change between two visits, which makes a handed-out code look
+ * withdrawn. CodeRabbit, PR #174.
+ */
 export async function codesMintedBy(userId: string) {
-  return db.select().from(inviteCodes).where(eq(inviteCodes.createdBy, userId));
+  return db
+    .select()
+    .from(inviteCodes)
+    .where(eq(inviteCodes.createdBy, userId))
+    .orderBy(asc(inviteCodes.createdAt), asc(inviteCodes.code));
 }
 
 /** Why a redemption earned its minter nothing. Reported, never thrown. */

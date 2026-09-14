@@ -81,11 +81,18 @@ describe("the Entitlements module knows nothing about trips", () => {
       .filter((file) => named(file) !== "planVersions.ts")
       .filter((file) => {
         const code = stripComments(source(file));
-        // **Every branch form, not just `===`.** The first version of this
-        // matched equality alone, so a module could branch on a named
-        // capability with `!==`, a `switch` case, or `.includes(...)` and the
-        // invariant test stayed green. Caught by CodeRabbit on PR #174.
-        const capability = String.raw`"(ai\.ask|ai\.command|trip\.collaborators)"`;
+        // **Every branch form, not just `===`** — the first version matched
+        // equality alone, so `!==`, a `switch` case or `.includes(...)` walked
+        // past it (CodeRabbit, PR #174).
+        //
+        // **And every string delimiter, not just double quotes**, which is the
+        // same finding one level down: the widened matcher still spelled the
+        // capability as `"ai.ask"`, so `'ai.ask'` or a backticked one passed a
+        // test whose whole subject is a string literal. Prettier normalises
+        // quotes in this repo, which is exactly what makes the gap easy to
+        // believe is closed — normalisation is a formatter's habit, not a
+        // guarantee this test can rely on. Caught by CodeRabbit on the same PR.
+        const capability = String.raw`["'\`](ai\.ask|ai\.command|trip\.collaborators)["'\`]`;
         return [
           new RegExp(String.raw`[!=]==?\s*${capability}`),
           new RegExp(String.raw`${capability}\s*[!=]==?`),

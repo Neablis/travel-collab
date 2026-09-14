@@ -305,6 +305,11 @@ test.describe("M20 — an account knows what it may do", () => {
     // pointer-event-swallowing layer over its children — so the honest test is
     // that Playwright's actionability wait never resolves.
     const pick = chooser.getByRole("button", { name: /^Change to |^This is your plan$/ });
+    // **The witness first.** `click()` also rejects when the button does not
+    // exist, so the rejection alone would keep passing after the control was
+    // deleted — a test that proves "unreachable" by way of "absent" is the same
+    // species as the one it replaced. CodeRabbit, PR #174.
+    await expect(pick).toBeVisible();
     await expect(pick.click({ timeout: 2_000 })).rejects.toThrow();
   });
 
