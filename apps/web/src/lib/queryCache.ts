@@ -27,6 +27,15 @@ import type { ApiResult } from "@/lib/apiClient";
  * suite drives each helper twice with different mocked outcomes, and a helper
  * that had quietly cached the first one would pass while testing nothing.
  *
+ * **There is deliberately no window for search.** City search was the third
+ * target when this module was written and it is the one that came back out: a
+ * cached query cannot fail, and `/api/cities`' four reachable states (results,
+ * no matches, loading, failed) are a milestone exit gate. Saving the request
+ * and keeping the failure state reachable are mutually exclusive on that
+ * endpoint — a background revalidation would keep the state and save nothing.
+ * The cost it was aimed at is real and belongs on the server. See ADR-046's
+ * Consequences and KI-2026-09-14-a.
+ *
  * ADR-046 records the decision and the migration.
  */
 
@@ -50,12 +59,6 @@ export const DEDUPE = {
    * trip invalidates them, so this window only ever hides a REMOTE write.
    */
   DOCUMENT: 30_000,
-  /**
-   * A public, slowly-changing index with no per-user content. City search
-   * aggregates published days; a five-minute-old count is not a wrong answer.
-   * Matches the `max-age` the route sends, so the two layers agree.
-   */
-  SEARCH: 300_000,
 } as const;
 
 type Entry = {

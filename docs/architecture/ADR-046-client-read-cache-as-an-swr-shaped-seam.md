@@ -43,10 +43,9 @@ user's own edit.
 **1. A short reuse window, not a store.** `src/lib/queryCache.ts` de-duplicates
 identical in-flight reads and reuses a resolved one inside a window measured in
 seconds: `DEDUPE.NAVIGATION` (5s) for `TripDetail`, `DEDUPE.DOCUMENT` (30s) for
-read-mostly trip documents, `DEDUPE.SEARCH` (5min) for the public city index.
-The window suppresses the thrash of remounting; it never suppresses the next
-real read. Sized against the freshness it costs, not against the requests it
-saves.
+read-mostly trip documents. The window suppresses the thrash of remounting; it
+never suppresses the next real read. Sized against the freshness it costs, not
+against the requests it saves.
 
 **2. The API client stays uncached, and that is what makes it SWR-ready.** The
 read helpers in `apiClient.ts` / `pagesClient.ts` remain pure fetchers that know
@@ -84,11 +83,25 @@ flight, which is the half that is safe.
 home page, where creating, restoring and deleting a trip must show immediately.
 It is the one read where staleness is visible as a bug rather than as latency.
 
-**7. One route gains an HTTP cache header.** `/api/cities` sends
-`private, max-age=300` — `private` because it is served under a session cookie,
-even though the body carries no per-user content today. The 401 is uncached.
-The in-memory window answers a repeat within a session; the header answers one
-across a reload.
+**7. City search is NOT cached, at either layer — attempted, then withdrawn.**
+Both a client memo and a `Cache-Control: private, max-age=300` header were
+written, and both came out before merge. The memo broke
+`e2e/m11b-playbooks.spec.ts:339` at line 374: the test routes `/api/cities` to
+abort and refills a query it already searched, and a cached answer means **no
+request is made, so the failure state never renders**. The four states that test
+walks are a milestone exit gate.
+
+The general statement, which is why this is a decision and not a bug report:
+**on a search endpoint, saving the request and keeping the failure state
+reachable are mutually exclusive.** A cache that saves the request cannot fail.
+A stale-while-revalidate cache keeps every state and saves nothing — which was
+the entire point. There is no client-side shape that delivers both.
+
+The header went with it even though the e2e passed with the header alone. That
+pass is an artifact: Playwright's `page.route` intercepts ahead of the browser's
+HTTP cache, so the test cannot see what a real user under `max-age=300` would —
+the same staleness the memo had. Shipping a behaviour whose safety rests on a
+test blind spot is worse than shipping neither.
 
 ## Consequences
 
@@ -106,3 +119,14 @@ across a reload.
 - What this does NOT do: it does not make the app realtime. Every window here is
   a bet that a co-traveller has not edited in the last few seconds, and the way
   to stop betting is a subscription, not a longer cache.
+- **The city-search cost is real and still unpaid** — `KI-2026-09-14-a`. It
+  belongs on the server, where the request still happens and every
+  client-observable state survives: a short server-side memo, an `ETag` with
+  `must-revalidate` so a repeat is a 304, or a maintained `city -> count`
+  projection. The last removes the aggregate instead of hiding it.
+- **The general lesson, worth more than the cache.** Two of the three targets
+  were safe to cache because a *local write invalidates them*. The third was not,
+  because its interesting state is a *failure*, and failure is the one answer a
+  cache can never reproduce. "Is this read cacheable?" is really "can every state
+  this read can be in survive being served from memory?" — and for anything whose
+  UI distinguishes failed from empty, the answer is no.

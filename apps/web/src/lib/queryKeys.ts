@@ -34,16 +34,3 @@ export const tripKeys = {
   pages: (tripId: string) => `trip:${tripId}:pages`,
   page: (tripId: string, pageId: string) => `trip:${tripId}:page:${pageId}`,
 } as const;
-
-export const cityKeys = {
-  /**
-   * City search is a pure function of the query, so the key is the query —
-   * normalised the same way the server trims it, so `"Kyoto"`, `"kyoto "` and
-   * `" KYOTO"` are one cache entry rather than three.
-   *
-   * Case-folding is safe here and would not be for every search: the route's
-   * SQL matches with `ilike` (`server/cities.ts`), so the server already
-   * treats these three as the same question.
-   */
-  search: (q: string) => `cities:${q.trim().toLowerCase()}`,
-} as const;
