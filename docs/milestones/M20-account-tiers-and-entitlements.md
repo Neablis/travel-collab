@@ -968,7 +968,10 @@ what the PR contains.
 **What the gate cost to verify.** Typecheck 0, lint 0 with every wall green,
 2,693 web unit tests, 1,114 across the packages, 182 script tests, 580
 integration tests, and `pnpm --filter web test:e2e:ci-like` — 125 passed, 0
-failed, 0 flaky. Plus three deployed walks: the account sheet, referral
+failed, 0 flaky. **Run in full twice**: once on `7fe282e`, and again on
+`8e0a329` after the second walk's finding landed a copy fix on top of it,
+because a gate box reading "the full Definition of Done is green" should be
+green on the tree being ticked rather than on the one before it. Plus three deployed walks: the account sheet, referral
 minting, a signup through a real referral code and a trip planned end to end
 with no gate anywhere; the plan catalogue and its shield, at 1280 and 1100; and
 the operator console, walked on production by Mitchell.
