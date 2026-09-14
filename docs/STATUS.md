@@ -93,8 +93,17 @@ and the **`admin-console` feature flag** (2026-09-14, Mitchell's ask), targeted 
 from the Vercel dashboard with **no deploy and no sign-out**. Both only ever promote;
 revoking is clearing the column. The flag fails closed, so the env var is the break-glass
 path that survives the Flags service being unreachable — and the only path locally and in
-CI, where no adapter is configured. **Neither is set in production yet, and that is now the
-single blocker on M20's gate demo.**
+CI, where no adapter is configured.
+
+**`ADMIN_USER_IDS` IS SET IN PRODUCTION AND THE FIRST OPERATOR EXISTS — 2026-09-14.**
+Mitchell's account carries `users.is_admin = true`, written by the bootstrap on his next
+sign-in exactly as designed. The whole chain is in the record: the variable set, production
+redeployed (`dpl_rt28QMmBb31VzYXoPkW9dvQbw9rn`, a redeploy of `492c685`), a Google sign-in,
+then three `/admin` requests and **no 4xx or 5xx at all on that deployment** — so the console
+renders and its overview query answers. **Preview still has no operator**, which is why the
+console half of the gate walk is still unwalked from a session: a preview operator needs a
+`dev-` id in the Preview-scoped value, since dev login mints `dev-<username>` and the
+production value names a `google-` subject.
 
 **What setting it takes, so the next session does not re-derive it.** `ADMIN_USER_IDS` is a
 comma-separated list of `users.id` **exactly as stored** — a Google account is
