@@ -317,6 +317,51 @@ Flags answered **for the caller of that request**, and someone else may well get
 the other answer. Only `"env"` is evidence about anybody but you — which is why
 e2e's `global.setup.ts` refuses to run a suite on anything else.
 
+### `admin-console` — who may open the operator console
+
+The project's second flag (M20 link 7, Mitchell 2026-09-14: *"add me also using
+feature flags to turn on admin for accounts so I don't need a redeploy"*).
+Declared beside `ai-live` in `apps/web/src/server/flags.ts`, identified the same
+way, and read in exactly one place — `callerIsAdmin()` in
+`apps/web/src/server/entitlements/admin.ts`.
+
+**Turning admin on for somebody, with no deploy and no sign-out:**
+
+```bash
+vercel flags rules add admin-console --environment production \
+  --if 'user.email eq "mitchell@example.com"' --then true
+```
+
+It takes effect on that person's **next request** — the console's guard resolves
+per request, the same property that makes M20's entitlement grants bite without
+a token refresh.
+
+**Three things about it, and the first is why it is allowed to be a flag at
+all:**
+
+- **This is not entitlement.** ADR-019's 2026-08-25 amendment declines to assume
+  a paid tier is a flag, and M20 built it as a database fact with a pinned plan
+  version behind it. `is_admin` is an operator bit on a staff account: nobody
+  buys it, nothing pins it, and it grants no capability a plan sells. **A
+  capability a customer pays for still may not live here.**
+- **It only ever WIDENS.** `users.is_admin` is the durable fact, and it is what
+  the console's accounts table displays. The flag is a second way to say yes and
+  never a way to say no — **removing admin is clearing the column**, because a
+  Flags outage that revoked every operator would look like an empty console
+  rather than like an outage.
+- **It fails closed**, like every flag here: `defaultValue: false`, an
+  unreachable service answers `false`, and an unconfigured adapter — the
+  ordinary case locally and in CI — answers `false` too. `flags.test.ts` pins
+  that default for every flag in the module.
+
+**The three ways an account becomes an operator**, and why all three exist:
+
+| | Reaches production how | Survives a Flags outage | Use it for |
+|---|---|---|---|
+| `admin-console` flag | A dashboard rule. **No deploy.** | No — the flag answers `false` | The everyday switch: turning the console on for someone now |
+| `ADMIN_USER_IDS` | An env var, so a redeploy, and it writes the column on that account's next sign-in | Yes | Break-glass, and the local/CI path where no Flags adapter is configured |
+| `users.is_admin` directly | A database write | Yes | A permanent operator, and the only way to REVOKE one |
+
 **Per-session overrides on preview deploys:** the Vercel Toolbar's Flags
 Explorer talks to the discovery endpoint at
 `apps/web/src/app/.well-known/vercel/flags/route.ts`, authenticated by the

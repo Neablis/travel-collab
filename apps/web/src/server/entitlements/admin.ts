@@ -18,12 +18,22 @@
 import { desc, eq, sql } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
+import { adminConsoleFlag } from "@/server/flags";
 import { entitlementGrants, users } from "@/server/db/schema";
 import { PLAN_VERSIONS, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor } from "./resolver";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
-/** Is this account an operator. The one question the route group asks. */
+/**
+ * **The STORED fact, about any account.** Never consults the flag.
+ *
+ * This is what the console displays in its accounts table, and the distinction
+ * from `callerIsAdmin` below is a correctness one rather than a tidiness one:
+ * the `admin-console` flag resolves **the caller**, so asking it about somebody
+ * else's id would answer with the viewer's own flag value and paint every row
+ * as an operator the moment one operator had the flag. Use this whenever the
+ * question is *"is that account an operator"*.
+ */
 export async function isAdmin(userId: string): Promise<boolean> {
   const rows = await db
     .select({ isAdmin: users.isAdmin })
@@ -31,6 +41,46 @@ export async function isAdmin(userId: string): Promise<boolean> {
     .where(eq(users.id, userId))
     .limit(1);
   return rows[0]?.isAdmin ?? false;
+}
+
+/**
+ * The `admin-console` flag, for the caller of this request, failing closed.
+ *
+ * **The catch is load-bearing and is not decoration.** The Flags SDK applies
+ * `defaultValue` only to what `decide` returns or throws — `identify` runs
+ * EARLIER (`getEntities` ahead of `applyResult`, verified in `flags@4.3.0`), so
+ * a session read that throws escapes the flag entirely and would propagate as
+ * an unhandled rejection. `aiLive()` catches the same hole for `ai-live`. Here
+ * the answer to every question this flag cannot resolve is **not an operator**,
+ * which is also the answer when no adapter is configured at all — the ordinary
+ * case locally and in CI, where `ADMIN_USER_IDS` is the path instead.
+ */
+async function adminConsoleFlagForCaller(): Promise<boolean> {
+  try {
+    return await adminConsoleFlag();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * **May THIS CALLER open the console** — the stored fact, or a flag targeted at
+ * them. The one question the route group and every admin endpoint ask.
+ *
+ * `callerId` must be the id of whoever is making this request. The flag half
+ * resolves the caller from the session (`identifyFlagEntities`), so passing
+ * anyone else's id would silently mix two accounts' answers; `isAdmin` above is
+ * the function for asking about somebody else.
+ *
+ * **The column is read first**, and not only because it is the cheaper hop: an
+ * operator whose bit is stored stays an operator while the Flags service is
+ * unreachable, which is what keeps a third-party outage from emptying the
+ * console. The flag is a second way to say yes and never a way to say no —
+ * revoking is clearing the column.
+ */
+export async function callerIsAdmin(callerId: string): Promise<boolean> {
+  if (await isAdmin(callerId)) return true;
+  return adminConsoleFlagForCaller();
 }
 
 /** How far back every "cost over a trailing window" number here looks. */

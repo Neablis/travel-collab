@@ -18,8 +18,19 @@
 > product sets that column — granting writes `entitlement_grants`, not this —
 > so the first operator could only be made with a psql session. `ADMIN_USER_IDS`
 > (`.env.example`, `apps/web/src/lib/adminBootstrap.ts`) is read at sign-in and
-> **only ever promotes**. It must be set in production before the console is
-> reachable there.
+> **only ever promotes**.
+>
+> **And a second way, added 2026-09-14 on Mitchell's ask** — *"add me also
+> using feature flags to turn on admin for accounts so I don't need a
+> redeploy"*: the **`admin-console` flag**, targeted per account from the Vercel
+> dashboard, read in `callerIsAdmin()`. It takes effect on the next request with
+> no deploy and no sign-out. **It is not entitlement and does not make
+> entitlement a flag** — `is_admin` is an operator bit nobody buys, nothing
+> pins, and no plan version records; ADR-019's objection is to a *paid tier*
+> being a flag value, and that objection still stands. It only ever widens:
+> revoking is clearing the column, so a Flags outage cannot empty the console.
+> Commands and the three-way division are in
+> `docs/guidelines/environments-and-deploys.md`.
 
 Scoped and placed 2026-09-01 to run **after M9**, before M21. Placement was
 Mitchell's call and the reason was M9: `ai-live` defaults off and grounding is

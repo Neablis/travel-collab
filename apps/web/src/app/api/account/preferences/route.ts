@@ -1,7 +1,7 @@
 import { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { readPreferences, writePreferences } from "@/server/users";
-import { isAdmin } from "@/server/entitlements/admin";
+import { callerIsAdmin } from "@/server/entitlements/admin";
 
 // The Identity module's only read/write surface outside the sign-in callback
 // (M17). Account scope, so there is no `requireUser()` here and no access seam
@@ -38,9 +38,13 @@ export async function GET() {
   // **Advisory, exactly like `myRole`.** The console's layout, its page and
   // every admin endpoint answer 404 to a non-admin regardless of what a client
   // does with this.
+  //
+  // `callerIsAdmin`, not `isAdmin`: this answers about whoever is asking, so a
+  // flag-only operator gets the menu item too. That is the whole point of the
+  // flag — turning admin on must not need a redeploy OR a sign-out.
   const [preferences, admin] = await Promise.all([
     readPreferences(session.user.id),
-    isAdmin(session.user.id),
+    callerIsAdmin(session.user.id),
   ]);
   return Response.json({ preferences, isAdmin: admin });
 }

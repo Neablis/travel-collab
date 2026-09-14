@@ -75,9 +75,13 @@ been deployed.
 
 **One thing the milestone did not name and the build needed: an operator bootstrap.**
 `/admin` is gated on `users.is_admin` and nothing in the product sets that column, so the
-first operator could only be made with a psql session. `ADMIN_USER_IDS` (`.env.example`,
-`lib/adminBootstrap.ts`) is read at sign-in and only ever promotes. **Production needs it
-set before the console is reachable there.**
+first operator could only be made with a psql session. Two ways in now, and neither is a
+database write: `ADMIN_USER_IDS` (`.env.example`, `lib/adminBootstrap.ts`), read at sign-in,
+and the **`admin-console` feature flag** (2026-09-14, Mitchell's ask), targeted per account
+from the Vercel dashboard with **no deploy and no sign-out**. Both only ever promote;
+revoking is clearing the column. The flag fails closed, so the env var is the break-glass
+path that survives the Flags service being unreachable — and the only path locally and in
+CI, where no adapter is configured. **Neither is set in production yet.**
 
 **The one thing to know before touching this milestone:** *a plan is a set, not a rank.* Code
 asks `can(ent, "ai.ask")` and nothing compares plans. `accessPolicy.ts:11`'s `RANK` is the
