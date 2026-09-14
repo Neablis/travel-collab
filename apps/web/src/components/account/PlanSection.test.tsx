@@ -137,6 +137,19 @@ describe("the plan catalogue", () => {
     expect(text("plan-offer-premium")).not.toContain("what you hold");
   });
 
+  // **The screen must not read as contradicting itself.** A `free` account
+  // with a `plus` trial reads "You can: ai.ask, ai.command" at the top of the
+  // section and "No assistant" in this block — the first is the resolved union
+  // the server enforces, the second is the plan file as published. Found on a
+  // deployed preview, where both were on screen at once with nothing naming
+  // the difference.
+  it("says grants are counted above rather than in the catalogue", async () => {
+    render(<PlanSection />);
+    const catalogue = await screen.findByTestId("plan-catalogue");
+
+    expect(catalogue.textContent ?? "").toContain("counted in what you hold above, not here");
+  });
+
   it("carries no price for any plan", async () => {
     render(<PlanSection />);
     const catalogue = await screen.findByTestId("plan-catalogue");

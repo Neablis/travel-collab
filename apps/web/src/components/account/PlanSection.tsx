@@ -284,9 +284,18 @@ export function PlanSection() {
             </Text>
           </div>
         ))}
+        {/* **Why this block and the one at the top of the section can disagree.**
+            Found by walking the deployed preview: an account holding `free`
+            with a `plus` trial reads "You can: ai.ask, ai.command" above and
+            "No assistant, no one else on the trip" here, three inches apart.
+            Both are right — the top of the section is the RESOLVED union the
+            server enforces, and this is the plan file as published — and a
+            person has no way to tell that from the screen. The meters already
+            carry their version of this sentence; the catalogue had none. */}
         <Text variant="secondary" className="text-xs">
-          A plan is described by what it grants. What it costs arrives with the payment that
-          justifies it.
+          These are the plans as published. A trial, a referral month or anything else granted to
+          you is counted in what you hold above, not here. A plan is described by what it grants;
+          what it costs arrives with the payment that justifies it.
         </Text>
       </div>
 
