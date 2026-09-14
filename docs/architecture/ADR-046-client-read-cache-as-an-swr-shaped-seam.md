@@ -147,6 +147,13 @@ test blind spot is worse than shipping neither.
 - What this does NOT do: it does not make the app realtime. Every window here is
   a bet that a co-traveller has not edited in the last few seconds, and the way
   to stop betting is a subscription, not a longer cache.
+- **What the scope does NOT close, confirmed by the same walk that found the
+  defect** — `KI-2026-09-14-e`. A command the server applies *after* you
+  navigate leaves the board behind in exactly the same way, and the cache is
+  not involved: that read reaches the wire and is correct when taken. `main`,
+  which refetches on every mount and has no cache, does it too. The cache-hit
+  path is closed; the no-re-read path is `TripProvider`'s, and it is a second
+  read that fixes it, not a cache change.
 - **The city-search cost is real and still unpaid** — `KI-2026-09-14-d`. It
   belongs on the server, where the request still happens and every
   client-observable state survives: a short server-side memo, an `ETag` with
