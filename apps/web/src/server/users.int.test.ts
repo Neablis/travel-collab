@@ -92,6 +92,15 @@ describe("users repository", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "km",
+      // M20's columns. A first sign-in holds the live `free` version — read
+      // from the committed plan file by `upsertUser`, NOT left to the column's
+      // `DEFAULT 1`, which is what makes "a new account gets v2" true the day
+      // `free@v2` is published. `is_admin` is false: there is no path that sets
+      // it from a sign-in, and an operator bit that could be acquired by
+      // signing in would not be one.
+      planId: "free",
+      planVersion: 1,
+      isAdmin: false,
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });

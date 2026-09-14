@@ -131,6 +131,54 @@ describe("AssistantRail", () => {
     expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now.");
   });
 
+  // **An upgrade path, not a permission error** (M20 link 4's gate box). The
+  // server answers 402 Payment Required here rather than 403, and the two
+  // differ by exactly this: a 403 says the account did something it may not, a
+  // 402 says it does not have a thing it could have. Rendering both as a red
+  // alert throws that distinction away at the one surface where it is worth
+  // something.
+  describe("the entitlement refusal", () => {
+    const REFUSAL = "The assistant is part of Plus. This account is on a plan that does not include it.";
+
+    it("is a status rather than an alert, and keeps the server's wording", () => {
+      renderRail({ askError: REFUSAL, askUpgrade: true });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("status").textContent).toContain(REFUSAL);
+    });
+
+    // M20 ships no billing surface — M21 link 5 puts the Plan section at the
+    // top of the account sheet — so a button with nowhere to go would be worse
+    // than a sentence that is true. The prop is the seam M21 fills.
+    it("says where plans live, and offers no control, until something can open one", () => {
+      renderRail({ askError: REFUSAL, askUpgrade: true });
+      expect(screen.queryByRole("button", { name: /see your plan/i })).toBeNull();
+      expect(screen.getByRole("status").textContent).toContain("account settings");
+    });
+
+    it("offers the control once a caller can open the account sheet", () => {
+      const onOpenAccount = vi.fn();
+      renderRail({ askError: REFUSAL, askUpgrade: true, onOpenAccount });
+      fireEvent.click(screen.getByRole("button", { name: /see your plan/i }));
+      expect(onOpenAccount).toHaveBeenCalledOnce();
+    });
+
+    // Every OTHER refusal is still a failure and still red. The flag is what
+    // separates them, and it comes from the server's `code` rather than from
+    // the prose.
+    it("leaves an ordinary failure as an alert", () => {
+      renderRail({ askError: "The model is unavailable right now." });
+      expect(screen.getByRole("alert")).not.toBeNull();
+    });
+
+    // No price anywhere on this surface. M20 never learns what a plan costs.
+    it("names the tier and no price", () => {
+      renderRail({ askError: REFUSAL, askUpgrade: true });
+      const rendered = screen.getByRole("status").textContent ?? "";
+      expect(rendered).toContain("Plus");
+      expect(rendered).not.toMatch(/\$|\bUSD\b|per month/i);
+    });
+  });
+
   it("the Hide control is real: clicking it calls onHide", () => {
     const onHide = vi.fn();
     renderRail({ onHide });

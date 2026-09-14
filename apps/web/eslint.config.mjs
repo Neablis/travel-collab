@@ -392,6 +392,60 @@ export default [
     },
   },
   {
+    // THE ADMIN BLOCK (2026-09-14, Mitchell's call on PR #174): the operator
+    // console may read server internals. It may NOT reach the planning domain
+    // or build an Auth.js instance, and restating those two here is the whole
+    // mechanism — **this block is the exemption**, not a qualifier on one.
+    //
+    // Flat config REPLACES a rule's options for the LAST matching block rather
+    // than merging them (the wall above and the authConfig block both depend on
+    // this). `src/app/admin/**` therefore takes its `no-restricted-imports`
+    // options from here and from nowhere else: whatever this list omits is
+    // allowed, whatever it names is refused, and the `ignores` of the earlier
+    // blocks are irrelevant to these files. An entry for the console in those
+    // lists would be dead config that reads as load-bearing — it was written
+    // that way first, and the mutation that should have turned the exemption
+    // fixture red left it green, which is how the redundancy was found.
+    //
+    // **Why the console gets this and no other UI does.** M20's gate box
+    // requires a non-admin to reach a 404 for the ROUTE, not only for the
+    // endpoint. That needs `users.is_admin`, which is a database column, and
+    // the edge proxy holds a JWT (ADR-025) and cannot read it — so no
+    // relocation satisfies it, because the wall restricts the IMPORTER.
+    //
+    // It replaces something worse. The page honoured the wall's letter by
+    // fetching its own `/api/admin/overview` over HTTP and forwarding the
+    // operator's session cookie, which produced two defects in two days: a
+    // credential sent to a header-derived origin (CodeRabbit), then a 500 on
+    // every preview when the configured origin turned out to be the
+    // per-deployment host rather than the branch alias the protection cookie is
+    // issued for. Both ingredients are gone, not mitigated.
+    //
+    // `check-lint-wall.mjs` lints three fixtures under `src/app/admin` — one
+    // per pattern, one open and two shut — so the exemption is proven to be
+    // exactly one hole.
+    files: ["src/app/admin/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@tc/domain", "@tc/domain/*"],
+              message:
+                "The operator console reads entitlement state; it does not do planning. Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
+            },
+            {
+              group: ["@/lib/authConfig"],
+              message:
+                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar

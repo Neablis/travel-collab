@@ -13,6 +13,149 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-13 — `AdminGrantInput`, and a fourth `PlanId`
+
+- Added: `AdminGrantInput` — `{ userId, planId, expiresAt: string|null, reason }`
+  (`packages/contracts/src/entitlement.ts`), the operator console's one write
+- Changed: `PlanId` gains **`studio`**. Its version entry ships `enabled: false`
+- Why: M20 links 7 and 8. `studio` is the milestone's **fourth-plan proof** — a
+  plan granting `trip.collaborators` **without** `ai.command`, so it is
+  incomparable with `plus` and no rank can place it. The gate box asks for a
+  plan that can be *added*, not one that could be, and adding it cost this one
+  member plus one entry in the committed plan file: **no gate, resolver or
+  authorisation path changed.** `planVersions.fourthPlan.test.ts` proves that
+  by sweeping the whole app for a *comparison* against a plan id
+- **The honest limit, written down rather than left to be found as a
+  contradiction:** `studio` IS a subset of `premium`, because `premium` holds
+  the entire three-word vocabulary. That is a fact about there being three
+  capability strings, not about the plans, and it stops being true the moment a
+  fourth capability exists that `premium` does not grant. The incomparability
+  with `plus` never depended on it
+- **`AdminGrantInput` carries no version field**, deliberately: a grant pins the
+  version live when it is issued, resolved server-side. An operator typing a
+  version number is an operator who can type one that does not exist, and the
+  failure would be a silent entitlement hole rather than a 400. `expiresAt` is
+  nullable rather than optional — "forever" is a decision, and an omitted field
+  would let one be made by accident. `reason` is required: a comp nobody can
+  explain six months later is a billing dispute with no evidence
+- **No price field.** M20 never learns what a plan costs
+- Consumers updated, same PR: `app/api/admin/grants/route.ts` (the only write on
+  the operator surface — it refuses a disabled plan, so `studio` is published,
+  typed and resolvable while being unreceivable),
+  `components/admin/GrantForm.tsx`, `server/entitlements/planVersions.ts`
+- Breaking? no — `AdminGrantInput` is new, and widening a `z.enum` accepts
+  strictly more. Nothing that parsed before stops parsing
+
+## 2026-09-13 — `TripAccess.collaboratorsEntitled`: is this trip collaborative
+
+- Added: `collaboratorsEntitled: z.boolean()` on `TripAccess`
+  (`packages/contracts/src/access.ts`). Nothing else changed shape
+- Why: M20 link 6. Inviting anyone requires the trip **owner's**
+  `trip.collaborators`, and the Travelers panel has to know before it renders a
+  control — the design handoff (§17.3) does not disable the *Invite someone*
+  button for an unentitled owner, it does not render it at all and puts a
+  named-tier block in its place
+- **The OWNER's entitlement, not the reader's**, and the asymmetry is the
+  design: the owner is the billing subject, so an editor reading this learns
+  whether the trip they are on is collaborative, not whether their own account
+  could pay for one
+- **Advisory, exactly like `myRole`.** `POST /api/trips/:tripId/invites`
+  refuses with **402** and `code: "collaborators-not-entitled"` whatever a
+  client does with this field
+- **Entitlements never learns what a trip is** (ADR-045 rule 5). This is the
+  boolean Access & Membership reads out of that module and puts on its own DTO;
+  `trip.collaborators` is an opaque capability string on the other side of that
+  call, and `moduleBoundary.test.ts` enforces the direction
+- Consumers updated, same PR: `app/api/trips/[tripId]/access/route.ts`
+  (computes it from the owner; the demo trip is entitled by construction,
+  because its travellers are invented people and that path must touch no
+  database), `components/trip/TravelersPanel.tsx` (the named-tier block and the
+  lapse banner)
+- Breaking? no — a new required field on a response DTO, produced by the one
+  route that builds it. No stored payload and no request shape moved
+
+## 2026-09-13 — `ai-not-entitled` answers 402, not 403 (BREAKING, wire)
+
+- Changed: `POST /api/trips/:tripId/ask` answers **402 Payment Required** with
+  `code: "ai-not-entitled"` where it answered **403 Forbidden**. The body's
+  shape and the `code` string are unchanged
+- Changed: the refusal's `error` text. It was *"AI is not available for this
+  account."*; it is now one exported constant, `AI_NOT_ENTITLED_REASON`
+  (`apps/web/src/server/ai/modelSelection.ts`), which **names the tier**:
+  *"The assistant is part of Plus. This account is on a plan that does not
+  include it."*
+- Added: `AI_NOT_ENTITLED_STATUS` beside `AI_NOT_ENTITLED_CODE`, on both sides
+  of the UI/server wall (`server/ai/modelSelection.ts` and `lib/apiClient.ts`),
+  pinned equal by the existing cross-wall parity test
+- Why: M20 link 4. `modelSelection.ts` recorded the old choice in as many
+  words — *"403, not 402: 402 asserts a payment relationship that does not
+  exist yet"* — and M20 creates one. The two statuses differ by exactly what
+  matters at this surface: a 403 says the account did something it may not, a
+  402 says it does not have a thing it could have. The second is actionable
+- **Breaking? YES, and this is the one wire break M20 makes.** The `code` is
+  unchanged, so a client branching on it — which is what this repo's own
+  client does, and what the code exists for — is unaffected. Anything branching
+  on the status alone moves with it. There is no compatibility window: the
+  status and the meaning changed together, and serving 403 to "old" clients
+  would mean serving the wrong answer to all of them
+- Consumers updated, same PR: `lib/apiClient.ts` (the constant and its error
+  table), `components/board/TripBoardScreen.tsx` (stops rewriting the refusal
+  as *"The assistant is switched off for this account"* — a permission error
+  where the server now sends a tier — and passes `askUpgrade` from the CODE,
+  never from the prose), `components/assistant/useAskThread.ts` (carries
+  `askErrorCode` beside `askError`, because a surface cannot tell an actionable
+  refusal from a failure by reading prose), `components/assistant/AssistantRail.tsx`
+  (renders this one refusal as a `role="status"` upgrade block rather than a
+  `role="alert"` red line)
+- **No price, anywhere on this path.** M20 never learns what a plan costs. The
+  refusal names `Plus` and stops; the rail says plans live in account settings
+  and offers no control, because M20 ships no billing surface for one to open —
+  M21 link 5 fills the `onOpenAccount` seam. A test asserts the rendered
+  refusal carries no currency, amount or period
+
+## 2026-09-13 — the entitlement vocabulary: what an account may do
+
+- Added: `Entitlement` (`ai.ask` | `ai.command` | `trip.collaborators`),
+  `PlanId` (`free` | `plus` | `premium`), `PlanVersionRef`
+  (`"<planId>@v<n>"`, regex built from `PlanId.options`), `GrantSource`
+  (`trial` | `referral` | `admin` | `founder`), plus the `ENTITLEMENTS` and
+  `PLAN_IDS` iteration constants — all in
+  `packages/contracts/src/entitlement.ts`, re-exported from the index
+- Why: M20 link 1 — the first commercial vocabulary in the product. ADR-045
+  rule 6 splits the Entitlements module in two: **contracts owns the words,
+  the committed plan file owns the offers.** A capability no code checks is
+  meaningless, and a check for a capability that does not exist must fail to
+  compile — which is why the strings are an enum here rather than data in the
+  plan file
+- **`PlanId` is an identity, not a rank.** There is no ordering export beside
+  it and none inside the file; `z.enum` preserves declaration order in
+  `.options`, and that order is an artifact of how the constant is written,
+  never authority. `accessPolicy.ts`'s `RANK` is the right shape for roles
+  inside one trip and the wrong shape here — a comparison operator near a plan
+  forces every later tier to be a superset of an earlier one, permanently
+  (ADR-045 rule 4). `test/entitlement.test.ts` sweeps the file's own source
+- **This package says the words and never what a plan contains.** No `PLANS`
+  constant, no ceilings, and **no price of any kind** — M20 publishes versions
+  that are free by construction and M21 link 2 adds `priceMinor`, `currency`
+  and `stripePriceId` to the plan file's entries. A price string in a M20 diff
+  means the split failed, and a test asserts its absence here
+- **No trip type is imported and no planning capability is named.** ADR-045
+  rule 5: Entitlements answers `can(account, "trip.collaborators")` and the
+  *caller* knows that capability is about invites. There is deliberately no
+  `trip.plan` string, because trip planning is free for every account and a
+  capability that exists is one somebody will eventually check
+- Consumers updated: `apps/web` —
+  `src/server/entitlements/planVersions.ts` (the committed plan-version file,
+  typed against `Entitlement`), `src/server/entitlements/capability.ts`
+  (`can()`), and `src/server/assistant/entitlements.ts`, whose `AiCapability`
+  becomes `Extract<Entitlement, "ai.ask" | "ai.command">` rather than two
+  hand-written strings — exactly what that file's comment said would happen
+  when link 1 landed — so the kernel's subset is provably a subset
+- Breaking? no — every name is new. Nothing parsed differently, no stored
+  payload changed shape, and no wire response moved. *(M20 Phase 3's 403→402
+  on `/ask` and `/ai` **is** a breaking wire change and gets its own entry
+  when it lands.)*
+
 ## 2026-09-13 — `PageContext.kind`: which page this is, stored
 - Added: `kind: z.literal("overview").optional()` on `PageContext`
   (`packages/contracts/src/pages.ts`). Nothing else changed shape

@@ -530,6 +530,27 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Two M20 migrations are merged-pending and undispatched: `0019` and
+  `0020`.** Dispatch from `main`, in order:
+  `gh workflow run migrate-production.yml -f confirm=migrate`. Merging does not
+  apply them, and an undispatched migration is production schema drift waiting
+  to happen — `0018` sat undispatched for two days before M20's build settled
+  it. *(Filed 2026-09-13 with the M20 build. Delete this bullet at dispatch.)*
+- **`ADMIN_USER_IDS` must be set in production before `/admin` is reachable
+  there.** The operator console is gated on `users.is_admin` and nothing in the
+  product sets that column, so the allowlist read at sign-in
+  (`apps/web/src/lib/adminBootstrap.ts`) is the only way a first operator
+  exists. Unset promotes nobody, which is the safe default and also a console
+  nobody can open. *(Filed 2026-09-13 with the M20 build.)*
+- **A fourth capability would make M20's fourth-plan proof stronger.**
+  `studio` grants `trip.collaborators` without `ai.command`, which makes it
+  incomparable with `plus` — but it is still a *subset of `premium`*, because
+  `premium` holds the whole three-word vocabulary. That is a fact about the
+  vocabulary rather than the plans, and `planVersions.fourthPlan.test.ts` says
+  so rather than hiding it. The day a capability exists that `premium` does not
+  grant, the proof becomes unconditional. *(Filed 2026-09-13 with the M20
+  build; not a defect, a sharper version of a claim already true.)*
+
 - **`open` ("What needs you") is built as a two-column table and the design is
   not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
   looks nothing like the designs"*, and he is right — the row SHAPE is wrong,

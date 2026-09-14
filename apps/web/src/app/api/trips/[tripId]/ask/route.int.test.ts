@@ -1,6 +1,6 @@
 import { newPageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { createPage } from "@/server/pages";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
@@ -46,7 +46,11 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
     ...actual,
     selectAiModel: vi.fn(async (actor: Parameters<typeof actual.selectAiModel>[0]) =>
       denyNextSelection
-        ? { outcome: "denied" as const, reason: "AI is not available for this account." }
+        ? // The server's own sentence, not a second copy of it. One string —
+          // `AI_NOT_ENTITLED_REASON` — so the endpoint, the rail and this test
+          // cannot tell three different stories about the same refusal (M20
+          // link 4).
+          { outcome: "denied" as const, reason: actual.AI_NOT_ENTITLED_REASON }
         : actual.selectAiModel(actor),
     ),
   };
@@ -95,6 +99,11 @@ const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
+const { upsertUser } = await import("@/server/users");
+const { issueGrant } = await import("@/server/entitlements/grants");
+const { aiUsage } = await import("@/server/db/schema");
+const { eq } = await import("drizzle-orm");
+const { AI_NOT_ENTITLED_REASON } = await import("@/server/ai/modelSelection");
 
 /** A three-day trip with real time windows, so a free-time answer has something to find. */
 async function seedTrip(): Promise<string> {
@@ -327,6 +336,31 @@ async function ask(tripId: string, body: unknown, sink: (r: AskAnalyticsRecord) 
 // truncation is needed — except `rate_limit_counters`, which is keyed by ACTOR
 // and is therefore genuinely shared state between these tests.
 describe("POST /api/trips/:id/ask", () => {
+  // **`ACTOR_ID` is an ENTITLED account, and since M20 it has to be said out
+  // loud.** Trips here are seeded by command, which mints no `users` row, so
+  // before this the actor had no plan and the entitlement gate — wired at
+  // `selectAiModel`'s default in M20 link 4 — refused every turn that reached
+  // the real selection path. Exactly one test does (the kill-switch one; every
+  // other injects a model), and it went from 200 to 403.
+  //
+  // A permanent `admin` grant of `premium@v1` rather than a `users.plan_id`
+  // write: it is the same path an operator uses, so this fixture exercises
+  // shipped code instead of a shortcut around it. The entitlement gate's own
+  // behaviour is covered in `entitlements/resolver.int.test.ts` and in this
+  // file's `403s with ai-not-entitled` test, which drives the refusal through
+  // the injected seam.
+  beforeAll(async () => {
+    await upsertUser({ id: ACTOR_ID, email: null, name: null, image: null });
+    await issueGrant({
+      userId: ACTOR_ID,
+      planId: "premium",
+      planVersion: 1,
+      source: "admin",
+      grantedBy: "ask-route-int-test",
+      expiresAt: null,
+    });
+  });
+
   beforeEach(async () => {
     currentUserId = ACTOR_ID;
     denyNextSelection = false;
@@ -1437,7 +1471,12 @@ describe("POST /api/trips/:id/ask", () => {
       }
     });
 
-    it("403s with ai-not-entitled when selection denies the actor", async () => {
+    // **402, not 403, since M20 link 4.** `modelSelection.ts` recorded the old
+    // reason in as many words — *"403, not 402: 402 asserts a payment
+    // relationship that does not exist yet"* — and M20 creates one. The code is
+    // unchanged, which is what a correctly written client branches on; the
+    // status moved and that is a breaking wire change.
+    it("402s with ai-not-entitled when selection denies the actor", async () => {
       const tripId = await seedTrip();
       denyNextSelection = true;
       // No injected model: `denied` is a decision selectAiModel makes, so the
@@ -1446,10 +1485,38 @@ describe("POST /api/trips/:id/ask", () => {
         req(tripId, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
         tripId,
       );
-      expect(res.status).toBe(403);
-      expect(await res.json()).toEqual({ error: "AI is not available for this account.", code: "ai-not-entitled" });
+      expect(res.status).toBe(402);
+      expect(await res.json()).toEqual({ error: AI_NOT_ENTITLED_REASON, code: "ai-not-entitled" });
+      // The refusal NAMES THE TIER rather than reading as a permission error,
+      // which is the whole difference a 402 claims to carry.
+      expect(AI_NOT_ENTITLED_REASON).toContain("Plus");
+      // And carries no price — M20 never learns what a plan costs.
+      expect(AI_NOT_ENTITLED_REASON).not.toMatch(/\$|\d+\s*(\/|per)\s*month|usd/i);
       // A refused actor is never charged: selection comes first.
       expect(await db.select().from(rateLimitCounters)).toHaveLength(0);
+    });
+
+    // **The gate reached through a real account, not through the test seam.**
+    // The test above injects `denied`; this one has a `free` account meet the
+    // resolver that M20 link 4 wired in, which is the path production runs.
+    it("402s a real free account, through the resolver rather than the seam", async () => {
+      const free = `dev-${randomUUID()}`;
+      await upsertUser({ id: free, email: null, name: null, image: null });
+      // Make the free account the trip's owner, so it clears the access guard
+      // and the ONLY thing left to refuse it is its plan.
+      const ownTrip = randomUUID();
+      const created = await executeTripCommand(
+        { type: "CreateTrip", tripId: ownTrip, name: "Free account's trip" },
+        free,
+      );
+      expect(created.ok).toBe(true);
+      currentUserId = free;
+      const res = await handleAskRequest(
+        req(ownTrip, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
+        ownTrip,
+      );
+      expect(res.status).toBe(402);
+      expect((await res.json()).code).toBe("ai-not-entitled");
     });
 
     // The kill switch's promise, as a test: with AI off the endpoint answers on
@@ -1629,6 +1696,8 @@ describe("POST /api/trips/:id/ask", () => {
 
     it("records an abandoned turn", async () => {
       const tripId = await seedTrip();
+      // The baseline, taken BEFORE the request — see the assertion below.
+      const usageRowsBefore = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
       const records: AskAnalyticsRecord[] = [];
       const controller = new AbortController();
       controller.abort();
@@ -1646,6 +1715,36 @@ describe("POST /api/trips/:id/ask", () => {
       // A user who navigated away is not a failure, and must not read as one
       // to anyone counting error rates off these lines.
       expect(records[0]).toMatchObject({ outcome: "abort", cause: null });
+
+      // **And it still writes an `ai_usage` row** (M20 link 9). This asserted
+      // only the analytics record, so the abort path's durable write was
+      // covered by a direct `recordAiUsage` test and by nothing that drove the
+      // endpoint. Abort is the outcome a reader is most likely to assume is
+      // free — the user closed the rail — and the round-trips the provider had
+      // already been paid for are exactly what the ledger must not lose.
+      // Caught by CodeRabbit on PR #174.
+      //
+      // **`waitFor`, because this path does not await the write and that is
+      // deliberate** — the response is already gone, so the abort and error
+      // paths are best-effort on the same terms `settleAiSteps` has been since
+      // ADR-033. Asserting it synchronously passed alone and failed in the full
+      // suite, which is the honest signal that the guarantee is eventual rather
+      // than immediate. KI-2026-09-14-b carries what closing that gap properly
+      // would take.
+      // **One NEW row from THIS request**, counted against a baseline taken
+      // before it. `ACTOR_ID` is shared and accumulates rows across the file,
+      // so `> 0` passed whenever any earlier test had aborted — including when
+      // this request wrote nothing at all, which is the exact case the
+      // assertion exists for. CodeRabbit, PR #174.
+      await vi.waitFor(async () => {
+        const rows = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
+        expect(rows.length).toBe(usageRowsBefore.length + 1);
+        const added = rows.filter(
+          (row) => !usageRowsBefore.some((before) => before.id === row.id),
+        );
+        expect(added).toHaveLength(1);
+        expect(added[0]!.outcome).toBe("abort");
+      });
     });
   });
 
@@ -1715,15 +1814,101 @@ describe("POST /api/trips/:id/ask", () => {
 // It asserts the codes are equal AND that they are the strings the deployed
 // clients already parse — equality alone would survive both sides being
 // renamed together, which is exactly the change that breaks a client mid-roll.
+// **M20 link 9's gate box, through the real endpoint** (`usage.int.test.ts`
+// drives the writer directly; this drives `/ask`).
+//
+// *"Every AI request writes one `ai_usage` row, including a request that fails
+// partway — the round-trips were still paid for. A test asserts the failure
+// path writes."*
+describe("the cost ledger", () => {
+  // **Ordered, because these tests read the LAST element as the newest row.**
+  // SQL result order is undefined without an `ORDER BY`, and `ACTOR_ID`
+  // accumulates rows across this describe — so the unordered version could
+  // inspect an older row and assert the wrong turn's outcome. `id` breaks ties
+  // within the same millisecond. Caught by CodeRabbit on PR #174.
+  const usageRows = async (userId: string) =>
+    db
+      .select()
+      .from(aiUsage)
+      .where(eq(aiUsage.userId, userId))
+      .orderBy(aiUsage.createdAt, aiUsage.id);
+
+  it("writes one row for a completed turn", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    const res = await ask(tripId, {
+      messages: [userMessage("how long is this trip?")],
+      scope: { kind: "trip" },
+    });
+    expect(res.status).toBe(200);
+    await chunksOf(res);
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    const row = rows[rows.length - 1]!;
+    expect(row.outcome).toBe("completed");
+    expect(row.endpoint).toBe("ask");
+    // The RESOLVED model that actually ran, never a compiled default.
+    expect(row.turnModel).toBe("simulated/no-op");
+    expect(row.steps).toBeGreaterThan(0);
+  });
+
+  // **The failure path.** The provider was paid for the round-trips it made
+  // before it exploded, so a turn that failed partway is not a free turn — and
+  // a ledger that skipped it would understate exactly the accounts that cost
+  // the most to serve.
+  it("writes a row for a turn that failed partway", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
+      tripId,
+      failingModel("provider exploded"),
+    );
+    await chunksOf(res);
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    expect(rows[rows.length - 1]!.outcome).toBe("error");
+  });
+
+  // No question text and no trip content reaches the row — asserted here, on a
+  // turn whose question and trip are both known, rather than only against the
+  // column list.
+  it("stores nothing the person typed and nothing about the trip", async () => {
+    const tripId = await seedTrip();
+    const before = (await usageRows(ACTOR_ID)).length;
+    await chunksOf(
+      await ask(tripId, {
+        messages: [userMessage("what should I do in Fushimi Inari on day one?")],
+        scope: { kind: "trip" },
+      }),
+    );
+    await vi.waitFor(async () => expect((await usageRows(ACTOR_ID)).length).toBe(before + 1));
+
+    const rows = await usageRows(ACTOR_ID);
+    const serialised = JSON.stringify(rows[rows.length - 1]);
+    expect(serialised).not.toContain("Fushimi");
+    expect(serialised).not.toContain("Kyoto");
+    expect(serialised).not.toContain(tripId);
+  });
+});
+
 describe("the refusal codes the browser branches on", () => {
   it("are the same strings on both sides of the UI/server wall", async () => {
     const client = await import("@/lib/apiClient");
     const { DEMO_TRIP_UNSUPPORTED_CODE } = await import("@/server/ai/handleAskRequest");
-    const { AI_NOT_ENTITLED_CODE } = await import("@/server/ai/modelSelection");
+    const { AI_NOT_ENTITLED_CODE, AI_NOT_ENTITLED_STATUS } = await import(
+      "@/server/ai/modelSelection"
+    );
 
     expect(client.DEMO_TRIP_UNSUPPORTED_CODE).toBe(DEMO_TRIP_UNSUPPORTED_CODE);
     expect(client.AI_NOT_ENTITLED_CODE).toBe(AI_NOT_ENTITLED_CODE);
     expect(DEMO_TRIP_UNSUPPORTED_CODE).toBe("demo-trip-unsupported");
     expect(AI_NOT_ENTITLED_CODE).toBe("ai-not-entitled");
+    // The status is duplicated across the same wall, for the same reason and
+    // with the same risk of drifting. 402 Payment Required (M20 link 4).
+    expect(client.AI_NOT_ENTITLED_STATUS).toBe(AI_NOT_ENTITLED_STATUS);
+    expect(AI_NOT_ENTITLED_STATUS).toBe(402);
   });
 });

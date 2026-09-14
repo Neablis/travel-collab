@@ -47,6 +47,16 @@ export interface AskThread {
   thread: AssistantTurn[];
   asking: boolean;
   askError: string | null;
+  /**
+   * The server's `code` for that refusal, when it had one.
+   *
+   * Carried beside the message rather than folded into it because two refusals
+   * are not failures and one of them is actionable: M20's `ai-not-entitled`
+   * wants an upgrade path, not a red alert, and a surface cannot tell which it
+   * has from prose. `null` for a client-side refusal and for any error the
+   * server did not code.
+   */
+  askErrorCode: string | null;
   simulated: boolean;
   asksRemaining: number;
   restoredDraft: string | null;
@@ -80,6 +90,7 @@ export function useAskThread({
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
+  const [askErrorCode, setAskErrorCode] = useState<string | null>(null);
   // The conversation itself, oldest turn first.
   //
   // Client-held (Ruling R1): there is no conversations table and no migration,
@@ -139,6 +150,7 @@ export function useAskThread({
     ]);
     setStatus("loading");
     setAskError(null);
+    setAskErrorCode(null);
     setSimulated(false);
     // Cleared so a second rollback of the SAME text still re-fires the rail's
     // restore effect — the value has to change for the effect to see it.
@@ -234,6 +246,7 @@ export function useAskThread({
     }
     setStatus("error");
     setAskError(errorMessageRef.current(result.error));
+    setAskErrorCode(result.error.code ?? null);
   };
 
   const startNewConversation = () => {
@@ -242,6 +255,7 @@ export function useAskThread({
     setThread([]);
     setStatus("idle");
     setAskError(null);
+    setAskErrorCode(null);
     setSimulated(false);
     setRestoredDraft(null);
   };
@@ -273,6 +287,10 @@ export function useAskThread({
   const refuse = (message: string) => {
     setStatus("error");
     setAskError(message);
+    // A client-side refusal has no server code, and clearing it is what stops
+    // a stale `ai-not-entitled` from turning the next unrelated refusal into an
+    // upgrade prompt.
+    setAskErrorCode(null);
     setSimulated(false);
   };
 
@@ -292,6 +310,7 @@ export function useAskThread({
     thread,
     asking: status === "loading",
     askError: status === "error" ? askError : null,
+    askErrorCode: status === "error" ? askErrorCode : null,
     simulated,
     asksRemaining,
     restoredDraft,

@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
+import { E2E_ADMIN_USER_ID } from "./e2e/adminBootstrap";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -148,6 +149,18 @@ export default defineConfig({
       // race all pass vacuously. So the e2e server opts back in and the gate
       // behaves here exactly as M11a specified it. Nowhere else sets this.
       DEV_LOGIN_HONOURS_INVITE_GATE: "true",
+      // M20 link 7: the operator console is gated on `users.is_admin`, and
+      // nothing in the product sets that column — granting writes
+      // `entitlement_grants`, not this. So the first operator comes from this
+      // allowlist, read at sign-in (`lib/adminBootstrap.ts`), and
+      // `m20-entitlements.spec.ts` signs in as exactly this id to drive the
+      // console's grant and revoke through their real endpoints rather than
+      // through a test-only door.
+      //
+      // A LITERAL, for the same reason `INVITE_SUPER_CODE` above is: the spec
+      // signs in as this exact username, so a developer's own value in
+      // `.env.local` must not be what the server ends up trusting.
+      ADMIN_USER_IDS: E2E_ADMIN_USER_ID,
       // Auth.js v5 rejects requests from untrusted hosts under `next start`
       // (production mode) unless the platform sets this itself (Vercel does).
       // CI's workflow env already sets this for the job as a whole (see

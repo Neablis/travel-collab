@@ -84,11 +84,22 @@ reviews:
         fixed/absolute overlays, scrims, and breakpoint-gated layout that the
         1280px default e2e viewport would not exercise.
 
+    # The command-pipeline rule is SCOPED, and saying so here is the whole
+    # point: invariant 1 applies it to the planning domain only, and ADR-003
+    # makes Identity, Access, Community and Entitlements ordinary CRUD. Left
+    # unscoped, this instruction flags every write in those modules as a
+    # violation — it did exactly that four times on PR #174, against code
+    # ADR-045 had already settled as deliberately not event-sourced.
     - path: "apps/web/src/server/**"
       instructions: >-
-        Flag direct database writes that bypass the command pipeline, and any
-        hand-written type duplicating a packages/contracts schema. AI model
-        output must be validated against a schema at its boundary (KI-9).
+        Flag direct database writes to PLANNING state (trips, days,
+        activities, costs, notebooks) that bypass the command pipeline —
+        invariant 1. Do NOT flag direct writes in the CRUD modules the event
+        log deliberately excludes (ADR-003): Identity, Access, Community and
+        Entitlements — users, invites, memberships, entitlement_grants,
+        ai_usage. Also flag any hand-written type duplicating a
+        packages/contracts schema. AI model output must be validated against a
+        schema at its boundary (KI-9).
 
     # Component tests are .test.tsx and e2e specs are .spec.ts here, so a
     # single "**/*.test.ts" entry would have covered barely a third of the

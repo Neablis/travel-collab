@@ -179,6 +179,37 @@ Seven links.
      it. Changing it is then a one-line change rather than a hunt, which
      matters because 3 days is a guess that first contact with real declines
      will want to revise.
+7. **What M20 left standing for you, and exactly where to attach.** *(Added
+   2026-09-14 while M20 was in review, on Mitchell's instruction: "I just want
+   you to start setting it up in a way the next session builds it correctly.")*
+
+   Four surfaces are already drawn, already fed by real data, and already
+   inert. **None of them needs redesigning — each needs one thing supplied**,
+   and in every case the thing missing is a price, a customer or a session,
+   which are this milestone's to add.
+
+   | Surface | Where | What is missing |
+   |---|---|---|
+   | Change plan | `components/account/PlanSection.tsx` → **`startPlanChange(planId)`** | Create a Checkout session and redirect. The function exists, is named, is a no-op, and is the ONLY thing to replace on that screen. |
+   | Payment and invoices | same file, `<Preview id="account-plan-billing">` | A customer to open the Stripe portal for. |
+   | The four-number strip | `app/admin/page.tsx` (absent by design) | MRR, ARPU ×2, median margin — all four need a subscription. M20's console deliberately has no strip; its `admin.console.test.ts` will fail the moment a revenue word appears, so **that test is the first thing to update when the strip lands**, not a wall to route around. |
+   | `Pays` / `State` columns, red row highlight, the `Past due` and `Costs more than it pays` chips | `components/admin/AccountsPanel.tsx` | What an account pays. The filter ids are already semantic (`entitled`/`unentitled`) rather than plan names, so adding two is additive. |
+
+   **The plan catalogue is not yours to invent.** `server/entitlements/planVersions.ts`
+   is the committed, append-only definition of what each plan grants, and the
+   account chooser and the operator console's tier panel both read it. M21 adds
+   **price** to that record — as a new dated version, never an edit to a
+   published one — and the two surfaces pick it up without changing shape.
+   `lib/accountPlan.ts` and its server twin are pinned by a compile-time
+   identity test, and a second test asserts no price-shaped word appears in
+   either; **that second test is the one to delete in this milestone**, and
+   deleting it deliberately is the point — it exists so the price arrives on
+   purpose rather than by drift.
+
+   Both shells are registered in `lib/preview-registry.ts` tagged `M21`. The
+   registry's rule is that a tag is a claim that this milestone wires it up, so
+   removing those two entries is part of this link's definition of done.
+
 7. **The revenue half of the unit economics.** M20 link 9 builds the cost
    ledger — `ai_usage`, tokens not dollars, one row per AI request. This link
    adds what it has to be compared against, and the comparison itself. Four

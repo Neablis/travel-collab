@@ -57,3 +57,50 @@ export const aiLiveFlag = flag<boolean, FlagEntities>({
   adapter: vercelAdapter(),
   identify: identifyFlagEntities,
 });
+
+// **Who may open the operator console, without a redeploy** (M20 link 7,
+// Mitchell 2026-09-14: *"add me also using feature flags to turn on admin for
+// accounts so I don't need a redeploy"*).
+//
+// **This does not make entitlement a flag, and the distinction is the whole
+// reason this is allowed to exist.** ADR-019's 2026-08-25 amendment declines to
+// assume a paid tier is a flag — *"a paid tier is more likely a database fact
+// than a flag value"* — and M20 built it as one: a plan version, a pinned
+// purchase, an audit trail, money behind it. **`is_admin` is none of those.**
+// Nobody buys it, nothing pins it, no version records what it granted, and it
+// confers no capability a plan sells. It is an operator bit on a staff account,
+// which is exactly the shape a targeting rule is for. **A capability a customer
+// pays for still may not live here.**
+//
+// **`defaultValue: false`, and every failure answers `false`.** Unlike
+// `ai-live`, where off is "simulated" and the product still works, off here is
+// simply "not an operator" — so there is no tension between failing closed and
+// staying useful. An unreachable Flags service, an unconfigured adapter (which
+// is the ordinary case locally, where `vercelAdapter()` has no Edge Config),
+// and an `identify` that throws all land on the same answer. The catch that
+// covers the last of those is `adminConsoleFlagForCaller()`, because the SDK
+// runs `identify` BEFORE the code path that applies `defaultValue` — the same
+// hole `aiLive()` catches for `ai-live`.
+//
+// **It only ever WIDENS.** `users.is_admin` stays the durable fact and is what
+// the console displays; this is a second way to say yes, never a way to say no.
+// Taking admin away is clearing the column, not removing a rule — otherwise a
+// Flags outage would silently revoke every operator, and "the console is empty
+// today" is not a message anyone would read as an outage.
+//
+// The rule is written against `user.email` (`server/flagEntities.ts`), so
+// turning admin on for somebody is one dashboard rule and no deploy:
+//   vercel flags rules add admin-console --environment production \
+//     --if 'user.email eq "mitchell@example.com"' --then true
+export const adminConsoleFlag = flag<boolean, FlagEntities>({
+  key: "admin-console",
+  description:
+    "When on for the caller, they may open /admin and every admin endpoint. Widens users.is_admin; never narrows it. Targetable per user.",
+  options: [
+    { label: "Not an operator", value: false },
+    { label: "Operator", value: true },
+  ],
+  defaultValue: false,
+  adapter: vercelAdapter(),
+  identify: identifyFlagEntities,
+});

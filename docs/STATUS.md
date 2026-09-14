@@ -35,27 +35,53 @@ Mitchell's reorder the same day, asked for directly: **the commercial pair M20 �
 ahead of M9's remaining work.** Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
 
-**Nothing is built yet, and that is the whole position.** The opening landed in
-**`85b6cd2` (#173, merged 2026-09-13)** and is prose only: ADR-045 (*Entitlements is a module
-with two stores*), the `AGENTS.md` module-map row it adds, five recorded decisions, and the
-kickoff plan. **No line of M20 exists.** Exit gate: 0 of 29 live boxes. The narrative and the
-three costs accepted with the reorder are in `docs/milestones/README.md` under **2026-09-13**;
-do not restate them here.
+**ALL SIX PHASES ARE BUILT, ON ONE BRANCH, AND NOT YET MERGED.**
+`claude/milestone-m20-build-h2mw7b`, six commits off `fbcefad`, one per phase of
+`docs/plans/2026-09-13-M20-M21-commercial.md`:
 
-**The work hands over here, to a fresh branch off `main`.** #173 was **squash-merged**, so
-`claude/stripe-payment-milestone-ptyuph` still reports as commits ahead of main while its
-content is entirely in main (`git diff origin/main <branch>` is empty). **Do not continue that
-branch** — it is the squash-merge hazard M9 Phase 0's retro named as its most expensive
-lesson, arriving a second time.
+1. the entitlement vocabulary in `packages/contracts` and the three launch plans as a
+   committed file, with the no-spread/no-extend/no-display-order test written here
+2. migration **0019** (`entitlement_grants`, `users.plan_id`/`plan_version`/`is_admin`),
+   the founder backfill, the signup trial, and `entitlementsFor(userId)`
+3. **403 → 402** with the tier named, and per-tier ceilings (`plus` 50·400,
+   `premium` 200·1600) from the pinned version
+4. the collaboration gate, capped on read in `effectiveMembers`
+5. migration **0020** (`ai_usage`) and the dated model-rate file
+6. the operator console, the referral loop, and the fourth-plan proof (`studio`)
 
-**Start here:** `docs/plans/2026-09-13-M20-M21-commercial.md` — six phases for M20, four
-sketched for M21, and **no open questions left**: all three the plan opened were closed
-2026-09-13. Begin with its **Preflight**, which names two live migration hazards, then
-Phase 1.
+**The plan says one branch and one PR per phase; the session's branch requirement said one
+branch.** The branch requirement won, so this is six commits rather than six PRs — each
+commit is a phase and reviewable as one. Say so when opening the PR.
 
-**M21 is placed, not open.** Its prerequisite is M20 *closed*. Its prices are decided
-(`free` $0 / `plus` $9 / `premium` $19) and live in M21's file — **a price string in M20's
-diff means the split has failed.**
+**What is proven:** `pnpm check` green in full (typecheck 0, lint 0, 2,633 web unit tests,
+569 integration tests), and **`pnpm --filter web test:e2e:ci-like` — 120 passed, 0 failed, 0
+flaky**, which is the only e2e verdict that counts (`test:e2e` serves `pnpm dev` and produces
+timeouts CI does not have — CLAUDE.md rule 1). `e2e/m20-entitlements.spec.ts` walks five gate
+boxes, including the milestone's most important negative (a free account plans a whole trip
+with no gate anywhere) and a grant biting on the next request with no re-authentication.
+
+**The full run earned its cost once**: an earlier pass failed three `m11-invites` tests on an
+*Invite role* select that link 6 correctly no longer renders for a `free` owner. The gate
+working, not a flake — and something no narrower lane would have found.
+
+**Two migrations are applied locally and NEITHER IS DISPATCHED TO PRODUCTION.** Merging does
+not apply them: `gh workflow run migrate-production.yml -f confirm=migrate` from `main`,
+0019 then 0020. `0018` was dispatched at the start of this work (run 19, success), so
+neither goes out behind a hole.
+
+**The exit gate is not ticked and that is deliberate.** A gate closes on a deployed demo,
+through `docs/milestones/README.md`'s gate-close checklist, in one commit. Nothing here has
+been deployed.
+
+**One thing the milestone did not name and the build needed: an operator bootstrap.**
+`/admin` is gated on `users.is_admin` and nothing in the product sets that column, so the
+first operator could only be made with a psql session. Two ways in now, and neither is a
+database write: `ADMIN_USER_IDS` (`.env.example`, `lib/adminBootstrap.ts`), read at sign-in,
+and the **`admin-console` feature flag** (2026-09-14, Mitchell's ask), targeted per account
+from the Vercel dashboard with **no deploy and no sign-out**. Both only ever promote;
+revoking is clearing the column. The flag fails closed, so the env var is the break-glass
+path that survives the Flags service being unreachable — and the only path locally and in
+CI, where no adapter is configured. **Neither is set in production yet.**
 
 **The one thing to know before touching this milestone:** *a plan is a set, not a rank.* Code
 asks `can(ent, "ai.ask")` and nothing compares plans. `accessPolicy.ts:11`'s `RANK` is the

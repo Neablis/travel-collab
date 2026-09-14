@@ -14,9 +14,21 @@ const fetchPreferencesMock = vi.fn(async () => ({
   ok: true as const,
   value: { displayName: null, homeAirport: null, distanceUnit: "km" as const },
 }));
+// Typed as the helper's real return so a `{ ok: false }` case can be driven —
+// `ApiResult`, like every other apiClient helper (its totality witness is what
+// keeps that one shape true).
+const fetchIsAdminMock =
+  vi.fn<() => Promise<{ ok: true; value: boolean } | { ok: false; error: { status: number; message: string } }>>(
+    async () => ({ ok: true, value: false }),
+  );
 vi.mock("@/lib/apiClient", () => ({
   resetDemoData: (...args: unknown[]) => resetDemoDataMock(...args),
   fetchPreferences: () => fetchPreferencesMock(),
+  // M20 link 7: the menu asks once on mount whether this account is an
+  // operator, to decide whether to offer the console. Default false, so every
+  // test written before the console keeps describing the menu it was written
+  // for.
+  fetchIsAdmin: () => fetchIsAdminMock(),
   updatePreferences: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "no" } })),
 }));
 
@@ -236,5 +248,37 @@ describe("AccountMenuFromSession", () => {
     await waitFor(() => expect(resetDemoDataMock).toHaveBeenCalled());
     await waitFor(() => expect(reloadSpy).toHaveBeenCalled());
     Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+});
+
+// **The operator console's entry point** (M20 link 7). Advisory only — the
+// route and every admin endpoint answer 404 to a non-admin whatever this
+// renders — so what is asserted is that the console is reachable by CLICKING
+// for an operator and invisible to everyone else, which is the reviewability
+// half AGENTS.md's Definition of Done asks for.
+describe("AccountMenu — the operator console", () => {
+  it("offers no console to an ordinary account", async () => {
+    fetchIsAdminMock.mockResolvedValue({ ok: true, value: false });
+    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    await userEvent.click(screen.getByRole("button", { name: /account/i }));
+    expect(screen.queryByRole("link", { name: "Operator console" })).toBeNull();
+  });
+
+  it("offers it to an operator, pointing at /admin", async () => {
+    fetchIsAdminMock.mockResolvedValue({ ok: true, value: true });
+    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    await userEvent.click(screen.getByRole("button", { name: /account/i }));
+    const link = await screen.findByRole("link", { name: "Operator console" });
+    expect(link.getAttribute("href")).toBe("/admin");
+  });
+
+  // A failed read is a menu without the item, never a menu with it: an item
+  // that fails to appear costs an operator one typed URL, and one that appears
+  // wrongly is a 404 nobody expected.
+  it("offers nothing when the read fails", async () => {
+    fetchIsAdminMock.mockResolvedValue({ ok: false, error: { status: 0, message: "offline" } });
+    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    await userEvent.click(screen.getByRole("button", { name: /account/i }));
+    expect(screen.queryByRole("link", { name: "Operator console" })).toBeNull();
   });
 });

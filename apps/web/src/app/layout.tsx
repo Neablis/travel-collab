@@ -8,6 +8,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/siteMetadata";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-next-display" });
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-next-sans" });
@@ -19,13 +20,10 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 // production domain in production, the deployment's own URL on previews (so
 // a shared preview link unfurls with an og:image that actually loads —
 // production may not exist yet), localhost otherwise.
-const metadataBase = new URL(
-  process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : `http://localhost:${process.env.WEB_PORT ?? "3001"}`,
-);
+// Moved to `lib/deploymentOrigin.ts` when `app/admin/page.tsx` needed the same
+// rule to build a credential-bearing URL — two copies of an origin hierarchy
+// drift, and the copy that drifts is the one nobody is looking at.
+const metadataBase = new URL(deploymentOrigin());
 
 // og:image, og:image:alt and twitter:image come from the file conventions
 // next to this layout (src/app/opengraph-image.png + .alt.txt, and icon.svg
