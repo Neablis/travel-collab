@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { GrantDialog } from "@/components/admin/GrantDialog";
-import { GrantList } from "@/components/admin/GrantList";
+import { AccountsPanel } from "@/components/admin/AccountsPanel";
 import { adminOverview } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 
@@ -158,53 +157,18 @@ export default async function AdminPage() {
         <Heading level={2} id="accounts-heading">
           Accounts
         </Heading>
-        <Table className="text-xs" data-testid="accounts-table">
-          <THead>
-            <TR>
-              <TH>Account</TH>
-              <TH>Holds</TH>
-              <TH>Why</TH>
-              <TH>Can</TH>
-              <TH>Requests ({overview.windowDays}d)</TH>
-              <TH>Cost ({overview.windowDays}d)</TH>
-              <TH>Grant</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {overview.accounts.map((account) => (
-              <TR key={account.userId} data-testid={`account-${account.userId}`}>
-                <TD className="text-ink">
-                  {account.email ?? account.userId}
-                  {account.isAdmin && <span className="ml-1 text-slate">(admin)</span>}
-                </TD>
-                <TD className="text-ink">{account.planVersionRef}</TD>
-                <TD className="text-ink">
-                  {/* Link 7's grant history, and the console's second write.
-                      Revoking marks the row rather than removing it — the row
-                      is what answers "has this account ever held a trial". */}
-                  <GrantList grants={account.grants} />
-                </TD>
-                <TD className="text-ink">
-                  {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
-                </TD>
-                <TD className="text-ink">{account.requests}</TD>
-                <TD className="text-ink">{microUsd(account.microUsd)}</TD>
-                <TD className="text-ink">
-                  {/* Only enabled plans are offered: `enabled` bounds what an
-                      operator may hand out, never what a holder may do, which
-                      is what lets the disabled fourth-plan proof ship without
-                      anyone receiving it. */}
-                  <GrantDialog
-                    userId={account.userId}
-                    plans={overview.plans
-                      .filter((plan) => plan.live.enabled)
-                      .map((plan) => plan.planId)}
-                  />
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
+        {/* Search, counted filters, 8 rows a page and a no-match state all live
+            in the client component: they are view state over a list the server
+            already sent, and a round trip per keystroke would be a worse
+            console for a table bounded at 100 rows. Only enabled plans are
+            offered to the grant dialog — `enabled` bounds what an operator may
+            hand out, never what a holder may do, which is what lets the
+            disabled fourth-plan proof ship without anyone receiving it. */}
+        <AccountsPanel
+          accounts={overview.accounts}
+          windowDays={overview.windowDays}
+          plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
+        />
       </section>
     </main>
   );
