@@ -120,13 +120,26 @@ export default async function AdminPage() {
             and the row it reads is still there, because nothing sweeps that
             table. "How many are on a trial now" and "how many ever had one" are
             different questions and this is the first. */}
-        <ul className="flex flex-col gap-1 text-xs" data-testid="grant-sources">
-          {["trial", "referral", "admin", "founder"].map((source) => (
-            <li key={source} className="text-ink">
-              {source}: {overview.grantSources[source] ?? 0}
-            </li>
-          ))}
-        </ul>
+        {/* A table, not a list. Mitchell on the #174 preview: *"This should
+            also be a table"* — and the "also" is the point, since this sat
+            between two real tables reading as a different kind of thing while
+            being the same kind of thing: labelled counts in fixed columns. */}
+        <Table className="text-xs" data-testid="grant-sources">
+          <THead>
+            <TR>
+              <TH>Source</TH>
+              <TH>Accounts</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {["trial", "referral", "admin", "founder"].map((source) => (
+              <TR key={source} data-testid={`grant-source-${source}`}>
+                <TD className="text-ink">{source}</TD>
+                <TD className="text-ink">{overview.grantSources[source] ?? 0}</TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
       </section>
 
       <section className="flex flex-col gap-2" aria-labelledby="spenders-heading">
