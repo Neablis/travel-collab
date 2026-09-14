@@ -1,11 +1,10 @@
-import { headers } from "next/headers";
-import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { GrantForm } from "@/components/admin/GrantForm";
 import { GrantList } from "@/components/admin/GrantList";
-import type { AdminOverview } from "@/lib/adminOverview";
+import { adminOverview } from "@/server/entitlements/admin";
+import { adminUserId } from "@/server/entitlements/requireAdmin";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
@@ -19,39 +18,30 @@ import type { AdminOverview } from "@/lib/adminOverview";
 // here and breaks the split in the direction nobody checks.
 // `admin.console.test.ts` fails if a revenue word appears on this page.
 //
-// **A server component that reads its own API**, rather than the Entitlements
-// module directly. AGENTS.md's lint wall forbids a page importing `@/server/*`
-// — UI calls the API — and that is not a rule to bend for a console. The hop
-// costs one internal request per load on an operator tool, which is nothing,
-// and it buys the property the gate box actually wants: the ENDPOINT is the
-// server-side check, so the route and the endpoint cannot disagree about who is
-// an operator.
+// **This reads the Entitlements module directly, and `src/app/admin/**` is on
+// the lint wall's exempt shell so that it may** (Mitchell, 2026-09-14).
 //
-// **The origin is CONFIGURATION, never a request header** (`lib/deploymentOrigin.ts`).
-// This built the URL from `host` and `x-forwarded-proto`, which are request
-// input, and then forwarded an operator's session cookie to it. On Vercel the
-// edge sets both and a forged host does not route here at all — but that is an
-// infrastructure guarantee standing in for a code one, on the one surface where
-// the credential is an operator's. Flagged by CodeRabbit on PR #174.
+// It did not, at first. The wall says UI calls the API, so this page fetched
+// its own `GET /api/admin/overview` over HTTP and forwarded the operator's
+// session cookie to it — the wall's letter kept, its spirit inverted, since the
+// point of "UI calls the API" is that UI runs in a browser and this does not.
+// That workaround produced two defects in two days, both on the one surface
+// where the credential is an operator's: a session cookie sent to an origin
+// derived from request headers (CodeRabbit, PR #174), and then — once the
+// origin came from configuration — a 500 on every preview load, because the
+// configured value was the per-deployment host and Vercel's protection cookie
+// is issued for the branch alias.
 //
-// The cookie is still forwarded, and now it is safe to: the destination is a
-// value this deployment was configured with, and a server-side `fetch` carries
-// no jar of its own.
-
-async function loadOverview(): Promise<AdminOverview> {
-  const incoming = await headers();
-  const res = await fetch(`${deploymentOrigin()}/api/admin/overview`, {
-    headers: { cookie: incoming.get("cookie") ?? "" },
-    // An operator console must never render a cached view of who holds what:
-    // a grant made a moment ago has to be visible, and a revoked one gone.
-    cache: "no-store",
-  });
-  // **404 for a non-admin**, which is what the endpoint answers and what this
-  // route then becomes. Any other non-200 is a real failure and throws.
-  if (res.status === 404) notFound();
-  if (!res.ok) throw new Error(`admin overview: ${res.status}`);
-  return ((await res.json()) as { overview: AdminOverview }).overview;
-}
+// Neither defect is possible now, because neither ingredient exists: no second
+// request, no cookie crossing a network boundary, no origin to choose. A server
+// component calling a server function is the boring version, and the boring
+// version is the one with no hosts in it.
+//
+// **The gate is still checked here, not inherited from the layout**, and it is
+// the same `callerIsAdmin` the endpoint uses. The gate box requires a non-admin
+// to reach a 404 for the ROUTE as well as for the endpoint — `adminUserId()`
+// returning null is that 404, and `GET /api/admin/overview` still answers its
+// own, so removing the fetch removed a caller and not a check.
 
 function microUsd(value: number): string {
   // Micro-dollars, rendered. **Not `Money`** — this is a display decision made
@@ -61,7 +51,10 @@ function microUsd(value: number): string {
 }
 
 export default async function AdminPage() {
-  const overview = await loadOverview();
+  // Before any data is read, and before anything renders. `notFound()` throws,
+  // so there is no path where `adminOverview()` runs for a non-operator.
+  if ((await adminUserId()) === null) notFound();
+  const overview = await adminOverview();
 
   return (
     <main className="flex flex-col gap-8">

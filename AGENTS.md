@@ -118,6 +118,22 @@ apps/web             Next.js all-in-one (UI + route handlers/server actions).
                      MUST NOT import packages/domain or src/server internals.
 ```
 
+The exempt shell is `src/server/**`, `src/app/api/**`,
+`src/app/.well-known/**/route.ts` — and, since 2026-09-14,
+**`src/app/admin/**`**, which may import `src/server` internals but still may
+not reach `packages/domain` or build an Auth.js instance. It is the one route
+group whose page must know something only the server knows *before it renders*:
+M20's gate box requires a non-admin to get a 404 for the **route**, not merely
+for the endpoint, and `users.is_admin` is a database column the edge proxy
+cannot read under JWT sessions (ADR-025). Because the wall restricts the
+*importer*, no relocation satisfies that — the alternative was the console
+fetching its own API over HTTP and forwarding the operator's session cookie to
+it, which kept the wall's letter (UI calls the API) while inverting its reason
+(UI runs in a browser; a server component does not), and produced two defects in
+two days. `scripts/check-lint-wall.mjs` lints three fixtures under
+`src/app/admin` — one per pattern, one open and two shut — so the exemption is
+proven to be exactly one hole.
+
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
 standalone service without touching domain or contracts (ADR-002).

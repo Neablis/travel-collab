@@ -106,6 +106,47 @@ expectRejectedBy(
   "@/server/* import from UI correctly rejected",
 );
 
+// THE ADMIN EXEMPTION, proven to be exactly one hole (2026-09-14).
+//
+// `src/app/admin/**` may reach `@/server/*` — M20's gate box requires the ROUTE
+// to 404 for a non-admin, which needs `users.is_admin`, which is a database
+// column the edge proxy cannot read. What made this worth fixturing is the flat
+// config mechanic the config itself warns about twice: ESLint REPLACES a rule's
+// options for the last matching block rather than merging them, so dropping the
+// console from two blocks' `ignores` and handing the restrictions back in a
+// third is easy to get half-right. A version of this that silently also opened
+// `@tc/domain` and `@/lib/authConfig` would lint clean and look identical.
+//
+// Three fixtures, because the claim is three-part: one hole open, two shut.
+expectClean(
+  lintFixture(
+    "admin_server_fixture",
+    'import "@/server/entitlements/admin";\nexport default function Fixture() { return null; }\n',
+    { dir: "src/app/admin" },
+  ),
+  "the operator console may import @/server/* (the exemption is open)",
+);
+
+expectRejectedBy(
+  lintFixture(
+    "admin_domain_fixture",
+    'import "@tc/domain";\nexport default function Fixture() { return null; }\n',
+    { dir: "src/app/admin" },
+  ),
+  "no-restricted-imports",
+  "the operator console still may not import @tc/domain",
+);
+
+expectRejectedBy(
+  lintFixture(
+    "admin_authconfig_fixture",
+    'import "@/lib/authConfig";\nexport default function Fixture() { return null; }\n',
+    { dir: "src/app/admin" },
+  ),
+  "no-restricted-imports",
+  "the operator console still may not build an Auth.js instance",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —

@@ -2,43 +2,43 @@
 // request header.
 //
 // Vercel's documented hierarchy, written out rather than left to a framework
-// default: the production domain in production, the deployment's own URL on a
-// preview (so a shared preview link resolves against something that exists),
-// localhost otherwise. `src/app/layout.tsx` has carried this since M18 for
-// `metadataBase`; it lives here now because a second caller needs it and two
-// copies of an origin rule drift.
+// default: the production domain in production, the branch alias on a preview,
+// the deployment's own URL for a deployment that has no alias, localhost
+// otherwise.
 //
-// **The second caller is why this is a shared module rather than a constant.**
-// `app/admin/page.tsx` fetches its own API and forwards the caller's session
-// cookie, and it used to build that URL from the incoming `host` and
-// `x-forwarded-proto` headers. Both are request input. On Vercel the edge sets
-// them and a forged host does not route to this function at all, so it was not
-// exploitable there — but that is an infrastructure guarantee standing in for a
-// code one, and the thing being sent is an operator's session cookie. Flagged
-// by CodeRabbit on PR #174; the fix is to stop deriving a credential-bearing
-// destination from anything a client can write.
+// **One caller today — `app/layout.tsx`'s `metadataBase`** — and the module
+// survives its second one, which is worth recording because the second caller
+// is why it exists. `app/admin/page.tsx` used to render by fetching its own API
+// and forwarding the operator's session cookie, and this file was extracted so
+// that the destination came from configuration instead of from `host` and
+// `x-forwarded-proto` (CodeRabbit, PR #174). The console reads the Entitlements
+// module directly now — `src/app/admin/**` is on the lint wall's exempt shell —
+// so there is no cookie, no second request and no origin to get wrong on that
+// path at all. This stayed because `metadataBase` still needs the answer and
+// the precedence below is worth stating once.
 //
-// **On a preview the BRANCH url comes first, and getting that wrong took the
-// console down.** The first version of this went straight to `VERCEL_URL`,
-// which is the per-deployment host (`travel-collab-<hash>-<team>.vercel.app`)
-// — not the host anybody browses. A preview is reached through the branch
-// alias, Vercel's Deployment Protection issues its `_vercel_jwt` cookie for
-// THAT host, and `app/admin/page.tsx` forwards the caller's cookie header
-// verbatim. Sent to the deployment host, that cookie does not match, the
-// request is challenged rather than served, and Vercel rate-limits the
-// challenge: the self-fetch came back `429` and the page turned it into a 500.
+// **The branch alias comes before the deployment URL, and getting that backwards
+// took the console down.** `VERCEL_URL` is the per-deployment host
+// (`travel-collab-<hash>-<team>.vercel.app`), which nobody browses; a preview is
+// reached through the branch alias. When the admin page still forwarded a
+// cookie, Deployment Protection had issued it for the alias, the fetch went to
+// the deployment host, the request was challenged rather than served, and
+// Vercel rate-limited the challenge — a `429` that surfaced as a 500 on every
+// operator page load on every preview.
 //
-// The comment here used to call that failure an acceptable edge case — "a host
-// this deployment genuinely serves but which is in neither variable — a branch
-// alias, say — now fails loudly". That reasoning was wrong in a way worth
-// keeping visible: on a preview the branch alias is not an edge case, it is the
-// only case, so "fails loudly" meant every operator page load on every preview.
-// A trade-off written down is not the same as a trade-off that was measured.
+// The comment here once called that an acceptable edge case: "a host this
+// deployment genuinely serves but which is in neither variable — a branch
+// alias, say — now fails loudly". On a preview the branch alias is not an edge
+// case, it is the only case. A trade-off written down is not a trade-off
+// measured, and a named edge case that is really the default is worse than an
+// unnamed one, because it reads as considered.
 //
-// `VERCEL_BRANCH_URL` is still CONFIGURATION — Vercel sets it on the
-// deployment, no client can write it — so the security property the previous
-// change bought is unchanged. It is the same host the old header-derived code
-// arrived at, reached from a source a request cannot forge.
+// The ordering still matters here for a quieter reason: `metadataBase` resolves
+// the canonical and OG URLs, and pointing those at a per-deployment host makes
+// every preview share a link nobody else can open.
+//
+// Every branch is pinned by `deploymentOrigin.test.ts`, which this function did
+// not have when the precedence bug shipped.
 export function deploymentOrigin(): string {
   if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
