@@ -60,9 +60,27 @@ these are the SWR keys unchanged. A key is `:`-delimited, narrowest last, so a
 prefix names a family and `invalidate(tripKeys.all(id))` drops a trip's detail,
 history, access, notebook list and page docs in one call.
 
-**4. Writes invalidate, in a `finally`, whatever the outcome.** Stated as a
-second module invariant beside the existing "never rejects" one, and enforced
-per helper by a table-driven test in each client's suite.
+**4. A write opens a SCOPE, it does not merely invalidate afterwards.**
+`beginWrite(prefix)` before the request, `endWrite(prefix)` in a `finally`.
+Stated as a second module invariant beside the existing "never rejects" one,
+and enforced per helper by a table-driven test in each client's suite.
+
+The `finally` alone was the first design and it was **wrong in a way only a
+browser found** — see Consequences. Invalidating when the write RESOLVES is too
+late for a read that arrives while it is still open: `TripProvider` reads once
+on mount, takes the pre-write answer, and there is no second read to correct
+it. A scope is three things, and each is killable by its own mutation:
+
+- `beginWrite` **clears** the prefix, so a read after the write was sent finds
+  nothing stored and nothing pre-write to join.
+- While the scope is open nothing may be **stored**, so two reads during one
+  write do not share an answer the write has since falsified.
+- The scope is **counted**, not a flag — a page autosave and a command can be
+  outstanding at once, and the first to finish must not reopen caching.
+
+A fourth mechanism (suppressing cache *hits* while a scope is open) was written
+and removed: no mutation could kill it on its own, and a mechanism no test can
+kill is exactly the unproven claim this change was caught by twice.
 
 - **In a `finally`, i.e. on the way out.** Clearing before the request looks
   equivalent and is not: a read that starts after that clear and lands before
@@ -116,6 +134,16 @@ test blind spot is worse than shipping neither.
   key filter, `DEDUPE` → `dedupingInterval`. `queryKeys.ts` does not change, and
   neither do the fetchers. The call sites that change are the ones already
   calling `cachedRead`, which is the list this ADR bounds.
+- **The defect that a browser found and 2,579 unit tests could not.** Adding a
+  day and navigating away and back inside the window left the board missing the
+  day, permanently — about one attempt in five naturally, every time with a
+  slow write. `cachedRead` served an entry stored *before the command was
+  sent*; the `finally` invalidation then fired with nothing left to correct,
+  because `TripProvider` had already taken that answer and set its state. Every
+  unit test here mocks the transport, and none of them put a read between a
+  write being sent and its response — which is the whole window. Fixed by
+  Decision 4's scope; the lesson is that a cache's races live in the gaps
+  between requests, and a mocked transport has no gaps.
 - What this does NOT do: it does not make the app realtime. Every window here is
   a bet that a co-traveller has not edited in the last few seconds, and the way
   to stop betting is a subscription, not a longer cache.

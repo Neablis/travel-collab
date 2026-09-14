@@ -1,6 +1,6 @@
 import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
 import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
-import { invalidate } from "@/lib/queryCache";
+import { beginWrite, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
 // INVARIANT: every helper below RESOLVES an ApiResult and never rejects —
@@ -27,7 +27,8 @@ function networkError(err: unknown): { ok: false; error: ApiError } {
 }
 
 // SECOND INVARIANT, added with the read cache (ADR-046): every WRITE below
-// invalidates the trip's cached reads, in a `finally`, whatever the outcome.
+// opens a write SCOPE around itself — `beginWrite` before, `endWrite` in a
+// `finally` — whatever the outcome.
 //
 // **In a `finally`, i.e. on the way OUT, and that is the whole of it.**
 // Invalidating before the request looks equivalent and is not: a read that
@@ -96,6 +97,8 @@ export async function fetchPage(tripId: string, pageId: string): Promise<ApiResu
 }
 
 export async function createPage(tripId: string, input: CreatePageInput): Promise<ApiResult<Page>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages`), {
       method: "POST",
@@ -108,7 +111,7 @@ export async function createPage(tripId: string, input: CreatePageInput): Promis
   } catch (err) {
     return networkError(err);
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
@@ -117,6 +120,8 @@ export async function updatePage(
   pageId: string,
   patch: UpdatePageInput,
 ): Promise<ApiResult<Page>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`), {
       method: "PATCH",
@@ -129,11 +134,13 @@ export async function updatePage(
   } catch (err) {
     return networkError(err);
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
 export async function deletePage(tripId: string, pageId: string): Promise<ApiResult<{ ok: true }>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`), { method: "DELETE" });
     if (!res.ok) return await refusal(res);
@@ -141,6 +148,6 @@ export async function deletePage(tripId: string, pageId: string): Promise<ApiRes
   } catch (err) {
     return networkError(err);
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }

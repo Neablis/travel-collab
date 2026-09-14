@@ -22,7 +22,7 @@ import {
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
-import { clearQueryCache, invalidate } from "@/lib/queryCache";
+import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { CitySearchResponse, type CityMatch } from "@/lib/cities";
 import {
@@ -160,6 +160,8 @@ function parseOutcome(data: { detail: unknown; history: unknown }): CommandOutco
 }
 
 export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(command.tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
       method: "POST",
@@ -178,7 +180,7 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    invalidate(tripKeys.all(command.tripId));
+    endWrite(scope);
   }
 }
 
@@ -186,6 +188,8 @@ export async function sendTripCommandBatch(
   tripId: string,
   commands: BatchableCommand[],
 ): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
       method: "POST",
@@ -204,7 +208,7 @@ export async function sendTripCommandBatch(
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
@@ -229,6 +233,11 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
 // src/lib/demoDataReset.ts). Clears the signed-in user's own trips and
 // reseeds the Japan demo trip; POST, no body, 200 with the new trip's id.
 export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
+  // The whole cache, not one trip's keys: this endpoint deletes every trip the
+  // account has and reseeds the demo. A per-trip scope would be the wrong shape
+  // — there is no one trip it moved.
+  const scope = ALL_KEYS;
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
     if (!res.ok) {
@@ -240,11 +249,7 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    // The whole cache, not one trip's keys: this endpoint deletes every trip
-    // the account has and reseeds the demo. A per-trip `invalidate` would be
-    // the wrong shape — there is no one trip it moved — and the cache would go
-    // on serving trips that no longer exist. Preview-only, but a stale board
-    // after a reset is exactly the confusion the reset exists to clear.
+    endWrite(scope);
     clearQueryCache();
   }
 }
@@ -275,6 +280,8 @@ export async function createTripInvite(
   tripId: string,
   input: CreateInviteInput,
 ): Promise<ApiResult<TripInvite>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/invites`), {
       method: "POST",
@@ -285,9 +292,7 @@ export async function createTripInvite(
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    // Membership is what `fetchTripAccess` reports, so an invite written or
-    // revoked moves a cached `access` read as surely as a command moves detail.
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
@@ -295,15 +300,15 @@ export async function revokeTripInvite(
   tripId: string,
   inviteId: string,
 ): Promise<ApiResult<TripInvite>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/invites/${inviteId}`), { method: "DELETE" });
     return await readJson(res, (data) => TripInvite.parse((data as { invite: unknown }).invite));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    // Membership is what `fetchTripAccess` reports, so an invite written or
-    // revoked moves a cached `access` read as surely as a command moves detail.
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
@@ -513,6 +518,8 @@ export async function insertSavedDay(
   tripId: string,
   savedDayId: string,
 ): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/saved-days/${savedDayId}`), {
       method: "POST",
@@ -521,7 +528,7 @@ export async function insertSavedDay(
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }
 
@@ -956,6 +963,8 @@ export async function applyAssistantProposal(
   tripId: string,
   proposal: AssistantProposal,
 ): Promise<ApiResult<PlanOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/ask/apply`), {
       method: "POST",
@@ -985,6 +994,6 @@ export async function applyAssistantProposal(
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   } finally {
-    invalidate(tripKeys.all(tripId));
+    endWrite(scope);
   }
 }

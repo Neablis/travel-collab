@@ -111,6 +111,69 @@ function mayStore(key: CacheKey, token: number): boolean {
   return (invalidatedAt.get(key) ?? 0) < token && clearedAt < token;
 }
 
+/**
+ * Key prefixes with a write outstanding, and how many (writes to one trip can
+ * overlap — the optimistic sender is sequential, but a page autosave and a
+ * command are not).
+ *
+ * **This is the third race, and the one only a browser found** (PR #175). The
+ * first two were about a read on the WIRE when a write landed. This one is
+ * about a read that never reaches the wire at all: `cachedRead` served a
+ * STORED entry from before the command was even sent, because invalidating in
+ * a `finally` happens when the write RESOLVES — and by then `TripProvider` has
+ * already taken that answer and set its state. It reads once on mount, so
+ * there is no second read to correct it: the board came back missing the day
+ * you had just added and stayed that way until a document reload.
+ *
+ * Reproduced on the preview by adding a day and navigating away and back
+ * inside the window — naturally about one time in five, and every time with a
+ * slow write.
+ *
+ * The rule this encodes: **a read taken while a write to its trip is
+ * outstanding is not cacheable.** Two mechanisms, and deliberately only two,
+ * because a third was written and removed — no test could kill it on its own,
+ * and a mechanism no test can kill is the unproven claim this file has already
+ * been caught by twice:
+ *
+ * 1. `beginWrite` CLEARS the scope, so a read arriving after the write was
+ *    sent finds nothing stored and nothing pre-write to join. This is the fix
+ *    for the defect above.
+ * 2. While the scope is open nothing may be STORED, so two reads during one
+ *    write do not share an answer the write has since falsified — the first
+ *    can precede the server applying the command and the second follow it.
+ */
+const writing = new Map<string, number>();
+
+function writeOutstandingFor(key: CacheKey): boolean {
+  for (const prefix of writing.keys()) {
+    if (key.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+/**
+ * Open a write scope. Clears what is cached under `prefix` now, and suspends
+ * caching for it until the matching `endWrite`.
+ *
+ * Pair it with `endWrite` in a `finally`, which is what
+ * `apiClient.ts`/`pagesClient.ts` do around every trip write.
+ */
+export function beginWrite(prefix: string): void {
+  invalidate(prefix);
+  writing.set(prefix, (writing.get(prefix) ?? 0) + 1);
+}
+
+/** Close a write scope, and clear anything cached while it was open. */
+export function endWrite(prefix: string): void {
+  const left = (writing.get(prefix) ?? 1) - 1;
+  if (left <= 0) writing.delete(prefix);
+  else writing.set(prefix, left);
+  invalidate(prefix);
+}
+
+/** The scope that matches every key — `"".startsWith` is true of all of them. */
+export const ALL_KEYS = "";
+
 export type CachedReadOptions = {
   /** Reuse a stored result younger than this. Defaults to `DEDUPE.NAVIGATION`. */
   dedupeMs?: number;
@@ -154,8 +217,10 @@ export function cachedRead<T>(
   const request = (async (): Promise<ApiResult<T>> => {
     try {
       const result = await read();
-      // The clock check is what makes a write during this read win.
-      if (result.ok && mayStore(key, token)) {
+      // The clock check is what makes a write during this read win; the
+      // write-scope check is re-read HERE rather than reused from above,
+      // because a write can open after this read started.
+      if (result.ok && !writeOutstandingFor(key) && mayStore(key, token)) {
         entries.set(key, { result, storedAt: Date.now() });
       }
       return result;
@@ -221,4 +286,5 @@ export function clearQueryCache(): void {
   entries.clear();
   inFlight.clear();
   invalidatedAt.clear();
+  writing.clear();
 }

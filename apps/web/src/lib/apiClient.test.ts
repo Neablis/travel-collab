@@ -398,6 +398,64 @@ describe("trip writes invalidate the trip's cached reads", () => {
     expect(await cached()).toBe("fresh");
   });
 
+  // THE RACE THE BROWSER WALK FOUND (PR #175), and the one neither the unit
+  // suite nor the review caught — because every case here mocks the transport
+  // and none of them put a read BETWEEN a write being sent and its response.
+  //
+  // Reproduced in a real browser on the preview: add a day, navigate away and
+  // back inside the window, and the board comes back missing the day and never
+  // self-corrects short of a document reload. `TripProvider` reads once on
+  // mount, so a stale answer at that moment is permanent — the `finally`
+  // invalidation lands after the consumer has already set its state.
+  it("does not serve a pre-write entry to a read that arrives while the write is in flight", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post("*/commands", async () => {
+        await held;
+        return HttpResponse.error();
+      }),
+    );
+    await cachedRead(tripKeys.detail(TRIP_ID), async () => ({ ok: true, value: "before the command" }));
+
+    const write = sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID });
+    // The remount, landing while the POST is still open.
+    const duringWrite = await cachedRead(tripKeys.detail(TRIP_ID), async () => ({
+      ok: true,
+      value: "asked the server",
+    }));
+    release();
+    await write;
+
+    expect(duringWrite).toEqual({ ok: true, value: "asked the server" });
+  });
+
+  // The other half: a read taken while the write was outstanding must not be
+  // STORED either, or the next mount inherits an answer the write has since
+  // falsified.
+  it("does not store what a read taken during the write came back with", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post("*/commands", async () => {
+        await held;
+        return HttpResponse.error();
+      }),
+    );
+
+    const write = sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID });
+    await cachedRead(tripKeys.detail(TRIP_ID), async () => ({ ok: true, value: "mid-write answer" }));
+    release();
+    await write;
+
+    const after = await cachedRead(tripKeys.detail(TRIP_ID), async () => ({ ok: true, value: "settled truth" }));
+    expect(after).toEqual({ ok: true, value: "settled truth" });
+  });
+
   it("leaves another trip's cache alone", async () => {
     server.use(http.all("*", () => HttpResponse.error()));
     const other = "33333333-3333-4333-8333-333333333333";

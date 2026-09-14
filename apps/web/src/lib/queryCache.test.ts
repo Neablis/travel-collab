@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEDUPE, cachedRead, clearQueryCache, invalidate } from "@/lib/queryCache";
+import { DEDUPE, beginWrite, cachedRead, clearQueryCache, endWrite, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import type { ApiResult } from "@/lib/apiClient";
 
@@ -110,6 +110,69 @@ describe("cachedRead", () => {
     });
 
     expect(result).toEqual({ ok: false, error: { status: 0, message: "offline" } });
+  });
+});
+
+describe("write scopes", () => {
+  // What `beginWrite`'s clear does not cover on its own, and therefore the
+  // only thing pinning the suspend-caching half of a write scope.
+  //
+  // Two components can mount during one write — `TripProvider` and
+  // `NextTripHero` read the same `TripDetail`. If the first read goes out
+  // before the server has applied the command and the second after, caching
+  // the first would hand the second an answer the write has already falsified,
+  // with nothing left to correct it.
+  it("does not serve a second read the answer a mid-write read came back with", async () => {
+    const early = reader({ name: "server had not applied it yet" });
+    const late = reader({ name: "server has applied it" });
+
+    beginWrite(tripKeys.all(TRIP));
+    await cachedRead(tripKeys.detail(TRIP), early.read);
+    const second = await cachedRead(tripKeys.detail(TRIP), late.read);
+    endWrite(tripKeys.all(TRIP));
+
+    expect(second).toEqual({ ok: true, value: { name: "server has applied it" } });
+    expect(late.calls.count).toBe(1);
+  });
+
+  // Isolates `beginWrite`'s CLEAR, specifically its detach half: a read already
+  // on the wire when the command was sent is pre-write by definition, and a
+  // read arriving afterwards must not be handed it.
+  it("does not let a read after the write join one that was in flight before it", async () => {
+    const preWrite = deferredReader({ name: "before the command" });
+    const fresh = reader({ name: "asked again" });
+
+    const pending = cachedRead(tripKeys.detail(TRIP), preWrite.read);
+    beginWrite(tripKeys.all(TRIP));
+    const after = cachedRead(tripKeys.detail(TRIP), fresh.read);
+    preWrite.release();
+    endWrite(tripKeys.all(TRIP));
+
+    expect(await after).toEqual({ ok: true, value: { name: "asked again" } });
+    expect(fresh.calls.count).toBe(1);
+    await pending;
+  });
+
+  // Overlapping writes: a page autosave and a command can be open at once, so
+  // the scope is counted rather than a flag. The first `endWrite` must not
+  // re-enable caching while the second write is still out.
+  it("stays suspended until the LAST overlapping write closes", async () => {
+    const early = reader({ name: "mid-write" });
+    const late = reader({ name: "settled" });
+
+    beginWrite(tripKeys.all(TRIP));
+    beginWrite(tripKeys.all(TRIP));
+    endWrite(tripKeys.all(TRIP)); // one closes; one is still open
+
+    // Both of these happen while that second write is still outstanding, so
+    // the first must not be stored for the second to be served. A scope kept
+    // as a flag rather than a count reopens here and they share.
+    await cachedRead(tripKeys.detail(TRIP), early.read);
+    const second = await cachedRead(tripKeys.detail(TRIP), late.read);
+    endWrite(tripKeys.all(TRIP));
+
+    expect(second).toEqual({ ok: true, value: { name: "settled" } });
+    expect(late.calls.count).toBe(1);
   });
 });
 
