@@ -18,15 +18,36 @@
 // by CodeRabbit on PR #174; the fix is to stop deriving a credential-bearing
 // destination from anything a client can write.
 //
-// The trade is stated rather than hidden: a host this deployment genuinely
-// serves but which is in neither variable — a branch alias, say — now fails
-// loudly on an operator tool instead of silently forwarding a cookie somewhere
-// this code cannot vouch for. That is the right direction for the one surface
-// where the credential is an operator's.
+// **On a preview the BRANCH url comes first, and getting that wrong took the
+// console down.** The first version of this went straight to `VERCEL_URL`,
+// which is the per-deployment host (`travel-collab-<hash>-<team>.vercel.app`)
+// — not the host anybody browses. A preview is reached through the branch
+// alias, Vercel's Deployment Protection issues its `_vercel_jwt` cookie for
+// THAT host, and `app/admin/page.tsx` forwards the caller's cookie header
+// verbatim. Sent to the deployment host, that cookie does not match, the
+// request is challenged rather than served, and Vercel rate-limits the
+// challenge: the self-fetch came back `429` and the page turned it into a 500.
+//
+// The comment here used to call that failure an acceptable edge case — "a host
+// this deployment genuinely serves but which is in neither variable — a branch
+// alias, say — now fails loudly". That reasoning was wrong in a way worth
+// keeping visible: on a preview the branch alias is not an edge case, it is the
+// only case, so "fails loudly" meant every operator page load on every preview.
+// A trade-off written down is not the same as a trade-off that was measured.
+//
+// `VERCEL_BRANCH_URL` is still CONFIGURATION — Vercel sets it on the
+// deployment, no client can write it — so the security property the previous
+// change bought is unchanged. It is the same host the old header-derived code
+// arrived at, reached from a source a request cannot forge.
 export function deploymentOrigin(): string {
   if (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   }
+  // The branch alias: stable per branch, and the host a preview is actually
+  // served on, so a forwarded protection cookie still matches.
+  if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
+  // A deployment with no branch alias (a direct `vercel deploy`) still answers
+  // on its own URL.
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return `http://localhost:${process.env.WEB_PORT ?? "3001"}`;
 }
