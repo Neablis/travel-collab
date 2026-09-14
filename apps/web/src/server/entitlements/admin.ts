@@ -16,7 +16,7 @@
 // builds the revenue strip here and breaks the split in the direction nobody
 // checks. This module has no revenue read at all, and a test says so.
 import { desc, eq, sql } from "drizzle-orm";
-import type { PlanId } from "@tc/contracts";
+import { GrantSource, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
 import { entitlementGrants, users } from "@/server/db/schema";
@@ -99,6 +99,33 @@ export interface PlanPanelRow {
   live: PlanVersion;
   /** Accounts whose `users.plan_id` is this plan. */
   accounts: number;
+  /**
+   * Holders of each published version, keyed by version number — the design's
+   * *"204 hold"* beside each version row. Answers "who is on an older one",
+   * which is the question the tier panel exists for now that publishing has
+   * left the UI.
+   */
+  holdsByVersion: Readonly<Record<number, number>>;
+  /**
+   * **Median** trailing model cost of this plan's holders, in micro-dollars,
+   * or `null` when nobody on the plan spent anything measurable.
+   *
+   * Median rather than mean, as the design labels it: one account running a
+   * batch job drags a mean far enough to make the number useless for the
+   * question being asked, which is what a typical holder of this tier costs.
+   *
+   * **The MRR and median-margin columns beside this one in the design are M21
+   * link 7's** — both need a subscription to exist. This is the half that does
+   * not.
+   */
+  medianMicroUsd: number | null;
+}
+
+/** The middle value, or the lower of the two middles. `null` when empty. */
+function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor((sorted.length - 1) / 2)]!;
 }
 
 /**
@@ -109,22 +136,62 @@ export interface PlanPanelRow {
  * what it holds and what it was granted are two different facts, and the grant
  * counts below are where the second one is answered.
  */
-export async function planPanel(): Promise<PlanPanelRow[]> {
-  const counts = await db
-    .select({ planId: users.planId, count: sql<number>`count(*)::int` })
-    .from(users)
-    .groupBy(users.planId);
-  const byPlan = new Map(counts.map((row) => [row.planId, row.count]));
+export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]> {
+  // Grouped by (plan, version) in ONE query rather than by plan: the design
+  // wants a hold count against each published version, and the plan total is
+  // the sum of those — deriving it the other way round would need a second
+  // query to say the same thing.
+  const [counts, costs] = await Promise.all([
+    db
+      .select({
+        planId: users.planId,
+        planVersion: users.planVersion,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(users)
+      .groupBy(users.planId, users.planVersion),
+    costByPlan(now),
+  ]);
+
   const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
   return planIds.map((planId) => {
     const versions = PLAN_VERSIONS.filter((entry) => entry.planId === planId);
+    const mine = counts.filter((row) => row.planId === planId);
     return {
       planId,
       versions,
       live: versions[versions.length - 1]!,
-      accounts: byPlan.get(planId) ?? 0,
+      accounts: mine.reduce((total, row) => total + row.count, 0),
+      holdsByVersion: Object.fromEntries(mine.map((row) => [row.planVersion, row.count])),
+      medianMicroUsd: median(costs.get(planId) ?? []),
     };
   });
+}
+
+/**
+ * Every holder's trailing cost, bucketed by the plan they hold.
+ *
+ * Accounts with no usage in the window are deliberately **absent** rather than
+ * counted as zero: "what does a typical holder of this tier cost" is a question
+ * about accounts that used the assistant, and folding in every dormant account
+ * pulls every median to zero and tells you nothing. This is the same
+ * null-is-not-zero rule `microUsdFor` follows, one level up.
+ */
+async function costByPlan(now: Date): Promise<Map<PlanId, number[]>> {
+  const [holders, costs] = await Promise.all([
+    db.select({ id: users.id, planId: users.planId }).from(users),
+    costPerAccount(trailingWindowStart(now)),
+  ]);
+  const planOf = new Map(holders.map((row) => [row.id, row.planId]));
+  const byPlan = new Map<PlanId, number[]>();
+  for (const cost of costs) {
+    const planId = planOf.get(cost.userId);
+    if (planId === undefined) continue;
+    const bucket = byPlan.get(planId) ?? [];
+    bucket.push(cost.microUsd);
+    byPlan.set(planId, bucket);
+  }
+  return byPlan;
 }
 
 /**
@@ -135,15 +202,64 @@ export async function planPanel(): Promise<PlanPanelRow[]> {
  * questions *"how many accounts are on a trial right now"* and *"how many have
  * ever had one"* are different, and this is the first.
  */
-export async function grantSourcePanel(now: Date = new Date()): Promise<Record<string, number>> {
-  const rows = await db
-    .select({ source: entitlementGrants.source, count: sql<number>`count(distinct ${entitlementGrants.userId})::int` })
-    .from(entitlementGrants)
-    .where(
-      sql`${entitlementGrants.revokedAt} is null and (${entitlementGrants.expiresAt} is null or ${entitlementGrants.expiresAt} > ${now})`,
-    )
-    .groupBy(entitlementGrants.source);
-  return Object.fromEntries(rows.map((row) => [row.source, row.count]));
+export interface GrantSourceRow {
+  source: string;
+  /** Distinct accounts holding at least one active grant from this source. */
+  accounts: number;
+  /** What those accounts cost over the trailing window, in micro-dollars. */
+  microUsd: number;
+}
+
+/**
+ * **Underwater by construction** — the comped half of the design's *"Costs more
+ * than it pays"* panel, and the only half M20 can answer.
+ *
+ * The other half, *"paying, and underwater"*, compares trailing cost against
+ * what an account pays. Nothing pays yet, so it is M21 link 7's along with the
+ * four-number strip. These accounts are underwater **by construction**: they
+ * were comped on purpose, which is why the design counts them and sets them
+ * aside rather than listing them — mixed into the table they would bury the
+ * rows that actually need a decision.
+ *
+ * **Active grants only**, so an expired trial is not counted as one somebody
+ * holds. The row it reads is still there — nothing sweeps that table — because
+ * *"how many are on a trial now"* and *"how many ever had one"* are different
+ * questions and this is the first.
+ *
+ * Cost is attributed **per account, once**: an account holding both a trial and
+ * a referral grant contributes its whole trailing cost to each source's line,
+ * because the question each line answers is "what is this source costing me",
+ * not "how does this total decompose". Summing the column would double-count,
+ * and the design never sums it.
+ */
+export async function grantSourcePanel(now: Date = new Date()): Promise<GrantSourceRow[]> {
+  const [rows, costs] = await Promise.all([
+    db
+      .select({ source: entitlementGrants.source, userId: entitlementGrants.userId })
+      .from(entitlementGrants)
+      .where(
+        sql`${entitlementGrants.revokedAt} is null and (${entitlementGrants.expiresAt} is null or ${entitlementGrants.expiresAt} > ${now})`,
+      ),
+    costPerAccount(trailingWindowStart(now)),
+  ]);
+
+  const costOf = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
+  const holders = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const set = holders.get(row.source) ?? new Set<string>();
+    set.add(row.userId);
+    holders.set(row.source, set);
+  }
+
+  // Every source in the contract, including the ones nobody holds — a panel
+  // whose rows appear and vanish with the data makes "no trials right now" and
+  // "trials are not a thing" indistinguishable.
+  return GrantSource.options.map((source) => {
+    const users = holders.get(source) ?? new Set<string>();
+    let microUsd = 0;
+    for (const userId of users) microUsd += costOf.get(userId) ?? 0;
+    return { source, accounts: users.size, microUsd };
+  });
 }
 
 /** One active grant, as the console shows it. */
@@ -245,7 +361,7 @@ export async function adminCostPerAccount(now: Date = new Date()): Promise<Accou
 /** Everything one console page needs, in one call. */
 export interface AdminOverview {
   plans: PlanPanelRow[];
-  grantSources: Record<string, number>;
+  grantSources: GrantSourceRow[];
   accounts: AdminAccountRow[];
   topSpenders: AccountCost[];
   windowDays: number;
@@ -253,7 +369,7 @@ export interface AdminOverview {
 
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
   const [plans, grantSources, accounts, spenders] = await Promise.all([
-    planPanel(),
+    planPanel(now),
     grantSourcePanel(now),
     adminAccounts(100, now),
     adminTopSpenders(10, now),

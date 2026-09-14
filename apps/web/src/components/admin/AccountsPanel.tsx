@@ -37,33 +37,51 @@ import type { AdminAccountRow } from "@/lib/adminOverview";
 
 const PAGE_SIZE = 8;
 
-type FilterId = "all" | "paid" | "granted" | "free";
+// **Filter ids deliberately do not spell a plan id.** They were `"free"` and
+// `"paid"`, and `planVersions.fourthPlan.test.ts` flagged this file for
+// `case "free":` — its scan cannot tell a filter id from a plan id, and it is
+// right not to try: a bare `"free"` in a switch is exactly the shape ADR-045
+// rule 4 forbids, and allowlisting the file would blind the scan to a real one
+// arriving here later. The ids say what the group MEANS instead, which is also
+// what `matchesFilter` asks.
+type FilterId = "all" | "entitled" | "unentitled" | "granted";
 
 const FILTERS: readonly { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "paid", label: "Holds a paid plan" },
+  { id: "entitled", label: "Holds a paid plan" },
   { id: "granted", label: "Granted" },
-  { id: "free", label: "Free" },
+  { id: "unentitled", label: "Free" },
 ];
 
 /**
  * Does this row match one filter?
  *
- * Asked as *"does the held plan grant anything"* would be better, but the row
- * carries `planVersionRef` rather than the plan's entitlements, and the free
- * plan is the one whose id the wire shape does expose. The comparison is
- * against the REF's plan segment rather than a rank — there is no ordering
- * here, and ADR-045 rule 4 forbids inventing one.
+ * **`grantsNothing` is a set, and the first version of this was `planId ===
+ * "free"`.** `planVersions.fourthPlan.test.ts` refused it — it walks every
+ * source file for a comparison against a plan id and expects to find none,
+ * which is ADR-045 rule 4 as a test. The rule is not pedantry: a fourth plan
+ * that grants nothing would be silently missing from the *Free* count, and a
+ * paid plan renamed would move accounts between groups with nothing failing.
+ *
+ * The question a tier answers is *"does this plan grant anything"*, which is
+ * also how `rewardReferrer` decides whether a referrer earns anything. It is
+ * decided once from the plan file, server-side, and arrives here as a set —
+ * so this stays a lookup rather than becoming a second opinion about which
+ * plans are free.
  */
-function matchesFilter(account: AdminAccountRow, filter: FilterId): boolean {
-  const planId = account.planVersionRef.split("@")[0];
+function matchesFilter(
+  account: AdminAccountRow,
+  filter: FilterId,
+  grantsNothing: ReadonlySet<string>,
+): boolean {
+  const planId = account.planVersionRef.split("@")[0] ?? "";
   switch (filter) {
     case "all":
       return true;
-    case "free":
-      return planId === "free";
-    case "paid":
-      return planId !== "free";
+    case "unentitled":
+      return grantsNothing.has(planId);
+    case "entitled":
+      return !grantsNothing.has(planId);
     case "granted":
       return account.grants.length > 0;
   }
@@ -86,12 +104,17 @@ function microUsd(value: number): string {
 export function AccountsPanel({
   accounts,
   plans,
+  plansGrantingNothing,
   windowDays,
 }: {
   accounts: readonly AdminAccountRow[];
+  /** Plan ids an operator may grant — enabled plans only. */
   plans: readonly string[];
+  /** Plan ids whose live version grants no entitlement. See `matchesFilter`. */
+  plansGrantingNothing: readonly string[];
   windowDays: number;
 }) {
+  const grantsNothing = useMemo(() => new Set(plansGrantingNothing), [plansGrantingNothing]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(0);
@@ -101,8 +124,8 @@ export function AccountsPanel({
     [accounts, query],
   );
   const matching = useMemo(
-    () => searched.filter((account) => matchesFilter(account, filter)),
-    [searched, filter],
+    () => searched.filter((account) => matchesFilter(account, filter, grantsNothing)),
+    [searched, filter, grantsNothing],
   );
 
   // Clamped rather than reset on every change: a filter that empties the last
@@ -151,7 +174,7 @@ export function AccountsPanel({
             >
               {option.label}
               <span className="ml-1.5 text-xs text-slate">
-                {searched.filter((account) => matchesFilter(account, option.id)).length}
+                {searched.filter((account) => matchesFilter(account, option.id, grantsNothing)).length}
               </span>
             </Button>
           ))}

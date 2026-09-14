@@ -114,20 +114,37 @@ describe("the console answers from real data", () => {
     expect(premium.live.version).toBe(1);
     expect(premium.versions.map((v) => v.version)).toEqual([1]);
     // Read-only over plans: the panel carries no field anything could write.
-    expect(Object.keys(premium)).toEqual(["planId", "versions", "live", "accounts"]);
+    // `holdsByVersion` and `medianMicroUsd` joined it when the tier panel moved
+    // to the design's shape — both are derived reads, and pinning the key list
+    // is what makes a writable field added here impossible to miss.
+    expect(Object.keys(premium)).toEqual([
+      "planId",
+      "versions",
+      "live",
+      "accounts",
+      "holdsByVersion",
+      "medianMicroUsd",
+    ]);
+    // Every holder is on some published version, so the per-version counts sum
+    // to the plan total — the design shows both and they must agree.
+    expect(
+      Object.values(premium.holdsByVersion).reduce((total, held) => total + held, 0),
+    ).toBe(premium.accounts);
   });
 
   it("counts accounts per ACTIVE grant source", async () => {
     const trialled = await account();
     await offerTrial(trialled);
-    const before = (await grantSourcePanel())["trial"] ?? 0;
+    const trialOf = (rows: Awaited<ReturnType<typeof grantSourcePanel>>) =>
+      rows.find((row) => row.source === "trial")?.accounts ?? 0;
+    const before = trialOf(await grantSourcePanel());
     expect(before).toBeGreaterThan(0);
 
     // An expired trial stops being counted — and the row is still there,
     // because nothing sweeps that table. "On a trial now" and "ever had one"
     // are different questions and this panel asks the first.
     const later = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const after = (await grantSourcePanel(later))["trial"] ?? 0;
+    const after = trialOf(await grantSourcePanel(later));
     expect(after).toBeLessThan(before);
     expect(await allGrantsFor(trialled)).toHaveLength(1);
   });

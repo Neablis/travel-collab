@@ -64,7 +64,7 @@ afterEach(cleanup);
 describe("AccountsPanel", () => {
   it("shows one page of eight and pages through the rest", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />);
+    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
     expect(rowIds()).toHaveLength(8);
     expect(screen.getByTestId("accounts-range").textContent).toContain("1–8 of 10");
@@ -78,14 +78,14 @@ describe("AccountsPanel", () => {
 
   it("searches by address", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />);
+    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
     await user.type(screen.getByRole("textbox", { name: "Find an account" }), "paid0");
     expect(rowIds()).toEqual(["paid0"]);
   });
 
   it("counts each filter over the whole matching set, not the page", async () => {
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />);
+    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
     // Ten rows, eight of them visible — a count taken from the page would read
     // 8/…/6 here rather than 10/4/3/6.
@@ -100,7 +100,7 @@ describe("AccountsPanel", () => {
 
   it("narrows the table to the chosen filter", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />);
+    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
     await user.click(screen.getByRole("button", { name: /^Granted/ }));
     expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
@@ -111,7 +111,7 @@ describe("AccountsPanel", () => {
 
   it("offers a way out when nothing matches", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />);
+    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
 
     await user.type(screen.getByRole("textbox", { name: "Find an account" }), "nobody");
     expect(screen.queryAllByTestId(/^account-/)).toHaveLength(0);
@@ -133,14 +133,14 @@ describe("AccountsPanel", () => {
   it("clamps to the last real page when the list shrinks underneath it", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
-      <AccountsPanel accounts={tenAccounts()} plans={["plus"]} windowDays={30} />,
+      <AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByTestId("accounts-range").textContent).toContain("9–10 of 10");
 
     rerender(
-      <AccountsPanel accounts={tenAccounts().slice(0, 3)} plans={["plus"]} windowDays={30} />,
+      <AccountsPanel accounts={tenAccounts().slice(0, 3)} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />,
     );
 
     expect(rowIds()).toEqual(["free0", "free1", "free2"]);

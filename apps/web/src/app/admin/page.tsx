@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
-import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
+import { TierPanel } from "@/components/admin/TierPanel";
+import { GrantSourcePanel } from "@/components/admin/GrantSourcePanel";
+import { Panel } from "@/components/ui/panel";
+import { Text } from "@/components/ui/text";
 import { adminOverview } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 
@@ -42,12 +45,11 @@ import { adminUserId } from "@/server/entitlements/requireAdmin";
 // returning null is that 404, and `GET /api/admin/overview` still answers its
 // own, so removing the fetch removed a caller and not a check.
 
-function microUsd(value: number): string {
-  // Micro-dollars, rendered. **Not `Money`** — this is a display decision made
-  // where it is displayed, and the stored number stays an integer count of
-  // micro-dollars all the way here (M20 link 9).
-  return `$${(value / 1_000_000).toFixed(4)}`;
-}
+// **Rendering micro-dollars moved to the panels that show them**, one copy
+// each in `AccountsPanel`, `TierPanel` and `UnderwaterPanel`. It is still not
+// `Money` and never becomes it: formatting is a decision made where a number is
+// displayed, and the stored value stays an integer count of micro-dollars all
+// the way there (M20 link 9, and ADR-008's minor units round $0.0006 to zero).
 
 export default async function AdminPage() {
   // Before any data is read, and before anything renders. `notFound()` throws,
@@ -56,107 +58,26 @@ export default async function AdminPage() {
   const overview = await adminOverview();
 
   return (
-    <main className="flex flex-col gap-8">
-      <Heading level={1}>Operator console</Heading>
+    <main className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <Heading level={1}>Operator console</Heading>
+        {/* The design's subtitle, verbatim — it says what the page is for and
+            what a non-admin gets, which is the one thing about this route that
+            is easy to get wrong by omission. */}
+        <Text variant="secondary" className="text-sm">
+          Accounts, what they hold, what they cost. Admin only — a non-admin gets nothing here,
+          not a hidden link.
+        </Text>
+      </div>
 
-      <section className="flex flex-col gap-2" aria-labelledby="plans-heading">
-        <Heading level={2} id="plans-heading">
-          Plans
-        </Heading>
-        {/* Read-only. Versions are a committed file; publishing is a commit and
-            a deploy, and there is no write path to any of this. */}
-        <p className="text-xs text-slate">
-          Plan versions are a committed file. This shows what is live; publishing a new version is a
-          deploy.
-        </p>
-        <Table className="text-xs">
-          <THead>
-            <TR>
-              <TH>Plan</TH>
-              <TH>Live version</TH>
-              <TH>Entitlements</TH>
-              <TH>Requests/day</TH>
-              <TH>Steps/day</TH>
-              <TH>Accounts</TH>
-              <TH>History</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {overview.plans.map((plan) => (
-              <TR key={plan.planId} data-testid={`plan-${plan.planId}`}>
-                <TD className="text-ink">
-                  {plan.planId}
-                  {!plan.live.enabled && <span className="ml-1 text-slate">(disabled)</span>}
-                </TD>
-                <TD className="text-ink">v{plan.live.version}</TD>
-                <TD className="text-ink">
-                  {plan.live.entitlements.length === 0 ? "—" : plan.live.entitlements.join(", ")}
-                </TD>
-                <TD className="text-ink">{plan.live.ceilings.perUserRequestsPerDay ?? "env"}</TD>
-                <TD className="text-ink">{plan.live.ceilings.perUserStepsPerDay ?? "env"}</TD>
-                <TD className="text-ink">{plan.accounts}</TD>
-                <TD className="text-slate">
-                  {plan.versions.map((version) => `v${version.version} (${version.publishedAt})`).join(", ")}
-                </TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
-      </section>
+      {/* **No four-number strip.** MRR, ARPU twice and median margin per paying
+          account are M21 link 7's — every one of them needs a subscription to
+          exist. The design draws them here and does not say which half is
+          which, which is exactly how an implementer working from the finished
+          screen breaks the split. `admin.console.test.ts` fails if a revenue
+          word reaches this page. */}
 
-      <section className="flex flex-col gap-2" aria-labelledby="grants-heading">
-        <Heading level={2} id="grants-heading">
-          Accounts per active grant source
-        </Heading>
-        {/* ACTIVE, so an expired trial is not counted as one somebody holds —
-            and the row it reads is still there, because nothing sweeps that
-            table. "How many are on a trial now" and "how many ever had one" are
-            different questions and this is the first. */}
-        {/* A table, not a list. Mitchell on the #174 preview: *"This should
-            also be a table"* — and the "also" is the point, since this sat
-            between two real tables reading as a different kind of thing while
-            being the same kind of thing: labelled counts in fixed columns. */}
-        <Table className="text-xs" data-testid="grant-sources">
-          <THead>
-            <TR>
-              <TH>Source</TH>
-              <TH>Accounts</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {["trial", "referral", "admin", "founder"].map((source) => (
-              <TR key={source} data-testid={`grant-source-${source}`}>
-                <TD className="text-ink">{source}</TD>
-                <TD className="text-ink">{overview.grantSources[source] ?? 0}</TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
-      </section>
-
-      <section className="flex flex-col gap-2" aria-labelledby="spenders-heading">
-        <Heading level={2} id="spenders-heading">
-          Top spenders — trailing {overview.windowDays} days
-        </Heading>
-        <ul className="flex flex-col gap-1 text-xs" data-testid="top-spenders">
-          {overview.topSpenders.length === 0 && <li className="text-slate">No AI usage in the window.</li>}
-          {overview.topSpenders.map((account) => (
-            <li key={account.userId} className="text-ink">
-              {account.userId} — {account.requests} requests, {microUsd(account.microUsd)}
-              {account.unpriced > 0 && (
-                // Reported rather than folded in: a row nobody can price must
-                // not silently contribute nothing to a total.
-                <span className="ml-1 text-slate">({account.unpriced} unpriced)</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="flex flex-col gap-2" aria-labelledby="accounts-heading">
-        <Heading level={2} id="accounts-heading">
-          Accounts
-        </Heading>
+      <Panel title="Accounts">
         {/* Search, counted filters, 8 rows a page and a no-match state all live
             in the client component: they are view state over a list the server
             already sent, and a round trip per keystroke would be a worse
@@ -164,12 +85,29 @@ export default async function AdminPage() {
             offered to the grant dialog — `enabled` bounds what an operator may
             hand out, never what a holder may do, which is what lets the
             disabled fourth-plan proof ship without anyone receiving it. */}
+        {/* `plansGrantingNothing` is decided once, here, from the plan file, and
+            asked as "does this plan grant anything" rather than "is this plan
+            free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
+            enforces by walking every source file for a plan-id comparison. It
+            refused the first version of the Free filter, which compared
+            `planId === "free"` directly. */}
         <AccountsPanel
           accounts={overview.accounts}
           windowDays={overview.windowDays}
           plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
+          plansGrantingNothing={overview.plans
+            .filter((plan) => plan.live.entitlements.length === 0)
+            .map((plan) => plan.planId)}
         />
-      </section>
+      </Panel>
+
+      {/* Two panels side by side, as the design lays them out; one column on a
+          narrow window, which this route only ever sees on a small laptop since
+          the console is not on the phone at all. */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <GrantSourcePanel sources={overview.grantSources} />
+        <TierPanel plans={overview.plans} />
+      </div>
     </main>
   );
 }

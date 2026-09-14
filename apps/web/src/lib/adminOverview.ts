@@ -50,6 +50,17 @@ export interface AdminPlanPanelRow {
   versions: readonly AdminPlanVersionView[];
   live: AdminPlanVersionView;
   accounts: number;
+  /** Holders per published version — the design's "204 hold". */
+  holdsByVersion: Readonly<Record<number, number>>;
+  /** Median trailing cost of holders who used the assistant; `null` if none. */
+  medianMicroUsd: number | null;
+}
+
+/** Mirrors `GrantSourceRow`. */
+export interface AdminGrantSourceRow {
+  source: string;
+  accounts: number;
+  microUsd: number;
 }
 
 /** Mirrors `AdminGrantRow`. */
@@ -84,7 +95,7 @@ export interface AdminAccountCost {
 
 export interface AdminOverview {
   plans: AdminPlanPanelRow[];
-  grantSources: Record<string, number>;
+  grantSources: AdminGrantSourceRow[];
   accounts: AdminAccountRow[];
   topSpenders: AdminAccountCost[];
   windowDays: number;
