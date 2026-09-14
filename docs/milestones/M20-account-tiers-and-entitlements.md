@@ -670,29 +670,29 @@ refusal to name the tier rather than read as a permission error.
 
 ## Exit gate
 
-- [ ] A `free` account is refused `/ask` and `/ai` with **402** and the wire
+- [x] A `free` account is refused `/ask` and `/ai` with **402** and the wire
       code `ai-not-entitled`, and the client offers an upgrade path rather than
       rendering a permission error.
-- [ ] The same account creates a trip, adds days, stops, costs and a saved day,
+- [x] The same account creates a trip, adds days, stops, costs and a saved day,
       and publishes it — **all of it, with no gate anywhere.** Trip planning is
       free and a test proves it stays free.
-- [ ] An admin grants that account premium **with an expiry**, and `/ask`
+- [x] An admin grants that account premium **with an expiry**, and `/ask`
       answers on the next request with **no sign-out and no token refresh** —
       the JWT is unchanged and the entitlement still took effect.
-- [ ] The grant expires; the next request is refused again. Nothing was
+- [x] The grant expires; the next request is refused again. Nothing was
       revoked by hand and no job ran — expiry is resolved, not swept.
-- [ ] **No plan is defined in terms of another.** `premium` enumerates its own
+- [x] **No plan is defined in terms of another.** `premium` enumerates its own
       entitlements; a test fails if any plan definition spreads, extends or
       otherwise references another plan, and if any authorisation path reads a
       plan's display order. This is the requirement the design most easily
       loses, and losing it silently is what makes the ladder permanent.
-- [ ] **Changing a plan republishes rather than mutates.** Editing `premium`'s
+- [x] **Changing a plan republishes rather than mutates.** Editing `premium`'s
       entitlements or ceilings creates `v2`; `v1`'s entry is byte-identical
       afterwards, and a test fails if any code path can update a published
       entry. *(**Amended 2026-09-02**: "row" reads "entry" — versions are a
       committed file, not a table. The box is otherwise unchanged, and the
       file makes it easier to prove, not harder: a mutated `v1` is a diff.)*
-- [ ] **An account on `v1` is unaffected by `v2` being published** — same
+- [x] **An account on `v1` is unaffected by `v2` being published** — same
       entitlements, same ceilings, same behaviour on the next request — and
       **a new account gets `v2`**. This is the whole of the requirement: tweak
       freely, honour what was sold.
@@ -707,25 +707,25 @@ refusal to name the tier rather than read as a permission error.
       gone is the mechanism for deliberately moving someone, which M20 no
       longer ships. If widening a plan for existing subscribers is ever wanted,
       it returns as its own decision with its own box.
-- [ ] Publishing a version whose entitlement list contains a string outside the
+- [x] Publishing a version whose entitlement list contains a string outside the
       contracts enum **cannot compile**, so it never reaches a deploy — a typo
       must not silently grant nothing. *(**Amended 2026-09-02**: was "refused
       at publish time, not stored". With versions in a committed file typed
       against the contracts enum, the check moves from runtime to the type
       checker, which is strictly earlier and strictly harder to bypass. The
       failure this box exists to prevent is unchanged.)*
-- [ ] **A per-user ceiling comes from the pinned plan version and a global
+- [x] **A per-user ceiling comes from the pinned plan version and a global
       ceiling comes from the environment.** Republishing a plan does not move
       a global ceiling; changing an env ceiling does not alter what any
       account was sold.
-- [ ] **A grant pins the version it was granted at**, so a founder grant issued
+- [x] **A grant pins the version it was granted at**, so a founder grant issued
       against `v1` still confers `v1` after `v3` is published.
-- [ ] **A fourth plan that is not a subset of any other can be added by
+- [x] **A fourth plan that is not a subset of any other can be added by
       editing one file**, granting `trip.collaborators` without `ai.command`.
       It ships disabled — the point is that adding it costs one definition and
       no change to any gate. This is the proof the split architecture is real
       rather than asserted.
-- [ ] A new account carries a one-week `plus` trial from signup, sees the
+- [x] A new account carries a one-week `plus` trial from signup, sees the
       assistant work, and is refused after seven days with no job having run.
       **Amended 2026-09-13 by Mitchell's decision — the trial is one time ever
       per account**, so this box also requires: an account whose trial has
@@ -734,39 +734,39 @@ refusal to name the tier rather than read as a permission error.
       expired and revoked trial rows rather than only active ones. Deleting an
       expired grant must fail that test — tidying the table is the way this
       rule dies.
-- [ ] **Upgrading a tier does not reset a quota counter.** A test asserts the
+- [x] **Upgrading a tier does not reset a quota counter.** A test asserts the
       bucket name is tier-independent while the ceiling is not. Naming the trap
       is not evidence it was avoided.
-- [ ] A free owner cannot create a trip invite; the refusal names the tier, not
+- [x] A free owner cannot create a trip invite; the refusal names the tier, not
       a permission.
-- [ ] **A premium owner with three collaborators lapses: all three drop to
+- [x] **A premium owner with three collaborators lapses: all three drop to
       `viewer`, `trip_memberships` rows are byte-identical before and after,
       and re-granting restores all three to `editor` with zero writes to that
       table.** The owner keeps editing throughout.
-- [ ] Every account existing at migration time carries a **permanent
+- [x] Every account existing at migration time carries a **permanent
       `founder` grant** and loses no capability it had the day before. A test
       fails if the migration leaves any pre-existing account on bare `free`.
-- [ ] **A referral earns one month of the tier the referrer holds**; a `free`
+- [x] **A referral earns one month of the tier the referrer holds**; a `free`
       referrer and a trial-only referrer each earn nothing, a code redeemed by
       its own minter earns nothing, and the per-account cap holds under
       repeated redemption.
-- [ ] A referrer who earns a `premium` month and then downgrades to `plus`
+- [x] A referrer who earns a `premium` month and then downgrades to `plus`
       keeps premium entitlements until the grant expires — the resolver's
       union, with no special case anywhere.
-- [ ] **Every AI request writes one `ai_usage` row, including a request that
+- [x] **Every AI request writes one `ai_usage` row, including a request that
       fails partway** — the round-trips were still paid for. A test asserts the
       failure path writes.
-- [ ] **No dollar amount is stored in `ai_usage`, and `Money` is not used
+- [x] **No dollar amount is stored in `ai_usage`, and `Money` is not used
       anywhere in it.** A test fails if either appears. A request costing
       $0.0006 rounds to zero in `amountMinor`, which would record every call
       as free — the KI-1 / KI-14 / `budgetPerPerson` defect class, third
       recurrence.
-- [ ] **Re-pricing history works**: changing a model's rate in the price table
+- [x] **Re-pricing history works**: changing a model's rate in the price table
       changes what past usage cost, without touching a stored row. Proven by
       re-deriving a known month at two different rates.
-- [ ] `/ask` charges `aiStepQuotas()` and settles its real step count, so both
+- [x] `/ask` charges `aiStepQuotas()` and settles its real step count, so both
       AI endpoints bound their round-trips rather than only one.
-- [ ] **An account can see its own plan, and what it has used of it today.**
+- [x] **An account can see its own plan, and what it has used of it today.**
       Account settings shows the plan and version held, the capabilities it
       grants, and two meters — questions and steps — against **the per-user
       ceilings actually in force**: the resolver's most-generous union of the
@@ -779,12 +779,12 @@ refusal to name the tier rather than read as a permission error.
       not CHARGE either counter: a meter that costs a question to look at is a
       quota bug wearing a progress bar, and a test asserts the read path never
       calls `bump`.
-- [ ] **An account can get a referral code from the browser.** Link 8's whole
+- [x] **An account can get a referral code from the browser.** Link 8's whole
       premise is that *"codes are minted by hand, so nobody could earn a
       referral they could not issue"* — so a server that mints codes with no UI
       to ask it leaves that premise standing. Minting from the account sheet
       and copying the code closes it.
-- [ ] **The plan chooser is drawn from the committed plan file and is shelled,
+- [x] **The plan chooser is drawn from the committed plan file and is shelled,
       not faked.** Every enabled plan, its entitlements and its ceilings, from
       the same source the operator console's tier panel reads — wrapped in
       `<Preview id="account-plan-change">` so no control inside it can fire.
@@ -798,20 +798,20 @@ refusal to name the tier rather than read as a permission error.
       wasn't included in the gates". The lesson generalises and is filed as
       `KI-2026-09-14-c`: a gate written from the server's behaviour will not
       notice a missing surface.)*
-- [ ] The admin surface answers, from real data: **accounts per plan**,
+- [x] The admin surface answers, from real data: **accounts per plan**,
       **accounts per active grant source**, **cost per account over a trailing
       window**, and **the top spenders**. Each is walked, not just queried.
-- [ ] `ai_usage` carries no question text and no trip content.
-- [ ] A non-admin reaches no admin route and no admin endpoint — checked
+- [x] `ai_usage` carries no question text and no trip content.
+- [x] A non-admin reaches no admin route and no admin endpoint — checked
       server-side, and a test proves the route group is not merely hidden.
-- [ ] **The migration is written, applied locally, and its production dispatch
+- [x] **The migration is written, applied locally, and its production dispatch
       is called out in the PR body.** An undispatched migration is schema
       drift.
-- [ ] The contracts changelog carries the entitlement vocabulary entry, and
+- [x] The contracts changelog carries the entitlement vocabulary entry, and
       the 403→402 change is recorded as the breaking wire change it is.
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close.
 
 ## Deliberately not here
 
@@ -896,3 +896,90 @@ since grounding is M9's work. Say so in the retro.
 `plan` and `is_admin`. Two migrations touching one table in sequence, no
 conflict — but whichever lands second rebases onto the other's migration
 number.
+
+## Retro — 2026-09-14
+
+**What shipped.** Nine links across six phases, merged as **#174** (a six-phase
+squash) and **#175**: the entitlement vocabulary in `packages/contracts`, the
+three launch plans and the disabled fourth as a committed file, migrations
+**0019** and **0020**, the resolver and its grants, **403 → 402** with the tier
+named, per-tier ceilings from the pinned version, the collaboration gate capped
+on read, the `ai_usage` cost ledger, the operator console, the referral loop,
+and the account sheet's Plan section. Production has served it since
+2026-09-14; **0019 and 0020 went out the same day as `migrate-production` run
+20**, and the founder backfill minted a permanent `premium@v1` grant for each
+account that predates it — checked against the production database, not the run
+log.
+
+**The gate was wrong when it was written, and a person found it, not a test.**
+Its 29 boxes described the server completely and named not one surface. The
+milestone could have closed green with every entitlement it built invisible to
+the person holding it, and with link 8's stated purpose — *"gives an account a
+way to mint its own codes"* — unmet by a UI that never called the endpoint built
+for it. Mitchell, reading the design against the gate: *"the exit gates are
+incorrect if it's in the designs but wasn't included in the gates."* Three boxes
+were added on the day of the close, and the generalisation is filed as
+`KI-2026-09-14-c`: **when a milestone owns a surface in the design, the gate
+needs a box a person could fail by looking at the screen.**
+
+**An operator surface nobody could reach.** `/admin` is gated on
+`users.is_admin`, and nothing in the product writes that column — granting is
+the console's only write and it writes `entitlement_grants`. The first operator
+could only have been made with a psql session. Found by trying to walk the gate
+end to end, which is the only thing that would have found it. Two ways in now,
+neither a database write: `ADMIN_USER_IDS` and the `admin-console` flag, both
+promote-only.
+
+**Three things about that variable each cost a round, and none of them is in the
+code.** It takes `users.id` verbatim — `google-<sub>`, never an email. It is a
+comma-separated string and not a JSON array, so a bracketed value parses to one
+id that matches nothing. And Vercel injects env vars at deploy time, so setting
+it changes nothing until the deployment is replaced. It fails closed on all
+three, which is correct, and which is also why none of them announces itself:
+the console simply stays unreachable. The working sequence is in `STATUS.md`.
+
+**The finding two deployed walks produced and no test could have.** The plan
+chooser passed every assertion it had — real plans from the committed file, the
+held one named as held, the disabled fourth absent, no price anywhere, and a
+`<Preview>` shield proven by a click that cannot land. Walking it showed what
+the assertions could not: the entitlements line was rendered for the *selected*
+plan, and the shield means the selection can never move, so a person could read
+what exactly one plan grants — their own. The steps ceiling was on the wire for
+every plan and on the screen for none. **A shelled control and per-selection
+detail are mutually exclusive, and no test could see it because each half was
+correct.** Fixed in `7fe282e`. The re-walk then found the fix's own version of
+the same thing: the catalogue prints the plan file while the block above prints
+the resolved union, so a `free` account with a `plus` trial read "You can:
+ai.ask, ai.command" and "No assistant" three inches apart, both true. Fixed in
+`8e0a329`. **Two walks of one screen, two findings, zero test failures** — the
+argument for the browser being part of the gate rather than a formality after
+it.
+
+**Two boxes are ticked with their caveat named rather than silently.**
+`ai_usage` writes a row on the failure paths in code, and on Vercel an
+invocation can stop before the INSERT lands on the abort and error paths —
+`KI-2026-09-14-b`, with `after()` as the fix and the reason it is not free. And
+the box asking for the migration dispatch *"called out in the PR body"* is met
+in substance and not in form: #174's body describes link 1, because it squashed
+six phases into one PR, so the dispatch (run 20) is recorded in `STATUS.md` and
+here instead. A six-phase squash costs exactly this — the body cannot describe
+what the PR contains.
+
+**What the gate cost to verify.** Typecheck 0, lint 0 with every wall green,
+2,693 web unit tests, 1,114 across the packages, 182 script tests, 580
+integration tests, and `pnpm --filter web test:e2e:ci-like` — 125 passed, 0
+failed, 0 flaky. **Run in full twice**: once on `7fe282e`, and again on
+`8e0a329` after the second walk's finding landed a copy fix on top of it,
+because a gate box reading "the full Definition of Done is green" should be
+green on the tree being ticked rather than on the one before it. Plus three deployed walks: the account sheet, referral
+minting, a signup through a real referral code and a trip planned end to end
+with no gate anywhere; the plan catalogue and its shield, at 1280 and 1100; and
+the operator console, walked on production by Mitchell.
+
+**What M21 inherits.** The console without its revenue half — the four-number
+strip (MRR and its movement, ARPU twice and labelled, median margin per paying
+account) and the per-tier panel's MRR and median-margin columns, all M21 link
+7's and deliberately absent here; `admin.console.test.ts` sweeps the admin
+files for that vocabulary and will fail the day one arrives early. The
+`startPlanChange` seam in `PlanSection.tsx` is one function body. The prices are
+already decided and live in M21's file alone.

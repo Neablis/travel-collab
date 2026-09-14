@@ -7,10 +7,11 @@ merges). Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so. Full process: `docs/guidelines/`.
 
 **Right now that say-so has been given and the list is out of order on
-purpose**, so read the marker, not the position: **M20 is the current work** as
-of **2026-09-13**, when Mitchell reordered the commercial pair ahead of M9's
-remainder — *"start the milestone that creates the stripe work and ability to
-pay for the app."* **M9 is paused, not cancelled**: its Phase 0 completed
+purpose**, so read the marker, not the position: **M21 is the current work** as
+of **2026-09-14**, when M20's gate closed. Mitchell reordered the commercial
+pair ahead of M9's remainder on 2026-09-13 — *"start the milestone that creates
+the stripe work and ability to pay for the app."* **M20 closed 2026-09-14**, so
+the second half of that sentence is what M21 now is. **M9 is paused, not cancelled**: its Phase 0 completed
 2026-09-11 and ticked no gate box by design, and it keeps its place immediately
 after M21. The note, the three costs accepted with it, and the prices decided
 the same day are in `docs/milestones/README.md` under **2026-09-13**. The
@@ -414,9 +415,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       the split is in the milestone file:
       `docs/reviews/2026-09-01-milestone-audit.md`.)*
 
-- [ ] **M20 An account knows what it may do** ← **current milestone** (2026-09-13, by Mitchell's reorder ahead of M9's remainder — the
-      prerequisite ADR is written and accepted, **ADR-045**, and the kickoff plan is
-      `docs/plans/2026-09-13-M20-M21-commercial.md`) →
+- [x] **M20 An account knows what it may do** — **gate closed 2026-09-14**, 32 of
+      32 live boxes, one amended out 2026-09-02. Built as #174 and #175, migrations
+      0019 and 0020 dispatched to production the same day (`migrate-production` run
+      20), the console walked on production and the account surfaces on a preview.
+      Retro in the milestone file →
       `docs/milestones/M20-account-tiers-and-entitlements.md`
       *(**Minted, scoped and placed 2026-09-01** — the **first commercial
       milestone**: nothing in the repo had ever described a paid tier, a plan,
@@ -472,7 +475,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       the console the design draws is **half M21's** — its MRR/ARPU/margin
       strip must not be built inside M20.)*
 
-- [ ] **M21 An account can pay for itself** →
+- [ ] **M21 An account can pay for itself** ← **current milestone** (2026-09-14,
+      by M20's gate closing; the order was already set on 2026-09-13 and no
+      decision moved it) →
       `docs/milestones/M21-subscriptions-and-billing.md`
       *(**Minted, scoped and placed 2026-09-01**, immediately after M20.
       Stripe checkout, the webhook that is the **sole writer** of subscription

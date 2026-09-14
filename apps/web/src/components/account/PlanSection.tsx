@@ -69,15 +69,35 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
   );
 }
 
-function describe(choice: AccountPlanView["catalogue"][number]): string {
+/** What a plan grants, in its own words — capabilities only, never numbers. */
+function grants(choice: AccountPlanView["catalogue"][number]): string {
   if (choice.entitlements.length === 0) {
     return "Days, stops, map, costs, saved days. No assistant, no one else on the trip.";
   }
-  const limits =
-    choice.perUserRequestsPerDay === null
-      ? ""
-      : ` ${choice.perUserRequestsPerDay} questions a day.`;
-  return `${choice.entitlements.join(", ")}.${limits}`;
+  return `${choice.entitlements.join(", ")}.`;
+}
+
+/**
+ * **Both ceilings a plan sells, for one plan.**
+ *
+ * The steps ceiling used to be unreachable from this screen — `describe()`
+ * printed `perUserRequestsPerDay` and nothing printed `perUserStepsPerDay`,
+ * though both have always been on the wire. The gate box asks for "every
+ * enabled plan, its entitlements and its ceilings", and a walk of the deployed
+ * preview found a person could read neither number for any plan but their own.
+ *
+ * A null is "this version names no per-user ceiling", which falls through to
+ * the environment's global one — a different fact from `free`'s explicit `0`,
+ * and the two must not print the same way. `free` publishes 0·0 on purpose
+ * (see `planVersions.ts`): a version naming no ceiling would hand a free
+ * account the environment's default budget in silence.
+ */
+function ceilings(choice: AccountPlanView["catalogue"][number]): string {
+  const named: string[] = [];
+  if (choice.perUserRequestsPerDay !== null) named.push(`${choice.perUserRequestsPerDay} questions`);
+  if (choice.perUserStepsPerDay !== null) named.push(`${choice.perUserStepsPerDay} steps`);
+  if (named.length === 0) return "No ceiling of its own — this plan runs to the service limit.";
+  return `${named.join(" and ")} a day.`;
 }
 
 /**
@@ -231,6 +251,54 @@ export function PlanSection() {
         )}
       </div>
 
+      {/* **Every plan on offer, and what each one grants — OUTSIDE the shell.**
+          The chooser below is a `<Preview>`, so its select cannot be operated:
+          whatever the selection describes is readable for exactly one plan, the
+          one the account already holds. A walk of the deployed preview found
+          precisely that, and the gate box asks for *every* enabled plan, its
+          entitlements and its ceilings.
+
+          It sits outside the shell because it is not a control and it is not a
+          promise: the catalogue is live data from the committed plan file, the
+          same source the operator console's tier panel reads. Dimming it under
+          a "Coming in M21" badge would say the plans are not real yet, and they
+          are — what M21 adds is a price and a way to buy one, which is why the
+          select and the confirm stay inside the shell and this does not. */}
+      <div className="flex flex-col gap-3 rounded-lg border border-hairline p-3" data-testid="plan-catalogue">
+        <Heading level={4}>What each plan grants</Heading>
+        {plan.catalogue.map((choice) => (
+          <div
+            key={choice.planId}
+            className="flex flex-col gap-0.5"
+            data-testid={`plan-offer-${choice.planId}`}
+          >
+            <Text as="span" className="text-sm font-semibold text-ink">
+              {choice.planId} v{choice.version}
+              {choice.held ? " — what you hold" : ""}
+            </Text>
+            <Text variant="secondary" className="text-xs">
+              {grants(choice)}
+            </Text>
+            <Text variant="secondary" className="text-xs">
+              {ceilings(choice)}
+            </Text>
+          </div>
+        ))}
+        {/* **Why this block and the one at the top of the section can disagree.**
+            Found by walking the deployed preview: an account holding `free`
+            with a `plus` trial reads "You can: ai.ask, ai.command" above and
+            "No assistant, no one else on the trip" here, three inches apart.
+            Both are right — the top of the section is the RESOLVED union the
+            server enforces, and this is the plan file as published — and a
+            person has no way to tell that from the screen. The meters already
+            carry their version of this sentence; the catalogue had none. */}
+        <Text variant="secondary" className="text-xs">
+          These are the plans as published. A trial, a referral month or anything else granted to
+          you is counted in what you hold above, not here. A plan is described by what it grants;
+          what it costs arrives with the payment that justifies it.
+        </Text>
+      </div>
+
       {/* **The chooser is a dropdown, and its shape is a handoff.**
           Mitchell, on the #174 preview: *"This should be a drop down where you
           select this, and selecting a new tier starts the stripe flow"* — and
@@ -247,7 +315,7 @@ export function PlanSection() {
           <FormField
             id="plan-change"
             label="Change plan"
-            hint={describe(selected)}
+            hint={`${grants(selected)} ${ceilings(selected)}`}
           >
             <NativeSelect
               id="plan-change"

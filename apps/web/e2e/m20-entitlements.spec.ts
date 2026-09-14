@@ -298,6 +298,24 @@ test.describe("M20 — an account knows what it may do", () => {
     // **No price anywhere on the screen.** M20 never learns what a plan costs.
     await expect(page.getByRole("dialog")).not.toContainText("$");
 
+    // **Every enabled plan, readable by a person — not just on the wire.**
+    // The gate box asks for "every enabled plan, its entitlements and its
+    // ceilings", and the assertions above only prove the option LABELS exist.
+    // A walk of the deployed preview (2026-09-14) found the description was
+    // rendered for the selected plan alone and the steps ceiling for none —
+    // and because the select is inside the shield asserted below, a person can
+    // never move the selection to read another plan's line. So the catalogue
+    // is rendered outside the shell, and this is the deployed-layer proof of
+    // it; `PlanSection.test.tsx` carries the same claim at the component layer.
+    const offers = page.getByRole("dialog").getByTestId("plan-catalogue");
+    await expect(offers.getByTestId("plan-offer-premium")).toContainText("trip.collaborators");
+    await expect(offers.getByTestId("plan-offer-premium")).toContainText(
+      "200 questions and 1600 steps a day.",
+    );
+    await expect(offers.getByTestId("plan-offer-plus")).toContainText(
+      "50 questions and 400 steps a day.",
+    );
+
     // **The shield, asserted as a click that cannot land.** Asserting "the held
     // plan did not change" would have been worthless: these buttons carry no
     // handler, so that passes with or without the shell. What `Preview`
