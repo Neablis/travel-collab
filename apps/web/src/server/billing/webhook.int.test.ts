@@ -167,6 +167,13 @@ describe("the same event delivered twice", () => {
   //
   // A claim is now provisional: unstamped means the previous attempt died, so
   // the retry re-claims it and finishes the job.
+  //
+  // **Once the LEASE has expired** — the second half, added after CodeRabbit
+  // found that "unstamped" alone also describes a delivery that is still
+  // running. The retry below is dated past `CLAIM_LEASE_MS` for that reason;
+  // the test under it pins the other side, that a retry arriving DURING the
+  // first delivery is refused. Stripe's own retry schedule is minutes apart,
+  // so waiting out a minute costs a real deployment nothing.
   it("lets Stripe's retry finish a delivery that died after claiming it", async () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
@@ -185,9 +192,9 @@ describe("the same event delivered twice", () => {
     expect(claimed).toHaveLength(1);
     expect(claimed[0]!.appliedAt).toBeNull();
 
-    // The retry: same event id, and this time it works.
+    // The retry: same event id, past the lease, and this time it works.
     retrieveSubscription.mockResolvedValue(sub);
-    expect(await applyStripeEvent(evt, new Date(T0.getTime() + 5_000))).toEqual({
+    expect(await applyStripeEvent(evt, new Date(T0.getTime() + 120_000))).toEqual({
       applied: true,
       note: "written",
     });
@@ -195,10 +202,49 @@ describe("the same event delivered twice", () => {
     expect(account!.planId).toBe("plus");
 
     // And once it HAS completed, a third delivery is an ordinary replay.
+    expect(await applyStripeEvent(evt, new Date(T0.getTime() + 180_000))).toEqual({
+      applied: false,
+      note: "replay",
+    });
+  });
+
+  // **A retry that arrives while the first delivery is still working must NOT
+  // take the event from under it** (CodeRabbit, PR #177).
+  //
+  // Stripe sends exactly this retry when a synchronous handler outruns its
+  // acknowledgement window — the handler has not failed, it is simply slow.
+  // Without a lease both deliveries ran `writeFrom`: an existing subscription
+  // took the same update twice, and a first purchase raced inside
+  // `applySubscriptionFacts`, where both reads find no row and the loser's
+  // insert hits the unique `stripe_subscription_id` constraint. That is a 500,
+  // which produces another retry.
+  //
+  // The first delivery here is left deliberately unfinished — claimed, never
+  // stamped — which is exactly what an in-flight one looks like in the table.
+  it("refuses a retry that arrives while the first delivery is still running", async () => {
+    const userId = await makeAccount();
+    const subId = `sub_${randomUUID()}`;
+    const evt = event("checkout.session.completed", {
+      id: "cs_inflight",
+      subscription: subId,
+      client_reference_id: `${userId}|plus@v1`,
+    }, T0);
+
+    retrieveSubscription.mockRejectedValueOnce(new Error("still working"));
+    await expect(applyStripeEvent(evt, T0)).rejects.toThrow();
+    const [claimed] = await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id));
+    expect(claimed!.appliedAt, "the claim is unstamped, as an in-flight one is").toBeNull();
+
+    // Ten seconds later: unstamped, but well inside the lease. This is the
+    // live-work case, not the abandoned one.
+    retrieveSubscription.mockResolvedValue(subscription({ id: subId, userId }));
     expect(await applyStripeEvent(evt, new Date(T0.getTime() + 10_000))).toEqual({
       applied: false,
       note: "replay",
     });
+    // And it wrote nothing: the account is still on whatever it held.
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planId).not.toBe("plus");
   });
 });
 

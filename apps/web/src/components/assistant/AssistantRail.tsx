@@ -318,7 +318,13 @@ export function AssistantRail({
   // deduped (ADR-046), and the rail only mounts while the assistant is OPEN,
   // so a reader who never opens it pays nothing.
   const aiEntitledFetched = useAiEntitled();
-  const aiEntitled = aiEntitledProp ?? aiEntitledFetched;
+  // **`=== undefined`, not `??`.** The prop's contract is "supplied wins", and
+  // `null` is a SUPPLIED value here — it means "this caller knows the answer is
+  // not known yet". `??` treats it as absent and falls through to the hook, so
+  // a test or caller passing `null` got whatever the fetch resolved to, which
+  // for a free account is `false` — the opposite of what it asked for.
+  // CodeRabbit, PR #177.
+  const aiEntitled = aiEntitledProp === undefined ? aiEntitledFetched : aiEntitledProp;
 
   /**
    * **The composer is inert and the block above it is an offer.**

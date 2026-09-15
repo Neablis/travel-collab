@@ -4,7 +4,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssistantRail } from "./AssistantRail";
 import type { AssistantTurn } from "./Transcript";
 
-afterEach(cleanup);
+// **The hook is mocked so the prop's precedence can actually be tested.**
+// Un-mocked it issues a `fetch` jsdom never answers, so it stays `null`
+// forever — and a test asserting "an explicit `null` prop keeps the composer
+// live" then passes whether the prop wins or not, because BOTH sides are
+// `null`. That is the defect CodeRabbit found in the code and it was invisible
+// here for exactly the same reason. `aiEntitledFetched` is what this controls.
+const fetchedEntitlement = vi.hoisted(() => ({ value: null as boolean | null }));
+vi.mock("./useAiEntitled", () => ({
+  useAiEntitled: () => fetchedEntitlement.value,
+  AI_ASK_ENTITLEMENT: "ai.ask",
+  accountPlanKey: "account:plan",
+}));
+
+afterEach(() => {
+  fetchedEntitlement.value = null;
+  cleanup();
+});
 
 
 // Required-prop fixture for tests that assert on a specific optional prop
@@ -195,6 +211,20 @@ describe("AssistantRail", () => {
     // "not entitled" would flash a paywall at a paying subscriber on every
     // open. Being wrong the other way costs one refused request.
     it("treats an unknown plan as entitled", () => {
+      renderRail({ aiEntitled: null });
+      expect(
+        (screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled,
+      ).toBe(false);
+      expect(screen.queryByTestId("assistant-upgrade-cta")).toBeNull();
+    });
+
+    // **A supplied prop wins, including when it is `null`** — the rail's own
+    // documented contract, and `??` broke it: `null` read as "absent", so the
+    // hook's `false` replaced it and gated a rail the caller had explicitly
+    // said not to gate. The mock at the top of this file is what makes the two
+    // sides differ; without it both are `null` and this passes either way.
+    it("lets an explicit null prop beat a resolved non-entitled fetch", () => {
+      fetchedEntitlement.value = false;
       renderRail({ aiEntitled: null });
       expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(
         false,

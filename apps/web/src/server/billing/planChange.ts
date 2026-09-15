@@ -197,7 +197,7 @@ export class StalePlanVersionError extends Error {
 }
 
 export type PlanChangeResult =
-  | { kind: "checkout"; url: string }
+  | { kind: "checkout"; url: string; sessionId: string }
   | { kind: "applied"; planVersionRef: string }
   | { kind: "cancelling"; effectiveAt: string | null };
 
@@ -282,7 +282,7 @@ export async function applyPlanChange(input: {
       planId: input.planId,
       returnOrigin: input.returnOrigin,
     });
-    return { kind: "checkout", url: started.url };
+    return { kind: "checkout", url: started.url, sessionId: started.sessionId };
   }
 
   const [priceId, subscription] = await Promise.all([

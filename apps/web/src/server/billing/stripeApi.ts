@@ -168,6 +168,12 @@ export async function stripeRequest<T>(request: StripeRequest): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), STRIPE_TIMEOUT_MS);
   let response: Response;
+  // **Read inside the `try`, so the timeout covers the BODY too.** `fetch`
+  // resolves as soon as Stripe sends response headers, so clearing the timer
+  // before `.text()` left a stalled body with no bound at all — the exact
+  // failure the timeout exists to prevent, moved one step later. CodeRabbit,
+  // PR #177.
+  let text: string;
   try {
     response = await fetch(`${STRIPE_API}${request.path}${query}`, {
       method: request.method,
@@ -178,6 +184,7 @@ export async function stripeRequest<T>(request: StripeRequest): Promise<T> {
       cache: "no-store",
       signal: controller.signal,
     });
+    text = await response.text();
   } catch (error) {
     // A timeout reaches callers as an ordinary Stripe failure rather than a
     // bare `AbortError`, so the webhook's 500-and-retry path handles it the
@@ -194,7 +201,6 @@ export async function stripeRequest<T>(request: StripeRequest): Promise<T> {
     clearTimeout(timer);
   }
 
-  const text = await response.text();
   if (!response.ok) {
     let code: string | null = null;
     let message = `Stripe ${request.method} ${request.path} failed with ${response.status}`;

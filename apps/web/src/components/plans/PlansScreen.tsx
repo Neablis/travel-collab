@@ -39,7 +39,11 @@ import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
 type Step =
   | { name: "chooser" }
   | { name: "confirm"; planId: string }
-  | { name: "pending" }
+  /**
+   * Waiting for the webhook — and `from` says WHY, because the two reasons
+   * clear differently. See the reset effect for what depends on it.
+   */
+  | { name: "pending"; from: "checkout" | "change" }
   | { name: "result"; message: string };
 
 /** What the confirm step renders, as the server sends it. */
@@ -66,6 +70,66 @@ interface PlanChangePreview {
 const PENDING_ATTEMPTS = 20;
 const PENDING_INTERVAL_MS = 1500;
 
+/**
+ * What this account held in the instant before it left for Stripe.
+ *
+ * **Why a stash exists at all.** The pending screen decides success by
+ * comparing against a baseline, and its only other source is the first
+ * `/api/account/plan` read AFTER the return — which can lose a race to the
+ * webhook and come back already reconciled. A baseline captured before the
+ * redirect cannot lose that race, because at that moment the purchase had not
+ * happened yet.
+ *
+ * **Keyed by the session id**, so a stale stash from an earlier, abandoned
+ * checkout cannot be read as this one's baseline.
+ *
+ * `sessionStorage`, not `localStorage`: this is worth exactly one tab and one
+ * browsing session, which is the lifetime of a checkout. Every access is
+ * wrapped — Safari in private mode throws on access, not on write, and a
+ * baseline that cannot be stored must degrade to the arrival read rather than
+ * take the page down.
+ */
+const CHECKOUT_BASELINE_KEY = "plans:checkout-baseline";
+
+interface CheckoutBaseline {
+  session: string;
+  /**
+   * The plan version held before leaving. That is the whole baseline — there
+   * is deliberately no `subscribed` flag beside it.
+   *
+   * It had one, and it was dead weight every red-first mutation proved: buying
+   * a plan always MOVES the version ref, so whenever a stash exists `moved`
+   * already decides the outcome and the flag never changed an answer. An
+   * untested branch on a billing path is worse than no branch.
+   */
+  planVersionRef: string;
+}
+
+function stashCheckoutBaseline(baseline: CheckoutBaseline): void {
+  try {
+    window.sessionStorage.setItem(CHECKOUT_BASELINE_KEY, JSON.stringify(baseline));
+  } catch {
+    // No stash. `readCheckoutBaseline` returns null and the arrival read is
+    // used instead — the behaviour this page had before the stash existed.
+  }
+}
+
+function readCheckoutBaseline(session: string | null): CheckoutBaseline | null {
+  if (session === null) return null;
+  try {
+    const raw = window.sessionStorage.getItem(CHECKOUT_BASELINE_KEY);
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw) as Partial<CheckoutBaseline>;
+    // Every field checked rather than trusted: this is storage a page from any
+    // earlier build may have written, and a malformed baseline that read as
+    // `subscribed: undefined` would silently become `false`.
+    if (parsed.session !== session || typeof parsed.planVersionRef !== "string") return null;
+    return { session, planVersionRef: parsed.planVersionRef };
+  } catch {
+    return null;
+  }
+}
+
 export function PlansScreen() {
   const params = useSearchParams();
   const checkout = params.get("checkout");
@@ -82,11 +146,18 @@ export function PlansScreen() {
   // a URL", and the copy below no longer claims payment either way.
   const returnedSession = checkout !== null && /^cs_[A-Za-z0-9_]+$/.test(checkout) ? checkout : null;
   const [step, setStep] = useState<Step>(
-    returnedSession === null ? { name: "chooser" } : { name: "pending" },
+    returnedSession === null ? { name: "chooser" } : { name: "pending", from: "checkout" },
   );
   // What the account held when this page loaded. The pending state needs it to
   // tell "the webhook landed" from "this account was already subscribed".
+  //
+  // **Written once and then never again** — `?? current` in the setter, so a
+  // poll cannot overwrite the baseline it is being compared against.
   const [heldOnArrival, setHeldOnArrival] = useState<string | null>(null);
+  // The same, for "was this account already paying". Write-once for the same
+  // reason, and read by the pending effect so that the live `plan` object does
+  // not have to be one of its dependencies.
+  const [subscribedOnArrival, setSubscribedOnArrival] = useState<boolean | null>(null);
   const [preview, setPreview] = useState<PlanChangePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,17 +179,71 @@ export function PlansScreen() {
   useEffect(() => {
     void load().then((loaded) => {
       if (loaded === null) setFailed(true);
-      else setHeldOnArrival((current) => current ?? loaded.planVersionRef);
+      else {
+        setHeldOnArrival((current) => current ?? loaded.planVersionRef);
+        setSubscribedOnArrival((current) =>
+          current ?? (loaded.billing.state !== "none" && loaded.billing.state !== "trial"),
+        );
+      }
     });
   }, [load]);
+
+  // **"Back to plans" has to actually go back** (CodeRabbit, PR #177).
+  //
+  // It is a `Link` to `/plans` from `/plans?checkout=…` — the same route with
+  // one parameter dropped — so the App Router navigates client-side and this
+  // component does NOT remount. `step` is `useState`-initialised, so it stayed
+  // on `pending` and the only way out of a stuck pending screen was a hard
+  // reload. A link that changes the URL and nothing else is worse than no link.
+  //
+  // **Only the checkout-born pending resets.** The in-place plan change also
+  // waits here and never had a `?checkout=` to lose, so keying this on the
+  // parameter alone would have snapped it back to the chooser the instant it
+  // started waiting — which is why `from` exists rather than a bare boolean.
+  useEffect(() => {
+    if (returnedSession === null && step.name === "pending" && step.from === "checkout") {
+      setStep({ name: "chooser" });
+      setSlow(false);
+    }
+  }, [returnedSession, step]);
 
   // **The pending state's only job: ask whether the webhook has landed yet.**
   useEffect(() => {
     if (step.name !== "pending") return;
     let attempts = 0;
     let live = true;
-    const before = heldOnArrival;
-    const wasSubscribed = plan !== null && plan.billing.state !== "none" && plan.billing.state !== "trial";
+    // **The baseline is the one STASHED BEFORE LEAVING FOR STRIPE, and only
+    // falls back to what this page first read** (CodeRabbit, PR #177).
+    //
+    // Reading the arrival state alone was a race. The webhook can land before
+    // this page's first `/api/account/plan` returns — a fast webhook and a slow
+    // first paint — and the baseline was then already the POST-purchase state.
+    // Nothing could "move" from it and `wasSubscribed` came back true, so
+    // neither test could ever fire and a completed first purchase sat on the
+    // pending screen until the attempt ceiling.
+    //
+    // `stashedBaseline()` closes the window rather than narrowing it: it was
+    // written while this page still knew the pre-checkout truth, one line
+    // before the redirect. A visitor who did NOT come through that redirect —
+    // a bookmarked or forged `?checkout=` URL — has no stash, and falls back to
+    // the arrival read, which is what keeps `keeps waiting when an existing
+    // subscriber's plan has not moved yet` true. Success is still evidence,
+    // never the mere presence of a session id.
+    const stashed = readCheckoutBaseline(returnedSession);
+    // **Nothing is compared until the arrival read has landed — one rule, no
+    // exception for the stash.** Found twice by red-first, and the second time
+    // is the instructive one: an earlier version skipped this wait whenever a
+    // stash existed, on the reasoning that the stash IS the baseline. It is
+    // the baseline for `before`, but `wasSubscribed` still comes from the
+    // arrival read, and `null` there read as "not subscribed" — the permissive
+    // direction. A poll landing in that window called an existing subscriber's
+    // unchanged plan a first purchase.
+    //
+    // Both values land together from the same load and both are dependencies,
+    // so the effect re-arms the moment they do. Waiting costs one interval.
+    if (heldOnArrival === null || subscribedOnArrival === null) return;
+    const before = stashed?.planVersionRef ?? heldOnArrival;
+    const wasSubscribed = subscribedOnArrival;
     const timer = setInterval(() => {
       if (!live) return;
       attempts += 1;
@@ -152,7 +277,18 @@ export function PlansScreen() {
       live = false;
       clearInterval(timer);
     };
-  }, [step.name, load, heldOnArrival, plan]);
+    // **`subscribedOnArrival` rather than `plan`, and that is the other half of
+    // the same bug** (CodeRabbit, PR #177). `load()` calls `setPlan()`, so
+    // listing `plan` here re-ran this effect on every successful poll — tearing
+    // the interval down and rebuilding it with `attempts` back at zero. The
+    // ceiling was unreachable and `setSlow(true)` never fired, so a
+    // reconciliation that never arrived left the page checking silently and
+    // forever, with no "this is taking a while" and no way out.
+    //
+    // Both values this effect reads are now write-once (`heldOnArrival`,
+    // `subscribedOnArrival`), so the dependency list is stable and there is no
+    // stale closure traded for the fix.
+  }, [step.name, load, heldOnArrival, subscribedOnArrival, returnedSession]);
 
   async function openConfirm(planId: string) {
     setStep({ name: "confirm", planId });
@@ -185,6 +321,8 @@ export function PlansScreen() {
       const body = (await res.json()) as {
         kind?: string;
         url?: string;
+        /** Present on a `checkout` answer — see `stashCheckoutBaseline`. */
+        sessionId?: string;
         effectiveAt?: string | null;
         error?: string;
         message?: string;
@@ -204,6 +342,14 @@ export function PlansScreen() {
         return;
       }
       if (body.kind === "checkout" && typeof body.url === "string") {
+        // **The baseline is written here, while this page still knows the
+        // pre-checkout truth.** One line later the browser is gone to Stripe,
+        // and everything it can learn on the way back may already include the
+        // purchase. `sessionId` comes from the same response that carries the
+        // URL, so the stash is keyed to the session it describes.
+        if (typeof body.sessionId === "string" && plan !== null) {
+          stashCheckoutBaseline({ session: body.sessionId, planVersionRef: plan.planVersionRef });
+        }
         window.location.assign(body.url);
         return;
       }
@@ -220,7 +366,7 @@ export function PlansScreen() {
         return;
       }
       // An in-place change: Stripe has taken it and the webhook writes the row.
-      setStep({ name: "pending" });
+      setStep({ name: "pending", from: "change" });
       setBusy(false);
     } catch {
       setPreviewError("This change could not be made just now.");
@@ -425,10 +571,21 @@ function Chooser({
           that sheet already carries a sentence like this one.
           Shown only while something is granted, so it is never a disclaimer
           about nothing. */}
+      {/* **"Your free week" only when there IS one** (CodeRabbit, PR #177).
+          `grantInPlay` is true for ANY source the catalogue does not show —
+          founder, referral, admin, trial — and the copy named the trial for
+          all of them. On this deployment that is the common case rather than
+          the rare one: every account predating M20's migration carries a
+          permanent founder grant, so the page told a founder their free week
+          was doing it, and the one place a reader could check said otherwise.
+          The neutral wording is true of every source including the trial; the
+          trial keeps its own sentence because naming it is friendlier where it
+          is accurate. */}
       {grantInPlay ? (
         <Text variant="secondary" className="text-xs" data-testid="plans-grant-note">
-          These are the plans as published. Your free week grants you more than the {heldPlanId} plan
-          lists above — what you can actually do right now is in Account settings, under Plan.
+          {plan.billing.state === "trial"
+            ? `These are the plans as published. Your free week grants you more than the ${heldPlanId} plan lists above — what you can actually do right now is in Account settings, under Plan.`
+            : `These are the plans as published. Your account has been granted more than the ${heldPlanId} plan lists above — what you can actually do right now is in Account settings, under Plan.`}
         </Text>
       ) : null}
     </div>

@@ -20,7 +20,7 @@
 // "what you bought" has to land there or a subscription would grant nothing.
 // Nothing else in the product writes it except account creation, and
 // `billing.soleWriter.test.ts` sweeps for a third writer.
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import { PlanId, SubscriptionStatus } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { billingEvents, subscriptions, users } from "@/server/db/schema";
@@ -73,6 +73,19 @@ const HANDLED = new Set([
 ]);
 
 /**
+ * How long one delivery may hold its claim before another may take it.
+ *
+ * **Longer than the slowest possible `applyStripeEvent`, and shorter than
+ * anything a person waits for.** The work is one Stripe read — bounded at
+ * `STRIPE_TIMEOUT_MS`, 15s — plus local writes, so a minute is several times
+ * the ceiling. Erring long is the safe direction: a lease that expires under
+ * live work reintroduces the double-apply it exists to prevent, while a lease
+ * that outlives a crashed delivery only delays the retry, and Stripe's own
+ * retry schedule is minutes apart regardless.
+ */
+const CLAIM_LEASE_MS = 60_000;
+
+/**
  * **Claim this event, or report that somebody already applied it.**
  *
  * The insert IS the lock. Two concurrent deliveries of the same event — which
@@ -85,11 +98,18 @@ const HANDLED = new Set([
  * RE-CLAIMABLE — the previous attempt died — while a stamped row is a genuine
  * replay and is refused.
  *
+ * **And re-claimable only once the LEASE has expired.** "Unstamped" means "not
+ * finished", which is not the same as "abandoned": a delivery still running is
+ * unstamped too, so the bare predicate let a Stripe retry take an event out
+ * from under a live first delivery. `received_at` dates the current attempt, so
+ * comparing it against `CLAIM_LEASE_MS` is what tells the two apart.
+ *
  * The re-claim is itself a conditional UPDATE rather than a read-then-write, so
  * two retries racing after a failure still produce exactly one winner: the
- * `where` matches only while the row is unstamped, and only one statement can
- * move `received_at` under it.
+ * `where` matches only while the row is unstamped AND its lease has run out,
+ * and only one statement can move `received_at` under it.
  */
+
 async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
   const inserted = await db
     .insert(billingEvents)
@@ -104,10 +124,31 @@ async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
     .returning({ id: billingEvents.id });
   if (inserted.length > 0) return true;
 
+  // **`applied_at IS NULL` alone means "not finished", which is not the same as
+  // "abandoned"** (CodeRabbit, PR #177). A delivery still RUNNING has a null
+  // `applied_at` too, so the bare predicate let a Stripe retry re-claim an
+  // event whose first delivery was mid-flight — and Stripe sends exactly that
+  // retry when a synchronous handler outruns its acknowledgement window. Both
+  // deliveries then ran `writeFrom`: an existing subscription took the same
+  // update twice, and a first-time one raced inside `applySubscriptionFacts`
+  // where both reads find no row and the loser's insert hits the unique
+  // `stripe_subscription_id` constraint — a 500, and another retry.
+  //
+  // The lease is what separates the two cases. `received_at` is stamped at
+  // claim and re-stamped on every reclaim, so it is the start of the current
+  // attempt: a row still inside the window is someone's live work and a row
+  // outside it is abandoned. No migration — the column was already there.
+  const leaseExpiredBefore = new Date(now.getTime() - CLAIM_LEASE_MS);
   const reclaimed = await db
     .update(billingEvents)
     .set({ receivedAt: now })
-    .where(and(eq(billingEvents.id, event.id), isNull(billingEvents.appliedAt)))
+    .where(
+      and(
+        eq(billingEvents.id, event.id),
+        isNull(billingEvents.appliedAt),
+        lt(billingEvents.receivedAt, leaseExpiredBefore),
+      ),
+    )
     .returning({ id: billingEvents.id });
   return reclaimed.length > 0;
 }

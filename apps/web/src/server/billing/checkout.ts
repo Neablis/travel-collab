@@ -91,6 +91,14 @@ export interface CheckoutStart {
   url: string;
   /** What the session was created against — the version the price came from. */
   planVersionRef: string;
+  /**
+   * The Checkout Session's own id, handed back so the browser can key its
+   * pre-checkout baseline to this session (`PlansScreen`). It is the same id
+   * Stripe puts in the `?checkout=` parameter on the way back, which is what
+   * makes the two correlate; it is not a secret and it proves nothing on its
+   * own — only the webhook does.
+   */
+  sessionId: string;
 }
 
 /**
@@ -192,7 +200,7 @@ export async function startCheckout(input: {
   if (session.url === null) {
     throw new Error("Stripe created a Checkout Session with no URL, which should not happen.");
   }
-  return { url: session.url, planVersionRef: planVersionRefOf(version) };
+  return { url: session.url, planVersionRef: planVersionRefOf(version), sessionId: session.id };
 }
 
 /**

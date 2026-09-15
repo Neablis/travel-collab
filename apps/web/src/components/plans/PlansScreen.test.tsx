@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
@@ -76,6 +76,30 @@ const VIEW: AccountPlanView = {
   },
 };
 
+// Mirrors `PlansScreen`'s own polling constants. Duplicated rather than
+// exported: the page's pacing is an implementation detail, and a test that
+// imported it would pass if both moved together while the wait doubled.
+const PENDING_ATTEMPTS = 20;
+const PENDING_INTERVAL_MS = 1500;
+
+/**
+ * Advance `ticks` poll intervals, committing a render between each one.
+ *
+ * **One `act` per tick, never one around the whole span.** A single `act`
+ * batches every `setPlan` into one commit at the end, so the polling effect
+ * never re-arms between polls — and a test written that way passes against the
+ * re-arm bug it is supposed to catch. Ticking one interval at a time is how a
+ * browser runs it, where the polls are 1.5s apart and nothing is batched
+ * across them.
+ */
+async function pollTicks(ticks: number): Promise<void> {
+  for (let tick = 0; tick < ticks; tick += 1) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PENDING_INTERVAL_MS);
+    });
+  }
+}
+
 const PREVIEW = {
   kind: "first-purchase" as const,
   planId: "plus",
@@ -124,6 +148,10 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  // The stash outlives a test the way any storage does, and a baseline leaking
+  // into the next case is the worst kind of leak: it does not fail, it passes
+  // with the previous test's answer.
+  window.sessionStorage.clear();
 });
 
 describe("the chooser", () => {
@@ -208,6 +236,30 @@ describe("the chooser", () => {
     render(<PlansScreen />);
     const note = await screen.findByTestId("plans-grant-note");
     expect(note.textContent).toContain("as published");
+    // On a TRIAL the free week may be named, because there is one.
+    expect(note.textContent).toContain("free week");
+  });
+
+  // **A founder grant is not a free week** (CodeRabbit, PR #177). `grantInPlay`
+  // fires for any source the catalogue does not show, and the copy named the
+  // trial for all of them — which on this deployment is the common case, not
+  // the rare one: every account predating M20's migration holds a permanent
+  // founder grant. The page told those people their free week was doing it.
+  it("does not call a non-trial grant a free week", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+        // Granted, but not on a trial — a founder, a referral or an operator
+        // grant. `state: "none"` is exactly what those accounts report.
+        billing: { ...VIEW.billing, state: "none" },
+      },
+    });
+    render(<PlansScreen />);
+    const note = await screen.findByTestId("plans-grant-note");
+    expect(note.textContent).toContain("as published");
+    expect(note.textContent).toContain("has been granted");
+    expect(note.textContent).not.toContain("free week");
   });
 
   it("carries no such disclaimer when nothing is granted", async () => {
@@ -324,6 +376,140 @@ describe("coming back from Stripe", () => {
     render(<PlansScreen />);
     const back = await screen.findByTestId("plans-pending-back");
     expect(back.getAttribute("href")).toBe("/plans");
+  });
+
+  // **And the way back has to WORK, not merely point somewhere** (CodeRabbit,
+  // PR #177). The link goes from `/plans?checkout=…` to `/plans` — the same
+  // route, one parameter lighter — so the App Router navigates client-side and
+  // this component never remounts. `step` is `useState`-initialised, so it sat
+  // on `pending` and the only escape from a stuck screen was a hard reload.
+  //
+  // The href assertion above passes either way, which is precisely why this
+  // one exists: it drops the parameter the way a navigation does and then
+  // asserts what the person actually sees.
+  it("returns to the chooser once the checkout parameter is dropped", async () => {
+    search.set("checkout", "cs_test_123");
+    const { rerender } = render(<PlansScreen />);
+    await screen.findByTestId("plans-pending");
+
+    search.delete("checkout");
+    rerender(<PlansScreen />);
+
+    await screen.findByTestId("plan-cards");
+    expect(screen.queryByTestId("plans-pending")).toBeNull();
+  });
+
+  // The in-place plan change waits on the same screen and never had a
+  // `?checkout=` to lose. Keying the reset on the parameter alone would snap it
+  // back to the chooser the instant it started waiting — so this pins that the
+  // reset is about the checkout-born pending only.
+  it("leaves an in-place change waiting, parameter or no parameter", async () => {
+    serve({ change: { kind: "changed" } });
+    render(<PlansScreen />);
+    await screen.findByTestId("plan-cards");
+    await userEvent.click(screen.getByTestId("plan-choose-plus"));
+    await screen.findByTestId("confirm-pay");
+    await userEvent.click(screen.getByTestId("confirm-pay"));
+
+    // No `?checkout=` was ever set, and it must still be waiting.
+    expect(await screen.findByTestId("plans-pending")).toBeTruthy();
+    expect(screen.queryByTestId("plan-cards")).toBeNull();
+  });
+
+  // **The reconciliation that beat the page back from Stripe** (CodeRabbit,
+  // PR #177). The webhook can land before this page's first
+  // `/api/account/plan` returns — a fast webhook and a slow first paint — and
+  // the baseline was then already the POST-purchase state. Nothing could
+  // "move" from it, so a completed first purchase sat on the pending screen.
+  //
+  // The fix is a baseline captured BEFORE the redirect, keyed to the session
+  // id, so it cannot lose that race — at the moment it was written the
+  // purchase had not happened. The page below arrives already reconciled and
+  // still reaches the result, because the stash remembers what was true.
+  it("shows the result when the webhook landed before the first read", async () => {
+    search.set("checkout", "cs_test_123");
+    window.sessionStorage.setItem(
+      "plans:checkout-baseline",
+      JSON.stringify({ session: "cs_test_123", planVersionRef: "free@v1" }),
+    );
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "plus@v1",
+        billing: { ...VIEW.billing, state: "active", renewsAt: "2026-10-20T00:00:00.000Z" },
+      },
+    });
+    vi.useFakeTimers();
+    try {
+      render(<PlansScreen />);
+      // The page is honest enough to wait for a read rather than trust the
+      // URL, so the verdict lands on the first poll — not at mount.
+      await pollTicks(2);
+      expect(screen.getByTestId("plans-result").textContent).toContain("Your plan is active");
+      expect(screen.queryByTestId("plans-pending")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // **A stash from a DIFFERENT session is not this session's baseline.** An
+  // abandoned checkout leaves one behind, and reading it here would compare
+  // against the wrong moment entirely.
+  it("ignores a baseline left by a different checkout", async () => {
+    search.set("checkout", "cs_test_123");
+    window.sessionStorage.setItem(
+      "plans:checkout-baseline",
+      JSON.stringify({ session: "cs_test_OLD", planVersionRef: "free@v1" }),
+    );
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "plus@v1",
+        billing: { ...VIEW.billing, state: "active" },
+      },
+    });
+    vi.useFakeTimers();
+    try {
+      render(<PlansScreen />);
+      // **Polls actually run before this asserts.** Reading `plans-result` at
+      // mount would pass whatever the stash did, because no poll has happened
+      // yet — the assertion has to survive the comparison, not precede it.
+      await pollTicks(3);
+      // Falls back to the arrival read, which already shows a subscriber — so
+      // this waits for evidence rather than declaring someone else's success.
+      expect(screen.getByTestId("plans-pending")).toBeTruthy();
+      expect(screen.queryByTestId("plans-result")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // **The attempt ceiling has to be reachable, or "we are still checking" is
+  // forever** (CodeRabbit, PR #177). `load()` calls `setPlan()`, and while
+  // `plan` was an effect dependency every successful poll tore the interval
+  // down and rebuilt it with `attempts` back at zero — so `setSlow(true)` was
+  // unreachable and a reconciliation that never arrived left the page checking
+  // silently with no way out.
+  //
+  // Twenty polls at 1500ms. The assertion is the banner, not the counter: what
+  // matters is that a person waiting gets told.
+  it("says it is taking a while once the attempts run out", async () => {
+    vi.useFakeTimers();
+    try {
+      search.set("checkout", "cs_test_123");
+      // The plan never changes — this is the webhook that does not land.
+      serve();
+      render(<PlansScreen />);
+      // Verified by probe: with `plan` restored to the dependency list, a
+      // single batched `act` counts cleanly to 20 and passes; `pollTicks`
+      // resets to 1 on every tick and never reaches the ceiling.
+      await pollTicks(PENDING_ATTEMPTS + 2);
+      expect(screen.getByTestId("plans-pending-slow")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Shape is not proof of payment, but it does separate "came back from a
