@@ -550,6 +550,23 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **The header's "Add stop" on desktop — where should creating an UNSCHEDULED
+  stop live?** Reported on the preview, 2026-09-15: *"This Add Stop button i
+  believe was added for mobile, it shouldnt show in desktop"*. The premise is
+  not what the code does, which is why this is a design question rather than a
+  fix: it is not a phone control and it is not a duplicate. Each day column
+  already has its own `+ Add` (`Column.tsx` → `openCreate({ dayId })`), and the
+  header's bare `openCreate()` with no day is the ONLY way to make a stop that
+  belongs to no day — it is the Backlog column's old button, folded into the
+  header when that column became the Unscheduled drawer (`Board.tsx:396`). The
+  drawer itself only moves existing stops onto days; it mints nothing. So
+  hiding the header button on desktop removes a capability at that width rather
+  than tidying a duplicate, and the real options are: give the Unscheduled
+  drawer its own create affordance and then drop the header button, accept the
+  header button as the home for it, or decide unscheduled stops are phone-only.
+  Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
+  4 ("challenge to simplify") point opposite ways here until someone picks.
+  *(Filed 2026-09-15 from PR #177's preview feedback.)*
 - **Two M20 migrations are merged-pending and undispatched: `0019` and
   `0020`.** Dispatch from `main`, in order:
   `gh workflow run migrate-production.yml -f confirm=migrate`. Merging does not

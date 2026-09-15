@@ -51,6 +51,19 @@ the milestone file's *What review found* has the list and the lesson. **The less
 line: every one of the four had a passing test over it — asserting presence, or state, or a
 substring, on the exact path where the defect lived.**
 
+**Then a fourth review arrived, on the preview itself** (2026-09-15) — five Vercel toolbar
+threads, a surface with its own mechanics that `docs/guidelines/working-a-review.md` covers
+and that no GitHub check surfaces as a review. **Four were design decisions this build had
+got wrong, not bugs**, and two of them reverse M20's §17.3 in the same words: a gated
+affordance now STAYS on screen, disabled, under a CTA to `plans`, rather than not rendering
+at all. M20's reasoning ("a control that can never work") was right when there was nowhere
+to send anybody; §29 gave plans a route, so the premise expired. The assistant's gate also
+moved EARLIER than the server's 402 — `useAiEntitled` asks the plan before anything is
+typed. The fifth is a design question with a wrong premise, answered on the thread and filed
+in `TODO.md` → *Candidate ideas* rather than guessed at. **The threads stay unresolved until
+Mitchell resolves them** — that check is a human gate, and clearing it from this side would
+be defeating a control rather than passing it.
+
 **What is left is a walk against a real Stripe test-mode key**, which no lane in this repo
 has — exactly what the milestone's *Why it is separate* predicted. **Nothing about it costs
 money, and the recipe is `docs/guidelines/billing-without-spending-money.md`**: test cards,

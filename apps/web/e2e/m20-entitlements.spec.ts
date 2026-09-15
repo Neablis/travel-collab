@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
+import { openAssistantRail } from "./helpers";
 
 // **M20's exit gate, walked** — *"An account knows what it may do."*
 //
@@ -15,8 +16,10 @@ import { e2eTripName } from "./tripNames";
 //      planning path is the failure M20 is most likely to cause.
 //   2. A free account is refused `/ask` with **402** and `ai-not-entitled`, and
 //      the refusal names the tier rather than reading as a permission error.
-//   3. A free owner cannot invite: the *Invite someone* form is **not
-//      rendered**, and a named-tier block takes its place.
+//   3. A free owner cannot invite: the *Invite someone* form is **disabled
+//      under a named-tier block with a CTA** (M21, 2026-09-15 — it used to be
+//      absent entirely; the reasoning moved when there was somewhere to send
+//      the CTA).
 //   4. **An admin grants premium and it bites on the next request — no
 //      sign-out, no token refresh.** The session cookie is captured before and
 //      compared after, so "the JWT is unchanged" is a fact rather than a claim.
@@ -130,9 +133,13 @@ test.describe("M20 — an account knows what it may do", () => {
     const gate = page.getByTestId("collaborators-gate");
     await expect(gate).toContainText("Premium");
     await expect(gate).toContainText("always free");
-    // Not disabled — ABSENT. A disabled button beside an explanation offers a
-    // control that can never work.
-    await expect(page.getByRole("button", { name: "Invite someone" })).toHaveCount(0);
+    // Disabled, not absent (M21). The control is no longer one that can never
+    // work — the CTA beside it is what makes it work — so the shape of what is
+    // being bought stays on screen. Both halves are asserted: the form is
+    // there, it is inert, and the way out goes to the plans route.
+    await expect(page.getByRole("button", { name: "Invite someone" })).toBeDisabled();
+    await expect(page.getByLabel("Invite by email")).toBeDisabled();
+    await expect(gate.getByTestId("collaborators-gate-cta")).toHaveAttribute("href", "/plans");
   });
 
   test("a non-admin reaches neither the console nor its endpoint", async ({ page }) => {
@@ -427,7 +434,9 @@ test.describe("M20 — an account knows what it may do", () => {
     page.on("request", watch);
     await page.reload();
     await page.getByRole("button", { name: /trip settings/i }).click();
-    await expect(page.getByRole("button", { name: "Invite someone" })).toBeVisible();
+    // `toBeEnabled`, not just `toBeVisible` (M21): the gated form is visible
+    // too now, so visibility alone stopped distinguishing granted from free.
+    await expect(page.getByRole("button", { name: "Invite someone" })).toBeEnabled();
     await expect(page.getByTestId("collaborators-gate")).toHaveCount(0);
     page.off("request", watch);
 
@@ -480,6 +489,22 @@ test.describe("M20 — an account knows what it may do", () => {
     // Names the tier, not a permission — and carries no price.
     expect(body.error).toContain("Plus");
     expect(body.error).not.toMatch(/\$|permission/i);
+
+    // **And the person never has to spend a question to find out** (M21,
+    // 2026-09-15). The endpoint half above is what M20 shipped; this is the
+    // half the preview feedback asked for — the rail still opens, the composer
+    // is inert before anything is typed, and there is somewhere to go.
+    //
+    // This account is genuinely unentitled (its trial was revoked through the
+    // console two steps up), so the gate below is the real one rather than a
+    // fixture — which is why the assertion lives in this test rather than in a
+    // new one that would have to build the same account again.
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    await openAssistantRail(page);
+    await expect(page.getByPlaceholder(/Ask about this/)).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ask the assistant" })).toBeDisabled();
+    await expect(page.getByTestId("assistant-upgrade-cta")).toHaveAttribute("href", "/plans");
+
     await operator.context().close();
   });
 });

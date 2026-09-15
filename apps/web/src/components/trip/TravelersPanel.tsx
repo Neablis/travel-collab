@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import type { InviteRole, TripAccess, TripInvite } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Text } from "@/components/ui/text";
@@ -69,6 +70,12 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
 
   async function handleInvite(event: React.FormEvent) {
     event.preventDefault();
+    // **The gated form cannot submit, stated here rather than inferred.** Its
+    // controls are all `disabled`, so no browser reaches this line today — but
+    // that is two `disabled` props away from being false, and the rule ("an
+    // unentitled owner sends no invite") belongs where the send happens. The
+    // endpoint refuses with 402 regardless; this just declines to ask.
+    if (!(access?.collaboratorsEntitled ?? true)) return;
     setBusy(true);
     setError(null);
     const trimmed = email.trim();
@@ -133,6 +140,10 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
   // server-side whatever this decides.
   const collaboratorsEntitled = access?.collaboratorsEntitled ?? true;
   const canInvite = isOwner && collaboratorsEntitled;
+  // **The form is rendered for any owner and INERT for an unentitled one.**
+  // These two used to be the same condition — see the block comment on the
+  // gate below for why that changed.
+  const inviteGated = isOwner && !collaboratorsEntitled;
   // Everyone who is on this trip because they accepted an invite — i.e. not the
   // owner. When the owner is not entitled these are the rows the server capped
   // to `viewer` on read, which is what the banner below explains.
@@ -180,22 +191,31 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
         </div>
       )}
 
-      {/* **The invite form is NOT RENDERED for an unentitled owner** — a
-          named-tier block takes its place (design handoff §17.3, 2026-09-02).
-          A disabled button beside an explanation would be the obvious move and
-          the worse one: it offers a control that can never work.
+      {/* **The invite form stays on screen for an unentitled owner, disabled,
+          under a CTA** — reversing §17.3's 2026-09-02 decision on Mitchell's
+          call, from the preview, 2026-09-15: *"I thought the free tier shouldnt
+          let me invite people? We should keep the ui but have it greyed out,
+          and have a CTA to get people to upgrade."*
 
-          This is the half of M20's gate box the server cannot satisfy on its
-          own. The endpoint refuses with the tier named; this is where a person
-          actually reads it, and they read it BEFORE trying rather than after.
+          The line this replaces read *"a disabled button beside an explanation
+          offers a control that can never work"*, and that is still true of M20,
+          where it was written: there was no checkout, so the only honest thing
+          to show was a sentence. **M21 is what changes the argument.** The
+          control is no longer one that can never work — it is one that works as
+          soon as the CTA beside it is taken, and hiding the shape of what you
+          are buying makes the offer harder to read, not cleaner.
 
-          No price and no checkout: M20 takes no money, and M21 link 5 is where
-          a chooser arrives. */}
-      {isOwner && !collaboratorsEntitled && (
+          This is still the half of M20's gate box the server cannot satisfy on
+          its own. `POST /invites` refuses with 402 and the tier named whatever
+          this renders; this is where a person reads it BEFORE trying.
+
+          **Still no price here.** §29 puts prices on `plans` and nowhere else,
+          so the CTA names the destination rather than a number. */}
+      {inviteGated && (
         <div
           role="note"
           data-testid="collaborators-gate"
-          className="flex flex-col gap-1 border-t border-hairline pt-3"
+          className="flex flex-col gap-1.5 border-t border-hairline pt-3"
         >
           <Text as="span" className="text-xs text-ink">
             Inviting people to a trip is part of Premium.
@@ -204,11 +224,30 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
             Planning a trip on your own is always free — days, activities, costs, saved days and
             publishing to Discover are all included.
           </Text>
+          {/* `buttonVariants` on a `Link`, the repo's pattern for a control
+              that navigates (PlanSection:218). It leaves the trip, which is
+              the point: the decision is not made in this sheet. */}
+          <Link
+            href="/plans"
+            className={buttonVariants({ variant: "primary", size: "sm" }) + " self-start"}
+            data-testid="collaborators-gate-cta"
+          >
+            See plans
+          </Link>
         </div>
       )}
 
-      {canInvite && (
-        <form className="flex flex-col gap-2" onSubmit={(e) => void handleInvite(e)}>
+      {/* Rendered for `isOwner`, not for `canInvite`: an unentitled owner sees
+          the same form with every control disabled, beneath the CTA above.
+          `busy || inviteGated` on each one — the primitives' shared
+          `disabled:opacity-50` is what "greyed out" means here, so there is no
+          new visual language and nothing to keep in sync. */}
+      {isOwner && (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => void handleInvite(e)}
+          data-testid="invite-form"
+        >
           <div className="flex items-center gap-2">
             <Input
               aria-label="Invite by email"
@@ -217,17 +256,19 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="flex-1"
+              disabled={inviteGated}
             />
             <NativeSelect
               aria-label="Invite role"
               value={role}
               onChange={(e) => setRole(e.target.value as InviteRole)}
+              disabled={inviteGated}
             >
               <option value="editor">Can edit</option>
               <option value="viewer">Can view</option>
             </NativeSelect>
           </div>
-          <Button type="submit" variant="secondary" size="sm" disabled={busy}>
+          <Button type="submit" variant="secondary" size="sm" disabled={busy || inviteGated}>
             Invite someone
           </Button>
           {/* Said once, plainly: the link IS the invite. Nothing emails it. */}

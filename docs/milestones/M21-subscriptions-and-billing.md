@@ -696,3 +696,81 @@ reason. That was done here, five times, and it is necessary rather than
 sufficient: a test can fail for its own reason and still be pointed at the wrong
 question. **Where a screen's job is to say something true, the assertion has to
 be on what it says.**
+
+## What the preview walk found — 2026-09-15
+
+Five threads on PR #177's Vercel preview, left by Mitchell between 01:23 and
+01:27. They are a **fifth review surface** with its own mechanics
+(`docs/guidelines/working-a-review.md`), and four of the five were design
+decisions this build had got wrong rather than bugs.
+
+### A rule stated twice, which reverses §17.3
+
+Two of the threads say the same thing about two different gates:
+
+> *"I thought the free tier shouldnt let me invite people? We should keep the ui
+> but have it greyed out, and have a CTA to get people to upgrade."*
+
+> *"Same thing here, the assistant should still be openable but the input should
+> be disabled, and the text container above should be a CTA To upgrade"*
+
+**M20 built the opposite, deliberately, and wrote down why.** `TravelersPanel`'s
+comment read *"a disabled button beside an explanation would be the obvious move
+and the worse one: it offers a control that can never work"*, and the rail's
+read *"a 'See your plan' button here today would be a control that does nothing,
+which is worse than a sentence that is true."* Both were correct **for M20**,
+and both are now wrong, for one reason: **M20 had nowhere to send anybody.**
+There was no chooser, no checkout and no route. The control genuinely could
+never work, so hiding it was honest.
+
+§29 gives plans a route and M21 gives it a checkout, so the same control is one
+that works as soon as the CTA beside it is taken. The argument did not lose; its
+premise expired. Recorded here because the old reasoning is written into three
+comments and two test files, and a reader who finds it without this will
+reasonably think the reversal was an accident.
+
+The shape, now shared by both gates: **the affordance stays, every control in it
+is disabled, and a CTA to `/plans` sits above it.** No price on either surface —
+§29 keeps prices on the plans route and nowhere else, so both CTAs name the
+destination instead of a number.
+
+### The gate moved earlier, which needed data the rail did not have
+
+`askUpgrade` only existed *after* the server refused a question with 402, so a
+free account got a live-looking composer, typed a question, and was told
+afterwards. Disabling it up front needs the answer before anything is typed —
+`components/assistant/useAiEntitled.ts`, one cached read of
+`GET /api/account/plan` (ADR-046), asking `entitlements.includes("ai.ask")`
+rather than comparing a plan id (ADR-045 rule 4).
+
+**`null` means entitled**, and that is the whole risk in the file. The hook
+resolves `null` while loading and whenever the read fails, and treating either
+as *not entitled* would flash a paywall at a paying subscriber on every open.
+Being wrong the permissive way costs one refused request; being wrong the strict
+way blocks a customer on a bad network. The rail only mounts while the assistant
+is open, so nobody who never opens it pays for the read at all.
+
+### The assertion that would have been decorative
+
+Gating the composer's input and its Ask button is not the gate — the suggested
+question chips call `onAsk` directly, and the Enter key reaches `submitAsk`
+without passing the button. Three ways in, so the refusal is spelled on all
+three plus inside `submitAsk` itself.
+
+`AssistantRail.test.tsx`'s *"gates the suggested questions too"* is the one
+assertion that catches this, and **every other test in that describe block
+passes with the chips still live** — the same failure mode this milestone's
+previous section is about, caught this time before it shipped rather than after.
+
+### The one that is a design question, not a fix
+
+> *"This Add Stop button i believe was added for mobile, it shouldnt show in
+> desktop"*
+
+It is not a phone control and it is not a duplicate: each day column has its own
+`+ Add`, and the header's bare `openCreate()` is the only way to make a stop
+belonging to **no** day — the Backlog column's old button, folded into the
+header when that column became the Unscheduled drawer. The drawer moves existing
+stops onto days and mints none. Hiding it on desktop removes a capability at
+that width. Filed in `TODO.md` → *Candidate ideas* with the three real options,
+and answered on the thread rather than guessed at.

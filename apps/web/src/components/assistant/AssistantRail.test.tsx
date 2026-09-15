@@ -146,20 +146,72 @@ describe("AssistantRail", () => {
       expect(screen.getByRole("status").textContent).toContain(REFUSAL);
     });
 
-    // M20 ships no billing surface — M21 link 5 puts the Plan section at the
-    // top of the account sheet — so a button with nowhere to go would be worse
-    // than a sentence that is true. The prop is the seam M21 fills.
-    it("says where plans live, and offers no control, until something can open one", () => {
+    // **The seam M20 left is filled** (M21, 2026-09-15). This used to assert
+    // the opposite — no control, and the sentence "Plans live in your account
+    // settings" — which was right while there was nowhere to send anyone. §29
+    // gives plans a route, so the dead end is a CTA.
+    it("offers a way to the plans route", () => {
       renderRail({ askError: REFUSAL, askUpgrade: true });
-      expect(screen.queryByRole("button", { name: /see your plan/i })).toBeNull();
-      expect(screen.getByRole("status").textContent).toContain("account settings");
+      expect(screen.getByTestId("assistant-upgrade-cta").getAttribute("href")).toBe("/plans");
     });
 
-    it("offers the control once a caller can open the account sheet", () => {
-      const onOpenAccount = vi.fn();
-      renderRail({ askError: REFUSAL, askUpgrade: true, onOpenAccount });
-      fireEvent.click(screen.getByRole("button", { name: /see your plan/i }));
-      expect(onOpenAccount).toHaveBeenCalledOnce();
+    // **The composer is inert, not merely captioned.** A live-looking box under
+    // an upgrade notice invites the same refusal a second time.
+    it("disables everything that could send another question", () => {
+      renderRail({ askError: REFUSAL, askUpgrade: true });
+      expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(true);
+      expect(
+        (screen.getByRole("button", { name: "Ask the assistant" }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+    });
+
+    // **Known before the first question, which is the point of `aiEntitled`.**
+    // The refusal above is this same state learned the expensive way; a reader
+    // on a plan without the assistant should never have to spend a question to
+    // find out.
+    it("gates on the plan alone, with no refusal and no askError", () => {
+      renderRail({ aiEntitled: false });
+      expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(true);
+      expect(screen.getByTestId("assistant-upgrade-cta").getAttribute("href")).toBe("/plans");
+      // Our sentence, not the server's — nothing has been refused yet.
+      expect(screen.getByRole("status").textContent).toContain("The assistant is part of Plus.");
+    });
+
+    // A suggested question is an ask with the typing done for you. Leaving the
+    // chips live would make the disabled box decorative — and this is the
+    // assertion that would have caught it, because every other one here passes
+    // with the chips still clickable.
+    it("gates the suggested questions too", () => {
+      const onAsk = vi.fn();
+      renderRail({ aiEntitled: false, suggestions: ["What should I do on day one?"], onAsk });
+      const chip = screen.getByRole("button", { name: "What should I do on day one?" });
+      expect((chip as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(chip);
+      expect(onAsk).not.toHaveBeenCalled();
+    });
+
+    // **`null` is not `false`.** The hook resolves `null` while the plan is
+    // still being read and whenever that read fails, and treating either as
+    // "not entitled" would flash a paywall at a paying subscriber on every
+    // open. Being wrong the other way costs one refused request.
+    it("treats an unknown plan as entitled", () => {
+      renderRail({ aiEntitled: null });
+      expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).disabled).toBe(
+        false,
+      );
+      expect(screen.queryByTestId("assistant-upgrade-cta")).toBeNull();
+    });
+
+    // **A transport failure is not a paywall, even on a gated account.**
+    // `askError` outlives the ask that set it, so a dropped connection before
+    // the plan read landed leaves it set with `askUpgrade` false — printing it
+    // in the upgrade block would put "The model is unavailable right now"
+    // above a See plans button.
+    it("does not read a transport failure as the entitlement refusal", () => {
+      renderRail({ aiEntitled: false, askError: "The model is unavailable right now." });
+      const status = screen.getByRole("status").textContent ?? "";
+      expect(status).toContain("The assistant is part of Plus.");
+      expect(status).not.toContain("unavailable");
     });
 
     // Every OTHER refusal is still a failure and still red. The flag is what

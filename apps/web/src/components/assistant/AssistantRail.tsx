@@ -2,8 +2,9 @@
 
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { BrandMark } from "@/components/BrandMark";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,25 @@ import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
+import { useAiEntitled } from "./useAiEntitled";
+
+/**
+ * What a gated composer says above itself, when the account has NOT yet been
+ * refused anything — there is no server message for a question nobody asked.
+ *
+ * Deliberately not `AI_NOT_ENTITLED_REASON`, and not a copy of it. That string
+ * is a refusal ("This account is on a plan that does not include it") and is
+ * the right voice AFTER someone presses Ask; this is the voice before, where
+ * nothing has been denied and the sentence is an offer. Two moments, two
+ * sentences — sharing one would make whichever moment lost the argument read
+ * slightly wrong forever.
+ *
+ * Names `Plus` as copy, on the same terms `modelSelection.ts` sets out at
+ * length: the cheapest plan carrying `ai.ask` is a presentation fact, and
+ * DERIVING it would mean reading a display order to decide what to call a
+ * tier — the read `planVersions.noExtension.test.ts` exists to refuse.
+ */
+const UPGRADE_LEAD = "The assistant is part of Plus.";
 
 /**
  * How close to the ceiling the warning appears, in questions still available.
@@ -123,7 +143,7 @@ export function AssistantRail({
   asking = false,
   askError = null,
   askUpgrade = false,
-  onOpenAccount,
+  aiEntitled: aiEntitledProp,
   simulated = false,
   presentation = "docked",
   onHide,
@@ -216,8 +236,20 @@ export function AssistantRail({
    * on it would silently fall back to a red alert the day it did.
    */
   askUpgrade?: boolean;
-  /** Opens the account sheet, where M21 link 5 puts the Plan section. */
-  onOpenAccount?: () => void;
+  /**
+   * Whether this account's plan includes the assistant, or `null` while that
+   * is still unknown. Omitted, the rail asks for itself (`useAiEntitled`);
+   * passing it is for tests and for a caller that already knows.
+   *
+   * **`null` means entitled**, deliberately — see the hook for why a paywall
+   * that flashes at a subscriber is the worse of the two ways to be wrong.
+   *
+   * This REPLACED `onOpenAccount`, which no caller ever passed: the upgrade
+   * block's only real-world branch was the one rendering the sentence "Plans
+   * live in your account settings", which was true of M20 and became a dead
+   * end the moment §29 gave plans a route.
+   */
+  aiEntitled?: boolean | null;
   /** True when the last answer was composed by the server because the ai-live
    * flag is off. The answer is real; the authorship is not a model. */
   simulated?: boolean;
@@ -281,6 +313,27 @@ export function AssistantRail({
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
 
+  // The hook runs unconditionally — a hook cannot be skipped because a prop was
+  // supplied — and the prop wins when it is given. Its read is cached and
+  // deduped (ADR-046), and the rail only mounts while the assistant is OPEN,
+  // so a reader who never opens it pays nothing.
+  const aiEntitledFetched = useAiEntitled();
+  const aiEntitled = aiEntitledProp ?? aiEntitledFetched;
+
+  /**
+   * **The composer is inert and the block above it is an offer.**
+   *
+   * Two ways in, and they are one state on purpose: the plan does not include
+   * the assistant (`aiEntitled === false`, known before anything is typed), or
+   * the server has just refused a question with 402 (`askUpgrade`). The second
+   * is the first, learned the expensive way — and a reader who has hit it
+   * should not then get a live-looking box inviting them to hit it again.
+   *
+   * `=== false`, never falsy: `null` is "not known yet" and must read as
+   * entitled.
+   */
+  const upgradeGated = aiEntitled === false || askUpgrade;
+
   // **The sheet locks the DOCUMENT ELEMENT while it is open, and that is not
   // redundant with Radix's modal lock.** Mitchell, on an Android phone: *"when
   // the assistant overlay is open, you are still scrolling the background
@@ -337,7 +390,10 @@ export function AssistantRail({
   const threadFull = asksRemaining <= 0;
 
   const submitAsk = async () => {
-    if (ask.trim() === "" || asking || threadFull) return;
+    // `upgradeGated` here as well as on the two controls: the suggestion chips
+    // and the Enter key both reach `onAsk` without passing the Ask button, so
+    // a gate spelled only on the button is a gate with two ways around it.
+    if (ask.trim() === "" || asking || threadFull || upgradeGated) return;
     const accepted = await onAsk(ask);
     if (accepted !== false) setAsk("");
   };
@@ -507,7 +563,11 @@ export function AssistantRail({
                       <Button
                         variant="secondary"
                         size={isSheet ? "touch" : "sm"}
-                        disabled={asking}
+                        // A suggested question is an ask with the typing done
+                        // for you, so it is gated exactly as the composer is —
+                        // leaving these live would make the disabled box below
+                        // decorative.
+                        disabled={asking || upgradeGated}
                         // `text-left`/`h-auto`: a derived question is a sentence,
                         // not a label, and wraps to two lines in a 356px rail.
                         // `h-auto` is dropped in the sheet: `touch` sets a
@@ -541,46 +601,62 @@ export function AssistantRail({
               Simulated
             </Badge>
           )}
-          {askError !== null &&
-            (askUpgrade ? (
-              // **An upgrade path, not a permission error** (M20 link 4's gate
-              // box). The server answers 402 Payment Required rather than 403
-              // here, and the two differ by exactly this: a 403 says the
-              // account did something it may not, and a 402 says the account
-              // does not have a thing it could have. Rendering both as a red
-              // alert throws that distinction away at the one surface where it
-              // is worth anything.
-              //
-              // `role="status"`, not `role="alert"`: nothing has gone wrong.
-              //
-              // **No price and no checkout.** M20 takes no money — Stripe,
-              // prices and the plan chooser are M21 — so the honest affordance
-              // today is the account sheet, which is where M21 link 5 puts the
-              // Plan section. The copy names the tier and what is behind it and
-              // stops there, which is what the milestone's *"the refusal names
-              // the tier, not a permission"* asks for.
-              <div role="status" className="mb-1.5 flex flex-col items-start gap-1">
-                <p className="text-xs text-ink">{askError}</p>
-                {onOpenAccount === undefined ? (
-                  // **No button, because there is nowhere for it to go yet.**
-                  // M20 builds no billing surface at all — M21 link 5 puts the
-                  // Plan section at the top of the account sheet — so a "See
-                  // your plan" button here today would be a control that does
-                  // nothing, which is worse than a sentence that is true. The
-                  // prop is the seam M21 fills; the copy stands on its own
-                  // until it does.
-                  <p className="text-xs text-slate">Plans live in your account settings.</p>
-                ) : (
-                  <Button variant="secondary" size="sm" onClick={onOpenAccount}>
-                    See your plan
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p role="alert" className="mb-1.5 text-xs text-danger">
-                {askError}
+          {/* **An upgrade path, not a permission error** (M20 link 4's gate
+              box). The server answers 402 Payment Required rather than 403
+              here, and the two differ by exactly this: a 403 says the account
+              did something it may not, and a 402 says the account does not
+              have a thing it could have. Rendering both as a red alert throws
+              that distinction away at the one surface where it is worth
+              anything — so the gate is `role="status"` and the transport
+              failure below it is `role="alert"`.
+
+              **It no longer waits for a refusal.** `upgradeGated` is true from
+              the moment the plan is known not to include the assistant, which
+              is what lets the composer below be inert rather than live-looking.
+              Reported on the preview, 2026-09-15: *"the assistant should still
+              be openable but the input should be disabled, and the text
+              container above should be a CTA To upgrade"*.
+
+              **Still no price — but now a way out.** The line this replaces
+              ended *"Plans live in your account settings"*, which was the
+              honest answer in M20, when there was no chooser and no checkout
+              to send anyone to. §29 gives plans a route, and puts the price
+              only on it, so this names the destination rather than a number. */}
+          {upgradeGated ? (
+            <div role="status" className="mb-1.5 flex flex-col items-start gap-1.5">
+              {/* The server's own words when THIS refusal is the entitlement
+                  one, ours otherwise — see `UPGRADE_LEAD` for why these are
+                  two sentences rather than one shared string.
+
+                  `askUpgrade &&`, not a bare `askError ??`: a transport
+                  failure from before the plan finished loading (the model
+                  unavailable, a dropped connection) leaves `askError` set with
+                  `askUpgrade` false, and reading it here would print "The
+                  model is unavailable right now" above a See plans button —
+                  a network blip dressed as a paywall. */}
+              <p className="text-xs text-ink">
+                {askUpgrade && askError !== null ? askError : UPGRADE_LEAD}
               </p>
-            ))}
+              <p className="text-xs text-slate">
+                Planning a trip is always free — days, activities, costs and your notebook are all
+                included.
+              </p>
+              {/* `buttonVariants` on a `Link`: this navigates out of the trip,
+                  the repo's pattern for which is an anchor, not a Button with
+                  an onClick (PlanSection:218). */}
+              <Link
+                href="/plans"
+                className={buttonVariants({ variant: "primary", size: isSheet ? "touch" : "sm" })}
+                data-testid="assistant-upgrade-cta"
+              >
+                See plans
+              </Link>
+            </div>
+          ) : askError !== null ? (
+            <p role="alert" className="mb-1.5 text-xs text-danger">
+              {askError}
+            </p>
+          ) : null}
           {threadFull ? (
             // The composer is REPLACED, not disabled beside a warning: at this
             // point there is exactly one thing to do, and the only previous signal
@@ -631,6 +707,14 @@ export function AssistantRail({
                   className={cn(isSheet && "h-11")}
                   value={ask}
                   onChange={(e) => setAsk(e.target.value)}
+                  // **The one case where this input IS disabled**, and it does
+                  // not contradict KI-2026-09-07-c below. That entry is about
+                  // disabling a FOCUSED box mid-turn and losing the keystrokes
+                  // in it; this is a box nobody can usefully type into at all,
+                  // disabled from first paint rather than under a cursor, and
+                  // there is no follow-up to drop because no question can be
+                  // sent from here until the plan changes.
+                  disabled={upgradeGated}
                   // NOT `disabled={asking}` (KI-2026-09-07-c). Disabling a
                   // focused input blurs it, in every real browser jsdom does
                   // not reproduce, and re-enabling it afterwards does not
@@ -655,9 +739,16 @@ export function AssistantRail({
                 />
                 <Button
                   variant="primary"
-                  size={isSheet ? "touch" : "sm"}
+                  // **`md`, not `sm`, so this button is exactly as tall as the
+                  // box beside it.** `Input` is `h-9`; `sm` is `h-7`, which
+                  // left a 2px gap above and below the button on every desktop
+                  // composer. Reported on the preview, 2026-09-15: *"This ask
+                  // button in the AI agent should be same height as the text
+                  // input"*. In the sheet the pair is `h-11` and `min-h-11`,
+                  // which already matched — `touch` stays.
+                  size={isSheet ? "touch" : "md"}
                   onClick={() => void submitAsk()}
-                  disabled={asking || ask.trim() === ""}
+                  disabled={asking || ask.trim() === "" || upgradeGated}
                   // `aria-label`, only while idle (KI-2026-09-05-ac): this
                   // button's visible "Ask" is the same accessible name §23's
                   // header pill carries, and on the phone sheet both are

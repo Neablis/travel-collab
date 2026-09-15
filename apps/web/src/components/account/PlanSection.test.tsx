@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { PlanSection } from "./PlanSection";
@@ -133,6 +133,21 @@ describe("what you hold", () => {
     // expanding region, not the copy.
     expect(screen.queryByTestId("plan-chooser")).toBeNull();
     expect(screen.queryByTestId("plan-catalogue")).toBeNull();
+  });
+
+  // **The sheet is a modal dialog, so navigating out of it has to close it.**
+  // Reported on the preview, 2026-09-15: *"Clicking change plan should navigate
+  // to the plans, but also close the sidebar"*. Without this the route changed
+  // underneath a dialog that stayed open over the page it had just reached.
+  //
+  // Asserted as the callback firing rather than as the sheet closing: this
+  // component does not own the sheet and must not decide that it closes —
+  // `AccountSettingsSheet` passes `() => onOpenChange(false)`.
+  it("tells its host to close when Change plan is taken", async () => {
+    const onNavigate = vi.fn();
+    render(<PlanSection onNavigate={onNavigate} />);
+    fireEvent.click(await screen.findByTestId("plan-change-link"));
+    expect(onNavigate).toHaveBeenCalledOnce();
   });
 
   // §29: *"do not offer a CTA that opens a checkout that cannot succeed"*. A

@@ -75,7 +75,20 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
   );
 }
 
-export function PlanSection() {
+/**
+ * **`onNavigate` fires when a control here leaves the account sheet.**
+ *
+ * The sheet is a modal dialog, and `Change plan` is a real navigation out of
+ * it (SPEC §29) — so without this the route changed underneath a dialog that
+ * stayed open over the page it had just navigated to. Reported on the preview,
+ * 2026-09-15: *"Clicking change plan should navigate to the plans, but also
+ * close the sidebar"*.
+ *
+ * A callback rather than a `router` call here: this component does not own the
+ * sheet and must not decide it closes, and it is rendered in tests with no
+ * sheet around it at all. Optional for exactly that reason.
+ */
+export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -218,6 +231,7 @@ export function PlanSection() {
             href="/plans"
             className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="plan-change-link"
+            onClick={onNavigate}
           >
             Change plan
           </Link>
