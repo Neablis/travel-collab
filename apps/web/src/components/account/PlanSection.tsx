@@ -150,13 +150,14 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   const [planId, version] = plan.planVersionRef.split("@");
   const { billing } = plan;
-  // **What a lapse would take from other people**, which is the half of the
-  // copy nobody else can say. M20's collaborator cap is applied on read, so the
-  // owner's guests drop to `viewer` the moment this account stops holding
-  // `trip.collaborators` — and they are never told, because it is not their
-  // account. Naming it here is the only warning that exists.
   // **What a lapse would take from other people — read off the plan the
   // account PAYS FOR, not off its current effective set.**
+  //
+  // This is the half of the copy nobody else can say. M20's collaborator cap is
+  // applied on read, so the owner's guests drop to `viewer` the moment this
+  // account stops holding `trip.collaborators` — and they are never told,
+  // because it is not their account. Naming it here is the only warning that
+  // exists.
   //
   // `plan.entitlements` is the resolved union, and it was wrong in both
   // directions. Before a lapse it includes whatever a grant supplies, so the

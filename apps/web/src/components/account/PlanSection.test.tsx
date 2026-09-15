@@ -213,6 +213,52 @@ describe("past due, told before anything is taken", () => {
     expect(banner.textContent).toContain("nobody needs re-inviting");
     expect(screen.queryByTestId("plan-past-due")).toBeNull();
   });
+
+  // **The lapsed banner still names the collaborators after the lapse has been
+  // applied**, which is the case the test above does NOT reach.
+  //
+  // The fixture above leaves `conferredVersionRef` at `premium@v1` and keeps
+  // `trip.collaborators` in `entitlements` — a lapse in `billing.state` only.
+  // The real post-lapse account is conferred `free@v1` with the collaborator
+  // entitlement gone, and that is the shape the old code read: it asked
+  // `plan.entitlements`, the RESOLVED set, so the moment the lapse actually
+  // took collaborators away the banner explaining that loss stopped mentioning
+  // it. The sentence went quiet exactly when it mattered.
+  //
+  // The held version is the honest source — it is what the subscription buys
+  // and therefore what stopping it takes — and this is the assertion that
+  // distinguishes the two. CodeRabbit, PR #177.
+  it("names the collaborator loss even once the lapse has taken it away", async () => {
+    const lapsed = subscribed({ state: "lapsed", pastDueSince: "2026-10-01T09:00:00.000Z" });
+    serve({
+      ...lapsed,
+      // Still PINNED to premium — the account pays for it — but conferred free.
+      conferredVersionRef: "free@v1",
+      entitlements: [],
+    });
+    render(<PlanSection />);
+    const banner = await screen.findByTestId("plan-lapsed");
+    expect(banner.textContent).toContain("can read but not edit");
+    expect(banner.textContent).toContain("nobody needs re-inviting");
+  });
+
+  // And the other direction, so the sentence is not simply always shown: an
+  // account whose HELD plan never included collaborators gets the shorter
+  // copy, with no claim about other people that was never true of it.
+  it("says nothing about collaborators for a plan that never had them", async () => {
+    const lapsed = subscribed({ state: "lapsed", pastDueSince: "2026-10-01T09:00:00.000Z" });
+    serve({
+      ...lapsed,
+      planVersionRef: "free@v1",
+      conferredVersionRef: "free@v1",
+      entitlements: [],
+      catalogue: CATALOGUE.map((choice) => ({ ...choice, held: choice.planId === "free" })),
+    });
+    render(<PlanSection />);
+    const banner = await screen.findByTestId("plan-lapsed");
+    expect(banner.textContent).toContain("lapsed");
+    expect(banner.textContent).not.toContain("can read but not edit");
+  });
 });
 
 describe("a free week", () => {
