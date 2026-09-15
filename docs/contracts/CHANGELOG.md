@@ -13,6 +13,40 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-15 — `losesOnLapse`, and `sessionId` on a started checkout
+
+- Added: `PlanBillingView.losesOnLapse` — the entitlements an account would stop
+  conferring if its subscription stopped (`apps/web/src/server/entitlements/
+  accountPlan.ts`, mirrored in `apps/web/src/lib/accountPlan.ts`)
+- Added: `CheckoutStart.sessionId` and `kind: "checkout"`'s `sessionId` on
+  `POST /api/billing/change` — the Checkout Session's own id
+  (`apps/web/src/server/billing/{checkout,planChange}.ts`)
+- Why, for `losesOnLapse`: the account sheet's past-due and lapsed banners each
+  name what a lapse costs other people, and **neither set already on the wire
+  can answer that**. The effective entitlements include what grants supply, so
+  reading them names losses that never happen; the held plan's own list is blind
+  to grants, so it names a loss that does not occur for any account whose grant
+  covers the same thing — on this deployment, most of them, since every account
+  predating M20's migration carries a founder grant. Both are false in one of
+  the two worlds. The value is the difference of two unions, computed once by
+  `entitlementsLostIfSubscriptionStops`
+- **A list rather than the one boolean the sheet needs today**, so the next
+  sentence that has to name a loss needs no second wire change
+- Why, for `sessionId`: the plans route decides "did this checkout reconcile" by
+  comparing against a baseline, and its only other source was the first read
+  AFTER returning from Stripe — which loses a race to a fast webhook and leaves
+  a completed purchase sitting on the pending screen. The id lets the browser
+  key a baseline captured BEFORE the redirect to the session it describes. It is
+  not a secret and it proves nothing on its own; only the webhook does
+- Consumers updated: `apps/web` (account sheet, plans route, and the fixtures in
+  `PlanSection.test.tsx` / `PlansScreen.test.tsx`, which the wire-shape
+  type-identity checks required)
+- Breaking? **No** for `sessionId` — an added optional field on a response.
+  **Yes, narrowly,** for `losesOnLapse`: it is required on `PlanBillingView`, so
+  any other construction of that type fails to build until it supplies one. That
+  is the intended behaviour of the wire-shape checks and it caught both fixtures
+  in this PR rather than letting them drift
+
 ## 2026-09-14 — `SubscriptionStatus`, and what still confers
 
 - Added: `SubscriptionStatus` — the eight statuses a Stripe subscription can

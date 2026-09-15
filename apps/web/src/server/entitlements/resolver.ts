@@ -175,6 +175,51 @@ export function resolveEntitlements(
 }
 
 /**
+ * **What this account would stop conferring if its subscription stopped.**
+ *
+ * The honest answer to *"what does a lapse take from you"*, and the reason it
+ * needs a function rather than a field the UI can read off: neither of the two
+ * sets on `AccountEntitlements` is that answer on its own, and each is wrong in
+ * a different direction.
+ *
+ *   * **The effective set** (`entitlements`) is the union of subscription AND
+ *     grants. Before a lapse it includes things a founder grant supplies, so
+ *     reading it names losses that would never happen.
+ *   * **The held plan's own list** is what the subscription buys. It is right
+ *     about the subscription and blind to grants, so for an account whose
+ *     founder grant ALSO confers `trip.collaborators` it names a loss that does
+ *     not occur — and on this deployment that is the common case, because every
+ *     account predating M20's migration carries such a grant.
+ *
+ * Neither is conservative; both are simply false in one of the two worlds.
+ * CodeRabbit put it exactly right on PR #177: *"conservative wording is still
+ * incorrect when it describes a loss that does not occur."*
+ *
+ * **The difference of two unions is the answer**: what `[held, ...grants]`
+ * confers, minus what `[free, ...grants]` confers. A lapse replaces the held
+ * version with `free` and touches nothing else — that is literally what
+ * `conferredPlan` below does — so this is the same operation asked in advance.
+ *
+ * `held` rather than `conferred` on purpose, so the answer does not change once
+ * the lapse has happened. The past-due banner asks "what WILL go" and the
+ * lapsed banner asks "what WENT", and both want the same list.
+ */
+export function entitlementsLostIfSubscriptionStops(
+  resolved: AccountEntitlements,
+): readonly Entitlement[] {
+  const grantedVersions = resolved.grants.map((grant) =>
+    planVersionFromRef(`${grant.planId}@v${grant.planVersion}`),
+  );
+  const granted = grantedVersions.map((version) => version.entitlements);
+  const withSubscription = unionEntitlements([resolved.held.entitlements, ...granted]);
+  const withoutSubscription = unionEntitlements([
+    livePlanVersion("free").entitlements,
+    ...granted,
+  ]);
+  return [...withSubscription].filter((entitlement) => !withoutSubscription.has(entitlement));
+}
+
+/**
  * **What the held plan is worth right now** (M21 links 5 and 6).
  *
  * The whole of the lapse, and it is four lines because M21 was built so that it

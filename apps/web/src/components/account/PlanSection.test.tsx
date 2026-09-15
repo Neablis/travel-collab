@@ -60,6 +60,7 @@ const FREE: AccountPlanView = {
     pastDueSince: null,
     graceEndsAt: null,
     trialEndsAt: null,
+    losesOnLapse: [],
     available: true,
   },
 };
@@ -78,6 +79,9 @@ function subscribed(over: Partial<AccountPlanView["billing"]> = {}): AccountPlan
       pastDueSince: null,
       graceEndsAt: null,
       trialEndsAt: null,
+      // A paid subscription whose lapse would cost the collaborator seats —
+      // the server derives this; the fixture states what it derived.
+      losesOnLapse: ["ai.ask", "ai.command", "trip.collaborators"],
       available: true,
       ...over,
     },
@@ -232,7 +236,9 @@ describe("past due, told before anything is taken", () => {
     const lapsed = subscribed({ state: "lapsed", pastDueSince: "2026-10-01T09:00:00.000Z" });
     serve({
       ...lapsed,
-      // Still PINNED to premium — the account pays for it — but conferred free.
+      // Still PINNED to premium — the account pays for it — but conferred free,
+      // with the entitlement already gone from the effective set. That is the
+      // shape the old code misread.
       conferredVersionRef: "free@v1",
       entitlements: [],
     });
@@ -252,7 +258,36 @@ describe("past due, told before anything is taken", () => {
       planVersionRef: "free@v1",
       conferredVersionRef: "free@v1",
       entitlements: [],
+      billing: { ...lapsed.billing, losesOnLapse: [] },
       catalogue: CATALOGUE.map((choice) => ({ ...choice, held: choice.planId === "free" })),
+    });
+    render(<PlanSection />);
+    const banner = await screen.findByTestId("plan-lapsed");
+    expect(banner.textContent).toContain("lapsed");
+    expect(banner.textContent).not.toContain("can read but not edit");
+  });
+
+  // **A grant that outlives the subscription means nothing was lost** — the
+  // case CodeRabbit asked for after rejecting "conservative but wrong", and it
+  // is the common one here: every account predating M20's migration carries a
+  // permanent founder grant.
+  //
+  // The account below held `premium`, its subscription has lapsed, and the
+  // grant still confers `trip.collaborators`. Its collaborators can still edit.
+  // A banner saying they went read-only would be telling this owner their trips
+  // broke when they did not — and pointing them at a payment to fix it.
+  //
+  // `losesOnLapse` is empty because the SERVER worked that out; the fixture is
+  // stating what `entitlementsLostIfSubscriptionStops` returns for this shape,
+  // not restating the rule.
+  it("claims no collaborator loss when a grant still confers it", async () => {
+    const lapsed = subscribed({ state: "lapsed", pastDueSince: "2026-10-01T09:00:00.000Z" });
+    serve({
+      ...lapsed,
+      conferredVersionRef: "free@v1",
+      // Still conferred — by the grant, not by the subscription.
+      entitlements: ["trip.collaborators"],
+      billing: { ...lapsed.billing, losesOnLapse: [] },
     });
     render(<PlanSection />);
     const banner = await screen.findByTestId("plan-lapsed");

@@ -72,6 +72,7 @@ const VIEW: AccountPlanView = {
     pastDueSince: null,
     graceEndsAt: null,
     trialEndsAt: null,
+    losesOnLapse: [],
     available: true,
   },
 };

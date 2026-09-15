@@ -47,6 +47,25 @@ export interface AccountBillingView {
   graceEndsAt: string | null;
   /** ISO. When a free week ends — the only end date a trial has. */
   trialEndsAt: string | null;
+  /**
+   * **What a lapse would actually take**, computed by the resolver rather than
+   * inferred by the screen (CodeRabbit, PR #177).
+   *
+   * The account sheet needs this to say what a past-due window closing would
+   * cost, and what a closed one already did. It could reach neither answer from
+   * the sets it already had: the effective entitlements include what grants
+   * supply, so reading them names losses that never happen, and the held plan's
+   * own list is blind to grants, so it names a loss that does not occur for any
+   * account whose founder grant covers the same thing — which on this
+   * deployment is most of them.
+   *
+   * `entitlementsLostIfSubscriptionStops` is the difference of the two unions.
+   * It is a LIST rather than the one boolean the sheet happens to need today,
+   * because the next sentence that has to name a loss should not need another
+   * wire change to do it.
+   */
+  losesOnLapse: readonly string[];
+
   available: boolean;
 }
 

@@ -150,29 +150,33 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   const [planId, version] = plan.planVersionRef.split("@");
   const { billing } = plan;
-  // **What a lapse would take from other people — read off the plan the
-  // account PAYS FOR, not off its current effective set.**
+  // **What a lapse would take from other people — asked of the SERVER, which
+  // is the only place that can answer it** (CodeRabbit, PR #177).
   //
   // This is the half of the copy nobody else can say. M20's collaborator cap is
   // applied on read, so the owner's guests drop to `viewer` the moment this
   // account stops holding `trip.collaborators` — and they are never told,
-  // because it is not their account. Naming it here is the only warning that
-  // exists.
+  // because it is not their account. Naming it here is the only warning there
+  // is, which is exactly why naming it WRONGLY is expensive.
   //
-  // `plan.entitlements` is the resolved union, and it was wrong in both
-  // directions. Before a lapse it includes whatever a grant supplies, so the
-  // warning could name a loss that a founder grant would prevent. After one it
-  // no longer includes collaborators at all, so the lapsed banner — the one
-  // that exists to say what just went — stopped naming it.
+  // Two earlier versions were each false in one direction, and neither was
+  // conservative:
   //
-  // The held version is the honest source: it is what the subscription buys and
-  // therefore what stopping it takes. Where a grant also covers it the warning
-  // is conservative rather than wrong, which is the right direction for a
-  // sentence about other people losing access. CodeRabbit, PR #177.
-  const heldPlan = plan.catalogue.find((choice) => choice.planId === planId);
-  const losesCollaborators = (heldPlan?.entitlements ?? plan.entitlements).includes(
-    "trip.collaborators",
-  );
+  //   * `plan.entitlements`, the effective set, includes whatever a grant
+  //     supplies — so before a lapse it named losses a founder grant would
+  //     prevent, and after one it no longer mentioned collaborators at all, so
+  //     the banner explaining that loss went quiet exactly when it mattered.
+  //   * The HELD plan's own list fixed the second half and kept the first:
+  //     blind to grants, it tells a lapsed founder their collaborators went
+  //     read-only when the grant means they did not. On this deployment that
+  //     is the common case, since every account predating M20's migration
+  //     carries such a grant.
+  //
+  // `billing.losesOnLapse` is the difference of the two unions — what
+  // `[held, ...grants]` confers minus what `[free, ...grants]` does — computed
+  // by `entitlementsLostIfSubscriptionStops`. It is the same answer before and
+  // after the lapse, which is what lets one value serve both banners.
+  const losesCollaborators = billing.losesOnLapse.includes("trip.collaborators");
   const renews = formatDate(billing.renewsAt);
   const trialEnds = formatDate(billing.trialEndsAt);
 
