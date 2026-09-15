@@ -247,43 +247,86 @@ the *sole writer* (ADR-047). Without it a checkout completes, Stripe takes the
 test payment, and the account is granted nothing — which looks exactly like a
 broken product and is really a blocked request.
 
-The fix is the automation bypass secret, which already exists and is injected
-into every Preview deployment as `VERCEL_AUTOMATION_BYPASS_SECRET`. Vercel
-accepts it as a **query parameter** as well as a header, and a Stripe endpoint
-URL can carry one:
+> #### Do not put the bypass secret in the webhook URL
+>
+> Vercel accepts `?x-vercel-protection-bypass=<secret>` as a query parameter, and
+> **the first version of this section told you to register that as your Stripe
+> endpoint. That was wrong.** Mitchell caught it. It is written down rather than
+> quietly deleted, because the URL form is genuinely convenient and somebody will
+> reach for it again.
+>
+> A query parameter is not a private channel:
+>
+> - **Stripe stores the endpoint URL** and shows it to anyone with dashboard
+>   access — in the endpoint's settings, and beside every delivery attempt.
+> - **Vercel logs the request line**, query string included, so the secret lands
+>   in runtime logs and anything they drain to.
+> - The blast radius is not this preview. `environments-and-deploys.md` says it
+>   plainly: *"anyone holding it can reach every protected deployment this
+>   project has"* — production's `vercel.app` URL among them, since that is
+>   protected by the same `all_except_custom_domains` rule.
+>
+> A credential that unlocks every deployment does not belong in a field two
+> systems log and one of them displays.
 
-```
-https://travel-collab-git-<branch>-neablis-projects.vercel.app/api/stripe/webhook?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=false
-```
+### Three ways that do not leak it
 
-`x-vercel-set-bypass-cookie=false` because there is no browsing session here to
-carry a cookie, and asking for one on a server-to-server call is noise.
+**1. Keep the webhook local, even while the browser is on the preview.**
+`stripe listen` forwards wherever you point it, and nothing says that has to be
+the host you are clicking on. Sign in to the preview, start checkout there, pay
+on Stripe's real hosted page — and let the event land on your machine, where no
+bypass is involved at all. What you give up is that the grant lands in your local
+database rather than the preview's. For *"does Checkout render, redirect, and
+come back"* that is usually the whole question.
 
-**Use the branch alias, not the per-deployment URL.** `…-git-<branch>-…` follows
-every push to that branch; a `…-<hash>-…` URL is dead the moment you push again,
-and a dead webhook endpoint fails the same way a blocked one does.
+**2. Forward to the preview with the bypass as a HEADER.** The header form is
+what Vercel intends for automation: not stored by Stripe, not part of the logged
+request line. `stripe listen` may be able to attach one — **check
+`stripe listen --help` for a headers flag before relying on it.** This guide
+cannot verify it from a sandbox, and an unverified flag inside a security
+workaround is exactly how the mistake above happened. If the flag is there, the
+secret lives in your shell for that session and nowhere else.
+
+**3. Give the preview a custom domain.** `all_except_custom_domains` means a
+custom domain is not protected at all, so Stripe reaches it with no credential of
+any kind. Heaviest to set up, and the only durable answer if preview webhooks
+become routine rather than a one-off.
+
+**If none of those are worth it**, walk the preview without a webhook and know
+what you are looking at: Checkout renders, takes the test card, and returns to
+`?checkout=cs_…`; the pending screen waits, and after twenty polls says it is
+taking a while. That is the honest failure of a webhook that never lands — what a
+real user would see if the endpoint were down, and worth seeing once on purpose.
 
 ### Setting it up
 
 1. **Set the keys in Vercel's Preview scope** — `STRIPE_SECRET_KEY` (`sk_test_`,
    and read *The one rule* again before you paste) and `STRIPE_WEBHOOK_SECRET`.
-2. **Register the endpoint** in the Stripe dashboard, test mode, at the URL
-   above. Subscribe it to the five types `HANDLED` lists in `webhook.ts`:
+2. **Point Stripe at whichever route you chose.** With `stripe listen` there is
+   nothing to register; with a custom domain it is a dashboard endpoint there.
+   Subscribe to the five types `HANDLED` lists in `webhook.ts`:
    `checkout.session.completed`, `customer.subscription.created|updated|deleted`,
    `invoice.payment_failed`, `invoice.payment_succeeded`.
-3. **Take THAT endpoint's signing secret** for `STRIPE_WEBHOOK_SECRET`. It is a
-   different string from the one `stripe listen` prints — the CLI's secret
-   verifies nothing against a dashboard endpoint, and the failure looks like
-   Stripe being down rather than like a wrong variable.
+3. **Take the signing secret from whichever one you used.** `stripe listen`
+   prints its own `whsec_` per session; a dashboard endpoint has a different one.
+   They are not interchangeable, and the wrong one verifies nothing — a failure
+   that looks like Stripe being down rather than like a wrong variable.
 4. **Redeploy**, because the deployment reads its environment at build.
 5. **Check it took**: sign in, open `/plans`. The "not available on this
    deployment" banner is gone when `billingConfigured()` is true.
 
+**A dashboard endpoint pointed at a branch alias must be deleted when the branch
+merges.** It retries forever against a URL that no longer deploys, and the
+failures sit in the Stripe dashboard looking like a product that is broken.
+
 ### Getting yourself in
 
 A `?_vercel_share=` URL (23 hours, minted per deployment by the Vercel MCP's
-`get_access_to_vercel_url`) or the same bypass secret as an
-`x-vercel-protection-bypass` header with `x-vercel-set-bypass-cookie: true`.
+`get_access_to_vercel_url`) or the bypass secret as an
+`x-vercel-protection-bypass` **header**, with `x-vercel-set-bypass-cookie: true`
+if you want the rest of the browsing session to carry it. A browser is a place a
+header is easy to send and a URL is easy to paste somewhere it should not be —
+prefer the share link for anything you might screenshot.
 
 ### What to walk here, and what not to
 
@@ -297,11 +340,6 @@ the three-day grace window are all faster and more controllable through
 `stripe listen` and `stripe trigger`, and none of them look any different on a
 deployment. A preview is for proving the hosted pieces, not for re-walking the
 suite.
-
-> **Delete the endpoint when the branch is done.** A dashboard endpoint pointed
-> at a merged branch's alias retries forever against a URL that no longer
-> deploys, and its failures sit in the Stripe dashboard looking like a product
-> that is broken.
 
 ---
 
