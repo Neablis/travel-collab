@@ -37,6 +37,14 @@ Read this before §1; it is why §1 is short now.
 - **The roadmap order is `M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`.** M9 is the
   current work. This document's old closing line ("M10 Wave 2 Phase 9 is the next work")
   was wrong — M10's gate closed 2026-08-27.
+- **New 2026-09-15 — the new-trip wizard is a conversation (`SPEC.md` §30), and the
+  assistant transcript lost its bubbles.** D11 below is answered rather than open. One
+  property of §30 is load-bearing for cost, not cosmetics: **the five questions are a
+  fixed local script and the first model call is the one after the last answer.** A build
+  that makes the questions themselves conversational turns every abandoned New-trip sheet
+  into billed turns. The fork at the end reads entitlements (M20's resolver, already
+  real — see D10), never a plan name. Three states are undrawn: generation failure,
+  offline at the fork, and ceiling-reached-with-access.
 - **`docs/STATUS.md` was cut twice** (2026-08-28, 2026-09-11) and is now the short
   resume-from-here file. History lives in `docs/retros/*-status-archive.md`.
 
@@ -47,7 +55,7 @@ Read this before §1; it is why §1 is short now.
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins, or design adds it back. **Not re-verified this pass** — carried forward as stated, flag if it has since changed. |
 | **D6** | "Next trip" | `TripSummary` still carries only `createdAt`; `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, still open and unchanged.** The only survivor of the original list. With nothing to sort by the hero can surface the *wrong trip*. KI-34 names the fix path: add a start date to `TripSummary`, then date-sort. |
 | **D10** | Billing | **Changed shape.** No `plan`, `plan_versions`, `entitlement_grants`, `is_admin`, `subscriptions` or `ai_usage` table — but the **port now exists**: `server/assistant/entitlements.ts` defines `ResolvedEntitlements` (a `has()` set, never a rank), `EntitlementCeilings` and `planVersionRef`; `EVERYONE_IS_ENTITLED` was widened to `permitEverything`, and a `TurnLedger` is already shaped as M20 link 9's `ai_usage` row with model identity and cost as variable inputs | Four surfaces: pricing, operator console, collaboration gate, plan + usage (§2c) | Design is still ahead and still blocked on M20/M21 **tables**, but no longer on the *seam*. The gate the design shows (AI, 402 `ai-not-entitled`) has a real resolver behind it now. Not a defect on either side. |
-| **D11** | First-run "roughly when?" | **New.** A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`** — no milestone will wire them), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | First-run screen offers date-range chips, pace and tags | **Supersedes the old D4.** The contract question moved: it is no longer "add a field to `CreateTrip`" but "does any milestone own the wizard's chips at all". Two of the four shells are honestly orphaned. Design should either drop the destination chips and the longer-chip, or Mitchell places them. |
+| **D11** | The new-trip wizard | A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`**), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | **Changed 2026-09-15 (`SPEC.md` §30).** The four-step wizard is now a five-turn scripted conversation; every chip is an inline answer in a transcript | **Design answered the open question.** The shells are no longer orphaned — all four chip groups survive as answer affordances on turns 1, 2, 4 and 5, and `wizard-assistant-draft` becomes the fork at the end. What a build owes changed shape though: not four step forms but one transcript plus a local question script, and the first model call is the one after the fifth answer. |
 
 D1, D2, D4, D5, D7, D8 and D9 are closed — §5.
 

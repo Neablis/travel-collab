@@ -4,13 +4,26 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-14 — small and surgical.** The in-app plan chooser left
-the account sheet and became a route with a confirm-and-pay step (§29, superseding the last
-bullet of §17.4). Nothing else in the bundle changed.
+Last substantive pass: **2026-09-15.** New trip became a scripted conversation and the
+assistant transcript lost its message bubbles (§30). The pass before it, 2026-09-14, moved
+the plan chooser out of the account sheet into a route with a confirm-and-pay step (§29).
 
-**If you are estimating M21, read §29 before link 5** — it deviates from that link on
-purpose and shrinks it. Everything from the 2026-09-12 pass below is unchanged and still
+**Read §30.2 before estimating M9.** The new-trip flow looks like the assistant but is a
+fixed local script on purpose — that is what keeps an abandoned New-trip sheet from being
+a series of billed turns. Everything from the 2026-09-12 pass below is unchanged and still
 current.
+
+### What changed on 2026-09-15, in build terms
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| New trip is a five-turn transcript, not a four-step wizard | §30.1 | One transcript + a local question script; chips and the composer both commit; answered turns collapse with a **Change** |
+| The five questions cost nothing | §30.2 | Keep them local and deterministic — first model call is the one after the fifth answer; no fake typing delay |
+| The end forks on assistant access | §30.3 | With access: live composer, conversation continues in the trip's context. Without: generate once, then a note and a link to plans (§29). Read entitlements, never a plan rank |
+| Both exits stay open | §30.4 | **Create empty** always; **Create with this** from the first answer on |
+| No bubbles in any transcript | §30.5 | Your turn = ruled quote (2px brand rule, 13px slate); the assistant = full-width 14px ink prose. Themes restyle the rule and inks, not boxes — both inks sit on the panel ground |
+| Transcript must follow the conversation | §30.6 | Pin the scroller to the newest turn via `scrollTop` — `scrollIntoView` is banned repo-wide |
+| Three undrawn states | §30.6 | Generation failure (the five answers must survive), offline at the fork, ceiling-reached-with-access |
 
 ### What changed on 2026-09-14, in build terms
 
@@ -126,7 +139,7 @@ what may exist on a page — read `RULES.md` first.
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
 | `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§29 (plans route) is this pass**; §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
 | **`specs/notebook-widget-framework.md`** | **The notebook widget framework** — three shape components, four states per shape, the ghost. `SPEC.md` §21 summarises it; this file is the contract |
 | `design/NotebookInline.dc.html` | Component — an inline widget: a segment list of your text, its values, and ghosts |
