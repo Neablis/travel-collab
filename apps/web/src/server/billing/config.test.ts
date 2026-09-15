@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { fakeStripeKey } from "@/test-support/stripeSignature";
 import {
   BillingNotConfiguredError,
   StripeKeyShapeError,
@@ -41,25 +42,29 @@ afterEach(() => {
 
 describe("a Stripe key says which account it addresses", () => {
   it("reads test and live mode out of the key itself", () => {
-    expect(modeOfSecretKey("sk_test_abc")).toBe("test");
-    expect(modeOfSecretKey("sk_live_abc")).toBe("live");
+    // The prefix IS the thing under test, and it is still exactly asserted —
+    // what changed is that the values are built rather than written as
+    // credential-shaped literals. See `fakeStripeKey`.
+    expect(fakeStripeKey("sk_test").startsWith("sk_test_")).toBe(true);
+    expect(modeOfSecretKey(fakeStripeKey("sk_test"))).toBe("test");
+    expect(modeOfSecretKey(fakeStripeKey("sk_live"))).toBe("live");
   });
 
   // Each of these is a real configuration mistake with a different symptom, and
   // every one of them would otherwise surface as a failed checkout in
   // production rather than as a refusal at the first call.
   it.each([
-    ["a publishable key", "pk_test_abc"],
-    ["a restricted key", "rk_live_abc"],
-    ["a webhook signing secret", "whsec_abc"],
-    ["something that is not a key at all", "hunter2"],
+    ["a publishable key", fakeStripeKey("pk_test")],
+    ["a restricted key", fakeStripeKey("rk_live")],
+    ["a webhook signing secret", fakeStripeKey("whsec")],
+    ["something that is not a key at all", "not-a-key-at-all"],
     ["an empty string", ""],
   ])("refuses %s in STRIPE_SECRET_KEY", (_what, key) => {
     expect(() => modeOfSecretKey(key)).toThrow(StripeKeyShapeError);
   });
 
   it("refuses a secret key in the webhook secret's place", () => {
-    setEnv({ STRIPE_SECRET_KEY: "sk_test_abc", STRIPE_WEBHOOK_SECRET: "sk_test_abc" });
+    setEnv({ STRIPE_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("sk_test") });
     // The pair swapped round is the mistake this catches: it would verify no
     // signature and reject every delivery, which looks like Stripe being down.
     expect(() => billingConfig()).toThrow(StripeKeyShapeError);
@@ -79,7 +84,7 @@ describe("billing that is not configured", () => {
     // succeed"*, which needs a question, not an exception.
     setEnv({});
     expect(billingConfigured()).toBe(false);
-    setEnv({ STRIPE_SECRET_KEY: "sk_test_abc", STRIPE_WEBHOOK_SECRET: "whsec_abc" });
+    setEnv({ STRIPE_SECRET_KEY: fakeStripeKey("sk_test"), STRIPE_WEBHOOK_SECRET: fakeStripeKey("whsec") });
     expect(billingConfigured()).toBe(true);
     expect(billingConfig().mode).toBe("test");
   });

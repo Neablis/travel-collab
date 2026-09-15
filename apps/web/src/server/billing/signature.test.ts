@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createHmac } from "node:crypto";
-import { signStripePayload } from "@/test-support/stripeSignature";
+import { fakeStripeKey, otherFakeStripeKey, signStripePayload } from "@/test-support/stripeSignature";
 import {
   SIGNATURE_TOLERANCE_SECONDS,
   WebhookSignatureError,
@@ -13,7 +13,11 @@ import {
 // allowlist and no secret URL behind this — the HMAC is the entire boundary,
 // which is why this file is longer than the module it tests.
 
-const SECRET = "whsec_test_secret";
+// Built at runtime rather than written as a literal — see `fakeStripeKey`.
+// A credential-shaped literal in the source tree is indistinguishable from a
+// real one that was committed by accident, which is the exact mistake this
+// module exists to make impossible.
+const SECRET = fakeStripeKey("whsec");
 const NOW = new Date("2026-10-01T12:00:00.000Z");
 
 const EVENT = {
@@ -47,7 +51,7 @@ describe("a delivery that did not come from Stripe", () => {
   });
 
   it("is refused when it was signed with a different secret", () => {
-    const header = signed(BODY, NOW, "whsec_someone_elses");
+    const header = signed(BODY, NOW, otherFakeStripeKey("whsec"));
     expect(() => verifyStripeSignature({ rawBody: BODY, header, secret: SECRET, now: NOW })).toThrow(
       WebhookSignatureError,
     );
@@ -87,7 +91,9 @@ describe("a delivery that did", () => {
   it("is accepted when one of several signatures matches", () => {
     const timestamp = EVENT.created;
     const good = createHmac("sha256", SECRET).update(`${timestamp}.${BODY}`, "utf8").digest("hex");
-    const stale = createHmac("sha256", "whsec_old").update(`${timestamp}.${BODY}`, "utf8").digest("hex");
+    const stale = createHmac("sha256", otherFakeStripeKey("whsec"))
+      .update(`${timestamp}.${BODY}`, "utf8")
+      .digest("hex");
     expect(() =>
       verifyStripeSignature({
         rawBody: BODY,

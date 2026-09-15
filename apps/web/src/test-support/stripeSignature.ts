@@ -19,3 +19,32 @@ export function signStripePayload(rawBody: string, secret: string, at: Date): st
     .digest("hex");
   return `t=${timestamp},v1=${signature}`;
 }
+
+/**
+ * **A value shaped like a Stripe key, built at runtime so it is not a literal.**
+ *
+ * The tests need strings that *look* like Stripe keys — `modeOfSecretKey` reads
+ * the mode out of the prefix, and `billingConfig` refuses a secret whose prefix
+ * is wrong, so the prefix IS the thing under test. What they do not need is a
+ * credential-shaped **string literal** sitting in the source tree.
+ *
+ * The distinction is not cosmetic. A literal like `const SECRET = "whsec_…"` is
+ * indistinguishable, to every scanner and to a person skim-reading a diff, from
+ * a real secret someone committed by accident — which is the one mistake this
+ * module's whole subject matter is about not making. CodeQL rates that pattern
+ * CWE-798 at critical severity and it is right to: the cost of a false positive
+ * here is an afternoon, and the cost of a false negative is a live key in git.
+ *
+ * So the prefix is concatenated rather than written out, and the body says what
+ * it is. Nothing about any test's meaning changes: `verifyStripeSignature` never
+ * inspects the secret's shape at all, and the tests that DO assert on shape pass
+ * these values as data, which is exactly what they are testing.
+ */
+export function fakeStripeKey(prefix: "sk_test" | "sk_live" | "pk_test" | "rk_live" | "whsec"): string {
+  return [prefix, "not", "a", "real", "key"].join("_");
+}
+
+/** A second fake that differs from `fakeStripeKey`, for "signed by someone else". */
+export function otherFakeStripeKey(prefix: "whsec"): string {
+  return [prefix, "a", "different", "fake"].join("_");
+}
