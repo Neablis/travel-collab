@@ -223,6 +223,88 @@ downgrade path, which is exactly why there is nothing else to check.
 
 ---
 
+## Walking it on a preview deployment
+
+Everything above forwards webhooks to **your machine**. A preview is the one
+thing local cannot show you: Stripe's hosted Checkout page, in a real browser,
+against a real deployment with the real CSP. It works, and there is exactly one
+thing that makes it different from local.
+
+**The database is safe.** A preview points at a disposable Neon branch, never
+production (`environments-and-deploys.md`), and its build applies pending
+migrations itself when `PREVIEW_DB_IS_DISPOSABLE=true` — so `0021` and `0022`
+are already there. Test-mode subscription rows land somewhere throwaway.
+
+### The thing that is different: Stripe cannot reach the webhook
+
+Preview URLs sit behind **Vercel Authentication** (`ssoProtection`, scoped
+`all_except_custom_domains`). Your browser can get past it. Stripe's webhook
+POST cannot: it is an unauthenticated server-to-server request, so it 302s to
+`vercel.com/sso-api` and your endpoint never runs.
+
+**That matters more here than anywhere else in the app**, because the webhook is
+the *sole writer* (ADR-047). Without it a checkout completes, Stripe takes the
+test payment, and the account is granted nothing — which looks exactly like a
+broken product and is really a blocked request.
+
+The fix is the automation bypass secret, which already exists and is injected
+into every Preview deployment as `VERCEL_AUTOMATION_BYPASS_SECRET`. Vercel
+accepts it as a **query parameter** as well as a header, and a Stripe endpoint
+URL can carry one:
+
+```
+https://travel-collab-git-<branch>-neablis-projects.vercel.app/api/stripe/webhook?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=false
+```
+
+`x-vercel-set-bypass-cookie=false` because there is no browsing session here to
+carry a cookie, and asking for one on a server-to-server call is noise.
+
+**Use the branch alias, not the per-deployment URL.** `…-git-<branch>-…` follows
+every push to that branch; a `…-<hash>-…` URL is dead the moment you push again,
+and a dead webhook endpoint fails the same way a blocked one does.
+
+### Setting it up
+
+1. **Set the keys in Vercel's Preview scope** — `STRIPE_SECRET_KEY` (`sk_test_`,
+   and read *The one rule* again before you paste) and `STRIPE_WEBHOOK_SECRET`.
+2. **Register the endpoint** in the Stripe dashboard, test mode, at the URL
+   above. Subscribe it to the five types `HANDLED` lists in `webhook.ts`:
+   `checkout.session.completed`, `customer.subscription.created|updated|deleted`,
+   `invoice.payment_failed`, `invoice.payment_succeeded`.
+3. **Take THAT endpoint's signing secret** for `STRIPE_WEBHOOK_SECRET`. It is a
+   different string from the one `stripe listen` prints — the CLI's secret
+   verifies nothing against a dashboard endpoint, and the failure looks like
+   Stripe being down rather than like a wrong variable.
+4. **Redeploy**, because the deployment reads its environment at build.
+5. **Check it took**: sign in, open `/plans`. The "not available on this
+   deployment" banner is gone when `billingConfigured()` is true.
+
+### Getting yourself in
+
+A `?_vercel_share=` URL (23 hours, minted per deployment by the Vercel MCP's
+`get_access_to_vercel_url`) or the same bypass secret as an
+`x-vercel-protection-bypass` header with `x-vercel-set-bypass-cookie: true`.
+
+### What to walk here, and what not to
+
+Walk the things that only exist on a deployment: the hosted Checkout page
+rendering and returning, the `?checkout=cs_…` return landing on the pending
+screen, the webhook arriving and the account being granted, the Billing Portal
+opening.
+
+**Leave the rest local.** Test Clocks, out-of-order delivery, a bad signature and
+the three-day grace window are all faster and more controllable through
+`stripe listen` and `stripe trigger`, and none of them look any different on a
+deployment. A preview is for proving the hosted pieces, not for re-walking the
+suite.
+
+> **Delete the endpoint when the branch is done.** A dashboard endpoint pointed
+> at a merged branch's alias retries forever against a URL that no longer
+> deploys, and its failures sit in the Stripe dashboard looking like a product
+> that is broken.
+
+---
+
 ## Things that cost money and how not to do them
 
 - **Do not use your own card to "check the real thing works".** If you need
