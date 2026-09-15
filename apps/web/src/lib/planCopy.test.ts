@@ -1,16 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { formatDate } from "./planCopy";
 
-// **These tests are honest about what they can and cannot prove here.**
+// **Two kinds of test here, because one kind cannot do the job alone.**
 //
-// The defect they pin — a billing boundary rendered in the reader's zone
-// instead of UTC — is invisible on a UTC runner, and CI pins no `TZ`. So in CI
-// they pass whether or not `formatDate` names a time zone, and on any developer
-// machine west of Greenwich they fail unless it names UTC. That asymmetry is
-// the point: the bug reached `main` precisely because nothing red ever ran in a
-// negative-offset zone. Pinning `TZ` for the whole unit lane would make them
-// bite everywhere; that is a broader change than this fix, and it is recorded
-// as a follow-up rather than done quietly here.
+// The defect being pinned — a billing boundary rendered in the reader's zone
+// instead of UTC — is invisible on a UTC runner, and CI pins no `TZ`. The
+// date-literal assertions below therefore fail on any developer machine west of
+// Greenwich and pass in CI whether or not `formatDate` names a time zone. That
+// asymmetry is exactly how the bug reached `main`: nothing red ever ran in a
+// negative-offset zone.
+//
+// So the last test asserts the OPTION rather than the output. It is white-box
+// on purpose — normally a smell, but here the invariant genuinely IS "the
+// formatter is told UTC", and it is the only form of the assertion that fails
+// on a UTC runner when the option is removed. (CodeRabbit, PR #178.)
+//
+// The alternative CodeRabbit also offered — pinning a negative-offset `TZ` for
+// the suite — was not taken: `TZ` is process-level and Node caches the zone on
+// first use, so a per-file assignment is order-dependent and quietly does
+// nothing when another suite has already formatted a date. Pinning it for the
+// whole lane would work and would make every date test in the repo honest, but
+// that is a change with suite-wide blast radius and belongs in its own PR.
 describe("formatDate", () => {
   // The exact value that broke: `PlansScreen.test.tsx` serves
   // `effectiveAt: "2026-10-20T00:00:00.000Z"` and asserts the copy says
@@ -36,5 +46,31 @@ describe("formatDate", () => {
   it("returns null for a missing or unparseable value rather than an Invalid Date", () => {
     expect(formatDate(null)).toBeNull();
     expect(formatDate("not a date")).toBeNull();
+  });
+
+  // The half a UTC runner cannot observe. Removing `timeZone: "UTC"` from
+  // `formatDate` leaves every assertion above green in CI; it turns this one
+  // red anywhere.
+  it("tells the formatter to use UTC, whatever zone the runner is in", () => {
+    const real = Intl.DateTimeFormat;
+    const seen: Intl.DateTimeFormatOptions[] = [];
+    // A `function`, not an arrow: `formatDate` calls this with `new`, and
+    // vitest refuses to construct an arrow mock.
+    const spy = vi.spyOn(Intl, "DateTimeFormat").mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.DateTimeFormatOptions,
+    ) {
+      if (options !== undefined) seen.push(options);
+      return new real(locales, options);
+    } as never);
+
+    try {
+      formatDate("2026-10-20T00:00:00.000Z");
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toEqual(expect.objectContaining({ timeZone: "UTC" }));
   });
 });
