@@ -98,7 +98,7 @@ const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 /** The propose half of a planning turn — what a page turn must not hold. */
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
-const { aiStepQuotas } = await import("@/server/quota");
+const { aiStepQuotas, AI_MAX_STEPS_PER_REQUEST } = await import("@/server/quota");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
 const { aiUsage } = await import("@/server/db/schema");
@@ -1389,10 +1389,12 @@ describe("POST /api/trips/:id/ask", () => {
     // life metered exactly the way KI-67 had already proved wrong. One door
     // means one quota path (ADR-033).
     //
-    // Admission pre-authorises ONE round-trip and the settlement charges the
-    // rest, so a two-step turn leaves 2 on the step bucket while the request
-    // bucket sees exactly 1: what a request COSTS, metered separately from how
-    // often it may be made.
+    // Admission RESERVES the full per-request step budget and the settlement
+    // refunds what the turn did not use (KI-94), so a two-step turn still
+    // leaves 2 on the step bucket while the request bucket sees exactly 1:
+    // what a request COSTS, metered separately from how often it may be made.
+    // The reserve-then-refund shape only changes what the counter holds
+    // WHILE the turn is in flight, not what it settles to once it ends.
     it("charges the step bucket what the turn really cost, not one per request", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
@@ -1454,18 +1456,34 @@ describe("POST /api/trips/:id/ask", () => {
     // The step ceiling REFUSES, it does not merely record: an actor already over
     // it is turned away at admission, before a provider is touched. Without the
     // admission half this endpoint had no step ceiling at all.
-    it("429s once the actor is over their hourly STEP ceiling", async () => {
-      vi.stubEnv("AI_STEP_LIMIT_PER_USER_HOURLY", "2");
+    //
+    // **Reserve-then-reconcile (KI-94), not admit-one-then-settle.** Admission
+    // now charges the FULL per-request step budget (`AI_MAX_STEPS_PER_REQUEST`)
+    // up front and refunds what the turn does not use — see `reserveAiSteps`'s
+    // own comment. A ceiling configured BELOW that budget can therefore never
+    // admit a single request: the very first reservation is already bigger
+    // than the ceiling, so there is no "first request succeeds, second is
+    // refused by what the first settled to" sequence left to drive. That is
+    // the fix working as intended — in-flight exposure is bounded by the
+    // reservation itself, not by whatever a prior request happened to settle
+    // to — so this asserts the refusal on the FIRST request, before a
+    // provider is ever touched.
+    it("429s the first request once the reservation alone would take the actor over their hourly STEP ceiling", async () => {
+      vi.stubEnv("AI_STEP_LIMIT_PER_USER_HOURLY", String(AI_MAX_STEPS_PER_REQUEST - 1));
       try {
         const tripId = await seedTrip();
-        const first = await ask(tripId, { messages: [userMessage("one")], scope: { kind: "trip" } });
-        expect(first.status).toBe(200);
-        await first.text();
-        // The first turn settled more than its admitted 1, so the second is
-        // refused by the STEP layer while the request layer still has room.
-        const second = await ask(tripId, { messages: [userMessage("two")], scope: { kind: "trip" } });
-        expect(second.status).toBe(429);
-        expect((await second.json()).reason).toBe("user");
+        const res = await ask(tripId, { messages: [userMessage("one")], scope: { kind: "trip" } });
+        expect(res.status).toBe(429);
+        expect((await res.json()).reason).toBe("user");
+        // Turned away before a provider was touched: nothing beyond the
+        // refused reservation itself landed in the counter table (`reserveAiSteps`
+        // does not roll back a refusal's own bump, but it also never gets to a
+        // second bucket, a classification call, or a settle — this is the
+        // WHOLE cost of a refused turn).
+        const hitsByBucket = new Map(
+          (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
+        );
+        expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(AI_MAX_STEPS_PER_REQUEST);
       } finally {
         vi.unstubAllEnvs();
       }
