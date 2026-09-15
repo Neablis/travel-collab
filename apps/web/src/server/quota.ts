@@ -168,7 +168,7 @@ export function aiQuotas(ceilings: EntitlementCeilings = NO_CEILINGS): QuotaPoli
  * bound on a bad caller, not as a mirror of a real budget. Lowering it to the
  * real maximum would be a behaviour change and wants its own decision.
  */
-const AI_MAX_STEPS_PER_REQUEST = 32;
+export const AI_MAX_STEPS_PER_REQUEST = 32;
 
 /**
  * AI **cost** quotas, metered in model round-trips rather than in calls (KI-67).

@@ -2,13 +2,38 @@ import { describe, expect, it, vi } from "vitest";
 import {
   aiQuotas,
   aiStepQuotas,
+  AI_MAX_STEPS_PER_REQUEST,
   consumeQuota,
+  dailyPolicy,
   geocodeQuota,
   quotaRefusal,
   settleAiSteps,
   type QuotaCounters,
   type QuotaPolicy,
 } from "./quota";
+
+/**
+ * An in-memory `QuotaCounters`. Shared by every test below: the policy logic is
+ * what is under test, and a database would only add latency and flakiness.
+ */
+function makeFakeCounters(): { counters: QuotaCounters; hitsFor: (bucket: string) => number } {
+  const rows = new Map<string, { windowStart: number; hits: number }>();
+  return {
+    counters: {
+      async bump(bucket, windowStart, amount = 1) {
+        const by = Math.max(1, Math.trunc(Number.isFinite(amount) ? amount : 1));
+        const row = rows.get(bucket);
+        if (row === undefined || windowStart.getTime() > row.windowStart) {
+          rows.set(bucket, { windowStart: windowStart.getTime(), hits: by });
+          return by;
+        }
+        row.hits += by;
+        return row.hits;
+      },
+    },
+    hitsFor: (bucket) => rows.get(bucket)?.hits ?? 0,
+  };
+}
 
 // A counter store with the same fixed-window semantics as the Postgres one,
 // in memory. The SQL that makes this atomic across instances is covered by
@@ -340,4 +365,26 @@ describe("policy configuration", () => {
       expect(p.windowMs).toBeGreaterThan(0);
     }
   });
+});
+
+it("refuses the request that would take the global step ceiling past its limit, even in flight", async () => {
+  const policies = aiStepQuotas();
+  const daily = dailyPolicy(policies);
+  const { counters } = makeFakeCounters();
+  const now = new Date("2026-09-15T12:00:00.000Z");
+
+  // One more request than the global ceiling can fund at the full budget.
+  const admissions = Math.floor(daily.global / AI_MAX_STEPS_PER_REQUEST) + 1;
+
+  const decisions = await Promise.all(
+    Array.from({ length: admissions }, (_unused, i) =>
+      consumeQuota(policies, `user-${i}`, counters, now),
+    ),
+  );
+
+  // Distinct users, so the per-user ceiling is untouched: the global one is the
+  // only thing that can refuse here.
+  expect(decisions.filter((d) => d.allowed).length).toBe(admissions - 1);
+  const refused = decisions.find((d) => !d.allowed);
+  expect(refused).toEqual(expect.objectContaining({ allowed: false, reason: "global" }));
 });
