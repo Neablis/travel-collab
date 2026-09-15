@@ -84,12 +84,6 @@ export interface SubscriptionFacts {
  * by a write, so two deliveries landing on two serverless instances at the same
  * moment cannot both pass a check and then both write.
  *
- * `>=` rather than `>`: two Stripe events can share a second, and dropping the
- * second would lose a real transition — a payment that failed and was retried
- * inside the same second is exactly the sequence this milestone cares about.
- * The cost of the looser comparison is that two same-second events apply in
- * arrival order; the cost of the tighter one is losing one of them.
- *
  * Returns whether anything was written, which is what the webhook reports.
  */
 export async function applySubscriptionFacts(
@@ -117,8 +111,15 @@ export async function applySubscriptionFacts(
     return { applied: true, reason: "written" };
   }
 
-  if (existing.lastEventAt > facts.eventAt) return { applied: false, reason: "stale" };
-
+  // **The comparison is in the UPDATE and nowhere else**, which is not merely
+  // tidier — it is the only version that is correct. There used to be a read
+  // of `existing.lastEventAt` here as well, returning early on a stale event,
+  // and it was redundant in the ordinary case and wrong in the interesting one:
+  // between that read and this statement another instance can apply a newer
+  // event, and only the database can settle that. Red-first found it as a
+  // SURVIVED mutation — defeating the in-memory check changed no test outcome,
+  // because the WHERE clause below was doing the work either way. Two guards
+  // where one is load-bearing is one guard plus a thing that can drift.
   const updated = await tx
     .update(subscriptions)
     .set({
@@ -132,15 +133,15 @@ export async function applySubscriptionFacts(
       lastEventAt: facts.eventAt,
       updatedAt: now,
     })
-    // The guard is repeated HERE and not only above: between the read and this
-    // statement another instance may have applied a newer event, and only the
-    // database can settle that race.
+    // **`<=` and not `<`.** Two Stripe events can share a second, and dropping
+    // the second would lose a real transition — a payment that failed and was
+    // retried inside the same second is exactly the sequence this milestone
+    // cares about. The cost is that two same-second events apply in arrival
+    // order; the cost of the tighter comparison is losing one of them.
     .where(
       and(
         eq(subscriptions.stripeSubscriptionId, facts.stripeSubscriptionId),
-        // Drizzle has no `lte` on a column-to-value comparison that reads as
-        // nicely as this; `sql` would work too, and `lte` is the plain one.
-        lastEventAtIsNotNewerThan(facts.eventAt),
+        lte(subscriptions.lastEventAt, facts.eventAt),
       ),
     )
     .returning({ id: subscriptions.id });
@@ -148,11 +149,4 @@ export async function applySubscriptionFacts(
   return updated.length > 0
     ? { applied: true, reason: "written" }
     : { applied: false, reason: "stale" };
-}
-
-/** `last_event_at <= eventAt`, as a condition. */
-function lastEventAtIsNotNewerThan(eventAt: Date) {
-  // Imported lazily-shaped rather than at the top only to keep the comparison
-  // beside the sentence that explains it; `lte` is an ordinary drizzle helper.
-  return lte(subscriptions.lastEventAt, eventAt);
 }
