@@ -7,39 +7,13 @@ import {
   dailyPolicy,
   geocodeQuota,
   quotaRefusal,
+  reserveAiSteps,
   settleAiSteps,
   type QuotaCounters,
+  type QuotaDecision,
   type QuotaPolicy,
+  type StepReservation,
 } from "./quota";
-
-/**
- * An in-memory `QuotaCounters`. Shared by every test below: the policy logic is
- * what is under test, and a database would only add latency and flakiness.
- */
-function makeFakeCounters(): { counters: QuotaCounters; hitsFor: (bucket: string) => number } {
-  const rows = new Map<string, { windowStart: number; hits: number }>();
-  return {
-    counters: {
-      async bump(bucket, windowStart, amount = 1) {
-        const by = Math.max(1, Math.trunc(Number.isFinite(amount) ? amount : 1));
-        const row = rows.get(bucket);
-        if (row === undefined || windowStart.getTime() > row.windowStart) {
-          rows.set(bucket, { windowStart: windowStart.getTime(), hits: by });
-          return by;
-        }
-        row.hits += by;
-        return row.hits;
-      },
-      async release(bucket, windowStart, amount) {
-        const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
-        const row = rows.get(bucket);
-        if (row === undefined || row.windowStart !== windowStart.getTime()) return;
-        row.hits = Math.max(0, row.hits - by);
-      },
-    },
-    hitsFor: (bucket) => rows.get(bucket)?.hits ?? 0,
-  };
-}
 
 // A counter store with the same fixed-window semantics as the Postgres one,
 // in memory. The SQL that makes this atomic across instances is covered by
@@ -217,11 +191,17 @@ describe("quotaRefusal", () => {
 // wanted to maximise spend under it only had to write prompts that provoked
 // long tool loops.
 describe("cost metering (KI-67)", () => {
-  /** The handler's accounting for one AI request that used `steps` round-trips. */
-  async function chargeRequest(counters: QuotaCounters, userId: string, steps: number) {
-    const policies = [...aiQuotas(), ...aiStepQuotas()];
-    const decision = await consumeQuota(policies, userId, counters, T0);
-    if (decision.allowed) await settleAiSteps(aiStepQuotas(), userId, steps, counters, T0);
+  /**
+   * The handler's accounting for one AI request that used `steps` round-trips —
+   * mirroring `admissionPorts.ts`'s SPLIT call (KI-94): the request layer is
+   * still `consumeQuota`, but the step layer reserves the full budget and
+   * settles the unused part rather than charging 1 and topping up.
+   */
+  async function chargeRequest(counters: QuotaCounters, userId: string, steps: number): Promise<QuotaDecision> {
+    const requestDecision = await consumeQuota(aiQuotas(), userId, counters, T0);
+    if (!requestDecision.allowed) return requestDecision;
+    const { decision, reservation } = await reserveAiSteps(aiStepQuotas(), userId, counters, T0);
+    if (decision.allowed && reservation) await settleAiSteps(reservation, steps, counters);
     return decision;
   }
 
@@ -252,7 +232,10 @@ describe("cost metering (KI-67)", () => {
       if (!decision.allowed) break;
       spent += 32;
     }
-    expect(spent).toBeLessThanOrEqual(240 + 32); // ceiling, plus one request's overshoot
+    // No "+ 32 overshoot" term any more: reserving the full budget up front
+    // means a request that would cross the ceiling is refused before it runs,
+    // not served and charged to whichever request settles next.
+    expect(spent).toBeLessThanOrEqual(240);
     expect(spent).toBeLessThan(960); // what the same loop bought before the fix
   });
 
@@ -270,48 +253,60 @@ describe("cost metering (KI-67)", () => {
     expect(counters.rows.get("ai-steps-hourly:global")?.hits).toBe(12);
   });
 
-  it("serves the request that crosses the line, then refuses the next one", async () => {
-    // The stated consequence of settling after the fact: overshoot is bounded
-    // by one request's step budget, and enforcement lands on the NEXT request.
+  // Replaces the old "serves the request that crosses the line, then refuses
+  // the next one" test: that documented the settle-after design's own
+  // overshoot, which reserving the full budget at admission removes even for
+  // ONE actor issuing requests in sequence — there is no line left to cross,
+  // because the charge that would cross it is refused before the request runs.
+  it("never lets a single actor's usage cross its own ceiling, unlike the old settle-after design", async () => {
     const counters = fakeCounters();
     const policy = aiStepQuotas()[0]!;
     let last = await chargeRequest(counters, "mallory", 32);
-    while (last.allowed && (counters.rows.get("ai-steps-hourly:user:mallory")?.hits ?? 0) <= policy.perUser) {
+    let served = 0;
+    while (last.allowed) {
+      served += 1;
       last = await chargeRequest(counters, "mallory", 32);
     }
-    const over = counters.rows.get("ai-steps-hourly:user:mallory")!.hits;
-    expect(over).toBeGreaterThan(policy.perUser);
-    expect(over).toBeLessThanOrEqual(policy.perUser + 32);
-    expect(await chargeRequest(counters, "mallory", 1)).toMatchObject({
-      allowed: false,
-      reason: "user",
-    });
+    expect(last).toMatchObject({ allowed: false, reason: "user" });
+    // Every SERVED request landed inside the ceiling — no served request ever
+    // pushed the counter over it.
+    expect(served * AI_MAX_STEPS_PER_REQUEST).toBeLessThanOrEqual(policy.perUser);
   });
 
   describe("settleAiSteps", () => {
-    it("charges nothing extra for a one-step answer", async () => {
+    it("charges exactly one step for a one-step answer, refunding the rest of the reservation", async () => {
       const counters = fakeCounters();
-      await settleAiSteps(aiStepQuotas(), "alice", 1, counters, T0);
-      expect(counters.rows.get("ai-steps-hourly:user:alice")).toBeUndefined();
+      const { decision, reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+      expect(decision.allowed).toBe(true);
+      await settleAiSteps(reservation!, 1, counters);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(1);
     });
 
-    it.each([0, -5, Number.NaN, Number.POSITIVE_INFINITY])(
-      "ignores a nonsensical step count (%o) rather than corrupting the ledger",
+    it.each([0, -5])(
+      "clamps a finite but nonsensical step count (%o) to a minimum charge of one",
       async (steps) => {
         const counters = fakeCounters();
-        await settleAiSteps(aiStepQuotas(), "alice", steps, counters, T0);
-        expect(counters.rows.get("ai-steps-hourly:user:alice")).toBeUndefined();
+        const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+        await settleAiSteps(reservation!, steps, counters);
+        expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(1);
       },
     );
 
-    it("clamps a step count above the handler's compiled budget", async () => {
-      // 31, not 10_000 and not 32: the count is clamped to the 32-step
-      // defensive ceiling (`AI_MAX_STEPS_PER_REQUEST`, which since ADR-033
-      // bounds a bad caller rather than mirroring a real budget), and
-      // settlement charges only the 31 beyond the one admission covered.
+    it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+      "keeps the full reservation for a non-finite step count (%o) — unknown usage is the conservative charge",
+      async (steps) => {
+        const counters = fakeCounters();
+        const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+        await settleAiSteps(reservation!, steps, counters);
+        expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(AI_MAX_STEPS_PER_REQUEST);
+      },
+    );
+
+    it("clamps a step count above the reservation to the reservation itself", async () => {
       const counters = fakeCounters();
-      await settleAiSteps(aiStepQuotas(), "alice", 10_000, counters, T0);
-      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(31);
+      const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+      await settleAiSteps(reservation!, 10_000, counters);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(AI_MAX_STEPS_PER_REQUEST);
     });
 
     it("never throws when the counter store fails, because the work is already done", async () => {
@@ -319,9 +314,18 @@ describe("cost metering (KI-67)", () => {
         async bump() {
           throw new Error("counter store down");
         },
-        async release() {},
+        async release() {
+          throw new Error("counter store down");
+        },
       };
-      await expect(settleAiSteps(aiStepQuotas(), "alice", 32, broken, T0)).resolves.toBeUndefined();
+      const policies = aiStepQuotas();
+      const reservation: StepReservation = {
+        policies,
+        userId: "alice",
+        reserved: AI_MAX_STEPS_PER_REQUEST,
+        windowStarts: new Map(policies.map((p) => [p.name, T0])),
+      };
+      await expect(settleAiSteps(reservation, 1, broken)).resolves.toBeUndefined();
     });
   });
 });
@@ -387,20 +391,24 @@ describe("policy configuration", () => {
   });
 });
 
+// Migrated from `consumeQuota` to `reserveAiSteps` (KI-94's fix). Isolated to
+// the DAILY policy alone rather than the full `aiStepQuotas()` pair: reserving
+// the real 32-step budget per admission (instead of the old default-1 bump)
+// means the HOURLY policy's own, much tighter global ceiling would refuse
+// first if both ran together, which would make this test about the hourly
+// window instead of the property it exists to prove.
 it("refuses the request that would take the global step ceiling past its limit, even in flight", async () => {
-  const policies = aiStepQuotas();
-  const daily = dailyPolicy(policies);
-  const { counters } = makeFakeCounters();
+  const daily = dailyPolicy(aiStepQuotas());
+  const counters = fakeCounters();
   const now = new Date("2026-09-15T12:00:00.000Z");
 
   // One more request than the global ceiling can fund at the full budget.
   const admissions = Math.floor(daily.global / AI_MAX_STEPS_PER_REQUEST) + 1;
 
-  const decisions = await Promise.all(
-    Array.from({ length: admissions }, (_unused, i) =>
-      consumeQuota(policies, `user-${i}`, counters, now),
-    ),
+  const results = await Promise.all(
+    Array.from({ length: admissions }, (_unused, i) => reserveAiSteps([daily], `user-${i}`, counters, now)),
   );
+  const decisions = results.map((r) => r.decision);
 
   // Distinct users, so the per-user ceiling is untouched: the global one is the
   // only thing that can refuse here.
@@ -409,39 +417,54 @@ it("refuses the request that would take the global step ceiling past its limit, 
   expect(refused).toEqual(expect.objectContaining({ allowed: false, reason: "global" }));
 });
 
+it("refunds the unused budget, so a one-step answer costs one step", async () => {
+  const policies = aiStepQuotas();
+  const daily = dailyPolicy(policies);
+  const counters = fakeCounters();
+  const now = new Date("2026-09-15T12:00:00.000Z");
+
+  const { decision, reservation } = await reserveAiSteps(policies, "user-a", counters, now);
+  expect(decision.allowed).toBe(true);
+  expect(counters.rows.get(`${daily.name}:global`)?.hits).toBe(AI_MAX_STEPS_PER_REQUEST);
+
+  await settleAiSteps(reservation!, 1, counters);
+  expect(counters.rows.get(`${daily.name}:global`)?.hits).toBe(1);
+  expect(counters.rows.get(`${daily.name}:user:user-a`)?.hits).toBe(1);
+});
+
 describe("release", () => {
   it("release subtracts within the reserved window", async () => {
-    const { counters, hitsFor } = makeFakeCounters();
+    const counters = fakeCounters();
     const w = new Date("2026-09-15T12:00:00.000Z");
     await counters.bump("b", w, 32);
     await counters.release("b", w, 30);
-    expect(hitsFor("b")).toBe(2);
+    expect(counters.rows.get("b")?.hits).toBe(2);
   });
 
   it("release does nothing once the window has rolled", async () => {
-    const { counters, hitsFor } = makeFakeCounters();
+    const counters = fakeCounters();
     const w1 = new Date("2026-09-15T12:00:00.000Z");
     const w2 = new Date("2026-09-15T13:00:00.000Z");
     await counters.bump("b", w1, 32);
     await counters.bump("b", w2, 5); // window rolls; count restarts at 5
     await counters.release("b", w1, 30); // refund against the OLD window
-    expect(hitsFor("b")).toBe(5);
+    expect(counters.rows.get("b")?.hits).toBe(5);
   });
 
   it("release never drives a counter below zero", async () => {
-    const { counters, hitsFor } = makeFakeCounters();
+    const counters = fakeCounters();
     const w = new Date("2026-09-15T12:00:00.000Z");
     await counters.bump("b", w, 3);
     await counters.release("b", w, 999);
-    expect(hitsFor("b")).toBe(0);
+    expect(counters.rows.get("b")?.hits).toBe(0);
   });
 
   it("release ignores a negative or fractional amount", async () => {
-    const { counters, hitsFor } = makeFakeCounters();
+    const counters = fakeCounters();
     const w = new Date("2026-09-15T12:00:00.000Z");
     await counters.bump("b", w, 10);
     await counters.release("b", w, -5);
     await counters.release("b", w, 1.7);
-    expect(hitsFor("b")).toBe(9); // -5 ignored, 1.7 truncated to 1
+    expect(counters.rows.get("b")?.hits).toBe(9); // -5 ignored, 1.7 truncated to 1
   });
 });

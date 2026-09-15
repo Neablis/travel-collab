@@ -340,67 +340,118 @@ export async function consumeQuota(
 }
 
 /**
- * Charge the round-trips a completed AI request actually used, beyond the one
- * `consumeQuota` already pre-authorised (KI-67).
+ * What a reservation charged, and where. The `windowStarts` map is the whole
+ * reason this is a value rather than a number: a release must target the exact
+ * window its reservation charged, and by the time a turn ends the clock may
+ * have moved into the next one.
+ */
+export interface StepReservation {
+  readonly policies: readonly QuotaPolicy[];
+  readonly userId: string;
+  readonly reserved: number;
+  readonly windowStarts: ReadonlyMap<string, Date>;
+}
+
+/**
+ * Charge the FULL step budget up front, then let `settleAiSteps` give back what
+ * the turn did not use (KI-94).
  *
- * **Why this is a second call and not a bigger first one.** You cannot
- * pre-authorise an unknown cost: the step count does not exist until
- * `generateText` returns. So admission stays a charge of 1 — enough to refuse
- * an actor who is already over — and the true cost is settled afterwards. That
- * is the shape change the entry identified as the design question, and it has
- * exactly one consequence worth stating plainly:
+ * The old shape charged one step and settled the rest afterwards, which bounded
+ * a single actor's overshoot to one budget but bounded nothing under
+ * concurrency: N requests in flight had each charged 1, so they could jointly
+ * pass the global ceiling before any of them settled. Reserving the maximum
+ * makes in-flight exposure exactly the reservation.
  *
- * **The request that crosses the line mid-flight is served, and its debt lands
- * on the actor's counter.** The alternative — failing after the provider has
- * already been paid — burns the money AND withholds the answer, which is
- * strictly worse for everyone including the operator. The ceiling is therefore
- * enforced on the NEXT request.
+ * Returns `reservation: null` whenever the decision refuses, so a caller cannot
+ * settle against a turn that never ran.
+ */
+export async function reserveAiSteps(
+  policies: readonly QuotaPolicy[],
+  userId: string,
+  counters: QuotaCounters = pgCounters(),
+  now: Date = new Date(),
+): Promise<{ decision: QuotaDecision; reservation: StepReservation | null }> {
+  const windowStarts = new Map<string, Date>();
+  for (const policy of policies) {
+    const windowStart = windowStartFor(policy, now);
+    const retryAfterSeconds = secondsUntilWindowEnd(policy, windowStart, now);
+    windowStarts.set(policy.name, windowStart);
+
+    let userCount: number;
+    let globalCount: number;
+    try {
+      userCount = await counters.bump(
+        `${policy.name}:user:${userId}`,
+        windowStart,
+        AI_MAX_STEPS_PER_REQUEST,
+      );
+      globalCount = await counters.bump(
+        `${policy.name}:global`,
+        windowStart,
+        AI_MAX_STEPS_PER_REQUEST,
+      );
+    } catch {
+      // Fail closed, exactly as `consumeQuota` does: a broken counter store must
+      // not become an open door.
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds }, reservation: null };
+    }
+
+    if (userCount > policy.perUser) {
+      return { decision: { allowed: false, reason: "user", retryAfterSeconds }, reservation: null };
+    }
+    if (globalCount > policy.global) {
+      return { decision: { allowed: false, reason: "global", retryAfterSeconds }, reservation: null };
+    }
+  }
+
+  return {
+    decision: { allowed: true },
+    reservation: { policies, userId, reserved: AI_MAX_STEPS_PER_REQUEST, windowStarts },
+  };
+}
+
+/**
+ * Give back what a completed AI request did not use of its `reserveAiSteps`
+ * reservation (KI-94, KI-67 before it).
  *
- * **How far it can be overshot, stated correctly.** For one actor issuing
- * requests in sequence the overshoot is at most one request's step budget. It
- * is NOT bounded that way under concurrency: every request in flight has
- * charged only its admission step, so N requests admitted before any of them
- * settles can together overshoot by up to N × (budget − 1). The global bucket
- * is where that matters — with distinct users, enough concurrent 32-step
- * requests can pass the global step ceiling before any of them settles.
- * Filed as KI-78, with the fix the reviewer proposed (reserve the maximum
- * in-flight cost at admission and reconcile the unused part afterwards), which
- * needs a refund primitive this module deliberately does not have yet — see
- * `bump`'s clamp, and the window-rollover hazard a refund has to survive.
- * What still bounds the burst today is the request-count layer above
- * (`aiQuotas`), which caps concurrent admissions independently.
+ * **In-flight exposure is now exactly the reservation.** `reserveAiSteps`
+ * charges the full budget at admission and this releases what the turn did not
+ * use, so N concurrent requests can hold at most N × budget and the global
+ * ceiling is asserted against the real figure rather than against N × 1.
+ * Closes KI-94 (filed as KI-78 and renumbered on merge) and KI-97 with it.
  *
  * **Never refuses and never throws.** The work is already done, so there is no
  * decision left to make, and a counter write failing must not turn a successful
- * answer into an error the caller sees. A failed settlement loses that
- * request's excess cost from the ledger — one window of under-counting, the
- * same magnitude of over-permissiveness the counter table's own schema comment
- * already accepts — which is why this swallows rather than propagates. It is
- * also what keeps an int4 overflow at the very top of the range harmless.
+ * answer into an error the caller sees. A failed release loses that request's
+ * refund — one window of over-counting, the safe direction, since it errs
+ * toward refusing the NEXT request rather than admitting it.
  *
  * `steps` is clamped rather than trusted: it arrives from the AI response meta,
  * and a negative or absurd value must not be able to zero out or blow up an
- * actor's allowance.
+ * actor's allowance. Non-finite input keeps the full reservation charged —
+ * unknown usage is the conservative charge, not the cheap one.
  */
 export async function settleAiSteps(
-  policies: readonly QuotaPolicy[],
-  userId: string,
+  reservation: StepReservation,
   steps: number,
   counters: QuotaCounters = pgCounters(),
-  now: Date = new Date(),
 ): Promise<void> {
-  if (!Number.isFinite(steps)) return;
-  const used = Math.min(Math.max(Math.trunc(steps), 1), AI_MAX_STEPS_PER_REQUEST);
-  const extra = used - 1; // admission already charged the first round-trip
-  if (extra <= 0) return;
+  const used = Number.isFinite(steps)
+    ? Math.min(Math.max(Math.trunc(steps), 1), reservation.reserved)
+    : reservation.reserved;
+  const unused = reservation.reserved - used;
+  if (unused <= 0) return;
 
-  for (const policy of policies) {
-    const windowStart = windowStartFor(policy, now);
+  for (const policy of reservation.policies) {
+    const windowStart = reservation.windowStarts.get(policy.name);
+    if (windowStart === undefined) continue;
     try {
-      await counters.bump(`${policy.name}:user:${userId}`, windowStart, extra);
-      await counters.bump(`${policy.name}:global`, windowStart, extra);
+      await counters.release(`${policy.name}:user:${reservation.userId}`, windowStart, unused);
+      await counters.release(`${policy.name}:global`, windowStart, unused);
     } catch {
-      // See the note above: a completed request is never failed over a counter.
+      // A completed request is never failed over a counter. Losing a refund
+      // over-counts, which errs toward refusing the NEXT request rather than
+      // admitting it — the safe direction.
     }
   }
 }

@@ -328,6 +328,15 @@ export interface AiGrant {
   /** The latest user message, verbatim — what the caps were measured against. */
   question: string;
   turn: "opening" | "follow-up";
+  /**
+   * What `admitQuota` reserved against the step ceilings (KI-94), for
+   * `settleAiSteps` to reconcile once the turn ends. `null` only when the
+   * quota port itself never returned one — unreachable for an admitted turn,
+   * since `admitQuota` runs before `grantTools` on every path, but a stage's
+   * answer is still read through `required`-style optionality rather than
+   * assumed, the same caution `AdmissionDraft`'s own fields take.
+   */
+  stepReservation: StepReservationHandle | null;
 }
 
 export type AiAdmission = { ok: true; grant: AiGrant } | { ok: false; refusal: AiRefusal };
@@ -351,7 +360,11 @@ export interface AdmissionPorts {
   /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
   selectModel(userId: string): Promise<ModelChoice>;
   /**
-   * `consumeQuota([...aiQuotas(), ...aiStepQuotas()])` — requests AND steps.
+   * `consumeQuota(aiQuotas())` for requests, then `reserveAiSteps(aiStepQuotas())`
+   * for the round-trip budget (KI-94) — SPLIT rather than one combined call,
+   * because the two settle differently: the request charge is final the
+   * moment it is made, the step charge is a reservation `settleAiSteps`
+   * reconciles at the end of the turn. Refused if either layer refuses.
    *
    * **`ceilings` is what closes spec §3b's fourth gap.** `selectModel` runs
    * before this stage because an incident forced it, but until P5 `admitQuota`
@@ -425,13 +438,48 @@ export type ModelChoice =
   | { outcome: "denied"; reason: string; code: string; response: Response };
 
 /**
+ * A quota policy, restated as data rather than imported — used only inside
+ * `StepReservationHandle` below. See that type's comment for why this file
+ * re-spells `@/server/quota`'s shapes instead of importing them.
+ */
+interface QuotaPolicyHandle {
+  readonly name: string;
+  readonly windowMs: number;
+  readonly perUser: number;
+  readonly global: number;
+}
+
+/**
+ * What `admitQuota` reserved against the step ceilings (KI-94) — the kernel's
+ * own spelling of `quota.ts`'s `StepReservation`, for the same reason
+ * `QuotaVerdict` below re-spells `QuotaDecision`: the kernel imports no type
+ * from `@/server/quota` (ADR-043 import wall). `settleAiSteps`, outside the
+ * wall, accepts this value as its own type — the compiler compares shape, not
+ * name, and `handleAskRequest.ts`'s call site is what actually checks the two
+ * stay in step.
+ */
+export interface StepReservationHandle {
+  readonly policies: readonly QuotaPolicyHandle[];
+  readonly userId: string;
+  readonly reserved: number;
+  readonly windowStarts: ReadonlyMap<string, Date>;
+}
+
+/**
  * What `admitQuota` answers — `QuotaDecision` (quota.ts, which reaches
  * Postgres) with its refusal already rendered, for `ModelChoice`'s reason:
  * `quotaRefusal` owns the 429/503 split and the `Retry-After` header, and
  * neither belongs in two places.
+ *
+ * **`reservation` is what `reserveAiSteps` charged the step ceilings, carried
+ * through to `settleAiSteps` at the end of the turn (KI-94).** Optional and
+ * nullable rather than required: a port stub that returns the bare
+ * `{ allowed: true }` a test wrote before this field existed is still a valid
+ * verdict — the pipeline treats a missing reservation as `null`, the same as
+ * one explicitly not returned.
  */
 export type QuotaVerdict =
-  | { allowed: true }
+  | { allowed: true; reservation?: StepReservationHandle | null }
   | { allowed: false; reason: string; response: Response };
 
 export interface AdmissionInput {
@@ -477,6 +525,8 @@ interface AdmissionDraft {
   };
   /** Present once `classifyTask` has run: null when there was nothing to classify. */
   classified?: { classification: AskIntentRecord | null };
+  /** Present once `admitQuota` has run: what it reserved against the step ceilings (KI-94). */
+  stepReservation?: StepReservationHandle | null;
   /** What `grantTools`, the last stage, resolved — the value the pipeline returns. */
   granted?: AiGrant;
 }
@@ -758,11 +808,14 @@ const selectModel: AdmissionStage = {
 // whole life. One door means one quota path; that is the point of the merge
 // rather than a bonus from it.
 //
-// Only one round-trip can be pre-authorised, because the real step count does
-// not exist until the run ends; `settleAiSteps` charges the rest from the
-// recorder's sink in the handler. An actor already over either ceiling is
-// refused here, before a provider is touched. The in-flight overshoot this
-// admission shape permits is KI-94, unchanged by the move.
+// The real step count does not exist until the run ends, so the step layer
+// RESERVES the full budget here rather than pre-authorising one round-trip —
+// `settleAiSteps` refunds what the recorder's sink in the handler says the
+// turn did not use (KI-94). An actor already over either ceiling is refused
+// here, before a provider is touched, and now stays refused rather than being
+// admitted on the strength of a charge that will settle later: in-flight
+// exposure is exactly what this stage reserves, not N × 1 across whatever is
+// concurrently in flight.
 //
 // **The ceilings are a PARAMETER of this stage, and that is what makes its
 // position structural** (spec §3b, §7d). It is handed
@@ -778,8 +831,9 @@ const admitQuota: AdmissionStage = {
     const { userId } = required(draft.actor, "identifyActor");
     const { entitlements } = required(draft.selected, "selectModel");
     const quota = await draft.input.ports.admitQuota(userId, entitlements.ceilings);
-    if (quota.allowed) return null;
-    return refuse("admitQuota", `over the ${quota.reason} limit`, quota.response);
+    if (!quota.allowed) return refuse("admitQuota", `over the ${quota.reason} limit`, quota.response);
+    draft.stepReservation = quota.reservation ?? null;
+    return null;
   },
 };
 
@@ -987,6 +1041,7 @@ const grantTools: AdmissionStage = {
       messages,
       question,
       turn,
+      stepReservation: draft.stepReservation ?? null,
     };
     return null;
   },
