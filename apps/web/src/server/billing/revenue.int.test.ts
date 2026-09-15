@@ -235,6 +235,29 @@ describe("costs more than it pays, segmented by why", () => {
   // **A payer who is ALSO comped is still a payer.** Being granted something as
   // well does not make its bill a decision somebody already took, and shunting
   // it into the set-aside bucket would hide the row that needs an answer.
+  // **The two segments are disjoint, and that is the claim the report rests
+  // on.** A paying grant holder was appearing in `paying` AND under its grant
+  // source, so the same account was counted twice and the "set aside" half
+  // stopped meaning what it says. CodeRabbit, PR #177.
+  it("counts a paying grant holder once, in the paying half only", async () => {
+    const both = await account();
+    await subscribe(both, "plus");
+    await issueGrant({
+      userId: both,
+      planId: "premium",
+      planVersion: 1,
+      source: "admin",
+      grantedBy: "dev-operator",
+      reason: "support case",
+      expiresAt: null,
+    });
+    await spend(both, 400);
+
+    const report = await underwaterReport(WINDOW, NOW);
+    expect(report.paying.map((row) => row.userId)).toEqual([both]);
+    expect(report.grantFunded.find((row) => row.source === "admin")).toBeUndefined();
+  });
+
   it("counts a paying account that also holds a grant as paying", async () => {
     const both = await account();
     await subscribe(both, "plus");

@@ -766,4 +766,19 @@ export const billingEvents = pgTable("billing_events", {
   // answerable from this table alone.
   eventAt: timestamp("event_at", { withTimezone: true, mode: "date" }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull(),
+  // **When the work finished — null while a delivery is still in flight.**
+  //
+  // The claim alone was not enough, and the gap it left was the worst one in
+  // this milestone. `claimEvent` writes this row BEFORE any work runs. If a
+  // later step threw — `retrieveSubscription`, the insert, `syncHeldPlan` — the
+  // route answered 500, Stripe retried the same event id, the claim said
+  // "already have it", and the effect was never applied. For
+  // `checkout.session.completed` that is terminal: the `client_reference_id`
+  // naming the account appears on no later event, so a paid account sits on
+  // `free` with no retry path left.
+  //
+  // With this column a claim is provisional: a conflicting row that never
+  // completed is re-claimable, and only a row stamped here is a true replay.
+  // CodeRabbit, PR #177.
+  appliedAt: timestamp("applied_at", { withTimezone: true, mode: "date" }),
 });

@@ -10,7 +10,7 @@ import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanChoice, AccountPlanView } from "@/lib/accountPlan";
-import { PLAN_STATE_LABEL, formatDate, formatPrice } from "@/lib/planCopy";
+import { formatDate, formatPrice } from "@/lib/planCopy";
 import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
 
 // **The `plans` route: chooser, confirm, result — one route, no overlay in any
@@ -71,11 +71,22 @@ export function PlansScreen() {
   const checkout = params.get("checkout");
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
+  // **A returned session id, or nothing.** Stripe's Checkout Session ids are
+  // `cs_` followed by an opaque token; anything else in this parameter is a
+  // typed URL, a stale bookmark or someone poking, and none of those is a
+  // return from a checkout. A browser walk of the preview found the cost of
+  // not checking: `/plans?checkout=cs_test_forged` rendered a screen saying
+  // *"Your payment has gone through"* on a deployment whose banner four inches
+  // above said nothing could be bought. Shape alone is not proof — only the
+  // webhook is — but it is what separates "came back from Stripe" from "typed
+  // a URL", and the copy below no longer claims payment either way.
+  const returnedSession = checkout !== null && /^cs_[A-Za-z0-9_]+$/.test(checkout) ? checkout : null;
   const [step, setStep] = useState<Step>(
-    // **Returning from Stripe lands on pending, not on success.** The query
-    // parameter proves a browser followed a URL and nothing else.
-    checkout !== null && checkout !== "cancelled" ? { name: "pending" } : { name: "chooser" },
+    returnedSession === null ? { name: "chooser" } : { name: "pending" },
   );
+  // What the account held when this page loaded. The pending state needs it to
+  // tell "the webhook landed" from "this account was already subscribed".
+  const [heldOnArrival, setHeldOnArrival] = useState<string | null>(null);
   const [preview, setPreview] = useState<PlanChangePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,6 +108,7 @@ export function PlansScreen() {
   useEffect(() => {
     void load().then((loaded) => {
       if (loaded === null) setFailed(true);
+      else setHeldOnArrival((current) => current ?? loaded.planVersionRef);
     });
   }, [load]);
 
@@ -105,18 +117,31 @@ export function PlansScreen() {
     if (step.name !== "pending") return;
     let attempts = 0;
     let live = true;
-    const before = plan?.planVersionRef ?? null;
+    const before = heldOnArrival;
+    const wasSubscribed = plan !== null && plan.billing.state !== "none" && plan.billing.state !== "trial";
     const timer = setInterval(() => {
       if (!live) return;
       attempts += 1;
       void load().then((loaded) => {
         if (!live || loaded === null) return;
-        // The webhook has written when the held plan moves, or when a
-        // subscription appears where there was none.
+        // **Evidence that THIS checkout was reconciled, not merely that the
+        // account is subscribed.** An account that already had a live
+        // subscription satisfies "state is active" before its upgrade webhook
+        // lands, so that test alone would declare success for a change that
+        // has not happened. For an existing subscriber the held version must
+        // MOVE; only a first purchase may use the transition into a paid
+        // state, because for it there is nothing else to see.
+        // CodeRabbit, PR #177.
         const moved = before !== null && loaded.planVersionRef !== before;
-        if (moved || loaded.billing.state === "active" || loaded.billing.state === "cancelling") {
+        const firstPurchase =
+          !wasSubscribed &&
+          (loaded.billing.state === "active" || loaded.billing.state === "cancelling");
+        if (moved || firstPurchase) {
           clearInterval(timer);
-          setStep({ name: "result", message: "Your plan is active. Everything is live — no need to sign out." });
+          setStep({
+            name: "result",
+            message: "Your plan is active. Everything is live — no need to sign out.",
+          });
         } else if (attempts >= PENDING_ATTEMPTS) {
           clearInterval(timer);
           setSlow(true);
@@ -127,7 +152,7 @@ export function PlansScreen() {
       live = false;
       clearInterval(timer);
     };
-  }, [step.name, load, plan?.planVersionRef]);
+  }, [step.name, load, heldOnArrival, plan]);
 
   async function openConfirm(planId: string) {
     setStep({ name: "confirm", planId });
@@ -275,22 +300,48 @@ export function PlansScreen() {
 
 /** The held plan stated once — §29's line at the top of the chooser. */
 function heldLine(plan: AccountPlanView, held: AccountPlanChoice | null): string {
-  const state = PLAN_STATE_LABEL[plan.billing.state];
-  const price =
-    held === null || held.priceMinor === null
-      ? null
-      : held.priceMinor === 0
-        ? "free"
-        : `${formatPrice(held.priceMinor, held.currency)} a month`;
+  const planId = held?.planId ?? plan.planVersionRef;
+  const state = plan.billing.state;
   const renews = formatDate(plan.billing.renewsAt);
-  const parts = [`You are on ${held?.planId ?? plan.planVersionRef} — ${state}`];
-  if (price !== null) parts.push(price);
-  if (renews !== null) {
-    parts.push(plan.billing.state === "cancelling" ? `ending ${renews}` : `renewing ${renews}`);
+  const trialEnds = formatDate(plan.billing.trialEndsAt);
+
+  // **Built per state rather than concatenated from parts**, because the parts
+  // produced "You are on free — Free week, free." and, on a plain free account,
+  // "You are on free — Free, free." Three uses of one word in seven words, and
+  // a reader could not tell whether they held a free plan, were inside a free
+  // trial, or both — on the screen where they decide whether to pay for
+  // something they may already have this week. Found by a browser walk; the
+  // e2e asserted `toContainText("free")`, which every one of those satisfies.
+  const paidFor =
+    held === null || held.priceMinor === null || held.priceMinor === 0
+      ? null
+      : formatPrice(held.priceMinor, held.currency);
+
+  let sentence: string;
+  if (state === "trial") {
+    // The one state with no subscription period, so `renewsAt` is null and the
+    // trial's own expiry is the only date there is.
+    sentence =
+      trialEnds === null
+        ? `You are on your free week, which includes everything in plus. Your plan is ${planId}.`
+        : `You are on your free week until ${trialEnds}, which includes everything in plus. After that your plan is ${planId} unless you choose another.`;
+  } else if (state === "none") {
+    sentence = `You are on ${planId}, at no charge.`;
+  } else if (state === "cancelling") {
+    sentence = `You are on ${planId}${paidFor === null ? "" : ` at ${paidFor} a month`}, ending ${renews ?? "at the end of this period"}.`;
+  } else if (state === "past-due") {
+    sentence = `You are on ${planId}${paidFor === null ? "" : ` at ${paidFor} a month`}, and your last payment did not go through.`;
+  } else if (state === "lapsed") {
+    sentence = `Your ${planId} subscription has lapsed.`;
+  } else {
+    sentence = `You are on ${planId}${paidFor === null ? "" : ` at ${paidFor} a month`}${renews === null ? "" : `, renewing ${renews}`}.`;
   }
-  // **Prorated to the day, said before anyone picks anything.** The confirm
-  // step's order card is where the number appears; this is the promise it keeps.
-  return `${parts.join(", ")}. A change now is prorated to the day.`;
+
+  // **Prorated to the day, said before anyone picks anything** — but only where
+  // there is something to prorate. Telling a free account its change is
+  // prorated is describing a refund of nothing.
+  const prorates = state === "active" || state === "cancelling" || state === "past-due";
+  return prorates ? `${sentence} A change now is prorated to the day.` : sentence;
 }
 
 function Chooser({
@@ -302,6 +353,14 @@ function Chooser({
   onChoose: (planId: string) => void;
   canBuy: boolean;
 }) {
+  const held = plan.catalogue.find((choice) => choice.held) ?? null;
+  const heldPlanId = held?.planId ?? plan.planVersionRef.split("@")[0];
+  // **Is the account drawing on something the catalogue does not show?** The
+  // resolved set is what it can do; the held plan's own list is what this page
+  // prints. When they differ, a grant is in play and the page has to say so.
+  const grantInPlay = plan.entitlements.some(
+    (entitlement) => !(held?.entitlements ?? []).includes(entitlement),
+  );
   return (
     <div className="flex flex-col gap-5">
       {/* **Three cards in display order, each with four bullets enumerating
@@ -355,6 +414,23 @@ function Chooser({
       </div>
 
       <PlanComparison catalogue={plan.catalogue} />
+
+      {/* **The plans as PUBLISHED, which is not the same as what you can do
+          today** — and on this route the difference is the whole reason
+          somebody is reading it. A brand-new account holds `free` and carries
+          a `plus` trial: the account sheet says *Questions 0 / 50*, and the
+          `free` card here says *No assistant*. Both are true and a person has
+          no way to tell that from the screen, which is precisely the defect a
+          browser walk found on the account sheet during M20 and the reason
+          that sheet already carries a sentence like this one.
+          Shown only while something is granted, so it is never a disclaimer
+          about nothing. */}
+      {grantInPlay ? (
+        <Text variant="secondary" className="text-xs" data-testid="plans-grant-note">
+          These are the plans as published. Your free week grants you more than the {heldPlanId} plan
+          lists above — what you can actually do right now is in Account settings, under Plan.
+        </Text>
+      ) : null}
     </div>
   );
 }
@@ -522,18 +598,41 @@ function gainSentence(preview: PlanChangePreview, plan: AccountPlanView): string
  */
 function Pending({ slow }: { slow: boolean }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-hairline p-4" data-testid="plans-pending">
-      <Heading level={2}>Waiting for Stripe to confirm</Heading>
+    <div className="flex flex-col gap-3 rounded-lg border border-hairline p-4" data-testid="plans-pending">
+      <Heading level={2}>Checking with Stripe</Heading>
+      {/* **This screen does not know whether anything was paid, and it no
+          longer says it does.** It said *"Your payment has gone through"* — on
+          the presence of a query parameter, so a typed URL produced a claim of
+          payment, and on a deployment that cannot take payments at all it
+          appeared four inches under a banner saying so. Found by a browser
+          walk of the preview; the e2e passed throughout, because it asserted
+          that this panel was VISIBLE and never read a word of it.
+          What is true is the sequence: Stripe tells us, and that is what moves
+          a plan. So that is what it says. */}
       <Text className="text-sm">
-        Your payment has gone through. We are waiting for Stripe to tell us about it, which is what
-        actually changes your plan — usually a few seconds.
+        If you have just paid, Stripe tells us separately from sending you back here — and that
+        message is what actually changes your plan. This page is waiting for it, usually a few
+        seconds.
       </Text>
       {slow ? (
         <Banner variant="info" data-testid="plans-pending-slow">
-          This is taking longer than usual. Your payment is safe and your plan will change on its
-          own; you can close this page.
+          Nothing has arrived yet. If you completed a payment it is safe and your plan will change
+          on its own, with no action from you. If you did not, nothing has been charged and nothing
+          will change.
         </Banner>
       ) : null}
+      {/* **A way out.** The pending panel replaces the chooser and the table,
+          so without this the route is a page titled Plans, showing no plans,
+          with nothing to click — reachable from a bookmark, a back button, or
+          a webhook that never lands. */}
+      <div className="flex flex-wrap gap-3">
+        <Link href="/plans" className="text-sm text-brand underline" data-testid="plans-pending-back">
+          Back to plans
+        </Link>
+        <Link href="/" className="text-sm text-brand underline">
+          Back to your trips
+        </Link>
+      </div>
     </div>
   );
 }

@@ -45,11 +45,12 @@ export class PriceMismatchError extends Error {
   constructor(
     readonly ref: string,
     readonly expected: { minor: number; currency: string },
-    readonly found: { minor: number | null; currency: string },
+    readonly found: { minor: number | null; currency: string; interval?: string },
   ) {
     super(
-      `Stripe Price for ${ref} charges ${found.minor ?? "nothing"} ${found.currency} and the ` +
-        `committed plan version says ${expected.minor} ${expected.currency}. Published prices ` +
+      `Stripe Price for ${ref} charges ${found.minor ?? "nothing"} ${found.currency}` +
+        `${found.interval === undefined ? "" : ` every ${found.interval}`} and the committed ` +
+        `plan version says ${expected.minor} ${expected.currency} every month. Published prices ` +
         `are never edited (M21 link 2) — publish a NEW version instead of reusing this one, ` +
         `which changes the lookup key and therefore the Price.`,
     );
@@ -83,6 +84,19 @@ export function assertPriceMatches(entry: PlanVersion, price: StripePrice): void
   if (expected === null) throw new UnpurchasableVersionError(planVersionRefOf(entry), "it has no price");
   if (price.unit_amount !== expected.minor || price.currency !== expected.currency) {
     throw new PriceMismatchError(planVersionRefOf(entry), expected, statedBy(price));
+  }
+  // **The interval is part of what was agreed, not a detail of it.** Amount and
+  // currency are what the gate box names, and they are not sufficient: a YEARLY
+  // Price of $9 USD passes both while the catalogue, the card and every screen
+  // say "$9 / month". The buyer gets a twelfth of what they were shown, and
+  // nothing errors — the exact shape of failure this module exists for.
+  // CodeRabbit, PR #177.
+  if (price.recurring?.interval !== "month") {
+    throw new PriceMismatchError(
+      planVersionRefOf(entry),
+      expected,
+      { ...statedBy(price), interval: price.recurring?.interval ?? "one-off" },
+    );
   }
 }
 
@@ -187,7 +201,9 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
       continue;
     }
     const matches =
-      price.unit_amount === entry.price.minor && price.currency === entry.price.currency;
+      price.unit_amount === entry.price.minor &&
+      price.currency === entry.price.currency &&
+      price.recurring?.interval === "month";
     rows.push({
       ref,
       committed: { ...entry.price },

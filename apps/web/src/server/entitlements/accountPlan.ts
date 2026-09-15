@@ -96,6 +96,16 @@ export interface PlanBillingView {
    */
   graceEndsAt: string | null;
   /**
+   * **ISO. When the free week ends** — the one date a trialling account needs
+   * and the only state whose end `renewsAt` cannot carry, because a trial is a
+   * grant and has no subscription period.
+   *
+   * A browser walk of the preview found this: every brand-new account is in
+   * this state, its badge said *Free week*, and neither this screen nor the
+   * plans route said when the week ended or what happened then.
+   */
+  trialEndsAt: string | null;
+  /**
    * Whether anything can be bought here at all.
    *
    * A deployment with no Stripe keys is legitimate — every local run and every
@@ -155,15 +165,23 @@ function choiceOf(version: PlanVersion, heldPlanId: string): PlanChoice {
 /**
  * The four words, decided in one place.
  *
- * **A trial outranks every subscription state**, because an account on its free
- * week has nothing to pay and no card to have declined — telling it "payment
- * failed" would be describing a subscription it does not have.
+ * **A subscription outranks a trial.** An account with no subscription and a
+ * live trial grant is on its free week and has nothing to pay; an account that
+ * BOUGHT something while its trial was still running is a paying customer, and
+ * calling that "Free week" would misdescribe both what it holds and what it
+ * earns.
  */
 function planStateOf(resolved: AccountEntitlements): PlanState {
   const onTrial = resolved.grants.some((grant) => grant.source === "trial");
-  if (onTrial) return "trial";
   const subscription = resolved.subscription;
-  if (subscription === null) return "none";
+  // **A subscription outranks a trial, not the other way round.** The first
+  // version returned `trial` whenever a trial grant was active — and a trial
+  // grant outlives the week it was issued for if the account buys a plan
+  // inside it, which is the single most likely moment for an account to buy
+  // one. The result: a paying customer's sheet read `Free week`, and
+  // `canRefer` went false because the trial branch made it so. CodeRabbit,
+  // PR #177.
+  if (subscription === null) return onTrial ? "trial" : "none";
   if (subscription.lapsed) return "lapsed";
   if (subscription.row.status === "past_due") return "past-due";
   if (!subscription.conferring) return "lapsed";
@@ -239,6 +257,14 @@ export async function accountPlanView(
     billing: {
       state,
       renewsAt: resolved.subscription?.row.currentPeriodEnd?.toISOString() ?? null,
+      // The soonest expiry among live trial grants — an account holds at most
+      // one ever, so "soonest" is a formality that costs nothing and avoids
+      // depending on that being true forever.
+      trialEndsAt:
+        resolved.grants
+          .filter((grant) => grant.source === "trial" && grant.expiresAt !== null)
+          .map((grant) => grant.expiresAt!.toISOString())
+          .sort()[0] ?? null,
       pastDueSince: resolved.subscription?.pastDueSince?.toISOString() ?? null,
       graceEndsAt: resolved.subscription?.graceEndsAt?.toISOString() ?? null,
       available: billingConfigured(),

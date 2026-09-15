@@ -625,3 +625,74 @@ reads `useSearchParams()`, which fails the production build outright without a
 Suspense boundary — and the dev lane compiles a route on first hit and never
 prerenders it, so the route worked perfectly in `pnpm dev`. That is CLAUDE.md
 rule 1 paying for itself in the same session it was read.
+
+
+## What review found — 2026-09-15
+
+PR #177 collected three independent reviews on the same head, and between them
+they found **sixteen defects in code that passed every local lane.** That is the
+number worth keeping: the branch had a full green suite, 131 e2e specs, five
+red-first proofs and a written verification section, and none of it caught any
+of these.
+
+### The four that would have cost money or trust
+
+1. **An existing subscriber could be charged twice.** `startCheckout` refused a
+   second subscription *to the same plan* and let a live `plus` subscriber open
+   a checkout for `premium`, which Stripe would happily create alongside the
+   first. The UI never took that path — `applyPlanChange` routes a live
+   subscription to a Stripe update — which is exactly why the guard failed: it
+   was correct about its only caller and the endpoint is reachable without it.
+   *This is the milestone's own stated blast radius.* (CodeRabbit)
+2. **A failed webhook delivery lost its event permanently.** The claim was
+   written before the work ran and nothing recorded that the work finished, so
+   a throw anywhere after the claim meant Stripe's retry was answered `replay`
+   and the effect was never applied. For `checkout.session.completed` that is
+   terminal: the `client_reference_id` naming the account rides on that event
+   and no other, so a paid account would sit on `free` with no path back.
+   `webhook.int.test.ts` had a test *pinning this as an accepted trade-off*;
+   it was not one. Fixed with `billing_events.applied_at` (migration 0022).
+   (CodeRabbit)
+3. **The confirm step promised a payment it did not take.**
+   `proration_behavior: "create_prorations"` computes the adjustment and leaves
+   it for the *next* invoice, under a button reading `Pay $11.47 with Stripe`.
+   `always_invoice` is what collects it. (CodeRabbit)
+4. **The pending screen claimed a payment had happened, on a forged URL.**
+   *"Your payment has gone through"*, rendered on the presence of a query
+   parameter alone — and on the preview, four inches below a banner saying
+   nothing could be bought on that deployment. The e2e asserted the panel was
+   VISIBLE and never read a word of it. (Browser walk.)
+
+### What each review was uniquely able to see
+
+- **CodeQL** found the one thing static analysis is for: a Stripe object id
+  from a webhook body reaching a URL. Host injection was not possible — the
+  authority is a constant — but "the attacker cannot reach another host" is a
+  weaker guarantee than "the value is not attacker-shaped", and the second one
+  costs a regex.
+- **CodeRabbit** found the state machines: idempotency keys that named a target
+  state rather than an operation (so cancel → resume → cancel replayed the first
+  cancellation), a price check that would sell a `$9/year` Price under a
+  `$9/month` label, a trial grant outranking a subscription so a paying customer
+  read *Free week*, margins computed from costs we know are incomplete, and two
+  "disjoint" segments that both counted the same account.
+- **A browser walk** found the things only a person reads: two surfaces one
+  click apart saying *"Questions 0 / 50"* and *"No assistant"* about the same
+  account, a held line reading *"You are on free — Free week, free."*, a badge
+  saying *Free week* with no date anywhere for when the week ends, and a
+  pending screen with no way back to the plans it replaced.
+
+### The lesson the verification section did not have
+
+**Every one of the four expensive defects had a passing test over it.** Not a
+missing test — a test that asserted presence, or state, or a substring, on the
+exact path where the defect lived. `toContainText("free")` passes against *"You
+are on free — Free, free."* A test that the pending panel is visible passes
+against any words inside it. A test naming a trade-off documents a defect rather
+than catching it.
+
+`docs/guidelines/testing.md` §3 asks that a test be seen to fail for its own
+reason. That was done here, five times, and it is necessary rather than
+sufficient: a test can fail for its own reason and still be pointed at the wrong
+question. **Where a screen's job is to say something true, the assertion has to
+be on what it says.**

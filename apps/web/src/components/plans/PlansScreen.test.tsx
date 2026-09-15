@@ -66,7 +66,14 @@ const VIEW: AccountPlanView = {
   catalogue: CATALOGUE,
   referralCode: null,
   canRefer: false,
-  billing: { state: "none", renewsAt: null, pastDueSince: null, graceEndsAt: null, available: true },
+  billing: {
+    state: "none",
+    renewsAt: null,
+    pastDueSince: null,
+    graceEndsAt: null,
+    trialEndsAt: null,
+    available: true,
+  },
 };
 
 const PREVIEW = {
@@ -160,11 +167,53 @@ describe("the chooser", () => {
     expect(table.textContent).not.toMatch(/not included|✗|✕/i);
   });
 
-  it("states the held plan once, with the proration promise", async () => {
+  // **Read as a sentence, not as a substring.** The old assertion was
+  // `toContainText("free")`, which "You are on free — Free, free." satisfies —
+  // and that is what the screen actually said until a browser walk read it.
+  it("states the held plan in a sentence a person can read", async () => {
     render(<PlansScreen />);
-    const line = await screen.findByTestId("plans-held-line");
-    expect(line.textContent).toContain("free");
-    expect(line.textContent).toContain("prorated to the day");
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toBe("You are on free, at no charge.");
+    // Nothing to prorate on a plan that costs nothing, so nothing says so.
+    expect(line).not.toContain("prorated");
+  });
+
+  it("says when a free week ends, on the one screen that decides whether to buy", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        entitlements: ["ai.ask", "ai.command"],
+        billing: { ...VIEW.billing, state: "trial", trialEndsAt: "2026-09-22T00:00:00.000Z" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toContain("September 22");
+    expect(line).toContain("free week");
+  });
+
+  // **Two surfaces, one click apart, saying opposite things.** The account
+  // sheet tells a trialling account "Questions 0 / 50"; this page's `free` card
+  // says "No assistant". Both are true — one is the resolved union, the other
+  // is the plan as published — and a browser walk found that a person has no
+  // way to tell that from the screen.
+  it("says so when a grant gives more than the held plan lists", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        entitlements: ["ai.ask", "ai.command"],
+        billing: { ...VIEW.billing, state: "trial", trialEndsAt: "2026-09-22T00:00:00.000Z" },
+      },
+    });
+    render(<PlansScreen />);
+    const note = await screen.findByTestId("plans-grant-note");
+    expect(note.textContent).toContain("as published");
+  });
+
+  it("carries no such disclaimer when nothing is granted", async () => {
+    render(<PlansScreen />);
+    await screen.findByTestId("plan-cards");
+    expect(screen.queryByTestId("plans-grant-note")).toBeNull();
   });
 
   // §29's unavailable case: show the held plan and a warning, and do not offer
@@ -252,8 +301,38 @@ describe("coming back from Stripe", () => {
     search.set("checkout", "cs_test_123");
     render(<PlansScreen />);
     const pending = await screen.findByTestId("plans-pending");
-    expect(pending.textContent).toContain("waiting for Stripe to tell us");
+    expect(pending.textContent).toContain("Stripe tells us separately");
     expect(screen.queryByTestId("plans-result")).toBeNull();
+  });
+
+  // **The defect a browser walk found and this suite did not.** The old test
+  // asserted the pending panel was VISIBLE and never read a word of it, so a
+  // screen saying *"Your payment has gone through"* — on a typed URL, on a
+  // deployment that cannot take payments — passed every run.
+  it("never claims a payment happened, because it cannot know that", async () => {
+    search.set("checkout", "cs_test_forged_by_hand");
+    render(<PlansScreen />);
+    const pending = await screen.findByTestId("plans-pending");
+    expect(pending.textContent).not.toMatch(/your payment has gone through/i);
+    expect(pending.textContent).not.toMatch(/payment (was )?(successful|received)/i);
+  });
+
+  // A page titled Plans, showing no plans, with nothing to click — reachable
+  // from a bookmark, a back button, or a webhook that never lands.
+  it("offers a way back rather than being a dead end", async () => {
+    search.set("checkout", "cs_test_123");
+    render(<PlansScreen />);
+    const back = await screen.findByTestId("plans-pending-back");
+    expect(back.getAttribute("href")).toBe("/plans");
+  });
+
+  // Shape is not proof of payment, but it does separate "came back from a
+  // checkout" from "typed something into the address bar".
+  it("ignores a checkout parameter that is not a session id", async () => {
+    search.set("checkout", "hello");
+    render(<PlansScreen />);
+    await screen.findByTestId("plan-cards");
+    expect(screen.queryByTestId("plans-pending")).toBeNull();
   });
 
   // A cancelled checkout is not a pending one — nothing was paid, so there is
@@ -265,19 +344,57 @@ describe("coming back from Stripe", () => {
     expect(screen.queryByTestId("plans-pending")).toBeNull();
   });
 
-  it("moves to the result once the account actually changes", async () => {
+  // **A real first purchase: free on arrival, paid once the webhook lands.**
+  //
+  // The first version of this test served `plus@v1`/`active` from the very
+  // first load, which is indistinguishable from an account that was already
+  // subscribed — and the fix for the finding above correctly refuses to call
+  // that success. Serving the transition is what actually models the flow.
+  it("moves to the result once the webhook has moved the account", async () => {
     search.set("checkout", "cs_test_123");
-    serve({
-      plan: {
-        ...VIEW,
-        planVersionRef: "plus@v1",
-        conferredVersionRef: "plus@v1",
-        billing: { ...VIEW.billing, state: "active" },
-      },
-    });
+    let served: AccountPlanView = VIEW;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/account/plan")) {
+          const body = JSON.stringify({ plan: served });
+          // From the second read on, the webhook has landed.
+          served = {
+            ...VIEW,
+            planVersionRef: "plus@v1",
+            conferredVersionRef: "plus@v1",
+            billing: { ...VIEW.billing, state: "active" },
+          };
+          return new Response(body, { status: 200 });
+        }
+        return new Response(JSON.stringify({ preview: PREVIEW }), { status: 200 });
+      }),
+    );
     render(<PlansScreen />);
     await screen.findByTestId("plans-pending");
-    const result = await screen.findByTestId("plans-result", {}, { timeout: 5000 });
+    const result = await screen.findByTestId("plans-result", {}, { timeout: 8000 });
     expect(result.textContent).toContain("no need to sign out");
+  });
+
+  // **An account that was ALREADY subscribed satisfies "state is active"
+  // before its upgrade webhook lands.** Declaring success on that would tell
+  // an upgrading customer their new plan was live while they were still on the
+  // old one. For an existing subscriber the held version has to move.
+  it("keeps waiting when an existing subscriber's plan has not moved yet", async () => {
+    search.set("checkout", "cs_test_123");
+    const subscribed: AccountPlanView = {
+      ...VIEW,
+      planVersionRef: "plus@v1",
+      conferredVersionRef: "plus@v1",
+      billing: { ...VIEW.billing, state: "active" },
+    };
+    serve({ plan: subscribed });
+    render(<PlansScreen />);
+    await screen.findByTestId("plans-pending");
+    // Long enough for several poll intervals; the page must still be waiting.
+    await new Promise((resolve) => setTimeout(resolve, 3200));
+    expect(screen.queryByTestId("plans-result")).toBeNull();
+    expect(screen.getByTestId("plans-pending")).toBeTruthy();
   });
 });

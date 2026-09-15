@@ -43,6 +43,14 @@ route with the account sheet's billing surface, and the revenue half of the oper
 built* has the five deviations from its own scope, each with its reason; **ADR-047** carries
 the three decisions that are one-way doors.
 
+**PR #177 collected three reviews and they found sixteen defects in code that passed every
+local lane** — four of them expensive: an existing subscriber could be charged twice, a failed
+webhook delivery lost its event permanently, the confirm step promised a payment it did not
+collect, and the pending screen claimed a payment had happened on a forged URL. All fixed;
+the milestone file's *What review found* has the list and the lesson. **The lesson in one
+line: every one of the four had a passing test over it — asserting presence, or state, or a
+substring, on the exact path where the defect lived.**
+
 **What is left is a walk against a real Stripe test-mode key**, which no lane in this repo
 has — exactly what the milestone's *Why it is separate* predicted. **Nothing about it costs
 money, and the recipe is `docs/guidelines/billing-without-spending-money.md`**: test cards,

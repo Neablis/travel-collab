@@ -73,24 +73,53 @@ const HANDLED = new Set([
 ]);
 
 /**
- * **Claim this event, or report that somebody already has it.**
+ * **Claim this event, or report that somebody already applied it.**
  *
  * The insert IS the lock. Two concurrent deliveries of the same event — which
- * Stripe does produce — race here and exactly one wins; the loser gets an empty
- * `returning` and stops, having written nothing.
+ * Stripe does produce — race here and exactly one wins.
+ *
+ * **A claim is provisional until `completeEvent` stamps it.** The first version
+ * had no such stamp and it lost events: a throw anywhere after the claim
+ * answered 500, Stripe retried, this said "already have it", and the effect was
+ * never applied. So a conflicting row whose `applied_at` is still null is
+ * RE-CLAIMABLE — the previous attempt died — while a stamped row is a genuine
+ * replay and is refused.
+ *
+ * The re-claim is itself a conditional UPDATE rather than a read-then-write, so
+ * two retries racing after a failure still produce exactly one winner: the
+ * `where` matches only while the row is unstamped, and only one statement can
+ * move `received_at` under it.
  */
 async function claimEvent(event: StripeEvent, now: Date): Promise<boolean> {
-  const claimed = await db
+  const inserted = await db
     .insert(billingEvents)
     .values({
       id: event.id,
       type: event.type,
       eventAt: new Date(event.created * 1000),
       receivedAt: now,
+      appliedAt: null,
     })
     .onConflictDoNothing()
     .returning({ id: billingEvents.id });
-  return claimed.length > 0;
+  if (inserted.length > 0) return true;
+
+  const reclaimed = await db
+    .update(billingEvents)
+    .set({ receivedAt: now })
+    .where(and(eq(billingEvents.id, event.id), isNull(billingEvents.appliedAt)))
+    .returning({ id: billingEvents.id });
+  return reclaimed.length > 0;
+}
+
+/**
+ * Stamp a claim as finished, which is what makes the NEXT delivery a replay.
+ *
+ * Called only after the work returned. Everything between the claim and here is
+ * retryable by construction.
+ */
+async function completeEvent(eventId: string, now: Date): Promise<void> {
+  await db.update(billingEvents).set({ appliedAt: now }).where(eq(billingEvents.id, eventId));
 }
 
 /**
@@ -266,6 +295,14 @@ export async function applyStripeEvent(
   // than of each handler.
   if (!(await claimEvent(event, now))) return { applied: false, note: "replay" };
 
+  // **Every path below that RETURNS must stamp the claim**, or the next
+  // delivery of this event is re-claimed and redone. `finish` is the one exit,
+  // so that is a property of the function rather than of each branch.
+  const finish = async (outcome: WebhookOutcome): Promise<WebhookOutcome> => {
+    await completeEvent(event.id, now);
+    return outcome;
+  };
+
   const object = event.data.object;
 
   if (event.type === "checkout.session.completed") {
@@ -274,8 +311,8 @@ export async function applyStripeEvent(
       // A completed session in a mode that creates no subscription. Nothing
       // this product sells is such a thing today, and answering `ignored`
       // rather than throwing keeps a future one-off purchase from making this
-      // endpoint retry forever.
-      return { applied: false, note: "ignored" };
+      // endpoint retry forever. Stamped: there is nothing to retry.
+      return finish({ applied: false, note: "ignored" });
     }
     // **Fetched from Stripe rather than read off the session.** The session
     // carries a subscription ID and none of its state, and reading state from
@@ -295,16 +332,16 @@ export async function applyStripeEvent(
         planVersionRef: `${reference.planId}@v${reference.version}`,
       };
     }
-    return writeFrom(subscription, event, now);
+    return finish(await writeFrom(subscription, event, now));
   }
 
   if (event.type.startsWith("customer.subscription.")) {
-    return writeFrom(object as unknown as StripeSubscription, event, now);
+    return finish(await writeFrom(object as unknown as StripeSubscription, event, now));
   }
 
   // Both invoice events: find the subscription they are about and reconcile it.
   const subscriptionId = subscriptionIdOnInvoice(object);
-  if (subscriptionId === null) return { applied: false, note: "ignored" };
+  if (subscriptionId === null) return finish({ applied: false, note: "ignored" });
   const subscription = await retrieveSubscription(subscriptionId);
   const outcome = await writeFrom(subscription, event, now);
 
@@ -315,7 +352,7 @@ export async function applyStripeEvent(
   if (event.type === "invoice.payment_failed" && outcome.applied) {
     await anchorDecline(subscription.id, new Date(event.created * 1000));
   }
-  return outcome;
+  return finish(outcome);
 }
 
 /**

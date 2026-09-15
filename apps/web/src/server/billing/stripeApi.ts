@@ -23,6 +23,49 @@ import { billingConfig } from "./config";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
+/**
+ * **A Stripe object id, proven to be one before it reaches a URL.**
+ *
+ * CodeQL flagged `stripeRequest`'s `fetch` as server-side request forgery on
+ * PR #177: the URL depends on a user-provided value, because a subscription id
+ * arrives on a webhook body and lands in `/subscriptions/${id}`. The host is a
+ * constant and a path cannot move it, so the reachable damage is path
+ * traversal inside `api.stripe.com` rather than a request to somewhere else —
+ * but "the attacker cannot reach another host" is a weaker guarantee than "the
+ * value is not attacker-shaped at all", and this is the cheaper one to hold.
+ *
+ * Stripe ids are `[A-Za-z0-9_]` with a type prefix. Anything else is refused
+ * before a request is built, and what passes is encoded anyway: two defences
+ * where the second is free.
+ *
+ * **Refused loudly rather than encoded quietly.** An id that is not one means
+ * either Stripe changed its format or somebody is probing, and both are worth
+ * an error rather than a 404 from a URL-encoded oddity.
+ */
+export function stripeId(value: string, what: string): string {
+  if (!/^[A-Za-z0-9_]{1,255}$/.test(value)) {
+    throw new StripeApiError(
+      400,
+      "invalid-id",
+      `Refusing to build a Stripe URL from a ${what} that is not a Stripe id. ` +
+        `Ids are letters, digits and underscores; this one is not, so it is either a Stripe ` +
+        `format change or a probe.`,
+    );
+  }
+  return encodeURIComponent(value);
+}
+
+/**
+ * How long any one Stripe call may take.
+ *
+ * `fetch` has no timeout of its own, so a stalled connection holds the route
+ * open until the platform kills it — and on the webhook that means Stripe's own
+ * delivery timing out and retrying against a request we are still making.
+ * Fifteen seconds is well past Stripe's normal latency and well inside every
+ * platform's function limit.
+ */
+const STRIPE_TIMEOUT_MS = 15_000;
+
 // Pinned, because Stripe's response shapes change with it and this module
 // reads specific fields. An unpinned client gets whatever version the account's
 // dashboard is set to, which can be changed by a person who is not deploying
@@ -119,14 +162,37 @@ export async function stripeRequest<T>(request: StripeRequest): Promise<T> {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
   }
 
-  const response = await fetch(`${STRIPE_API}${request.path}${query}`, {
-    method: request.method,
-    headers,
-    body: request.method === "POST" ? formEncode(request.body ?? {}) : undefined,
-    // Stripe is never a cached read; a subscription's status is the one thing
-    // here that must not be a minute old.
-    cache: "no-store",
-  });
+  // **Bounded, and cleaned up on every path.** `AbortSignal.timeout` would be
+  // shorter; an explicit controller is used so the `finally` can clear the
+  // timer rather than leaving one pending per call on a busy route.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STRIPE_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(`${STRIPE_API}${request.path}${query}`, {
+      method: request.method,
+      headers,
+      body: request.method === "POST" ? formEncode(request.body ?? {}) : undefined,
+      // Stripe is never a cached read; a subscription's status is the one thing
+      // here that must not be a minute old.
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // A timeout reaches callers as an ordinary Stripe failure rather than a
+    // bare `AbortError`, so the webhook's 500-and-retry path handles it the
+    // same way it handles Stripe being down — which is what it is.
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new StripeApiError(
+        504,
+        "timeout",
+        `Stripe ${request.method} ${request.path} did not answer within ${STRIPE_TIMEOUT_MS}ms.`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const text = await response.text();
   if (!response.ok) {
@@ -230,18 +296,35 @@ export async function createCustomer(input: {
   });
 }
 
-/** Find the Price carrying a lookup key, active or not. */
+/**
+ * Find the Price carrying a lookup key — **including an archived one**.
+ *
+ * The first version passed only `lookup_keys` and a comment claiming the
+ * default lists both. That was an assumption about somebody else's API, and
+ * the failure it buys is specific: an archived Price under our key reads as
+ * ABSENT, so `stripePriceFor` tries to create a second one, Stripe refuses it
+ * (lookup keys are unique per account), and a checkout fails at the till for a
+ * reason nothing in our logs explains.
+ *
+ * Both listings are made rather than trusting either default, and the results
+ * are merged. It is one extra call on a path that runs once per published
+ * price, and it replaces a guess with an answer.
+ */
 export async function findPriceByLookupKey(lookupKey: string): Promise<StripePrice | null> {
-  const found = await stripeRequest<StripeList<StripePrice>>({
-    method: "GET",
-    path: "/prices",
-    // `active: "false"` is NOT passed — the default lists both, and a Price
-    // someone archived in the dashboard must still be found here so the
-    // mismatch is reported rather than papered over with a second Price
-    // carrying the same key, which Stripe would refuse anyway.
-    query: { lookup_keys: lookupKey, limit: "2" },
-  });
-  return found.data[0] ?? null;
+  const [active, archived] = await Promise.all([
+    stripeRequest<StripeList<StripePrice>>({
+      method: "GET",
+      path: "/prices",
+      query: { lookup_keys: lookupKey, active: "true", limit: "2" },
+    }),
+    stripeRequest<StripeList<StripePrice>>({
+      method: "GET",
+      path: "/prices",
+      query: { lookup_keys: lookupKey, active: "false", limit: "2" },
+    }),
+  ]);
+  // Active first: if both somehow exist, the live one is the one being sold.
+  return active.data[0] ?? archived.data[0] ?? null;
 }
 
 /** Create a recurring monthly Price under a lookup key. */
@@ -272,7 +355,10 @@ export async function createPrice(input: {
 }
 
 export async function retrieveSubscription(id: string): Promise<StripeSubscription> {
-  return stripeRequest<StripeSubscription>({ method: "GET", path: `/subscriptions/${id}` });
+  return stripeRequest<StripeSubscription>({
+    method: "GET",
+    path: `/subscriptions/${stripeId(id, "subscription id")}`,
+  });
 }
 
 /** One line of an invoice or of a preview of one. */
@@ -346,7 +432,7 @@ export async function updateSubscription(
 ): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({
     method: "POST",
-    path: `/subscriptions/${subscriptionId}`,
+    path: `/subscriptions/${stripeId(subscriptionId, "subscription id")}`,
     body,
     idempotencyKey,
   });
@@ -356,7 +442,7 @@ export async function updateSubscription(
 export async function retrieveSubscriptionWithItems(id: string): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({
     method: "GET",
-    path: `/subscriptions/${id}`,
+    path: `/subscriptions/${stripeId(id, "subscription id")}`,
     query: { "expand[]": "items.data.price" },
   });
 }

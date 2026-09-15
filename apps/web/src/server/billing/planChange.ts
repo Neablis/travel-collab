@@ -210,12 +210,40 @@ export type PlanChangeResult =
  * happening*, never *what an account now holds*. The screen's result state
  * reads the account afresh; it does not believe this answer.
  */
+/**
+ * **An idempotency key that identifies one operation, not one target state.**
+ *
+ * The first version was `cancel:${subscriptionId}` and
+ * `change:${subscriptionId}:${ref}`. Stripe replays the stored response for a
+ * reused key, so those keys meant: an account that cancels, resumes, and
+ * cancels again gets the FIRST cancellation's response replayed and the second
+ * cancellation is never applied — silently, with a 200. Same for changing away
+ * from a version and back to it.
+ *
+ * A key has to name *this request*. `operationId` comes from the client's
+ * confirmation and is stable across a retry of that same confirmation, so a
+ * double-click still cannot charge two prorations while a genuinely new
+ * intention gets a genuinely new key. Absent one — an older client, a direct
+ * API call — the current minute stands in: still idempotent across an
+ * immediate retry, still distinct across two deliberate acts.
+ * CodeRabbit, PR #177.
+ */
+function operationKey(what: string, subscriptionId: string, operationId: string | undefined): string {
+  const operation = operationId ?? `t${Math.floor(Date.now() / 60_000)}`;
+  return `${what}:${subscriptionId}:${operation}`;
+}
+
 export async function applyPlanChange(input: {
   userId: string;
   planId: PlanId;
   /** The version the confirm step was rendered against. */
   shownVersionRef: string;
   returnOrigin: string;
+  /**
+   * Identifies this confirmation, so a retry of it is idempotent and a second,
+   * deliberate change is not mistaken for one. See `operationKey`.
+   */
+  operationId?: string;
 }): Promise<PlanChangeResult> {
   const version = sellableVersion(input.planId);
   const liveRef = planVersionRefOf(version);
@@ -243,7 +271,7 @@ export async function applyPlanChange(input: {
     await updateSubscription(
       current.stripeSubscriptionId,
       { cancel_at_period_end: true },
-      `cancel:${current.stripeSubscriptionId}`,
+      operationKey("cancel", current.stripeSubscriptionId, input.operationId),
     );
     return { kind: "cancelling", effectiveAt: current.currentPeriodEnd?.toISOString() ?? null };
   }
@@ -270,21 +298,20 @@ export async function applyPlanChange(input: {
     current.stripeSubscriptionId,
     {
       items: [{ id: item.id, price: priceId }],
-      proration_behavior: "create_prorations",
-      // **Charge the proration now**, which is what `Due today` on the confirm
-      // step promised. The alternative — rolling it onto the next invoice —
-      // would make that line a lie in the one place a person is looking at a
-      // number before agreeing to it.
+      // **`always_invoice`, not `create_prorations`** — and the difference is
+      // exactly the confirm step's honesty. `create_prorations` computes the
+      // adjustment and leaves it for the NEXT invoice; the button said `Pay
+      // $11.47 with Stripe` and nothing would have been collected today. This
+      // creates and collects the invoice now, which is what the reader agreed
+      // to. CodeRabbit, PR #177.
+      proration_behavior: "always_invoice",
       payment_behavior: "error_if_incomplete",
-      proration_date: undefined,
       // A cancellation already scheduled is undone by choosing a paid plan
       // again, which is what a person means by picking one.
       cancel_at_period_end: false,
       metadata: { userId: input.userId, planVersionRef: liveRef },
     },
-    // Scoped to the subscription and the version, so a double-click cannot
-    // charge two prorations.
-    `change:${current.stripeSubscriptionId}:${liveRef}`,
+    operationKey(`change:${liveRef}`, current.stripeSubscriptionId, input.operationId),
   );
   return { kind: "applied", planVersionRef: liveRef };
 }

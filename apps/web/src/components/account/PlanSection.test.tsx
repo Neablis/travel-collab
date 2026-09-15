@@ -59,6 +59,7 @@ const FREE: AccountPlanView = {
     renewsAt: null,
     pastDueSince: null,
     graceEndsAt: null,
+    trialEndsAt: null,
     available: true,
   },
 };
@@ -76,6 +77,7 @@ function subscribed(over: Partial<AccountPlanView["billing"]> = {}): AccountPlan
       renewsAt: "2026-10-20T00:00:00.000Z",
       pastDueSince: null,
       graceEndsAt: null,
+      trialEndsAt: null,
       available: true,
       ...over,
     },
@@ -195,6 +197,24 @@ describe("past due, told before anything is taken", () => {
     expect(banner.textContent).toContain("lapsed");
     expect(banner.textContent).toContain("nobody needs re-inviting");
     expect(screen.queryByTestId("plan-past-due")).toBeNull();
+  });
+});
+
+describe("a free week", () => {
+  // **The state every brand-new account is in**, and the one with no renewal
+  // date — a trial is a grant, so `renewsAt` is null and the renewal line was
+  // simply absent. A browser walk of the preview found the badge saying "Free
+  // week" with nothing anywhere saying when the week ended.
+  it("says when it ends and what happens after", async () => {
+    serve({
+      ...FREE,
+      entitlements: ["ai.ask", "ai.command"],
+      billing: { ...FREE.billing, state: "trial", trialEndsAt: "2026-09-22T00:00:00.000Z" },
+    });
+    render(<PlanSection />);
+    const line = await screen.findByTestId("plan-trial-ends");
+    expect(line.textContent).toContain("September 22");
+    expect(line.textContent).toContain("free v1");
   });
 });
 

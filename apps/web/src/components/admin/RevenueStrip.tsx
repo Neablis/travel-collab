@@ -81,6 +81,14 @@ export function RevenueStrip({ revenue }: { revenue: AdminRevenueView }) {
           not go through Stripe. The honest version of it here is a
           subscription this deploy cannot price: its pinned version is not in
           the committed plan file, so MRR understates and nothing errors. */}
+      {revenue.payersWithUnknownCost > 0 ? (
+        <Text variant="secondary" className="text-xs" data-testid="revenue-unknown-cost">
+          {revenue.payersWithUnknownCost} paying account
+          {revenue.payersWithUnknownCost === 1 ? " is" : "s are"} out of the median margin: some of
+          their usage ran on a model with no published rate, so their cost is a floor rather than a
+          total and a margin from it would flatter us.
+        </Text>
+      ) : null}
       {revenue.unpricedSubscriptions > 0 ? (
         <Text variant="secondary" className="text-xs" data-testid="revenue-unpriced">
           {revenue.unpricedSubscriptions} subscription

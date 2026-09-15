@@ -117,20 +117,33 @@ export async function startCheckout(input: {
     );
   }
 
-  // **Already on it is refused rather than charged.** Stripe would happily
-  // create a second subscription to the same Price, and the account would pay
-  // twice for one plan — the exact "charges someone twice" failure M21's *Why
-  // it is separate* names as this milestone's blast radius.
+  // **ANY live subscription is refused, not just one to the same plan.**
+  //
+  // The first version compared `existing.planId === input.planId`, and that is
+  // the milestone's own blast radius walking in the front door: an account with
+  // a live `plus` subscription could POST this endpoint for `premium`, Stripe
+  // would create a SECOND subscription, and the account would pay for both.
+  // *"Getting webhook handling wrong charges someone twice"* — so does getting
+  // this comparison wrong, and this one needs no webhook to do it.
+  //
+  // The UI never took that path (`applyPlanChange` routes a live subscription
+  // to a Stripe subscription update, and only reaches checkout when there is
+  // none), which is exactly why the guard has to hold here: the endpoint is
+  // reachable without the UI, and a guard whose correctness depends on its only
+  // caller behaving is not a guard. CodeRabbit, PR #177.
+  //
+  // `past_due` is included: the subscription still exists at Stripe and is
+  // still being retried, so a second one would be a second bill.
   const existing = await subscriptionFor(input.userId);
   if (
     existing !== null &&
-    existing.planId === input.planId &&
-    (existing.status === "active" || existing.status === "trialing")
+    (existing.status === "active" || existing.status === "trialing" || existing.status === "past_due")
   ) {
     throw new CheckoutRefusedError(
       "already-held",
-      `This account already has an ${existing.status} subscription to ${input.planId}. ` +
-        `Changing an existing subscription happens in Stripe's portal, not in a second checkout.`,
+      `This account already has an ${existing.status} subscription (${existing.planId}). ` +
+        `Changing an existing subscription is a change to that subscription, not a second ` +
+        `checkout — use the plan-change flow, which prorates against what is already paid.`,
     );
   }
 

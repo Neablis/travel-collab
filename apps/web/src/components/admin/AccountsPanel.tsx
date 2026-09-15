@@ -108,6 +108,10 @@ function matchesQuery(account: AdminAccountRow, query: string): boolean {
  * in this table should mean.
  */
 function costsMoreThanItPays(account: AdminAccountRow): boolean {
+  // `null` is a subscription this deploy cannot price, so the comparison has
+  // no answer — and a row with unpriceable USAGE has no answer either, because
+  // `microUsd` understates it. Both are shown as unpriced rather than judged.
+  if (account.paysMicroUsd === null || account.unpriced > 0) return false;
   return account.paysMicroUsd > 0 && account.microUsd > account.paysMicroUsd;
 }
 
@@ -252,7 +256,11 @@ export function AccountsPanel({
                     {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
                   </TD>
                   <TD className="text-ink">
-                    {account.paysMicroUsd === 0 ? "—" : microUsdMoney(account.paysMicroUsd)}
+                    {account.paysMicroUsd === null
+                      ? "unpriced"
+                      : account.paysMicroUsd === 0
+                        ? "—"
+                        : microUsdMoney(account.paysMicroUsd)}
                   </TD>
                   <TD className="text-ink">
                     <div className="flex flex-wrap items-center gap-1">

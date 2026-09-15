@@ -156,25 +156,49 @@ describe("the same event delivered twice", () => {
     expect(claims).toHaveLength(1);
   });
 
-  // The retry Stripe actually sends after a 500: the first attempt failed
-  // somewhere after the claim, so the second must be free to do the work rather
-  // than be swallowed as a replay... which is exactly what it is NOT, and the
-  // reason the ordering guard exists as a second, independent defence. This
-  // test pins the trade-off rather than pretending there isn't one.
-  it("is a replay even if the first delivery failed after claiming it", async () => {
+  // **The retry Stripe sends after a 500 must be able to do the work.**
+  //
+  // This test used to assert the opposite — that such a retry was swallowed as
+  // a replay — and it pinned that as an accepted trade-off. It was not one:
+  // a throw anywhere after the claim meant the event's effect was never applied
+  // and no later delivery could apply it. For `checkout.session.completed`
+  // that is terminal, because the `client_reference_id` naming the account
+  // rides on that event alone. CodeRabbit, PR #177; the fix is `applied_at`.
+  //
+  // A claim is now provisional: unstamped means the previous attempt died, so
+  // the retry re-claims it and finishes the job.
+  it("lets Stripe's retry finish a delivery that died after claiming it", async () => {
     const userId = await makeAccount();
     const subId = `sub_${randomUUID()}`;
     const sub = subscription({ id: subId, userId });
-    const evt = event("customer.subscription.created", sub, T0);
-    await applyStripeEvent(evt, T0);
-    expect(await applyStripeEvent(evt, T0)).toEqual({ applied: false, note: "replay" });
-    // Convergence does not depend on that retry: the NEXT event about this
-    // subscription carries its whole state and reconciles the row.
-    await applyStripeEvent(
-      event("customer.subscription.updated", { ...sub, status: "past_due" }, new Date(T0.getTime() + 1000)),
-      T0,
-    );
-    expect((await subscriptionFor(userId))!.status).toBe("past_due");
+    const evt = event("checkout.session.completed", {
+      id: "cs_died",
+      subscription: subId,
+      client_reference_id: `${userId}|plus@v1`,
+    }, T0);
+
+    // The first delivery claims the event and then throws — Stripe answers 500
+    // and retries. `retrieveSubscription` is the first thing that can fail.
+    retrieveSubscription.mockRejectedValueOnce(new Error("Stripe timed out"));
+    await expect(applyStripeEvent(evt, T0)).rejects.toThrow();
+    const claimed = await db.select().from(billingEvents).where(eq(billingEvents.id, evt.id));
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0]!.appliedAt).toBeNull();
+
+    // The retry: same event id, and this time it works.
+    retrieveSubscription.mockResolvedValue(sub);
+    expect(await applyStripeEvent(evt, new Date(T0.getTime() + 5_000))).toEqual({
+      applied: true,
+      note: "written",
+    });
+    const [account] = await db.select().from(users).where(eq(users.id, userId));
+    expect(account!.planId).toBe("plus");
+
+    // And once it HAS completed, a third delivery is an ordinary replay.
+    expect(await applyStripeEvent(evt, new Date(T0.getTime() + 10_000))).toEqual({
+      applied: false,
+      note: "replay",
+    });
   });
 });
 

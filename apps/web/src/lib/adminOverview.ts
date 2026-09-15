@@ -109,8 +109,15 @@ export interface AdminAccountRow {
   requests: number;
   microUsd: number;
   unpriced: number;
-  /** M21 link 7 — what this account pays a month, in micro-dollars. */
-  paysMicroUsd: number;
+  /**
+   * M21 link 7 — what this account pays a month, in micro-dollars.
+   *
+   * `null` means **conferring but unpriceable**: it has a live subscription
+   * pinned to a version this deploy cannot price. Deliberately not `0`, which
+   * would read as "pays nothing" and would suppress the underwater chip on
+   * exactly the account whose bill nobody can account for.
+   */
+  paysMicroUsd: number | null;
   /** Stripe's own word, `"lapsed"`, or `null` for an account that never paid. */
   subscriptionState: string | null;
 }
@@ -141,6 +148,8 @@ export interface AdminRevenueView {
   /** Trailing 30 days, never lifetime. `null` when nobody is paying. */
   medianMarginMicroUsd: number | null;
   unpricedSubscriptions: number;
+  /** Payers left out of the median because their trailing cost is incomplete. */
+  payersWithUnknownCost: number;
   windowDays: number;
 }
 

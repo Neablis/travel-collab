@@ -83,6 +83,13 @@ export interface RevenueSummary {
   medianMarginMicroUsd: number | null;
   /** Subscriptions whose pinned version this deploy cannot price. */
   unpricedSubscriptions: number;
+  /**
+   * Paying accounts left OUT of the median because their trailing cost has
+   * unpriceable rows in it. Reported rather than folded in: a margin computed
+   * from a partial cost is overstated, and silently dropping the account would
+   * make the median look more complete than it is.
+   */
+  payersWithUnknownCost: number;
   windowDays: number;
 }
 
@@ -116,6 +123,24 @@ export interface UnderwaterReport {
   paying: UnderwaterAccount[];
   grantFunded: { source: string; accounts: number; costMicroUsd: number }[];
   windowDays: number;
+}
+
+/**
+ * **Is this account's trailing cost fully known?**
+ *
+ * `costPerAccount` reports `unpriced` — rows whose model has no published rate
+ * — separately from `microUsd`, precisely so the two are not confused. A margin
+ * computed from a partial cost is overstated, and an underwater account with
+ * unpriceable usage can disappear from the report that exists to find it.
+ *
+ * So an account with any unpriced row is excluded from margin statistics rather
+ * than being counted at a number we know is too low. That is the same
+ * null-is-not-zero rule the cost side already follows, applied one level up —
+ * and the same rule `costByPlan` follows for the tier medians. CodeRabbit,
+ * PR #177.
+ */
+function costIsComplete(cost: AccountCost | undefined): boolean {
+  return cost === undefined || cost.unpriced === 0;
 }
 
 /** The middle value, or the lower of the two middles. `null` when empty. */
@@ -198,8 +223,16 @@ export async function revenueSummary(
 
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   const margins: number[] = [];
+  let unknownCost = 0;
   for (const [userId, pays] of paysByUser) {
-    margins.push(pays - (costByUser.get(userId)?.microUsd ?? 0));
+    const cost = costByUser.get(userId);
+    // An account whose cost is only partly priceable contributes no margin.
+    // Including it would report a number we know is too generous.
+    if (!costIsComplete(cost)) {
+      unknownCost += 1;
+      continue;
+    }
+    margins.push(pays - (cost?.microUsd ?? 0));
   }
 
   const accounts = accountRows[0]?.count ?? 0;
@@ -216,6 +249,8 @@ export async function revenueSummary(
     payingAccounts: payingUsers.size,
     medianMarginMicroUsd: median(margins),
     unpricedSubscriptions: unpriced,
+    /** Payers whose trailing cost could not be fully priced, so they are out of the median. */
+    payersWithUnknownCost: unknownCost,
     windowDays,
   };
 }
@@ -264,6 +299,11 @@ export async function underwaterReport(
   for (const cost of costs) {
     const pays = paysByUser.get(cost.userId) ?? 0;
     const spent = costOf(cost);
+    // **An account whose cost is only partly priceable is not judged here.**
+    // `microUsd` understates it, so "costs more than it pays" cannot be
+    // answered — and answering it anyway would put a real underwater account
+    // on the safe side of the line.
+    if (!costIsComplete(cost)) continue;
     if (spent <= pays) continue;
     // **A paying account that also holds a grant is still a paying account.**
     // It is underwater on the money it actually sends, which is the question
@@ -287,10 +327,19 @@ export async function underwaterReport(
   }
 
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
+  const completeByUser = new Map(costs.map((cost) => [cost.userId, cost.unpriced === 0]));
   const grantFunded = [...grantedBySource.entries()]
     .map(([source, holders]) => {
       const underwater = [...holders].filter(
-        (userId) => (costByUser.get(userId) ?? 0) > (paysByUser.get(userId) ?? 0),
+        (userId) =>
+          // **Disjoint from `paying` by construction.** A grant holder who also
+          // PAYS belongs in the list above — their bill is a decision that
+          // needs looking at — and counting them here too would double-count
+          // them and blunt the very segmentation this report exists for.
+          // CodeRabbit, PR #177.
+          (paysByUser.get(userId) ?? 0) === 0 &&
+          (completeByUser.get(userId) ?? true) &&
+          (costByUser.get(userId) ?? 0) > 0,
       );
       let costMicroUsd = 0;
       for (const userId of underwater) costMicroUsd += costByUser.get(userId) ?? 0;

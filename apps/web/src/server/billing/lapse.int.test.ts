@@ -23,6 +23,8 @@ import { db } from "@/server/db/client";
 import { subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { entitlementsFor } from "@/server/entitlements/resolver";
+import { effectiveMembers, grantMembership } from "@/server/access/members";
+import { tripMemberships } from "@/server/db/schema";
 import { GRACE_WINDOW_DAYS } from "./standing";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -125,6 +127,84 @@ describe("a declined card", () => {
       .set({ status: "active", pastDueSince: null })
       .where(eq(subscriptions.userId, userId));
     expect((await may(userId, new Date(T0.getTime() + 6 * DAY))).collaborators).toBe(true);
+  });
+});
+
+describe("the collaborator cap, with real collaborators", () => {
+  // **The gate box this file's header claimed and did not test**: *"three
+  // collaborators drop to `viewer`, `trip_memberships` is unchanged, and paying
+  // again restores them."* The suite asserted the OWNER's entitlements and
+  // stopped there, so every clause about other people was a comment.
+  //
+  // A comment asserting an invariant with no test enforcing it is a named
+  // recurring defect class in this repo, and CodeRabbit flagged it on PR #177
+  // citing exactly that. This is the witness.
+  //
+  // It is also the only place the read-boundary design is observable: nothing
+  // WRITES a role, so the proof that a lapse capped anybody is that a read
+  // reports `viewer` while the stored row still says `editor`.
+  const OWNER_ROLE = "owner" as const;
+
+  async function tripWithThreeEditors(ownerId: string) {
+    const tripId = randomUUID();
+    const collaborators = [`dev-${randomUUID()}`, `dev-${randomUUID()}`, `dev-${randomUUID()}`];
+    for (const userId of collaborators) {
+      await grantMembership(db, {
+        tripId,
+        userId,
+        role: "editor",
+        invitedBy: ownerId,
+        now: T0.toISOString(),
+      });
+    }
+    // The projection the planning domain would supply: the owner is members[0]
+    // and is who the gate bills, which is what makes this the owner's lapse.
+    const projected = [{ userId: ownerId, role: OWNER_ROLE, joinedAt: T0.toISOString() }];
+    return { tripId, collaborators, projected };
+  }
+
+  const rolesOf = async (tripId: string, projected: Parameters<typeof effectiveMembers>[2]) =>
+    (await effectiveMembers(db, tripId, projected))
+      .filter((member) => member.role !== OWNER_ROLE)
+      .map((member) => member.role);
+
+  // **Dated against the real clock, not `T0`.** Every other test here passes an
+  // explicit `now` into `entitlementsFor`, but the collaboration gate reads the
+  // wall clock — it is called from a request path, not from a test — so a
+  // fixture dated in the future simply never lapses. First run of this test
+  // asserted `viewer` and got `editor` for exactly that reason, which is the
+  // drill working: the test was wrong and it said so before it was believed.
+  const daysAgo = (days: number) => new Date(Date.now() - days * DAY);
+
+  it("caps three editors to viewer on lapse, restores them on payment, and writes nothing", async () => {
+    const ownerId = await subscriber({ status: "past_due", pastDueSince: daysAgo(1) });
+    const { tripId, collaborators, projected } = await tripWithThreeEditors(ownerId);
+
+    // **Before**: one day after the decline, inside the three-day window, all
+    // three still edit.
+    expect(await rolesOf(tripId, projected)).toEqual(["editor", "editor", "editor"]);
+
+    // **After the window closes.** Nothing ran — only the decline got older —
+    // and the gate reads the resolver, so the cap follows from that alone.
+    await db
+      .update(subscriptions)
+      .set({ pastDueSince: daysAgo(GRACE_WINDOW_DAYS + 1) })
+      .where(eq(subscriptions.userId, ownerId));
+    expect(await rolesOf(tripId, projected)).toEqual(["viewer", "viewer", "viewer"]);
+
+    // **`trip_memberships` is unchanged**, which is the whole point of capping
+    // on read: a billing lapse cannot corrupt membership data, and there is
+    // nothing to put back.
+    const rows = await db.select().from(tripMemberships).where(eq(tripMemberships.tripId, tripId));
+    expect(rows.map((row) => row.role).sort()).toEqual(["editor", "editor", "editor"]);
+    expect(rows.map((row) => row.userId).sort()).toEqual([...collaborators].sort());
+
+    // **Paying again restores them, with no re-invite and no write.**
+    await db
+      .update(subscriptions)
+      .set({ status: "active", pastDueSince: null })
+      .where(eq(subscriptions.userId, ownerId));
+    expect(await rolesOf(tripId, projected)).toEqual(["editor", "editor", "editor"]);
   });
 });
 

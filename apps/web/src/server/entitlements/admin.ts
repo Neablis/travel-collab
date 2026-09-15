@@ -344,12 +344,15 @@ export interface AdminAccountRow {
   /**
    * **What this account pays a month**, in micro-dollars, or 0 (M21 link 7).
    *
-   * Zero is honest here and is not a null: an account with no subscription pays
-   * nothing, which is a measurement rather than a missing one. What IS reported
-   * separately is `subscriptionState`, so "pays nothing because it is free" and
-   * "pays nothing because its card failed" are never the same row.
+   * **Three values, not two.** `0` is an account with no conferring
+   * subscription — a measurement. `null` is one that HAS a conferring
+   * subscription pinned to a version this deploy cannot price — a reporting
+   * gap. The first version collapsed the second into the first with a `?? 0`,
+   * which made an unpriceable subscription read as "pays nothing" and
+   * suppressed the underwater chip on the one row that most needed it.
+   * CodeRabbit, PR #177.
    */
-  paysMicroUsd: number;
+  paysMicroUsd: number | null;
   /** Stripe's own word, or `null` for an account that has never subscribed. */
   subscriptionState: string | null;
 }
@@ -390,7 +393,7 @@ export async function adminAccounts(
       const subscription = resolved.subscription;
       const pays =
         subscription !== null && subscription.conferring
-          ? (monthlyMicroUsd(subscription.row) ?? 0)
+          ? monthlyMicroUsd(subscription.row)
           : 0;
       return {
         userId: row.id,

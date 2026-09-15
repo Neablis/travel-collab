@@ -142,8 +142,25 @@ export function PlanSection() {
   // owner's guests drop to `viewer` the moment this account stops holding
   // `trip.collaborators` — and they are never told, because it is not their
   // account. Naming it here is the only warning that exists.
-  const losesCollaborators = plan.entitlements.includes("trip.collaborators");
+  // **What a lapse would take from other people — read off the plan the
+  // account PAYS FOR, not off its current effective set.**
+  //
+  // `plan.entitlements` is the resolved union, and it was wrong in both
+  // directions. Before a lapse it includes whatever a grant supplies, so the
+  // warning could name a loss that a founder grant would prevent. After one it
+  // no longer includes collaborators at all, so the lapsed banner — the one
+  // that exists to say what just went — stopped naming it.
+  //
+  // The held version is the honest source: it is what the subscription buys and
+  // therefore what stopping it takes. Where a grant also covers it the warning
+  // is conservative rather than wrong, which is the right direction for a
+  // sentence about other people losing access. CodeRabbit, PR #177.
+  const heldPlan = plan.catalogue.find((choice) => choice.planId === planId);
+  const losesCollaborators = (heldPlan?.entitlements ?? plan.entitlements).includes(
+    "trip.collaborators",
+  );
   const renews = formatDate(billing.renewsAt);
+  const trialEnds = formatDate(billing.trialEndsAt);
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="plan-heading" data-testid="plan-section">
@@ -169,7 +186,18 @@ export function PlanSection() {
             line with a date in it.** "Renews on 20 October" and "ends on 20
             October" are the same date and opposite facts, and a person deciding
             whether to fix a card is reading for exactly that difference. */}
-        {renews !== null ? (
+        {/* **A free week has an end date and no renewal date**, because a trial
+            is a grant rather than a subscription period — so `renewsAt` is null
+            for the one state every brand-new account is in, and this line was
+            simply absent there. A browser walk of the preview found the badge
+            saying *Free week* with nothing anywhere saying when the week ended
+            or what happened then. */}
+        {billing.state === "trial" && trialEnds !== null ? (
+          <Text variant="secondary" className="text-xs" data-testid="plan-trial-ends">
+            Your free week runs to {trialEnds}. After that this account is on {planId} {version}
+            {" "}unless you choose a plan.
+          </Text>
+        ) : renews !== null ? (
           <Text variant="secondary" className="text-xs" data-testid="plan-renews">
             {billing.state === "cancelling"
               ? `Ends on ${renews}. Until then nothing changes.`

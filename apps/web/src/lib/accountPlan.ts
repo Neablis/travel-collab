@@ -45,6 +45,8 @@ export interface AccountBillingView {
   renewsAt: string | null;
   pastDueSince: string | null;
   graceEndsAt: string | null;
+  /** ISO. When a free week ends — the only end date a trial has. */
+  trialEndsAt: string | null;
   available: boolean;
 }
 

@@ -102,11 +102,19 @@ test.describe("M21 — what each plan is for, and what it costs", () => {
     await signInAs(page, newcomer("m21held"));
     await page.goto("/plans");
 
-    // A new account holds `free` and carries a `plus` trial grant — the trial
-    // is what it can DO, and `free` is what it holds. The line at the top is
-    // about the second, which is what a chooser is about.
-    await expect(page.getByTestId("plans-held-line")).toContainText("free");
-    await expect(page.getByTestId("plans-held-line")).toContainText("prorated to the day");
+    // **A new account is on its free week**, which is the state every account
+    // starts in and the one a browser walk found this line handling worst: it
+    // read *"You are on free — Free week, free."* The line now says what the
+    // week is and when it ends, and says nothing about proration — there is
+    // nothing to prorate against a plan that costs nothing.
+    const held = page.getByTestId("plans-held-line");
+    await expect(held).toContainText("free week");
+    await expect(held).not.toContainText("prorated");
+    // And the grant note, because the `free` card below says "No assistant"
+    // while this account has 50 questions a day. Both are true; a person
+    // cannot tell that from the screen unless it is said.
+    await expect(page.getByTestId("plans-grant-note")).toContainText("as published");
+
     await expect(page.getByTestId("plan-choose-free")).toBeDisabled();
     await expect(page.getByTestId("plan-choose-free")).toContainText("What you hold");
   });
@@ -120,6 +128,13 @@ test.describe("M21 — what each plan is for, and what it costs", () => {
 
     await expect(page.getByTestId("plans-pending")).toBeVisible();
     await expect(page.getByTestId("plans-result")).toBeHidden();
+    // **And it does not claim a payment happened.** This URL was typed; no
+    // payment exists. The screen said *"Your payment has gone through"* until a
+    // browser walk read it — on a deployment whose banner four inches above
+    // says nothing can be bought.
+    await expect(page.getByTestId("plans-pending")).not.toContainText(/payment has gone through/i);
+    // A way out, rather than a page titled Plans showing no plans.
+    await expect(page.getByTestId("plans-pending-back")).toBeVisible();
     // And the account is unchanged behind it.
     const plan = await page.request.get("/api/account/plan");
     expect(plan.ok(), await plan.text()).toBe(true);
