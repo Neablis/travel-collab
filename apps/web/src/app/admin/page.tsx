@@ -3,6 +3,8 @@ import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
 import { TierPanel } from "@/components/admin/TierPanel";
 import { GrantSourcePanel } from "@/components/admin/GrantSourcePanel";
+import { RevenueStrip } from "@/components/admin/RevenueStrip";
+import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminOverview } from "@/server/entitlements/admin";
@@ -11,14 +13,16 @@ import { adminUserId } from "@/server/entitlements/requireAdmin";
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
 //
-// **What is deliberately NOT here, and it is the failure mode the milestone
-// names**: the four-number strip the design draws — MRR and its movement, ARPU
-// twice and labelled, median margin per paying account — is **M21 link 7's**.
-// Same for the MRR and median-margin columns of the per-tier panel. All of them
-// need a subscription to exist. The design's screen does not say which half is
-// which, so an implementer working from the finished picture builds the strip
-// here and breaks the split in the direction nobody checks.
-// `admin.console.test.ts` fails if a revenue word appears on this page.
+// **The revenue half arrived with M21 link 7**, 2026-09-14: the four-number
+// strip, the per-tier MRR and margin columns, the `Pays` and `State` columns in
+// the accounts table, and the segmented *"costs more than it pays"* panel. Every
+// one of them needed a subscription to exist, which is why M20 shipped without
+// them and why `admin.console.test.ts` refused their vocabulary until now.
+//
+// **What that test guards has changed rather than gone.** It no longer sweeps
+// for revenue words; it asserts the things that were true for a reason and stay
+// true — no `Money` on this data path, no publish or migrate over plan
+// versions, and the underwater list segmented rather than merged.
 //
 // **This reads the Entitlements module directly, and `src/app/admin/**` is on
 // the lint wall's exempt shell so that it may** (Mitchell, 2026-09-14).
@@ -45,11 +49,15 @@ import { adminUserId } from "@/server/entitlements/requireAdmin";
 // returning null is that 404, and `GET /api/admin/overview` still answers its
 // own, so removing the fetch removed a caller and not a check.
 
-// **Rendering micro-dollars moved to the panels that show them**, one copy
-// each in `AccountsPanel`, `TierPanel` and `UnderwaterPanel`. It is still not
-// `Money` and never becomes it: formatting is a decision made where a number is
-// displayed, and the stored value stays an integer count of micro-dollars all
-// the way there (M20 link 9, and ADR-008's minor units round $0.0006 to zero).
+// **Rendering micro-dollars is one module, `components/admin/microUsd.ts`.**
+// It was a copy per panel, which was fine at three and stopped being fine when
+// M21 needed a fourth and a fifth. It is still not `Money` and never becomes
+// it: formatting is a decision made where a number is displayed, the stored
+// value stays an integer count of micro-dollars all the way there (M20 link 9,
+// and ADR-008's minor units round $0.0006 to zero), and the two formatters in
+// that file are separate on purpose — a cost is four decimals because a request
+// really does cost $0.0006, and a price is two because two more would be false
+// precision on a number read at a glance.
 
 export default async function AdminPage() {
   // Before any data is read, and before anything renders. `notFound()` throws,
@@ -70,12 +78,12 @@ export default async function AdminPage() {
         </Text>
       </div>
 
-      {/* **No four-number strip.** MRR, ARPU twice and median margin per paying
-          account are M21 link 7's — every one of them needs a subscription to
-          exist. The design draws them here and does not say which half is
-          which, which is exactly how an implementer working from the finished
-          screen breaks the split. `admin.console.test.ts` fails if a revenue
-          word reaches this page. */}
+      {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
+          are labelled, which is the link's most emphatic requirement: with
+          founder, referral, trial and admin grants in the mix the two differ a
+          lot, and a single unlabelled one gets quoted as whichever is
+          convenient. */}
+      <RevenueStrip revenue={overview.revenue} />
 
       <Panel title="Accounts">
         {/* Search, counted filters, 8 rows a page and a no-match state all live
@@ -99,6 +107,15 @@ export default async function AdminPage() {
             .filter((plan) => plan.live.entitlements.length === 0)
             .map((plan) => plan.planId)}
         />
+      </Panel>
+
+      {/* **Segmented in the layout, not just in the query** (M21 link 7).
+          A comped account is underwater by construction — a decision already
+          taken, not a finding — and on this deployment every account predating
+          M20's migration holds a permanent founder grant, so unsegmented they
+          would swamp the list and the metric would be worthless. */}
+      <Panel title="Costs more than it pays">
+        <UnderwaterPanel report={overview.underwater} />
       </Panel>
 
       {/* Two panels side by side, as the design lays them out; one column on a

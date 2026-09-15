@@ -250,23 +250,56 @@ describe("TravelersPanel", () => {
   //
   // M20's gate box was written against a surface that refuses — *"a free owner
   // cannot create a trip invite; the refusal names the tier, not a
-  // permission"* — and the design does not refuse: it never renders the
-  // control. That reading makes the box satisfiable by the server alone, with
+  // permission"* — and the design does not refuse: it shows the control
+  // inert. That reading makes the box satisfiable by the server alone, with
   // nobody ever seeing the copy. So both halves are asserted: the endpoint
   // refuses with the tier named (`collaborationGate.int.test.ts`), and this is
   // where a person actually reads it — before trying, rather than after.
+  //
+  // **The client half changed shape on 2026-09-15** (preview feedback, M21).
+  // It used to render NO form at all, on M20's reasoning that a control which
+  // can never work should not be offered. M21 gives it somewhere to go, so the
+  // form stays and is disabled under a CTA. The assertions below moved with
+  // it — from "absent" to "present and disabled" — and the ones that did not
+  // move are the ones that were never about the form: the tier is still named,
+  // planning is still free, and there is still no price on this surface.
   describe("when the trip owner is not entitled to collaborators", () => {
     const unentitled = (overrides: Partial<TripAccess> = {}) =>
       access({ collaboratorsEntitled: false, ...overrides });
 
-    it("does not render the invite form at all", async () => {
+    it("renders the invite form with every control disabled", async () => {
       fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
       render(<TravelersPanel tripId={tripId} />);
       await screen.findByTestId("collaborators-gate");
-      // Not disabled — absent. A disabled button beside an explanation offers a
-      // control that can never work.
-      expect(screen.queryByRole("button", { name: "Invite someone" })).toBeNull();
-      expect(screen.queryByLabelText("Invite by email")).toBeNull();
+      // Present, not absent — and every one of the three, because a form whose
+      // button alone is disabled still takes a typed address and still looks
+      // like it is going somewhere.
+      expect(
+        (screen.getByRole("button", { name: "Invite someone" }) as HTMLButtonElement).disabled,
+      ).toBe(true);
+      expect((screen.getByLabelText("Invite by email") as HTMLInputElement).disabled).toBe(true);
+      expect((screen.getByLabelText("Invite role") as HTMLSelectElement).disabled).toBe(true);
+    });
+
+    // The CTA is the half that makes disabling the form honest rather than
+    // merely quieter: there has to be somewhere to go from here.
+    it("offers a way to upgrade, and it leaves the trip", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
+      render(<TravelersPanel tripId={tripId} />);
+      const cta = await screen.findByTestId("collaborators-gate-cta");
+      expect(cta.getAttribute("href")).toBe("/plans");
+    });
+
+    // An entitled owner gets no CTA and no disabled control — the gated
+    // treatment must not leak into the paying case, which is the failure this
+    // whole change could plausibly introduce.
+    it("leaves an entitled owner's form alone", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({}) });
+      render(<TravelersPanel tripId={tripId} />);
+      expect(((await screen.findByLabelText("Invite by email")) as HTMLInputElement).disabled).toBe(
+        false,
+      );
+      expect(screen.queryByTestId("collaborators-gate-cta")).toBeNull();
     });
 
     it("names the tier, says planning is free, and shows no price", async () => {

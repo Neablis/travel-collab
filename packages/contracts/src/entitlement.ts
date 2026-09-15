@@ -159,3 +159,56 @@ export const AdminGrantInput = z.object({
     .refine((reason) => reason.trim().length > 0, "Give a reason — a blank one is not an audit trail."),
 });
 export type AdminGrantInput = z.infer<typeof AdminGrantInput>;
+
+/**
+ * What Stripe says a subscription is, stored verbatim (M21 link 1).
+ *
+ * **Stripe's own words, not ours.** The division of authority M21 link 2
+ * states once — *the plan version is the source of truth for what is granted;
+ * Stripe is the source of truth for what is charged* — makes this enum a
+ * transcription rather than a model. Every member is a status Stripe's
+ * `subscription.status` can hold, spelled as Stripe spells it, so a webhook
+ * writes what it was handed and nothing in between reinterprets it.
+ *
+ * Translating at the write boundary is the tempting alternative and it is how
+ * the two sources of truth start to disagree: a status we have no word for
+ * would have to be mapped onto one we do, and the first such mapping is
+ * silent. A status Stripe adds later fails *parsing* here instead, loudly, at
+ * the one place equipped to say so.
+ *
+ * **Presentation is a different vocabulary and lives in the UI.** The account
+ * sheet reads `Active` / `Free week` / `Payment failed` / `Lapsed`, which is
+ * four words over eight statuses plus a grace window. Mapping is a rendering
+ * decision; it is not what is stored.
+ *
+ * **No member of this enum is an entitlement**, and none of them is read by a
+ * gate. What an account may do is `can(ent, capability)` over the resolver's
+ * answer, exactly as it was before this milestone — M21 adds no entitlement
+ * and no gate. This enum only decides whether a *subscription* is still
+ * conferring the plan it bought.
+ */
+export const SubscriptionStatus = z.enum([
+  "incomplete",
+  "incomplete_expired",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused",
+]);
+export type SubscriptionStatus = z.infer<typeof SubscriptionStatus>;
+
+/**
+ * The statuses under which a subscription still confers its plan.
+ *
+ * `past_due` is deliberately here: M21 link 6's grace window means a declined
+ * card keeps its entitlements for three days, and the window — not the status
+ * — is what ends that. The resolver applies both (`server/billing/standing.ts`),
+ * so this list answers only the first half of the question.
+ */
+export const CONFERRING_STATUSES: readonly SubscriptionStatus[] = [
+  "trialing",
+  "active",
+  "past_due",
+];

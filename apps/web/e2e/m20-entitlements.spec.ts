@@ -3,6 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
+import { openAssistantRail } from "./helpers";
 
 // **M20's exit gate, walked** — *"An account knows what it may do."*
 //
@@ -15,8 +16,10 @@ import { e2eTripName } from "./tripNames";
 //      planning path is the failure M20 is most likely to cause.
 //   2. A free account is refused `/ask` with **402** and `ai-not-entitled`, and
 //      the refusal names the tier rather than reading as a permission error.
-//   3. A free owner cannot invite: the *Invite someone* form is **not
-//      rendered**, and a named-tier block takes its place.
+//   3. A free owner cannot invite: the *Invite someone* form is **disabled
+//      under a named-tier block with a CTA** (M21, 2026-09-15 — it used to be
+//      absent entirely; the reasoning moved when there was somewhere to send
+//      the CTA).
 //   4. **An admin grants premium and it bites on the next request — no
 //      sign-out, no token refresh.** The session cookie is captured before and
 //      compared after, so "the JWT is unchanged" is a fact rather than a claim.
@@ -130,9 +133,13 @@ test.describe("M20 — an account knows what it may do", () => {
     const gate = page.getByTestId("collaborators-gate");
     await expect(gate).toContainText("Premium");
     await expect(gate).toContainText("always free");
-    // Not disabled — ABSENT. A disabled button beside an explanation offers a
-    // control that can never work.
-    await expect(page.getByRole("button", { name: "Invite someone" })).toHaveCount(0);
+    // Disabled, not absent (M21). The control is no longer one that can never
+    // work — the CTA beside it is what makes it work — so the shape of what is
+    // being bought stays on screen. Both halves are asserted: the form is
+    // there, it is inert, and the way out goes to the plans route.
+    await expect(page.getByRole("button", { name: "Invite someone" })).toBeDisabled();
+    await expect(page.getByLabel("Invite by email")).toBeDisabled();
+    await expect(gate.getByTestId("collaborators-gate-cta")).toHaveAttribute("href", "/plans");
   });
 
   test("a non-admin reaches neither the console nor its endpoint", async ({ page }) => {
@@ -151,9 +158,21 @@ test.describe("M20 — an account knows what it may do", () => {
     // **The fourth-plan proof is published and disabled**, so the console shows
     // it and says so.
     await expect(operator.getByTestId("plan-studio")).toContainText("disabled");
-    // **No revenue.** MRR, ARPU and margin are M21's.
-    await expect(operator.locator("body")).not.toContainText("MRR");
-    await expect(operator.locator("body")).not.toContainText("ARPU");
+    // **This asserted "no revenue on this console" until M21 link 7 built it**
+    // — the deployed-layer twin of `admin.console.test.ts`'s sweep, and the two
+    // moved together for the same reason. The split was real while it lasted:
+    // M20 shipped the console without the strip because every number in it
+    // needs a subscription to exist, and both guards are what kept an
+    // implementer working from the finished design from building it early.
+    //
+    // What replaces it here is the half that outlives the split, and it is the
+    // one this lane is uniquely able to check: **the two ARPU figures are
+    // labelled differently on the rendered page.** Link 7 is emphatic that a
+    // single unlabelled ARPU gets quoted as whichever is convenient, and two
+    // identical labels would satisfy every wire-level assertion there is.
+    await expect(operator.getByTestId("revenue-strip")).toBeVisible();
+    await expect(operator.locator("body")).toContainText("ARPU · all accounts");
+    await expect(operator.locator("body")).toContainText("ARPU · paying only");
     await operator.context().close();
   });
 
@@ -269,66 +288,75 @@ test.describe("M20 — an account knows what it may do", () => {
     await page.getByRole("button", { name: "Your account" }).click();
     await expect(page.getByRole("dialog").getByTestId("meter-questions")).toHaveText(before ?? "");
 
-    // Link 8's whole premise: a code you can actually issue.
-    await page.getByRole("dialog").getByRole("button", { name: "Create a code" }).click();
-    await expect(page.getByRole("dialog").getByTestId("referral-code")).not.toBeEmpty();
+    // **Link 8's whole premise: a code you can actually issue** — and M21 link
+    // 5 narrowed WHO sees the offer: *"a `free` or trial-only account has no
+    // referral row at all, because it earns nothing."* A referral pays a month
+    // of the tier the referrer holds, and this account holds `free`, so there
+    // is nothing for it to earn and nothing to farm.
+    //
+    // The row is therefore absent here and the code is minted below, on an
+    // account that actually holds something. Both halves are the gate box: it
+    // asks that a code be reachable, not that it be offered to everyone.
+    await expect(page.getByRole("dialog").getByTestId("referral-row")).toBeHidden();
   });
 
-  // **The plan chooser is shelled, and shelled means INERT.** It is drawn from
-  // the committed plan file — real plans, real entitlements — and cannot charge
-  // anyone, because paying is M21. `Preview` puts a shield over its children
-  // that swallows pointer events, so this asserts the behaviour rather than the
-  // presence of a badge.
-  test("the plan chooser is real data behind a shell that cannot fire", async ({ page }) => {
-    const who = newcomer("m20chooser");
+  // **The other half of link 8, after M21 narrowed the offer.** An account that
+  // holds a tier worth a month sees the row and can issue a code.
+  test("an account that earns something can issue a referral code", async ({ page, browser }) => {
+    const who = newcomer("m20refer");
     await signInAs(page, who);
+
+    // Granted rather than bought: M20 takes no money, and a grant is what
+    // makes this milestone provable without Stripe.
+    const operator = await openOperator(browser);
+    const granted = await operator.request.post("/api/admin/grants", {
+      data: {
+        userId: `dev-${who}`,
+        planId: "premium",
+        expiresAt: null,
+        reason: "M20 gate walk — referral row.",
+      },
+    });
+    expect(granted.status(), await granted.text()).toBe(201);
+    await operator.context().close();
+
+    await page.getByRole("button", { name: "Account menu" }).click();
+    await page.getByRole("button", { name: "Your account" }).click();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByTestId("referral-row")).toBeVisible();
+    await sheet.getByRole("button", { name: "Create a code" }).click();
+    await expect(sheet.getByTestId("referral-code")).not.toBeEmpty();
+  });
+
+  // **The plan chooser left this sheet, and this test went with it.**
+  //
+  // It used to assert that the chooser was real data behind a `Preview` shield
+  // that could not fire — the M20 shape, where the plans were real and paying
+  // was not. SPEC §29 then moved the chooser to the `plans` route and M21 link
+  // 5 made paying real, so there is no shelled control here to prove inert and
+  // no catalogue here to read.
+  //
+  // **What the gate box asked for is still walked, one route over.**
+  // *"Every enabled plan, its entitlements and its ceilings, readable by a
+  // person"* is `m21-plans.spec.ts`'s first two tests, which read each plan's
+  // own bullets and each cell of the comparison table. Deleting the assertions
+  // rather than re-pointing them at `/plans` would have moved a claim out of
+  // M20's gate with nothing carrying it; naming where it went is the point of
+  // this comment surviving the test.
+  //
+  // What is left here is what the sheet still owes: it must send a person to
+  // that route rather than growing a chooser again.
+  test("the sheet offers a way to change plan, and does not try to be one", async ({ page }) => {
+    await signInAs(page, newcomer("m20chooser"));
     await page.getByRole("button", { name: "Account menu" }).click();
     await page.getByRole("button", { name: "Your account" }).click();
 
-    const chooser = page.getByRole("dialog").getByTestId("plan-chooser");
-    const select = chooser.getByLabel("Change plan", { exact: true });
-    // Real plans from the committed plan file, and the held one named as held
-    // rather than offered for sale.
-    await expect(select.locator("option", { hasText: "premium" })).toHaveCount(1);
-    await expect(select.locator("option", { hasText: "free — what you hold" })).toHaveCount(1);
-    // The disabled fourth-plan proof is published and NOT offered: `enabled`
-    // bounds what can be handed out, which is what lets it ship unreachable.
-    await expect(select.locator("option", { hasText: "studio" })).toHaveCount(0);
-
-    // **No price anywhere on the screen.** M20 never learns what a plan costs.
-    await expect(page.getByRole("dialog")).not.toContainText("$");
-
-    // **Every enabled plan, readable by a person — not just on the wire.**
-    // The gate box asks for "every enabled plan, its entitlements and its
-    // ceilings", and the assertions above only prove the option LABELS exist.
-    // A walk of the deployed preview (2026-09-14) found the description was
-    // rendered for the selected plan alone and the steps ceiling for none —
-    // and because the select is inside the shield asserted below, a person can
-    // never move the selection to read another plan's line. So the catalogue
-    // is rendered outside the shell, and this is the deployed-layer proof of
-    // it; `PlanSection.test.tsx` carries the same claim at the component layer.
-    const offers = page.getByRole("dialog").getByTestId("plan-catalogue");
-    await expect(offers.getByTestId("plan-offer-premium")).toContainText("trip.collaborators");
-    await expect(offers.getByTestId("plan-offer-premium")).toContainText(
-      "200 questions and 1600 steps a day.",
-    );
-    await expect(offers.getByTestId("plan-offer-plus")).toContainText(
-      "50 questions and 400 steps a day.",
-    );
-
-    // **The shield, asserted as a click that cannot land.** Asserting "the held
-    // plan did not change" would have been worthless: these buttons carry no
-    // handler, so that passes with or without the shell. What `Preview`
-    // actually guarantees is that no control inside it is reachable — it lays a
-    // pointer-event-swallowing layer over its children — so the honest test is
-    // that Playwright's actionability wait never resolves.
-    const pick = chooser.getByRole("button", { name: /^Change to |^This is your plan$/ });
-    // **The witness first.** `click()` also rejects when the button does not
-    // exist, so the rejection alone would keep passing after the control was
-    // deleted — a test that proves "unreachable" by way of "absent" is the same
-    // species as the one it replaced. CodeRabbit, PR #174.
-    await expect(pick).toBeVisible();
-    await expect(pick.click({ timeout: 2_000 })).rejects.toThrow();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByTestId("plan-change-link")).toBeVisible();
+    // §29's defect was the reflow: an expanding region between the plan card
+    // and the meters pushed the meters, the banner and the referral row down.
+    await expect(sheet.getByTestId("plan-chooser")).toHaveCount(0);
+    await expect(sheet.getByTestId("plan-catalogue")).toHaveCount(0);
   });
 
   // **The console is not on the phone at all, ENTRY POINT INCLUDED** — the
@@ -406,7 +434,9 @@ test.describe("M20 — an account knows what it may do", () => {
     page.on("request", watch);
     await page.reload();
     await page.getByRole("button", { name: /trip settings/i }).click();
-    await expect(page.getByRole("button", { name: "Invite someone" })).toBeVisible();
+    // `toBeEnabled`, not just `toBeVisible` (M21): the gated form is visible
+    // too now, so visibility alone stopped distinguishing granted from free.
+    await expect(page.getByRole("button", { name: "Invite someone" })).toBeEnabled();
     await expect(page.getByTestId("collaborators-gate")).toHaveCount(0);
     page.off("request", watch);
 
@@ -459,6 +489,22 @@ test.describe("M20 — an account knows what it may do", () => {
     // Names the tier, not a permission — and carries no price.
     expect(body.error).toContain("Plus");
     expect(body.error).not.toMatch(/\$|permission/i);
+
+    // **And the person never has to spend a question to find out** (M21,
+    // 2026-09-15). The endpoint half above is what M20 shipped; this is the
+    // half the preview feedback asked for — the rail still opens, the composer
+    // is inert before anything is typed, and there is somewhere to go.
+    //
+    // This account is genuinely unentitled (its trial was revoked through the
+    // console two steps up), so the gate below is the real one rather than a
+    // fixture — which is why the assertion lives in this test rather than in a
+    // new one that would have to build the same account again.
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    await openAssistantRail(page);
+    await expect(page.getByPlaceholder(/Ask about this/)).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ask the assistant" })).toBeDisabled();
+    await expect(page.getByTestId("assistant-upgrade-cta")).toHaveAttribute("href", "/plans");
+
     await operator.context().close();
   });
 });

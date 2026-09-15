@@ -21,6 +21,7 @@ import type {
 } from "@/server/assistant/entitlements";
 import type { ModelTier } from "@/server/assistant/taskClass";
 import { MODEL_TIERS } from "@/server/assistant/taskClass";
+import { standingFor, type SubscriptionStanding } from "@/server/billing/standing";
 import { can, entitlementSet, unionEntitlements, type EntitlementSet } from "./capability";
 import { activeGrantsFor, heldPlanFor, type GrantRow, type HeldPlan } from "./grants";
 import { livePlanVersion, planVersionFromRef, planVersionRefOf, type PlanVersion } from "./planVersions";
@@ -37,10 +38,25 @@ export interface AccountEntitlements {
   entitlements: EntitlementSet;
   /** The version the ACCOUNT holds — what it bought, not what it was granted. */
   held: PlanVersion;
+  /**
+   * What that held version actually confers right now.
+   *
+   * The same entry as `held` except when a subscription has lapsed, and then
+   * it is the live `free` version. See `conferredPlan`.
+   */
+  conferred: PlanVersion;
   /** The most generous ceilings among every source contributing above. */
   ceilings: EntitlementCeilings;
   /** Every active grant, for the console and for the copy that explains a lapse. */
   grants: readonly GrantRow[];
+  /**
+   * The subscription behind the held plan, when there is one (M21 link 5).
+   *
+   * **Read here so that a lapse needs no second downgrade path.** `null` means
+   * this account has never had a subscription, which is every account before
+   * M21 and every account that has only ever been granted things.
+   */
+  subscription: SubscriptionStanding | null;
 }
 
 /**
@@ -133,6 +149,7 @@ function widestTier(tiers: readonly (ModelTier | null)[]): ModelTier | null {
 export function resolveEntitlements(
   held: PlanVersion,
   grants: readonly GrantRow[],
+  subscription: SubscriptionStanding | null = null,
 ): AccountEntitlements {
   // **At the version each grant was granted at**, never the newest version of
   // anything (M20 rule 4). A founder grant issued against `v1` still confers
@@ -140,13 +157,92 @@ export function resolveEntitlements(
   const grantedVersions = grants.map((grant) =>
     planVersionFromRef(`${grant.planId}@v${grant.planVersion}`),
   );
-  const sources = [held, ...grantedVersions];
+  const conferred = conferredPlan(held, subscription);
+  const sources = [conferred, ...grantedVersions];
   return {
     entitlements: unionEntitlements(sources.map((version) => version.entitlements)),
+    // **`held` is what the account BOUGHT and `conferred` is what it gets.**
+    // They differ for exactly one reason — a lapse — and they are kept apart
+    // rather than collapsed because the account sheet has to say both: *your
+    // premium subscription is past due, and until it is fixed you are on free*.
+    // Collapsing them would leave the screen unable to name what is being lost.
     held,
+    conferred,
     ceilings: mostGenerousCeilings(sources.map((version) => version.ceilings)),
     grants,
+    subscription,
   };
+}
+
+/**
+ * **What this account would stop conferring if its subscription stopped.**
+ *
+ * The honest answer to *"what does a lapse take from you"*, and the reason it
+ * needs a function rather than a field the UI can read off: neither of the two
+ * sets on `AccountEntitlements` is that answer on its own, and each is wrong in
+ * a different direction.
+ *
+ *   * **The effective set** (`entitlements`) is the union of subscription AND
+ *     grants. Before a lapse it includes things a founder grant supplies, so
+ *     reading it names losses that would never happen.
+ *   * **The held plan's own list** is what the subscription buys. It is right
+ *     about the subscription and blind to grants, so for an account whose
+ *     founder grant ALSO confers `trip.collaborators` it names a loss that does
+ *     not occur — and on this deployment that is the common case, because every
+ *     account predating M20's migration carries such a grant.
+ *
+ * Neither is conservative; both are simply false in one of the two worlds.
+ * CodeRabbit put it exactly right on PR #177: *"conservative wording is still
+ * incorrect when it describes a loss that does not occur."*
+ *
+ * **The difference of two unions is the answer**: what `[held, ...grants]`
+ * confers, minus what `[free, ...grants]` confers. A lapse replaces the held
+ * version with `free` and touches nothing else — that is literally what
+ * `conferredPlan` below does — so this is the same operation asked in advance.
+ *
+ * `held` rather than `conferred` on purpose, so the answer does not change once
+ * the lapse has happened. The past-due banner asks "what WILL go" and the
+ * lapsed banner asks "what WENT", and both want the same list.
+ */
+export function entitlementsLostIfSubscriptionStops(
+  resolved: AccountEntitlements,
+): readonly Entitlement[] {
+  const grantedVersions = resolved.grants.map((grant) =>
+    planVersionFromRef(`${grant.planId}@v${grant.planVersion}`),
+  );
+  const granted = grantedVersions.map((version) => version.entitlements);
+  const withSubscription = unionEntitlements([resolved.held.entitlements, ...granted]);
+  const withoutSubscription = unionEntitlements([
+    livePlanVersion("free").entitlements,
+    ...granted,
+  ]);
+  return [...withSubscription].filter((entitlement) => !withoutSubscription.has(entitlement));
+}
+
+/**
+ * **What the held plan is worth right now** (M21 links 5 and 6).
+ *
+ * The whole of the lapse, and it is four lines because M21 was built so that it
+ * could be. A subscription that has stopped conferring — cancelled and past its
+ * paid period, or declined and past the three-day grace window — leaves the
+ * account on `free`; `users.plan_id` keeps saying what was bought, and this
+ * says what it currently entitles.
+ *
+ * **There is deliberately no second downgrade path.** M21 link 5: cancelling
+ * *"sets `cancel_at_period_end` — access runs to the end of the paid period and
+ * then lapses through M20's existing resolver"*. This is that sentence. Nothing
+ * runs on a schedule, nothing writes a downgrade, and paying again restores the
+ * account by the ordinary webhook path because the only thing that changed is a
+ * status.
+ *
+ * **Grants are untouched by it.** A lapsed subscriber holding a founder grant
+ * keeps everything the grant confers — the union above is over `[conferred,
+ * ...grants]`, so a lapse removes what was PAID for and nothing else. That is
+ * why every account predating M20's migration is unaffected by any of this.
+ */
+function conferredPlan(held: PlanVersion, subscription: SubscriptionStanding | null): PlanVersion {
+  if (subscription === null || subscription.conferring) return held;
+  return livePlanVersion("free");
 }
 
 /**
@@ -162,8 +258,16 @@ export async function entitlementsFor(
   userId: string,
   now: Date = new Date(),
 ): Promise<AccountEntitlements> {
-  const [held, grants] = await Promise.all([heldPlanFor(userId), activeGrantsFor(userId, now)]);
-  return resolveEntitlements(held === null ? fallbackHeldPlan() : versionOf(held), grants);
+  const [held, grants, subscription] = await Promise.all([
+    heldPlanFor(userId),
+    activeGrantsFor(userId, now),
+    standingFor(userId, now),
+  ]);
+  return resolveEntitlements(
+    held === null ? fallbackHeldPlan() : versionOf(held),
+    grants,
+    subscription,
+  );
 }
 
 /** Does this account hold this capability, right now. The one-question form. */

@@ -25,6 +25,7 @@ practice. Read the one that matches your task:
 | `cloud-agent-sessions.md` | I'm in a Claude Code cloud session — what's different here, and which failures are the container's fault? |
 | `fixtures-and-seed-data.md` | I added a feature — where does its sample data go so the demo trip, the preview branch and the tests keep exercising it? |
 | `observability-and-telemetry.md` | What does the app report to Sentry and the logs, where do I look at it, and how do I turn any of it down? |
+| `billing-without-spending-money.md` | I need to walk checkout, a failed payment, the grace window or a lapse — how, in Stripe test mode, for $0.00, and what would cost real money? |
 
 Document map for orientation:
 

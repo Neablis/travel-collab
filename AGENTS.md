@@ -73,6 +73,7 @@ Modules own their data and commands; they reference other modules by ID only.
 | **Conflict Engine** | validation rules, Conflict objects | pure functions | UI, storage |
 | **Community** (Phase 3) | gallery, votes, reports | CRUD + audit fields | planning internals (consumes published snapshots) |
 | **Entitlements** (Phase 3) | plans, plan versions, grants, capability resolution | committed file (definitions) + CRUD with audit fields (holdings) | trips, invites, anything travel — it answers `can(account, capability)` and the *caller* knows what the capability is about (**ADR-045**) |
+| **Billing** (Phase 3) | subscriptions, Stripe customers, checkout, the webhook | CRUD with audit fields; the **webhook is its only writer** | what a plan grants, and what anyone may do — it records what Stripe says is being charged, and Entitlements decides what that entitles (**ADR-047**) |
 
 **The AccessPolicy seam:** Planning never contains invite/permission logic. It
 asks an `AccessPolicy` interface "may this actor do this?". In Phase 1 the only

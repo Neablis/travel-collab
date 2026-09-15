@@ -121,7 +121,7 @@ export function AccountSettingsSheet({
             than taking props, because this sheet is opened from the header on
             every route and threading a plan through every one of them would
             make an unrelated surface care about entitlements. */}
-        <PlanSection />
+        <PlanSection onNavigate={() => onOpenChange(false)} />
         <div className="flex flex-col gap-4">
           <FormField
             id="account-display-name"

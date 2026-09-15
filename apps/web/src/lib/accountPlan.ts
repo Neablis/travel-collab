@@ -6,9 +6,9 @@
 // compile-time type-identity check, so a field that changes type or nullability
 // fails to build rather than failing in a browser.
 //
-// **No price, no renewal date, no subscription state** — M20 never learns what
-// a plan costs (link 7's split note). A field for one here is where the M21
-// half would arrive.
+// **The M21 half arrived here**, exactly where M20's version of this comment
+// said it would: a price on each choice, and a `billing` record carrying the
+// state, the renewal date and the two dates the past-due copy names.
 
 /** One policy's standing: what is used today, and the cap that version sold. */
 export interface AccountQuotaStanding {
@@ -24,13 +24,60 @@ export interface AccountPlanChoice {
   perUserRequestsPerDay: number | null;
   perUserStepsPerDay: number | null;
   held: boolean;
+  /**
+   * Integer minor units, or `null` for a plan that is not sold.
+   *
+   * **Presentation only.** The comparison table on `plans` is the one place
+   * these sit beside each other, and the only comparison on that page is the
+   * one the reader makes — nothing in code may read $19 > $9 as `premium` ⊇
+   * `plus` (M21's *Prerequisites*).
+   */
+  priceMinor: number | null;
+  currency: string | null;
+}
+
+/** Mirrors `PlanState` (`@/server/entitlements/accountPlan`). */
+export type AccountPlanState = "none" | "trial" | "active" | "cancelling" | "past-due" | "lapsed";
+
+/** Mirrors `PlanBillingView`. */
+export interface AccountBillingView {
+  state: AccountPlanState;
+  renewsAt: string | null;
+  pastDueSince: string | null;
+  graceEndsAt: string | null;
+  /** ISO. When a free week ends — the only end date a trial has. */
+  trialEndsAt: string | null;
+  /**
+   * **What a lapse would actually take**, computed by the resolver rather than
+   * inferred by the screen (CodeRabbit, PR #177).
+   *
+   * The account sheet needs this to say what a past-due window closing would
+   * cost, and what a closed one already did. It could reach neither answer from
+   * the sets it already had: the effective entitlements include what grants
+   * supply, so reading them names losses that never happen, and the held plan's
+   * own list is blind to grants, so it names a loss that does not occur for any
+   * account whose founder grant covers the same thing — which on this
+   * deployment is most of them.
+   *
+   * `entitlementsLostIfSubscriptionStops` is the difference of the two unions.
+   * It is a LIST rather than the one boolean the sheet happens to need today,
+   * because the next sentence that has to name a loss should not need another
+   * wire change to do it.
+   */
+  losesOnLapse: readonly string[];
+
+  available: boolean;
 }
 
 export interface AccountPlanView {
   planVersionRef: string;
+  /** What that version confers now — differs from the above only after a lapse. */
+  conferredVersionRef: string;
   entitlements: readonly string[];
   questions: AccountQuotaStanding;
   steps: AccountQuotaStanding;
   catalogue: AccountPlanChoice[];
   referralCode: string | null;
+  canRefer: boolean;
+  billing: AccountBillingView;
 }

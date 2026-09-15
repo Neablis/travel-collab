@@ -5,7 +5,12 @@
 // covers the two reads that feed it.
 import { describe, expect, it } from "vitest";
 import { can } from "./capability";
-import { mostGenerousCeilings, resolveEntitlements, toAiEntitlements } from "./resolver";
+import {
+  entitlementsLostIfSubscriptionStops,
+  mostGenerousCeilings,
+  resolveEntitlements,
+  toAiEntitlements,
+} from "./resolver";
 import { planVersionFromRef } from "./planVersions";
 import type { GrantRow } from "./grants";
 
@@ -123,5 +128,71 @@ describe("the assistant kernel's narrowed view", () => {
     const ai = toAiEntitlements(resolveEntitlements(FREE, []));
     expect(ai.has("ai.ask")).toBe(false);
     expect(ai.ceilings.perUserRequestsPerDay).toBe(0);
+  });
+});
+
+// **What a lapse would actually take** (CodeRabbit, PR #177).
+//
+// The account sheet's past-due and lapsed banners both name a loss, and the
+// screen could reach the answer from neither set it already had. The effective
+// entitlements include what grants supply, so reading them names losses that
+// never happen; the held plan's own list is blind to grants, so it names a loss
+// that does not occur for any account whose grant covers the same thing. Both
+// are false in one of the two worlds, and "conservative" is not a defence when
+// the sentence describes something that did not happen to a real person.
+//
+// The difference of two unions is the answer, and these four cases are the
+// whole of it.
+describe("what a lapse would take", () => {
+  const PREMIUM = planVersionFromRef("premium@v1");
+  const standing = (conferring: boolean) =>
+    ({ row: {}, conferring, pastDueSince: null, graceEndsAt: null, lapsed: !conferring }) as never;
+
+  it("names what the subscription bought, when nothing else confers it", () => {
+    const lost = entitlementsLostIfSubscriptionStops(
+      resolveEntitlements(PREMIUM, [], standing(true)),
+    );
+    expect(lost).toContain("trip.collaborators");
+    expect(lost).toContain("ai.ask");
+  });
+
+  // **The case that made this a server value.** The grant outlives the
+  // subscription, so the collaborators never go read-only and the banner must
+  // not say they did.
+  it("names nothing a grant still confers", () => {
+    const lost = entitlementsLostIfSubscriptionStops(
+      resolveEntitlements(PREMIUM, [grant({ planId: "premium", planVersion: 1 })], standing(true)),
+    );
+    expect(lost).not.toContain("trip.collaborators");
+    expect(lost).not.toContain("ai.ask");
+  });
+
+  // A partial grant covers part of the loss and no more: `plus` has the
+  // assistant and not the collaborators, so exactly one of the two survives.
+  it("subtracts only what the grant actually covers", () => {
+    const lost = entitlementsLostIfSubscriptionStops(
+      resolveEntitlements(PREMIUM, [grant({ planId: "plus", planVersion: 1 })], standing(true)),
+    );
+    expect(lost).not.toContain("ai.ask");
+    expect(lost).toContain("trip.collaborators");
+  });
+
+  // **The same answer after the lapse as before it**, which is what lets one
+  // value serve both banners: the past-due one asks what WILL go and the lapsed
+  // one asks what WENT. `held` is read rather than `conferred` for this reason.
+  it("does not change once the lapse has happened", () => {
+    const before = entitlementsLostIfSubscriptionStops(
+      resolveEntitlements(PREMIUM, [], standing(true)),
+    );
+    const after = entitlementsLostIfSubscriptionStops(
+      resolveEntitlements(PREMIUM, [], standing(false)),
+    );
+    expect([...after].sort()).toEqual([...before].sort());
+  });
+
+  // An account that bought nothing loses nothing, so neither banner can ever
+  // be reached with a sentence about other people.
+  it("is empty for an account that never subscribed", () => {
+    expect(entitlementsLostIfSubscriptionStops(resolveEntitlements(FREE, []))).toEqual([]);
   });
 });

@@ -1,6 +1,10 @@
 # M21 — An account can pay for itself
 
-**Status:** Scoped and placed 2026-09-01, immediately after M20. **Reordered
+**Status:** **OPEN and building since 2026-09-14.** Phases 1–4 are written; what
+is still owed is a walk against a real Stripe test-mode key, which is the half
+no lane in this repo can drive. **Build log and the five deviations from this
+file are at the bottom**, under *What was built*. Originally scoped and placed
+2026-09-01, immediately after M20. **Reordered
 2026-09-13 on Mitchell's call** — the commercial pair runs ahead of M9's
 remaining work, so the live order is
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`. **This
@@ -317,15 +321,28 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       change **only after the webhook is processed** — a forged or replayed
       success redirect grants nothing. Proven by exercising the redirect
       without the webhook.
-- [ ] **A webhook with a bad signature is rejected before its body is
-      parsed**, and a test asserts it.
-- [ ] **The same event delivered twice applies once.** Proven by replaying a
-      real captured event, not by inspection.
-- [ ] Events applied out of order converge to the correct state.
+- [x] **A webhook with a bad signature is rejected before its body is
+      parsed**, and a test asserts it. — `signature.test.ts`. The ordering is
+      proven the only way it can be from outside: a body that is neither signed
+      nor parseable raises the SIGNATURE's error, not JSON's. There is no second
+      path from a body to an event in the app for an unverified body to reach.
+- [x] **The same event delivered twice applies once.** Proven by replaying a
+      real captured event, not by inspection. — `webhook.int.test.ts`, against a
+      real database: the event is replayed byte for byte and the second delivery
+      answers `replay` with one subscription row and one `billing_events` row.
+      Red-first: defeating the claim turns it red.
+- [x] Events applied out of order converge to the correct state. —
+      `webhook.int.test.ts`, both orders. The comparison lives in the UPDATE's
+      own WHERE clause; red-first on it found and removed a redundant in-memory
+      guard that was doing nothing and could drift.
 - [ ] **No card number, CVC or expiry is ever entered into, posted to, or
       logged by this application.** Walked, and the network log checked.
-- [ ] Cancelling keeps access to the end of the paid period, then lapses
-      through **M20's resolver** — no second downgrade path exists.
+- [x] Cancelling keeps access to the end of the paid period, then lapses
+      through **M20's resolver** — no second downgrade path exists. —
+      `lapse.int.test.ts`. The strongest assertion in it is *"lapses with
+      nothing written and no job run"*: the subscription row is byte-identical
+      across the boundary and only the clock moved. **A Stripe-driven walk of
+      the portal's cancel button is still owed** — see *What is still owed*.
 - [ ] A `past_due` account is told in the product before it loses anything, and
       lapses only after the grace window — **3 days from the decline**
       (decided 2026-09-13). Walked both ways: a card fixed on day 2 lapses
@@ -333,22 +350,36 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       and not on day 3.
 - [ ] A lapse walks M20's collaborator cap: three collaborators drop to
       `viewer`, `trip_memberships` is unchanged, and paying again restores them.
-- [ ] **This milestone's diff touches no gate.** `modelSelection.ts`,
-      `quota.ts` and `members.ts` are unmodified — checked, not assumed.
-- [ ] The admin surface reports **MRR**, **ARPU across all accounts and across
+- [x] **This milestone's diff touches no gate.** `modelSelection.ts`,
+      `quota.ts` and `members.ts` are unmodified — checked, not assumed:
+      `git diff --stat <base>...HEAD -- <the three paths>` is empty, and all
+      three files exist, so the empty answer is an answer rather than a typo.
+- [x] The admin surface reports **MRR**, **ARPU across all accounts and across
       paying accounts separately and labelled as such**, and **margin per
-      account over a trailing 30 days**.
-- [ ] **The "costs more than they pay" list is segmented by grant source**, and
+      account over a trailing 30 days**. — `RevenueStrip`, fed by
+      `server/billing/revenue.ts`. `admin.console.test.ts` asserts both ARPU
+      figures reach the wire AND that the screen labels them differently, since
+      two identical labels would satisfy the first half alone.
+- [x] **The "costs more than they pay" list is segmented by grant source**, and
       a founder, trial or referral account does not appear among the paying
       accounts that are underwater. A test seeds one comped account and one
       genuinely-underwater paying account and asserts they land in different
-      buckets — unsegmented, the comped accounts swamp the list and the metric
-      is worthless.
-- [ ] Stripe keys are absent from the repo, present in `.env.example` as
+      buckets. — `revenue.int.test.ts`, the scenario this box describes, plus a
+      third case the box does not: **an account that pays AND holds a grant is
+      still a payer**, because being comped as well does not make its bill a
+      decision somebody already took. Red-first: merging the buckets puts the
+      comped account into the paying list.
+- [x] Stripe keys are absent from the repo, present in `.env.example` as
       **names with the secret ones marked**, and test-mode and live-mode keys
-      cannot be confused for one another.
-- [ ] **The migration is written, applied locally, and its production dispatch
-      is called out in the PR body.**
+      cannot be confused for one another. — the mode is read OUT OF the key
+      (`sk_test_` / `sk_live_`), so there is no second variable to disagree with
+      it; `config.test.ts` refuses a publishable key, a restricted key, a
+      webhook secret and the two swapped round. `grep -r sk_live` is clean.
+- [x] **The migration is written, applied locally**, and its production
+      dispatch is called out in the PR body. — `0021_subscriptions_and_billing`,
+      applied to the local database and exercised by every integration suite
+      here. **Not yet dispatched to production**; that is a `gh workflow run
+      migrate-production.yml -f confirm=migrate` from `main` after merge.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like`.
 - [ ] Retro appended at gate close.
@@ -459,3 +490,287 @@ make that measurement per-account rather than aggregate.
 step-metering fix both moved into M20 on 2026-09-01, when the financial
 metrics were asked for. Link 7 here is only the revenue half — without the
 cost half there is nothing to compare against, and no price can be defended.
+
+## What was built — 2026-09-14/15
+
+Four phases, four commits, on `claude/keen-darwin-qkkq41`. The scope is this
+file's seven links (eight, counting the duplicated *7*). What follows is the
+record of **where the build deviates from this file**, because every one of
+those was a decision and each would otherwise be rediscovered as a discrepancy.
+
+### Five deviations, and why each one
+
+1. **The price went onto the v1 entries, not onto new versions.** This file's
+   link 2 says *"adds `price_minor`, `currency` and `stripe_price_id` to the
+   same entry"* and `planVersions.ts`'s own header says the same; link 7 says
+   *"as a new dated version, never an edit to a published one"*. Those
+   contradict, and the build followed the first.
+
+   **Naming a price for the first time is not editing one.** The rule's reason
+   is that a change must not retroactively rewrite what anyone was sold, and
+   nothing had been sold — M21 is the milestone that creates the first
+   subscription, and until it shipped there was no `price` field to hold a
+   different value. From here the rule binds mechanically:
+   `planVersions.noExtension.test.ts` pins every published v1 entry field by
+   field, price included, so changing $9 to $10 in place fails a test in the
+   same diff that does it.
+
+2. **`price` is one nullable record, not three sibling fields.** The invariant
+   between the three is all-or-none: a currency with no amount is a state no
+   caller can act on. A nullable record makes that unrepresentable; three
+   nullable fields make it a test. `null` means *not sold for money* (`studio`,
+   which ships disabled) and is deliberately a different fact from `free`'s real
+   zero.
+
+3. **The committed Stripe pairing is a lookup key, not an id.** Link 2 asks for
+   a committed `stripe_price_id` and names the hazard in the same breath — *"a
+   committed `stripe_price_id` that names a Price nobody created is a checkout
+   that fails at the till"* — because creating the Price is a runtime act and
+   the publish step it used to hang off is gone. An id cannot honestly be
+   committed before the Price exists.
+
+   `priceLookupKey` is a pure function of plan, version, currency and amount, so
+   the committed identifier cannot disagree with the price it names, and
+   **changing the amount changes the key**, which resolves to a different Stripe
+   Price rather than silently reusing an immutable old one. The field is still
+   there (`stripePriceId`) and is still checked when present; it is simply
+   `null` until somebody fills it in, which is an optimisation rather than a
+   requirement.
+
+4. **No Stripe SDK** — ADR-047 decision 2 carries the argument. The short
+   version: six form-encoded calls, because the app never sees a card number;
+   and the thing an SDK would really have bought is `constructEvent`, while the
+   gate box asks for an *ordering* claim that is only provable if we control the
+   order. The cost is ours and is stated: we own the response shapes we read and
+   the API version we pin.
+
+5. **`plans` is a route, and the sheet lost its chooser** — this is the design's
+   deviation rather than the build's (SPEC §29, 2026-09-14), and it supersedes
+   link 5's last bullet. It makes link 5's surface *smaller*: the sheet keeps
+   plan, version, state, meters, past-due and referral, and the route holds what
+   the sheet never had.
+
+### One thing the design asks for that this build does not do
+
+§29 asks that the assistant's floating dock be **hidden, not unmounted**, on
+`plans` — `visibility: hidden; pointer-events: none`, so coming back does not
+reset its thread, open state and dragged position.
+
+**In this build there is no dock on that route to hide.** The dock is mounted by
+`TripBoardScreen` and is trip-scoped; `plans` is account scope, so nothing is in
+the tree and nothing is lost by its absence — which is the end state §29 is
+protecting. Mounting a global dock in order to hide it would be building the
+design's architecture to satisfy a rule about the design's architecture. Written
+down in `app/(app)/plans/page.tsx` as well, where somebody comparing the screen
+to the design would look.
+
+### Two states the design does not draw, and both are built
+
+§29 names them and says neither has a design yet.
+
+- **Return-from-Stripe-before-webhook.** The result state §29 draws *"is faked
+  in the design file — it is reached by a click"*. In the build, coming back
+  from Checkout lands on a **pending** state that re-reads the account until the
+  plan actually moves, says what is actually happening rather than implying it
+  is nearly done, and after twenty attempts says *that* too. Not a spinner that
+  lies. `m21-plans.spec.ts` drives the forged redirect by typing the URL.
+- **A stale plan version at pay time is a conflict, not an error.** Applying a
+  change carries the version the confirm step was rendered against; a mismatch
+  is a 409 and the step re-renders with the new numbers and says nothing has
+  been charged.
+
+### What is still owed
+
+**All of it needs a Stripe test-mode key**, which no lane in this repo has and
+which the milestone's own *Why it is separate* predicted: *"Stripe brings an
+external service that cannot be driven from `test:e2e:ci-like`."* The recipe for
+every one of these, for $0.00, is
+**`docs/guidelines/billing-without-spending-money.md`**.
+
+- A free account buying `plus` on a hosted checkout, end to end.
+- The **network log checked** for the no-card-number box. Structurally there is
+  no card field in this repo's DOM to find, and the box asks for a walk.
+- The `stripe_price_id` half of the consistency check — `checkPriceConsistency()`
+  is written and reports `ok` / `missing` / `mismatch` / `unpriced`; nothing has
+  run it against a real account.
+- The grace window **walked** rather than unit-proven: Test Clocks, a
+  `4000 0000 0000 0341`, day 2 and day 4. The guide has the commands.
+- The collaborator cap walked with three real collaborators on a real trip.
+- Republishing at a new price with a real subscriber on the old one.
+
+### Verification actually performed
+
+Tier 2 throughout, then the full lane at the end. `pnpm --filter web typecheck`,
+`pnpm lint` (every wall, including the migration journal and the colour wall),
+the unit suite, the integration lane against a local database with `0021`
+applied, and `pnpm --filter web test:e2e:ci-like`.
+
+**Red-first on five assertions**, per CLAUDE.md rule 3 — the grace boundary, the
+price mismatch, webhook idempotency, ordering tolerance, and the underwater
+segmentation. The ordering one **survived its first aim**, which is the finding
+worth keeping: defeating the in-memory staleness check changed no test outcome
+because the SQL WHERE clause was doing the work either way. Two guards where one
+is load-bearing is one guard plus a thing that can drift, so the redundant one is
+gone.
+
+**Two of M20's own guards fired on this work and both were real**, not
+allowlisted around: `planVersions.fourthPlan.test.ts` refused a `switch` over
+plan ids in the plans route's copy and a `planId === "free"` in the plan-change
+path. The first is now derived from what a plan grants (so the disabled fourth
+plan gets a true line for free); the second asks the price (so a second
+zero-priced plan behaves identically without anyone adding it to a list).
+
+**`test:e2e:ci-like` caught a build failure `test:e2e` could not.** `/plans`
+reads `useSearchParams()`, which fails the production build outright without a
+Suspense boundary — and the dev lane compiles a route on first hit and never
+prerenders it, so the route worked perfectly in `pnpm dev`. That is CLAUDE.md
+rule 1 paying for itself in the same session it was read.
+
+
+## What review found — 2026-09-15
+
+PR #177 collected three independent reviews on the same head, and between them
+they found **sixteen defects in code that passed every local lane.** That is the
+number worth keeping: the branch had a full green suite, 131 e2e specs, five
+red-first proofs and a written verification section, and none of it caught any
+of these.
+
+### The four that would have cost money or trust
+
+1. **An existing subscriber could be charged twice.** `startCheckout` refused a
+   second subscription *to the same plan* and let a live `plus` subscriber open
+   a checkout for `premium`, which Stripe would happily create alongside the
+   first. The UI never took that path — `applyPlanChange` routes a live
+   subscription to a Stripe update — which is exactly why the guard failed: it
+   was correct about its only caller and the endpoint is reachable without it.
+   *This is the milestone's own stated blast radius.* (CodeRabbit)
+2. **A failed webhook delivery lost its event permanently.** The claim was
+   written before the work ran and nothing recorded that the work finished, so
+   a throw anywhere after the claim meant Stripe's retry was answered `replay`
+   and the effect was never applied. For `checkout.session.completed` that is
+   terminal: the `client_reference_id` naming the account rides on that event
+   and no other, so a paid account would sit on `free` with no path back.
+   `webhook.int.test.ts` had a test *pinning this as an accepted trade-off*;
+   it was not one. Fixed with `billing_events.applied_at` (migration 0022).
+   (CodeRabbit)
+3. **The confirm step promised a payment it did not take.**
+   `proration_behavior: "create_prorations"` computes the adjustment and leaves
+   it for the *next* invoice, under a button reading `Pay $11.47 with Stripe`.
+   `always_invoice` is what collects it. (CodeRabbit)
+4. **The pending screen claimed a payment had happened, on a forged URL.**
+   *"Your payment has gone through"*, rendered on the presence of a query
+   parameter alone — and on the preview, four inches below a banner saying
+   nothing could be bought on that deployment. The e2e asserted the panel was
+   VISIBLE and never read a word of it. (Browser walk.)
+
+### What each review was uniquely able to see
+
+- **CodeQL** found the one thing static analysis is for: a Stripe object id
+  from a webhook body reaching a URL. Host injection was not possible — the
+  authority is a constant — but "the attacker cannot reach another host" is a
+  weaker guarantee than "the value is not attacker-shaped", and the second one
+  costs a regex.
+- **CodeRabbit** found the state machines: idempotency keys that named a target
+  state rather than an operation (so cancel → resume → cancel replayed the first
+  cancellation), a price check that would sell a `$9/year` Price under a
+  `$9/month` label, a trial grant outranking a subscription so a paying customer
+  read *Free week*, margins computed from costs we know are incomplete, and two
+  "disjoint" segments that both counted the same account.
+- **A browser walk** found the things only a person reads: two surfaces one
+  click apart saying *"Questions 0 / 50"* and *"No assistant"* about the same
+  account, a held line reading *"You are on free — Free week, free."*, a badge
+  saying *Free week* with no date anywhere for when the week ends, and a
+  pending screen with no way back to the plans it replaced.
+
+### The lesson the verification section did not have
+
+**Every one of the four expensive defects had a passing test over it.** Not a
+missing test — a test that asserted presence, or state, or a substring, on the
+exact path where the defect lived. `toContainText("free")` passes against *"You
+are on free — Free, free."* A test that the pending panel is visible passes
+against any words inside it. A test naming a trade-off documents a defect rather
+than catching it.
+
+`docs/guidelines/testing.md` §3 asks that a test be seen to fail for its own
+reason. That was done here, five times, and it is necessary rather than
+sufficient: a test can fail for its own reason and still be pointed at the wrong
+question. **Where a screen's job is to say something true, the assertion has to
+be on what it says.**
+
+## What the preview walk found — 2026-09-15
+
+Five threads on PR #177's Vercel preview, left by Mitchell between 01:23 and
+01:27. They are a **fifth review surface** with its own mechanics
+(`docs/guidelines/working-a-review.md`), and four of the five were design
+decisions this build had got wrong rather than bugs.
+
+### A rule stated twice, which reverses §17.3
+
+Two of the threads say the same thing about two different gates:
+
+> *"I thought the free tier shouldnt let me invite people? We should keep the ui
+> but have it greyed out, and have a CTA to get people to upgrade."*
+
+> *"Same thing here, the assistant should still be openable but the input should
+> be disabled, and the text container above should be a CTA To upgrade"*
+
+**M20 built the opposite, deliberately, and wrote down why.** `TravelersPanel`'s
+comment read *"a disabled button beside an explanation would be the obvious move
+and the worse one: it offers a control that can never work"*, and the rail's
+read *"a 'See your plan' button here today would be a control that does nothing,
+which is worse than a sentence that is true."* Both were correct **for M20**,
+and both are now wrong, for one reason: **M20 had nowhere to send anybody.**
+There was no chooser, no checkout and no route. The control genuinely could
+never work, so hiding it was honest.
+
+§29 gives plans a route and M21 gives it a checkout, so the same control is one
+that works as soon as the CTA beside it is taken. The argument did not lose; its
+premise expired. Recorded here because the old reasoning is written into three
+comments and two test files, and a reader who finds it without this will
+reasonably think the reversal was an accident.
+
+The shape, now shared by both gates: **the affordance stays, every control in it
+is disabled, and a CTA to `/plans` sits above it.** No price on either surface —
+§29 keeps prices on the plans route and nowhere else, so both CTAs name the
+destination instead of a number.
+
+### The gate moved earlier, which needed data the rail did not have
+
+`askUpgrade` only existed *after* the server refused a question with 402, so a
+free account got a live-looking composer, typed a question, and was told
+afterwards. Disabling it up front needs the answer before anything is typed —
+`components/assistant/useAiEntitled.ts`, one cached read of
+`GET /api/account/plan` (ADR-046), asking `entitlements.includes("ai.ask")`
+rather than comparing a plan id (ADR-045 rule 4).
+
+**`null` means entitled**, and that is the whole risk in the file. The hook
+resolves `null` while loading and whenever the read fails, and treating either
+as *not entitled* would flash a paywall at a paying subscriber on every open.
+Being wrong the permissive way costs one refused request; being wrong the strict
+way blocks a customer on a bad network. The rail only mounts while the assistant
+is open, so nobody who never opens it pays for the read at all.
+
+### The assertion that would have been decorative
+
+Gating the composer's input and its Ask button is not the gate — the suggested
+question chips call `onAsk` directly, and the Enter key reaches `submitAsk`
+without passing the button. Three ways in, so the refusal is spelled on all
+three plus inside `submitAsk` itself.
+
+`AssistantRail.test.tsx`'s *"gates the suggested questions too"* is the one
+assertion that catches this, and **every other test in that describe block
+passes with the chips still live** — the same failure mode this milestone's
+previous section is about, caught this time before it shipped rather than after.
+
+### The one that is a design question, not a fix
+
+> *"This Add Stop button i believe was added for mobile, it shouldnt show in
+> desktop"*
+
+It is not a phone control and it is not a duplicate: each day column has its own
+`+ Add`, and the header's bare `openCreate()` is the only way to make a stop
+belonging to **no** day — the Backlog column's old button, folded into the
+header when that column became the Unscheduled drawer. The drawer moves existing
+stops onto days and mints none. Hiding it on desktop removes a capability at
+that width. Filed in `TODO.md` → *Candidate ideas* with the three real options,
+and answered on the thread rather than guessed at.

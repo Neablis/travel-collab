@@ -182,3 +182,45 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   await expect(log).toContainText("Still to book:");
   await expect(log).toContainText("Sample: coffee stop");
 });
+
+// **The composer's two controls are the same height.** Reported on the preview,
+// 2026-09-15: *"This ask button in the AI agent should be same height as the
+// text input"*. `Input` is `h-9` and the button was `size="sm"` (`h-7`), so it
+// sat 2px clear of the box top and bottom.
+//
+// Geometry rather than the class, for the reason the phone tab bar's own
+// equal-distance test gives: the claim is about where the controls sit, and it
+// should hold for any implementation that puts them there. A class assertion
+// would also be rejected by the test-quality lint wall, correctly — it restates
+// the source rather than testing it.
+//
+// Desktop only. The phone sheet pairs `h-11` with `min-h-11`, which already
+// matched; asserting it here would be asserting the same thing twice at the one
+// viewport this file does not run.
+test("the Ask button is exactly as tall as the box beside it", async ({ page }) => {
+  const tripName = e2eTripName("Composer");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 1);
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await openAssistantRail(page);
+
+  const input = page.getByPlaceholder(/Ask about this/);
+  const ask = page.getByRole("button", { name: "Ask the assistant" });
+  await expect(input).toBeVisible();
+  await expect(ask).toBeVisible();
+
+  // `toBeTruthy()` rather than a null check: the lint lane forbids a
+  // conditional in a test body, and an assertion is the better narrowing
+  // anyway — a control with no box is a failure worth its own message.
+  const inputBox = await input.boundingBox();
+  const askBox = await ask.boundingBox();
+  expect(inputBox, "the composer input has no box").toBeTruthy();
+  expect(askBox, "the Ask button has no box").toBeTruthy();
+
+  // Exactly, not approximately: both are a fixed `h-*` on the same row, so any
+  // difference at all means they were given different sizes.
+  expect(askBox!.height).toBe(inputBox!.height);
+  // And they share a baseline — equal heights on different rows would satisfy
+  // the line above while looking exactly as wrong as the report described.
+  expect(Math.abs(askBox!.y - inputBox!.y)).toBeLessThan(1);
+});

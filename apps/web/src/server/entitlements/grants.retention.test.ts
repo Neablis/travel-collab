@@ -12,7 +12,7 @@
 // **Revoking is not deleting.** `revokeGrant` stamps `revoked_at` and leaves
 // the row, which is why the resolver and the eligibility check can disagree
 // about the same row on purpose.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -24,15 +24,38 @@ const WEB = path.resolve(HERE, "../../..");
 function filesUnder(dir: string, extensions: RegExp): string[] {
   const out: string[] = [];
   const walk = (current: string): void => {
-    for (const name of readdirSync(current)) {
+    // `withFileTypes` rather than a `statSync` per entry: the directory read
+    // already knows what each entry is, and asking the filesystem again once
+    // per file is most of this walk's syscalls.
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const name = entry.name;
       if (name === "node_modules" || name === ".next" || name.startsWith(".")) continue;
       const full = path.join(current, name);
-      if (statSync(full).isDirectory()) walk(full);
+      if (entry.isDirectory()) walk(full);
       else if (extensions.test(name)) out.push(full);
     }
   };
   walk(dir);
   return out;
+}
+
+/**
+ * **A cheap raw-text gate in front of the expensive comment strip.**
+ *
+ * `stripComments` parses a whole file, and this sweep ran it over every `.ts`
+ * and `.tsx` under `src` — several hundred files, essentially none of which
+ * mention this table at all. On a COLD filesystem cache that put the test at
+ * roughly six seconds against vitest's five-second default, so it failed on CI
+ * (always cold) and passed locally on any run after the first. Reproduced here
+ * before being fixed: 6.00s, then 3.80s, then 2.52s across three runs.
+ *
+ * Nothing about what is asserted changes. Stripping comments only matters for a
+ * file that DOES name the table — the point is to not match a mention inside a
+ * comment — so a file containing neither spelling anywhere, comments included,
+ * cannot be an offender by either regex below and can be skipped whole.
+ */
+function mightMentionGrants(raw: string): boolean {
+  return raw.includes("entitlementGrants") || raw.includes("entitlement_grants");
 }
 
 const RELATIVE = (full: string) => path.relative(WEB, full).split(path.sep).join("/");
@@ -44,7 +67,9 @@ describe("entitlement_grants is retained, never swept", () => {
     const offenders = filesUnder(path.join(WEB, "src"), /\.(ts|tsx)$/)
       .filter((file) => RELATIVE(file) !== "src/server/entitlements/grants.retention.test.ts")
       .filter((file) => {
-        const code = stripComments(readFileSync(file, "utf8"));
+        const raw = readFileSync(file, "utf8");
+        if (!mightMentionGrants(raw)) return false;
+        const code = stripComments(raw);
         return (
           /\.delete\s*\(\s*entitlementGrants\s*\)/.test(code) ||
           /delete\s+from\s+"?entitlement_grants"?/i.test(code)

@@ -13,6 +13,73 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-15 — `losesOnLapse`, and `sessionId` on a started checkout
+
+- Added: `PlanBillingView.losesOnLapse` — the entitlements an account would stop
+  conferring if its subscription stopped (`apps/web/src/server/entitlements/
+  accountPlan.ts`, mirrored in `apps/web/src/lib/accountPlan.ts`)
+- Added: `CheckoutStart.sessionId` and `kind: "checkout"`'s `sessionId` on
+  `POST /api/billing/change` — the Checkout Session's own id
+  (`apps/web/src/server/billing/{checkout,planChange}.ts`)
+- Why, for `losesOnLapse`: the account sheet's past-due and lapsed banners each
+  name what a lapse costs other people, and **neither set already on the wire
+  can answer that**. The effective entitlements include what grants supply, so
+  reading them names losses that never happen; the held plan's own list is blind
+  to grants, so it names a loss that does not occur for any account whose grant
+  covers the same thing — on this deployment, most of them, since every account
+  predating M20's migration carries a founder grant. Both are false in one of
+  the two worlds. The value is the difference of two unions, computed once by
+  `entitlementsLostIfSubscriptionStops`
+- **A list rather than the one boolean the sheet needs today**, so the next
+  sentence that has to name a loss needs no second wire change
+- Why, for `sessionId`: the plans route decides "did this checkout reconcile" by
+  comparing against a baseline, and its only other source was the first read
+  AFTER returning from Stripe — which loses a race to a fast webhook and leaves
+  a completed purchase sitting on the pending screen. The id lets the browser
+  key a baseline captured BEFORE the redirect to the session it describes. It is
+  not a secret and it proves nothing on its own; only the webhook does
+- Consumers updated: `apps/web` (account sheet, plans route, and the fixtures in
+  `PlanSection.test.tsx` / `PlansScreen.test.tsx`, which the wire-shape
+  type-identity checks required)
+- Breaking? **No** for `sessionId` — an added optional field on a response.
+  **Yes, narrowly,** for `losesOnLapse`: it is required on `PlanBillingView`, so
+  any other construction of that type fails to build until it supplies one. That
+  is the intended behaviour of the wire-shape checks and it caught both fixtures
+  in this PR rather than letting them drift
+
+## 2026-09-14 — `SubscriptionStatus`, and what still confers
+
+- Added: `SubscriptionStatus` — the eight statuses a Stripe subscription can
+  hold, spelled as Stripe spells them
+  (`packages/contracts/src/entitlement.ts`)
+- Added: `CONFERRING_STATUSES` — the three under which a subscription is still
+  handing its account the plan it pinned (`trialing`, `active`, `past_due`)
+- Why: M21 link 1. The subscription row stores what Stripe told us, and the
+  vocabulary for that has to cross a boundary — the webhook writes it, the
+  account sheet renders it, and the Entitlements resolver reads whether it still
+  confers
+- **A transcription, not a model.** M21 link 2's division of authority is that
+  the plan version is the source of truth for what is granted and Stripe is the
+  source of truth for what is charged. Translating a status at the write
+  boundary is how two sources of truth start to disagree: a status we had no
+  word for would have to be mapped onto one we did, and the first such mapping
+  is silent. A status Stripe adds later fails *parsing* instead, loudly, at the
+  one place equipped to say so
+- **`past_due` confers**, and that is the milestone's grace window rather than
+  an oversight: a declined card keeps its entitlements for three days from the
+  decline (M21 link 6). The window — not the status — is what ends that, so this
+  list answers only the first half of the question and
+  `server/billing/standing.ts` answers the second
+- **No member of this enum is an entitlement**, and no gate reads one. What an
+  account may do is still `can(ent, capability)` over the resolver's answer.
+  M21 adds no entitlement and no gate
+- **Presentation is a different vocabulary and is not here.** The account sheet
+  reads `Active` / `Free week` / `Payment failed` / `Lapsed` — four words over
+  eight statuses plus a window — and that mapping is a rendering decision
+- Consumers updated: `apps/web` (`server/db/schema.ts`, the whole
+  `server/billing/**` module)
+- Breaking? no — additive
+
 ## 2026-09-13 — `AdminGrantInput`, and a fourth `PlanId`
 
 - Added: `AdminGrantInput` — `{ userId, planId, expiresAt: string|null, reason }`

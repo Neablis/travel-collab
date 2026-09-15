@@ -20,6 +20,7 @@ import type {
   SavedDayAuthorKind,
   SavedDayVisibility,
   SavedStop,
+  SubscriptionStatus,
   TripDetail,
   TripMember,
   PageContent,
@@ -81,6 +82,26 @@ export const users = pgTable("users", {
   // is deliberately not one: it is a single boolean gating an operator tool,
   // not the first rung of a permission ladder. Per-trip roles stay `TripRole`.
   isAdmin: boolean("is_admin").notNull().default(false),
+  // M21 link 1 — **the Stripe customer this account is, once it has been one.**
+  //
+  // Null until the first checkout, and then permanent: a customer outlives
+  // every subscription it ever had, which is what makes "open the portal for
+  // this account" answerable after a cancellation. Deleting it on lapse would
+  // orphan the invoice history the portal exists to show.
+  //
+  // **On `users` rather than on `subscriptions`** because the relationship is
+  // one customer per account for the account's whole life, while subscriptions
+  // come and go. Storing it on the subscription would give an account that
+  // cancelled and resubscribed two customer ids and two invoice histories, and
+  // the second one would look like a new person to Stripe.
+  //
+  // Written by the checkout route, not by the webhook. That is not a breach of
+  // link 4's *the webhook is the sole writer*: a customer id is who you are at
+  // Stripe, not what you are entitled to, and it has to exist before a
+  // Checkout Session can be created for it. `subscriptions` and `users.plan_id`
+  // — the two things that decide what an account may do — stay the webhook's
+  // alone, and `billing.soleWriter.test.ts` sweeps for exactly those two.
+  stripeCustomerId: text("stripe_customer_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
@@ -628,4 +649,136 @@ export const rateLimitCounters = pgTable("rate_limit_counters", {
   // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
   windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
   hits: integer("hits").notNull(),
+});
+
+// **What an account pays for** (M21 link 1).
+//
+// The Billing module's only store. It holds what Stripe told us, pinned to the
+// plan version that was bought — and it says nothing about what an account may
+// DO. That question is the Entitlements resolver's, exactly as it was before
+// this milestone: M21 adds no entitlement and no gate.
+//
+// **One writer, and it is the webhook** (M21 link 4). Nothing else in the
+// product inserts or updates a row here. A checkout redirect is a hint, never a
+// grant — a client returning from Stripe proves only that a browser followed a
+// URL, and deriving entitlement from a success URL is the classic way a paywall
+// becomes free. `billing.soleWriter.test.ts` sweeps the tree for a second
+// writer of this table or of `users.plan_id`.
+//
+// **`plan_id` + `plan_version` is a pin, not a description** — the same
+// convention `entitlement_grants` follows and for the same reason (ADR-045
+// rule 1). What `plus@v1` grants and what it costs both come from the committed
+// plan file; storing either here would let the two disagree, and the stored
+// copy would win silently. It is what makes M21 link 2's *what you bought is
+// what you get* true: republishing `plus` at a new price leaves this row
+// pointing at the version this subscriber actually agreed to.
+//
+// **No foreign keys**, per the schema's standing convention (ADR-025).
+//
+// **Not event-sourced.** Invariant 1 scopes the log to planning.
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as every other user
+    // reference in this file.
+    userId: text("user_id").notNull(),
+    stripeCustomerId: text("stripe_customer_id").notNull(),
+    // Stripe's `sub_...`. Unique, and that uniqueness is what makes the webhook
+    // idempotent at the row level as well as at the event level: two deliveries
+    // of the same subscription's events cannot produce two rows.
+    stripeSubscriptionId: text("stripe_subscription_id").notNull(),
+    planId: text("plan_id").$type<PlanId>().notNull(),
+    planVersion: integer("plan_version").notNull(),
+    // Stripe's own word, stored verbatim — see `SubscriptionStatus` in
+    // contracts for why this is a transcription rather than a model.
+    status: text("status").$type<SubscriptionStatus>().notNull(),
+    // **Reconciled from the event's own data, never from arrival sequence**
+    // (M21 link 4's ordering tolerance). This is the period end Stripe reported
+    // on the subscription object in the event that was applied, which is what
+    // the account sheet renders as the renewal date and what a cancellation
+    // runs to.
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true, mode: "date" }),
+    // Cancelling sets this rather than ending anything (M21 link 5). Access
+    // runs to `current_period_end` and then lapses through M20's resolver —
+    // there is deliberately no second downgrade path to keep in sync.
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    // **When the card was declined** — the anchor for M21 link 6's grace
+    // window, which is measured from the decline and NOT from the period end.
+    //
+    // Its own column rather than derived from `status`, because the window is
+    // three days and Stripe's own retry schedule spreads several attempts over
+    // about two weeks: a `past_due` subscription can sit in that status far
+    // longer than the window, and "how long has this been failing" is a
+    // question `status` cannot answer. Cleared the moment a payment succeeds,
+    // so a card fixed inside the window costs the account nothing.
+    pastDueSince: timestamp("past_due_since", { withTimezone: true, mode: "date" }),
+    // **The `created` of the newest Stripe event applied to this row.**
+    //
+    // The whole of the out-of-order defence, and it is a comparison rather than
+    // a sequence number because Stripe issues no sequence. Events arrive in any
+    // order and a stale one must not overwrite a fresh one; an event older than
+    // this is dropped, an event at exactly this timestamp is applied (two
+    // events can share a second, and dropping the second would lose a real
+    // transition). See `applyStripeEvent`.
+    lastEventAt: timestamp("last_event_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("subscriptions_stripe_subscription").on(t.stripeSubscriptionId),
+    // "What does this account pay for" — the account sheet's read, on every
+    // load of the Plan section.
+    index("subscriptions_user").on(t.userId),
+    // "What is every live subscription worth" — link 7's MRR, which scans by
+    // status and is the only query here that is not about one account.
+    index("subscriptions_status").on(t.status),
+  ],
+);
+
+// **Every Stripe event this deployment has already applied** (M21 link 4's
+// idempotency).
+//
+// Stripe retries a delivery until it gets a 2xx, and a retry of an event we
+// already applied must not apply it twice — a redelivered
+// `customer.subscription.updated` is harmless, a redelivered one that moved a
+// period end is not, and there is no class of event where double-applying is
+// *guaranteed* to be safe. So the check is on the event, not on the effect.
+//
+// **The insert is the lock.** `INSERT ... ON CONFLICT DO NOTHING` returning no
+// row means "someone already has this one" — an atomic claim that works across
+// concurrent serverless invocations, where a read-then-write would not. It is
+// the same reasoning `rate_limit_counters` gives for its own upsert.
+//
+// **Nothing sweeps this table**, for the same reason nothing sweeps
+// `entitlement_grants`: the row IS the idempotency guarantee, and deleting old
+// rows re-opens replay for exactly the events old enough that nobody is
+// watching. Stripe retries for up to three days; the rows are small and the
+// volume is one per billing event per account.
+export const billingEvents = pgTable("billing_events", {
+  // Stripe's `evt_...`, verbatim. The primary key IS the idempotency key.
+  id: text("id").primaryKey(),
+  // What kind of event it was, for reading the table back when something looks
+  // wrong. Never branched on after the fact — the handler did that at the time.
+  type: text("type").notNull(),
+  // Stripe's `created` on the event, which is what the ordering check above
+  // compares. Stored so that "what did we apply and in what order" is
+  // answerable from this table alone.
+  eventAt: timestamp("event_at", { withTimezone: true, mode: "date" }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull(),
+  // **When the work finished — null while a delivery is still in flight.**
+  //
+  // The claim alone was not enough, and the gap it left was the worst one in
+  // this milestone. `claimEvent` writes this row BEFORE any work runs. If a
+  // later step threw — `retrieveSubscription`, the insert, `syncHeldPlan` — the
+  // route answered 500, Stripe retried the same event id, the claim said
+  // "already have it", and the effect was never applied. For
+  // `checkout.session.completed` that is terminal: the `client_reference_id`
+  // naming the account appears on no later event, so a paid account sits on
+  // `free` with no retry path left.
+  //
+  // With this column a claim is provisional: a conflicting row that never
+  // completed is re-claimable, and only a row stamped here is a true replay.
+  // CodeRabbit, PR #177.
+  appliedAt: timestamp("applied_at", { withTimezone: true, mode: "date" }),
 });

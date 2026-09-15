@@ -14,9 +14,17 @@
 // from UI (the wall covers `@/server/*` and `@tc/domain`, not contracts), so
 // there is no reason to widen anything.
 //
-// **No revenue field, and that is the split.** MRR, ARPU and margin all need a
-// subscription to exist and are M21 link 7's. A field for one here is where the
-// strip would arrive.
+// **The revenue half landed with M21 link 7.** MRR, ARPU twice and labelled,
+// the trailing-30-day median margin, and the underwater report segmented by
+// grant source are all below. What M20's version of this comment was protecting
+// was the SPLIT, not the silence: the console shipped without them because they
+// need a subscription to exist, and `admin.console.test.ts` held that line until
+// the milestone that builds one arrived. It has.
+//
+// **Every number here is an integer count of micro-dollars.** Never `Money`,
+// which in minor units rounds a $0.0006 request to zero — the defect class M20
+// link 9 names, and a revenue screen is where it would look most like a real
+// number. Formatting happens where a number is displayed.
 import type { Entitlement, PlanId } from "@tc/contracts";
 
 /**
@@ -33,12 +41,26 @@ export interface AdminCeilingsView {
   maxTier: "cheap" | "mid" | "strong" | null;
 }
 
+/**
+ * Mirrors `PlanPrice` (`@/server/entitlements/planVersions`) — M21 link 2.
+ *
+ * `null` on the version above means *not sold for money*, which is a different
+ * fact from a zero amount. The distinction is the plan file's and is preserved
+ * across the wall rather than flattened here.
+ */
+export interface AdminPlanPriceView {
+  minor: number;
+  currency: "usd";
+  stripePriceId: string | null;
+}
+
 /** Mirrors `PlanVersion` (`@/server/entitlements/planVersions`). */
 export interface AdminPlanVersionView {
   planId: PlanId;
   version: number;
   entitlements: readonly Entitlement[];
   ceilings: AdminCeilingsView;
+  price: AdminPlanPriceView | null;
   displayOrder: number;
   publishedAt: string;
   enabled: boolean;
@@ -54,6 +76,10 @@ export interface AdminPlanPanelRow {
   holdsByVersion: Readonly<Record<number, number>>;
   /** Median trailing cost of holders who used the assistant; `null` if none. */
   medianMicroUsd: number | null;
+  /** M21 link 7 — what this tier brings in a month, in micro-dollars. */
+  mrrMicroUsd: number;
+  /** M21 link 7 — median (pays − costs) among this tier's payers; `null` if none. */
+  medianMarginMicroUsd: number | null;
 }
 
 /** Mirrors `GrantSourceRow`. */
@@ -83,6 +109,17 @@ export interface AdminAccountRow {
   requests: number;
   microUsd: number;
   unpriced: number;
+  /**
+   * M21 link 7 — what this account pays a month, in micro-dollars.
+   *
+   * `null` means **conferring but unpriceable**: it has a live subscription
+   * pinned to a version this deploy cannot price. Deliberately not `0`, which
+   * would read as "pays nothing" and would suppress the underwater chip on
+   * exactly the account whose bill nobody can account for.
+   */
+  paysMicroUsd: number | null;
+  /** Stripe's own word, `"lapsed"`, or `null` for an account that never paid. */
+  subscriptionState: string | null;
 }
 
 /** Mirrors `AccountCost` (`@/server/entitlements/usage`). */
@@ -93,10 +130,59 @@ export interface AdminAccountCost {
   unpriced: number;
 }
 
+/** Mirrors `RevenueSummary` (`@/server/billing/revenue`) — the four numbers. */
+export interface AdminRevenueView {
+  mrrMicroUsd: number;
+  /** The movement, as two numbers — "MRR is flat" hides a month that churned. */
+  addedMicroUsd: number;
+  lostMicroUsd: number;
+  /**
+   * **Twice, and labelled.** With founder, referral, trial and admin grants in
+   * the mix these differ a lot, and a single unlabelled ARPU will be quoted as
+   * whichever is convenient.
+   */
+  arpuAllMicroUsd: number;
+  arpuPayingMicroUsd: number;
+  accounts: number;
+  payingAccounts: number;
+  /** Trailing 30 days, never lifetime. `null` when nobody is paying. */
+  medianMarginMicroUsd: number | null;
+  unpricedSubscriptions: number;
+  /** Payers left out of the median because their trailing cost is incomplete. */
+  payersWithUnknownCost: number;
+  windowDays: number;
+}
+
+/** Mirrors `UnderwaterAccount`. */
+export interface AdminUnderwaterAccount {
+  userId: string;
+  paysMicroUsd: number;
+  costMicroUsd: number;
+  marginMicroUsd: number;
+}
+
+/**
+ * Mirrors `UnderwaterReport` — **segmented in the layout, not just in the
+ * query** (M21 link 7).
+ *
+ * `paying` is a list of rows that each need a decision. `grantFunded` is a
+ * count per source that is set aside and deliberately NOT enumerated: a comped
+ * account is underwater by construction, that is a decision already taken, and
+ * listing them beside the others invites reading them as the same kind of
+ * finding.
+ */
+export interface AdminUnderwaterView {
+  paying: AdminUnderwaterAccount[];
+  grantFunded: { source: string; accounts: number; costMicroUsd: number }[];
+  windowDays: number;
+}
+
 export interface AdminOverview {
   plans: AdminPlanPanelRow[];
   grantSources: AdminGrantSourceRow[];
   accounts: AdminAccountRow[];
   topSpenders: AdminAccountCost[];
   windowDays: number;
+  revenue: AdminRevenueView;
+  underwater: AdminUnderwaterView;
 }

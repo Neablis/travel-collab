@@ -148,6 +148,20 @@
       "when": 1789338963216,
       "tag": "0020_ai_usage_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789429024296,
+      "tag": "0021_subscriptions_and_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789434838803,
+      "tag": "0022_billing_event_applied_at",
+      "breakpoints": true
     }
   ]
 }

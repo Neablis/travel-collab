@@ -10,11 +10,15 @@
 // Granting is the only write, and it is account state rather than plan
 // definition — the whole reason this milestone is provable without Stripe.
 //
-// **No MRR, no ARPU, no margin.** All three need a subscription to exist and
-// are M21 link 7's. The design draws them on the same screen and does not say
-// which half is which, so an implementer working from the finished picture
-// builds the revenue strip here and breaks the split in the direction nobody
-// checks. This module has no revenue read at all, and a test says so.
+// **The revenue half arrived with M21 link 7**, which is where the split note
+// above always said it would. What that means for this module is narrow and is
+// worth stating, because the split it replaces was load-bearing for two
+// milestones: **every revenue number is computed in `server/billing/revenue.ts`
+// and passed through here.** This module reads plans, grants and cost; it does
+// not learn what a subscription is. The tier panel is *"split down the middle"*
+// exactly as the milestone says — accounts, versions and hold counts are M20's
+// and live here; MRR and median margin per tier are link 7's and are merged in
+// from Billing.
 import { desc, eq, sql } from "drizzle-orm";
 import { GrantSource, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -22,6 +26,14 @@ import { adminConsoleFlag } from "@/server/flags";
 import { entitlementGrants, users } from "@/server/db/schema";
 import { PLAN_VERSIONS, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor } from "./resolver";
+import {
+  monthlyMicroUsd,
+  revenueByPlan,
+  revenueSummary,
+  underwaterReport,
+  type RevenueSummary,
+  type UnderwaterReport,
+} from "@/server/billing/revenue";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
@@ -114,11 +126,22 @@ export interface PlanPanelRow {
    * batch job drags a mean far enough to make the number useless for the
    * question being asked, which is what a typical holder of this tier costs.
    *
-   * **The MRR and median-margin columns beside this one in the design are M21
-   * link 7's** — both need a subscription to exist. This is the half that does
-   * not.
+   * **The MRR and median-margin columns beside this one are M21 link 7's** and
+   * are the two fields below. This one is the half that needed no subscription:
+   * what a typical HOLDER of this tier costs, whether or not they pay.
    */
   medianMicroUsd: number | null;
+  /** M21 link 7 — what this tier brings in a month, in micro-dollars. */
+  mrrMicroUsd: number;
+  /**
+   * M21 link 7 — the median of (what a payer on this tier pays) minus (what
+   * they cost), over the trailing window. `null` when nobody on the tier pays.
+   *
+   * **Not `medianMicroUsd` minus anything.** That number includes holders who
+   * pay nothing, so subtracting a price from it would be comparing a cost
+   * across all holders with a price only some of them send.
+   */
+  medianMarginMicroUsd: number | null;
 }
 
 /** The middle value, or the lower of the two middles. `null` when empty. */
@@ -141,7 +164,7 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
   // wants a hold count against each published version, and the plan total is
   // the sum of those — deriving it the other way round would need a second
   // query to say the same thing.
-  const [counts, costs] = await Promise.all([
+  const [counts, costs, revenue] = await Promise.all([
     db
       .select({
         planId: users.planId,
@@ -151,6 +174,7 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
       .from(users)
       .groupBy(users.planId, users.planVersion),
     costByPlan(now),
+    revenueByPlan(TRAILING_WINDOW_DAYS, now),
   ]);
 
   const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
@@ -174,6 +198,9 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
         ]),
       ),
       medianMicroUsd: median(costs.get(planId) ?? []),
+      mrrMicroUsd: revenue.find((row) => row.planId === planId)?.mrrMicroUsd ?? 0,
+      medianMarginMicroUsd:
+        revenue.find((row) => row.planId === planId)?.medianMarginMicroUsd ?? null,
     };
   });
 }
@@ -230,15 +257,14 @@ export interface GrantSourceRow {
 }
 
 /**
- * **Underwater by construction** — the comped half of the design's *"Costs more
- * than it pays"* panel, and the only half M20 can answer.
+ * **What each grant source costs**, which is the comped half of the design's
+ * *"Costs more than it pays"* panel.
  *
- * The other half, *"paying, and underwater"*, compares trailing cost against
- * what an account pays. Nothing pays yet, so it is M21 link 7's along with the
- * four-number strip. These accounts are underwater **by construction**: they
- * were comped on purpose, which is why the design counts them and sets them
- * aside rather than listing them — mixed into the table they would bury the
- * rows that actually need a decision.
+ * The other half — *"paying, and underwater"* — is `underwaterReport` in
+ * `server/billing/revenue.ts`, and the two are deliberately not merged: these
+ * accounts are underwater **by construction**, because they were comped on
+ * purpose, and mixing them into the table would bury the rows that actually
+ * need a decision.
  *
  * **Active grants only**, so an expired trial is not counted as one somebody
  * holds. The row it reads is still there — nothing sweeps that table — because
@@ -315,6 +341,20 @@ export interface AdminAccountRow {
   microUsd: number;
   /** Rows whose model has no published rate, so `microUsd` understates. */
   unpriced: number;
+  /**
+   * **What this account pays a month**, in micro-dollars, or 0 (M21 link 7).
+   *
+   * **Three values, not two.** `0` is an account with no conferring
+   * subscription — a measurement. `null` is one that HAS a conferring
+   * subscription pinned to a version this deploy cannot price — a reporting
+   * gap. The first version collapsed the second into the first with a `?? 0`,
+   * which made an unpriceable subscription read as "pays nothing" and
+   * suppressed the underwater chip on the one row that most needed it.
+   * CodeRabbit, PR #177.
+   */
+  paysMicroUsd: number | null;
+  /** Stripe's own word, or `null` for an account that has never subscribed. */
+  subscriptionState: string | null;
 }
 
 /**
@@ -346,6 +386,15 @@ export async function adminAccounts(
     rows.map(async (row) => {
       const resolved = await entitlementsFor(row.id, now);
       const cost = costByUser.get(row.id);
+      // **Read off the resolver's own answer**, not re-queried. It already
+      // fetched this account's subscription standing to decide what the account
+      // may do, so asking again would be a second read that can disagree with
+      // the gate — which is the one thing an operator console must never do.
+      const subscription = resolved.subscription;
+      const pays =
+        subscription !== null && subscription.conferring
+          ? monthlyMicroUsd(subscription.row)
+          : 0;
       return {
         userId: row.id,
         email: row.email,
@@ -362,6 +411,8 @@ export async function adminAccounts(
         requests: counts.get(row.id) ?? 0,
         microUsd: cost?.microUsd ?? 0,
         unpriced: cost?.unpriced ?? 0,
+        paysMicroUsd: pays,
+        subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
       };
     }),
   );
@@ -384,14 +435,20 @@ export interface AdminOverview {
   accounts: AdminAccountRow[];
   topSpenders: AccountCost[];
   windowDays: number;
+  /** M21 link 7's four numbers. */
+  revenue: RevenueSummary;
+  /** M21 link 7's segmented *"costs more than it pays"*. */
+  underwater: UnderwaterReport;
 }
 
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
-  const [plans, grantSources, accounts, spenders] = await Promise.all([
+  const [plans, grantSources, accounts, spenders, revenue, underwater] = await Promise.all([
     planPanel(now),
     grantSourcePanel(now),
     adminAccounts(100, now),
     adminTopSpenders(10, now),
+    revenueSummary(TRAILING_WINDOW_DAYS, now),
+    underwaterReport(TRAILING_WINDOW_DAYS, now),
   ]);
   return {
     plans,
@@ -399,5 +456,7 @@ export async function adminOverview(now: Date = new Date()): Promise<AdminOvervi
     accounts,
     topSpenders: spenders,
     windowDays: TRAILING_WINDOW_DAYS,
+    revenue,
+    underwater,
   };
 }
