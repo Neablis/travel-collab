@@ -30,6 +30,12 @@ function makeFakeCounters(): { counters: QuotaCounters; hitsFor: (bucket: string
         row.hits += by;
         return row.hits;
       },
+      async release(bucket, windowStart, amount) {
+        const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
+        const row = rows.get(bucket);
+        if (row === undefined || row.windowStart !== windowStart.getTime()) return;
+        row.hits = Math.max(0, row.hits - by);
+      },
     },
     hitsFor: (bucket) => rows.get(bucket)?.hits ?? 0,
   };
@@ -53,6 +59,12 @@ function fakeCounters(): QuotaCounters & { rows: Map<string, { windowStart: numb
           : { windowStart: existing.windowStart, hits: existing.hits + by };
       rows.set(bucket, next);
       return next.hits;
+    },
+    async release(bucket, windowStart, amount) {
+      const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
+      const row = rows.get(bucket);
+      if (row === undefined || row.windowStart !== windowStart.getTime()) return;
+      row.hits = Math.max(0, row.hits - by);
     },
   };
 }
@@ -84,7 +96,10 @@ describe("consumeQuota", () => {
   // were an allow, the next request would be the one that overflows.
   it("refuses at the highest ceiling envCeiling accepts, rather than needing an unstorable +1", async () => {
     const MAX_ACCEPTED = 2_147_483_646;
-    const atCeiling: QuotaCounters = { async bump() { return MAX_ACCEPTED + 1; } };
+    const atCeiling: QuotaCounters = {
+      async bump() { return MAX_ACCEPTED + 1; },
+      async release() {},
+    };
     const decision = await consumeQuota(
       [{ name: "test", windowMs: 60_000, perUser: MAX_ACCEPTED, global: MAX_ACCEPTED }],
       "alice",
@@ -152,7 +167,10 @@ describe("consumeQuota", () => {
   // Fail-closed, matching aiLiveFlag's defaultValue:false and
   // isDemoDataResetEnabled() — see the note on consumeQuota.
   it("refuses when the counter store fails, rather than waving the request through", async () => {
-    const broken: QuotaCounters = { bump: vi.fn(async () => { throw new Error("db down"); }) };
+    const broken: QuotaCounters = {
+      bump: vi.fn(async () => { throw new Error("db down"); }),
+      release: vi.fn(async () => {}),
+    };
     const decision = await consumeQuota([POLICY], "alice", broken, T0);
     expect(decision).toMatchObject({ allowed: false, reason: "unavailable" });
   });
@@ -165,6 +183,7 @@ describe("consumeQuota", () => {
         if (calls === 1) return 1;
         throw new Error("db down");
       },
+      release: async () => {},
     };
     expect(await consumeQuota([POLICY], "alice", flaky, T0)).toMatchObject({
       allowed: false,
@@ -300,6 +319,7 @@ describe("cost metering (KI-67)", () => {
         async bump() {
           throw new Error("counter store down");
         },
+        async release() {},
       };
       await expect(settleAiSteps(aiStepQuotas(), "alice", 32, broken, T0)).resolves.toBeUndefined();
     });
@@ -387,4 +407,41 @@ it("refuses the request that would take the global step ceiling past its limit, 
   expect(decisions.filter((d) => d.allowed).length).toBe(admissions - 1);
   const refused = decisions.find((d) => !d.allowed);
   expect(refused).toEqual(expect.objectContaining({ allowed: false, reason: "global" }));
+});
+
+describe("release", () => {
+  it("release subtracts within the reserved window", async () => {
+    const { counters, hitsFor } = makeFakeCounters();
+    const w = new Date("2026-09-15T12:00:00.000Z");
+    await counters.bump("b", w, 32);
+    await counters.release("b", w, 30);
+    expect(hitsFor("b")).toBe(2);
+  });
+
+  it("release does nothing once the window has rolled", async () => {
+    const { counters, hitsFor } = makeFakeCounters();
+    const w1 = new Date("2026-09-15T12:00:00.000Z");
+    const w2 = new Date("2026-09-15T13:00:00.000Z");
+    await counters.bump("b", w1, 32);
+    await counters.bump("b", w2, 5); // window rolls; count restarts at 5
+    await counters.release("b", w1, 30); // refund against the OLD window
+    expect(hitsFor("b")).toBe(5);
+  });
+
+  it("release never drives a counter below zero", async () => {
+    const { counters, hitsFor } = makeFakeCounters();
+    const w = new Date("2026-09-15T12:00:00.000Z");
+    await counters.bump("b", w, 3);
+    await counters.release("b", w, 999);
+    expect(hitsFor("b")).toBe(0);
+  });
+
+  it("release ignores a negative or fractional amount", async () => {
+    const { counters, hitsFor } = makeFakeCounters();
+    const w = new Date("2026-09-15T12:00:00.000Z");
+    await counters.bump("b", w, 10);
+    await counters.release("b", w, -5);
+    await counters.release("b", w, 1.7);
+    expect(hitsFor("b")).toBe(9); // -5 ignored, 1.7 truncated to 1
+  });
 });

@@ -63,6 +63,20 @@ export interface QuotaCounters {
    * meter calls, and cost is not proportional to calls.
    */
   bump(bucket: string, windowStart: Date, amount?: number): Promise<number>;
+
+  /**
+   * Give back `amount` of a reservation on `bucket`, **only if the row is still
+   * in `windowStart`'s window**. A rolled window is left alone: the count there
+   * belongs to a window this reservation never charged, and subtracting from it
+   * would refund someone else's usage.
+   *
+   * Separate from `bump` rather than a negative `amount`, deliberately.
+   * `bump` clamps to a positive integer so that no caller can decrement a
+   * counter; relaxing that clamp would let an actor drain their own usage,
+   * which is a worse hole than KI-94's. This method can only ever subtract,
+   * never below zero, and is reachable only through a `StepReservation`.
+   */
+  release(bucket: string, windowStart: Date, amount: number): Promise<void>;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -508,6 +522,21 @@ export function pgCounters(database: Db = db): QuotaCounters {
       // as zero.
       if (row === undefined) throw new Error("quota upsert returned no row");
       return row.hits;
+    },
+    async release(bucket, windowStart, amount) {
+      const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
+      if (by === 0) return;
+      await database
+        .update(rateLimitCounters)
+        .set({ hits: sql`greatest(${rateLimitCounters.hits} - ${by}, 0)` })
+        .where(
+          and(
+            eq(rateLimitCounters.bucket, bucket),
+            // The window guard. `=` not `>=`: a refund is valid only against
+            // the exact window it reserved in.
+            eq(rateLimitCounters.windowStart, windowStart),
+          ),
+        );
     },
   };
 }
