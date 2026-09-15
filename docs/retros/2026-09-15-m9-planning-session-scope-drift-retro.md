@@ -304,3 +304,72 @@ rather than read from the ledger. That is the 2026-08-16 retro's §4 finding
 recurring: durable findings have to be promoted out of session scratch at the
 moment they are made. **These four were worth a retro and nearly died with a
 temp directory.**
+
+---
+
+## Postscript, added after this retro's own PR opened
+
+PR #179 carries this file and nothing else. Its body asserted, under "Waiting
+on checks":
+
+> **Nothing to watch.** Tier 1: `ci.yml`'s `paths-ignore` skips this branch and
+> `.coderabbit.yaml` filters it out, so no run exists for this HEAD and none is
+> expected.
+
+**Half of that is false, and the repo already said so.** What actually ran on
+`65d11f7`: **CodeQL, plus all three `Analyze` jobs**, ~1m12s, `event: dynamic`.
+`ci.yml` was correctly skipped — `gh run list --commit` shows one run and it is
+not `ci`. But CodeQL is **GitHub's default setup, configured in repository
+settings and absent from `.github/workflows/`**, so `ci.yml`'s `paths-ignore`
+has no authority over it.
+
+This is on file in two places, both unread before that claim was written:
+
+- `docs/known-issues/resolved/KI-20260902-ghas-code-scanning-fails-on-an-unavailable-model.md:67`
+  — *"the PR body originally claimed 'nothing will run' on a Tier 1 PR and that
+  claim is false: CodeQL and GHAS both run regardless of paths."* **The same
+  sentence, about the same mistake, written down two weeks earlier.**
+- `docs/guidelines/ci-cost-and-capacity.md:54` — "CodeQL: real spend that no
+  measurement here has ever counted," including why it is invisible to the
+  obvious recipe (its runs are named `PR #N`, so filtering `.name=="CodeQL"`
+  returns zero).
+
+The second wrong claim in the same paragraph: CodeRabbit's actual status is
+*"Review skipped: manual review required for this OSS repository"* — the
+auto-review setting, which `AGENTS.md` already documents, not the `docs/**`
+path filter the PR body named.
+
+**Why this belongs in this retro rather than only in the PR.** It is the same
+defect this document spends §4 describing, committed by the session writing
+§4. Both claims were **recalled from the shape of the rules** — CLAUDE.md rule
+4 says a prose-only branch "runs **nothing**"; the PR template says "run
+NOTHING" — rather than checked against the repo, where a resolved KI has said
+for two weeks that the rule as worded is not true. One `grep -rn -i codeql
+docs/` would have caught it. That is CLAUDE.md rule 2's instruction ("before
+calling a failure environmental, grep the known issues") generalised past
+failures: **before asserting what CI will do, grep for what it has done.**
+
+It also sharpens §4's claim in a way worth keeping. §4 argued a plan is
+under-verified in the context that designed it. This is narrower and worse: a
+*rule quoted from memory* is under-verified even when the rule is three lines
+long and sits in the file every session reads first. The rule was not
+misremembered — CLAUDE.md really does say "nothing" — it was **trusted past the
+point where the repo had already recorded an exception.** Which is precisely
+the failure CLAUDE.md rule 4 documents about *itself*: "Measured on #103, then
+again on #141 — where this line was trusted as it used to be written, and was
+wrong."
+
+**One doc inconsistency this leaves open, and it is Mitchell's call.**
+`CLAUDE.md:45` and `.github/PULL_REQUEST_TEMPLATE.md:31` both still say a
+prose-only branch runs **nothing**. The resolved KI says that is false. Neither
+file was edited here. Proposed minimal correction to `CLAUDE.md:45`, replacing
+"runs **nothing**":
+
+> runs **none of `ci.yml`** — CodeQL and GHAS are GitHub-managed, are not in
+> `.github/workflows/`, and run regardless of paths
+> (`docs/guidelines/ci-cost-and-capacity.md`). They terminate, so a Tier 1 PR
+> *does* have a finishing check state; what it does not have is a `ci` run.
+
+That wording matters for more than pedantry: "runs nothing" plus "do not watch
+what cannot run" together tell a session to skip looking, and the thing it
+skips looking at is the only check that actually reports on a Tier 1 PR.
