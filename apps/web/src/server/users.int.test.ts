@@ -101,6 +101,14 @@ describe("users repository", () => {
       planId: "free",
       planVersion: 1,
       isAdmin: false,
+      // **M21's column, and `null` is the decision rather than the default.**
+      // An account becomes a Stripe customer at its FIRST CHECKOUT, not at
+      // sign-in: creating one for everybody who signs in would invent a paying
+      // relationship with every visitor and leave the dashboard full of
+      // customers who have never been offered anything. `toEqual` above is
+      // what makes that a decision somebody made rather than a column that
+      // appeared.
+      stripeCustomerId: null,
       createdAt: "2026-08-27 10:00:00+00",
       updatedAt: "2026-08-27 10:00:00+00",
     });

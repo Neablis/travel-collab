@@ -115,8 +115,11 @@ describe("the console answers from real data", () => {
     expect(premium.versions.map((v) => v.version)).toEqual([1]);
     // Read-only over plans: the panel carries no field anything could write.
     // `holdsByVersion` and `medianMicroUsd` joined it when the tier panel moved
-    // to the design's shape — both are derived reads, and pinning the key list
-    // is what makes a writable field added here impossible to miss.
+    // to the design's shape; `mrrMicroUsd` and `medianMarginMicroUsd` joined it
+    // with M21 link 7, which is the half of this panel that needed a
+    // subscription to exist. **All four are derived reads**, and pinning the
+    // key list is what makes a writable field added here impossible to miss —
+    // which is the whole point of the list rather than a `toMatchObject`.
     expect(Object.keys(premium)).toEqual([
       "planId",
       "versions",
@@ -124,6 +127,8 @@ describe("the console answers from real data", () => {
       "accounts",
       "holdsByVersion",
       "medianMicroUsd",
+      "mrrMicroUsd",
+      "medianMarginMicroUsd",
     ]);
     // Every holder is on some published version, so the per-version counts sum
     // to the plan total — the design shows both and they must agree.
