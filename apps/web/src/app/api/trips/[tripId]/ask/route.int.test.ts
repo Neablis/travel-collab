@@ -1364,11 +1364,17 @@ describe("POST /api/trips/:id/ask", () => {
       const hitsByBucket = new Map(
         (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
       );
-      // `settleAiSteps` floors a charge at 1 — it cannot distinguish "truly
-      // zero" from "unknown" — so the refund leaves 1, never the full
-      // reservation, on both the user AND global buckets.
-      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(1);
-      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:global`)).toBe(1);
+      // **Zero, not one.** This asserted 1 until CodeRabbit's review of PR #178
+      // pointed out that the floor WAS the defect: `settleAiSteps` could not
+      // distinguish "truly zero" from "unknown", so a page-scoped request whose
+      // thread failed validation — no classifier, no agent loop, no provider
+      // call of any kind — still cost an allowance. `safeValidateUIMessages`
+      // failing is caller-controlled and repeatable, so that charge was
+      // reachable in a loop. A real zero now settles as zero on both the user
+      // AND global buckets; a non-finite or negative count still keeps the full
+      // conservative reservation, which is what keeps the two cases apart.
+      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(0);
+      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:global`)).toBe(0);
     });
 
     it("400s a missing or unknown scope", async () => {

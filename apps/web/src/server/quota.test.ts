@@ -282,15 +282,25 @@ describe("cost metering (KI-67)", () => {
       expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(1);
     });
 
-    it.each([0, -5])(
-      "clamps a finite but nonsensical step count (%o) to a minimum charge of one",
-      async (steps) => {
-        const counters = fakeCounters();
-        const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
-        await settleAiSteps(reservation!, steps, counters);
-        expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(1);
-      },
-    );
+    // **This used to assert a minimum charge of one for BOTH values, and that
+    // floor was a defect** (CodeRabbit, PR #178). It made sense when admission
+    // charged a single step up front, so one round-trip had always happened by
+    // settlement time. Admission now reserves the whole budget and settlement
+    // refunds down from it, which makes a real zero meaningful — and charging
+    // for it billed callers for requests that reached no provider.
+    it("settles a genuine zero as zero", async () => {
+      const counters = fakeCounters();
+      const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+      await settleAiSteps(reservation!, 0, counters);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(0);
+    });
+
+    it("keeps the full reservation for a negative step count — garbage is not a measurement of zero", async () => {
+      const counters = fakeCounters();
+      const { reservation } = await reserveAiSteps(aiStepQuotas(), "alice", counters, T0);
+      await settleAiSteps(reservation!, -5, counters);
+      expect(counters.rows.get("ai-steps-hourly:user:alice")?.hits).toBe(AI_MAX_STEPS_PER_REQUEST);
+    });
 
     it.each([Number.NaN, Number.POSITIVE_INFINITY])(
       "keeps the full reservation for a non-finite step count (%o) — unknown usage is the conservative charge",
@@ -541,5 +551,55 @@ describe("release", () => {
     await counters.release("b", w, -5);
     await counters.release("b", w, 1.7);
     expect(counters.rows.get("b")?.hits).toBe(9); // -5 ignored, 1.7 truncated to 1
+  });
+});
+
+// Three findings from CodeRabbit's review of PR #178, each pinned here.
+describe("what a reservation settles and refuses (PR #178)", () => {
+  it("settles a trusted zero as zero, so a request that reached no provider costs nothing", async () => {
+    const policies = aiStepQuotas();
+    const daily = dailyPolicy(policies);
+    const counters = fakeCounters();
+    const now = new Date("2026-09-15T12:00:00.000Z");
+
+    const { decision, reservation } = await reserveAiSteps(policies, "alice", counters, now, 9);
+    expect(decision.allowed).toBe(true);
+    expect(counters.rows.get(`${daily.name}:global`)?.hits).toBe(9);
+
+    // A page-scoped turn whose thread failed validation: no classifier, no
+    // agent loop, zero round-trips. The old floor of 1 charged an allowance
+    // for it, and the path is caller-controlled and repeatable.
+    await settleAiSteps(reservation!, 0, counters);
+    expect(counters.rows.get(`${daily.name}:global`)?.hits).toBe(0);
+    expect(counters.rows.get(`${daily.name}:user:alice`)?.hits).toBe(0);
+  });
+
+  it("still settles the whole reservation when the step count is not a number", async () => {
+    const policies = aiStepQuotas();
+    const daily = dailyPolicy(policies);
+    const counters = fakeCounters();
+    const now = new Date("2026-09-15T12:00:00.000Z");
+
+    const { reservation } = await reserveAiSteps(policies, "bob", counters, now, 9);
+    // Unknown usage keeps the conservative charge — the opposite of a trusted
+    // zero, and the reason the two cases are distinguished rather than merged.
+    await settleAiSteps(reservation!, Number.NaN, counters);
+    expect(counters.rows.get(`${daily.name}:global`)?.hits).toBe(9);
+  });
+
+  it("asks for a retry in a minute when the counter store fails, not at the end of the window", async () => {
+    const broken: QuotaCounters = {
+      async bump() {
+        throw new Error("counter store down");
+      },
+      async release() {},
+    };
+    const { decision, reservation } = await reserveAiSteps(aiStepQuotas(), "carol", broken, new Date("2026-09-15T12:00:00.000Z"));
+    expect(decision.allowed).toBe(false);
+    expect(reservation).toBeNull();
+    // A broken store is a transient fault, not a ceiling. The window remainder
+    // would tell a client to wait out the rest of a day for a blip, and
+    // `quotaRefusal` puts this straight into `Retry-After` on a 503.
+    expect(decision).toEqual(expect.objectContaining({ reason: "unavailable", retryAfterSeconds: 60 }));
   });
 });

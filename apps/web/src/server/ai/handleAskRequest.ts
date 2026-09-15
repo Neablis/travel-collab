@@ -137,6 +137,14 @@ export {
 // import rather than a second copy of `8`.
 export const MAX_ASK_STEPS = 8;
 
+/**
+ * The round-trips a turn can spend OUTSIDE the agent loop: the intent
+ * classifier, which runs once inside `evaluateAiGrant` before the loop starts.
+ * Named rather than a literal `1` so the reservation arithmetic says why it is
+ * not simply `MAX_ASK_STEPS`.
+ */
+export const CLASSIFIER_ROUND_TRIPS = 1;
+
 // The constants, the schemas and the caps that used to sit here are now in
 // `assistant/admission.ts` beside the stage that enforces each of them — `AskRequest` and
 // the byte cap with `capRawBody`/`parseRequest`, the two refusal codes with the
@@ -163,7 +171,21 @@ export async function handleAskRequest(
   // asserts (assistant/admission.ts). What comes back is either the refusal's own Response,
   // unchanged in status, code and wording, or everything this turn is allowed
   // to hold.
-  const admission = await evaluateAiGrant({ request, tripId, model, ports: admissionPorts, stepBudget: MAX_ASK_STEPS });
+  const admission = await evaluateAiGrant({
+    request,
+    tripId,
+    model,
+    ports: admissionPorts,
+    // **`+ CLASSIFIER_ROUND_TRIPS`, because the classifier is a provider call
+    // too.** `MAX_ASK_STEPS` bounds the AGENT loop; `classifyTask` runs one
+    // more round-trip before it, inside `evaluateAiGrant`. Reserving only the
+    // loop's bound meant a classified turn could make 9 calls against an
+    // 8-step reservation, and `settleAiSteps` clamps what it settles to what
+    // was reserved — so the ninth was silently dropped from quota accounting
+    // on every classified turn. `billableRoundTrips` counts it, so the
+    // reservation has to as well. (CodeRabbit, PR #178.)
+    stepBudget: MAX_ASK_STEPS + CLASSIFIER_ROUND_TRIPS,
+  });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;

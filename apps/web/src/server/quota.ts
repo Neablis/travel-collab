@@ -424,7 +424,13 @@ export async function reserveAiSteps(
       // Fail closed, exactly as `consumeQuota` does: a broken counter store must
       // not become an open door.
       await rollback();
-      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds }, reservation: null };
+      // 60, not the window remainder — `consumeQuota` answers the same
+      // condition the same way, and for the same reason: a counter store that
+      // failed is a transient fault, not a ceiling that has been reached.
+      // `quotaRefusal` puts this straight into `Retry-After` on a 503, so the
+      // remainder would tell a client to wait out the rest of an hour or a day
+      // for a blip. (CodeRabbit, PR #178.)
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds: 60 }, reservation: null };
     }
 
     // Checked BEFORE the global bucket is touched — see this function's own
@@ -442,7 +448,13 @@ export async function reserveAiSteps(
       bumped.push({ bucket: globalBucket, windowStart });
     } catch {
       await rollback();
-      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds }, reservation: null };
+      // 60, not the window remainder — `consumeQuota` answers the same
+      // condition the same way, and for the same reason: a counter store that
+      // failed is a transient fault, not a ceiling that has been reached.
+      // `quotaRefusal` puts this straight into `Retry-After` on a 503, so the
+      // remainder would tell a client to wait out the rest of an hour or a day
+      // for a blip. (CodeRabbit, PR #178.)
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds: 60 }, reservation: null };
     }
 
     if (globalCount > policy.global) {
@@ -483,9 +495,25 @@ export async function settleAiSteps(
   steps: number,
   counters: QuotaCounters = pgCounters(),
 ): Promise<void> {
-  const used = Number.isFinite(steps)
-    ? Math.min(Math.max(Math.trunc(steps), 1), reservation.reserved)
-    : reservation.reserved;
+  // **A real zero settles as zero.** The floor used to be 1, from when
+  // admission charged a single step up front and one round-trip had therefore
+  // always happened by the time anything settled. Admission now reserves the
+  // whole budget and this function refunds down from it, so a genuine zero —
+  // a page-scoped turn whose thread failed validation, which calls no
+  // classifier and runs no agent — is a fact, and flooring it to 1 charged an
+  // allowance for a request that never reached a provider. Repeatable by a
+  // caller, since `safeValidateUIMessages` failing is caller-controlled.
+  // (CodeRabbit, PR #178.)
+  //
+  // A non-finite `steps` — and a NEGATIVE one — still settles at the FULL
+  // reservation. Unknown usage keeps the conservative charge, because the
+  // alternative is refunding a turn whose cost nobody measured, and a negative
+  // count is garbage rather than a measurement of zero. Only a real, non-
+  // negative number is trusted, which is what keeps "a genuine zero" and
+  // "nobody knows" distinguishable.
+  const counted = Math.trunc(steps);
+  const used =
+    Number.isFinite(steps) && counted >= 0 ? Math.min(counted, reservation.reserved) : reservation.reserved;
   const unused = reservation.reserved - used;
   if (unused <= 0) return;
 
