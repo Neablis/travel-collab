@@ -378,8 +378,11 @@ export interface AdmissionPorts {
    * tier-suffixed bucket would zero an account's usage on upgrade and let
    * anyone farm free calls by toggling. Only the numbers move; `quota.ts`
    * enforces it and a property test pins it.
+   *
+   * `budget` is `AdmissionInput.stepBudget`, passed straight through to
+   * `reserveAiSteps` — see that field's own comment.
    */
-  admitQuota(userId: string, ceilings: EntitlementCeilings): Promise<QuotaVerdict>;
+  admitQuota(userId: string, ceilings: EntitlementCeilings, budget: number | undefined): Promise<QuotaVerdict>;
   /**
    * Is this model id the simulated one? `simulatedModel.ts` owns that identity
    * and is the far side of the wall, so the kernel asks rather than compares
@@ -472,14 +475,16 @@ export interface StepReservationHandle {
  * neither belongs in two places.
  *
  * **`reservation` is what `reserveAiSteps` charged the step ceilings, carried
- * through to `settleAiSteps` at the end of the turn (KI-94).** Optional and
- * nullable rather than required: a port stub that returns the bare
- * `{ allowed: true }` a test wrote before this field existed is still a valid
- * verdict — the pipeline treats a missing reservation as `null`, the same as
- * one explicitly not returned.
+ * through to `settleAiSteps` at the end of the turn (KI-94), and it is
+ * REQUIRED.** It used to be optional, purely to avoid editing one line in a
+ * test stub — but a port that forgets the field still type-checked, silently
+ * returned `undefined` (read downstream as `null`), and every turn was then
+ * permanently charged with no refund and no error (final review finding,
+ * P1). Required forces every implementation, including a test's, to say
+ * explicitly whether it has a reservation to hand back.
  */
 export type QuotaVerdict =
-  | { allowed: true; reservation?: StepReservationHandle | null }
+  | { allowed: true; reservation: StepReservationHandle | null }
   | { allowed: false; reason: string; response: Response };
 
 export interface AdmissionInput {
@@ -491,6 +496,15 @@ export interface AdmissionInput {
    * `selectModel`.
    */
   model?: LanguageModel;
+  /**
+   * The caller's real per-request step budget, handed to `admitQuota` so
+   * `reserveAiSteps` (quota.ts) can reserve that instead of the defensive
+   * `AI_MAX_STEPS_PER_REQUEST` bound (final review finding, P4 ruling).
+   * `undefined` when the caller does not know its own budget — `quota.ts`
+   * supplies the defensive default in that case, so the kernel never needs to
+   * know what that default even is, only that it exists.
+   */
+  stepBudget?: number;
   ports: AdmissionPorts;
 }
 
@@ -830,9 +844,9 @@ const admitQuota: AdmissionStage = {
   run: async (draft) => {
     const { userId } = required(draft.actor, "identifyActor");
     const { entitlements } = required(draft.selected, "selectModel");
-    const quota = await draft.input.ports.admitQuota(userId, entitlements.ceilings);
+    const quota = await draft.input.ports.admitQuota(userId, entitlements.ceilings, draft.input.stepBudget);
     if (!quota.allowed) return refuse("admitQuota", `over the ${quota.reason} limit`, quota.response);
-    draft.stepReservation = quota.reservation ?? null;
+    draft.stepReservation = quota.reservation;
     return null;
   },
 };

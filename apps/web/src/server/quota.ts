@@ -362,6 +362,28 @@ export interface StepReservation {
  * pass the global ceiling before any of them settled. Reserving the maximum
  * makes in-flight exposure exactly the reservation.
  *
+ * **`budget` defaults to the defensive bound, not to a real one.**
+ * `AI_MAX_STEPS_PER_REQUEST` exists to cap a caller this module knows nothing
+ * about; a caller that DOES know its own per-request ceiling (`/ask`'s
+ * `MAX_ASK_STEPS`) passes it explicitly, so in-flight exposure is the real
+ * budget rather than 4x it. This keeps the AI loop's actual step count out of
+ * `quota.ts` entirely — the caller supplies the number, this module never
+ * imports it.
+ *
+ * **Checked in the same order `consumeQuota` argues for (its own comment
+ * above), and rolled back on any refusal.** The user ceiling is checked
+ * BEFORE the global bucket is ever touched — bumping global first would
+ * charge everyone else's shared headroom for a request that was never going
+ * to be served, and at `budget` units instead of `consumeQuota`'s 1 that is a
+ * `budget`x amplification of the exact DoS the check-user-first order exists
+ * to prevent. And unlike `consumeQuota` (a 1-unit charge with no refund
+ * primitive, where leaving a refused charge in place was the accepted
+ * trade-off), every bucket THIS call has bumped is released the moment any
+ * check refuses — including an earlier policy in the array that already
+ * admitted (`aiStepQuotas()` is [hourly, daily]; a daily refusal must not
+ * strand hourly's charge, because a refused call returns `reservation: null`
+ * and there is no `StepReservation` left to settle it against).
+ *
  * Returns `reservation: null` whenever the decision refuses, so a caller cannot
  * settle against a turn that never ran.
  */
@@ -370,43 +392,68 @@ export async function reserveAiSteps(
   userId: string,
   counters: QuotaCounters = pgCounters(),
   now: Date = new Date(),
+  budget: number = AI_MAX_STEPS_PER_REQUEST,
 ): Promise<{ decision: QuotaDecision; reservation: StepReservation | null }> {
   const windowStarts = new Map<string, Date>();
+  // Every bucket this attempt has actually bumped, in bump order — released in
+  // full on any refusal. A best-effort rollback: losing one over-counts, which
+  // errs toward refusing the NEXT request rather than admitting one that
+  // should not be (the same posture `settleAiSteps` takes on a failed release).
+  const bumped: { bucket: string; windowStart: Date }[] = [];
+  const rollback = async () => {
+    for (const { bucket, windowStart } of bumped) {
+      try {
+        await counters.release(bucket, windowStart, budget);
+      } catch {
+        // Best-effort; see the comment above.
+      }
+    }
+  };
+
   for (const policy of policies) {
     const windowStart = windowStartFor(policy, now);
     const retryAfterSeconds = secondsUntilWindowEnd(policy, windowStart, now);
     windowStarts.set(policy.name, windowStart);
 
+    const userBucket = `${policy.name}:user:${userId}`;
     let userCount: number;
-    let globalCount: number;
     try {
-      userCount = await counters.bump(
-        `${policy.name}:user:${userId}`,
-        windowStart,
-        AI_MAX_STEPS_PER_REQUEST,
-      );
-      globalCount = await counters.bump(
-        `${policy.name}:global`,
-        windowStart,
-        AI_MAX_STEPS_PER_REQUEST,
-      );
+      userCount = await counters.bump(userBucket, windowStart, budget);
+      bumped.push({ bucket: userBucket, windowStart });
     } catch {
       // Fail closed, exactly as `consumeQuota` does: a broken counter store must
       // not become an open door.
+      await rollback();
       return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds }, reservation: null };
     }
 
+    // Checked BEFORE the global bucket is touched — see this function's own
+    // comment for why the order matters more here than it does in
+    // `consumeQuota`.
     if (userCount > policy.perUser) {
+      await rollback();
       return { decision: { allowed: false, reason: "user", retryAfterSeconds }, reservation: null };
     }
+
+    const globalBucket = `${policy.name}:global`;
+    let globalCount: number;
+    try {
+      globalCount = await counters.bump(globalBucket, windowStart, budget);
+      bumped.push({ bucket: globalBucket, windowStart });
+    } catch {
+      await rollback();
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds }, reservation: null };
+    }
+
     if (globalCount > policy.global) {
+      await rollback();
       return { decision: { allowed: false, reason: "global", retryAfterSeconds }, reservation: null };
     }
   }
 
   return {
     decision: { allowed: true },
-    reservation: { policies, userId, reserved: AI_MAX_STEPS_PER_REQUEST, windowStarts },
+    reservation: { policies, userId, reserved: budget, windowStarts },
   };
 }
 

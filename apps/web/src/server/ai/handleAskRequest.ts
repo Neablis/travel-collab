@@ -126,7 +126,16 @@ export {
 // budget is what bounds what ONE request can spend on the operator's key, which
 // is why `settleAiSteps` meters against it rather than against request count
 // (KI-67).
-const MAX_ASK_STEPS = 8;
+//
+// **Also the RESERVATION size, since the final review of KI-94's fix
+// (2026-09-15).** `reserveAiSteps` (quota.ts) defaults to
+// `AI_MAX_STEPS_PER_REQUEST` — a defensive bound on a caller it knows nothing
+// about, deliberately above any real budget — so admission used to reserve 32
+// against a turn that can never spend more than 8. Passed through as
+// `stepBudget` below so in-flight exposure is the real number, not 4x it.
+// Exported so a test asserting on the reservation size has one number to
+// import rather than a second copy of `8`.
+export const MAX_ASK_STEPS = 8;
 
 // The constants, the schemas and the caps that used to sit here are now in
 // `assistant/admission.ts` beside the stage that enforces each of them — `AskRequest` and
@@ -154,7 +163,7 @@ export async function handleAskRequest(
   // asserts (assistant/admission.ts). What comes back is either the refusal's own Response,
   // unchanged in status, code and wording, or everything this turn is allowed
   // to hold.
-  const admission = await evaluateAiGrant({ request, tripId, model, ports: admissionPorts });
+  const admission = await evaluateAiGrant({ request, tripId, model, ports: admissionPorts, stepBudget: MAX_ASK_STEPS });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;
@@ -430,7 +439,22 @@ export async function handleAskRequest(
     // messages". Our tool set is context-typed, UI messages are not.
     tools: tools as unknown as Parameters<typeof safeValidateUIMessages>[0]["tools"],
   });
-  if (!validated.success) return badRequest(`malformed thread: ${validated.error.message}`);
+  if (!validated.success) {
+    // **The one reservation leak in this file (final review, CRITICAL 2).**
+    // Admission already reserved the full step budget before this line ever
+    // runs — this is a validation failure on the caller's BODY, not on
+    // admission — and every OTHER refusal/failure path settles through
+    // `recorder.abandon` → `finish` → the sink that starts `settled` (see its
+    // own comment). This one returns directly, before `settled` is ever
+    // assigned anything but its `Promise.resolve()` default, so without this
+    // the reservation is stranded: `AI_MAX_STEPS_PER_REQUEST` (or the caller's
+    // real budget) charged forever for a request that never reached a
+    // provider, and `safeValidateUIMessages` failing is entirely
+    // caller-controlled — repeatable in a loop. `steps: 0` is the honest
+    // count here, not an approximation: zero round-trips happened.
+    if (grant.stepReservation) await settleAiSteps(grant.stepReservation, 0);
+    return badRequest(`malformed thread: ${validated.error.message}`);
+  }
 
   try {
     // `createAgentUIStreamResponse` would do these three steps for us, and it

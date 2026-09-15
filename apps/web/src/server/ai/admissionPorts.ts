@@ -98,11 +98,17 @@ export const admissionPorts: AdmissionPorts = {
   // account's pinned plan version, global ones stay in the environment, and the
   // bucket names do not move. Today the default resolver names no ceiling, so
   // both calls return exactly the policies they always did.
-  admitQuota: async (userId, ceilings) => {
+  // `budget` is the caller's real per-request step budget (`AdmissionInput.stepBudget`,
+  // `handleAskRequest.ts`'s `MAX_ASK_STEPS`) — passed straight through to
+  // `reserveAiSteps`, which falls back to its own defensive default when this
+  // is `undefined`. Reserving `AI_MAX_STEPS_PER_REQUEST` against a caller
+  // whose real budget is a fraction of it made in-flight exposure larger than
+  // any turn could ever use (final review finding, P4 ruling).
+  admitQuota: async (userId, ceilings, budget) => {
     const requestDecision = await consumeQuota(aiQuotas(ceilings), userId);
     if (!requestDecision.allowed) return { ...requestDecision, response: quotaRefusal(requestDecision) };
 
-    const { decision, reservation } = await reserveAiSteps(aiStepQuotas(ceilings), userId);
+    const { decision, reservation } = await reserveAiSteps(aiStepQuotas(ceilings), userId, undefined, undefined, budget);
     if (!decision.allowed) return { ...decision, response: quotaRefusal(decision) };
 
     return { allowed: true, reservation };

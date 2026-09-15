@@ -432,6 +432,81 @@ it("refunds the unused budget, so a one-step answer costs one step", async () =>
   expect(counters.rows.get(`${daily.name}:user:user-a`)?.hits).toBe(1);
 });
 
+describe("reserveAiSteps — final-review findings", () => {
+  // CRITICAL 1. `consumeQuota` returns before charging the global bucket for
+  // exactly this reason (its own comment): an actor already over their own
+  // ceiling is served nothing, so counting them globally would let one
+  // abuser exhaust everyone else's headroom with requests that never
+  // happened. At a 32-unit reservation instead of a 1-unit charge, bumping
+  // global before checking the user ceiling is a 32x amplification of that
+  // same DoS.
+  it("does not touch the global bucket when the user ceiling alone refuses", async () => {
+    const counters = fakeCounters();
+    const policy: QuotaPolicy = { name: "steptest", windowMs: 60_000, perUser: 10, global: 1000 };
+    // Already over the user ceiling before this call — the reservation's own
+    // bump would push it further over regardless.
+    await counters.bump(`${policy.name}:user:alice`, T0, 11);
+
+    const { decision } = await reserveAiSteps([policy], "alice", counters, T0);
+    expect(decision).toMatchObject({ allowed: false, reason: "user" });
+    expect(counters.rows.get(`${policy.name}:global`)).toBeUndefined();
+  });
+
+  // IMPORTANT 3. `aiStepQuotas()` is [hourly, daily]. If hourly admits and
+  // daily refuses, hourly's charge must not be stranded — unlike
+  // `consumeQuota` (a 1-unit charge with no refund primitive), a refund
+  // primitive now exists, so there is no excuse to leave a 32-unit hole with
+  // no `StepReservation` left to settle it against.
+  it("releases an earlier policy's charge when a later policy in the same reservation refuses", async () => {
+    const counters = fakeCounters();
+    const loose: QuotaPolicy = { name: "loose", windowMs: 60_000, perUser: 1000, global: 1000 };
+    const tight: QuotaPolicy = { name: "tight", windowMs: 60_000, perUser: 1, global: 1000 };
+
+    const { decision, reservation } = await reserveAiSteps([loose, tight], "alice", counters, T0);
+    expect(decision).toMatchObject({ allowed: false, reason: "user" });
+    expect(reservation).toBeNull();
+    expect(counters.rows.get("loose:user:alice")?.hits ?? 0).toBe(0);
+    expect(counters.rows.get("loose:global")?.hits ?? 0).toBe(0);
+  });
+
+  // Same shape, refused on the GLOBAL check of the SAME policy rather than a
+  // later one — the just-bumped user AND global charges for that policy must
+  // also come back, not just a previously committed policy's.
+  it("releases the current policy's own charge when its global ceiling refuses", async () => {
+    const counters = fakeCounters();
+    const policy: QuotaPolicy = { name: "tight-global", windowMs: 60_000, perUser: 1000, global: 10 };
+
+    const { decision, reservation } = await reserveAiSteps([policy], "alice", counters, T0);
+    expect(decision).toMatchObject({ allowed: false, reason: "global" });
+    expect(reservation).toBeNull();
+    expect(counters.rows.get("tight-global:user:alice")?.hits ?? 0).toBe(0);
+    expect(counters.rows.get("tight-global:global")?.hits ?? 0).toBe(0);
+  });
+
+  // IMPORTANT 4 (ruling). `AI_MAX_STEPS_PER_REQUEST` is a DEFENSIVE bound on a
+  // bad caller, not a mirror of any real budget — reserving it against a
+  // caller whose real per-request budget is much smaller (`/ask`'s
+  // `MAX_ASK_STEPS = 8`) makes in-flight exposure 4x larger than any turn can
+  // ever use. A caller that knows its real budget passes it explicitly.
+  it("reserves the caller's own budget when given one, not the defensive default", async () => {
+    const counters = fakeCounters();
+    const policy: QuotaPolicy = { name: "budgettest", windowMs: 60_000, perUser: 1000, global: 1000 };
+
+    const { decision, reservation } = await reserveAiSteps([policy], "alice", counters, T0, 8);
+    expect(decision.allowed).toBe(true);
+    expect(reservation!.reserved).toBe(8);
+    expect(counters.rows.get("budgettest:user:alice")?.hits).toBe(8);
+  });
+
+  it("still defaults to AI_MAX_STEPS_PER_REQUEST for a caller that does not know its own budget", async () => {
+    const counters = fakeCounters();
+    const policy: QuotaPolicy = { name: "budgetdefault", windowMs: 60_000, perUser: 1000, global: 1000 };
+
+    const { reservation } = await reserveAiSteps([policy], "alice", counters, T0);
+    expect(reservation!.reserved).toBe(AI_MAX_STEPS_PER_REQUEST);
+  });
+});
+
 describe("release", () => {
   it("release subtracts within the reserved window", async () => {
     const counters = fakeCounters();
