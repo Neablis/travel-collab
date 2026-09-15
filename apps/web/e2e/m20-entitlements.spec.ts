@@ -151,9 +151,21 @@ test.describe("M20 — an account knows what it may do", () => {
     // **The fourth-plan proof is published and disabled**, so the console shows
     // it and says so.
     await expect(operator.getByTestId("plan-studio")).toContainText("disabled");
-    // **No revenue.** MRR, ARPU and margin are M21's.
-    await expect(operator.locator("body")).not.toContainText("MRR");
-    await expect(operator.locator("body")).not.toContainText("ARPU");
+    // **This asserted "no revenue on this console" until M21 link 7 built it**
+    // — the deployed-layer twin of `admin.console.test.ts`'s sweep, and the two
+    // moved together for the same reason. The split was real while it lasted:
+    // M20 shipped the console without the strip because every number in it
+    // needs a subscription to exist, and both guards are what kept an
+    // implementer working from the finished design from building it early.
+    //
+    // What replaces it here is the half that outlives the split, and it is the
+    // one this lane is uniquely able to check: **the two ARPU figures are
+    // labelled differently on the rendered page.** Link 7 is emphatic that a
+    // single unlabelled ARPU gets quoted as whichever is convenient, and two
+    // identical labels would satisfy every wire-level assertion there is.
+    await expect(operator.getByTestId("revenue-strip")).toBeVisible();
+    await expect(operator.locator("body")).toContainText("ARPU · all accounts");
+    await expect(operator.locator("body")).toContainText("ARPU · paying only");
     await operator.context().close();
   });
 
