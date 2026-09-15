@@ -6,6 +6,33 @@ import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import type { ApiResult } from "@/lib/apiClient";
 
 /**
+ * The capability a plan must confer for the assistant to answer anything.
+ *
+ * **A capability, never a plan id.** ADR-045 rule 4 — no surface compares plan
+ * names, and `planVersions.fourthPlan.test.ts` walks every source file looking
+ * for exactly that comparison. A fourth plan that grants the assistant works
+ * here with no edit, because this asks what the account HOLDS.
+ */
+export const AI_ASK_ENTITLEMENT = "ai.ask";
+
+/** The cache key, spelled here and nowhere else — `queryKeys.ts`'s rule. */
+export const accountPlanKey = "account:plan";
+
+/**
+ * The one read behind this hook, in `apiClient`'s `ApiResult` shape so it can
+ * go through the shared cache. Resolves a failure rather than throwing, which
+ * is the invariant `apiClient.ts` states at the top of the file.
+ */
+async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
+  const res = await fetch("/api/account/plan");
+  if (!res.ok) {
+    return { ok: false, error: { status: res.status, message: "could not read the plan" } };
+  }
+  const body = (await res.json()) as { plan: AccountPlanView };
+  return { ok: true, value: body.plan };
+}
+
+/**
  * **Does this account's plan include the assistant — asked BEFORE the first
  * question rather than learned from a refusal.**
  *
@@ -35,20 +62,6 @@ import type { ApiResult } from "@/lib/apiClient";
  * cache (ADR-046), so opening the assistant after opening the sheet joins a
  * stored result instead of asking again.
  */
-export const AI_ASK_ENTITLEMENT = "ai.ask";
-
-/** The cache key, spelled here and nowhere else — `queryKeys.ts`'s rule. */
-export const accountPlanKey = "account:plan";
-
-async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
-  const res = await fetch("/api/account/plan");
-  if (!res.ok) {
-    return { ok: false, error: { status: res.status, message: "could not read the plan" } };
-  }
-  const body = (await res.json()) as { plan: AccountPlanView };
-  return { ok: true, value: body.plan };
-}
-
 export function useAiEntitled(): boolean | null {
   const [entitled, setEntitled] = useState<boolean | null>(null);
 
