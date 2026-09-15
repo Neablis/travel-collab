@@ -23,11 +23,13 @@
 //     operator console's tier panel reads. One definition of what a plan is,
 //     two surfaces reading it.
 //
-// **No price, no renewal date, no subscription state.** Those come from Stripe
-// and are M21 link 7's; M20 never learns what a plan costs. The chooser built
-// on this data is wrapped in `<Preview id="account-plan-change">` for exactly
-// that reason — the shapes are real and the payment is not.
-import { entitlementsFor } from "./resolver";
+// **M21 added the three things M20 could not answer**: what a plan costs, when
+// this one renews, and what state the subscription behind it is in. The chooser
+// left this screen at the same time — SPEC §29 makes it a route — so what this
+// module feeds is the sheet's Plan section and the `plans` route's chooser
+// alike, which is why the catalogue is still here.
+import { billingConfigured } from "@/server/billing/config";
+import { entitlementsFor, type AccountEntitlements } from "./resolver";
 import {
   livePlanVersion,
   planVersionRefOf,
@@ -37,7 +39,7 @@ import {
 import { aiQuotas, aiStepQuotas, dailyPolicy, peekQuota, type QuotaStanding } from "@/server/quota";
 import { codesMintedBy } from "./referrals";
 
-/** One plan as the chooser shows it — no price, because M20 has none. */
+/** One plan as the chooser shows it. */
 export interface PlanChoice {
   planId: string;
   version: number;
@@ -46,10 +48,74 @@ export interface PlanChoice {
   perUserStepsPerDay: number | null;
   /** True for the plan this account currently holds. */
   held: boolean;
+  /**
+   * What it costs, in integer minor units, or `null` when it is not sold.
+   *
+   * **Presentation only, and the ladder is not authority.** M21's
+   * *Prerequisites*: *"nothing in code may treat $19 > $9 as meaning `premium`
+   * ⊇ `plus`"*. The comparison table on the `plans` route is the one place
+   * these numbers sit beside each other, and the only comparison on that page
+   * is the one the reader makes.
+   */
+  priceMinor: number | null;
+  currency: string | null;
+}
+
+/**
+ * **What state the account's plan is in**, in the four words the design uses
+ * plus the two it does not draw (SPEC §17.4).
+ *
+ *   * `none` — free, and never anything else. No subscription, no grant.
+ *   * `trial` — the design's *Free week*. A grant, not a subscription, which is
+ *     why it outranks the subscription states below: an account on a trial has
+ *     nothing to pay yet.
+ *   * `active` — paid and current.
+ *   * `cancelling` — cancelled, and running out the period already paid for.
+ *     Not drawn by the design and needed by the build, because
+ *     `cancel_at_period_end` is what M21 link 5's cancellation actually sets.
+ *   * `past-due` — the design's *Payment failed*. Inside the grace window, so
+ *     **nothing has been lost yet**, which is exactly what the copy has to say.
+ *   * `lapsed` — the window closed on an unfixed decline, or a cancellation
+ *     reached its period end. Entitlements are gone; the row is not.
+ */
+export type PlanState = "none" | "trial" | "active" | "cancelling" | "past-due" | "lapsed";
+
+/** The subscription half of the Plan section, or nulls when there is none. */
+export interface PlanBillingView {
+  state: PlanState;
+  /** ISO. The renewal date, or the date a cancellation takes effect. */
+  renewsAt: string | null;
+  /** ISO. When the card was declined — the grace window's anchor. */
+  pastDueSince: string | null;
+  /**
+   * ISO. When the window closes and the losses happen.
+   *
+   * **The copy names this date and what stops on it.** M21 link 6: *"naming the
+   * loss beats announcing it"*, and with three days there is no room for a
+   * gentle first notice followed by a firm one.
+   */
+  graceEndsAt: string | null;
+  /**
+   * Whether anything can be bought here at all.
+   *
+   * A deployment with no Stripe keys is legitimate — every local run and every
+   * CI run is one — and the design's rule for it is *"do not offer a CTA that
+   * opens a checkout that cannot succeed"* (SPEC §29).
+   */
+  available: boolean;
 }
 
 export interface AccountPlanView {
   planVersionRef: string;
+  /**
+   * What that version confers right now — the same string as `planVersionRef`
+   * except after a lapse, when it is the live `free` version.
+   *
+   * Both are on the wire because the screen has to say both: *your premium
+   * subscription is past due, and until it is fixed you are on free*. One field
+   * could not carry that sentence.
+   */
+  conferredVersionRef: string;
   entitlements: readonly string[];
   /** Today's standing against the pinned version's ceilings. */
   questions: QuotaStanding;
@@ -58,6 +124,19 @@ export interface AccountPlanView {
   catalogue: PlanChoice[];
   /** An unredeemed referral code this account can hand out, if it has one. */
   referralCode: string | null;
+  /**
+   * **Whether the referral row appears at all** (M21 link 5).
+   *
+   * *"A `free` or trial-only account has no referral row at all, because it
+   * earns nothing."* A referral earns a month of the tier the referrer already
+   * holds, so an account holding nothing earns nothing — and showing the row
+   * anyway would be offering a reward that resolves to zero.
+   *
+   * A trial does not count: it is a week of `plus` that the account did not
+   * buy and will not keep.
+   */
+  canRefer: boolean;
+  billing: PlanBillingView;
 }
 
 function choiceOf(version: PlanVersion, heldPlanId: string): PlanChoice {
@@ -68,7 +147,27 @@ function choiceOf(version: PlanVersion, heldPlanId: string): PlanChoice {
     perUserRequestsPerDay: version.ceilings.perUserRequestsPerDay,
     perUserStepsPerDay: version.ceilings.perUserStepsPerDay,
     held: version.planId === heldPlanId,
+    priceMinor: version.price?.minor ?? null,
+    currency: version.price?.currency ?? null,
   };
+}
+
+/**
+ * The four words, decided in one place.
+ *
+ * **A trial outranks every subscription state**, because an account on its free
+ * week has nothing to pay and no card to have declined — telling it "payment
+ * failed" would be describing a subscription it does not have.
+ */
+function planStateOf(resolved: AccountEntitlements): PlanState {
+  const onTrial = resolved.grants.some((grant) => grant.source === "trial");
+  if (onTrial) return "trial";
+  const subscription = resolved.subscription;
+  if (subscription === null) return "none";
+  if (subscription.lapsed) return "lapsed";
+  if (subscription.row.status === "past_due") return "past-due";
+  if (!subscription.conferring) return "lapsed";
+  return subscription.row.cancelAtPeriodEnd ? "cancelling" : "active";
 }
 
 export async function accountPlanView(
@@ -89,6 +188,16 @@ export async function accountPlanView(
   // the "what you hold" marker are both about the plan, and a grant does not
   // move an account onto a tier.
   const heldPlanId = resolved.held.planId;
+  const state = planStateOf(resolved);
+  // **A trial earns nothing to refer with**, and neither does a bare `free`
+  // account. Anything else — a paid subscription, a founder grant, an admin
+  // comp, a referral month already earned — holds a tier that a referral can
+  // pay a month of.
+  const canRefer =
+    state === "active" ||
+    state === "cancelling" ||
+    state === "past-due" ||
+    resolved.grants.some((grant) => grant.source !== "trial");
   // **In the plan file's own declaration order, and the presentation ladder is
   // deliberately not read here.**
   //
@@ -112,6 +221,7 @@ export async function accountPlanView(
 
   return {
     planVersionRef: planVersionRefOf(resolved.held),
+    conferredVersionRef: planVersionRefOf(resolved.conferred),
     // The EFFECTIVE set — what this account can actually do right now, grants
     // included — which is the honest answer to "what can I do" even though the
     // meters below are the held version's. A `plus` holder with a `premium`
@@ -125,5 +235,13 @@ export async function accountPlanView(
     // than a different one each render — a code somebody has already sent to a
     // friend must keep appearing here.
     referralCode: codes.find((code) => code.redeemedBy === null)?.code ?? null,
+    canRefer,
+    billing: {
+      state,
+      renewsAt: resolved.subscription?.row.currentPeriodEnd?.toISOString() ?? null,
+      pastDueSince: resolved.subscription?.pastDueSince?.toISOString() ?? null,
+      graceEndsAt: resolved.subscription?.graceEndsAt?.toISOString() ?? null,
+      available: billingConfigured(),
+    },
   };
 }

@@ -1,42 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Banner } from "@/components/ui/banner";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
-import { FormField } from "@/components/ui/form-field";
-import { NativeSelect } from "@/components/ui/native-select";
-import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanView } from "@/lib/accountPlan";
+import {
+  PLAN_STATE_BADGE,
+  PLAN_STATE_LABEL,
+  formatDate,
+  lapsedSentence,
+  pastDueSentence,
+} from "@/lib/planCopy";
 
 // **The Plan section the design puts at the top of Account settings**
-// (handoff `SPEC.md` §17.4). Mitchell, 2026-09-14: *"Users right now cant
-// change there tier"* — and before this there was no plan surface at all, so
-// everything M20 built was invisible to the person holding it.
+// (handoff `SPEC.md` §17.4, amended by §29).
 //
-// **Three quarters of this is real and one quarter is a shell**, which is the
-// M20/M21 line drawn through one screen:
+// **All of it is real now.** M20 shipped this screen with its chooser and its
+// billing button wrapped in `<Preview>`, because paying needed Stripe; M21 link
+// 5 supplies the customer and the session, and both shells are gone from
+// `preview-registry.ts`.
 //
-//   * **What you hold** — plan, version and capabilities, resolved per request
-//     from the database. Real.
-//   * **Assistant use today** — two meters against the ceilings actually in
-//     force (the resolver's most-generous union, which is what `/ask` charges
-//     against), read without charging them. Real, and the display half of
-//     link 5's two-ceiling gate box.
-//   * **Your referral code** — link 8 minted codes server-side and shipped no
-//     way to get one, which is the exact defect that link exists to remove
-//     (*"codes are minted by hand, so nobody could earn a referral they could
-//     not issue"*). Real, through `/api/account/referrals`.
-//   * **Changing plan** — drawn from the same committed plan file the operator
-//     console's tier panel reads, and wrapped in `<Preview>`, because paying
-//     needs Stripe and Stripe is M21 link 7. The shapes are real; the payment
-//     is not.
+// **The chooser left the sheet** — SPEC §29, which supersedes §17.4's last
+// bullet. Two reasons, in the design's order of weight: the inline version had
+// no room to answer the question being asked (a person arriving here wants to
+// know what the upper tiers are *for*, and three rows inside a sheet gave each
+// plan a price and one line), and it grew the page under the pointer — expanding
+// between the plan card and the meters pushed the meters, the past-due banner
+// and the referral row down. Nothing was wrong with the copy; the reflow was the
+// defect. `Change plan` is now a link to the `plans` route.
 //
-// **There is no price anywhere on this screen, and that is not an oversight.**
-// M20 never learns what a plan costs — the plan file has no price field to
-// read. The design shows `$0 / $8 / $16`; those arrive with the subscription
-// that justifies them. A plan is described here by what it GRANTS, which is
-// the thing M20 actually knows and the thing `can()` actually asks about.
+// **§29's own framing is the rule this file follows**: *"Plans is not a second
+// view of the same information."* The sheet keeps plan, version, state, the two
+// meters, past-due and referral. The route holds what the sheet never had —
+// what each plan grants, side by side, and the order. Nothing appears twice.
+//
+// **The past-due copy names the loss rather than announcing one.** That is link
+// 6 expressed as words, and it is the strongest form of it: the decline date,
+// the date the window ends, and what stops then, including the collaborators
+// dropping to read-only. With three days there is no room for a gentle first
+// notice followed by a firm one, so this is the firm one.
 
 /**
  * A quota meter. **Deliberately not `BudgetMeter`**, which takes
@@ -69,61 +75,11 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
   );
 }
 
-/** What a plan grants, in its own words — capabilities only, never numbers. */
-function grants(choice: AccountPlanView["catalogue"][number]): string {
-  if (choice.entitlements.length === 0) {
-    return "Days, stops, map, costs, saved days. No assistant, no one else on the trip.";
-  }
-  return `${choice.entitlements.join(", ")}.`;
-}
-
-/**
- * **Both ceilings a plan sells, for one plan.**
- *
- * The steps ceiling used to be unreachable from this screen — `describe()`
- * printed `perUserRequestsPerDay` and nothing printed `perUserStepsPerDay`,
- * though both have always been on the wire. The gate box asks for "every
- * enabled plan, its entitlements and its ceilings", and a walk of the deployed
- * preview found a person could read neither number for any plan but their own.
- *
- * A null is "this version names no per-user ceiling", which falls through to
- * the environment's global one — a different fact from `free`'s explicit `0`,
- * and the two must not print the same way. `free` publishes 0·0 on purpose
- * (see `planVersions.ts`): a version naming no ceiling would hand a free
- * account the environment's default budget in silence.
- */
-function ceilings(choice: AccountPlanView["catalogue"][number]): string {
-  const named: string[] = [];
-  if (choice.perUserRequestsPerDay !== null) named.push(`${choice.perUserRequestsPerDay} questions`);
-  if (choice.perUserStepsPerDay !== null) named.push(`${choice.perUserStepsPerDay} steps`);
-  if (named.length === 0) return "No ceiling of its own — this plan runs to the service limit.";
-  return `${named.join(" and ")} a day.`;
-}
-
-/**
- * **The M21 seam, named so it is findable.**
- *
- * M21 link 7 replaces this body with: create a Stripe Checkout session for
- * `planId`, then redirect. Everything it needs is already on this screen — the
- * plan catalogue comes from the committed plan file, and the held plan is
- * resolved per request — so what is missing is a price, a customer and a
- * session, all three of which are M21's to add.
- *
- * It is a no-op rather than absent on purpose: the control above is wrapped in
- * `<Preview>`, whose shield means this can never be reached today, and leaving
- * a named function is what makes the next session's change a one-symbol diff
- * instead of a redesign. `docs/milestones/M21-subscriptions-and-billing.md`
- * link 7 points here by name.
- */
-function startPlanChange(_planId: string): void {
-  // Intentionally empty until M21. See the doc comment above.
-}
-
 export function PlanSection() {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -147,6 +103,29 @@ export function PlanSection() {
     setPlan((current) => (current === null ? current : { ...current, referralCode: body.code }));
   }
 
+  /**
+   * **Stripe's portal, opened by asking the server for a session.**
+   *
+   * A portal URL is single-use and short-lived, so it cannot be an `href`
+   * rendered with the page — it has to be minted at the moment of the click.
+   * The button therefore does work before it navigates, and says so while it
+   * does: a control that looks inert for a round trip gets clicked twice.
+   */
+  async function openPortal() {
+    setOpeningPortal(true);
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      if (!res.ok) {
+        setOpeningPortal(false);
+        return;
+      }
+      const body = (await res.json()) as { url: string };
+      window.location.assign(body.url);
+    } catch {
+      setOpeningPortal(false);
+    }
+  }
+
   if (failed) {
     return (
       <Text variant="secondary" className="text-sm">
@@ -157,12 +136,14 @@ export function PlanSection() {
   if (plan === null) return null;
 
   const [planId, version] = plan.planVersionRef.split("@");
-  // Defaults to what the account holds, so the control opens on the truth
-  // rather than on the first row of a list.
-  const selected =
-    plan.catalogue.find((choice) => choice.planId === chosen) ??
-    plan.catalogue.find((choice) => choice.held) ??
-    plan.catalogue[0]!;
+  const { billing } = plan;
+  // **What a lapse would take from other people**, which is the half of the
+  // copy nobody else can say. M20's collaborator cap is applied on read, so the
+  // owner's guests drop to `viewer` the moment this account stops holding
+  // `trip.collaborators` — and they are never told, because it is not their
+  // account. Naming it here is the only warning that exists.
+  const losesCollaborators = plan.entitlements.includes("trip.collaborators");
+  const renews = formatDate(billing.renewsAt);
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="plan-heading" data-testid="plan-section">
@@ -170,27 +151,98 @@ export function PlanSection() {
         Plan
       </Heading>
 
-      <div className="flex flex-col gap-1 rounded-lg border border-hairline p-3">
-        <Text as="span" className="text-sm font-semibold text-ink" data-testid="plan-held">
-          {planId} {version}
-        </Text>
+      <div className="flex flex-col gap-1.5 rounded-lg border border-hairline p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Text as="span" className="text-sm font-semibold text-ink" data-testid="plan-held">
+            {planId} {version}
+          </Text>
+          <Badge variant={PLAN_STATE_BADGE[billing.state]} data-testid="plan-state">
+            {PLAN_STATE_LABEL[billing.state]}
+          </Badge>
+        </div>
         <Text variant="secondary" className="text-xs">
           {plan.entitlements.length === 0
             ? "Planning only — the assistant and collaborators are not on this plan."
             : `You can: ${plan.entitlements.join(", ")}.`}
         </Text>
-        {/* Payment lives in M21. The shell keeps the design's two actions
-            visible and inert rather than pretending they are missing. */}
-        <Preview id="account-plan-billing" size="compact" className="mt-1 self-start">
-          <Button variant="secondary" size="sm">
-            Payment and invoices
-          </Button>
-        </Preview>
+        {/* **The renewal sentence changes with the state rather than being one
+            line with a date in it.** "Renews on 20 October" and "ends on 20
+            October" are the same date and opposite facts, and a person deciding
+            whether to fix a card is reading for exactly that difference. */}
+        {renews !== null ? (
+          <Text variant="secondary" className="text-xs" data-testid="plan-renews">
+            {billing.state === "cancelling"
+              ? `Ends on ${renews}. Until then nothing changes.`
+              : `Renews on ${renews}.`}
+          </Text>
+        ) : null}
+
+        <div className="mt-1 flex flex-wrap gap-2">
+          {/* **A link, not a chooser** (SPEC §29). The sheet lost its expanding
+              region because growing the page under the pointer pushed the
+              meters, the banner and the referral row down — the reflow was the
+              defect, not the copy. */}
+          {/* `buttonVariants` on a `Link` rather than a `Button` wrapping one:
+              this navigates, so it has to BE an anchor — the repo's existing
+              pattern for that is `TripBoardScreen:345`, not an `asChild` prop
+              `Button` does not have. */}
+          <Link
+            href="/plans"
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+            data-testid="plan-change-link"
+          >
+            Change plan
+          </Link>
+          {/* **Only when a checkout could succeed.** A deployment with no
+              Stripe keys is legitimate — every local run and every CI run is
+              one — and §29's rule is not to offer a CTA that opens a checkout
+              which cannot succeed. */}
+          {billing.available && billing.state !== "none" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void openPortal()}
+              disabled={openingPortal}
+              data-testid="plan-billing-portal"
+            >
+              {openingPortal ? "Opening Stripe…" : "Payment and invoices"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      {/* **The meters.** Ceilings come from the PINNED version — the one this
-          account holds — and the environment's global ceiling is deliberately
-          never shown, because it was never sold to anyone. */}
+      {/* **Past due is told before anything is taken** (§17.4, M21 link 6).
+          The decline date, the date the window ends, and what stops then. */}
+      {billing.state === "past-due" ? (
+        <Banner
+          variant="warning"
+          data-testid="plan-past-due"
+          actions={
+            billing.available ? (
+              <Button variant="secondary" size="sm" onClick={() => void openPortal()}>
+                Fix card
+              </Button>
+            ) : undefined
+          }
+        >
+          {pastDueSentence({
+            declinedAt: billing.pastDueSince,
+            graceEndsAt: billing.graceEndsAt,
+            losesCollaborators,
+          })}
+        </Banner>
+      ) : null}
+
+      {billing.state === "lapsed" ? (
+        <Banner variant="danger" data-testid="plan-lapsed">
+          {lapsedSentence(losesCollaborators)}
+        </Banner>
+      ) : null}
+
+      {/* **The meters.** Ceilings come from the resolver's answer — the most
+          generous of the held version and anything granted — and the
+          environment's global ceiling is deliberately never shown, because it
+          was never sold to anyone. */}
       <div className="flex flex-col gap-2 rounded-lg border border-hairline p-3">
         <Heading level={4}>Assistant use today</Heading>
         <Meter label="Questions" standing={plan.questions} testId="meter-questions" />
@@ -213,140 +265,48 @@ export function PlanSection() {
         </Text>
       </div>
 
-      {/* **Link 8's missing half.** The server could mint codes and nothing
-          could ask it to. */}
-      <div className="flex flex-col gap-2 rounded-lg border border-hairline p-3">
-        <Heading level={4}>Bring someone in, get a month</Heading>
-        <Text variant="secondary" className="text-xs">
-          When someone new signs up with your code you get a month of whatever you hold the moment
-          they join. A free plan earns nothing, so there is nothing to farm.
-        </Text>
-        {plan.referralCode === null ? (
-          <Button variant="secondary" size="sm" onClick={() => void mintCode()} className="self-start">
-            Create a code
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Text as="span" className="rounded-sm bg-moss px-2 py-1 text-sm text-ink" data-testid="referral-code">
-              {plan.referralCode}
-            </Text>
-            <Button
-              variant="secondary"
-              size="sm"
-              // **"Copied" only after the write resolves.** `writeText` rejects
-              // on a denied permission or an unavailable clipboard API, and the
-              // old `void` + immediate `setCopied(true)` told the operator their
-              // code was on the clipboard when it was not — on the one control
-              // whose entire job is to put it there. CodeRabbit, PR #174.
-              onClick={() => {
-                navigator.clipboard
-                  .writeText(plan.referralCode ?? "")
-                  .then(() => setCopied(true))
-                  .catch(() => setCopied(false));
-              }}
-            >
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* **Every plan on offer, and what each one grants — OUTSIDE the shell.**
-          The chooser below is a `<Preview>`, so its select cannot be operated:
-          whatever the selection describes is readable for exactly one plan, the
-          one the account already holds. A walk of the deployed preview found
-          precisely that, and the gate box asks for *every* enabled plan, its
-          entitlements and its ceilings.
-
-          It sits outside the shell because it is not a control and it is not a
-          promise: the catalogue is live data from the committed plan file, the
-          same source the operator console's tier panel reads. Dimming it under
-          a "Coming in M21" badge would say the plans are not real yet, and they
-          are — what M21 adds is a price and a way to buy one, which is why the
-          select and the confirm stay inside the shell and this does not. */}
-      <div className="flex flex-col gap-3 rounded-lg border border-hairline p-3" data-testid="plan-catalogue">
-        <Heading level={4}>What each plan grants</Heading>
-        {plan.catalogue.map((choice) => (
-          <div
-            key={choice.planId}
-            className="flex flex-col gap-0.5"
-            data-testid={`plan-offer-${choice.planId}`}
-          >
-            <Text as="span" className="text-sm font-semibold text-ink">
-              {choice.planId} v{choice.version}
-              {choice.held ? " — what you hold" : ""}
-            </Text>
-            <Text variant="secondary" className="text-xs">
-              {grants(choice)}
-            </Text>
-            <Text variant="secondary" className="text-xs">
-              {ceilings(choice)}
-            </Text>
-          </div>
-        ))}
-        {/* **Why this block and the one at the top of the section can disagree.**
-            Found by walking the deployed preview: an account holding `free`
-            with a `plus` trial reads "You can: ai.ask, ai.command" above and
-            "No assistant, no one else on the trip" here, three inches apart.
-            Both are right — the top of the section is the RESOLVED union the
-            server enforces, and this is the plan file as published — and a
-            person has no way to tell that from the screen. The meters already
-            carry their version of this sentence; the catalogue had none. */}
-        <Text variant="secondary" className="text-xs">
-          These are the plans as published. A trial, a referral month or anything else granted to
-          you is counted in what you hold above, not here. A plan is described by what it grants;
-          what it costs arrives with the payment that justifies it.
-        </Text>
-      </div>
-
-      {/* **The chooser is a dropdown, and its shape is a handoff.**
-          Mitchell, on the #174 preview: *"This should be a drop down where you
-          select this, and selecting a new tier starts the stripe flow"* — and
-          then: *"I just want you to start setting it up in a way the next
-          session builds it correctly."*
-
-          So the surface M21 inherits is the one it will keep. A stack of cards
-          would have been thrown away; a select plus a confirm is the control
-          the checkout actually hangs off, and M21 replaces one function rather
-          than the section. **The seam is `startPlanChange` below — that is the
-          whole of what M21 link 7 has to fill in here.** */}
-      <Preview id="account-plan-change" size="container" note="Paying for a plan arrives in M21">
-        <div className="flex flex-col gap-2" data-testid="plan-chooser">
-          <FormField
-            id="plan-change"
-            label="Change plan"
-            hint={`${grants(selected)} ${ceilings(selected)}`}
-          >
-            <NativeSelect
-              id="plan-change"
-              aria-label="Change plan"
-              className="w-full"
-              value={selected.planId}
-              onChange={(event) => setChosen(event.target.value)}
-            >
-              {plan.catalogue.map((choice) => (
-                <option key={choice.planId} value={choice.planId}>
-                  {choice.planId}
-                  {choice.held ? " — what you hold" : ""}
-                </option>
-              ))}
-            </NativeSelect>
-          </FormField>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="self-start"
-            disabled={selected.held}
-            onClick={() => startPlanChange(selected.planId)}
-          >
-            {selected.held ? "This is your plan" : `Change to ${selected.planId}`}
-          </Button>
+      {/* **Link 8's missing half, and M21's rule about who sees it.**
+          *"A `free` or trial-only account has no referral row at all, because
+          it earns nothing"* — a referral pays a month of the tier you already
+          hold, so offering one to an account holding nothing is offering a
+          reward that resolves to zero. */}
+      {plan.canRefer ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-hairline p-3" data-testid="referral-row">
+          <Heading level={4}>Bring someone in, get a month</Heading>
           <Text variant="secondary" className="text-xs">
-            Payment happens on Stripe, not here. Nothing about your account changes until the
-            payment clears.
+            When someone new signs up with your code you get a month of whatever you hold the moment
+            they join. A free plan earns nothing, so there is nothing to farm.
           </Text>
+          {plan.referralCode === null ? (
+            <Button variant="secondary" size="sm" onClick={() => void mintCode()} className="self-start">
+              Create a code
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Text as="span" className="rounded-sm bg-moss px-2 py-1 text-sm text-ink" data-testid="referral-code">
+                {plan.referralCode}
+              </Text>
+              <Button
+                variant="secondary"
+                size="sm"
+                // **"Copied" only after the write resolves.** `writeText` rejects
+                // on a denied permission or an unavailable clipboard API, and the
+                // old `void` + immediate `setCopied(true)` told the operator their
+                // code was on the clipboard when it was not — on the one control
+                // whose entire job is to put it there. CodeRabbit, PR #174.
+                onClick={() => {
+                  navigator.clipboard
+                    .writeText(plan.referralCode ?? "")
+                    .then(() => setCopied(true))
+                    .catch(() => setCopied(false));
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+          )}
         </div>
-      </Preview>
+      ) : null}
     </section>
   );
 }

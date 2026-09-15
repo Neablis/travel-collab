@@ -182,6 +182,7 @@ export interface StripePrice {
 }
 
 export interface StripeSubscriptionItem {
+  id: string;
   price: StripePrice | null;
 }
 
@@ -272,4 +273,100 @@ export async function createPrice(input: {
 
 export async function retrieveSubscription(id: string): Promise<StripeSubscription> {
   return stripeRequest<StripeSubscription>({ method: "GET", path: `/subscriptions/${id}` });
+}
+
+/** One line of an invoice or of a preview of one. */
+export interface StripeInvoiceLine {
+  description: string | null;
+  amount: number;
+  currency: string;
+  /** True for the credit half of a proration. */
+  proration?: boolean;
+}
+
+export interface StripeInvoicePreview {
+  amount_due: number;
+  currency: string;
+  lines: StripeList<StripeInvoiceLine>;
+}
+
+export interface StripePaymentMethodCard {
+  brand: string;
+  last4: string;
+}
+
+export interface StripePaymentMethod {
+  id: string;
+  card: StripePaymentMethodCard | null;
+}
+
+/**
+ * **What Stripe would charge for this change, without making it.**
+ *
+ * The confirm step's every figure (SPEC §29): *"in a build every figure comes
+ * from Stripe's preview of the change against the plan version being bought;
+ * none of it is computed from a price string in the UI."* A preview is a read —
+ * it creates no invoice and charges nothing — which is what makes it safe to
+ * run on a page load.
+ */
+export async function previewSubscriptionChange(input: {
+  customerId: string;
+  subscriptionId: string;
+  subscriptionItemId: string;
+  priceId: string;
+}): Promise<StripeInvoicePreview> {
+  return stripeRequest<StripeInvoicePreview>({
+    method: "POST",
+    path: "/invoices/create_preview",
+    body: {
+      customer: input.customerId,
+      subscription: input.subscriptionId,
+      subscription_details: {
+        items: [{ id: input.subscriptionItemId, price: input.priceId }],
+        // **Prorated to the day**, which is what the chooser's own line promises
+        // the reader before they ever reach this step.
+        proration_behavior: "create_prorations",
+      },
+    },
+  });
+}
+
+/**
+ * Move an existing subscription onto another Price, or schedule its end.
+ *
+ * **This writes nothing locally.** Stripe answers with the updated
+ * subscription and sends the event that the webhook applies; reading the
+ * response here and writing the row from it would be a second writer, and the
+ * two would disagree the first time an event arrived out of order.
+ */
+export async function updateSubscription(
+  subscriptionId: string,
+  body: Record<string, unknown>,
+  idempotencyKey?: string,
+): Promise<StripeSubscription> {
+  return stripeRequest<StripeSubscription>({
+    method: "POST",
+    path: `/subscriptions/${subscriptionId}`,
+    body,
+    idempotencyKey,
+  });
+}
+
+/** The subscription with its items expanded, which a change needs the id of. */
+export async function retrieveSubscriptionWithItems(id: string): Promise<StripeSubscription> {
+  return stripeRequest<StripeSubscription>({
+    method: "GET",
+    path: `/subscriptions/${id}`,
+    query: { "expand[]": "items.data.price" },
+  });
+}
+
+/** The card a customer has on file, for the confirm step's one honest line. */
+export async function defaultPaymentMethod(customerId: string): Promise<StripePaymentMethod | null> {
+  const found = await stripeRequest<StripeList<StripePaymentMethod>>({
+    method: "GET",
+    path: "/payment_methods",
+    query: { customer: customerId, type: "card", limit: "1" },
+  });
+  return found.data[0] ?? null;
 }

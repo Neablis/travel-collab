@@ -198,7 +198,11 @@ export async function portalUrlFor(input: {
   const session = await stripeRequest<StripePortalSession>({
     method: "POST",
     path: "/billing_portal/sessions",
-    body: { customer: customerId, return_url: `${input.returnOrigin}/account` },
+    // **Home, because there is no `/account` route to return to.** Account
+    // settings is a Sheet opened from the header's avatar menu, not a page —
+    // so a return URL naming one would be a 404 at the end of a billing
+    // journey, which is the worst place to put one.
+    body: { customer: customerId, return_url: `${input.returnOrigin}/` },
   });
   return session.url;
 }

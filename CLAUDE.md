@@ -17,6 +17,8 @@ Quick orientation:
 - Adding trips, playbook days or notebook templates as JSON — the importer, the
   geocoder that puts coordinates on them, and how any of it reaches production:
   `docs/guidelines/content-bundles.md` (ADR-041)
+- Walking checkout, a failed payment or a lapse **without spending real money**:
+  `docs/guidelines/billing-without-spending-money.md` (ADR-047)
 - What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 
