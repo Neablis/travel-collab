@@ -28,6 +28,8 @@ function account(over: Partial<AdminAccountRow> & { userId: string }): AdminAcco
     requests: 0,
     microUsd: 0,
     unpriced: 0,
+    paysMicroUsd: 0,
+    subscriptionState: null,
     ...over,
   };
 }

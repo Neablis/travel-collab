@@ -32,10 +32,40 @@ general setup.
 
 **M21 — AN ACCOUNT CAN PAY FOR ITSELF — IS THE CURRENT MILESTONE, OPENED 2026-09-14**, when
 M20's gate closed. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M12 → M13 → M14 → M19`. Nothing is built;
-scope, the seven links and the decided prices are in
-`docs/milestones/M21-subscriptions-and-billing.md`, and the kickoff plan it shares with M20 is
-`docs/plans/2026-09-13-M20-M21-commercial.md`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M12 → M13 → M14 → M19`. Scope, the seven
+links and the decided prices are in `docs/milestones/M21-subscriptions-and-billing.md`; the
+kickoff plan it shares with M20 is `docs/plans/2026-09-13-M20-M21-commercial.md`.
+
+**All four phases are written, on `claude/keen-darwin-qkkq41`** (2026-09-15) — the
+subscription table and priced plan versions, hosted checkout and the webhook, the `plans`
+route with the account sheet's billing surface, and the revenue half of the operator console.
+**Nine of seventeen gate boxes are ticked with evidence.** The milestone file's *What was
+built* has the five deviations from its own scope, each with its reason; **ADR-047** carries
+the three decisions that are one-way doors.
+
+**What is left is a walk against a real Stripe test-mode key**, which no lane in this repo
+has — exactly what the milestone's *Why it is separate* predicted. **Nothing about it costs
+money, and the recipe is `docs/guidelines/billing-without-spending-money.md`**: test cards,
+`stripe listen`, and Test Clocks for walking the three-day grace window without waiting three
+days. Read the one rule at the top of it before opening a Stripe dashboard.
+
+**Migration `0021_subscriptions_and_billing` is written and applied locally, and is NOT
+dispatched to production.** Merging does not apply it — see the standing rule below.
+
+**Three things this work leaves live, all of them instruction rather than history:**
+
+- **A lapse is a derivation, not a write** (ADR-047 decision 3). The subscription row keeps
+  saying what Stripe last said and the resolver computes what it MEANS against the clock, so
+  nothing runs on a schedule and there is no second downgrade path. The tempting change —
+  writing `free` when a grace window closes — is the one that would need a scheduler, and it
+  would break link 4's sole writer to get it.
+- **The webhook is the only thing that writes `subscriptions` or `users.plan_id`**, and
+  `soleWriter.test.ts` sweeps for a second. The second writer is never called "grant the plan
+  from the redirect": it is a helpful success route that updates the row so the page has
+  something to show.
+- **`GRACE_WINDOW_DAYS = 3` has one definition and three readers** — the resolver, the copy a
+  person reads, and the test. It is a guess that first contact with real declines will want to
+  revise, which is the whole reason it is one constant.
 
 **M20's gate closed 2026-09-14** — 32 of 32 live boxes, built as #174 and #175, migrations
 0019 and 0020 dispatched to production (`migrate-production` run 20) and checked against the

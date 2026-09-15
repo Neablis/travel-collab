@@ -479,6 +479,21 @@ Where the work actually stands right now: `docs/STATUS.md`.
       by M20's gate closing; the order was already set on 2026-09-13 and no
       decision moved it) →
       `docs/milestones/M21-subscriptions-and-billing.md`
+      *(**All four phases written 2026-09-14/15** on `claude/keen-darwin-qkkq41`:
+      the subscription table and priced plan versions, hosted checkout and the
+      webhook, the `plans` route and the account sheet's billing surface, and
+      the revenue half of the console. **Nine of seventeen gate boxes ticked
+      with evidence**; what is left needs a real Stripe test-mode key, which no
+      lane here has. **None of that costs money** —
+      `docs/guidelines/billing-without-spending-money.md` is the recipe,
+      including Test Clocks for the three-day grace window. **ADR-047** carries
+      the three one-way decisions: Billing is its own module, the webhook is its
+      sole writer, and a lapse is a derivation rather than a write. Migration
+      `0021` is applied locally and **not dispatched to production**. The
+      milestone file's *What was built* lists five deviations from its own
+      scope, each with its reason — the largest being that the price went onto
+      the v1 plan entries rather than onto new versions, because naming a price
+      for the first time is not editing one.)*
       *(**Minted, scoped and placed 2026-09-01**, immediately after M20.
       Stripe checkout, the webhook that is the **sole writer** of subscription
       state, the customer portal, failed payments. **Adds no entitlement and

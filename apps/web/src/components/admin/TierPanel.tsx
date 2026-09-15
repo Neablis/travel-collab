@@ -1,6 +1,7 @@
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import type { AdminPlanPanelRow } from "@/lib/adminOverview";
+import { microUsdMargin, microUsdMoney } from "./microUsd";
 
 // **"How each tier is doing"** — the design's right-hand panel (handoff design,
 // *Operator console* artboard). A block per tier rather than a table row,
@@ -8,12 +9,13 @@ import type { AdminPlanPanelRow } from "@/lib/adminOverview";
 // still on each), and a table with a list in a cell is the shape the design
 // moved away from.
 //
-// **Two of the four stats the design draws are M21 link 7's**: MRR and median
-// margin both need a subscription to exist, and so does the price beside each
-// version row. Accounts and median cost are M20's and are here. This is the
-// same split as the four-number strip, and the milestone is explicit that an
-// implementer working from the finished screen builds the revenue half inside
-// M20 — so the absence is deliberate and is the thing to check in review.
+// **The panel was split down the middle and M21 link 7 filled the other half.**
+// Accounts and median cost are M20's; **MRR and median margin per tier** need a
+// subscription to exist and arrived with this milestone, as did the price
+// beside the tier's name. The split was real while it lasted and the absence
+// was the thing to check in review; what is worth checking now is the line
+// below it — that the two medians are not the same number with a price
+// subtracted.
 
 function microUsd(value: number | null): string {
   return value === null ? "—" : `$${(value / 1_000_000).toFixed(4)}`;
@@ -35,6 +37,17 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <Text as="span" className="text-base font-semibold text-ink">
                 {plan.planId}
+                {/* **What the LIVE version costs**, which is what a new
+                    purchase would pin — not what any existing subscriber pays,
+                    since each of those pins its own version. The MRR figure
+                    beside it is the one that knows the difference. */}
+                {plan.live.price === null ? null : (
+                  <span className="ml-1.5 text-xs text-slate">
+                    {plan.live.price.minor === 0
+                      ? "free"
+                      : `${microUsdMoney(plan.live.price.minor * 10_000)}/mo`}
+                  </span>
+                )}
                 {!plan.live.enabled && <span className="ml-1 text-xs text-slate">(disabled)</span>}
               </Text>
               {/* The design spells the free tier's empty set as prose rather
@@ -65,6 +78,31 @@ export function TierPanel({ plans }: { plans: readonly AdminPlanPanelRow[] }) {
                 </Text>
                 <Text as="span" className="text-xs text-slate">
                   median cost {"·"} 30d
+                </Text>
+              </div>
+              {/* **M21 link 7's two columns.** MRR is what this tier actually
+                  brings in, summed over the versions its subscribers pinned —
+                  so a tier whose price rose reports the mix, not the new
+                  price times the head count. */}
+              <div className="flex flex-col">
+                <Text as="span" className="text-lg font-semibold text-ink" data-testid={`tier-mrr-${plan.planId}`}>
+                  {microUsdMoney(plan.mrrMicroUsd)}
+                </Text>
+                <Text as="span" className="text-xs text-slate">
+                  MRR
+                </Text>
+              </div>
+              <div className="flex flex-col">
+                <Text as="span" className="text-lg font-semibold text-ink">
+                  {microUsdMargin(plan.medianMarginMicroUsd)}
+                </Text>
+                {/* **Among PAYERS, and that is why it is not the cost median
+                    minus a price.** The cost median counts every holder,
+                    including the comped ones; subtracting a price from it
+                    would compare a cost across all holders with money only
+                    some of them send. */}
+                <Text as="span" className="text-xs text-slate">
+                  median margin {"·"} payers
                 </Text>
               </div>
               <div className="flex flex-col">

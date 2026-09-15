@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Text } from "@/components/ui/text";
 import { GrantDialog } from "@/components/admin/GrantDialog";
 import { GrantList } from "@/components/admin/GrantList";
 import type { AdminAccountRow } from "@/lib/adminOverview";
+import { microUsdCost, microUsdMoney } from "./microUsd";
 
 // **The accounts table, as the design actually draws it** (handoff `SPEC.md`
 // §18.2 — *"Address search, six counted filters, 8 rows a page, and a no-match
@@ -97,8 +99,22 @@ function matchesQuery(account: AdminAccountRow, query: string): boolean {
   );
 }
 
-function microUsd(value: number): string {
-  return `$${(value / 1_000_000).toFixed(4)}`;
+/**
+ * **Does this account cost more than it sends?** (M21 link 7.)
+ *
+ * The row-level version of the underwater panel's question, and it is asked of
+ * PAYING accounts only: an account that pays nothing and costs something is
+ * either comped on purpose or is a gate defect, and neither is what a red row
+ * in this table should mean.
+ */
+function costsMoreThanItPays(account: AdminAccountRow): boolean {
+  return account.paysMicroUsd > 0 && account.microUsd > account.paysMicroUsd;
+}
+
+/** The two words that are not a Stripe status: nothing, and lapsed. */
+function stateLabel(account: AdminAccountRow): string {
+  if (account.subscriptionState === null) return "—";
+  return account.subscriptionState.replace(/_/g, " ");
 }
 
 export function AccountsPanel({
@@ -211,6 +227,8 @@ export function AccountsPanel({
                 <TH>Holds</TH>
                 <TH>Why</TH>
                 <TH>Can</TH>
+                <TH>Pays</TH>
+                <TH>State</TH>
                 <TH>Requests ({windowDays}d)</TH>
                 <TH>Cost ({windowDays}d)</TH>
                 <TH>Grant</TH>
@@ -233,9 +251,27 @@ export function AccountsPanel({
                   <TD className="text-ink">
                     {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
                   </TD>
+                  <TD className="text-ink">
+                    {account.paysMicroUsd === 0 ? "—" : microUsdMoney(account.paysMicroUsd)}
+                  </TD>
+                  <TD className="text-ink">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>{stateLabel(account)}</span>
+                      {/* The design's two chips. `Past due` is a warning
+                          because nothing has been taken yet — the grace window
+                          is still running — and `Costs more than it pays` is
+                          the one that wants an answer. */}
+                      {account.subscriptionState === "past_due" ? (
+                        <Badge variant="warning">Past due</Badge>
+                      ) : null}
+                      {costsMoreThanItPays(account) ? (
+                        <Badge variant="danger">Costs more than it pays</Badge>
+                      ) : null}
+                    </div>
+                  </TD>
                   <TD className="text-ink">{account.requests}</TD>
                   <TD className="text-ink">
-                    {microUsd(account.microUsd)}
+                    {microUsdCost(account.microUsd)}
                     {account.unpriced > 0 && (
                       // **A cost with unpriceable rows behind it is not the
                       // cost.** An account whose every request used a model
