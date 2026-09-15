@@ -159,24 +159,26 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   --a-font: var(--font-next-mono); --a-meta-font: var(--font-next-mono);
   --a-title-font: var(--font-next-mono); --a-title-track: 0.09em; --a-title-case: uppercase;
   --a-bg: var(--color-surface); --a-head-bg: var(--color-surface); --a-gap: 14px;
-  --a-you-bg: transparent; --a-you-edge: 1px solid var(--color-border-strong); --a-you-radius: 2px; --a-you-ink: var(--color-ink);
-  --a-asst-bg: transparent; --a-asst-edge: 1px solid var(--color-hairline); --a-asst-radius: 2px;
+  /* Your turn is a ruled quote, the answer is prose — so a theme styles the RULE and the
+     two inks, never a bubble. Both inks sit on the panel background, so both must be legible. */
+  --a-you-rule: 2px solid var(--color-border-strong); --a-you-ink: var(--color-slate);
+  --a-asst-ink: var(--color-ink);
   --a-think-bg: transparent; --a-think-edge: 1px dashed var(--color-border-strong); --a-think-radius: 2px;
   --a-ctx-bg: transparent; --a-ctx-radius: 2px; --a-ctx-ink: var(--color-ink);
   --a-chip-bg: transparent; --a-chip-edge: 1px solid var(--color-hairline); --a-chip-radius: 2px; --a-chip-ink: var(--color-ink);
 }
 [data-asst-theme="nightdesk"] {
   --a-head-bg: var(--color-paper); --a-bg: var(--color-surface); --a-gap: 11px;
-  --a-you-bg: var(--color-brand); --a-you-ink: #ffffff; --a-you-edge: 1px solid var(--color-brand); --a-you-radius: 15px 15px 5px 15px;
-  --a-asst-bg: var(--color-moss); --a-asst-ink: var(--color-ink); --a-asst-edge: 1px solid var(--color-hairline); --a-asst-radius: 15px 15px 15px 5px;
+  --a-you-rule: 2px solid var(--color-brand); --a-you-ink: var(--color-slate);
+  --a-asst-ink: var(--color-ink);
   --a-think-bg: var(--color-moss); --a-think-edge: 1px solid var(--color-hairline);
   --a-ctx-bg: var(--color-moss);
   --a-chip-bg: var(--color-moss); --a-chip-ink: var(--color-ink);
 }
 [data-asst-theme="airmail"] {
   --a-panel-bg: var(--color-moss); --a-head-bg: var(--color-surface); --a-bg: var(--color-moss); --a-gap: 13px;
-  --a-you-bg: var(--color-brand); --a-you-ink: #ffffff; --a-you-edge: 1px solid var(--color-brand); --a-you-radius: 19px 19px 6px 19px;
-  --a-asst-bg: var(--color-surface); --a-asst-ink: var(--color-ink); --a-asst-edge: 1px solid var(--color-surface); --a-asst-radius: 19px 19px 19px 6px;
+  --a-you-rule: 3px double var(--color-brand); --a-you-ink: var(--color-slate);
+  --a-asst-ink: var(--color-ink);
   --a-think-bg: var(--color-surface); --a-think-edge: 1px solid var(--color-hairline); --a-think-radius: 16px;
   --a-ctx-bg: var(--color-moss); --a-ctx-radius: 999px;
   --a-chip-bg: var(--color-moss); --a-chip-ink: var(--color-ink);
@@ -1020,7 +1022,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
                 <div style="font-family: var(--a-meta-font, inherit); font-size: 12.5px; color: var(--a-ctx-ink, var(--color-slate)); background: var(--a-ctx-bg, var(--color-paper)); border: 1px solid var(--a-hair, var(--color-hairline)); border-radius: var(--a-ctx-radius, 7px); padding: 7px 10px; text-wrap: pretty;">{{ phoneAskCtx }}</div>
               </div>
-              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: var(--a-gap, 10px); background: var(--a-bg, transparent);">
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
                 <sc-if value="{{ phoneAskEmpty }}" hint-placeholder-val="{{ true }}">
                   <div style="font-size: 13px; line-height: 1.55; color: var(--a-meta-ink, var(--color-slate)); text-wrap: pretty;">{{ phoneAskHint }}</div>
                 </sc-if>
@@ -1042,7 +1044,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </div>
                     </sc-if>
                     <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
-                      <div style="max-width: 86%; background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: 10px 13px; font-size: 13.5px; line-height: 1.5; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
+                      <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
                     </sc-if>
                   </div>
                 </sc-for>
@@ -3364,7 +3366,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </div>
             <div style="margin-top: 8px; font-family: var(--a-meta-font, inherit); font-size: 12px; color: var(--a-ctx-ink, var(--color-slate)); background: var(--a-ctx-bg, var(--color-surface)); border: 1px solid var(--a-hair, var(--color-hairline)); border-radius: var(--a-ctx-radius, 6px); padding: 6px 9px;">{{ asstContext }}</div>
           </div>
-          <div style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: var(--a-gap, 10px); background: var(--a-bg, transparent);">
+          <div style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
             <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ true }}">
               <div style="font-size: 13px; color: var(--a-meta-ink, var(--color-slate)); line-height: 1.5; text-wrap: pretty;">{{ asstEmptyHint }}</div>
             </sc-if>
@@ -3386,7 +3388,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                 </sc-if>
                 <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
-                  <div style="max-width: 88%; background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: 9px 12px; font-size: 13px; line-height: 1.55; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
+                  <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
                 </sc-if>
               </div>
             </sc-for>
@@ -3619,110 +3621,71 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ ntOpen }}" onOpenChange="{{ setNtOpen }}" title="New trip">
-    <div style="display: flex; flex-direction: column; gap: 18px; padding: 4px 4px 2px;">
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
-            <span style="height: 3px; border-radius: 3px; background: var(--color-brand); display: block;"></span>
-            <span style="font-size: 11px; color: var(--color-slate);">{{ s.label }}</span>
+    <div style="display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 0;">
+
+      <div style="display: flex; flex-direction: column; gap: 10px; max-height: min(58vh, 520px); min-height: 150px; overflow-y: auto; padding: 2px 2px 4px;" ref="{{ ntThreadRef }}">
+        <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
+          <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px;">
+            <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
+            <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ m.change }}" style="align-self: flex-start; margin-left: 13px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+            </sc-if>
           </div>
         </sc-for>
       </div>
 
-      <sc-if value="{{ step0 }}" hint-placeholder-val="{{ true }}">
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="dest" label="Where are you going?" description="A city, a region, or several — you can add stops later.">
-            <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="dest" placeholder="e.g. Lisbon" value="{{ dest }}" onChange="{{ setDest }}"></x-import>
-          </x-import>
-          <div>
-            <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Recent and nearby</div>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <sc-for list="{{ destChips }}" as="d" hint-placeholder-count="6">
-                <button onClick="{{ d.act }}" style="font-size: 13px; color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit;">{{ d.label }}</button>
-              </sc-for>
-            </div>
+      <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="align-self: stretch; font-size: 14px; line-height: 1.65; color: var(--color-ink); text-wrap: pretty;">{{ ntAsk }}</div>
+          <sc-if value="{{ ntChipLabel }}" hint-placeholder-val="{{ true }}">
+            <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">{{ ntChipLabel }}</span>
+          </sc-if>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
+              <button onClick="{{ c.act }}" style="font-size: 13px; border-radius: 999px; padding: 6px 13px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
+            </sc-for>
           </div>
-          <div style="border: 1px solid var(--color-hairline); border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 12px; background: var(--color-paper);">
-            <div style="flex: 1;">
-              <div style="font-size: 14px; font-weight: 600; color: var(--color-ink);">Start from a Playbook</div>
-              <div style="font-size: 13px; color: var(--color-slate); margin-top: 2px;">You have 5 saved days. Build the trip around one.</div>
+          <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
+              <span style="font-size: 12px; color: var(--color-slate);">{{ ntMultiCount }}</span>
             </div>
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Browse</x-import>
-          </div>
+          </sc-if>
+          <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="160px,36px" type="date" aria-label="Arrive" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
+              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">→</span>
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="160px,36px" type="date" aria-label="Leave" value="{{ end }}" onChange="{{ setEnd }}" className="w-auto"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ ntUseDates }}">Use these</x-import>
+            </div>
+          </sc-if>
         </div>
       </sc-if>
 
-      <sc-if value="{{ step1 }}" hint-placeholder-val="{{ false }}">
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div>
-            <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">How long?</div>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <sc-for list="{{ lengthChips }}" as="l" hint-placeholder-count="5">
-                <button onClick="{{ l.act }}" style="font-size: 13px; color: var(--color-ink); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit;">{{ l.label }}</button>
-              </sc-for>
-            </div>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="s1" label="Arrive">
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="s1" type="date" value="{{ start }}" onChange="{{ setStart }}"></x-import>
-            </x-import>
-            <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="s2" label="Leave">
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="s2" type="date" value="{{ end }}" onChange="{{ setEnd }}"></x-import>
-            </x-import>
-          </div>
-          <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="info">{{ lengthNote }}</x-import>
-          <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Not sure yet? Leave the dates open — the plan stays as Day 1, Day 2 until you set them.</div>
+      <sc-if value="{{ ntGateNote }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--color-hairline); border-radius: 10px; background: var(--color-paper); padding: 12px 14px;">
+          <span style="flex: 1 1 220px; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ ntGateNote }}</span>
+          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntSeePlans }}">See plans</x-import>
         </div>
       </sc-if>
 
-      <sc-if value="{{ step2 }}" hint-placeholder-val="{{ false }}">
-        <div style="display: flex; flex-direction: column; gap: 14px;">
-          <div>
-            <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Who is coming?</div>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <sc-for list="{{ people }}" as="p" hint-placeholder-count="2">
-                <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--color-ink); background: var(--color-moss); border-radius: 999px; padding: 5px 6px 5px 12px;">
-                  {{ p.name }}
-                  <button onClick="{{ p.remove }}" style="border: 0; background: var(--color-surface); border-radius: 999px; width: 18px; height: 18px; cursor: pointer; color: var(--color-slate); font-family: inherit; line-height: 1;">×</button>
-                </span>
-              </sc-for>
-            </div>
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="Name or email" value="{{ invitee }}" onChange="{{ setInvitee }}"></x-import>
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ addPerson }}">Invite</x-import>
-          </div>
-          <div style="border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px; background: var(--color-paper); font-size: 13px; color: var(--color-slate); text-wrap: pretty;">Everyone you invite can add stops and vote. You stay the organizer — only you can shift dates or delete days.</div>
+      <sc-if value="{{ ntComposer }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; gap: 6px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
+          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntSend }}">{{ ntSendLabel }}</x-import>
         </div>
       </sc-if>
+    </div>
 
-      <sc-if value="{{ step3 }}" hint-placeholder-val="{{ false }}">
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-          <div>
-            <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Pace</div>
-            <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ pace }}" onValueChange="{{ setPace }}" options="{{ paceOptions }}" aria-label="Pace"></x-import>
-            <div style="font-size: 13px; color: var(--color-slate); margin-top: 7px;">{{ paceNote }}</div>
-          </div>
-          <div>
-            <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">What the trip is about</div>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <sc-for list="{{ tagChips }}" as="t" hint-placeholder-count="8">
-                <button onClick="{{ t.act }}" style="font-size: 13px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; border: 1px solid var(--color-hairline); background: var(--color-surface); color: var(--color-ink);">{{ t.label }}</button>
-              </sc-for>
-            </div>
-          </div>
-          <div style="border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 10px; padding: 14px;">
-            <div style="font-size: 14px; font-weight: 600; color: var(--color-brand-pressed);">Let the assistant draft it</div>
-            <div style="font-size: 13px; color: var(--color-brand-pressed); margin-top: 3px; text-wrap: pretty;">{{ draftNote }}</div>
-          </div>
-        </div>
+    <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
+      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ createBlank }}">Create empty</x-import>
+      <sc-if value="{{ ntHasAns }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" onClick="{{ ntCreateNow }}">{{ ntCreateNowLabel }}</x-import>
       </sc-if>
-
-      <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ prevStep }}">Back</x-import>
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" onClick="{{ createBlank }}">Create empty</x-import>
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ nextStep }}">{{ nextLabel }}</x-import>
-      </x-import>
+      <sc-if value="{{ ntDone }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntOpenTrip }}">Open the trip</x-import>
+      </sc-if>
+    </x-import>
     </div>
   </x-import>
 
@@ -5291,6 +5254,125 @@ class Component extends DCLogic {
       coInvoices: () => this.flash('Opens Stripe — card, invoices and cancelling all live there')
     };
   }
+  // New trip is a scripted conversation, not a model one: these five turns are a fixed
+  // local script, so nothing is generated (and nothing is billed) until the last answer
+  // lands. Only then does it either hand to the live assistant (paid) or generate once.
+  NT_QS = [
+    { id: 'where', ask: 'Where are you going?', ph: 'Type a city, or pick one below', label: 'Recent and nearby',
+      chips: ['Lisbon', 'Mexico City', 'Seoul', 'Copenhagen', 'Big Sur', 'Back to Kyoto'] },
+    { id: 'when', ask: 'How long, roughly?', ph: 'e.g. nine nights in April', label: 'Pick a length, or set the exact dates',
+      chips: ['Long weekend', 'A week', '10 days', '2 weeks', 'Longer'], dates: true },
+    { id: 'who', ask: 'Who is coming?', ph: 'A name or an email', label: '',
+      chips: ['Just me', 'Two of us', 'Family', 'Invite later'] },
+    { id: 'pace', ask: 'What pace do you want?', ph: 'Or describe it', label: '',
+      chips: ['Slow', 'Balanced', 'Packed'] },
+    { id: 'feel', ask: 'What is the trip about?', ph: 'Or say it in your own words', label: 'Pick as many as fit',
+      chips: ['Food', 'Art', 'Hiking', 'Nightlife', 'Markets', 'Architecture', 'With kids', 'Slow mornings'], multi: true }
+  ];
+  NT_NIGHTS = { 'Long weekend': 4, 'A week': 7, '10 days': 10, '2 weeks': 14, 'Longer': 21 };
+  ntAIAccess() {
+    const s = this.state, P = this.props;
+    const plan = s.planOv || P.plan || 'premium';
+    const status = s.billOv || P.billingStatus || 'active';
+    return (status === 'lapsed' ? 'free' : (status === 'trial' ? 'plus' : plan)) !== 'free';
+  }
+  ntBub(role) {
+    // Same two voices as the assistant panel, same rule: type, not boxes.
+    return role === 'u'
+      ? { align: 'stretch', rule: '2px solid var(--color-brand)', pad: '1px 0 1px 11px', size: '13px', lh: '1.5', ink: 'var(--color-slate)' }
+      : { align: 'stretch', rule: '0', pad: '0', size: '14px', lh: '1.65', ink: 'var(--color-ink)' };
+  }
+  ntCommit(val) {
+    const s = this.state, turn = s.ntTurn || 0, q = this.NT_QS[turn];
+    if (!q || !String(val).trim()) return;
+    const ans = Object.assign({}, s.ntAns, { [q.id]: String(val).trim() });
+    const next = turn + 1;
+    const patch = { ntAns: ans, ntTurn: next, ntInput: '', ntMulti: [] };
+    if (next >= this.NT_QS.length) patch.ntPhase = this.ntAIAccess() ? 'live' : 'made';
+    this.setState(patch);
+  }
+  ntSummary(ans) {
+    const n = this.NT_NIGHTS[ans.when] || 7;
+    return { n: n, where: ans.where || 'your destination', pace: (ans.pace || 'Balanced').toLowerCase(), feel: (ans.feel || 'a bit of everything').toLowerCase() };
+  }
+  ntThreadEl = React.createRef();
+  // Called from componentDidUpdate. Previous values are tracked on the instance because
+  // this runtime passes prevProps only — there is no prevState argument to read.
+  ntPin() {
+    const s = this.state;
+    const key = [s.ntTurn || 0, s.ntPhase || 'ask', (s.ntChat || []).length, !!s.ntOpen].join('/');
+    if (key === this._ntPinKey) return;
+    this._ntPinKey = key;
+    const el = this.ntThreadEl.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+  ntSendNow() {
+    const s = this.state, t = (s.ntInput || '').trim();
+    if (!t) return;
+    if ((s.ntPhase || 'ask') === 'ask') { this.ntCommit(t); return; }
+    this.setState(st => ({ ntInput: '', ntChat: (st.ntChat || []).concat([{ role: 'u', text: t }, { role: 'a', text: 'Redrawn. The plan reflects that — open it when you are ready.' }]) }));
+  }
+  ntFlow() {
+    const s = this.state, qs = this.NT_QS;
+    const turn = s.ntTurn || 0, ans = s.ntAns || {}, sel = s.ntMulti || [];
+    const phase = s.ntPhase || 'ask';
+    const asking = phase === 'ask' && turn < qs.length;
+    const q = asking ? qs[turn] : null;
+    const paid = this.ntAIAccess();
+    const sum = this.ntSummary(ans);
+
+    const rows = [];
+    qs.slice(0, turn).forEach((qq, i) => {
+      rows.push(Object.assign({ text: qq.ask, canChange: false }, this.ntBub('a')));
+      rows.push(Object.assign({ text: ans[qq.id] || '—', canChange: true, change: () => this.setState({ ntTurn: i, ntPhase: 'ask', ntMulti: [], ntChat: [] }) }, this.ntBub('u')));
+    });
+    if (phase !== 'ask') {
+      rows.push(Object.assign({ canChange: false, text: paid
+        ? 'Here is the shape: ' + sum.n + ' days in ' + sum.where + ' at a ' + sum.pace + ' pace, built around ' + sum.feel + '. Bookings are left to you, and I have flagged the three days that need a decision.'
+        : sum.n + ' days in ' + sum.where + ' at a ' + sum.pace + ' pace, laid out as Day 1 to Day ' + sum.n + ' around ' + sum.feel + '. Every stop is yours to move.' }, this.ntBub('a')));
+      if (paid) rows.push(Object.assign({ canChange: false, text: 'Tell me what to change and I will redraw it before you open it.' }, this.ntBub('a')));
+      (s.ntChat || []).forEach(m => rows.push(Object.assign({ text: m.text, canChange: false }, this.ntBub(m.role))));
+    }
+
+    return {
+      ntThreadRef: this.ntThreadEl,
+      ntThread: rows,
+      ntAsking: asking,
+      ntDone: phase !== 'ask',
+      ntAsk: q ? q.ask : '',
+      ntChipLabel: q ? q.label : '',
+      ntChips: q ? q.chips.map(c => {
+        const on = !!q.multi && sel.indexOf(c) >= 0;
+        return { label: c, bg: on ? 'var(--color-moss)' : 'var(--color-surface)', ink: 'var(--color-ink)',
+          edge: on ? 'var(--color-border-strong)' : 'var(--color-hairline)', weight: on ? '600' : '400',
+          act: () => q.multi
+            ? this.setState(st => ({ ntMulti: this.toggleIn(st.ntMulti || [], c) }))
+            : this.ntCommit(c) };
+      }) : [],
+      ntMultiOn: !!(q && q.multi),
+      ntMultiLabel: sel.length ? 'That is it — build it' : 'Nothing in particular',
+      ntMultiCount: sel.length ? sel.join(', ') : '',
+      ntMultiDone: () => this.ntCommit(sel.length ? sel.join(', ') : 'A bit of everything'),
+      ntDatesOn: !!(q && q.dates),
+      ntUseDates: () => this.ntCommit(s.start && s.end ? s.start + ' to ' + s.end : 'A week'),
+      ntComposer: asking || phase === 'live',
+      ntPh: asking ? q.ph : 'Tell me what to change',
+      ntSendLabel: asking ? 'Send' : 'Ask',
+      ntInput: s.ntInput || '',
+      setNtInput: e => this.setState({ ntInput: e.target.value }),
+      ntKey: e => { if (e.key === 'Enter') { e.preventDefault(); this.ntSendNow(); } },
+      ntSend: () => this.ntSendNow(),
+      ntHasAns: Object.keys(ans).length > 0 && phase === 'ask',
+      ntCreateNowLabel: 'Create with this',
+      ntCreateNow: () => { this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }); this.flash('Trip created from what you answered'); },
+      ntOpenTrip: () => { this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }); this.flash(sum.n + ' days in ' + sum.where + ' — open'); },
+      ntGateNote: phase === 'made'
+        ? 'The trip above is finished and yours to edit. Changing it by asking — and everything else the assistant does — is part of Plus.'
+        : '',
+      ntSeePlans: () => this.setState({ ntOpen: false, route: 'plans', plansFrom: s.route }),
+      ntOpenTripLabel: 'Open the trip'
+    };
+  }
   billing() {
     const s = this.state, P = this.props;
     const plan = s.planOv || P.plan || 'premium';
@@ -6481,6 +6563,7 @@ class Component extends DCLogic {
       setTimeout(() => this._landPar(document.getElementById('landscroll')), 0);
     }
     this._prevScreen = this.state.screen;
+    this.ntPin();
     this.syncLoad();
     if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
     if (prev.look !== this.props.look || prev.theme !== this.props.theme) { this._applyTheme(); this.forceUpdate(); }
@@ -7739,12 +7822,15 @@ class Component extends DCLogic {
       const steps = m.steps || [];
       const isOpen = !!open[i];
       return {
-        align: you ? 'flex-end' : 'flex-start',
+        align: 'stretch',
         hasText: !!m.text, text: m.text,
-        bg: you ? 'var(--a-you-bg, var(--color-brand-tint))' : 'var(--a-asst-bg, var(--color-paper))',
-        edge: you ? 'var(--a-you-edge, 1px solid var(--color-brand))' : 'var(--a-asst-edge, 1px solid var(--color-hairline))',
-        ink: you ? 'var(--a-you-ink, var(--color-brand-pressed))' : 'var(--a-asst-ink, var(--color-ink))',
-        radius: you ? 'var(--a-you-radius, 13px 13px 4px 13px)' : 'var(--a-asst-radius, 13px 13px 13px 4px)',
+        // No bubbles. The two voices are told apart by TYPE, not by containers: your
+        // words are a small ruled quote, the answer is full-width prose one step larger.
+        rule: you ? 'var(--a-you-rule, 2px solid var(--color-brand))' : '0',
+        pad: you ? '1px 0 1px 11px' : '0',
+        size: you ? '13px' : '14px',
+        lh: you ? '1.5' : '1.65',
+        ink: you ? 'var(--a-you-ink, var(--color-slate))' : 'var(--a-asst-ink, var(--color-ink))',
         hasSteps: steps.length > 0,
         stepsOpen: isOpen,
         caret: isOpen ? '▼' : '▶',
@@ -8982,7 +9068,8 @@ class Component extends DCLogic {
       ],
 
       ntOpen: s.ntOpen, setNtOpen: v => this.setState({ ntOpen: v }),
-      openNewTrip: () => this.setState({ ntOpen: true, step: 0 }),
+      openNewTrip: () => this.setState({ ntOpen: true, step: 0, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [], ntInput: '' }),
+      ...this.ntFlow(),
       steps: [{ label: 'Where' }, { label: 'When' }, { label: 'Who' }, { label: 'Feel' }].slice(0, s.step + 1),
       step0: s.step === 0, step1: s.step === 1, step2: s.step === 2, step3: s.step === 3,
       dest: s.dest, setDest: e => this.setState({ dest: e.target.value }),

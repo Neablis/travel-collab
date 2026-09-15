@@ -1348,3 +1348,121 @@ the console is a separate operator context you do not pass through.
 Nothing beyond M20 + M21 as already scoped, plus the two undrawn states above. One thing
 it removes: the sheet no longer needs an expanding region, so M21 link 5's surface is the
 smaller of the two halves.
+
+
+---
+
+## 30. New trip is a conversation; the transcript has no bubbles — 2026-09-15
+
+Two changes, one surface. The new-trip wizard became a scripted conversation, and in
+matching it to the assistant panel the panel's own message styling was rebuilt.
+
+### 30.1 The wizard is a transcript
+
+**Supersedes the four-step wizard in the New trip sheet.** The stepper (Where · When ·
+Who · Feel) and its per-step forms are gone. In their place, inside the same sheet: a
+transcript that asks one question at a time and accepts the answer either **inline** or
+**typed**, whichever suits the question.
+
+Five turns, fixed order: **where · how long · who · pace · what it is about.**
+
+- Each turn is one assistant question in prose, then the answer affordances directly
+  under it: a row of chips, and a composer at the foot of the sheet whose placeholder is
+  that question's own prompt. Chips commit on click; the composer commits on Enter or
+  Send. Both are always live — a question with chips can still be answered in words.
+- **How long** additionally offers the two real date inputs inline, with a *Use these*
+  button, because "a week" and "14–22 April" are both legitimate answers to it.
+- **What it is about** is the one multi-select turn: chips toggle, and a
+  *That is it — build it* button commits them together. Unpicked, it commits as
+  "A bit of everything" rather than blocking.
+- An answered turn collapses into the transcript as your own words with a quiet
+  **Change** under it, which returns to that turn. Later answers are kept, not cleared —
+  you re-answer forward.
+- The stepper was not replaced with a progress bar. **A transcript shows its own
+  progress**, and the stepper was the element that made the sheet grow.
+
+### 30.2 Why it is scripted, and what that protects
+
+**The five turns are a fixed local script. Nothing is generated and nothing is billed
+until the last answer lands.** This is the point of the design, not an implementation
+detail: the flow *looks* like the assistant, so the cost has to be explicitly designed
+out of it, or every abandoned new-trip sheet becomes a series of billed turns.
+
+A build must keep that property. The questions, their order, their chips and the
+commit behaviour are all local; the first model call happens after the fifth answer, once.
+
+Consequences, deliberately:
+
+- The questions never adapt to earlier answers. Asking "how long" differently because
+  someone said Lisbon would cost a turn and buy very little.
+- There is no typing indicator and no streaming during the five turns, because there is
+  nothing to wait for. Answers land instantly. Do not add a fake delay to make it feel
+  like a model.
+
+### 30.3 The fork at the end, on plan
+
+After the fifth answer the flow splits on whether the account has assistant access —
+resolved from entitlements, exactly as everywhere else (§17, M20), never from a plan
+name compared by rank:
+
+- **With access:** one turn stating the shape it will build (days, place, pace, what it
+  is built around, and that bookings are left to you), then *"Tell me what to change and
+  I will redraw it before you open it."* The composer stays live, and the conversation
+  continues **in the context of the trip being built** — this is the same assistant, mid-
+  task, not a preview of it.
+- **Without access:** the trip is generated once and described in one turn, then a quiet
+  note: the trip is finished and yours to edit; changing it by asking is part of Plus.
+  A *See plans* button beside it goes to the plans route (§29). The composer is gone,
+  because there is nothing it could do. No teaser, no disabled input.
+
+### 30.4 The exits are always open
+
+At every point in the flow, both of these are available and neither is buried:
+
+- **Create empty** — from the first turn onwards, a ghost button in the footer.
+- **Create with this** — appears as soon as one question is answered, and creates the
+  trip from the answers so far. Nobody has to finish the conversation to get a trip.
+
+Once the flow has produced a trip, the footer's primary is **Open the trip**.
+
+### 30.5 Transcript typography — no bubbles anywhere
+
+**Supersedes the two-bubble transcript in §9 / §23.** Both voices were rounded, filled
+boxes distinguished mainly by side and tint, and at 13px on a tinted ground they read as
+the same voice twice.
+
+Bubbles are gone from every place a transcript appears — the desktop assistant panel, the
+phone **Ask** sheet, and the new-trip flow. The two voices are told apart by **type, not
+containers**:
+
+- **Your turn** — a quiet ruled quote. A 2px rule in `--color-brand` on the left, 11px
+  indent, 13px / 1.5, `--color-slate`. No background, no border box, no radius.
+- **The assistant** — no container at all. Full-width prose, 14px / 1.65,
+  `--color-ink`.
+
+So your words read as the question you asked, and the answer reads as the content of the
+panel. Turn gap opened to 15px, since nothing encloses a turn any more. The collapsed
+"how it got there" step line keeps its bordered container — it is a disclosure, not a
+voice.
+
+**The three assistant themes styled bubbles, and now style the rule and the two inks
+instead.** Two of them (`nightdesk`, `airmail`) set white user text on a filled brand
+bubble; with the bubble gone that text would have been invisible on the panel ground. A
+theme may restyle `--a-you-rule`, `--a-you-ink` and `--a-asst-ink` — **both inks now sit
+on the panel background and both must stay legible there.** A theme may not reintroduce a
+filled message box.
+
+### 30.6 What a build owes
+
+- The transcript scroller must stay pinned to the newest turn whenever the turn, the
+  phase or the follow-up count changes. Unpinned, the payoff of the whole flow renders
+  below the fold and answering a question produces no visible feedback.
+  **Not `scrollIntoView`** — set `scrollTop`; `scrollIntoView` scrolls ancestors too and
+  is banned repo-wide.
+- Three states are not drawn and need design before build: **the generation failing**
+  after the fifth answer (the five answers must survive it — "Create with this" is the
+  floor, never a lost conversation), **offline** (the five turns work offline since they
+  are local; the generation does not — say so at the fork, not at the start), and the
+  **ceiling reached** case, where the account has access but no turns left today (that is
+  §17's meter copy, not a plan gate).
+- D11's orphaned wizard Preview shells are resolved by this section — see `DRIFT.md`.
