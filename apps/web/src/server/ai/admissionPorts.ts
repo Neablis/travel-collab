@@ -15,7 +15,7 @@ import * as Sentry from "@sentry/nextjs";
 import { guard } from "@/server/pages-guard";
 import { getPage } from "@/server/pages";
 import { AI_NOT_ENTITLED_CODE, deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
-import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal } from "@/server/quota";
+import { aiQuotas, aiStepQuotas, consumeQuota, quotaRefusal, reserveAiSteps } from "@/server/quota";
 import { classifyAskIntent } from "@/server/ai/askIntent";
 import { SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
 import type { AdmissionPorts, AiGrantRecord, AiGrantSink } from "@/server/assistant/admission";
@@ -73,10 +73,21 @@ export const admissionPorts: AdmissionPorts = {
       ? { ...outcome, code: AI_NOT_ENTITLED_CODE, response: deniedResponse(outcome.reason) }
       : outcome;
   },
-  // **Both layers, in one call (KI-67).** `aiQuotas` bounds how many times an
-  // actor may ask and `aiStepQuotas` bounds what asking costs in round-trips;
-  // metering requests alone turned a nominal ceiling of 30 into a real one of
-  // 960. Assembled here so the pipeline charges one thing once.
+  // **Both layers, but SPLIT rather than one call (KI-67, KI-94).** `aiQuotas`
+  // bounds how many times an actor may ask and still charges exactly 1 per
+  // request through `consumeQuota` — it meters calls, not cost, so that
+  // charge is correct as-is. `aiStepQuotas` bounds what asking COSTS in
+  // round-trips, and used to ride the same `consumeQuota` call charging 1 up
+  // front and settling the rest afterwards — which bounded a single actor's
+  // overshoot to one budget but bounded nothing under concurrency: N requests
+  // in flight had each charged 1, so they could jointly pass the global step
+  // ceiling before any of them settled. `reserveAiSteps` now charges the full
+  // step budget at admission instead, so in-flight exposure is exactly the
+  // reservation (`quota.ts`'s own comment has the rest).
+  //
+  // Refused if EITHER layer refuses — unchanged from the combined call, and
+  // still checked in this order: an actor already over their request ceiling
+  // is refused before a step reservation is ever charged.
   //
   // The refusal is rendered here for `selectModel`'s reason: `quotaRefusal`
   // owns the 429/503 split and the `Retry-After` header, and a second copy of
@@ -87,9 +98,20 @@ export const admissionPorts: AdmissionPorts = {
   // account's pinned plan version, global ones stay in the environment, and the
   // bucket names do not move. Today the default resolver names no ceiling, so
   // both calls return exactly the policies they always did.
-  admitQuota: async (userId, ceilings) => {
-    const decision = await consumeQuota([...aiQuotas(ceilings), ...aiStepQuotas(ceilings)], userId);
-    return decision.allowed ? decision : { ...decision, response: quotaRefusal(decision) };
+  // `budget` is the caller's real per-request step budget (`AdmissionInput.stepBudget`,
+  // `handleAskRequest.ts`'s `MAX_ASK_STEPS`) — passed straight through to
+  // `reserveAiSteps`, which falls back to its own defensive default when this
+  // is `undefined`. Reserving `AI_MAX_STEPS_PER_REQUEST` against a caller
+  // whose real budget is a fraction of it made in-flight exposure larger than
+  // any turn could ever use (final review finding, P4 ruling).
+  admitQuota: async (userId, ceilings, budget) => {
+    const requestDecision = await consumeQuota(aiQuotas(ceilings), userId);
+    if (!requestDecision.allowed) return { ...requestDecision, response: quotaRefusal(requestDecision) };
+
+    const { decision, reservation } = await reserveAiSteps(aiStepQuotas(ceilings), userId, undefined, undefined, budget);
+    if (!decision.allowed) return { ...decision, response: quotaRefusal(decision) };
+
+    return { allowed: true, reservation };
   },
   // The one identity the kernel cannot compare for itself: `simulatedModel.ts`
   // reaches the write tools and the read readouts, so it is behind the wall,

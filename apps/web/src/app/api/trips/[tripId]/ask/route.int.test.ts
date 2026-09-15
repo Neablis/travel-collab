@@ -67,6 +67,7 @@ const {
   PAGE_NOT_ON_TRIP_CODE,
   instructionBlocks,
   instructionsFor,
+  MAX_ASK_STEPS,
 } = await import("@/server/ai/handleAskRequest");
 const { SIMULATED_HEADER } = await import("@tc/contracts");
 const { grantFor, minimumRoleFor, postureFor, toolsFor } = await import("@/server/assistant/grants");
@@ -1344,6 +1345,38 @@ describe("POST /api/trips/:id/ask", () => {
       expect(((await res.json()) as { error: string }).error).toContain("malformed thread");
     });
 
+    // CRITICAL 2, final review. Admission (`admitQuota`) already reserved the
+    // full step budget by the time `safeValidateUIMessages` runs — this 400 is
+    // a validation failure on the caller's BODY, reached AFTER admission,
+    // NOT before it — and unlike every other refusal/failure path in this
+    // handler, this one used to return directly without ever settling that
+    // reservation. `safeValidateUIMessages` failing is entirely
+    // caller-controlled, so an unsettled reservation here is a spend hole a
+    // client can hit in a loop, individually larger than the one KI-94 closed.
+    it("refunds the step reservation on a malformed thread, rather than stranding it", async () => {
+      const tripId = await seedTrip();
+      const res = await ask(tripId, {
+        messages: [{ id: "m1", role: "user", parts: [{ type: "text" }] }],
+        scope: { kind: "trip" },
+      });
+      expect(res.status).toBe(400);
+
+      const hitsByBucket = new Map(
+        (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
+      );
+      // **Zero, not one.** This asserted 1 until CodeRabbit's review of PR #178
+      // pointed out that the floor WAS the defect: `settleAiSteps` could not
+      // distinguish "truly zero" from "unknown", so a page-scoped request whose
+      // thread failed validation — no classifier, no agent loop, no provider
+      // call of any kind — still cost an allowance. `safeValidateUIMessages`
+      // failing is caller-controlled and repeatable, so that charge was
+      // reachable in a loop. A real zero now settles as zero on both the user
+      // AND global buckets; a non-finite or negative count still keeps the full
+      // conservative reservation, which is what keeps the two cases apart.
+      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(0);
+      expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:global`)).toBe(0);
+    });
+
     it("400s a missing or unknown scope", async () => {
       const tripId = await seedTrip();
       expect((await ask(tripId, { messages: [userMessage("hi")] })).status).toBe(400);
@@ -1389,10 +1422,12 @@ describe("POST /api/trips/:id/ask", () => {
     // life metered exactly the way KI-67 had already proved wrong. One door
     // means one quota path (ADR-033).
     //
-    // Admission pre-authorises ONE round-trip and the settlement charges the
-    // rest, so a two-step turn leaves 2 on the step bucket while the request
-    // bucket sees exactly 1: what a request COSTS, metered separately from how
-    // often it may be made.
+    // Admission RESERVES the full per-request step budget and the settlement
+    // refunds what the turn did not use (KI-94), so a two-step turn still
+    // leaves 2 on the step bucket while the request bucket sees exactly 1:
+    // what a request COSTS, metered separately from how often it may be made.
+    // The reserve-then-refund shape only changes what the counter holds
+    // WHILE the turn is in flight, not what it settles to once it ends.
     it("charges the step bucket what the turn really cost, not one per request", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
@@ -1454,18 +1489,40 @@ describe("POST /api/trips/:id/ask", () => {
     // The step ceiling REFUSES, it does not merely record: an actor already over
     // it is turned away at admission, before a provider is touched. Without the
     // admission half this endpoint had no step ceiling at all.
-    it("429s once the actor is over their hourly STEP ceiling", async () => {
-      vi.stubEnv("AI_STEP_LIMIT_PER_USER_HOURLY", "2");
+    //
+    // **Reserve-then-reconcile (KI-94), not admit-one-then-settle.** Admission
+    // charges the FULL per-request step budget up front and refunds what the
+    // turn does not use — see `reserveAiSteps`'s own comment. `/ask` reserves
+    // its REAL budget (`MAX_ASK_STEPS`), not the defensive
+    // `AI_MAX_STEPS_PER_REQUEST` default (final review, IMPORTANT 4 ruling) —
+    // so a ceiling configured below `MAX_ASK_STEPS` can never admit a single
+    // request: the very first reservation is already bigger than the
+    // ceiling, so there is no "first request succeeds, second is refused by
+    // what the first settled to" sequence left to drive. That is the fix
+    // working as intended — in-flight exposure is bounded by the reservation
+    // itself, not by whatever a prior request happened to settle to — so
+    // this asserts the refusal on the FIRST request, before a provider is
+    // ever touched.
+    it("429s the first request once the reservation alone would take the actor over their hourly STEP ceiling", async () => {
+      vi.stubEnv("AI_STEP_LIMIT_PER_USER_HOURLY", String(MAX_ASK_STEPS - 1));
       try {
         const tripId = await seedTrip();
-        const first = await ask(tripId, { messages: [userMessage("one")], scope: { kind: "trip" } });
-        expect(first.status).toBe(200);
-        await first.text();
-        // The first turn settled more than its admitted 1, so the second is
-        // refused by the STEP layer while the request layer still has room.
-        const second = await ask(tripId, { messages: [userMessage("two")], scope: { kind: "trip" } });
-        expect(second.status).toBe(429);
-        expect((await second.json()).reason).toBe("user");
+        const res = await ask(tripId, { messages: [userMessage("one")], scope: { kind: "trip" } });
+        expect(res.status).toBe(429);
+        expect((await res.json()).reason).toBe("user");
+        // Turned away before a provider was touched. Two effects of the final
+        // review's fixes, both visible in the counter table:
+        //   - CRITICAL 1: the user ceiling is checked BEFORE the global
+        //     bucket is ever touched, so the hourly step policy's global row
+        //     was never created at all.
+        //   - IMPORTANT 3: the refused reservation's own user-bucket charge
+        //     is released, not left stranded — the row exists (`release` is
+        //     an UPDATE, not a delete) but its count is back to zero.
+        const hitsByBucket = new Map(
+          (await db.select().from(rateLimitCounters)).map((row) => [row.bucket, row.hits] as const),
+        );
+        expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:user:${ACTOR_ID}`)).toBe(0);
+        expect(hitsByBucket.get(`${aiStepQuotas()[0]!.name}:global`)).toBeUndefined();
       } finally {
         vi.unstubAllEnvs();
       }

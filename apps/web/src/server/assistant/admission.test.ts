@@ -127,7 +127,11 @@ function spyPorts(overrides: Partial<AdmissionPorts> = {}): {
       // than in it: the order test asserts that list exactly, and spec §3b's
       // fourth gap needs the ARGUMENT to be observable, not the name.
       admittedCeilings.push(ceilings);
-      return { allowed: true };
+      // `reservation` is required, not optional (final review finding, P-minor):
+      // a stub that forgot it used to type-check and silently charge every
+      // turn with no refund path. This file asserts stage ORDER, not grant
+      // shape, so `null` is enough to satisfy the type.
+      return { allowed: true, reservation: null };
     },
     // The real adapter compares against `SIMULATED_MODEL_ID`; nothing injected
     // here is that model, so every turn in this file is a live one.
