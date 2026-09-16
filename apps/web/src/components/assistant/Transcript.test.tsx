@@ -44,17 +44,18 @@ describe("Transcript", () => {
     );
   });
 
-  // Visibly distinct from one another, and asserted on the rendered treatment
-  // rather than on a test id, because "distinct" is the requirement.
-  it("gives a user turn a different treatment from an assistant turn", () => {
-    render(<Transcript turns={THREAD} />);
-    const question = screen.getByText("What's planned for day 3?");
-    const answer = screen.getByText("Day 3 has 5 stops.");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(question.className).toContain("bg-brand-tint");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(answer.className).not.toContain("bg-brand-tint");
-  });
+  // **The "different treatment" test that used to sit here is gone, and where
+  // it went matters.** It asserted `question.className` contained
+  // `bg-brand-tint` — two `expect(…).className` calls, each carrying a
+  // grandfathered `no-restricted-syntax` disable marked *"KI-2026-09-02-b:
+  // pre-existing. Do not add more."*
+  //
+  // §2a deletes the bubble those assertions were pinned to, so keeping them
+  // meant rewriting two banned assertions rather than removing them. The
+  // contract they were reaching for — the two voices are distinct, and neither
+  // is a filled box — now lives in `transcriptLook.test.ts`, which reads
+  // committed source and measures per-look contrast instead of poking at
+  // classes on a rendered node. KI-2026-09-02-b is two disables shorter.
 
   // Quiet, and one line. Never the raw tool output — a trip-scoped read_trip
   // is ~1.5 KB of JSON on the wire.

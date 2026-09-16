@@ -152,17 +152,29 @@ export function Transcript({
           an IMPLICIT polite live region, so leaving the attribute off would
           not turn the announcements off — only stop saying so. The one region
           that does announce is below, outside the mutating content. */}
-      <div role="log" aria-label="Conversation" aria-live="off" className="flex flex-col gap-3">
+      <div role="log" aria-label="Conversation" aria-live="off" className="flex flex-col gap-a-turn">
       {turns.map((turn) =>
         turn.role === "user" ? (
-          <div key={turn.id} className="flex justify-end">
-            {/* No max-width utility: an arbitrary Tailwind value trips the
-                design wall (scripts/check-color-wall.mjs), and the rail is
-                356px wide — the flex row's own sizing is the cap. */}
-            <p className="rounded-md bg-brand-tint px-2.5 py-1.5 text-sm leading-relaxed text-ink">
-              {turn.text}
-            </p>
-          </div>
+          // **No bubble** (design §2a, SPEC §30.5). A 2px rule and an indent,
+          // not a filled box — and not right-aligned either, because a rule on
+          // the left of a right-aligned block points at nothing.
+          //
+          // The bubble was `rounded-md bg-brand-tint … text-ink`, and removing
+          // it is what the theme contract above `--color-a-you-ink` exists for:
+          // in `nightdesk` that pairing was near-white ink on a dark green
+          // fill, and ink that was legible ON the fill has to stay legible on
+          // the panel once the fill is gone. `transcriptLook.test.ts` measures
+          // that for all four looks rather than trusting this comment.
+          //
+          // No max-width utility: an arbitrary Tailwind value trips the design
+          // wall (scripts/check-color-wall.mjs), and the rail is 356px wide —
+          // the column's own sizing is the cap.
+          <p
+            key={turn.id}
+            className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink"
+          >
+            {turn.text}
+          </p>
         ) : (
           <div key={turn.id} className="flex flex-col gap-1.5">
             {turn.tools.length > 0 && (
@@ -179,7 +191,13 @@ export function Transcript({
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering
               // each delta as its own paragraph would break sentences in half.
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{turn.text}</p>
+              //
+              // No container at all (§2a) — it already had none, so this is a
+              // type change rather than a structural one: 14px/1.65 in place of
+              // `text-sm leading-relaxed`.
+              <p className="whitespace-pre-wrap text-base leading-a-asst text-a-asst-ink">
+                {turn.text}
+              </p>
             )}
             {turn.proposal != null && (
               <ProposalCard
