@@ -166,10 +166,12 @@ describe("a grant is a minimum over four independent caps", () => {
   });
 
   // **A page turn holds no tool that can spend the vendor key**, which is the
-  // one row of the table that is a decision rather than the absence of a tool:
-  // a page turn composes prose and holds nothing that could cite a candidate,
-  // so a place search there would be the operator's money spent on a number
-  // nothing can use.
+  // one row of the table that is a decision rather than the absence of a tool.
+  // The reason is SCOPE: a page turn writes a document out of what the trip
+  // already contains, so the gazetteer is not a source it draws on. Being
+  // unable to CITE is not the disqualifier — a viewer on a trip turn cannot
+  // cite either, and is offered the search, because asking about the world
+  // around the trip is what that surface is for.
   it("offers no place search on a page surface, on any cap", () => {
     for (const caps of [EDITOR, { role: "read", plan: "read", classifier: "read" } as const]) {
       expect(namesFor({ ...caps, surface: "page" })).not.toContain("search_places");

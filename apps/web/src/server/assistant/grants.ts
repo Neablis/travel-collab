@@ -95,11 +95,20 @@ export const SURFACES = {
   // today. The tags are the audit vocabulary and what a fourth surface would
   // grant one of without the other; they are pinned directly in `grants.test.ts`
   // because nothing in this table can pin them.
-  // **No `places` row, deliberately.** A page turn composes prose about a trip
-  // that already exists; it holds no tool that could cite a candidate, so a
-  // place search on this surface would be the operator's money spent on a
-  // number nothing can use. This is the first row where leaving a domain out is
-  // a decision rather than the absence of a tool.
+  // **No `places` row, deliberately, and the reason is SCOPE rather than
+  // citations.**
+  //
+  // A page turn's job is to write a document out of what the trip already
+  // contains — `insert_text` over readouts — so the gazetteer is not a source
+  // it draws on. A trip or day turn is the opposite: it answers about the trip
+  // AND the world around it, which is why a viewer there is offered the search
+  // even though they hold no tool that could cite one. Being unable to cite is
+  // not the disqualifier; a viewer asking *"is there a good ramen place near
+  // the hotel on day 2?"* gets a real answer out of a real lookup, and pays for
+  // it from their own daily geocode allowance.
+  //
+  // This is the first row where leaving a domain out is a decision rather than
+  // the absence of a tool.
   //
   // **No `system` row either, and that one is moot rather than decided.** A
   // page turn is never classified (`classifyTask` skips it, the surface decides
