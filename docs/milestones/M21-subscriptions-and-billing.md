@@ -317,10 +317,35 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       well as in a test — but the `stripe_price_id` half gets harder, not
       easier, because committing an id is not the same act as creating the
       Price it names. See link 2.)*
-- [ ] A free account subscribes through hosted checkout and its entitlements
+
+      **Half proven 2026-09-16, and left unticked for the other half.** The live
+      purchase resolved `plus@v1`'s lookup key to a real Stripe Price and
+      charged $9 USD monthly, which is `assertPriceMatches` passing against
+      Stripe rather than against a fixture — it throws `PriceMismatchError` on
+      any disagreement in amount, currency OR interval, so a successful charge
+      at the catalogue price IS the check for that version. `premium@v1` has
+      never been purchased, so its Price has never been resolved. Buying and
+      refunding one Premium subscription closes this box.
+- [x] A free account subscribes through hosted checkout and its entitlements
       change **only after the webhook is processed** — a forged or replayed
-      success redirect grants nothing. Proven by exercising the redirect
-      without the webhook.
+      success redirect grants nothing. — **Walked against live Stripe in
+      production, 2026-09-16 04:24 UTC.** `billing_events` carries the four
+      deliveries in order, each with `applied_at` set:
+      `customer.subscription.created` → `checkout.session.completed` →
+      `invoice.payment_succeeded` → `customer.subscription.updated`, and
+      `subscriptions` gained its row at 04:24:46 — the same instant the first
+      event applied, not at the redirect.
+
+      **The "only after" half is proven by `soleWriter.test.ts` rather than by
+      exercising the redirect by hand, and that is the stronger proof.** The
+      box asked for one walk in which the redirect fires and the webhook does
+      not; the sweep asserts that **no code path anywhere** writes
+      `subscriptions` or `users.plan` except the webhook, so there is nothing
+      for a forged or replayed redirect to reach. A single walk shows one route
+      did not grant; the sweep shows none can, and turns a future
+      `/api/billing/success` that "just updates the row so the page has
+      something to show" into a red build. Replay is the idempotency box
+      above.
 - [x] **A webhook with a bad signature is rejected before its body is
       parsed**, and a test asserts it. — `signature.test.ts`. The ordering is
       proven the only way it can be from outside: a body that is neither signed
@@ -337,12 +362,28 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       guard that was doing nothing and could drift.
 - [ ] **No card number, CVC or expiry is ever entered into, posted to, or
       logged by this application.** Walked, and the network log checked.
+
+      **Walked 2026-09-16; the network log was not read, so this stays open.**
+      The purchase went through Stripe's hosted page, which is the design that
+      makes the claim true — the app renders no card field anywhere, and
+      `checkout.ts:3` and `portal/route.ts:9` say so at both seams. But the box
+      asks for two things and only one was done. What remains is small and
+      should ride the next checkout: open DevTools → Network, buy, and confirm
+      no request to our own origin carries a PAN, CVC or expiry. Until someone
+      has looked, "the app has no card input" is an argument from the source
+      rather than an observation of the wire, and this box wants the
+      observation.
 - [x] Cancelling keeps access to the end of the paid period, then lapses
       through **M20's resolver** — no second downgrade path exists. —
       `lapse.int.test.ts`. The strongest assertion in it is *"lapses with
       nothing written and no job run"*: the subscription row is byte-identical
-      across the boundary and only the clock moved. **A Stripe-driven walk of
-      the portal's cancel button is still owed** — see *What is still owed*.
+      across the boundary and only the clock moved. **The Stripe-driven walk is
+      no longer owed** — done in production 2026-09-16, and the row is the
+      evidence: after the downgrade it reads `status: active`,
+      `cancel_at_period_end: true`, `current_period_end: 2026-10-16`. Access
+      runs to the period end rather than ending at the click, which is the
+      behaviour this box exists to protect: an immediate flip would take back a
+      month that was already paid for.
 - [ ] A `past_due` account is told in the product before it loses anything, and
       lapses only after the grace window — **3 days from the decline**
       (decided 2026-09-13). Walked both ways: a card fixed on day 2 lapses
@@ -378,10 +419,21 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
 - [x] **The migration is written, applied locally**, and its production
       dispatch is called out in the PR body. — `0021_subscriptions_and_billing`,
       applied to the local database and exercised by every integration suite
-      here. **Not yet dispatched to production**; that is a `gh workflow run
-      migrate-production.yml -f confirm=migrate` from `main` after merge.
-- [ ] The full Definition of Done is green, including
-      `pnpm --filter web test:e2e:ci-like`.
+      here. **Dispatched to production and verified there 2026-09-16**, against
+      the database rather than against this file: `subscriptions` and
+      `billing_events` both exist, `billing_events.applied_at` (0022) and
+      `users.stripe_customer_id` are present, and the newest
+      `drizzle.__drizzle_migrations` row is 2026-09-15T01:13:58Z. The live
+      checkout above is the end-to-end confirmation — the webhook could not
+      have written a subscription row into a table that was missing.
+- [x] The full Definition of Done is green, including
+      `pnpm --filter web test:e2e:ci-like`. — PR #181's `integration-e2e` and
+      `static-and-unit` both `success` on the merged head. CI composes the
+      ci-like lane rather than running the script by that name: `ci.yml:207-208`
+      is `pnpm --filter web build` then `pnpm --filter web test:e2e` with
+      `CI=true` set by the runner, which is what `test:e2e:ci-like` expands to.
+      The distinction CLAUDE.md rule 1 exists to protect — never serving e2e
+      from `pnpm dev` — is held: `ci.yml:68` records that CI serves `next start`.
 - [ ] Retro appended at gate close.
 
 ## Deliberately not here
