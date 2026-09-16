@@ -364,3 +364,50 @@ together, not for changing anything here.
   Phase 1 republishes a plan version and so runs straight past it. Fixing it is
   cheap and is a fair candidate for Phase 1's PR, but it is **not** a gate box
   here — it is M20's defect, not M22's scope.
+
+## What was built
+
+### Phase 0 — the vocabulary — **landed 2026-09-16**
+
+`packages/contracts/src/publicApi.ts`: `ApiScope` and `API_SCOPES` (eight),
+`SCOPE_CATALOGUE`, `ApiErrorCode` and `ApiError`, `ApiToken`, `ApiTokenCreated`,
+`ApiTokenCreateInput`, and the four token-format constants.
+`packages/contracts/src/entitlement.ts`: `Entitlement` gains `api.tokens`.
+Changelog entry in `docs/contracts/CHANGELOG.md`.
+
+**It touched no plan version**, which is what the Phase 0/1 split exists for —
+see the checkpoint above. `planVersions.ts` is untouched, `premium@v1` is
+byte-identical, and `noExtension.test.ts` was not edited.
+
+**Three decisions taken while writing it, none of which the design had settled:**
+
+1. **`SCOPE_CATALOGUE` ships in Phase 0 rather than with the UI in Phase 3.**
+   The design names it in Decision 4 but places it nowhere. Its exhaustiveness is
+   the mechanism — a ninth scope cannot compile until someone writes the sentence
+   — and deferring it means eight sentences get drafted in a hurry by whoever
+   builds the form, long after the person who knew what the scope was for. The
+   sentences the design already wrote for Mitchell are the ones that shipped.
+2. **`ApiErrorCode` is an enum of twelve**, derived from the behaviours Decision
+   10 and Decision 13 already fixed rather than invented — including
+   `token-expired` and `token-revoked` as two codes for one status, which is
+   Decision 13's requirement stated in the type system.
+3. **`ApiToken.scopes` has no `.min(1)` while `ApiTokenCreateInput.scopes`
+   does.** Minting a scopeless token is refused; listing one is not. A row that
+   somehow has no scopes is the one its owner most needs to find in order to
+   revoke it, and a read schema that refused to parse it would hide exactly that
+   row.
+
+**Verified.** Full `pnpm check` — a contracts change is not narrowable, because
+consumers span packages. Green, including the 2,836-test web suite and the 613
+integration tests.
+
+**Every new test was seen to fail first**, per CLAUDE.md rule 3 — ten mutations,
+each turning exactly its own test red and nothing else: dropping `sharing:write`,
+adding an ordering constant, letting a scopeless token be minted, raising the
+365-day ceiling, adding a `secret` to `ApiToken`, caching entitlements on it,
+unfreezing the catalogue, making `expiresAt` nullable, removing one scope's
+sentence, and removing `api.tokens`. The *compile*-time half of the catalogue
+claim was proven separately: a ninth scope with no sentence errors `TS2741`.
+
+**Nothing reads any of it yet, and no gate box ticks.** Phase 0 is not clickable
+and its PR body says so — the reachability rule is Phase 3's to answer.

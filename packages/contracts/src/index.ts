@@ -17,3 +17,4 @@ export * from "./admission.ts";
 export * from "./identity.ts";
 export * from "./assistant.ts";
 export * from "./entitlement.ts";
+export * from "./publicApi.ts";

@@ -25,10 +25,25 @@ import { z } from "zod";
 /**
  * What an account may do. A capability, never a tier.
  *
- * Three members, and the vocabulary is deliberately small: every string here is
- * checked by real code (M20 links 4 and 6), and a fourth would be a word with
- * no reader. Adding one is a contracts change with a changelog entry, which is
- * the protocol invariant 5 requires.
+ * Four members, and the vocabulary is deliberately small: every string here is
+ * checked by real code, and a fifth would need a reader before it earned a
+ * place. Adding one is a contracts change with a changelog entry, which is the
+ * protocol invariant 5 requires.
+ *
+ * **`api.tokens` is M22's, and it gates two different acts.** Mitchell,
+ * 2026-09-16: *"lets lock creating and using API keys behind top tier for
+ * now."* **Minting** — `accountCan(userId, "api.tokens")` before a token is
+ * created, refused with 402. **Using** — every token-authenticated request
+ * resolves *the token owner's* entitlements and refuses with the same 402 if the
+ * answer is no. The second half is the one that is easy to skip and expensive to
+ * skip: a token minted while entitled would otherwise outlive the entitlement by
+ * months.
+ *
+ * **It is granted by `premium` and by no other plan** (Mitchell, 2026-09-16:
+ * *"Just do v2 then"*) — a membership fact about one plan, recorded as a named
+ * plan and never as a height, because *"top tier"* has no meaning inside this
+ * module and must not acquire one. Which version carries it is the plan file's
+ * to say, not this file's.
  *
  * **`ai.ask` and `ai.command` are the effect axis** the assistant kernel
  * already gates on — spec §7c maps `ai.ask` onto `read` and `ai.command` onto
@@ -44,7 +59,7 @@ import { z } from "zod";
  * 2026-09-01). There is no `trip.plan` string because nothing may ever gate on
  * one — a capability that exists is a capability someone will eventually check.
  */
-export const Entitlement = z.enum(["ai.ask", "ai.command", "trip.collaborators"]);
+export const Entitlement = z.enum(["ai.ask", "ai.command", "trip.collaborators", "api.tokens"]);
 export type Entitlement = z.infer<typeof Entitlement>;
 
 /** Every entitlement, for exhaustiveness at a call site that must handle all of them. */

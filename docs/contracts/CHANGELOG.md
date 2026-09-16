@@ -13,6 +13,64 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-16 — the public API's vocabulary, and `api.tokens`
+
+- Added: `ApiScope` and `API_SCOPES` — the eight scopes an API token may hold
+  (`packages/contracts/src/publicApi.ts`)
+- Added: `SCOPE_CATALOGUE` — an exhaustive, frozen `Record<ApiScope,
+  ApiScopeDescription>` giving each scope a title and the sentence a person reads
+  when deciding whether to grant it
+- Added: `ApiErrorCode` and `ApiError` — the one error envelope every `v1` route
+  returns, `{ error: { code, message, details? } }`
+- Added: `ApiToken`, `ApiTokenCreated`, `ApiTokenCreateInput`, and the four
+  format constants (`API_TOKEN_PREFIX`, `API_TOKEN_PREFIX_LENGTH`,
+  `API_TOKEN_MAX_LIFETIME_DAYS`, `API_TOKEN_DEFAULT_LIFETIME_DAYS`)
+- Added: **`Entitlement` gains `api.tokens`** — a fourth member
+  (`packages/contracts/src/entitlement.ts`)
+- Why: M22 Phase 0. The design is
+  `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`; the scope
+  and gate are `docs/milestones/M22-public-api-and-tokens.md`. The vocabulary
+  lands before anything reads it because every later phase depends on these
+  words, and a word changed after its second consumer exists is a migration
+  rather than an edit
+- **`api.tokens` gates two acts, not one**: minting a token
+  (`accountCan(userId, "api.tokens")`, 402 if not) and *using* one (the owner's
+  entitlements resolved per request, same 402). The second half is what makes a
+  downgrade bite before a token refreshes — a token lives for months, so an
+  entitlement cached on its row would be that defect with a longer fuse. It is
+  granted by `premium` and no other plan, recorded as a named plan and never as a
+  height
+- **There is no route registry here and there must never be one.** A route is
+  public if and only if its file is under `apps/web/src/app/api/v1/**`
+  (Decision 1). The Next.js file router already decides the URL; a constant
+  listing the same routes is the drift invariant 5 exists to stop, and
+  `publicApi.test.ts` fails if one appears
+- **`SCOPE_CATALOGUE` is copy in a contracts package, deliberately.** Its
+  exhaustiveness is the mechanism: a ninth scope **fails to compile** until
+  somebody writes the sentence — verified by adding one, which errors `TS2741` at
+  the catalogue. The alternative is eight sentences drafted in a hurry by whoever
+  builds the form, and two copies of them that disagree within a release.
+  `AdminGrantInput`'s refusal message is the precedent for user-facing text here
+- **`ApiToken` carries no secret and no entitlement, in any spelling.** The
+  secret is returned once by `ApiTokenCreated` and stored as `sha256`, which
+  breaks with `TripShare`'s plaintext token on a stated reason that does not
+  transfer: nothing re-shows an API token. Tests assert both absences by parsing
+  an object that contains them and checking they are stripped
+- **`ApiToken.scopes` has no `.min(1)` while `ApiTokenCreateInput.scopes` does**,
+  and the asymmetry is intentional: minting a scopeless token is refused, listing
+  one is not. A row that somehow has no scopes is the one its owner most needs to
+  find in order to revoke it, and a read schema that refused to parse it would
+  hide exactly that row
+- Consumers updated: `packages/contracts` only — `entitlement.test.ts`'s
+  vocabulary assertion now names four capabilities. **Nothing else needed a
+  change**, verified rather than assumed: no `Record<Entitlement, …>` exists
+  anywhere, so the fourth member breaks no exhaustiveness, and every UI check is
+  an `includes(…)` against a list
+- Breaking? **No.** Everything here is additive. `Entitlement` gaining a member
+  widens a union, which no existing consumer narrows over; the new schemas have
+  no existing callers by design — Phase 0 lands the words, and Phases 1 to 4
+  supply the readers
+
 ## 2026-09-15 — `losesOnLapse`, and `sessionId` on a started checkout
 
 - Added: `PlanBillingView.losesOnLapse` — the entitlements an account would stop
