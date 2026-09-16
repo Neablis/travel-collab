@@ -22,8 +22,13 @@ afterEach(cleanup);
 const user = userEvent.setup({ delay: null });
 
 function renderWizard() {
-  const createTrip = vi.fn<(input: { name: string }) => Promise<ApiResult<{ tripId: string }>>>();
-  createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-1" } });
+  // `tripId` is optional on the prop because the CLIENT mints it now
+  // (KI-2026-09-12-e) — the mock has to accept what the component really sends.
+  const createTrip =
+    vi.fn<(input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>>();
+  createTrip.mockImplementation(async (input) =>
+    ({ ok: true, value: { tripId: input.tripId ?? "trip-1" } }),
+  );
   const dispatch = vi
     .fn<(command: BoardCommand) => Promise<ApiResult<CommandOutcome>>>()
     .mockResolvedValue({ ok: true, value: {} as CommandOutcome });
@@ -273,10 +278,17 @@ describe("NewTripWizard — the four turns", () => {
     await user.type(screen.getByLabelText("Where are you going?"), "Porto");
     await user.click(screen.getByRole("button", { name: "Create empty" }));
 
-    await waitFor(() => expect(createTrip).toHaveBeenCalledWith({ name: "Porto" }));
+    await waitFor(() =>
+      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Porto" })),
+    );
     expect(dispatch).not.toHaveBeenCalled();
+    // **The id is minted by the client** (KI-2026-09-12-e), so it is random
+    // rather than a fixture — and the claim worth making is that the id handed
+    // back is the SAME one that was sent, not that it equals some literal.
+    const sent = createTrip.mock.calls[0]?.[0]?.tripId;
+    expect(sent).toMatch(/^[0-9a-f-]{36}$/);
     // `navigate: false` — the old dialog closed and left you on the trip list
     // to open the card yourself, and every pre-Phase-7 e2e spec is built on it.
-    expect(onCreated).toHaveBeenCalledWith("trip-1", { navigate: false });
+    expect(onCreated).toHaveBeenCalledWith(sent, { navigate: false });
   });
 });

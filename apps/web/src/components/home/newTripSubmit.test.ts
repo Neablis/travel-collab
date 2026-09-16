@@ -28,10 +28,16 @@ const SETUP: TripSetup = {
   currency: "USD",
 };
 
+/** `newTripId` is bound to the same id the stub echoes, because the client
+ *  mints it now (KI-2026-09-12-e) and the server confirms it rather than
+ *  choosing it. A test that let them differ would be testing a server that
+ *  does not exist. */
 function stubs(tripId: string) {
-  const createTrip = vi.fn(async () => ok({ tripId }));
+  const createTrip = vi.fn(async (input: { name: string; tripId?: string }) =>
+    ok({ tripId: input.tripId ?? tripId }),
+  );
   const dispatch = vi.fn(async () => ok({} as CommandOutcome));
-  return { createTrip, dispatch };
+  return { createTrip, dispatch, newTripId: () => tripId };
 }
 
 /** Deterministic day ids: `crypto.randomUUID` works in this lane, but a test
@@ -43,32 +49,34 @@ function countingDayId() {
 
 describe("createTripWithSetup", () => {
   it("creates with the name alone when nothing is to be applied", async () => {
-    const { createTrip, dispatch } = stubs("trip-empty");
+    const { createTrip, dispatch, newTripId } = stubs("trip-empty");
     const result = await createTripWithSetup({
       setup: SETUP,
       applySetup: false,
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
 
     expect(result.ok).toBe(true);
-    expect(createTrip).toHaveBeenCalledWith({ name: "Prague" });
+    expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Prague" }));
     // "Create empty" is the escape hatch, and it dispatches nothing at all —
     // not even the dates the wizard happens to be holding.
     expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("trims the name, and refuses a blank one without creating anything", async () => {
-    const { createTrip, dispatch } = stubs("trip-blank");
+    const { createTrip, dispatch, newTripId } = stubs("trip-blank");
     await createTripWithSetup({
       setup: { ...SETUP, name: "  Prague  " },
       applySetup: false,
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
-    expect(createTrip).toHaveBeenCalledWith({ name: "Prague" });
+    expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Prague" }));
 
     createTrip.mockClear();
     const blank = await createTripWithSetup({
@@ -77,6 +85,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
     expect(blank.ok).toBe(false);
     // `CreateTrip.name` is `z.string().min(1)`: a trip with no name is a
@@ -85,13 +94,14 @@ describe("createTripWithSetup", () => {
   });
 
   it("applies dates as an inclusive span, one day id per day", async () => {
-    const { createTrip, dispatch } = stubs("trip-dates");
+    const { createTrip, dispatch, newTripId } = stubs("trip-dates");
     await createTripWithSetup({
       setup: SETUP,
       applySetup: true,
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
       newDayId: countingDayId(),
     });
 
@@ -106,13 +116,14 @@ describe("createTripWithSetup", () => {
   });
 
   it("sends no dates command when there is no arrival to anchor them to", async () => {
-    const { createTrip, dispatch } = stubs("trip-undated");
+    const { createTrip, dispatch, newTripId } = stubs("trip-undated");
     await createTripWithSetup({
       setup: { ...SETUP, arrive: "" },
       applySetup: true,
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
     // A length with no arrival is not a dated trip, and a trip created moments
     // ago already has no dates — so there is nothing to clear either.
@@ -123,7 +134,7 @@ describe("createTripWithSetup", () => {
   // currency dispatch without awaiting it and report success regardless — a
   // failed command was silently lost.
   it("stops at a failed command and says which one, without claiming success", async () => {
-    const { createTrip, dispatch } = stubs("trip-fails-dates");
+    const { createTrip, dispatch, newTripId } = stubs("trip-fails-dates");
     dispatch.mockResolvedValueOnce(fail("server exploded"));
 
     const result = await createTripWithSetup({
@@ -132,6 +143,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
 
     expect(result.ok).toBe(false);
@@ -145,7 +157,7 @@ describe("createTripWithSetup", () => {
   });
 
   it("reuses the trip a failed attempt already created, rather than minting a second", async () => {
-    const { createTrip, dispatch } = stubs("trip-retry");
+    const { createTrip, dispatch, newTripId } = stubs("trip-retry");
     dispatch.mockResolvedValueOnce(fail("server exploded"));
 
     const first = await createTripWithSetup({
@@ -154,6 +166,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
     expect(first.ok).toBe(false);
 
@@ -163,6 +176,7 @@ describe("createTripWithSetup", () => {
       latch: first.latch,
       createTrip,
       dispatch,
+      newTripId,
     });
 
     expect(createTrip).toHaveBeenCalledTimes(1);
@@ -248,6 +262,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId: () => "trip-clear-dates",
     });
     expect(first.ok).toBe(false);
 
@@ -297,6 +312,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId: () => "trip-clear-budget",
     });
     expect(first.ok).toBe(false);
     if (first.ok) throw new Error("unreachable");
@@ -318,14 +334,106 @@ describe("createTripWithSetup", () => {
     });
   });
 
+  // KI-2026-09-12-e. The retry was safe against a REJECTED command and not
+  // against a LOST RESPONSE: the command committed, the browser lost the reply,
+  // `createTrip` returned ok:false, the latch never received the tripId, and
+  // the retry minted a second trip. D-D, answered 2026-09-16: an idempotency
+  // key, not a read-back reconcile — read-back costs a round trip on every
+  // retry and needs a list-and-match heuristic on a name that is not unique.
+  describe("a lost response", () => {
+    it("sends an id it minted, so the retry is the same command", async () => {
+      const { createTrip, dispatch } = stubs("ignored-server-id");
+      await createTripWithSetup({
+        setup: SETUP,
+        applySetup: false,
+        latch: null,
+        createTrip,
+        dispatch,
+        newTripId: () => "mine-1",
+      });
+      expect(createTrip).toHaveBeenCalledWith({ name: "Prague", tripId: "mine-1" });
+    });
+
+    it("uses the id it minted, not the one the server echoed", async () => {
+      // They agree in practice. They must agree in CODE too: reading the
+      // server's echo is what leaves the retry with nothing when the response
+      // is the thing that went missing.
+      const createTrip = vi.fn(async () => ok({ tripId: "server-said-something-else" }));
+      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+      const result = await createTripWithSetup({
+        setup: SETUP,
+        applySetup: false,
+        latch: null,
+        createTrip,
+        dispatch,
+        newTripId: () => "mine-2",
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("unreachable");
+      expect(result.latch.tripId).toBe("mine-2");
+    });
+
+    it("reads trip-already-exists as landed, not as a failure", async () => {
+      const createTrip = vi.fn(async (): Promise<ApiResult<{ tripId: string }>> => ({
+        ok: false,
+        error: {
+          status: 400,
+          message: "A trip with this id already exists.",
+          code: "trip-already-exists",
+        },
+      }));
+      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+
+      const result = await createTripWithSetup({
+        setup: SETUP,
+        applySetup: true,
+        latch: null,
+        createTrip,
+        dispatch,
+        newTripId: () => "mine-3",
+      });
+
+      // The trip is there, under the id we chose — so the sequence carries on
+      // and applies the setup rather than reporting a problem that has gone.
+      expect(result.ok).toBe(true);
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripDates", tripId: "mine-3" }),
+      );
+    });
+
+    it("still reports a create that really failed", async () => {
+      const createTrip = vi.fn(async (): Promise<ApiResult<{ tripId: string }>> => ({
+        ok: false,
+        error: { status: 500, message: "server exploded" },
+      }));
+      const dispatch = vi.fn(async () => ok({} as CommandOutcome));
+
+      const result = await createTripWithSetup({
+        setup: SETUP,
+        applySetup: true,
+        latch: null,
+        createTrip,
+        dispatch,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("unreachable");
+      expect(result.error).toMatch(/server exploded/i);
+      // No trip, so no latch — the one case where it is legitimately null.
+      expect(result.latch).toBeNull();
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+  });
+
   it("sends no currency command for the default, and one for anything else", async () => {
-    const { createTrip, dispatch } = stubs("trip-currency");
+    const { createTrip, dispatch, newTripId } = stubs("trip-currency");
     await createTripWithSetup({
       setup: { ...SETUP, arrive: "" },
       applySetup: true,
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
     // A fresh trip is already USD — unlike dates and budget there is no
     // "clear" here, so the default is silence rather than a command.
@@ -337,6 +445,7 @@ describe("createTripWithSetup", () => {
       latch: null,
       createTrip,
       dispatch,
+      newTripId,
     });
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({ type: "SetTripCurrency", currency: "JPY" }),

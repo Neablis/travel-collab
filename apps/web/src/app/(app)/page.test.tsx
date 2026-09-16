@@ -598,16 +598,29 @@ describe("Home first-run experience", () => {
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
 
-    // Step 1 of 4 — "Create empty" is enabled by the name alone, which is why
+    // The first turn — "Create empty" is enabled by the name alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
     await userEvent.click(screen.getByRole("button", { name: "Create empty" }));
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/trips"),
-        expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Japan" }) }),
-      ),
-    );
+    // **The body now carries a client-minted `tripId`** (KI-2026-09-12-e), so
+    // this can no longer be an exact `JSON.stringify` match. It is the only
+    // test that exercises the real wire format end to end — `createTrip` and
+    // `fetch` are both real here — which makes it the right place to pin that
+    // the id actually reaches the request rather than stopping at the module
+    // boundary.
+    // The POST, not call zero: the page loads its trip list first, and that GET
+    // has no `init` at all — reading `.method` off it is a TypeError, not a
+    // failed assertion.
+    const createCall = () =>
+      (fetchMock.mock.calls as [string, RequestInit | undefined][]).find(
+        ([url, init]) => url.includes("/api/trips") && init?.method === "POST",
+      );
+    await waitFor(() => expect(createCall()).toBeDefined());
+    const init = createCall()![1]!;
+    expect(JSON.parse(String(init.body)) as { name: string; tripId: string }).toEqual({
+      name: "Japan",
+      tripId: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+    });
 
     // Post-create state: the first-run empty state is gone, the new trip's
     // own card is showing in its place, and "Create empty" never navigates

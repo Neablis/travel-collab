@@ -55,7 +55,7 @@ Read this before §1; it is why §1 is short now.
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins, or design adds it back. **Not re-verified this pass** — carried forward as stated, flag if it has since changed. |
 | **D6** | "Next trip" | `TripSummary` still carries only `createdAt`; `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, still open and unchanged.** The only survivor of the original list. With nothing to sort by the hero can surface the *wrong trip*. KI-34 names the fix path: add a start date to `TripSummary`, then date-sort. |
 | **D10** | Billing | **Changed shape.** No `plan`, `plan_versions`, `entitlement_grants`, `is_admin`, `subscriptions` or `ai_usage` table — but the **port now exists**: `server/assistant/entitlements.ts` defines `ResolvedEntitlements` (a `has()` set, never a rank), `EntitlementCeilings` and `planVersionRef`; `EVERYONE_IS_ENTITLED` was widened to `permitEverything`, and a `TurnLedger` is already shaped as M20 link 9's `ai_usage` row with model identity and cost as variable inputs | Four surfaces: pricing, operator console, collaboration gate, plan + usage (§2c) | Design is still ahead and still blocked on M20/M21 **tables**, but no longer on the *seam*. The gate the design shows (AI, 402 `ai-not-entitled`) has a real resolver behind it now. Not a defect on either side. |
-| **D11** | The new-trip wizard | A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`**), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | **Changed 2026-09-15 (`SPEC.md` §30).** The four-step wizard is now a five-turn scripted conversation; every chip is an inline answer in a transcript | **Design answered the open question.** The shells are no longer orphaned — all four chip groups survive as answer affordances on turns 1, 2, 4 and 5, and `wizard-assistant-draft` becomes the fork at the end. What a build owes changed shape though: not four step forms but one transcript plus a local question script, and the first model call is the one after the fifth answer. |
+| **D11** | The new-trip wizard | A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`**), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | **Changed 2026-09-15 (`SPEC.md` §30).** The four-step wizard is now a five-turn scripted conversation; every chip is an inline answer in a transcript | **BUILT 2026-09-16, and three of the four numbers in this row were wrong.** (a) **Four turns, not five** — `who` was dropped on Mitchell's instruction, 2026-09-15; `SPEC.md` §30.1 still says five and this is the recorded delta it is owed. (b) **Three shells left the registry, they did not survive**: `wizard-pace-tags` because turns 3 and 4 are real answer affordances now, `wizard-destination-chips` because **D-A** dropped the "Recent and nearby" label that was the unsupported claim, and `wizard-longer-chip` because **D-B** confirmed 21 nights and made `Longer` a real fifth length — reversing the 2026-08-23 decision that it had no day count. Only `wizard-assistant-draft` survives, because it is the fork and the fork is not built. (c) **There is no first model call.** SPEC §30.2: the four turns make zero model calls and zero network calls, and the only traffic is `POST /api/trips` (+ commands) when an exit is pressed. The generation the row imagines after the last answer is design §4, unbuilt. |
 
 D1, D2, D4, D5, D7, D8 and D9 are closed — §5.
 
@@ -296,9 +296,12 @@ missing `tags` field are all resolved. Four items this document argued for, all 
 
 1. **Answer the quota-window question** with Mitchell before M20 opens — the plan-and-usage
    screen is where a wrong answer reaches a customer (§2c).
-2. **Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
-   placed. Two orphaned shells is the honest signal that the design asked for something
-   nobody owns.
+2. ~~**Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
+   placed.~~ **ANSWERED 2026-09-16 and built.** Neither was dropped from the design and
+   neither stayed `unplaced`: **D-A** removed the label that made the destination chips a
+   claim nobody could support, and **D-B** gave `Longer` the day count it had been refused,
+   so both shells became real affordances and left `preview-registry.ts`. The third way out
+   of "two orphaned shells" turned out to be answering the two questions underneath them.
 3. **Land KI-034** so the home hero can be honest. Unchanged, and now the oldest.
 4. Design the phone **conflict** state — the last of rule 6.
 5. ~~Look at KI-046 / tablet~~ — **out of scope, Mitchell 2026-09-12.** No tablet design.

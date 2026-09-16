@@ -79,13 +79,14 @@ export async function createTripWithSetup({
   createTrip,
   dispatch,
   newDayId = () => crypto.randomUUID(),
+  newTripId = () => crypto.randomUUID(),
 }: {
   setup: TripSetup;
   /** False for "Create empty": the name, and nothing else. */
   applySetup: boolean;
   /** What a previous attempt got through, or `null` on the first. */
   latch: SetupLatch | null;
-  createTrip: (input: { name: string }) => Promise<ApiResult<{ tripId: string }>>;
+  createTrip: (input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>;
   /**
    * Awaited, not fire-and-forget (CodeRabbit, PR #32): each command confirms —
    * or reports a real failure — before the next is sent, rather than racing an
@@ -94,18 +95,33 @@ export async function createTripWithSetup({
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
   /** Injectable so a test can read the ids it produced. */
   newDayId?: () => string;
+  /** The same, for the trip's own id — see the retry note below. */
+  newTripId?: () => string;
 }): Promise<SetupResult> {
   const name = setup.name.trim();
   if (name === "") return { ok: false, error: "A trip needs a name.", latch };
 
   let applied = latch;
   if (applied === null) {
-    const result = await createTrip({ name });
+    // **The id is minted HERE, not by the server** (KI-2026-09-12-e). The
+    // wizard's retry was safe against a rejected command and not against a LOST
+    // RESPONSE: if `CreateTrip` committed and the browser lost the reply, this
+    // returned `ok: false`, the latch never got the tripId, and retrying minted
+    // a second trip. Sending the id makes the retry the same command.
+    const tripId = newTripId();
+    const result = await createTrip({ name, tripId });
     if (!result || !result.ok) {
-      return { ok: false, error: result?.error?.message ?? "Something went wrong", latch: null };
+      // **`trip-already-exists` means the first attempt LANDED.** The domain
+      // answers it from `decideCreateTrip`, and it is the one "failure" that is
+      // really a success — the trip is there, under the id we chose. Treating
+      // it as an error is what left a retry reporting a problem that no longer
+      // existed.
+      if (result?.error?.code !== "trip-already-exists") {
+        return { ok: false, error: result?.error?.message ?? "Something went wrong", latch: null };
+      }
     }
     applied = {
-      tripId: result.value.tripId,
+      tripId,
       datedAs: null,
       budgetAppliedAs: null,
       currencyAppliedAs: null,

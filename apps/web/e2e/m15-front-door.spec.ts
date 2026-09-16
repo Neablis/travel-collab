@@ -75,8 +75,14 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
 
   // A trip from a name alone — the capability that replaced the first-run screen.
+  //
+  // **Not `createEmptyTripViaWizard`**, deliberately: that helper asserts the
+  // new trip's link is visible, and the assertion below is this spec's own
+  // point about the front door. Inlined, so the composer's accessible name —
+  // the QUESTION being asked, since SPEC §30.1 (this locator used to read
+  // `/trip name/i` and matched nothing) — appears here too.
   await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel(/trip name/i).fill(tripName);
+  await page.getByLabel("Where are you going?").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
   // `.first()`, not a bare `getByText`: a freshly created trip legitimately
   // renders twice on Home — once in NextTripHero and once as its TripCard —
