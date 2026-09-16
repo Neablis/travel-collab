@@ -9,7 +9,7 @@
 // admin grant, which is account state; that is what M20 built the grant path
 // for, and it is why a tier gate in this repo is provable in CI rather than by
 // watching production once.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
@@ -239,13 +239,18 @@ describe("the pepper", () => {
     const secret = minted.ok ? minted.created.secret : "";
     const tokenId = minted.ok ? minted.created.token.tokenId : "";
     const stored = (await db.select().from(apiTokens).where(eq(apiTokens.id, tokenId)))[0]!;
+    expect(stored.tokenHash).toMatch(/^[0-9a-f]{64}$/);
 
-    // The digest is NOT the unkeyed sha256 of the secret — which is exactly what
-    // an attacker holding only this table would compute.
-    const unkeyed = createHash("sha256").update(secret, "utf8").digest("hex");
-    expect(stored.tokenHash).not.toBe(unkeyed);
-
-    // And under a rotated pepper the same secret no longer resolves — every
+    // **The rotation IS the proof that the digest is keyed**, and it is the whole
+    // proof. An earlier version of this test also computed
+    // `createHash("sha256").update(secret)` and asserted the stored digest
+    // differed from it — which is redundant: if `hashOf` were unkeyed, changing
+    // the pepper could not change whether this secret resolves, and the
+    // assertion below would not hold. (It also put a textbook
+    // "credential hashed with a fast hash" into the tree for a static analyser
+    // to find, in a file whose point is that we do not do that.)
+    //
+    // Under a rotated pepper the same secret no longer resolves — every
     // token dies, deliberately and with no migration path, which is the right
     // blast radius for a key compromise.
     const original = process.env.API_TOKEN_PEPPER;
