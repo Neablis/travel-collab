@@ -1,11 +1,18 @@
 # M22 — An account can build on the API
 
-**Status:** **Scoped 2026-09-16. Placed, not started.** Its prerequisite is
-**M21 closed**, and M21 is the current milestone at 11 of 17 gate boxes — so
-nothing here may be built yet. Placed 2026-09-16 on Mitchell's call
-(*"Im fine making it after M21"*); the live order is
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
-Placement note: `docs/milestones/README.md`, 2026-09-16.
+**Status:** **CURRENT MILESTONE as of 2026-09-16, and building.** Placed that
+morning on Mitchell's call (*"Im fine making it after M21"*), scoped the same
+day, then **moved ahead of M21 by his explicit decision** — offered the choice
+between closing M21 first and reordering, with the cost stated, he chose the
+reorder. The live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+Both notes: `docs/milestones/README.md`, 2026-09-16.
+
+> **This milestone runs with its stated prerequisite unmet**, which is a
+> deliberate decision and not an oversight. M21 is open at 11 of 17 and paused;
+> nothing about it is amended. **The one thing that prerequisite was protecting
+> has a checkpoint, below** — see *Phase 0 → Phase 1: the checkpoint M21's pause
+> creates*, which is a gate on entering Phase 1 rather than a box at the end.
 
 **Every decision is closed as of 2026-09-16**, including the last one flagged
 back to Mitchell — `api.tokens` ships on **`premium@v2`** (*"Just do v2 then."*).
@@ -82,6 +89,32 @@ the plan version moves to Phase 1**, alongside the `accountCan` check that is
 the first thing to actually read it. Phase 0 then genuinely does not touch
 `planVersions.ts`, and the one owed decision (below) stops sitting on the
 critical path.
+
+### Phase 0 → Phase 1: the checkpoint M21's pause creates
+
+**Phase 1 may not start until one of two things is true**, and this is the whole
+of what M22 owes M21 for running ahead of it.
+
+Publishing `premium@v2` makes it what `livePlanVersion("premium")` returns, and
+`startCheckout` buys the live version and nothing else
+(`billing/checkout.ts:119`). A version's Stripe Price is created **lazily, at its
+first checkout** (`prices.ts:104-160`), and **`premium@v1` has never been
+bought** — so its Price does not exist, and after `v2` publishes, nothing the
+product offers can ever create it. `checkPriceConsistency` cannot stand in for
+the purchase: a version with no Price reports `missing`, not `ok`
+(`prices.ts:184-213`).
+
+So M21's second gate box — *every priced version's `stripe_price_id` resolves to
+a Stripe Price with a matching amount and currency* — becomes **unclosable as
+written for `premium@v1`** the moment Phase 1 lands. Either:
+
+1. **One Premium subscription is bought and refunded first**, which is the
+   remedy M21's own box note already names; or
+2. **Mitchell amends the box**, which only he may do.
+
+**Phase 0 is unaffected and needs no checkpoint** — it is the contracts change
+alone and does not touch `planVersions.ts`. That is why the split exists, and it
+now has two independent reasons.
 
 ### Phase 1 — storage, the module, and the entitlement it enforces
 
@@ -263,10 +296,17 @@ with a one-year life fails quietly.
 
 ## Prerequisites
 
-**M21's gate must close first.** AGENTS.md forbids building ahead of the
-current milestone, and the dependency is real rather than procedural: Phase 1
-publishes `premium@v2`, and what `premium` costs and how it is sold is M21's to
-settle first.
+**~~M21's gate must close first.~~ Overridden 2026-09-16 by Mitchell's explicit
+decision** to run M22 ahead of M21 — offered that choice against closing M21
+first, with the cost in front of him. AGENTS.md's rule against building ahead of
+the current milestone is what made this his call to make rather than a default
+taken quietly.
+
+**The dependency was real rather than procedural, so it did not vanish — it
+moved.** Phase 1 publishes `premium@v2`, and what `premium` costs and how it is
+sold is M21's to settle. That is now the **Phase 0 → Phase 1 checkpoint** above,
+which is a stricter statement of the same constraint: not *"M21 must close"* but
+*"one specific purchase must happen, or one box must be amended."*
 
 **Everything underneath already exists.** Entitlements and plan versions (M20),
 the trip-access seam, `consumeQuota`, the revocation pattern, the account sheet

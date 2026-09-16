@@ -198,12 +198,13 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M21 — An account can pay for itself**
-(`M21-subscriptions-and-billing.md`), as of **2026-09-14, when M20's gate
-closed** — 32 of 32 live boxes, retro in its own file. No decision moved this
-one; the order set on 2026-09-13 simply advanced. Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
-**M22 was placed 2026-09-16** — see the note below.
+Current milestone: **M22 — An account can build on the API**
+(`M22-public-api-and-tokens.md`), as of **2026-09-16, by Mitchell's decision**
+— **not** by a gate closing. **M21 is OPEN at 11 of 17 and is paused, not
+finished.** Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+**M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
+below, and the second one carries a cost that has a deadline.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and
@@ -219,6 +220,53 @@ scope and exit gate stand. **M9's gate was the previous `Current milestone`
 value** (set 2026-09-11 when M17's gate closed) and it did **not** close; this
 line moved by decision, which is the one way it may move other than a gate
 close.
+
+### 2026-09-16 — reordered: M22 runs AHEAD of M21, which pauses at 11/17
+
+**Mitchell's decision, 2026-09-16**, taken with the cost below in front of him
+and chosen over closing M21 first. **This is the second way the Current
+milestone line may move** — by decision rather than by a gate closing — and the
+2026-09-13 reorder is the standing precedent for the shape.
+
+**M21 is paused, not abandoned.** Its file, scope and seventeen gate boxes stand
+untouched; six are open. Nothing about this note ticks, unticks or amends a box
+— only Mitchell amends a gate definition, and he has not.
+
+**The cost, established by reading the code rather than recalled.** One of
+M21's six open boxes gets *harder*, and one specific act inside it acquires a
+deadline:
+
+- `stripePriceFor` creates a version's Stripe Price **lazily, at its first
+  checkout** (`billing/prices.ts:104-160`). **`premium@v1` has never been
+  purchased, so its Stripe Price has never been created** — there is nothing in
+  Stripe carrying its lookup key.
+- `startCheckout` buys **`livePlanVersion(planId)`** and nothing else
+  (`billing/checkout.ts:119`), and `livePlanVersion` returns the newest
+  published entry (`planVersions.ts:340-345`). **So the moment M22's Phase 1
+  publishes `premium@v2`, no path the product offers can ever create
+  `premium@v1`'s Price.**
+- `checkPriceConsistency` — *"the gate box, as a function"* — cannot substitute,
+  because a version with no Price is reported `missing`, not `ok`
+  (`prices.ts:184-213`). Checking cannot conjure the thing to check against.
+
+**Therefore M21's second gate box becomes unclosable as written for
+`premium@v1` once `premium@v2` is published** — not merely harder, which is how
+this was first put before the code was read. Its own note says the remedy:
+*"Buying and refunding one Premium subscription closes this box."* **That
+purchase has to happen before M22's Phase 1, or the box needs an amendment from
+Mitchell.**
+
+**What the reorder does NOT cost, and why it can start immediately.** M22's
+**Phase 0 is the contracts change alone** and does not touch `planVersions.ts`
+— a split this file already recorded for a different reason (Decision 12's
+flagged item), which now carries a second and stronger one. So Phase 0 runs at
+zero cost to M21, and **the deadline lands at the Phase 0 → Phase 1 boundary**
+rather than today. That boundary is the checkpoint, and M22's file says so.
+
+**One finding surfaced on the way, filed not fixed**: `checkPriceConsistency`
+is described as the gate box as a function and **has no caller outside its own
+unit tests** — no script, no route, no scheduled check, nothing a deploy
+reaches. `KI-2026-09-16-c`.
 
 ### 2026-09-16 — placed: M22, a public API and scoped account tokens
 

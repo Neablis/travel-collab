@@ -38,13 +38,15 @@ minted and placed 2026-09-01**, after M9, by Mitchell's call. **Reordered again
 2026-09-13 — M20 and M21 move ahead of M9's remaining work**, on Mitchell's
 direct request for the payment milestone, so the live order is
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
-**Placed 2026-09-16 — M22 (a public API and scoped account tokens) runs after
-M21**, on Mitchell's direct answer (*"Im fine making it after M21"*), so the
-live order is
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
-**Placed but not scoped**, the M19 way — one open decision still moves its
-scope. Placement note and the entitlement decision that came with it:
-`docs/milestones/README.md`, 2026-09-16. M19 stays last regardless: its link 3
+**Placed 2026-09-16 — M22 (a public API and scoped account tokens) — then
+moved AHEAD of M21 the same day**, both on Mitchell's direct answers
+(*"Im fine making it after M21"*, then *"#2"* choosing the reorder over closing
+M21 first). The live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+**M22 is scoped and current; M21 is open, paused and unamended.** The reorder
+carries one cost with a deadline — a Premium purchase must happen before M22's
+Phase 1 publishes `premium@v2`, or M21's second gate box cannot be closed for
+`premium@v1`. Both notes: `docs/milestones/README.md`, 2026-09-16. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
 
@@ -482,9 +484,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       the console the design draws is **half M21's** — its MRR/ARPU/margin
       strip must not be built inside M20.)*
 
-- [ ] **M21 An account can pay for itself** ← **current milestone** (2026-09-14,
-      by M20's gate closing; the order was already set on 2026-09-13 and no
-      decision moved it) →
+- [ ] **M21 An account can pay for itself** ← **OPEN, PAUSED at 11/17**
+      (was current from 2026-09-14; **paused 2026-09-16 by Mitchell's decision**
+      to run M22 first — its scope and all seventeen boxes stand unamended) →
       `docs/milestones/M21-subscriptions-and-billing.md`
       *(**All four phases written 2026-09-14/15** on `claude/keen-darwin-qkkq41`:
       the subscription table and priced plan versions, hosted checkout and the
@@ -536,7 +538,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       an existing subscriber onto a newer version. What you bought is what you
       get, now with no mechanism to change it.)*
 
-- [ ] **M22 An account can build on the API** →
+- [ ] **M22 An account can build on the API** ← **current milestone**
+      (2026-09-16, **by Mitchell's decision rather than by a gate closing** —
+      M21 is open at 11/17 and paused) →
       `docs/milestones/M22-public-api-and-tokens.md`
       *(**Placed 2026-09-16 by Mitchell — runs after M21, before M12.**
       *"Im fine making it after M21."* A public REST API and account-generated

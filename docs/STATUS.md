@@ -30,11 +30,27 @@ general setup.
 
 ## Where the work is right now
 
-**M21 — AN ACCOUNT CAN PAY FOR ITSELF — IS THE CURRENT MILESTONE, OPENED 2026-09-14**, when
-M20's gate closed. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M12 → M13 → M14 → M19`. Scope, the seven
-links and the decided prices are in `docs/milestones/M21-subscriptions-and-billing.md`; the
-kickoff plan it shares with M20 is `docs/plans/2026-09-13-M20-M21-commercial.md`.
+**M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
+**Mitchell's decision and not by a gate closing**. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+Scope and the 19-box gate: `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box
+stand unamended, and the six open ones are still owed. Its state is recorded below rather
+than deleted, because a paused milestone that stops being described is one nobody returns to.
+
+**The reorder has one cost with a deadline, and it is the thing to act on first.** M22's
+**Phase 1 publishes `premium@v2`**, and from that moment `livePlanVersion("premium")` returns
+v2, so `startCheckout` — which buys the live version and nothing else
+(`billing/checkout.ts:119`) — can never again create `premium@v1`'s Stripe Price. That Price
+has never been created, because `stripePriceFor` creates one lazily at a version's first
+checkout and **`premium@v1` has never been purchased**. `checkPriceConsistency` cannot stand
+in: a version with no Price reports `missing`, not `ok`. **So M21's second gate box becomes
+unclosable as written for `premium@v1` unless one Premium subscription is bought and refunded
+BEFORE M22's Phase 1** — or Mitchell amends the box. **M22's Phase 0 is the contracts change
+alone and does not touch `planVersions.ts`, so it costs M21 nothing; the deadline is the
+Phase 0 → Phase 1 boundary.**
 
 **All four phases are written and merged** (#177, then #180 and #181) — the subscription
 table and priced plan versions, hosted checkout and the webhook, the `plans` route with the
