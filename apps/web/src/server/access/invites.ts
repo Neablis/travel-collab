@@ -90,7 +90,20 @@ export async function listInvites(tripId: string): Promise<TripInvite[]> {
   const rows = await db.select().from(tripInvites).where(eq(tripInvites.tripId, tripId));
   return rows
     .map(toDto)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+    // Total, not partial: `inviteId` breaks a same-millisecond tie so two reads
+    // of the same invite list agree, which is what a keyset cursor over this
+    // list depends on to not skip one.
+    .sort((a, b) =>
+      a.createdAt < b.createdAt
+        ? 1
+        : a.createdAt > b.createdAt
+          ? -1
+          : a.inviteId < b.inviteId
+            ? 1
+            : a.inviteId > b.inviteId
+              ? -1
+              : 0,
+    );
 }
 
 /**

@@ -3,7 +3,7 @@ import { SavedDay } from "@tc/contracts";
 import { listSavedDays, saveDay } from "@/server/savedDays";
 import { tripAccessFor } from "@/server/access/trip-access";
 import { PublicApiError } from "@/server/public-api/commands";
-import { route } from "@/server/public-api/route";
+import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route";
 
 // **Your saved-days library** — a clean collection already.
 //
@@ -20,11 +20,23 @@ const SaveDayBody = z.object({
 export const { GET, POST } = route({
   GET: {
     scope: "library:read",
-    collection: { item: SavedDay, cursorOf: (day: z.infer<typeof SavedDay>) => day.createdAt },
+    collection: {
+      item: SavedDay,
+      cursorOf: (day: z.infer<typeof SavedDay>) => keyedCursor(day.createdAt, day.savedDayId),
+    },
     handle: async ({ actor, page }) => {
       const all = await listSavedDays(actor.userId);
-      const after = page.after;
-      return (after === null ? all : all.filter((d) => d.createdAt < after)).slice(0, page.limit);
+      const after = decodeKeyedCursor(page.after);
+      if (after === null) return all.slice(0, page.limit);
+      // `listSavedDays` is newest first with `savedDayId` breaking ties, so
+      // "after" is strictly lower on that pair.
+      return all
+        .filter(
+          (d) =>
+            d.createdAt < after.sortKey ||
+            (d.createdAt === after.sortKey && d.savedDayId < after.id),
+        )
+        .slice(0, page.limit);
     },
   },
   POST: {
@@ -42,10 +54,20 @@ export const { GET, POST } = route({
       }
       const access = await tripAccessFor(actor.userId, input.tripId, "viewer");
       if (!access.ok) {
-        throw new PublicApiError(
-          access.denial === "not-found" ? 404 : 403,
-          access.denial === "not-found" ? "No such trip." : "You do not have access to this trip.",
-        );
+        // The same three answers `route()`'s own gate gives, because this is the
+        // same gate called by hand. `malformed-trip` is a stored document this
+        // server could not parse — ours to own as a 500, and telling the caller
+        // they lack access to a trip they may well own is both wrong and
+        // unfixable from their side.
+        const mapped = {
+          "not-found": { status: 404, message: "No such trip." },
+          forbidden: { status: 403, message: "You do not have access to this trip." },
+          "malformed-trip": {
+            status: 500,
+            message: "This trip could not be read. The failure has been logged.",
+          },
+        }[access.denial];
+        throw new PublicApiError(mapped.status, mapped.message);
       }
       const saved = await saveDay({ name: input.name, dayId: input.dayId }, access.detail, actor.userId);
       if (!saved.ok) throw new PublicApiError(400, saved.error.message);

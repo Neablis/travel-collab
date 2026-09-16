@@ -304,7 +304,15 @@ export const SYSTEM_ACTOR_ID = "system";
 // distinguishes the two is whether the row was written by the lazy template
 // seeder or by a person. `content` stays off: it is the one field that makes a
 // list response unbounded, and nothing in a list renders it.
-export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, updatedAt: true, actorId: true });
+/**
+ * A notebook page without its document.
+ *
+ * **`createdAt` is in the pick because the list is ordered by it.** `listPages`
+ * returns `(created_at asc, id asc)`; a summary carrying only `updatedAt` left
+ * `GET /v1/…/pages` paging on a field the rows are not sorted by, which cannot
+ * be made correct from the caller's side however the cursor is compared.
+ */
+export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
 // The write path is `PageDoc`, not `PageContent` (ADR-038 decisions 2 and 4).

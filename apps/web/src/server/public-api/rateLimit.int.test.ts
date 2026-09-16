@@ -23,6 +23,20 @@ vi.mock("@/server/quota", async (importOriginal) => ({
   consumeQuota: (...args: unknown[]) => consumeQuota(...(args as [])),
 }));
 
+// Counts calls without replacing behaviour: the success-path tests below still
+// need the real gate to answer, so this delegates rather than stubs.
+const tripAccessCalls = vi.fn();
+vi.mock("@/server/access/trip-access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/access/trip-access")>();
+  return {
+    ...actual,
+    tripAccessFor: (...args: Parameters<typeof actual.tripAccessFor>) => {
+      tripAccessCalls(...args);
+      return actual.tripAccessFor(...args);
+    },
+  };
+});
+
 let sessionUserId: string | null = null;
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (sessionUserId === null ? null : { user: { id: sessionUserId } })),
@@ -110,9 +124,15 @@ describe("the rate limit keys on the token", () => {
   it("refuses before touching the trip", async () => {
     const { tripId, secret } = await entitledWithTrip();
     decision = { allowed: false, reason: "global", retryAfterSeconds: 5 };
+    tripAccessCalls.mockClear();
     const res = await GET_TRIP(...get(tripId, secret));
     expect(res.status).toBe(429);
     // A 429 body is the envelope, never a trip.
     expect(await res.json()).not.toHaveProperty("tripId");
+    // **The actual claim.** "Never a trip in the body" holds for any 429 the
+    // wrapper renders, including one rendered after two membership queries had
+    // already run — so it could not tell a limiter that charges first from one
+    // that charges last. The gate itself is what must not have been reached.
+    expect(tripAccessCalls).not.toHaveBeenCalled();
   });
 });

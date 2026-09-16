@@ -100,6 +100,7 @@ One envelope, always:
 | 402 | `not-entitled` | The account's plan does not include API access |
 | 403 | `insufficient-scope`, `trip-out-of-scope`, `forbidden` | The first two are the token's limits; the last is yours |
 | 404 | `not-found` | No such thing, or not yours |
+| 409 | `conflict` | Somebody else changed this trip first. **Re-read and retry** — this is the one refusal worth sending again unchanged |
 | 429 | `rate-limited` | Honour `Retry-After` |
 | 5xx | `server-error`, `service-unavailable` | Ours. Retry `service-unavailable` |
 

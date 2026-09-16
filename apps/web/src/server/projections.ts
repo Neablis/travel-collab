@@ -180,11 +180,21 @@ export async function listTripSummariesPage(
   // A cursor we did not mint is treated as no cursor rather than as an error:
   // it can only cost the caller a first page, and 400-ing on an opaque string
   // we asked them not to interpret would be punishing them for obeying.
+  //
+  // **That promise was only kept for the SHAPE of the cursor, not its
+  // contents.** `?cursor=invalid|invalid` split into two non-empty halves and
+  // went straight into the casts below, where Postgres raised `22007` on the
+  // timestamp — so the one input this comment says costs a first page cost a
+  // 500 instead. Both halves are checked against what the casts will accept.
   const [createdAt, tripId] = (page.after ?? "").split("|");
-  const seek =
-    createdAt !== undefined && tripId !== undefined && tripId !== ""
-      ? sql`(${tripSummaries.createdAt}, ${tripSummaries.tripId}) < (${createdAt}::timestamptz, ${tripId}::uuid)`
-      : undefined;
+  const minted =
+    createdAt !== undefined &&
+    tripId !== undefined &&
+    isUuid(tripId) &&
+    !Number.isNaN(Date.parse(createdAt));
+  const seek = minted
+    ? sql`(${tripSummaries.createdAt}, ${tripSummaries.tripId}) < (${createdAt}::timestamptz, ${tripId}::uuid)`
+    : undefined;
   return db
     .select()
     .from(tripSummaries)

@@ -446,10 +446,14 @@ byte-identical, and `noExtension.test.ts` was not edited.
    — and deferring it means eight sentences get drafted in a hurry by whoever
    builds the form, long after the person who knew what the scope was for. The
    sentences the design already wrote for Mitchell are the ones that shipped.
-2. **`ApiErrorCode` is an enum of twelve**, derived from the behaviours Decision
-   10 and Decision 13 already fixed rather than invented — including
+2. **`ApiErrorCode` is an enum of thirteen**, derived from the behaviours
+   Decision 10 and Decision 13 already fixed rather than invented — including
    `token-expired` and `token-revoked` as two codes for one status, which is
-   Decision 13's requirement stated in the type system.
+   Decision 13's requirement stated in the type system. It was twelve until the
+   review of 2026-09-16: the planning domain's `concurrency-conflict` had no
+   word here at all and was rendered as a 400, so the enum gained `conflict`
+   (409) — the one refusal a caller should retry verbatim, described as the one
+   thing they must change.
 3. **`ApiToken.scopes` has no `.min(1)` while `ApiTokenCreateInput.scopes`
    does.** Minting a scopeless token is refused; listing one is not. A row that
    somehow has no scopes is the one its owner most needs to find in order to

@@ -28,6 +28,7 @@ const { GET: HISTORY } = await import("@/app/api/v1/trips/[tripId]/history/route
 const { GET: GLOBALS } = await import("@/app/api/v1/trips/[tripId]/globals/route");
 const { GET: ACCOUNT } = await import("@/app/api/v1/account/route");
 const { GET: LIST_PAGES, POST: ADD_PAGE } = await import("@/app/api/v1/trips/[tripId]/pages/route");
+const { PATCH: PATCH_PAGE } = await import("@/app/api/v1/trips/[tripId]/pages/[pageId]/route");
 const { GET: LIST_SHARES, POST: ADD_SHARE } = await import(
   "@/app/api/v1/trips/[tripId]/shares/route"
 );
@@ -91,6 +92,13 @@ async function seed(secret: string) {
   return { tripId, dayId, activityId };
 }
 
+/** How many entries this trip's history holds right now. */
+async function historyLength(secret: string, tripId: string): Promise<number> {
+  const history = await HISTORY(req(secret), P({ tripId }));
+  expect(history.status).toBe(200);
+  return ((await history.json()).entries as unknown[]).length;
+}
+
 describe("the planning writes, through v1 only", () => {
   it("builds a trip, a day and a stop, and reads them back", async () => {
     const owner = await entitled();
@@ -116,6 +124,10 @@ describe("the planning writes, through v1 only", () => {
     const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
     const { tripId } = await seed(secret);
 
+    const before = await GET_TRIP(req(secret), P({ tripId }));
+    const original = await before.json();
+    const entriesBefore = await historyLength(secret, tripId);
+
     const patched = await PATCH_TRIP(
       req(secret, {
         name: "Kyoto in spring",
@@ -132,17 +144,22 @@ describe("the planning writes, through v1 only", () => {
     expect(detail.currency).toBe("JPY");
     expect(detail.budget).toEqual({ amountMinor: 250000, currency: "JPY" });
 
-    // **One history entry, not four.** The batch is what makes the atomicity a
-    // public PATCH promises free rather than engineered — and it is also what
-    // makes undo unwind the whole patch as a unit.
-    const history = await HISTORY(req(secret), P({ tripId }));
-    const entries = (await history.json()).entries as { summary: string }[];
+    // **One history entry, not four**, and this is now counted rather than
+    // asserted in a comment: the previous version of this test read the history
+    // and then only checked it was non-empty, which a trip with a day and a stop
+    // in it satisfies without any patch at all.
+    expect(await historyLength(secret, tripId)).toBe(entriesBefore + 1);
+
+    // The batch is what makes the atomicity a public PATCH promises free rather
+    // than engineered — and it is also what makes undo unwind the WHOLE patch,
+    // so every one of the four fields is checked back to where it started.
     const undone = await UNDO(req(secret, {}, "POST"), P({ tripId }));
     expect(undone.status).toBe(200);
     const after = await undone.json();
-    expect(after.name).toBe("Kyoto");
-    expect(after.currency).not.toBe("JPY");
-    expect(entries.length).toBeGreaterThan(0);
+    expect(after.name).toBe(original.name);
+    expect(after.startDate).toBe(original.startDate);
+    expect(after.currency).toBe(original.currency);
+    expect(after.budget).toEqual(original.budget);
   });
 
   // **Decision 14, as a test.** A patch that touches a stop's fields AND its day
@@ -157,6 +174,14 @@ describe("the planning writes, through v1 only", () => {
     const days = (await second.json()).days as { dayId: string }[];
     const target = days[1]!.dayId;
 
+    const before = await GET_TRIP(req(secret), P({ tripId }));
+    const original = await before.json();
+    const originalTitle = original.activities[activityId].title as string;
+    const originalDay = (original.days as { dayId: string; activityIds: string[] }[]).find((d) =>
+      d.activityIds.includes(activityId),
+    )!;
+    const entriesBefore = await historyLength(secret, tripId);
+
     const patched = await PATCH_STOP(
       req(secret, { title: "Kinkaku-ji", dayId: target, position: 0 }, "PATCH"),
       P({ tripId, activityId }),
@@ -166,6 +191,23 @@ describe("the planning writes, through v1 only", () => {
     expect(detail.activities[activityId].title).toBe("Kinkaku-ji");
     expect(detail.days.find((d: { dayId: string }) => d.dayId === target).activityIds).toContain(
       activityId,
+    );
+
+    // Two commands, one entry — the claim in this test's own name.
+    expect(await historyLength(secret, tripId)).toBe(entriesBefore + 1);
+
+    // And they come back together: a title that reverted while the move stayed
+    // would be the batch not being a batch.
+    const undone = await UNDO(req(secret, {}, "POST"), P({ tripId }));
+    expect(undone.status).toBe(200);
+    const after = await undone.json();
+    expect(after.activities[activityId].title).toBe(originalTitle);
+    const restored = (after.days as { dayId: string; activityIds: string[] }[]).find((d) =>
+      d.activityIds.includes(activityId),
+    )!;
+    expect(restored.dayId).toBe(originalDay.dayId);
+    expect(restored.activityIds.indexOf(activityId)).toBe(
+      originalDay.activityIds.indexOf(activityId),
     );
   });
 
@@ -268,5 +310,158 @@ describe("reads that were nearly free", () => {
     const history = await HISTORY(req(secret), P({ tripId }));
     expect(history.status).toBe(200);
     expect((await history.json()).entries.length).toBeGreaterThan(0);
+  });
+});
+
+// **A PATCH changes what it names and nothing else**, which is the one promise
+// REST makes that an event-sourced back end can quietly break: every write here
+// becomes a command, and a command names every field it sets. Filling the ones
+// the caller left out with a default is how a request to move an end date wipes
+// a start date.
+describe("a patch changes what it names, and nothing else", () => {
+  it("keeps the start date when only the end date is patched", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId } = await seed(secret);
+
+    const dated = await PATCH_TRIP(req(secret, { startDate: "2027-04-01" }, "PATCH"), P({ tripId }));
+    expect(dated.status).toBe(200);
+    expect((await dated.json()).startDate).toBe("2027-04-01");
+
+    const ended = await PATCH_TRIP(req(secret, { endDate: "2027-04-05" }, "PATCH"), P({ tripId }));
+    // Clearing the start date does not merely lose it: the domain then refuses
+    // an end date with no start, so the whole patch 400s. Both readings of this
+    // failure are the same defect.
+    expect(ended.status, "a patch naming only endDate must leave startDate alone").toBe(200);
+    expect((await ended.json()).startDate).toBe("2027-04-01");
+  });
+
+  it("clears the start date when the caller asks for null", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId } = await seed(secret);
+
+    await PATCH_TRIP(
+      req(secret, { startDate: "2027-04-01", endDate: "2027-04-03" }, "PATCH"),
+      P({ tripId }),
+    );
+    // Both halves, because the domain will not hold an end date without a start
+    // one — which is the right refusal and not what this test is about.
+    const cleared = await PATCH_TRIP(
+      req(secret, { startDate: null, endDate: null }, "PATCH"),
+      P({ tripId }),
+    );
+    expect(cleared.status).toBe(200);
+    // `undefined` means "leave it"; `null` still means "clear it", and the fix
+    // for the first case must not take the second one away.
+    expect((await cleared.json()).startDate).toBe(null);
+  });
+
+  it("keeps a stop on its day when only its position is patched", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId, activityId } = await seed(secret);
+
+    const second = await ADD_STOP(
+      req(secret, { title: "Nishiki Market", dayId }, "POST"),
+      P({ tripId }),
+    );
+    expect(second.status).toBe(201);
+
+    const moved = await PATCH_STOP(req(secret, { position: 1 }, "PATCH"), P({ tripId, activityId }));
+    expect(moved.status).toBe(200);
+    const detail = await moved.json();
+    const day = (detail.days as { dayId: string; activityIds: string[] }[]).find(
+      (d) => d.dayId === dayId,
+    )!;
+    // A reorder is not a removal. `toDayId: dayId ?? null` read an omitted day
+    // as the backlog, so asking for position 1 took the stop off the itinerary.
+    expect(day.activityIds).toContain(activityId);
+    expect(day.activityIds.indexOf(activityId)).toBe(1);
+    expect(detail.backlog).not.toContain(activityId);
+  });
+
+  it("sends a stop to the backlog when the caller asks for null", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId, activityId } = await seed(secret);
+
+    const moved = await PATCH_STOP(
+      req(secret, { dayId: null }, "PATCH"),
+      P({ tripId, activityId }),
+    );
+    expect(moved.status).toBe(200);
+    const detail = await moved.json();
+    expect(detail.backlog).toContain(activityId);
+    expect(
+      (detail.days as { dayId: string; activityIds: string[] }[]).find((d) => d.dayId === dayId)!
+        .activityIds,
+    ).not.toContain(activityId);
+  });
+
+  it("refuses a page patch whose context names a different trip", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+
+    const added = await ADD_PAGE(
+      req(secret, { title: "Ideas", context: { tripId }, content: { type: "doc", content: [] } }, "POST"),
+      P({ tripId }),
+    );
+    expect(added.status).toBe(201);
+    const pageId = (await added.json()).id as string;
+
+    const confused = await PATCH_PAGE(
+      req(secret, { context: { tripId: randomUUID() } }, "PATCH"),
+      P({ tripId, pageId }),
+    );
+    // The BFF has refused this since the Notebook shipped; v1 was the copy that
+    // dropped the check, so a page could be filed under one trip while claiming
+    // another.
+    expect(confused.status).toBe(400);
+    expect((await confused.json()).error.code).toBe("invalid-request");
+  });
+});
+
+// **A pager that skips a row is worse than one that repeats it**, because the
+// caller cannot tell. Every collection on this surface materialises its list and
+// then filters it, so the cursor has to describe the SAME order the list is in.
+describe("the collections page without skipping or repeating", () => {
+  it("walks the whole notebook in pages of two", async () => {
+    const owner = await entitled();
+    const planning = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const notebook = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(planning);
+
+    for (const title of ["Ideas", "Budget", "Packing"]) {
+      const added = await ADD_PAGE(
+        req(notebook, { title, context: { tripId }, content: { type: "doc", content: [] } }, "POST"),
+        P({ tripId }),
+      );
+      expect(added.status).toBe(201);
+    }
+
+    const whole = await LIST_PAGES(req(notebook), P({ tripId }));
+    const all = ((await whole.json()).items as { id: string }[]).map((p) => p.id);
+    expect(all.length).toBeGreaterThan(2);
+
+    const walked: string[] = [];
+    let cursor: string | null = null;
+    for (let guard = 0; guard < 20; guard += 1) {
+      const url: string = `http://localhost/x?limit=2${cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`}`;
+      const res: Response = await LIST_PAGES(
+        new Request(url, { headers: { authorization: `Bearer ${notebook}` } }),
+        P({ tripId }),
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { items: { id: string }[]; nextCursor: string | null };
+      walked.push(...body.items.map((p) => p.id));
+      cursor = body.nextCursor;
+      if (cursor === null) break;
+    }
+
+    // Every page exactly once, in the order the unpaged read gives them.
+    expect(walked).toEqual(all);
+    expect(new Set(walked).size).toBe(walked.length);
   });
 });

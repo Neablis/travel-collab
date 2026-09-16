@@ -105,7 +105,23 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
     };
   }, []);
 
+  // **One rule, read by the button and by the handler.** `disabled` alone is a
+  // claim about a button, not about the function behind it — and this screen's
+  // own copy states the ceiling, so an empty, fractional or 400-day lifetime
+  // reaching the server as a 400 would be the field wasting somebody's
+  // afternoon exactly the way the note below it promises it will not.
+  const lifetimeDays = Number(days);
+  const lifetimeOk =
+    days.trim() !== "" &&
+    Number.isInteger(lifetimeDays) &&
+    lifetimeDays >= 1 &&
+    lifetimeDays <= API_TOKEN_MAX_LIFETIME_DAYS;
+
   async function create() {
+    if (!lifetimeOk) {
+      setError(`A token lasts between 1 and ${API_TOKEN_MAX_LIFETIME_DAYS} days.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -116,7 +132,7 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
           name: name.trim(),
           scopes,
           tripIds: null,
-          expiresInDays: Number(days),
+          expiresInDays: lifetimeDays,
         }),
       });
       if (!res.ok) {
@@ -221,8 +237,22 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
                 size="sm"
                 data-testid="token-copy"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(revealed.secret);
-                  setCopied(true);
+                  // **"Copied" is a claim, and this secret is shown once.** A
+                  // browser with no clipboard API, or one that refuses the
+                  // write over http or without a user gesture, left the button
+                  // saying Copied over an empty clipboard — and the only copy
+                  // of the token is the one on screen the person is about to
+                  // navigate away from. The field beside this button is
+                  // selectable for exactly that fallback, so the honest failure
+                  // is to say so.
+                  void (async () => {
+                    try {
+                      await navigator.clipboard.writeText(revealed.secret);
+                      setCopied(true);
+                    } catch {
+                      setError("This browser would not let us copy. Select the token and copy it.");
+                    }
+                  })();
                 }}
               >
                 {copied ? "Copied" : "Copy"}
@@ -374,7 +404,7 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
             <Button
               size="sm"
               data-testid="token-create"
-              disabled={busy || name.trim() === "" || scopes.length === 0}
+              disabled={busy || name.trim() === "" || scopes.length === 0 || !lifetimeOk}
               onClick={() => void create()}
             >
               {busy ? "Creating…" : "Create token"}

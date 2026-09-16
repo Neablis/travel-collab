@@ -32,7 +32,7 @@ export const { PATCH, DELETE } = route({
     role: "editor",
     body: PatchStopBody,
     response: TripDetail,
-    handle: async ({ actor, params, body }) => {
+    handle: async ({ actor, params, body, trip }) => {
       const { dayId, position, ...fields } = body as {
         dayId?: string | null;
         position?: number;
@@ -44,6 +44,12 @@ export const { PATCH, DELETE } = route({
         commands.push({ ...fields, type: "UpdateActivity", tripId, activityId } as CommandInput);
       }
       if (dayId !== undefined || position !== undefined) {
+        // **An omitted `dayId` is not the backlog.** `MoveActivity` names both
+        // halves, so a `PATCH { position }` has to supply a day — and `?? null`
+        // supplied the backlog, quietly pulling a stop off the day it was on
+        // when all the caller asked for was a reorder. `null` still MEANS the
+        // backlog; it just has to be asked for.
+        const currentDayId = trip!.days.find((d) => d.activityIds.includes(activityId))?.dayId ?? null;
         commands.push({
           type: "MoveActivity",
           tripId,
@@ -51,7 +57,7 @@ export const { PATCH, DELETE } = route({
           // A move names both halves; a patch may name one. `position: 0`
           // appends to the front, which is the only sensible default for "put
           // it on this day" with no position given.
-          toDayId: dayId ?? null,
+          toDayId: dayId === undefined ? currentDayId : dayId,
           position: position ?? 0,
         });
       }

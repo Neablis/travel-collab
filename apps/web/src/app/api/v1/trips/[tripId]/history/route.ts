@@ -15,7 +15,9 @@ export const { GET } = route({
       // Unreachable while the trip resolved above, and asserted rather than
       // assumed: a trip whose detail exists but whose stream does not is a
       // broken invariant, not a 404.
-      if (history === null) throw new PublicApiError(500, "This trip's history could not be read.");
+      if (history === null) {
+        throw new PublicApiError(500, "This trip's history could not be read.", "server-error");
+      }
       return history;
     },
   },

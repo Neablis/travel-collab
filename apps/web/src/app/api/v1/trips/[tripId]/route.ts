@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { daySpan } from "@tc/domain";
 import { z } from "zod";
 import { Money, TripDetail } from "@tc/contracts";
 import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
@@ -51,7 +53,7 @@ export const { GET, PATCH, DELETE } = route({
       })
       .strict(),
     response: TripDetail,
-    handle: async ({ actor, params, body }) => {
+    handle: async ({ actor, params, body, trip }) => {
       const patch = body as {
         name?: string;
         startDate?: string | null;
@@ -63,10 +65,30 @@ export const { GET, PATCH, DELETE } = route({
       const commands: CommandInput[] = [];
       if (patch.name !== undefined) commands.push({ type: "SetTripName", tripId, name: patch.name });
       if (patch.endDate !== undefined) {
+        const startDate = patch.startDate === undefined ? trip!.startDate : patch.startDate;
+        // **The ids the reconcile will need, minted here.** `SetTripDates`
+        // reconciles the day COUNT to the range and the domain is pure, so it
+        // cannot mint the uuids for days it has to append (Invariant 4) — it
+        // refuses instead. This declaration supplied none, so every patch that
+        // WIDENED a trip's dates was a 400 a caller could do nothing about:
+        // the endpoint could shorten a trip and never lengthen one.
+        //
+        // The count is the same one `batchResolver` computes for the AI path,
+        // from the same two numbers `decideTripCommand` reads.
+        const needed =
+          startDate === null || patch.endDate === null
+            ? 0
+            : Math.max(0, daySpan(startDate, patch.endDate) - trip!.days.length);
         commands.push({
           type: "SetTripDates",
+          newDayIds: Array.from({ length: needed }, () => randomUUID()),
           tripId,
-          startDate: patch.startDate ?? null,
+          // **A field this patch did not mention keeps its value.** `SetTripDates`
+          // takes both halves, so a `PATCH { endDate }` has to supply a start
+          // date — and `?? null` supplied the wrong one, clearing a start date
+          // the caller never asked about. `undefined` means "leave it", which is
+          // the trip's current value; an explicit `null` still clears it.
+          startDate,
           endDate: patch.endDate,
         });
       } else if (patch.startDate !== undefined) {

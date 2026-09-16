@@ -85,12 +85,23 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   const listed = (await authed.json()) as { items: { tripId: string }[]; nextCursor: string | null };
   expect(listed.items.map((t) => t.tripId)).toContain(tripId);
 
-  // And the scope it was NOT given is refused — this token holds `trips:read`
-  // only, so the Notebook is out of reach even though the trip is not.
   const detail = await page.request.get(`/api/v1/trips/${tripId}`, {
     headers: { authorization: `Bearer ${secret}` },
   });
   expect(detail.status()).toBe(200);
+
+  // And the scope it was NOT given is refused — this token holds `trips:read`
+  // only, so the Notebook is out of reach even though the trip is not. The
+  // sentence above this used to sit over the `trips:read` call that had just
+  // succeeded, so the walk claimed a scope gate it never crossed.
+  const notebook = await page.request.get(`/api/v1/trips/${tripId}/pages`, {
+    headers: { authorization: `Bearer ${secret}` },
+  });
+  expect(notebook.status(), "a trips:read token must not reach the Notebook").toBe(403);
+  const denied = (await notebook.json()) as { error: { code: string; message: string } };
+  expect(denied.error.code).toBe("insufficient-scope");
+  // The refusal names the scope to ask for, so nobody has to guess it.
+  expect(denied.error.message).toContain("notebook:read");
 
   // ---- revoking closes it, immediately --------------------------------------
   await page.getByTestId("token-revoke").click();

@@ -49,6 +49,14 @@ function refusal(error: { code: string; message: string }): WriteOutcome {
   if (error.code === "forbidden") {
     return { ok: false, status: 403, message: "You do not have access to this trip." };
   }
+  // **Except the one refusal that is not about the request at all.** An append
+  // that loses the optimistic-concurrency race is the caller being early, not
+  // wrong, and it is the one refusal worth retrying verbatim. 400 told them to
+  // change the request instead; `/api/trips/:id/commands`, its batch sibling
+  // and the saved-days route have all answered 409 since M1.
+  if (error.code === "concurrency-conflict") {
+    return { ok: false, status: 409, message: error.message };
+  }
   return { ok: false, status: 400, message: error.message };
 }
 

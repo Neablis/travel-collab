@@ -1,6 +1,6 @@
 import { CreateInviteInput, TripInvite } from "@tc/contracts";
 import { createInvite, listInvites } from "@/server/access/invites";
-import { route } from "@/server/public-api/route";
+import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route";
 import type { z } from "zod";
 
 // **`sharing:write`, and this is the scope the design nearly missed.**
@@ -16,11 +16,21 @@ export const { GET, POST } = route({
     scope: "trips:read",
     trip: "path",
     role: "owner",
-    collection: { item: TripInvite, cursorOf: (invite: TripInvite) => invite.createdAt },
+    collection: {
+      item: TripInvite,
+      cursorOf: (invite: TripInvite) => keyedCursor(invite.createdAt, invite.inviteId),
+    },
     handle: async ({ params, page }) => {
       const all = await listInvites(params["tripId"]!);
-      const after = page.after;
-      return (after === null ? all : all.filter((i) => i.createdAt < after)).slice(0, page.limit);
+      const after = decodeKeyedCursor(page.after);
+      if (after === null) return all.slice(0, page.limit);
+      return all
+        .filter(
+          (i) =>
+            i.createdAt < after.sortKey ||
+            (i.createdAt === after.sortKey && i.inviteId < after.id),
+        )
+        .slice(0, page.limit);
     },
   },
   POST: {

@@ -167,6 +167,37 @@ export interface HandlerContext {
   };
 }
 
+/**
+ * Build the cursor for a list ordered by `(sortKey, id)`.
+ *
+ * **Every keyset cursor needs the tie-break, not just the sort key.** Three of
+ * this surface's collections paged on a bare timestamp, and a bare timestamp
+ * ties: two rows written in the same millisecond compare equal, so `createdAt <
+ * cursor` steps straight past the second one and it is never returned on any
+ * page. The row is not skipped visibly — the caller just receives a library
+ * with a day missing and no way to tell.
+ */
+export function keyedCursor(sortKey: string, id: string): string {
+  return `${sortKey}|${id}`;
+}
+
+/**
+ * Split a cursor `keyedCursor` minted, or `null` to start from the beginning.
+ *
+ * A cursor we did not mint is treated as no cursor, matching
+ * `listTripSummariesPage`: it can only cost the caller a first page, and
+ * 400-ing on an opaque string we asked them not to interpret would be punishing
+ * them for obeying.
+ */
+export function decodeKeyedCursor(after: string | null): { sortKey: string; id: string } | null {
+  if (after === null) return null;
+  const sep = after.indexOf("|");
+  if (sep === -1) return null;
+  const sortKey = after.slice(0, sep);
+  const id = after.slice(sep + 1);
+  return sortKey === "" || id === "" ? null : { sortKey, id };
+}
+
 export const DEFAULT_PAGE_LIMIT = 50;
 export const MAX_PAGE_LIMIT = 200;
 
@@ -245,6 +276,26 @@ const DENIAL_TO_ERROR: Record<TripAccessDenial, { code: z.infer<typeof ApiErrorC
     message: "This trip could not be read. The failure has been logged.",
   },
 };
+
+/**
+ * The wire code for a `PublicApiError` thrown without one.
+ *
+ * **The fallback used to be `invalid-request`, and that was wrong above 4xx.**
+ * A handler throwing `PublicApiError(500, ...)` — the history route's broken
+ * invariant, say — answered a server failure with the code that means "you sent
+ * something bad", which is the one reading an integrator must not be given.
+ * Defaulting by status class means a declaration only spells a code out when it
+ * wants a *more specific* one than the status implies.
+ */
+function codeForStatus(status: number): z.infer<typeof ApiErrorCode> {
+  if (status >= 500) return "server-error";
+  if (status === 409) return "conflict";
+  if (status === 404) return "not-found";
+  if (status === 403) return "forbidden";
+  if (status === 401) return "unauthenticated";
+  if (status === 429) return "rate-limited";
+  return "invalid-request";
+}
 
 function isCollection(def: MethodDef): def is CollectionDef<CollectionItem> {
   return "collection" in def;
@@ -411,12 +462,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       // server broke when in fact they were told no.
       if (error instanceof PublicApiError) {
         return fail(
-          (error.code as z.infer<typeof ApiErrorCode> | undefined) ??
-            (error.status === 403
-              ? "forbidden"
-              : error.status === 404
-                ? "not-found"
-                : "invalid-request"),
+          (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
           error.message,
           error.status,
         );

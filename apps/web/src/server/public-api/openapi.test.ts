@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { buildOpenApi, routeModulePaths, urlOf } from "./openapi";
+import { DECLARED, type DeclaredHandler } from "./route";
 
 // Importing every v1 module pulls in `@/server/auth` and therefore `next-auth`,
 // which does not resolve in the node test environment. Nothing here calls it —
@@ -49,10 +50,34 @@ describe("openapi.json is derived from the declarations", () => {
     const doc = JSON.parse(await generate()) as {
       paths: Record<string, Record<string, unknown>>;
     };
-    const declaredCount = routeModulePaths(V1).length;
-    // Every route file contributes at least one path entry; `openapi/route.ts`
-    // is the one exemption and contributes none.
-    expect(Object.keys(doc.paths).length).toBe(declaredCount - 1);
+
+    // **Pairs, not a count.** This compared `Object.keys(doc.paths).length`
+    // against the number of route FILES, which says nothing about which paths
+    // came out and nothing at all about methods: a module declaring `GET` and
+    // `POST` whose `POST` the generator dropped kept the path count identical
+    // and passed. The claim being made is "every declared operation is
+    // documented and no undeclared one is", so that is what is compared.
+    const declared: string[] = [];
+    for (const file of routeModulePaths(V1)) {
+      const url = urlOf(V1, file);
+      const exported = (await import(file)) as Record<string, unknown>;
+      for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+        const handler = exported[method] as DeclaredHandler | undefined;
+        if (handler?.[DECLARED] !== undefined) declared.push(`${method} ${url}`);
+      }
+    }
+
+    const documented: string[] = [];
+    for (const [url, methods] of Object.entries(doc.paths)) {
+      for (const method of Object.keys(methods)) documented.push(`${method.toUpperCase()} ${url}`);
+    }
+
+    // `openapi/route.ts` serves the document and is deliberately absent from
+    // it — the one exemption, and it is `GET /v1/openapi`.
+    const expected = declared.filter((op) => op !== "GET /v1/openapi").sort();
+    expect(documented.sort()).toEqual(expected);
+    expect(expected.length).toBeGreaterThan(0);
+
     // Path params are OpenAPI's `{tripId}`, never Next's `[tripId]`.
     for (const url of Object.keys(doc.paths)) {
       expect(url, url).not.toContain("[");

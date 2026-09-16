@@ -9394,6 +9394,9 @@
                             ],
                             "additionalProperties": false
                           },
+                          "createdAt": {
+                            "type": "string"
+                          },
                           "updatedAt": {
                             "type": "string"
                           },
@@ -9407,6 +9410,7 @@
                           "tripId",
                           "title",
                           "context",
+                          "createdAt",
                           "updatedAt",
                           "actorId"
                         ],

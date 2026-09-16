@@ -29,7 +29,16 @@ export const { GET, PATCH, DELETE } = route({
     response: Page,
     handle: async ({ params, body }) => {
       await ofThisTrip(params["pageId"]!, params["tripId"]!);
-      const updated = await updatePage(params["pageId"]!, body as z.infer<typeof UpdatePageInput>);
+      const patch = body as z.infer<typeof UpdatePageInput>;
+      // The same check `POST` makes, for the same reason: `context` is optional
+      // on a patch, but one naming a different trip from the URL would leave a
+      // page filed under this trip while claiming to belong to another. The BFF
+      // route has refused this since the Notebook shipped; v1 was the copy that
+      // dropped it.
+      if (patch.context !== undefined && patch.context.tripId !== params["tripId"]) {
+        throw new PublicApiError(400, "This page's context names a different trip from the URL.");
+      }
+      const updated = await updatePage(params["pageId"]!, patch);
       // `ofThisTrip` just proved it exists, so a null here is a row that
       // vanished between two statements — rare, and a 404 rather than a 500,
       // because from the caller's side that is exactly what happened.

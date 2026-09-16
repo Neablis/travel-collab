@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-16 — `conflict`, and `PageSummary` gains `createdAt`
+
+- Added: `ApiErrorCode` gains **`conflict`** (409)
+  (`packages/contracts/src/publicApi.ts`). `executeTripCommand` answers
+  `concurrency-conflict` when an append loses the optimistic-concurrency race,
+  and every other route in the app has mapped that to 409 since M1 — `v1` mapped
+  it to 400 and the enum had no word for it, so the one refusal a caller should
+  retry unchanged was reported as the one thing they must change.
+- Added: `PageSummary` gains **`createdAt`** (`packages/contracts/src/pages.ts`).
+  `listPages` orders `(created_at asc, id asc)`, so a summary carrying only
+  `updatedAt` left `GET /v1/trips/:id/pages` paging on a field the rows are not
+  sorted by — no comparison over the summary as it stood could be made correct.
+- Why: both surfaced in CodeRabbit's second pass on M22, and both are defects in
+  what `v1` publishes rather than tidying.
+- Consumers updated: `apps/web` (`toSummary`, the two `v1` route declarations,
+  `openapi.json`).
+- Breaking? no — both are additive. A client switching on `ApiErrorCode` that
+  does not know `conflict` still reads the status; `PageSummary` gains a field
+  and loses none.
+
 ## 2026-09-16 — the public API's vocabulary, and `api.tokens`
 
 - Added: `ApiScope` and `API_SCOPES` — the eight scopes an API token may hold

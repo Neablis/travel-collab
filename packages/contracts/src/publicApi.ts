@@ -181,6 +181,17 @@ export const ApiErrorCode = z.enum([
   "forbidden",
   /** 404 — no such resource, or one this account may not know exists. */
   "not-found",
+  /**
+   * 409 — the resource moved under the request. Retry with a fresh read.
+   *
+   * **The planning domain's own refusal, and the reason this code exists at
+   * all.** `executeTripCommand` answers `concurrency-conflict` when an append
+   * loses the optimistic-concurrency race, and every other route in the app has
+   * mapped that to 409 since M1. `v1` mapped it to 400 and this enum had no
+   * word for it, which told an integrator their request was malformed when what
+   * it actually was, was early.
+   */
+  "conflict",
   /** 429 — rate limited. Carries `Retry-After`. */
   "rate-limited",
   /** 500 — ours, and unexplained. */

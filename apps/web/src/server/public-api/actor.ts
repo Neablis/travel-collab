@@ -38,7 +38,13 @@ export type ActorRefusal =
 
 export type ActorResolution = { ok: true; actor: Actor } | { ok: false; refusal: ActorRefusal };
 
-const BEARER = /^Bearer (.+)$/;
+// **Case-insensitive, and the token is the non-space run.** RFC 7235 makes the
+// auth-scheme case-insensitive, so `bearer tc_…` from a client that lowercases
+// its headers is a real credential — and answering it as "anonymous" is the
+// 401 an integrator cannot debug, because their token IS valid. `\S+` rather
+// than `.+` also stops a trailing space or `\r` riding along into the digest,
+// which would fail verification for a reason nothing in the response names.
+const BEARER = /^Bearer[ \t]+(\S+)[ \t]*$/i;
 
 /**
  * Resolve a request to an actor.

@@ -84,7 +84,9 @@ describe("what mandatory expiry owes the person looking at this", () => {
     serve({ tokens: [token()] });
     render(<TokensSection />);
     await screen.findByTestId("tokens-list");
-    expect(text("token-expiry")).toContain("in 12 days");
+    // The whole sentence, not a fragment of it: "in 12 days" would survive the
+    // label being dropped, or "Expired" being rendered for a live token.
+    expect(text("token-expiry")).toBe("Expires in 12 days.");
     // The creation date is deliberately absent — it answers nothing anyone asks.
     expect(text("token-expiry")).not.toContain("2026");
   });
@@ -181,6 +183,72 @@ describe("the one-time reveal", () => {
 
     fireEvent.click(screen.getByTestId("token-scope-trips:read"));
     expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // **The screen states the ceiling, so it has to hold it.** The note under the
+  // field promises "at most 365 days"; letting 400 through to a server 400 is
+  // the field wasting an afternoon that note exists to prevent — and an empty
+  // or fractional box sent `NaN` / `90.5` as `expiresInDays`.
+  it("will not create a token with a lifetime it has already said is impossible", async () => {
+    const posted = serve();
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
+
+    for (const bad of ["", "0", "-5", "12.5", "400", "abc"]) {
+      fireEvent.change(screen.getByTestId("token-days"), { target: { value: bad } });
+      expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled, bad).toBe(true);
+    }
+
+    fireEvent.change(screen.getByTestId("token-days"), { target: { value: "365" } });
+    expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(false);
+    expect(posted).toEqual([]);
+  });
+});
+
+describe("the one-time secret", () => {
+  // **"Copied" is a claim, and there is no second chance at this string.** A
+  // browser without the clipboard API, or one refusing the write, left the
+  // button saying Copied over an empty clipboard — and the only copy of the
+  // token was the one on screen the person was about to navigate away from.
+  it("does not say Copied when the clipboard refused", async () => {
+    serve();
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    await screen.findByTestId("token-secret");
+
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn(async () => Promise.reject(new Error("denied"))) },
+    });
+    fireEvent.click(screen.getByTestId("token-copy"));
+
+    await screen.findByTestId("tokens-error");
+    expect(text("tokens-error")).toContain("would not let us copy");
+    expect(text("token-copy")).toBe("Copy");
+    // The token itself is still on screen to select by hand, which is what the
+    // error tells them to do.
+    expect((screen.getByTestId("token-secret") as HTMLInputElement).value).toBe("tc_theonlycopy");
+  });
+
+  it("says Copied when the clipboard took it", async () => {
+    serve();
+    const writeText = vi.fn(async () => undefined);
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Named" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    await screen.findByTestId("token-secret");
+
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    fireEvent.click(screen.getByTestId("token-copy"));
+
+    await waitFor(() => expect(text("token-copy")).toBe("Copied"));
+    expect(writeText).toHaveBeenCalledWith("tc_theonlycopy");
   });
 });
 

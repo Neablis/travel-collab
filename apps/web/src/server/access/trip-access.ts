@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
@@ -185,7 +186,25 @@ export async function tripAccessFor(
   tripId: string,
   minimum: TripRole,
 ): Promise<TripAccessOutcome> {
-  const projected = await getTripDetail(tripId);
+  // **`getTripDetail` THROWS on a stored doc it cannot parse**, so until this
+  // catch existed the `malformed-trip` denial below could only ever fire for
+  // the member overlay — the stored-document case it was written for escaped
+  // the seam entirely. Past `route()` that matters twice over: the trip gate
+  // runs BEFORE the handler try/catch, so the ZodError left the wrapper
+  // without producing the `ApiError` envelope every v1 response promises, and
+  // the caller got whatever Next.js renders for an unhandled throw.
+  //
+  // Only the parse failure is converted. A dropped connection or a `22P02` is
+  // still an exception, because those are not "this trip is unreadable" —
+  // they are "the database did not answer", and swallowing them here would
+  // report a healthy trip as corrupt.
+  let projected: TripDetail | null;
+  try {
+    projected = await getTripDetail(tripId);
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, denial: "malformed-trip" };
+    throw error;
+  }
   if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);
   if (!hasAtLeast(userId, members, minimum)) return { ok: false, denial: "forbidden" };

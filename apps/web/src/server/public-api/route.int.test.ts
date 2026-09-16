@@ -26,6 +26,10 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (sessionUserId === null ? null : { user: { id: sessionUserId } })),
 }));
 
+const { db } = await import("@/server/db/client");
+const { tripDetails } = await import("@/server/db/schema");
+const { eq } = await import("drizzle-orm");
+
 const { GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
 
@@ -332,6 +336,71 @@ describe("pagination, decided once in the wrapper", () => {
       expect(res.status, limit).toBe(400);
       expect((await res.json()).error.code, limit).toBe("invalid-request");
     }
+  });
+
+  // **The promise the cursor comment makes, kept.** A cursor we did not mint
+  // costs a first page — but "did not mint" was only checked for the SHAPE, so
+  // `invalid|invalid` reached the `::timestamptz` cast and Postgres raised
+  // inside the query. The caller got a 500 for an opaque string we told them
+  // not to interpret.
+  it("treats a cursor it did not mint as no cursor at all", async () => {
+    const owner = await entitled();
+    await seedTrip(owner, "Kyoto");
+    const secret = await tokenFor(owner);
+
+    const first = await LIST_TRIPS(get("http://localhost/api/v1/trips", secret), NO_PARAMS);
+    const expected = (await first.json()).items;
+
+    for (const cursor of ["invalid|invalid", "not-a-date|" + randomUUID(), "|", "nonsense"]) {
+      const res = await LIST_TRIPS(
+        get(`http://localhost/api/v1/trips?cursor=${encodeURIComponent(cursor)}`, secret),
+        NO_PARAMS,
+      );
+      expect(res.status, cursor).toBe(200);
+      expect((await res.json()).items, cursor).toEqual(expected);
+    }
+  });
+});
+
+describe("the answers a caller cannot fix, and the ones they can", () => {
+  // RFC 7235 makes the auth-scheme case-insensitive. A client that lowercases
+  // its headers was told it had sent no credential at all, which is the 401 an
+  // integrator cannot debug because their token IS valid.
+  it("accepts the bearer scheme in any case, and trims nothing into the digest", async () => {
+    const owner = await entitled();
+    const tripId = await seedTrip(owner);
+    const secret = await tokenFor(owner);
+
+    for (const header of [`Bearer ${secret}`, `bearer ${secret}`, `BEARER ${secret}`, `Bearer  ${secret} `]) {
+      const res = await GET_TRIP(
+        new Request("http://localhost/api/v1/trips/x", { headers: { authorization: header } }),
+        withTrip(tripId),
+      );
+      expect(res.status, header.slice(0, 8)).toBe(200);
+    }
+  });
+
+  // **A trip this server cannot parse is a 500 IN THE ENVELOPE.** `getTripDetail`
+  // throws on a doc that fails `TripDetail`, and the trip gate runs before the
+  // handler's try/catch — so the ZodError left `route()` entirely and the caller
+  // got whatever Next renders for an unhandled throw, not an `ApiError`.
+  it("answers a malformed stored trip with the error envelope, not a crash", async () => {
+    const owner = await entitled();
+    const tripId = await seedTrip(owner, "Kyoto");
+    const secret = await tokenFor(owner);
+
+    await db
+      .update(tripDetails)
+      .set({ doc: { tripId, name: 7 } as unknown as never })
+      .where(eq(tripDetails.tripId, tripId));
+
+    const res = await GET_TRIP(get("http://localhost/api/v1/trips/x", secret), withTrip(tripId));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe("server-error");
+    // And never the parse issues: the shape of a stored document is not
+    // something an API client gets to read.
+    expect(JSON.stringify(body)).not.toContain("invalid_type");
   });
 });
 
