@@ -177,6 +177,18 @@ disables.
 
 ## 3. New trip is four turns
 
+**BUILT 2026-09-16.** Two things about the shipped version that this section does not
+otherwise say, and that anyone reading it as a description of the product needs:
+
+- **Only `where` and `when` reach the database.** `where` becomes the trip's name and
+  `when` becomes `SetTripDates` — and only when a length chip is paired with an arrival,
+  since free text would need the model call §30.2 forbids. **`pace` and `feel` are
+  collected and stored nowhere.** No field models either; nothing consumes them until
+  §4b's theme vocabulary exists. The closing turn says so in as many words rather than
+  implying otherwise (see §10's D-C).
+- **Four turns, not five.** `who` was dropped on Mitchell's instruction, 2026-09-15.
+  `.design-sync/handoff/SPEC.md` §30.1 still says five; `DRIFT.md`'s D11 carries the delta.
+
 **Supersedes** `NewTripWizard`'s four-step stepper (Where · When · Who & Money · Shape)
 entirely. In its place, inside the same sheet, a transcript asking one question at a time.
 

@@ -2,6 +2,51 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**EXECUTED 2026-09-16**, all seven tasks, on `claude/m9-ui-transcript-and-new-trip`.
+
+## What this slice does NOT claim
+
+The half worth writing down, because the sheet now *looks* finished:
+
+- **`pace` and `feel` are collected and stored nowhere.** No field models either,
+  and nothing consumes them until the theme pass (item 3) and the fork (item 7)
+  land. The closing line says so out loud — that is **D-C**, and it is why the
+  design's own `made` copy was not shipped.
+- **There is no draft, and no model call.** `wizard-assistant-draft` is still a
+  `<Preview>` shell for exactly that reason. The four turns collect the answers a
+  generation would need; nothing generates.
+- **Nobody has walked it in a browser.** This container has no interactive
+  browser. The walk in *Verification* below is real and unperformed — dispatch
+  `phase-verifier` against the PR's Vercel preview before any gate box moves.
+
+## Five corrections the build made to this document
+
+Recorded rather than silently absorbed, in the order they were hit:
+
+1. **Task 4's two instructions contradicted each other.** It deletes the budget
+   and currency fields, and it says the four retry tests "keep passing with only
+   their setup changed" — but those tests stage a budget *through those fields*,
+   so no setup reaches the latch once the form is gone. Mitchell's call: extract
+   the sequence. It is `newTripSubmit.ts`, fourteen tests where there were four.
+2. **Task 2's hook test is `.test.tsx`, not `.test.ts`.** `renderHook` mounts
+   React and needs a document, and `vitest.unit.config.ts` splits node from jsdom
+   by extension. The `JSDOM_TS_FILES` escape hatch is for files needing a
+   document *without* rendering React, which is not this.
+3. **Fourteen inlined call sites, not fifteen.** The fifteenth
+   (`responsive.spec.ts:894`) only asserts the field is visible — a spec about
+   the sheet rather than a user of it — so it changed with the sheet in Task 4.
+   A sixteenth was found later by the full suite: `m15-front-door` wrote the
+   locator as `/trip name/i`, which six exact-string greps all missed.
+4. **Task 6 did not need rewriting after D-B.** An earlier note here claimed it
+   did. Step 3 spells out both branches and already carries the one D-B chose —
+   and its Step 4 correctly predicted that removing `wizard-longer-chip` breaks
+   `preview.test.tsx`'s typecheck, which a rewrite would have lost.
+5. **No end-date input, against Task 4's "an end date, with a Use these
+   button".** `lib/dates` has `addDaysIso` and no day-difference helper, and
+   `SetTripDates` is computed from `arrive + days`. A second source of trip
+   length is the drift that makes 4 mean five days on one screen and four on
+   another. Arrive plus a length chip; the confirmation line is tested.
+
 **Goal:** Replace `NewTripWizard`'s four-step stepper with the scripted four-turn conversation the design asks for — `where` · `when` · `pace` · `feel` — inside the same sheet, with both exits live throughout, and close `KI-2026-09-12-e` while that file is open. A person can walk the whole thing on a preview and come out holding a real trip.
 
 **Architecture:** The questions are a **fixed local script**, not a conversation with a model. `SPEC.md` §30.2 is the load-bearing sentence of this whole design: *"The questions, their order, their chips and the commit behaviour are all local; the first model call happens after the [last] answer, once."* A build that makes the questions themselves conversational turns every abandoned New-trip sheet into billed turns. So the script is a pure data module with a pure reducer over it, and the React layer renders that reducer's output into the shared `components/assistant/Transcript.tsx` — the flow becomes a **third consumer** of that component rather than a fourth implementation of a transcript. The trip-creating half is unchanged: `createTrip({ name })` then `SetTripDates`, exactly the sequence `submit()` runs today, with the latch that KI-2026-09-12-e is about.
