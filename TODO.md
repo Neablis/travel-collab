@@ -542,10 +542,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       *"Im fine making it after M21."* A public REST API and account-generated
       API tokens, scoped to the account or to named trips, with create and
       revoke. Design: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
-      **Scoped 2026-09-16** — the open decision that held the file back (the
-      shape of the planning-write surface) was answered the same day as
-      thirteen REST endpoints, so the milestone file now carries five phases
-      and an 18-box exit gate.
+      **Scoped 2026-09-16, and nothing is open** — the decision that held the
+      file back (the shape of the planning-write surface) was answered the same
+      day as thirteen REST endpoints, and the last flagged item closed with
+      *"Just do v2 then"*, so `api.tokens` ships on **`premium@v2`**. The
+      milestone file carries five phases and a 19-box exit gate.
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.

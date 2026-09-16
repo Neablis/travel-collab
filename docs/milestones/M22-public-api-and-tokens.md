@@ -7,6 +7,9 @@ nothing here may be built yet. Placed 2026-09-16 on Mitchell's call
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
 Placement note: `docs/milestones/README.md`, 2026-09-16.
 
+**Every decision is closed as of 2026-09-16**, including the last one flagged
+back to Mitchell — `api.tokens` ships on **`premium@v2`** (*"Just do v2 then."*).
+
 **The design is fully decided and is not restated here.**
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md` carries 14
 numbered decisions, a plain-language inventory of all 46 existing API routes,
@@ -223,6 +226,12 @@ with a one-year life fails quietly.
       existing `AI_NOT_ENTITLED_STATUS` precedent rather than inventing a
       second shape — **and cannot use one either**, checked on every request
       against the owner's live entitlements.
+- [ ] **`premium@v1`'s entry is byte-identical after this milestone**, and
+      `noExtension.test.ts`'s `V1_AS_PUBLISHED` was never edited. `api.tokens`
+      arrived as `premium@v2`, enumerated in full and never as a spread of v1 —
+      so M20's ticked *"editing a plan republishes rather than mutates"* box
+      stays true, and *"what did `premium` grant on 2026-09-13"* stays
+      answerable.
 - [ ] **A lapse disables tokens; it does not revoke them.** A `premium` account
       lapses, every token is refused with 402, `revoked_at` stays null — and
       resubscribing restores **every one of them with zero writes**. A billing
@@ -267,24 +276,25 @@ top of them; it needs nothing new underneath.
 **Nothing in the design is blocked.** Phases 0–4 are buildable on the 14
 decisions as written.
 
-## The one owed decision, and the cohort it is quietly growing
+## Nothing is owed — and the cohort that is quietly growing
 
-**Which `premium` version carries `api.tokens`.** Mitchell, 2026-09-16:
-*"just assign it to v1, its unused atm"*. The design recommends **`premium@v2`**
-instead (Decision 12) and the argument is short: the premise is correct —
-`premium@v1` has never been purchased — but it makes **both** options free of
-stranded users, and between two free options the one that edits a published
-entry is the more expensive. Editing `v1` in place falsifies a **ticked M20
-gate box** (*"`v1`'s entry is byte-identical afterwards"*) and requires
-rewriting `planVersions.noExtension.test.ts`, whose `V1_AS_PUBLISHED` pins
-premium's entitlements field by field for exactly this reason. Publishing `v2`
-costs nothing, because `livePlanVersion` returns the newest entry and never
-consults a flag (`planVersions.ts:340-345`).
+**`api.tokens` ships on `premium@v2`. Decided by Mitchell, 2026-09-16: *"Just do
+v2 then."*** His first answer was *"just assign it to v1, its unused atm"*, and
+its premise was right — `premium@v1` has never been purchased — but that makes
+**both** options free of stranded users, and between two free options the one
+that edits a published entry is the more expensive. Editing `v1` in place
+falsifies a **ticked M20 gate box** (*"`v1`'s entry is byte-identical
+afterwards"*) and requires rewriting `planVersions.noExtension.test.ts`, whose
+`V1_AS_PUBLISHED` pins premium's entitlements field by field for exactly this
+reason. Publishing `v2` costs nothing, because `livePlanVersion` returns the
+newest entry and never consults a flag (`planVersions.ts:340-345`). Full
+argument: the design's Decision 12.
 
-**It blocks nothing and it is Mitchell's to reverse.** With the Phase 0/1 split
-above, no phase touches `planVersions.ts` until Phase 1, so the decision is
-owed before Phase 1 lands rather than before the milestone starts. Reversing it
-is one line plus one test line, done deliberately and recorded either way.
+**What Phase 1's diff may therefore not contain**, because this is the shape the
+decision dies in if a later session finds it fiddly: no edit to `premium@v1`'s
+entry, and no edit to `V1_AS_PUBLISHED`. If either moves, `v2` was reversed by
+accident rather than by decision. **`premium@v1` byte-identical after Phase 1 is
+a gate box below**, not an assumption.
 
 **What is not owed but is worth watching**: a subscription pins `planId@vN`
 forever and **there is deliberately no mechanism to move an existing

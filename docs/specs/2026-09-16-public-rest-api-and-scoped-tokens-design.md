@@ -2,7 +2,7 @@
 
 **Status: DECIDED — 2026-09-16. Nothing is built yet.** **M22 is now placed
 *and* scoped** — `docs/milestones/M22-public-api-and-tokens.md` was written the
-same day, five phases and an 18-box exit gate, and it is the authority on what
+same day, five phases and a 19-box exit gate, and it is the authority on what
 is in the milestone. This document stays the authority on *why*, and carries one
 correction from that file: see *Phasing*. **Every question this document opened with was answered the same day** — placement,
 entitlement, the thirteen-REST-endpoint planning surface, mandatory token expiry
@@ -10,8 +10,9 @@ capped at one year, eight scopes, and `PATCH` semantics. Two of those answers
 improved the design rather than just settling it: writing the scope list out in
 plain language exposed a gap now fixed as an eighth scope (Decision 4), and
 *"a patch is a patch"* removed a leak of our internal command split (Decision
-14). **One item is flagged back to Mitchell** — which `premium` version carries
-`api.tokens` — and it blocks nothing. See *Questions*.
+14). **The last open item closed 2026-09-16** — Mitchell, on the recommendation
+below: *"Just do v2 then."* So **`premium@v2`**, and nothing in this document is
+now open. See *Questions*.
 
 **Opened by:** Mitchell, 2026-09-16 — *"Make a plan to design a api, and the
 ability for accounts to generate scopes api tokens for account, or trip, etc.
@@ -391,12 +392,17 @@ with no ordering, and it is exactly the shape the module wants.
    `[...PREMIUM_V1, "api.tokens"]`.
 3. The account sheet's plan surface learns the word.
 
-#### Which version carries it — and why `v2` after all
+#### Which version carries it — `v2`, decided
 
-**Mitchell, 2026-09-16: *"Just assign it to v1, its unused atm."*** The premise
-is correct and is the reason this is easy: **`premium@v1` has never been
-purchased** (M21's link-2 gate box). But the premise leads somewhere else than
-the instruction did, and the argument is short enough to check.
+**DECIDED 2026-09-16: `premium@v2`.** Mitchell's first answer was *"Just assign
+it to v1, its unused atm"*; shown the argument below, he closed it with **"Just
+do v2 then."** The reasoning is kept because it is the reason a later session
+must not "simplify" this back into a `v1` edit.
+
+The original premise is correct and is what made the question easy:
+**`premium@v1` has never been purchased** (M21's link-2 gate box). But the
+premise leads somewhere else than the first instruction did, and the argument is
+short enough to check.
 
 **Editing `v1` in place buys nothing.** The only thing it could buy is giving
 *existing* `premium@v1` holders the entitlement — and there are none. So the
@@ -427,12 +433,17 @@ there was nothing to edit, because nothing had been sold and the field did not
 exist."* Two conditions, and only one holds here: the `entitlements` array
 exists and already has a value. Adding to it is editing it.
 
-**So: `premium@v2`.** Same end state, nobody stranded, no gate box falsified, no
-guard test rewritten, and *"what did `premium` grant on 2026-09-13"* stays
-answerable — which is the property the append-only rule exists to produce.
-**Flagged for Mitchell rather than assumed**: this is his call to reverse, and
-if he wants `v1` amended anyway it is one line plus one test line, done
-deliberately and recorded here rather than quietly.
+**So: `premium@v2`** — confirmed by Mitchell, 2026-09-16. Same end state,
+nobody stranded, no gate box falsified, no guard test rewritten, and *"what did
+`premium` grant on 2026-09-13"* stays answerable, which is the property the
+append-only rule exists to produce.
+
+**What this now forbids, stated so Phase 1 cannot drift into it.**
+`planVersions.ts` gains a `premium@v2` entry enumerating all four entitlements
+in full. `premium@v1`'s entry is **byte-identical afterwards**, and
+`noExtension.test.ts`'s `V1_AS_PUBLISHED` is **not touched** — if Phase 1's diff
+edits either, the decision has been reversed by accident rather than
+deliberately.
 
 **Both halves of "creating and using" are enforced, in different places:**
 
@@ -717,9 +728,10 @@ not touch the plan file"* — and both could not be true at once. Phase 1 is whe
 belongs; Phase 0 is now the contracts change alone, and the one owed decision is
 off the critical path until Phase 1.
 
-## Questions — all answered; one flagged back
+## Questions — all answered, including the one flagged back
 
-Every question this document opened with was answered on **2026-09-16**.
+Every question this document opened with was answered on **2026-09-16**,
+including the one that was briefly flagged back.
 
 | # | Question | Decision |
 |---|---|---|
@@ -729,24 +741,23 @@ Every question this document opened with was answered on **2026-09-16**.
 | 4 | Token lifetime | **Mandatory, 365-day max, 90-day default** — Decision 13 |
 | 5 | BFF routes vs `v1` | **Coexist permanently** (default taken, never contested) |
 | 6 | Scope granularity | **Eight** — *"Sure, sound good"*. The eighth, `sharing:write`, was a gap found while writing the list out in plain language |
-| 7 | `premium@v1` holders | There are none, so **nobody is stranded either way** — see the one item flagged below |
+| 7 | Which `premium` version carries it | **`premium@v2`** — *"Just do v2 then."* There are no `v1` holders, so nobody was stranded either way; `v2` is the option that edits nothing published. See below |
 | 8 | `PATCH` on an activity | **One endpoint.** *"a patch is a patch"* — Decision 14 |
 
-### The one thing flagged back
+### The one thing flagged back, and how it closed
 
-**Which `premium` version carries `api.tokens`.** Mitchell said *"just assign it
-to v1, its unused atm"*, and the premise is right — `premium@v1` has never been
-purchased. But the premise makes **both** options free of stranded users, and
-between two free options the one that edits a published entry is the more
-expensive: it falsifies a ticked M20 gate box (*"`v1`'s entry is byte-identical
-afterwards"*) and requires rewriting the test that exists to catch exactly that.
+**Which `premium` version carries `api.tokens`.** Mitchell's first answer was
+*"just assign it to v1, its unused atm"*, and the premise is right — `premium@v1`
+has never been purchased. But the premise makes **both** options free of stranded
+users, and between two free options the one that edits a published entry is the
+more expensive: it falsifies a ticked M20 gate box (*"`v1`'s entry is
+byte-identical afterwards"*) and requires rewriting the test that exists to catch
+exactly that. `livePlanVersion` returns the newest entry with no flag to set, so
+publishing `premium@v2` needs no other edit anywhere and strands nobody.
 
-`livePlanVersion` returns the newest entry with no flag to set, so publishing
-`premium@v2` needs no other edit anywhere and strands nobody.
-
-**Recommendation: `v2`.** Reversible in one line plus one test line if Mitchell
-prefers `v1` — recorded in Decision 12 either way, and not a blocker for
-Phase 0, which does not touch the plan file.
+**Closed 2026-09-16: *"Just do v2 then."*** Recorded in full in Decision 12,
+which also states what Phase 1's diff may not touch as a result. Nothing in this
+document is open.
 
 ### Nothing is blocking
 
