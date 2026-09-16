@@ -28,12 +28,33 @@ export function formatPrice(minor: number, currency: string | null): string {
   }).format(minor / 100);
 }
 
-/** A date as a person reads it, from an ISO string. */
+/**
+ * A billing boundary as a person reads it, from an ISO instant.
+ *
+ * **Rendered in UTC, and that is the opposite of `formatInstantLong`'s rule on
+ * purpose.** That helper renders an instant in the reader's own zone because
+ * the thing it describes ("you took this copy on…") happened at a moment. The
+ * dates here are not moments that happened — they are `renewsAt`, `trialEndsAt`,
+ * `graceEndsAt` and `effectiveAt`: boundaries the SERVER acts on, stored and
+ * compared in UTC. Rendering them locally tells a reader west of Greenwich a
+ * different day from the one the system will act on, because every one of them
+ * arrives as midnight UTC and midnight UTC is the previous afternoon in a
+ * negative-offset zone.
+ *
+ * The cost of getting this wrong is not cosmetic. M21's failed-payment grace
+ * window is three days (decided 2026-09-13), so a one-day error in the date a
+ * person is shown is a third of the window they are being warned about.
+ *
+ * **CI cannot catch a regression here.** The runner has no `TZ` pinned, so it
+ * runs in UTC where local and UTC agree and the bug is invisible. The tests
+ * beside this file fail on any developer machine west of Greenwich and pass in
+ * CI either way — see `planCopy.test.ts`.
+ */
 export function formatDate(iso: string | null): string | null {
   if (iso === null) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long" }).format(date);
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", timeZone: "UTC" }).format(date);
 }
 
 /**
