@@ -67,6 +67,12 @@ State these in the PR body too; each is a real capability a reviewer will look f
 
 ## Decisions Mitchell owes before this is executed
 
+**ANSWERED 2026-09-16, all four, in one sitting before the first build commit.** Each
+answer is recorded under its own heading below. Two of them went against what this plan
+was drafted to expect, and the tasks were rewritten rather than the answers reinterpreted —
+**Task 6 in particular is now the opposite of what it said**, and D-B reverses a decision
+recorded in source, so `NewTripWizard.tsx` carries the reversal as well as this file.
+
 Three things the design does not settle. **Flagged, not invented.** Each one has a concrete consequence named, so the answer is a sentence rather than a design session.
 
 ### D-A. "Recent and nearby" has no data source
@@ -80,6 +86,11 @@ Design §10.7, and `DRIFT.md`'s own line 299: *"drop the two `unplaced` wizard s
 
 Task 6 is written against the first answer and says what to change for the second.
 
+> **ANSWERED 2026-09-16 — the label drops.** The chips become plain suggestions with no
+> label. `wizard-destination-chips` **leaves** `preview-registry.ts` in Task 6, because
+> once the unsupported claim is gone there is nothing unbuilt left to mark. Storing
+> destinations stays D6/KI-34's neighbourhood and is not pulled into M9.
+
 ### D-B. `Longer` acquired a day count
 
 `NT_NIGHTS` in the design file maps `Longer → 21`. `NewTripWizard.tsx:26-30` records the opposite decision in a comment: *"`Longer` has no day count the design implies (Mitchell, 2026-08-23 decision) — it ships as an inert Preview badge."* **The design reverses a recorded decision without recording that it did.** Confirm which holds:
@@ -87,7 +98,22 @@ Task 6 is written against the first answer and says what to change for the secon
 - **21 confirmed** → `Longer` becomes a fifth real length chip and `wizard-longer-chip` leaves the registry.
 - **2026-08-23 holds** → `Longer` either drops from the chip row entirely (the composer already accepts "three weeks" as prose) or stays an inert `<Preview>` badge, and the registry entry stays.
 
-Task 6 is written against the second answer, because it is the one currently recorded in the code.
+> **ANSWERED 2026-09-16 — 21 nights is confirmed, and this REVERSES the 2026-08-23
+> decision.** `Longer` becomes a fifth real length chip mapping to 21 nights, and
+> `wizard-longer-chip` **leaves** `preview-registry.ts`.
+>
+> **Task 6 was written against the other answer and is now wrong as drafted** — it says
+> the registry entry stays and `Longer` stays inert. It does not.
+>
+> **The reversal has to reach the source comment, and only when the code moves with it.**
+> `NewTripWizard.tsx:25-30` states the 2026-08-23 decision as live fact, so a reader who
+> never finds this file believes it. Task 6 rewrites that comment **in the same commit
+> that adds the fifth chip** — writing the new decision above code still implementing the
+> old one is the comment-contradicts-code defect that cost #184 two findings.
+>
+> The design file reversed this decision *without* recording that it did, which is the
+> entire reason D-B existed. Repeating that in the other direction would be worse, not
+> symmetrical.
 
 ### D-C. What the closing turn is allowed to say
 
@@ -98,6 +124,12 @@ Proposed closing copy, which is true of what this slice actually creates:
 > *"{name} is created, {N} days from {start}. The days are empty and yours to fill — what you said about pace and what the trip is about is not built in yet."*
 
 …with the dates clause omitted when no dates were supplied. Confirm, or supply different words. **Do not ship the design's `made` copy as written.**
+
+> **ANSWERED 2026-09-16 — use the proposed copy.** Task 4 ships exactly the sentence
+> above, dates clause omitted when no dates were supplied. The design's `made` copy is
+> not shipped, and Task 7 records why: `pace` and `feel` are collected and stored
+> nowhere, so a closing turn claiming the trip was built around them would be a
+> fabricated note in a repo that keeps a registry to mark exactly those.
 
 ---
 
@@ -583,6 +615,10 @@ The defect, in the KI's own words: the wizard's retry is safe against a *rejecte
 3. **Half the wiring exists.** `POST /api/trips/:id/commands` already returns `{ error, code }` and `sendTripCommand` already surfaces `code` on the `ApiError` (`apiClient.ts:172-176`, `:38`). **`POST /api/trips` returns only `{ error }`**, and `createTrip` drops the code. That asymmetry is the whole gap on the create half.
 
 **This is D-D, and Mitchell owes it** — the KI says the choice between an idempotency key and a read-back reconcile is his. The recommendation below is the key, because the read-back costs a round trip on every retry and needs a list-and-match heuristic on a name that is not unique. **Confirm before executing this task.** Tasks 1–4 and 6–7 do not depend on it.
+
+> **ANSWERED 2026-09-16 — the idempotency key.** The client mints the `tripId` and sends
+> it; `CreateTripBody` accepts it as an optional uuid. Read-back is not taken, for the
+> reason above. This task is **in** this slice rather than deferred.
 
 **Files:**
 - Modify: `apps/web/src/app/api/trips/route.ts` (`CreateTripBody` at `:34`, the POST handler at `:36-54`)
