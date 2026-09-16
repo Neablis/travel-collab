@@ -68,10 +68,13 @@ State these in the PR body too; each is a real capability a reviewer will look f
 ## Decisions Mitchell owes before this is executed
 
 **ANSWERED 2026-09-16, all four, in one sitting before the first build commit.** Each
-answer is recorded under its own heading below. Two of them went against what this plan
-was drafted to expect, and the tasks were rewritten rather than the answers reinterpreted —
-**Task 6 in particular is now the opposite of what it said**, and D-B reverses a decision
-recorded in source, so `NewTripWizard.tsx` carries the reversal as well as this file.
+answer is recorded under its own heading below.
+
+Two of them — D-B and D-D — needed the plan's conditional branches rather than its
+default, and **Task 6 already carries both**, which a first version of this preamble got
+wrong by claiming the task had to be rewritten. It does not; it has to be read. D-B also
+reverses a decision recorded in source, so `NewTripWizard.tsx` carries the reversal as
+well as this file, in the commit that moves the code.
 
 Three things the design does not settle. **Flagged, not invented.** Each one has a concrete consequence named, so the answer is a sentence rather than a design session.
 
@@ -102,8 +105,16 @@ Task 6 is written against the first answer and says what to change for the secon
 > decision.** `Longer` becomes a fifth real length chip mapping to 21 nights, and
 > `wizard-longer-chip` **leaves** `preview-registry.ts`.
 >
-> **Task 6 was written against the other answer and is now wrong as drafted** — it says
-> the registry entry stays and `Longer` stays inert. It does not.
+> **Correction to this note as first written.** It said Task 6 "was written against the
+> other answer and is now wrong as drafted". That is false, and reading Task 6 rather
+> than remembering it is what showed so: Step 3 spells out **both** branches, and the one
+> this answer selects — *"Longer becomes a fifth length chip and the entry is removed"* —
+> is already written there. Task 6 needs following, not rewriting.
+>
+> Its Step 4 also names the trap the removal creates, which this note would have lost:
+> `preview.test.tsx:74-80` uses `wizard-longer-chip` as a **fixture id**, so dropping the
+> entry narrows `PreviewId` and breaks the typecheck of a file with nothing to do with
+> the wizard.
 >
 > **The reversal has to reach the source comment, and only when the code moves with it.**
 > `NewTripWizard.tsx:25-30` states the 2026-08-23 decision as live fact, so a reader who
