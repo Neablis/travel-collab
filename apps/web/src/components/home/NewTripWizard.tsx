@@ -1,95 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
-import type { Money } from "@tc/contracts";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
-import { MoneyInput } from "@/components/board/MoneyInput";
+import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
+import { usePinToBottom } from "@/components/assistant/usePinToBottom";
 import { addDaysIso } from "@/lib/dates";
-import { createTripWithSetup, type SetupLatch } from "./newTripSubmit";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { formatTripDate } from "@/lib/formatDate";
-import { cn } from "@/lib/cn";
-
-const STEP_LABELS = ["Where", "When", "Who & Money", "Shape"] as const;
-const TOTAL_STEPS = STEP_LABELS.length;
-
-// The length chips, verbatim (`Trip Planner Redesign.dc.html:3440`'s
-// lengthChips): four real day counts read off the labels themselves and off
-// the design's New Orleans card ("Long weekend, four days"). `Longer` has no
-// day count the design implies (Mitchell, 2026-08-23 decision) — it ships as
-// an inert Preview badge below, not one of these.
-const LENGTH_CHIPS: { label: string; days: number }[] = [
-  { label: "Long weekend", days: 4 },
-  { label: "A week", days: 7 },
-  { label: "10 days", days: 10 },
-  { label: "2 weeks", days: 14 },
-];
-
-const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF"] as const;
-const DEFAULT_CURRENCY = "USD";
-
-// Illustrative only (Preview id="wizard-destination-chips", M11 — no
-// destination field exists on TripSummary/TripDetail, so there is nothing
-// real "recent and nearby" could read from). Copy lifted verbatim from the
-// design's own destChips fixture.
-const DESTINATION_CHIP_SHAPE = ["Lisbon", "Mexico City", "Seoul", "Copenhagen", "Big Sur", "Back to Kyoto"] as const;
-
-// Illustrative only (Preview id="wizard-pace-tags", M9 — pace and tags exist
-// only to feed the assistant's draft, which doesn't exist yet).
-const PACE_OPTIONS = [
-  { value: "slow", label: "Slow" },
-  { value: "balanced", label: "Balanced" },
-  { value: "packed", label: "Packed" },
-] as const;
-type PaceValue = (typeof PACE_OPTIONS)[number]["value"];
-const TAG_CHIP_SHAPE = ["Food", "Art", "Hiking", "Nightlife", "Markets", "Architecture"] as const;
-
-// A native <input type="date">'s `value` is spec'd to be either "" or a
-// complete valid date, but was observed (manual verification, Phase 7) to
-// briefly carry a non-empty, not-yet-complete string while a day segment is
-// mid-edit (e.g. typing month/day/year one keystroke at a time) — `arrive`'s
-// onChange fires on that intermediate value before it settles. Same shape as
-// packages/contracts/src/trip.ts's private ISO_DATE; UI can't import that
-// (module map, AGENTS.md), and this is a plain regex literal, not domain
-// logic.
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-// Inclusive-length day arithmetic below uses lib/dates.ts's addDaysIso: a chip
-// picking N days from arrival A gives endDate = A + (N-1) days. Every call is
-// gated on ISO_DATE.test(arrive) first (see above) — addDaysIso throws on an
-// incomplete intermediate value rather than returning garbage.
+import {
+  LENGTH_DAYS,
+  NEW_TRIP_QUESTIONS,
+  NEW_TRIP_START,
+  changeTo,
+  commitAnswer,
+  commitMulti,
+  togglePick,
+  type NewTripState,
+} from "./newTripScript";
+import {
+  DEFAULT_CURRENCY,
+  ISO_DATE,
+  createTripWithSetup,
+  type SetupLatch,
+} from "./newTripSubmit";
 
 export type NewTripWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   createTrip: (input: { name: string }) => Promise<ApiResult<{ tripId: string }>>;
-  // Awaited, not fire-and-forget (CodeRabbit, PR #32): submit() waits for
-  // each dispatched command to confirm — or report a real failure — before
-  // navigating, rather than racing an in-flight SetTripDates/Budget/Currency
-  // against the trip page's own first load.
+  // Awaited, not fire-and-forget (CodeRabbit, PR #32): the setup sequence waits
+  // for each dispatched command to confirm — or report a real failure — before
+  // navigating, rather than racing an in-flight SetTripDates against the trip
+  // page's own first load. The sequence itself lives in `newTripSubmit.ts`.
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
   // Called once the trip exists AND every dispatched command it needed has
-  // confirmed. `navigate` is true only for the full wizard's "Create trip"
-  // (step 4) — the phase doc's own sequence is "create... apply dates and
-  // budget... then navigate." "Create empty" is explicitly the old
-  // single-field dialog's escape hatch, and that dialog never navigated —
-  // it closed and left the user on the trip list to open the new (still
-  // otherwise-identical) card themselves. Every pre-Phase-7 e2e spec is
-  // built on that: they all click Create-empty-or-equivalent, then click
-  // the trip's own list link to navigate — a version of this that always
-  // navigated broke every one of them (CI, PR #32) by leaving the home
-  // page (and that link) before the click ever ran.
+  // confirmed. `navigate` is true only for the paths that finish the
+  // conversation — "Create empty" is the old single-field dialog's escape
+  // hatch, and that dialog never navigated: it closed and left the user on the
+  // trip list to open the new card themselves. Every pre-Phase-7 e2e spec is
+  // built on that, and a version of this that always navigated broke every one
+  // of them (CI, PR #32) by leaving the home page before the click ever ran.
   onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
   /**
    * `full` on a first run — see `SheetSize`. The caller decides, because
@@ -143,6 +102,40 @@ export function NewTripWizard({
   );
 }
 
+/**
+ * **The turns, as a transcript.**
+ *
+ * Each asked question is an assistant turn and each answer is a user turn, so
+ * the same `Transcript` the assistant rail uses renders this. It is a third
+ * consumer of that component rather than a fourth implementation of one.
+ *
+ * `pending: false` and `tools: []` on every assistant turn: there is nothing to
+ * wait for. SPEC §30.2 — the four turns make **zero model calls and zero
+ * network calls**, so a typing indicator here would be an animation pretending
+ * to be latency.
+ */
+function threadFor(state: NewTripState, closing: string | null): AssistantTurn[] {
+  const turns: AssistantTurn[] = [];
+  NEW_TRIP_QUESTIONS.forEach((question, index) => {
+    if (index > state.turn) return;
+    turns.push({
+      id: `ask-${question.id}`,
+      role: "assistant",
+      text: question.ask,
+      tools: [],
+      pending: false,
+    });
+    const answer = state.answers[question.id];
+    if (answer !== undefined && index < state.turn) {
+      turns.push({ id: `said-${question.id}`, role: "user", text: answer });
+    }
+  });
+  if (closing !== null) {
+    turns.push({ id: "made", role: "assistant", text: closing, tools: [], pending: false });
+  }
+  return turns;
+}
+
 function WizardBody({
   createTrip,
   dispatch,
@@ -156,62 +149,62 @@ function WizardBody({
   firstRun: boolean;
   browseHref: string;
 }) {
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState("");
+  const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
+  const [phase, setPhase] = useState<"asking" | "made">("asking");
+  const [draft, setDraft] = useState("");
   const [arrive, setArrive] = useState("");
-  const [selectedDays, setSelectedDays] = useState<number | null>(null);
-  const [budget, setBudget] = useState<Money | null>(null);
-  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
-  const [pace, setPace] = useState<PaceValue>(PACE_OPTIONS[1].value);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set once createTrip succeeds, so a retry after a failed dates/budget/
-  // currency dispatch re-sends only the commands that did NOT land, rather
-  // than calling createTrip again and minting a second trip (CodeRabbit, PR
-  // #32 — the original version fired every dispatch without awaiting it and
-  // navigated regardless of whether any of them actually confirmed).
-  //
-  // The tripId alone answers "don't create a second trip" but not "don't
-  // re-send a command that already landed" — a retry that blindly re-sends
-  // SetTripDates with the same startDate/endDate is rejected by the domain
-  // as a no-op (`okUnlessNoOp`, decide.ts), which turned a transient failure
-  // on budget or currency (the steps AFTER dates) into a permanent one: every
-  // retry re-failed at dates, and the error blamed dates even though dates
-  // had already succeeded (KI-2026-09-08-a). `datedAs`/`budgetAppliedAs`/
-  // `currencyAppliedAs` are the per-command halves of that latch — mirrors
-  // `AddToTripDialog`'s `{ tripId, datedAs }`, widened to all three commands
-  // this wizard sends. Storing the applied VALUE (not a boolean) means
-  // changing the field before retrying still re-sends it.
+  // What a previous attempt got through. Carried across attempts so a retry
+  // neither mints a second trip nor re-sends a command that already landed —
+  // KI-2026-09-08-a, and the reason `newTripSubmit.ts` returns this on failure
+  // as well as on success.
   const [progress, setProgress] = useState<SetupLatch | null>(null);
 
-  const trimmedName = name.trim();
+  // **This column is the scrollport, so pinning belongs here** rather than
+  // inside `Transcript`, which owns none. `scrollTop`, never `scrollIntoView`:
+  // SPEC §30.6 bans it repo-wide because it moves every scrollable ancestor,
+  // and KI-2026-09-13-a is an open bug in that family.
+  const threadRef = useRef<HTMLDivElement | null>(null);
+  usePinToBottom(threadRef, [state.turn, phase]);
 
-  // **The create-then-latch sequence lives in `newTripSubmit.ts`**, not here.
-  // It moved out when the four-turn script replaced this form: its regression
-  // cover (CodeRabbit PR #32, KI-2026-09-08-a, CodeRabbit PR #165) drove the
-  // latch through the budget and currency fields, and the four-turn script has
-  // no turn for either. Tested directly it survives the form that used to
-  // reach it.
-  //
-  // What stays here is what is genuinely React's: the in-flight flag, the
-  // inline error, and carrying the latch between attempts so a retry does not
-  // mint a second trip.
+  const question = NEW_TRIP_QUESTIONS[state.turn];
+  const where = state.answers.where;
+  // The trip's name is the destination answer, or whatever is in the composer
+  // before it has been committed — which is what preserves "type a name, press
+  // Create empty" exactly as the old single-field dialog worked.
+  const name = (where ?? draft).trim();
+  // Only a LENGTH CHIP gives a day count. Free text like "nine nights in April"
+  // gives none, because parsing it would be the model call §30.2 forbids.
+  const days = where === undefined ? null : (LENGTH_DAYS[state.answers.when ?? ""] ?? null);
+  const dated = ISO_DATE.test(arrive) && days !== null;
+
   async function submit(applySetup: boolean) {
-    if (trimmedName === "" || submitting) return;
+    if (name === "" || submitting) return;
     setError(null);
     setSubmitting(true);
 
     const result = await createTripWithSetup({
-      setup: { name: trimmedName, arrive, days: selectedDays, budget, currency },
+      setup: {
+        name,
+        arrive,
+        days,
+        // **No budget or currency turn exists in a four-turn script**, so this
+        // UI never populates either. The branches for them stay in
+        // `newTripSubmit.ts` — tested directly there — because a later plan may
+        // reintroduce the fields, and deleting working code that a closed known
+        // issue depends on is not a saving.
+        budget: null,
+        currency: DEFAULT_CURRENCY,
+      },
       applySetup,
       latch: progress,
       createTrip,
       dispatch,
     });
 
-    // The latch is stored on BOTH outcomes. Dropping it on failure is the
-    // defect the module's own header describes: the next attempt would re-send
-    // what already landed, and re-create a trip that already exists.
+    // Stored on BOTH outcomes: dropping the latch on failure is the defect
+    // `newTripSubmit.ts`'s own header describes.
     if (result.latch !== null) setProgress(result.latch);
     setSubmitting(false);
     if (!result.ok) {
@@ -221,21 +214,40 @@ function WizardBody({
     onDone(result.latch.tripId, applySetup);
   }
 
-  const nextDisabled = step === 1 && trimmedName === "";
-  const createEmptyDisabled = trimmedName === "" || submitting;
+  /** The last turn's commit: make the trip, then say what was made. */
+  async function finish() {
+    const committed = commitMulti(state);
+    setState(committed);
+    setPhase("made");
+    await submit(true);
+  }
+
+  function commit(value: string) {
+    setState((current) => commitAnswer(current, value));
+    setDraft("");
+  }
+
+  // **D-C, answered 2026-09-16.** The design's `made` copy says the trip was
+  // "laid out ... around" the `feel` answer. It was not: `pace` and `feel` are
+  // collected and stored nowhere, and nothing consumes them until the theme
+  // pass and the fork land. A closing turn claiming otherwise would be a
+  // fabricated note in a repo that keeps a registry to mark exactly those.
+  const closing =
+    phase === "made"
+      ? `${name} is created, ${days ?? 0} days${dated ? ` from ${formatTripDate(arrive)}` : ""}. ` +
+        "The days are empty and yours to fill — what you said about pace and what the trip is " +
+        "about is not built in yet."
+      : null;
+
+  const thread = threadFor(state, closing);
+  const answered = Object.keys(state.answers).length > 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4">
       {/* The first-run framing, and the answer to "building a trip from total
-          scratch is a rough experience" (Mitchell, 2026-09-01). Two sentences
-          saying a name is enough and nothing is locked in, plus the other way
-          in — somebody else's day, already planned — which is the whole reason
-          the library exists and was reachable from everywhere on this app
-          EXCEPT the moment a person has nothing and is being asked to invent a
-          trip from a blank field.
-
-          Only on a first run: someone opening "New trip" for their fourth trip
-          has met all of this. */}
+          scratch is a rough experience" (Mitchell, 2026-09-01). Only on a first
+          run: someone opening "New trip" for their fourth trip has met all of
+          this. */}
       {firstRun && (
         <div className="flex flex-col gap-2 rounded-lg bg-moss p-3.5">
           <Text as="p" variant="secondary" className="text-pretty">
@@ -251,210 +263,119 @@ function WizardBody({
           </Text>
         </div>
       )}
-      <div className="flex items-center gap-1.5">
-        {STEP_LABELS.map((label, index) => {
-          const stepNumber = index + 1;
-          const isActive = stepNumber <= step;
-          return (
-            <div key={label} data-testid="wizard-step" className="flex flex-1 flex-col gap-1">
-              <span aria-hidden className={cn("block h-1 rounded-full", isActive ? "bg-brand" : "bg-hairline")} />
-              <Text variant="muted" className={cn(stepNumber === step && "font-medium text-ink")}>
-                {label}
-              </Text>
-            </div>
-          );
-        })}
+
+      {/* **No stepper.** §30.1: the rail is not replaced with a progress bar —
+          a transcript shows its own progress, and the stepper was what made the
+          sheet grow as it filled. */}
+      <div ref={threadRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <Transcript
+          turns={thread}
+          renderTurnFooter={(turn) => {
+            if (turn.role !== "user" || phase === "made") return null;
+            const index = NEW_TRIP_QUESTIONS.findIndex((q) => `said-${q.id}` === turn.id);
+            if (index < 0 || index === state.turn) return null;
+            return (
+              <div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 text-xs font-normal"
+                  onClick={() => {
+                    setState((current) => changeTo(current, index));
+                    setDraft("");
+                  }}
+                >
+                  Change
+                </Button>
+              </div>
+            );
+          }}
+        />
       </div>
 
-      {step === 1 && (
-        <div className="flex flex-col gap-3.5">
-          <FormField id="wizard-trip-name" label="Trip name">
-            {/* Enter moves on, exactly as the primary button does. Step 1 is
-                one field and a button, and typing a name then pressing Enter is
-                what everyone does (Mitchell, 2026-09-01: "Pressing enter in
-                many fields doesnt submit"). It advances rather than creating,
-                because "Next" is what the primary button says here — Enter
-                does what the button under your hand does, not something else.
-                A blank name is a no-op, matching `nextDisabled`. */}
-            <Input
-              id="wizard-trip-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={submitOnEnter(() => {
-                if (trimmedName === "") return;
-                setStep((current) => Math.min(TOTAL_STEPS, current + 1));
-              })}
-              placeholder="e.g. Japan"
-              aria-label="Trip name"
-            />
-          </FormField>
-          <div>
-            <Text variant="muted" className="mb-1.5">
-              Recent and nearby
+      {phase === "asking" && question !== undefined && (
+        <div className="flex flex-col gap-2.5">
+          {question.chipLabel !== "" && (
+            <Text variant="muted" className="mb-0.5">
+              {question.chipLabel}
             </Text>
-            <Preview id="wizard-destination-chips" size="container" className="flex flex-wrap gap-1.5 p-1.5">
-              {DESTINATION_CHIP_SHAPE.map((label) => (
-                <span
-                  key={label}
-                  className="rounded-full border border-hairline bg-surface px-3 py-1 text-sm text-ink"
-                >
-                  {label}
-                </span>
-              ))}
-            </Preview>
-          </div>
-          {/* M11b deleted the "Start from a Playbook" panel that stood here.
-              It was `<Preview id="wizard-playbook-panel">` whose entire content
-              was a fabricated count ("You have 5 saved days") beside an inert
-              Browse button, and the milestone's line is that the four Playbooks
-              shells are deleted rather than re-pointed. Nothing replaces it in
-              the wizard: this step runs BEFORE the trip a day would go into
-              exists, so the honest entry points are the home page's "Start from
-              a Playbook" link and the end-of-trip block — both of which now
-              open the real library. */}
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="flex flex-col gap-3.5">
-          <div>
-            <Text variant="muted" className="mb-1.5">
-              How long?
-            </Text>
-            <div className="flex flex-wrap gap-1.5">
-              {LENGTH_CHIPS.map((chip) => (
-                <Button
-                  key={chip.label}
-                  type="button"
-                  variant={selectedDays === chip.days ? "primary" : "secondary"}
-                  size="sm"
-                  className="rounded-full"
-                  onClick={() => setSelectedDays(chip.days)}
-                >
-                  {chip.label}
-                </Button>
-              ))}
-              {/* Longer: an escape hatch to a manual day count the design
-                  implies but never gives a number for (Mitchell, 2026-08-23
-                  — see the plan's decision note). Ships inert, no click
-                  handler, rather than inventing a length. */}
-              <Preview id="wizard-longer-chip" size="compact">
-                <span className="rounded-full border border-hairline bg-surface px-3 py-1 text-sm text-ink">
-                  Longer
-                </span>
-              </Preview>
-            </div>
-          </div>
-          <FormField id="wizard-arrive" label="Arrive">
-            <Input
-              id="wizard-arrive"
-              type="date"
-              value={arrive}
-              onChange={(e) => setArrive(e.target.value)}
-              aria-label="Arrive"
-            />
-          </FormField>
-          {/* Real, not Preview: both start and length come from real state
-              above, so this is honest derived data, not a fabricated note. */}
-          {ISO_DATE.test(arrive) && selectedDays !== null && (
-            <Banner variant="info">
-              {selectedDays} days — {formatTripDate(arrive)} to {formatTripDate(addDaysIso(arrive, selectedDays - 1))}.
-            </Banner>
           )}
-        </div>
-      )}
-
-      {step === 3 && (
-        <div className="flex flex-col gap-4">
-          <div>
-            <Text variant="muted" className="mb-1.5">
-              Who is coming?
-            </Text>
-            {/* M11 link 3 retired <Preview id="wizard-invite-list"> — the
-                mocked "You / Owner" row it showed. Inviting is real now, but
-                it needs a trip to invite someone TO: an invite is a row
-                against a tripId (packages/contracts/src/access.ts), and this
-                step runs before CreateTrip. Collecting addresses here and
-                replaying them after creation would be a second, hidden invite
-                path with its own failure mode (the trip exists, the invites
-                silently did not), for a wizard step that is one click from the
-                real one. So this says where invites live instead of pretending
-                to be them — honest, and not a shell. */}
-            <Text as="span" className="text-sm text-ink">
-              Just you, for now — invite people from Trip settings once the trip
-              exists.
-            </Text>
-          </div>
-          <div
-            className="grid gap-2.5"
-            // eslint-disable-next-line no-restricted-syntax -- same 1fr/130px budget-input split as TripMoneySettings, no token equivalent
-            style={{ gridTemplateColumns: "1fr 130px" }}
-          >
-            {/* `hint` (renders below the input), not `description` (renders
-                between the label and the input) — the Currency field beside
-                this one has no description, so a description here pushed this
-                row's input down out of alignment with Currency's select
-                (Mitchell, preview comment on PR #60). This is the identical
-                defect that TripMoneySettings already carries for the same
-                two fields — see the matching comment there. Neither field
-                has helper copy now: "Used for the over-budget warning across
-                lenses." was dropped from both in the 2026-08-30 design pass,
-                which keeps their Label→input distance identical. */}
-            <FormField id="wizard-budget" label="Total for the trip">
-              <MoneyInput id="wizard-budget" value={budget} currency={currency} onChange={setBudget} />
-            </FormField>
-            <FormField id="wizard-currency" label="Currency">
-              <NativeSelect
-                id="wizard-currency"
-                aria-label="Currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+          <div className="flex flex-wrap gap-1.5">
+            {question.chips.map((chip) => (
+              <Button
+                key={chip}
+                type="button"
+                // Buttons, never a `<select>`: `preview-registry.test.ts` has a
+                // wall against a static city `<option>` list anywhere in src.
+                variant={
+                  question.multi === true && state.picked.includes(chip) ? "primary" : "secondary"
+                }
+                size="sm"
+                className="rounded-full"
+                onClick={() =>
+                  question.multi === true
+                    ? setState((current) => togglePick(current, chip))
+                    : commit(chip)
+                }
               >
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </NativeSelect>
-            </FormField>
+                {chip}
+              </Button>
+            ))}
           </div>
-        </div>
-      )}
 
-      {step === 4 && (
-        <div className="flex flex-col gap-4">
-          <Preview id="wizard-pace-tags" size="container" className="p-3.5">
-            <div className="flex flex-col gap-4">
-              <div>
-                <Text variant="muted" className="mb-1.5">
-                  Pace
-                </Text>
-                <SegmentedControl value={pace} onValueChange={setPace} options={PACE_OPTIONS} aria-label="Pace" />
+          {question.dates === true && (
+            <>
+              <FormField id="wizard-arrive" label="Arrive">
+                <Input
+                  id="wizard-arrive"
+                  type="date"
+                  value={arrive}
+                  onChange={(e) => setArrive(e.target.value)}
+                  aria-label="Arrive"
+                />
+              </FormField>
+              {/* Real, not Preview: both the start and the length come from
+                  real state, so this is honest derived data. */}
+              {dated && (
+                <Banner variant="info">
+                  {days} days — {formatTripDate(arrive)} to{" "}
+                  {formatTripDate(addDaysIso(arrive, (days ?? 1) - 1))}.
+                </Banner>
+              )}
+            </>
+          )}
+
+          {question.multi === true ? (
+            <Button type="button" variant="primary" disabled={submitting} onClick={() => void finish()}>
+              {state.picked.length > 0 ? "That is it — build it" : "Nothing in particular"}
+            </Button>
+          ) : (
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                {/* **The composer's accessible name is the QUESTION**, not
+                    "Trip name". That is the honest name for a field whose label
+                    is whatever is being asked — and it is why the e2e suite
+                    grew `createEmptyTripViaWizard` first, so the rename landed
+                    in one place rather than fifteen. */}
+                <Input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={submitOnEnter(() => commit(draft))}
+                  placeholder={question.placeholder}
+                  aria-label={question.ask}
+                />
               </div>
-              <div>
-                <Text variant="muted" className="mb-1.5">
-                  What the trip is about
-                </Text>
-                <div className="flex flex-wrap gap-1.5">
-                  {TAG_CHIP_SHAPE.map((label) => (
-                    <span
-                      key={label}
-                      className="rounded-full border border-hairline bg-surface px-3 py-1 text-sm text-ink"
-                    >
-                      {label}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={draft.trim() === ""}
+                onClick={() => commit(draft)}
+              >
+                Send
+              </Button>
             </div>
-          </Preview>
-          <Preview id="wizard-assistant-draft" size="container" className="bg-brand-tint p-3.5">
-            <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
-            <Text variant="secondary" className="mt-0.5 text-brand-pressed">
-              Once you say go, the assistant lays out your days at the pace you pick, leaves the bookings to you, and
-              flags anything that needs a decision.
-            </Text>
-          </Preview>
+          )}
         </div>
       )}
 
@@ -464,33 +385,50 @@ function WizardBody({
         </Text>
       )}
 
+      {/* The fork is design §4 and is NOT built in this slice, so its shell
+          survives rather than being deleted — removing it would move a false
+          claim rather than remove one (plan 4, Task 6). */}
+      {phase === "asking" && state.turn === NEW_TRIP_QUESTIONS.length - 1 && (
+        <Preview id="wizard-assistant-draft" size="container" className="bg-brand-tint p-3.5">
+          <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
+          <Text variant="secondary" className="mt-0.5 text-brand-pressed">
+            Once you say go, the assistant lays out your days at the pace you pick, leaves the
+            bookings to you, and flags anything that needs a decision.
+          </Text>
+        </Preview>
+      )}
+
       <DialogFooter>
-        {step > 1 && (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={submitting}
-            onClick={() => setStep((s) => Math.max(1, s - 1))}
-          >
-            Back
-          </Button>
-        )}
-        <Button type="button" variant="secondary" disabled={createEmptyDisabled} onClick={() => void submit(false)}>
-          Create empty
-        </Button>
-        {step < TOTAL_STEPS ? (
+        {phase === "made" ? (
           <Button
             type="button"
             variant="primary"
-            disabled={nextDisabled}
-            onClick={() => setStep((s) => Math.min(TOTAL_STEPS, s + 1))}
+            disabled={submitting}
+            onClick={() => onDone(progress?.tripId ?? null, true)}
           >
-            Next
+            Open the trip
           </Button>
         ) : (
-          <Button type="button" variant="primary" disabled={submitting} onClick={() => void submit(true)}>
-            Create trip
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={name === "" || submitting}
+              onClick={() => void submit(false)}
+            >
+              Create empty
+            </Button>
+            {answered && (
+              <Button
+                type="button"
+                variant="primary"
+                disabled={submitting}
+                onClick={() => void submit(true)}
+              >
+                Create with this
+              </Button>
+            )}
+          </>
         )}
       </DialogFooter>
     </div>

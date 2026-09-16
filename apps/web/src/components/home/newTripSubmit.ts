@@ -27,7 +27,7 @@ import { addDaysIso } from "@/lib/dates";
  *  (module map, AGENTS.md), and this is a plain regex literal, not domain
  *  logic. Every date call below is gated on it first: `addDaysIso` throws on an
  *  incomplete value rather than returning garbage. */
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** What the wizard collected. `days` is a count, not an end date — inclusive
  *  arithmetic lives in one place, below, so N days from A ends at A + (N-1). */

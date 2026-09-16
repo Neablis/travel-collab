@@ -184,7 +184,7 @@ describe("Home trip actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Iceland");
+    await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Iceland");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     const alert = await screen.findByRole("alert");
@@ -223,7 +223,7 @@ describe("Home trip actions", () => {
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
+    await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Reykjavik");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
@@ -520,7 +520,7 @@ describe("Home first-run experience", () => {
 
     // Step 1 of the existing wizard — the same surface the page-head "New
     // trip" button opens, not a parallel one-field screen.
-    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+    expect(await screen.findByLabelText("Where are you going?")).toBeTruthy();
   });
 
   // "Building a trip from total scratch is a rough experience" (Mitchell,
@@ -596,7 +596,7 @@ describe("Home first-run experience", () => {
 
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
-    await userEvent.type(screen.getByLabelText(/trip name/i), "Japan");
+    await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
 
     // Step 1 of 4 — "Create empty" is enabled by the name alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
@@ -790,13 +790,13 @@ describe("Home finishing a demo clone", () => {
     // screen, and it's what a person who clicks before the list has loaded
     // actually has available.
     await userEvent.click(screen.getByRole("button", { name: "New trip" }));
-    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+    expect(await screen.findByLabelText("Where are you going?")).toBeTruthy();
 
     // Now let the list resolve empty: `takeDemoClone`'s effect fires, closing
     // the wizard out from under whatever was being typed into it.
     resolveList(jsonResponse({ trips: [] }));
 
-    await waitFor(() => expect(screen.queryByLabelText(/trip name/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText("Where are you going?")).toBeNull());
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
   });
 });

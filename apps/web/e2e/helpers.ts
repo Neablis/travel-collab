@@ -253,16 +253,16 @@ export async function openPlan(page: Page): Promise<void> {
 /**
  * **Create an empty trip through the New-trip sheet, from the home page.**
  *
- * One seam, where there were fifteen. `getByRole("button", { name: "New trip" })`
- * → `getByLabel("Trip name")` → `"Create empty"` was inlined across ten spec
+ * One seam, where there were fourteen. `getByRole("button", { name: "New trip" })`
+ * → `getByLabel("Trip name")` → `"Create empty"` was inlined across nine spec
  * files, none of which is about the sheet — every one of them just needs a trip
  * to exist before it can test something else.
  *
- * That sequence is about to stop working: SPEC §30.1 turns the sheet into four
- * conversational turns, and the field called "Trip name" goes away with the
- * form. Moving the sequence here FIRST, against the wizard exactly as it stands,
- * is what lets the suite prove the migration changed nothing — the whole point
- * of doing this as its own commit.
+ * That sequence has since stopped working, exactly as expected: SPEC §30.1
+ * turned the sheet into four conversational turns and the field called "Trip
+ * name" went away with the form. Because the sequence moved here FIRST — in its
+ * own commit, against the wizard as it then stood, with the suite green either
+ * side — the rename below is a one-line edit rather than fourteen.
  *
  * Leaves the browser on the home page with the new trip's link present, which
  * is where every caller already expected to be. It deliberately does NOT open
@@ -271,7 +271,10 @@ export async function openPlan(page: Page): Promise<void> {
  */
 export async function createEmptyTripViaWizard(page: Page, tripName: string): Promise<void> {
   await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
+  // The composer's accessible name is the QUESTION being asked, not "Trip
+  // name" — the sheet is four conversational turns now (SPEC §30.1). This one
+  // rename is the whole reason the sequence moved in here first.
+  await page.getByLabel("Where are you going?").fill(tripName);
   await page.getByRole("button", { name: "Create empty" }).click();
   await expect(page.getByRole("link", { name: tripName })).toBeVisible();
 }
