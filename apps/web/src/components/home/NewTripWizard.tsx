@@ -16,6 +16,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { MoneyInput } from "@/components/board/MoneyInput";
 import { addDaysIso } from "@/lib/dates";
+import { createTripWithSetup, type SetupLatch } from "./newTripSubmit";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { formatTripDate } from "@/lib/formatDate";
 import { cn } from "@/lib/cn";
@@ -181,121 +182,43 @@ function WizardBody({
   // `AddToTripDialog`'s `{ tripId, datedAs }`, widened to all three commands
   // this wizard sends. Storing the applied VALUE (not a boolean) means
   // changing the field before retrying still re-sends it.
-  const [progress, setProgress] = useState<{
-    tripId: string;
-    datedAs: { startDate: string; endDate: string } | null;
-    budgetAppliedAs: Money | null;
-    currencyAppliedAs: string | null;
-  } | null>(null);
+  const [progress, setProgress] = useState<SetupLatch | null>(null);
 
   const trimmedName = name.trim();
 
-  // Shared by both submit paths. On success, applies whatever real dates/
-  // budget/currency the user staged (only for the full wizard path — the
-  // caller decides whether to call this with those fields populated) and
-  // hands the new tripId back. On failure, surfaces the error inline and
-  // keeps the sheet open, same as the single-field dialog this replaces.
-  async function submit(applyDatesAndBudget: boolean) {
+  // **The create-then-latch sequence lives in `newTripSubmit.ts`**, not here.
+  // It moved out when the four-turn script replaced this form: its regression
+  // cover (CodeRabbit PR #32, KI-2026-09-08-a, CodeRabbit PR #165) drove the
+  // latch through the budget and currency fields, and the four-turn script has
+  // no turn for either. Tested directly it survives the form that used to
+  // reach it.
+  //
+  // What stays here is what is genuinely React's: the in-flight flag, the
+  // inline error, and carrying the latch between attempts so a retry does not
+  // mint a second trip.
+  async function submit(applySetup: boolean) {
     if (trimmedName === "" || submitting) return;
     setError(null);
     setSubmitting(true);
 
-    let latched = progress;
-    if (latched === null) {
-      const result = await createTrip({ name: trimmedName });
-      if (!result || !result.ok) {
-        setError(result?.error?.message ?? "Something went wrong");
-        setSubmitting(false);
-        return;
-      }
-      latched = { tripId: result.value.tripId, datedAs: null, budgetAppliedAs: null, currencyAppliedAs: null };
-      setProgress(latched);
-    }
-    const tripId = latched.tripId;
+    const result = await createTripWithSetup({
+      setup: { name: trimmedName, arrive, days: selectedDays, budget, currency },
+      applySetup,
+      latch: progress,
+      createTrip,
+      dispatch,
+    });
 
-    if (applyDatesAndBudget) {
-      // Sequence per the plan: create with the name, then apply dates and
-      // budget to the returned tripId. Each only fires if the user actually
-      // gave it something AND it has not already landed on a prior attempt —
-      // a fresh trip already has no dates and USD/no budget, so an untouched
-      // field needs no command at all, and a command whose value already
-      // matches what's latched would be rejected by the domain as a no-op
-      // (see the comment on `progress` above). Awaited and checked in turn —
-      // a failed command stops here with an inline error rather than
-      // navigating past it, and the trip (already real at this point) is
-      // left exactly as far along as it got.
-      // What the form says NOW, which may be null because the user cleared a
-      // field between attempts (CodeRabbit, PR #165). Comparing a nullable
-      // desired value against what is latched is the whole point: guarding on
-      // `ISO_DATE.test(arrive)` alone skipped the dates block entirely when
-      // `arrive` was emptied, so a retry silently kept dates the user had just
-      // removed. Both commands take the null: `SetTripDates` is
-      // `startDate/endDate` nullable with `newDayIds: []`, and
-      // `SetTripBudget.budget` is `Money.nullable()` — "null clears".
-      const desiredDates =
-        ISO_DATE.test(arrive) && selectedDays !== null
-          ? { startDate: arrive, endDate: addDaysIso(arrive, selectedDays - 1) }
-          : null;
-      // A clear is only worth sending if this wizard actually set something
-      // earlier — a trip created moments ago already has no dates, and asking
-      // the domain to clear nothing is the no-op rejection this whole latch
-      // exists to avoid.
-      const datesDiffer =
-        desiredDates === null
-          ? latched.datedAs !== null
-          : latched.datedAs === null ||
-            latched.datedAs.startDate !== desiredDates.startDate ||
-            latched.datedAs.endDate !== desiredDates.endDate;
-      if (datesDiffer) {
-        const newDayIds =
-          desiredDates === null || selectedDays === null
-            ? []
-            : Array.from({ length: selectedDays }, () => crypto.randomUUID());
-        const result = await dispatch({
-          type: "SetTripDates",
-          tripId,
-          startDate: desiredDates?.startDate ?? null,
-          endDate: desiredDates?.endDate ?? null,
-          newDayIds,
-        });
-        if (!result.ok) {
-          setError(`Trip created, but setting dates failed: ${result.error.message}. Try again.`);
-          setSubmitting(false);
-          return;
-        }
-        latched = { ...latched, datedAs: desiredDates };
-        setProgress(latched);
-      }
-      {
-        const applied = latched.budgetAppliedAs;
-        const budgetDiffers =
-          budget === null
-            ? applied !== null
-            : applied === null || applied.amountMinor !== budget.amountMinor || applied.currency !== budget.currency;
-        if (budgetDiffers) {
-          const result = await dispatch({ type: "SetTripBudget", tripId, budget });
-          if (!result.ok) {
-            setError(`Trip created, but setting the budget failed: ${result.error.message}. Try again.`);
-            setSubmitting(false);
-            return;
-          }
-          latched = { ...latched, budgetAppliedAs: budget };
-          setProgress(latched);
-        }
-      }
-      if (currency !== DEFAULT_CURRENCY && latched.currencyAppliedAs !== currency) {
-        const result = await dispatch({ type: "SetTripCurrency", tripId, currency });
-        if (!result.ok) {
-          setError(`Trip created, but setting the currency failed: ${result.error.message}. Try again.`);
-          setSubmitting(false);
-          return;
-        }
-        latched = { ...latched, currencyAppliedAs: currency };
-        setProgress(latched);
-      }
-    }
+    // The latch is stored on BOTH outcomes. Dropping it on failure is the
+    // defect the module's own header describes: the next attempt would re-send
+    // what already landed, and re-create a trip that already exists.
+    if (result.latch !== null) setProgress(result.latch);
     setSubmitting(false);
-    onDone(tripId, applyDatesAndBudget);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    onDone(result.latch.tripId, applySetup);
   }
 
   const nextDisabled = step === 1 && trimmedName === "";
