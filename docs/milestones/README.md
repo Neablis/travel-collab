@@ -228,11 +228,21 @@ close.
 Milestone numbers are unchanged; this is a placement, the same shape as ADR-018,
 ADR-021, ADR-022 and the two reorders below.
 
-**Placed, not scoped.** Per `TODO.md`'s standing tasks the milestone file is
-written *"before its first commit"*, and one open decision still moves the scope
-(the shape of the planning-write surface). M19 is the standing precedent for a
-milestone deliberately placed but not scoped. Design and the open questions:
+**Placed, then scoped the same day.** This note was first written *"placed, not
+scoped"* because one open decision still moved the scope — the shape of the
+planning-write surface — and that was answered hours later as thirteen REST
+endpoints. So the milestone file exists: `docs/milestones/M22-public-api-and-tokens.md`,
+five phases and an 18-box exit gate, satisfying `TODO.md`'s standing task that
+it be written *"before its first commit"*. **Placed and scoped is still not
+started**: M22's prerequisite is M21 closed, and M21 is open. Design:
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**One correction the milestone file makes to the design's phasing table**, named
+here because it moves what a phase may touch: the table put *"`premium@v2`
+published"* in Phase 0 while Decision 12 said the open version question *"is not
+a blocker for Phase 0, which does not touch the plan file"*. Both cannot hold,
+so **Phase 0 is the contracts change only and publishing the plan version moved
+to Phase 1**, where the first `accountCan` check reads it.
 
 **What it is.** A public REST API under `src/app/api/v1/**` plus
 account-generated API tokens, scoped to the whole account or to named trips,

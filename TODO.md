@@ -537,14 +537,15 @@ Where the work actually stands right now: `docs/STATUS.md`.
       get, now with no mechanism to change it.)*
 
 - [ ] **M22 An account can build on the API** →
+      `docs/milestones/M22-public-api-and-tokens.md`
       *(**Placed 2026-09-16 by Mitchell — runs after M21, before M12.**
       *"Im fine making it after M21."* A public REST API and account-generated
       API tokens, scoped to the account or to named trips, with create and
       revoke. Design: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
-      **Placed but not scoped** — the milestone file waits on one open decision
-      (whether the planning-write surface is REST resources, the existing
-      command endpoint passed through, or both), the same way M19 is
-      deliberately placed but not scoped.
+      **Scoped 2026-09-16** — the open decision that held the file back (the
+      shape of the planning-write surface) was answered the same day as
+      thirteen REST endpoints, so the milestone file now carries five phases
+      and an 18-box exit gate.
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.

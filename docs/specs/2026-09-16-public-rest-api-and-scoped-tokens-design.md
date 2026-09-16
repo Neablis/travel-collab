@@ -1,7 +1,10 @@
 # A public REST API, scoped tokens, and a route layer that does not grow linearly
 
-**Status: DECIDED — 2026-09-16. Nothing is built yet; M22 is placed, not
-scoped.** **Every question this document opened with was answered the same day** — placement,
+**Status: DECIDED — 2026-09-16. Nothing is built yet.** **M22 is now placed
+*and* scoped** — `docs/milestones/M22-public-api-and-tokens.md` was written the
+same day, five phases and an 18-box exit gate, and it is the authority on what
+is in the milestone. This document stays the authority on *why*, and carries one
+correction from that file: see *Phasing*. **Every question this document opened with was answered the same day** — placement,
 entitlement, the thirteen-REST-endpoint planning surface, mandatory token expiry
 capped at one year, eight scopes, and `PATCH` semantics. Two of those answers
 improved the design rather than just settling it: writing the scope list out in
@@ -693,8 +696,8 @@ everything** — if the wrapper is wrong, it is wrong 200 endpoints later.
 
 | Phase | What lands | Proves |
 |---|---|---|
-| **0 — contracts + the entitlement** | `ApiScope`, `ApiToken` DTO, the error envelope, **`Entitlement` gains `api.tokens`**, **`premium@v2` published**, changelog entry. Own PR, per the contracts protocol. | The vocabulary, before anything depends on it |
-| **1 — storage + module** | Migration `api_tokens`; `src/server/api-tokens/` — mint, list, revoke, verify, **and the `accountCan(owner, "api.tokens")` check on both mint and verify**. Integration tests against real Postgres. No routes. | Hashing, revocation races, resolve-on-read, and that a lapse disables without revoking |
+| **0 — contracts + the entitlement** | `ApiScope`, `ApiToken` DTO, the error envelope, **`Entitlement` gains `api.tokens`**, changelog entry. Own PR, per the contracts protocol. | The vocabulary, before anything depends on it |
+| **1 — storage + module** | Migration `api_tokens`; `src/server/api-tokens/` — mint, list, revoke, verify, **and the `accountCan(owner, "api.tokens")` check on both mint and verify**; **`premium@v2` published**. Integration tests against real Postgres. No routes. | Hashing, revocation races, resolve-on-read, and that a lapse disables without revoking |
 | **2 — the seam** | `Actor`, `resolveActor`, `route()`, the conformance test, and **two pilot endpoints** (`GET /v1/trips`, `GET /v1/trips/:id`) | The whole design, at the smallest size that can fail |
 | **3 — token UI** | A Tokens section in `AccountSettingsSheet` (the `PlanSection` precedent — a section, not a route): create with one-time reveal, list, revoke — **and what a `free`/`plus` account sees instead**, which is an upgrade prompt, not a hidden section. E2E. | A person can actually do this by clicking |
 | **4 — surface + docs** | The rest of the v1 REST surface, `openapi.json`, `docs/guidelines/using-the-api.md` | That endpoint N+1 is cheap, measured rather than claimed |
@@ -705,6 +708,14 @@ clickable, and that is the answer their PR bodies must carry.
 
 Phase 1 adds a migration, so its PR body says so and it needs an explicit
 `migrate-production` dispatch.
+
+**Corrected 2026-09-16 while scoping the milestone: `premium@v2` moved from
+Phase 0 to Phase 1.** This table had it in Phase 0 while Decision 12's flagged
+item says the open version question *"is not a blocker for Phase 0, which does
+not touch the plan file"* — and both could not be true at once. Phase 1 is where
+`accountCan` first reads the entitlement, so that is where publishing it
+belongs; Phase 0 is now the contracts change alone, and the one owed decision is
+off the critical path until Phase 1.
 
 ## Questions — all answered; one flagged back
 
@@ -739,10 +750,10 @@ Phase 0, which does not touch the plan file.
 
 ### Nothing is blocking
 
-Phases 0 through 4 are buildable on the decisions above. The milestone file
-(scope + exit gate) is the remaining artifact, and per `TODO.md`'s standing
-tasks it is written before M22's first commit — which is after M21's gate
-closes.
+Phases 0 through 4 are buildable on the decisions above. **The milestone file
+was written 2026-09-16** — `docs/milestones/M22-public-api-and-tokens.md` —
+satisfying `TODO.md`'s standing task that it exist before M22's first commit.
+That commit still waits on M21's gate closing.
 
 ## What this work found on the way
 
