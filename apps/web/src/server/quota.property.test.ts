@@ -28,6 +28,9 @@ function fakeCounters(): QuotaCounters {
       rows.set(bucket, next);
       return next.hits;
     },
+    async release() {
+      // Not used in property tests
+    },
   };
 }
 

@@ -63,6 +63,20 @@ export interface QuotaCounters {
    * meter calls, and cost is not proportional to calls.
    */
   bump(bucket: string, windowStart: Date, amount?: number): Promise<number>;
+
+  /**
+   * Give back `amount` of a reservation on `bucket`, **only if the row is still
+   * in `windowStart`'s window**. A rolled window is left alone: the count there
+   * belongs to a window this reservation never charged, and subtracting from it
+   * would refund someone else's usage.
+   *
+   * Separate from `bump` rather than a negative `amount`, deliberately.
+   * `bump` clamps to a positive integer so that no caller can decrement a
+   * counter; relaxing that clamp would let an actor drain their own usage,
+   * which is a worse hole than KI-94's. This method can only ever subtract,
+   * never below zero, and is reachable only through a `StepReservation`.
+   */
+  release(bucket: string, windowStart: Date, amount: number): Promise<void>;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -168,7 +182,7 @@ export function aiQuotas(ceilings: EntitlementCeilings = NO_CEILINGS): QuotaPoli
  * bound on a bad caller, not as a mirror of a real budget. Lowering it to the
  * real maximum would be a behaviour change and wants its own decision.
  */
-const AI_MAX_STEPS_PER_REQUEST = 32;
+export const AI_MAX_STEPS_PER_REQUEST = 32;
 
 /**
  * AI **cost** quotas, metered in model round-trips rather than in calls (KI-67).
@@ -326,67 +340,193 @@ export async function consumeQuota(
 }
 
 /**
- * Charge the round-trips a completed AI request actually used, beyond the one
- * `consumeQuota` already pre-authorised (KI-67).
- *
- * **Why this is a second call and not a bigger first one.** You cannot
- * pre-authorise an unknown cost: the step count does not exist until
- * `generateText` returns. So admission stays a charge of 1 — enough to refuse
- * an actor who is already over — and the true cost is settled afterwards. That
- * is the shape change the entry identified as the design question, and it has
- * exactly one consequence worth stating plainly:
- *
- * **The request that crosses the line mid-flight is served, and its debt lands
- * on the actor's counter.** The alternative — failing after the provider has
- * already been paid — burns the money AND withholds the answer, which is
- * strictly worse for everyone including the operator. The ceiling is therefore
- * enforced on the NEXT request.
- *
- * **How far it can be overshot, stated correctly.** For one actor issuing
- * requests in sequence the overshoot is at most one request's step budget. It
- * is NOT bounded that way under concurrency: every request in flight has
- * charged only its admission step, so N requests admitted before any of them
- * settles can together overshoot by up to N × (budget − 1). The global bucket
- * is where that matters — with distinct users, enough concurrent 32-step
- * requests can pass the global step ceiling before any of them settles.
- * Filed as KI-78, with the fix the reviewer proposed (reserve the maximum
- * in-flight cost at admission and reconcile the unused part afterwards), which
- * needs a refund primitive this module deliberately does not have yet — see
- * `bump`'s clamp, and the window-rollover hazard a refund has to survive.
- * What still bounds the burst today is the request-count layer above
- * (`aiQuotas`), which caps concurrent admissions independently.
- *
- * **Never refuses and never throws.** The work is already done, so there is no
- * decision left to make, and a counter write failing must not turn a successful
- * answer into an error the caller sees. A failed settlement loses that
- * request's excess cost from the ledger — one window of under-counting, the
- * same magnitude of over-permissiveness the counter table's own schema comment
- * already accepts — which is why this swallows rather than propagates. It is
- * also what keeps an int4 overflow at the very top of the range harmless.
- *
- * `steps` is clamped rather than trusted: it arrives from the AI response meta,
- * and a negative or absurd value must not be able to zero out or blow up an
- * actor's allowance.
+ * What a reservation charged, and where. The `windowStarts` map is the whole
+ * reason this is a value rather than a number: a release must target the exact
+ * window its reservation charged, and by the time a turn ends the clock may
+ * have moved into the next one.
  */
-export async function settleAiSteps(
+export interface StepReservation {
+  readonly policies: readonly QuotaPolicy[];
+  readonly userId: string;
+  readonly reserved: number;
+  readonly windowStarts: ReadonlyMap<string, Date>;
+}
+
+/**
+ * Charge the FULL step budget up front, then let `settleAiSteps` give back what
+ * the turn did not use (KI-94).
+ *
+ * The old shape charged one step and settled the rest afterwards, which bounded
+ * a single actor's overshoot to one budget but bounded nothing under
+ * concurrency: N requests in flight had each charged 1, so they could jointly
+ * pass the global ceiling before any of them settled. Reserving the maximum
+ * makes in-flight exposure exactly the reservation.
+ *
+ * **`budget` defaults to the defensive bound, not to a real one.**
+ * `AI_MAX_STEPS_PER_REQUEST` exists to cap a caller this module knows nothing
+ * about; a caller that DOES know its own per-request ceiling (`/ask`'s
+ * `MAX_ASK_STEPS`) passes it explicitly, so in-flight exposure is the real
+ * budget rather than 4x it. This keeps the AI loop's actual step count out of
+ * `quota.ts` entirely — the caller supplies the number, this module never
+ * imports it.
+ *
+ * **Checked in the same order `consumeQuota` argues for (its own comment
+ * above), and rolled back on any refusal.** The user ceiling is checked
+ * BEFORE the global bucket is ever touched — bumping global first would
+ * charge everyone else's shared headroom for a request that was never going
+ * to be served, and at `budget` units instead of `consumeQuota`'s 1 that is a
+ * `budget`x amplification of the exact DoS the check-user-first order exists
+ * to prevent. And unlike `consumeQuota` (a 1-unit charge with no refund
+ * primitive, where leaving a refused charge in place was the accepted
+ * trade-off), every bucket THIS call has bumped is released the moment any
+ * check refuses — including an earlier policy in the array that already
+ * admitted (`aiStepQuotas()` is [hourly, daily]; a daily refusal must not
+ * strand hourly's charge, because a refused call returns `reservation: null`
+ * and there is no `StepReservation` left to settle it against).
+ *
+ * Returns `reservation: null` whenever the decision refuses, so a caller cannot
+ * settle against a turn that never ran.
+ */
+export async function reserveAiSteps(
   policies: readonly QuotaPolicy[],
   userId: string,
-  steps: number,
   counters: QuotaCounters = pgCounters(),
   now: Date = new Date(),
-): Promise<void> {
-  if (!Number.isFinite(steps)) return;
-  const used = Math.min(Math.max(Math.trunc(steps), 1), AI_MAX_STEPS_PER_REQUEST);
-  const extra = used - 1; // admission already charged the first round-trip
-  if (extra <= 0) return;
+  budget: number = AI_MAX_STEPS_PER_REQUEST,
+): Promise<{ decision: QuotaDecision; reservation: StepReservation | null }> {
+  const windowStarts = new Map<string, Date>();
+  // Every bucket this attempt has actually bumped, in bump order — released in
+  // full on any refusal. A best-effort rollback: losing one over-counts, which
+  // errs toward refusing the NEXT request rather than admitting one that
+  // should not be (the same posture `settleAiSteps` takes on a failed release).
+  const bumped: { bucket: string; windowStart: Date }[] = [];
+  const rollback = async () => {
+    for (const { bucket, windowStart } of bumped) {
+      try {
+        await counters.release(bucket, windowStart, budget);
+      } catch {
+        // Best-effort; see the comment above.
+      }
+    }
+  };
 
   for (const policy of policies) {
     const windowStart = windowStartFor(policy, now);
+    const retryAfterSeconds = secondsUntilWindowEnd(policy, windowStart, now);
+    windowStarts.set(policy.name, windowStart);
+
+    const userBucket = `${policy.name}:user:${userId}`;
+    let userCount: number;
     try {
-      await counters.bump(`${policy.name}:user:${userId}`, windowStart, extra);
-      await counters.bump(`${policy.name}:global`, windowStart, extra);
+      userCount = await counters.bump(userBucket, windowStart, budget);
+      bumped.push({ bucket: userBucket, windowStart });
     } catch {
-      // See the note above: a completed request is never failed over a counter.
+      // Fail closed, exactly as `consumeQuota` does: a broken counter store must
+      // not become an open door.
+      await rollback();
+      // 60, not the window remainder — `consumeQuota` answers the same
+      // condition the same way, and for the same reason: a counter store that
+      // failed is a transient fault, not a ceiling that has been reached.
+      // `quotaRefusal` puts this straight into `Retry-After` on a 503, so the
+      // remainder would tell a client to wait out the rest of an hour or a day
+      // for a blip. (CodeRabbit, PR #178.)
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds: 60 }, reservation: null };
+    }
+
+    // Checked BEFORE the global bucket is touched — see this function's own
+    // comment for why the order matters more here than it does in
+    // `consumeQuota`.
+    if (userCount > policy.perUser) {
+      await rollback();
+      return { decision: { allowed: false, reason: "user", retryAfterSeconds }, reservation: null };
+    }
+
+    const globalBucket = `${policy.name}:global`;
+    let globalCount: number;
+    try {
+      globalCount = await counters.bump(globalBucket, windowStart, budget);
+      bumped.push({ bucket: globalBucket, windowStart });
+    } catch {
+      await rollback();
+      // 60, not the window remainder — `consumeQuota` answers the same
+      // condition the same way, and for the same reason: a counter store that
+      // failed is a transient fault, not a ceiling that has been reached.
+      // `quotaRefusal` puts this straight into `Retry-After` on a 503, so the
+      // remainder would tell a client to wait out the rest of an hour or a day
+      // for a blip. (CodeRabbit, PR #178.)
+      return { decision: { allowed: false, reason: "unavailable", retryAfterSeconds: 60 }, reservation: null };
+    }
+
+    if (globalCount > policy.global) {
+      await rollback();
+      return { decision: { allowed: false, reason: "global", retryAfterSeconds }, reservation: null };
+    }
+  }
+
+  return {
+    decision: { allowed: true },
+    reservation: { policies, userId, reserved: budget, windowStarts },
+  };
+}
+
+/**
+ * Give back what a completed AI request did not use of its `reserveAiSteps`
+ * reservation (KI-94, KI-67 before it).
+ *
+ * **In-flight exposure is now exactly the reservation.** `reserveAiSteps`
+ * charges the full budget at admission and this releases what the turn did not
+ * use, so N concurrent requests can hold at most N × budget and the global
+ * ceiling is asserted against the real figure rather than against N × 1.
+ * Closes KI-94 (filed as KI-78 and renumbered on merge) and KI-97 with it.
+ *
+ * **Never refuses and never throws.** The work is already done, so there is no
+ * decision left to make, and a counter write failing must not turn a successful
+ * answer into an error the caller sees. A failed release loses that request's
+ * refund — one window of over-counting, the safe direction, since it errs
+ * toward refusing the NEXT request rather than admitting it.
+ *
+ * `steps` is clamped rather than trusted: it arrives from the AI response meta,
+ * and a negative or absurd value must not be able to zero out or blow up an
+ * actor's allowance. Non-finite input keeps the full reservation charged —
+ * unknown usage is the conservative charge, not the cheap one.
+ */
+export async function settleAiSteps(
+  reservation: StepReservation,
+  steps: number,
+  counters: QuotaCounters = pgCounters(),
+): Promise<void> {
+  // **A real zero settles as zero.** The floor used to be 1, from when
+  // admission charged a single step up front and one round-trip had therefore
+  // always happened by the time anything settled. Admission now reserves the
+  // whole budget and this function refunds down from it, so a genuine zero —
+  // a page-scoped turn whose thread failed validation, which calls no
+  // classifier and runs no agent — is a fact, and flooring it to 1 charged an
+  // allowance for a request that never reached a provider. Repeatable by a
+  // caller, since `safeValidateUIMessages` failing is caller-controlled.
+  // (CodeRabbit, PR #178.)
+  //
+  // A non-finite `steps` — and a NEGATIVE one — still settles at the FULL
+  // reservation. Unknown usage keeps the conservative charge, because the
+  // alternative is refunding a turn whose cost nobody measured, and a negative
+  // count is garbage rather than a measurement of zero. Only a real, non-
+  // negative number is trusted, which is what keeps "a genuine zero" and
+  // "nobody knows" distinguishable.
+  const counted = Math.trunc(steps);
+  const used =
+    Number.isFinite(steps) && counted >= 0 ? Math.min(counted, reservation.reserved) : reservation.reserved;
+  const unused = reservation.reserved - used;
+  if (unused <= 0) return;
+
+  for (const policy of reservation.policies) {
+    const windowStart = reservation.windowStarts.get(policy.name);
+    if (windowStart === undefined) continue;
+    try {
+      await counters.release(`${policy.name}:user:${reservation.userId}`, windowStart, unused);
+      await counters.release(`${policy.name}:global`, windowStart, unused);
+    } catch {
+      // A completed request is never failed over a counter. Losing a refund
+      // over-counts, which errs toward refusing the NEXT request rather than
+      // admitting it — the safe direction.
     }
   }
 }
@@ -508,6 +648,21 @@ export function pgCounters(database: Db = db): QuotaCounters {
       // as zero.
       if (row === undefined) throw new Error("quota upsert returned no row");
       return row.hits;
+    },
+    async release(bucket, windowStart, amount) {
+      const by = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0));
+      if (by === 0) return;
+      await database
+        .update(rateLimitCounters)
+        .set({ hits: sql`greatest(${rateLimitCounters.hits} - ${by}, 0)` })
+        .where(
+          and(
+            eq(rateLimitCounters.bucket, bucket),
+            // The window guard. `=` not `>=`: a refund is valid only against
+            // the exact window it reserved in.
+            eq(rateLimitCounters.windowStart, windowStart),
+          ),
+        );
     },
   };
 }

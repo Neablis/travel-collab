@@ -496,7 +496,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       including Test Clocks for the three-day grace window. **ADR-047** carries
       the three one-way decisions: Billing is its own module, the webhook is its
       sole writer, and a lapse is a derivation rather than a write. Migration
-      `0021` is applied locally and **not dispatched to production**. The
+      `0021` is applied locally **and dispatched to production** — verified
+      against the database 2026-09-16, not against this file. The
       milestone file's *What was built* lists five deviations from its own
       scope, each with its reason — the largest being that the price went onto
       the v1 plan entries rather than onto new versions, because naming a price
@@ -587,6 +588,42 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Stripe test mode alongside live, without a redeploy to switch.** Asked for
+  2026-09-16: *"i would like to be able to use test card without needing to take
+  down prod with new ENV variables."* The want is real — today the only way to
+  exercise a paid flow against a deployment is to swap `STRIPE_SECRET_KEY` and
+  `STRIPE_WEBHOOK_SECRET` and redeploy, which means production is either live or
+  testable and never both.
+
+  **Not a config change, and the reason is a data problem rather than a wiring
+  one.** There is no `livemode` column on `subscriptions` or `billing_events`
+  (`schema.ts:679`), and `revenue.ts:270` sums every live subscription into MRR
+  through `conferringNow()` — so a test-mode subscription would be counted as
+  real revenue with nothing to filter it out by. `users.stripe_customer_id` is a
+  single column (`schema.ts:104`), so a test `cus_` and a live `cus_` for one
+  person collide. Minimum honest scope:
+
+  - migration adding `livemode` to `subscriptions` **and** `billing_events`
+  - `users.stripe_customer_id` keyed per mode
+  - every read that assumes "a subscription means money" filtered on it —
+    `revenue.ts`, the admin console's tier and underwater panels
+  - the webhook verifying against both secrets, taking mode only from the
+    **verified** event, never from the unverified payload (ADR-047 keeps this
+    seam narrow on purpose)
+  - the per-account switch strictly server-side and admin-gated: a flag that
+    grants real entitlements for a test card is a free-premium switch if it is
+    ever client-readable
+  - integration coverage for the mode boundary itself
+
+  **What covers the want in the meantime**, and why this stayed unscheduled:
+  `entitlement_grants` already gives a specific account premium with no payment,
+  through the admin console, and `revenue.ts:272-278` reads grants separately
+  from paying subscriptions so a granted tester never pollutes MRR. That covers
+  "let these accounts use the paid features". It does not cover exercising
+  checkout, the webhook, or the decline → grace → lapse chain — and those are
+  better walked in an environment that is entirely test mode (local with
+  `stripe listen`) than in a live one with a mode switch inside it.
+
 - **The header's "Add stop" on desktop — where should creating an UNSCHEDULED
   stop live?** Reported on the preview, 2026-09-15: *"This Add Stop button i
   believe was added for mobile, it shouldnt show in desktop"*. The premise is
@@ -604,12 +641,6 @@ Captured so they aren't lost; not committed to a milestone yet.
   Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
   4 ("challenge to simplify") point opposite ways here until someone picks.
   *(Filed 2026-09-15 from PR #177's preview feedback.)*
-- **Two M20 migrations are merged-pending and undispatched: `0019` and
-  `0020`.** Dispatch from `main`, in order:
-  `gh workflow run migrate-production.yml -f confirm=migrate`. Merging does not
-  apply them, and an undispatched migration is production schema drift waiting
-  to happen — `0018` sat undispatched for two days before M20's build settled
-  it. *(Filed 2026-09-13 with the M20 build. Delete this bullet at dispatch.)*
 - **`ADMIN_USER_IDS` must be set in production before `/admin` is reachable
   there.** The operator console is gated on `users.is_admin` and nothing in the
   product sets that column, so the allowlist read at sign-in
