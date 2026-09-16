@@ -320,6 +320,8 @@ of a gate close, which this was not.**
       admission charge no longer lets simultaneous requests overshoot the global
       ceiling together. **KI-97 closes with it**, per its own entry — it is a
       tracking-only duplicate and must not be closed separately.
+      *(Implemented 2026-09-15, M9 plan 1 — `reserveAiSteps` + `release`.
+      Confirm at the gate; do not rebuild.)*
 - [ ] Retro appended at gate close.
 
 ## The AI known issues — all nine assigned here, 2026-09-01

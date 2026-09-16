@@ -50,7 +50,7 @@ import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAg
 import { primitiveCatalog } from "@tc/pages";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
-import { aiStepQuotas, settleAiSteps } from "@/server/quota";
+import { settleAiSteps } from "@/server/quota";
 import type { AskScope } from "@/server/ai/context";
 import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
 import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
@@ -126,7 +126,24 @@ export {
 // budget is what bounds what ONE request can spend on the operator's key, which
 // is why `settleAiSteps` meters against it rather than against request count
 // (KI-67).
-const MAX_ASK_STEPS = 8;
+//
+// **Also the RESERVATION size, since the final review of KI-94's fix
+// (2026-09-15).** `reserveAiSteps` (quota.ts) defaults to
+// `AI_MAX_STEPS_PER_REQUEST` — a defensive bound on a caller it knows nothing
+// about, deliberately above any real budget — so admission used to reserve 32
+// against a turn that can never spend more than 8. Passed through as
+// `stepBudget` below so in-flight exposure is the real number, not 4x it.
+// Exported so a test asserting on the reservation size has one number to
+// import rather than a second copy of `8`.
+export const MAX_ASK_STEPS = 8;
+
+/**
+ * The round-trips a turn can spend OUTSIDE the agent loop: the intent
+ * classifier, which runs once inside `evaluateAiGrant` before the loop starts.
+ * Named rather than a literal `1` so the reservation arithmetic says why it is
+ * not simply `MAX_ASK_STEPS`.
+ */
+export const CLASSIFIER_ROUND_TRIPS = 1;
 
 // The constants, the schemas and the caps that used to sit here are now in
 // `assistant/admission.ts` beside the stage that enforces each of them — `AskRequest` and
@@ -154,7 +171,21 @@ export async function handleAskRequest(
   // asserts (assistant/admission.ts). What comes back is either the refusal's own Response,
   // unchanged in status, code and wording, or everything this turn is allowed
   // to hold.
-  const admission = await evaluateAiGrant({ request, tripId, model, ports: admissionPorts });
+  const admission = await evaluateAiGrant({
+    request,
+    tripId,
+    model,
+    ports: admissionPorts,
+    // **`+ CLASSIFIER_ROUND_TRIPS`, because the classifier is a provider call
+    // too.** `MAX_ASK_STEPS` bounds the AGENT loop; `classifyTask` runs one
+    // more round-trip before it, inside `evaluateAiGrant`. Reserving only the
+    // loop's bound meant a classified turn could make 9 calls against an
+    // 8-step reservation, and `settleAiSteps` clamps what it settles to what
+    // was reserved — so the ninth was silently dropped from quota accounting
+    // on every classified turn. `billableRoundTrips` counts it, so the
+    // reservation has to as well. (CodeRabbit, PR #178.)
+    stepBudget: MAX_ASK_STEPS + CLASSIFIER_ROUND_TRIPS,
+  });
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;
@@ -291,12 +322,12 @@ export async function handleAskRequest(
       // cannot reject and the abort and error paths, which still do not await,
       // cannot produce an unhandled rejection.
       const recorded = recordAiUsage(ledger);
-      // The other half of KI-67: admission pre-authorised ONE round-trip, and
-      // this settles what the turn actually cost. A third consumer of the same
-      // single-writer latch, for the same reason the metrics are — the provider
-      // was paid for those steps on all three end paths (`onEnd`, abort,
-      // error), and repeating once-only logic at each of them is how one gets
-      // it subtly wrong at one.
+      // The other half of KI-94 (KI-67 before it): admission reserved the FULL
+      // step budget, and this refunds what the turn did not use. A third
+      // consumer of the same single-writer latch, for the same reason the
+      // metrics are — the provider was paid for those steps on all three end
+      // paths (`onEnd`, abort, error), and repeating once-only logic at each of
+      // them is how one gets it subtly wrong at one.
       //
       // Not awaited, and it cannot be: this fires from inside the agent's own
       // callback dispatch, long after the Response was returned. `settleAiSteps`
@@ -318,12 +349,21 @@ export async function handleAskRequest(
       // page turn is never classified, so neither has a line and neither adds
       // one.
       //
-      // **Settled against the ceilings it was ADMITTED against.** Letting this
-      // fall back to the default would meter the settlement on a different plan
-      // than the admission charge, which is a silent mis-charge on exactly the
-      // accounts M20 exists to bill.
+      // **Settled against the SAME reservation admission made**, not a fresh
+      // `aiStepQuotas()` call: `grant.stepReservation` carries the exact
+      // policies and window starts `reserveAiSteps` charged, so a window that
+      // rolled between admission and settlement still refunds the window that
+      // was actually charged (see `StepReservation`'s own comment). Falling
+      // back to the default ceilings here would settle against a different
+      // plan than the admission charge, which is a silent mis-charge on
+      // exactly the accounts M20 exists to bill.
+      //
+      // `stepReservation` is only ever null when `admitQuota` itself never ran
+      // — unreachable on this path, since a turn that reached the agent
+      // already cleared admission — but a defensive skip is cheaper than a
+      // throw for a turn the user is already being served.
       settled = Promise.all([
-        settleAiSteps(aiStepQuotas(grant.entitlements.ceilings), userId, billableRoundTrips(ledger)),
+        grant.stepReservation ? settleAiSteps(grant.stepReservation, billableRoundTrips(ledger)) : Promise.resolve(),
         recorded,
       ]).then(() => undefined);
     },
@@ -421,7 +461,22 @@ export async function handleAskRequest(
     // messages". Our tool set is context-typed, UI messages are not.
     tools: tools as unknown as Parameters<typeof safeValidateUIMessages>[0]["tools"],
   });
-  if (!validated.success) return badRequest(`malformed thread: ${validated.error.message}`);
+  if (!validated.success) {
+    // **The one reservation leak in this file (final review, CRITICAL 2).**
+    // Admission already reserved the full step budget before this line ever
+    // runs — this is a validation failure on the caller's BODY, not on
+    // admission — and every OTHER refusal/failure path settles through
+    // `recorder.abandon` → `finish` → the sink that starts `settled` (see its
+    // own comment). This one returns directly, before `settled` is ever
+    // assigned anything but its `Promise.resolve()` default, so without this
+    // the reservation is stranded: `AI_MAX_STEPS_PER_REQUEST` (or the caller's
+    // real budget) charged forever for a request that never reached a
+    // provider, and `safeValidateUIMessages` failing is entirely
+    // caller-controlled — repeatable in a loop. `steps: 0` is the honest
+    // count here, not an approximation: zero round-trips happened.
+    if (grant.stepReservation) await settleAiSteps(grant.stepReservation, 0);
+    return badRequest(`malformed thread: ${validated.error.message}`);
+  }
 
   try {
     // `createAgentUIStreamResponse` would do these three steps for us, and it

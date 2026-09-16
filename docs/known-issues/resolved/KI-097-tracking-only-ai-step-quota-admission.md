@@ -6,3 +6,12 @@
 - **Cross-reference:** KI-94 (the record), KI-67 (resolved — the step metering this refines), KI-95 (why duplicates in this file are expensive), ADR-019 (the AI kill switch).
 - **First noted:** 2026-08-29 as KI-94 (PR #83 review). Re-raised 2026-08-30 (PR #93 review). This id allocated 2026-08-30 for tracking only.
 - **Milestone:** **M9, carried (assigned 2026-09-01)** — closes with KI-94, which is the gate box. Not a box of its own; it is a tracking-only duplicate. Assignment rationale — why three of the twelve AI entries gate M9 and nine are carried — is in `docs/milestones/M9-ai-planning-partner.md`, section "The AI known issues".
+
+- **Resolved 2026-09-15**, M9 plan 1. `reserveAiSteps` charges the full step
+  budget at admission and `settleAiSteps` releases the unused part through a
+  new window-conditional `QuotaCounters.release`, so in-flight exposure is
+  exactly the reservation. `bump`'s positive-integer clamp is untouched — the
+  refund is a separate method reachable only through a `StepReservation`, and
+  its SQL floors the result at zero. Regression test: a concurrent
+  `Promise.all` of distinct users against the global bucket
+  (`quota.test.ts`), which no previous quota test covered.
