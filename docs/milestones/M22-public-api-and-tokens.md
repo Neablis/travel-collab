@@ -233,7 +233,7 @@ preview is a second look, never the proof. If any box below ever comes to rest
 on *"we watched it work once"*, the box is wrong and the test behind it is
 missing.
 
-- [ ] **Adding endpoint N+1 costs a declaration and nothing else.** With the v1
+- [x] **Adding endpoint N+1 costs a declaration and nothing else.** With the v1
       surface built, a new endpoint is added and its diff touches **one file
       under `v1/`** plus, at most, a schema in `packages/contracts` if its DTO
       is new. **No auth, no scope plumbing, no validation, no error handling,
@@ -244,78 +244,87 @@ missing.
       and an endpoint the frontend itself adopts additionally carries an MSW
       handler (see *The cost this milestone does not eliminate*). Any third
       exception means the wrapper is incomplete and this box does not tick.
-- [ ] **A raw handler under `v1/` fails CI.** `export async function GET` in a
+- [x] **A raw handler under `v1/` fails CI.** `export async function GET` in a
       `v1` route file, or a `route()` declaration missing a scope or a response
       schema, is red — **seen red, for that reason, before this box ticks**
       (CLAUDE.md rule 3). This is the whole of what makes "the directory is the
       registry" true rather than intended.
-- [ ] **A route outside `v1/` is unreachable with a token**, and no BFF route
+- [x] **A route outside `v1/` is unreachable with a token**, and no BFF route
       acquires a bearer path. A valid token against `/api/trips` is refused as
       unauthenticated, and the 46 existing routes behave exactly as they did.
-- [ ] **A token can never grant more than its owner holds.** Both gates run, in
+- [x] **A token can never grant more than its owner holds.** Both gates run, in
       order: scope first, then the unchanged `requireTripAccess` role check.
       Demonstrated by removing the owner's membership on a trip and watching
       every token lose that trip on the next request — **with no write to any
       token row**.
-- [ ] **A trip-scoped token is refused on a route with no trip dimension.**
+- [x] **A trip-scoped token is refused on a route with no trip dimension.**
       `POST /v1/trips` and `GET /v1/account` refuse a token restricted to named
       trips, because creating a new trip from such a token is a widening.
-- [ ] **A token's secret exists in exactly one place: the screen it was created
+- [x] **A token's secret exists in exactly one place: the screen it was created
       on.** Full table access to `api_tokens` does not reproduce a working
       token — `sha256` at rest, unique index, an 8-character `prefix` for
       display only, `timingSafeEqual` on comparison. The creation response is
       the only time the secret is ever returned.
-- [ ] **Revocation is a single guarded `UPDATE … WHERE id = ? AND revoked_at IS
+- [x] **Revocation is a single guarded `UPDATE … WHERE id = ? AND revoked_at IS
       NULL RETURNING`**, never a read followed by a write, and a test fails if
       that shape is replaced. Revoking an already-revoked token returns ok, not
       404 (matching `revokeShare`); a non-uuid id returns **404, not a Postgres
       `22P02` 500** (KI-2026-09-05-x).
-- [ ] **Expiry is mandatory and 365 days is the ceiling.** A request for a
+- [x] **Expiry is mandatory and 365 days is the ceiling.** A request for a
       longer lifetime is a **400, not a silent clamp**; "never expires" is not
       offerable; the default offered is 90 days.
-- [ ] **An expired token answers differently from a revoked one.** Both 401,
+- [x] **An expired token answers differently from a revoked one.** Both 401,
       distinct error `code`s, so an integrator reading the response learns
       "mint a new one" rather than "you were cut off". An expired token is
       **refused, not deleted** — the row stays listable so a user can see what
       lapsed.
-- [ ] **Expiry and revocation are resolved on read and never swept**, and a
+- [x] **Expiry and revocation are resolved on read and never swept**, and a
       test fails if a cleanup job is ever added — the `grants.retention.test.ts`
       precedent, which exists for exactly this.
-- [ ] **A `free` or `plus` account cannot mint a token** — 402, matching the
+- [x] **A `free` or `plus` account cannot mint a token** — 402, matching the
       existing `AI_NOT_ENTITLED_STATUS` precedent rather than inventing a
       second shape — **and cannot use one either**, checked on every request
       against the owner's live entitlements.
-- [ ] **`premium@v1`'s entry is byte-identical after this milestone**, and
+- [x] **`premium@v1`'s entry is byte-identical after this milestone**, and
       `noExtension.test.ts`'s `V1_AS_PUBLISHED` was never edited. `api.tokens`
       arrived as `premium@v2`, enumerated in full and never as a spread of v1 —
       so M20's ticked *"editing a plan republishes rather than mutates"* box
       stays true, and *"what did `premium` grant on 2026-09-13"* stays
       answerable.
-- [ ] **A lapse disables tokens; it does not revoke them.** A `premium` account
+- [x] **A lapse disables tokens; it does not revoke them.** A `premium` account
       lapses, every token is refused with 402, `revoked_at` stays null — and
       resubscribing restores **every one of them with zero writes**. A billing
       lapse can never destroy a customer's integration.
-- [ ] **No entitlement is cached on a token row and none is read from a JWT.** A
+- [x] **No entitlement is cached on a token row and none is read from a JWT.** A
       downgrade bites on the next request, not on the next token. A test fails
       if `api_tokens` ever gains an entitlement column.
 - [ ] **A person mints, copies and revokes a token by clicking**, sees time
       remaining on each, and a `free` account sees an upgrade prompt where the
       section would be — walked in a browser on the preview, and in
       `pnpm --filter web test:e2e:ci-like`.
-- [ ] **The reference docs cannot drift from the implementation.** Changing a
+
+      **Half proven, and left unticked for the other half.** The CI-like lane is
+      green: `m22-api-tokens.spec.ts` walks the locked section, the operator
+      grant, the mint with its one-time reveal, the token opening
+      `GET /api/v1/trips` as a real bearer header, and the revoke closing it with
+      `token-revoked`. **The browser walk on the Vercel preview has not
+      happened** — there is no PR yet, so there is no preview — and this box asks
+      for both. It closes when someone drives the deployed preview, which also
+      needs `API_TOKEN_PEPPER` set there.
+- [x] **The reference docs cannot drift from the implementation.** Changing a
       route's declared response schema changes `/api/v1/openapi.json` in the
       same diff, because it is derived from the declaration at build time and
       is hand-written nowhere. Demonstrated by changing one and reading the
       output.
-- [ ] **Token traffic is rate limited and session traffic is not.** Reuses
+- [x] **Token traffic is rate limited and session traffic is not.** Reuses
       `consumeQuota` with bucket `"api:token:<tokenId>"` plus a global — no new
       counter store, the existing 429 with `Retry-After`, and the existing
       fail-closed-to-503 when the counter store itself fails.
-- [ ] **A read does not cost a write.** `last_used_at` updates only when the
+- [x] **A read does not cost a write.** `last_used_at` updates only when the
       stored value is older than five minutes, fire-and-forget, never blocking
       the response — proven by counting writes across a burst of requests, not
       by reading the code.
-- [ ] **No admin surface and no AI surface exist.** No scope names them, no
+- [x] **No admin surface and no AI surface exist.** No scope names them, no
       `v1` file reaches them, and a token cannot reach `/api/admin/**`,
       `/ask` or `/ask/apply`. `/api/admin/**` keeps its 404-on-failure posture
       untouched.
@@ -645,3 +654,86 @@ operator console's own grant endpoint.
 > production before this ships.** Unset, minting and verifying both throw and the
 > Tokens section says so. `openssl rand -base64 32`. It is in `.env.example` and
 > in CI; the hosted environments are the two nobody in this repo can set.
+
+### Phase 4 — the surface, the reference, the guideline — **landed 2026-09-16**
+
+**37 endpoints across 25 route files.** Account, trips (list, create, read,
+patch, delete, restore), days, activities, conflicts, history (read, at a
+revision, undo, redo, revert), Notebook pages, the saved-days library, share
+links, invites, trip members, and city search. Plus `/api/v1/openapi`.
+
+`docs/guidelines/using-the-api.md` — written for two audiences, a caller and
+somebody in this repo adding an endpoint. Indexed in `CLAUDE.md` and the
+guidelines README.
+
+#### The headline claim, measured
+
+**Endpoint N+1 was added and its cost counted**: `GET /v1/trips/:id/members`.
+
+- **One new file, 18 lines.** Nothing else was edited.
+- It typechecks, passes the conformance sweep, and appears in `openapi.json`
+  with its scope, its required role and its `limit`/`cursor` parameters — all
+  derived from the declaration.
+- The only other file that changed is `openapi.json` itself, which is a
+  **generated artifact one command rewrites**, not work anybody does.
+
+No auth, no scope plumbing, no validation, no error handling, no pagination, no
+rate limiting, no OpenAPI entry, no client and no MSW handler were written by
+hand. The two exceptions the box names in advance — a write carries its command
+mapping, and a frontend-adopted endpoint carries an MSW handler — did not apply
+to this one, and no third exception appeared.
+
+#### The reference is generated by its own check
+
+`openapi.test.ts` is **both the generator and the guard**, deliberately: two
+walks, one in a script and one in a test, would be two chances to disagree —
+which is the exact failure the derived-docs claim exists to rule out.
+`pnpm --filter web openapi:generate` sets `UPDATE_OPENAPI=1` and rewrites the
+file; every other run compares. A schema changed without regenerating fails CI
+**in the same diff that changed it**.
+
+`zod-to-json-schema` with `target: "openApi3"`, because zod here is **v3** and
+the default emitter produces draft-07 spellings OpenAPI 3.0 rejects.
+
+#### The one exemption in the conformance sweep, and why it is one file
+
+`/api/v1/openapi` is a raw handler under `v1/`, which the sweep otherwise
+refuses. It serves the reference: no token, no scope, no rate limit, because it
+is the same bytes for everybody and is public the moment one caller has it.
+**The exemption is an allowlist of exactly one path, not a pattern** — a rule
+like *"files named `openapi` are exempt"* is one somebody satisfies by naming a
+file well. Proven still to bite: a `sneaky/route.ts` with a raw `GET` fails with
+*"exports a raw GET"*.
+
+#### Three decisions the design did not settle
+
+1. **A v1 write answers with the affected resource, not the command result.**
+   The BFF's command routes return the whole refreshed trip *and* its history
+   because the board re-renders from the response. Publishing that would hand a
+   third party a payload they did not ask for and freeze a React re-render's
+   needs as public contract.
+2. **`POST /v1/library` checks its trip by hand**, because its trip is in the
+   body rather than the path and the wrapper only guards the path. That is the
+   honest cost of putting the library outside `/trips/:id` — where it belongs,
+   since days saved from a trip you later leave are still yours — and it calls
+   the same seam rather than inventing a weaker check.
+3. **`runCommand` takes the command schema's INPUT type**, not its output.
+   `CreateTrip.forkedFrom` and `SetTripDates.newDayIds` carry `.default()`s, so
+   the output type demands fields a handler has no opinion about.
+
+#### Verified
+
+Full `pnpm check` green — 2,865 unit tests, 208 files, plus the integration
+suite. `surface.int.test.ts` drives the planning writes as real HTTP: a trip,
+day and stop built entirely through v1; a four-field `PATCH` landing as **one**
+history entry that undo unwinds as a unit; a stop patched in both its fields and
+its day in one call; delete and restore. `rateLimit.int.test.ts` proves the
+wrapper charges a token's bucket and **not** a session's, and renders both the
+429 and the fail-closed 503 with their headers — removing the rate limit turns
+all four red.
+
+**Three fixtures of mine were wrong before the endpoints were**, and the
+contracts caught every one: a page with no `content`, a `PageContext.kind` of
+`"trip"` (the field is the literal `"overview"` or absent), and a `CreateTrip`
+missing a defaulted field. That is the validation working at the boundary it was
+put there for.

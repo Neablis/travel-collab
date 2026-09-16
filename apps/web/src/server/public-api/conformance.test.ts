@@ -49,6 +49,26 @@ function routeModules(): string[] {
 
 const HTTP_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"] as const;
 
+/**
+ * **The one file under `v1/` that is allowed a raw handler, named explicitly.**
+ *
+ * `/api/v1/openapi` serves the reference document. It is not a resource of
+ * anybody's account: it needs no token, no scope and no rate limit, because it
+ * is the same bytes for everybody and is public knowledge the moment one caller
+ * has it. Putting a credential in front of the docs is the kind of friction that
+ * gets an API ignored.
+ *
+ * **An allowlist of exactly one, not a pattern.** A rule like "files called
+ * `openapi` are exempt" is a rule somebody can satisfy by naming a file well, and
+ * the whole value of this sweep is that it cannot be talked around. A second
+ * exemption has to be argued for here, in this comment, in a diff someone
+ * reviews.
+ */
+const EXEMPT = new Set(["openapi/route.ts"]);
+
+/** `.../v1/openapi/route.ts` → `openapi/route.ts`. */
+const UNDER_V1 = (full: string) => path.relative(V1, full).split(path.sep).join("/");
+
 const RELATIVE = (full: string) => path.relative(path.resolve(HERE, "../.."), full).split(path.sep).join("/");
 
 describe("every v1 route declares itself through route()", () => {
@@ -61,6 +81,7 @@ describe("every v1 route declares itself through route()", () => {
   it("has no raw handler anywhere under v1", async () => {
     const offenders: string[] = [];
     for (const file of routeModules()) {
+      if (EXEMPT.has(UNDER_V1(file))) continue;
       const mod: Record<string, unknown> = await import(file);
       for (const method of HTTP_METHODS) {
         const exported = mod[method];

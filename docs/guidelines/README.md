@@ -16,6 +16,7 @@ practice. Read the one that matches your task:
 | `stack-and-constraints.md` | What framework/stack are we on, and what limits bind every decision? |
 | `building-the-parts.md` | How do I build each layer/module — domain, contracts, server, UI? |
 | `connecting-the-parts.md` | How do parts talk to each other, and how do interfaces change safely? |
+| `using-the-api.md` | The public REST API — calling it, and adding an endpoint to it (M22) |
 | `validating-direction.md` | How do we know we're still building the *right* thing, and when do we stop and ask Mitchell? |
 | `testing.md` | I need to write a test — which layer, what shape, and how do I know it can fail? |
 | `quality-enforcement.md` | What testing/CI/review bar must every change clear? |

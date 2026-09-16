@@ -1,7 +1,10 @@
-import { TripSummary } from "@tc/contracts";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import { TripDetail, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { grantedMembersByTrip, mergeMembers } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
+import { orThrow, runCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
 // **Pilot endpoint 1 of 2** (M22 Phase 2) — a collection, so it is the one that
@@ -13,7 +16,7 @@ import { route } from "@/server/public-api/route";
 // no `last_used_at`, no error envelope, no `?limit=` bounds, no cursor
 // round-trip, no response validation. All of that is `route()`, once, for every
 // endpoint that will ever exist.
-export const { GET } = route({
+export const { GET, POST } = route({
   GET: {
     scope: "trips:read",
     collection: {
@@ -38,6 +41,30 @@ export const { GET } = route({
         ...r,
         members: mergeMembers(r.members, granted.get(r.tripId) ?? []),
       }));
+    },
+  },
+  // **The first planning write, and the shape every other one follows.**
+  //
+  // What it costs beyond a read: one mapping — this body becomes a `CreateTrip`
+  // — and nothing else. The server mints the id rather than taking one, because
+  // a caller choosing its own primary key can collide with another account's
+  // and can probe for which ids exist.
+  //
+  // **No trip dimension**, so a trip-scoped token is refused: creating a NEW
+  // trip from a credential confined to two existing ones is a widening.
+  POST: {
+    scope: "trips:write",
+    body: z.object({ name: z.string().min(1).max(200) }),
+    response: TripDetail,
+    handle: async ({ actor, body }) => {
+      const tripId = randomUUID();
+      return orThrow(
+        await runCommand(actor, {
+          type: "CreateTrip",
+          tripId,
+          name: (body as { name: string }).name,
+        }),
+      );
     },
   },
 });

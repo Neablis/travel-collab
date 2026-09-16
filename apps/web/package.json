@@ -25,7 +25,8 @@
     "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
     "db:reseed": "pnpm db:reset --yes && pnpm db:seed && pnpm content:import",
     "content:import": "node --env-file-if-exists=.env.local scripts/import-content.ts",
-    "content:verify": "node scripts/import-content.ts --dry-run"
+    "content:verify": "node scripts/import-content.ts --dry-run",
+    "openapi:generate": "UPDATE_OPENAPI=1 vitest run -c vitest.unit.config.ts src/server/public-api/openapi.test.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.68",
@@ -88,6 +89,7 @@
     "msw": "^2.15.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zod-to-json-schema": "^3.25.2"
   }
 }

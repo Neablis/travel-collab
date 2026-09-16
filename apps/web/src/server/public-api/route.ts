@@ -6,6 +6,7 @@ import {
   type TripRole,
 } from "@tc/contracts";
 import { touchLastUsed } from "@/server/api-tokens";
+import { PublicApiError } from "./commands";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
 import { consumeQuota, type QuotaPolicy } from "@/server/quota";
 import {
@@ -61,6 +62,15 @@ interface BaseDef {
   readonly role?: TripRole;
   readonly query?: z.ZodTypeAny;
   readonly body?: z.ZodTypeAny;
+  /**
+   * The success status, when the default is wrong.
+   *
+   * `GET`/`PATCH`/`DELETE` answer 200 and `POST` answers 201, because a POST
+   * usually creates something. The exceptions are the three actions REST has no
+   * noun for — undo, redo and revert — which are POSTs that create nothing and
+   * should say 200. One number, declared where it is true.
+   */
+  readonly status?: number;
 }
 
 /** An endpoint returning one resource. */
@@ -196,6 +206,16 @@ export interface DeclaredHandler {
     readonly trip?: TripSource;
     readonly role?: TripRole;
     readonly kind: "resource" | "collection";
+    /**
+     * The declaration itself, so the OpenAPI generator reads the very schemas
+     * the wrapper validates against.
+     *
+     * **Not a copy of them.** A generator given its own list of shapes is the
+     * second source of truth this design exists to avoid — the docs would then
+     * be able to drift from the implementation, which is the thing Decision 9
+     * claims is impossible here.
+     */
+    readonly def: MethodDef;
   };
 }
 
@@ -385,7 +405,23 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
         ? await declareCollection(def as CollectionDef<CollectionItem>, base)
         : await (def as ResourceDef).handle(base);
     } catch (error) {
-      // A handler that threw is ours to explain and never the caller's to read.
+      // **A handler may refuse deliberately**, and that is not a crash. A write
+      // that maps to a command gets its answer from the domain — "no such day",
+      // "not an editor" — and rethrowing it as a 500 would tell a caller the
+      // server broke when in fact they were told no.
+      if (error instanceof PublicApiError) {
+        return fail(
+          (error.code as z.infer<typeof ApiErrorCode> | undefined) ??
+            (error.status === 403
+              ? "forbidden"
+              : error.status === 404
+                ? "not-found"
+                : "invalid-request"),
+          error.message,
+          error.status,
+        );
+      }
+      // Anything else is ours to explain and never the caller's to read.
       console.error("v1 handler threw", { method, scope: def.scope, error });
       return fail("server-error", "Something went wrong. The failure has been logged.", 500);
     }
@@ -416,7 +452,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     }
 
     return Response.json(shape === undefined ? payload : shape.data, {
-      status: method === "POST" ? 201 : 200,
+      status: def.status ?? (method === "POST" ? 201 : 200),
     });
   };
 
@@ -427,6 +463,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       trip: def.trip,
       role: def.role,
       kind: isCollection(def) ? ("collection" as const) : ("resource" as const),
+      def,
     },
   }) as DeclaredHandler;
 }

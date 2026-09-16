@@ -271,7 +271,7 @@ ADR-021, ADR-022 and the two reorders below.
 scoped"* because one open decision still moved the scope — the shape of the
 planning-write surface — and that was answered hours later as thirteen REST
 endpoints. So the milestone file exists: `docs/milestones/M22-public-api-and-tokens.md`,
-five phases and a 19-box exit gate, satisfying `TODO.md`'s standing task that
+five phases and a 19-box exit gate — **all five phases landed 2026-09-16, 18 of 19 boxes ticked** — satisfying `TODO.md`'s standing task that
 it be written *"before its first commit"*. **Placed and scoped is still not
 started**: M22's prerequisite is M21 closed, and M21 is open. Design:
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.

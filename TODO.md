@@ -550,7 +550,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       file back (the shape of the planning-write surface) was answered the same
       day as thirteen REST endpoints, and the last flagged item closed with
       *"Just do v2 then"*, so `api.tokens` ships on **`premium@v2`**. The
-      milestone file carries five phases and a 19-box exit gate.
+      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, which needs a PR and `API_TOKEN_PEPPER` set there.
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.
