@@ -639,6 +639,22 @@ export async function enrichCommandLocations(
   return {
     commands: commands.map((command) => {
       if (!hasLocation(command)) return command;
+      // **The same skip the dedupe loop applies, and applying it in only one of
+      // the two places was a defect** (CodeRabbit, PR #184).
+      //
+      // The dedupe loop stops a server-located stop being LOOKED UP. It does
+      // not stop this map handing that stop another command's resolution:
+      // `resolutionByKey` is keyed by normalized NAME, so a second command
+      // whose model-typed name normalizes the same — easy for a well-known
+      // place, where the model types what the vendor would return — resolves,
+      // and the grounded stop takes its answer. `{ ...approved,
+      // ...resolution.location }` would then replace the cited coordinates,
+      // name and `precision` with the vendor's answer for a different stop.
+      //
+      // That is the post-hoc geocoder relocating a grounded pin, which is the
+      // one thing this module may never do (KI-15) and precisely the demotion
+      // M9's grounding is supposed to guarantee.
+      if (isServerLocated(command.location)) return command;
       const resolution = resolutionByKey.get(normalize(command.location.name));
       if (!resolution) return command;
       // `verified`/`unchecked` both carry a real geocoder match (`found`,

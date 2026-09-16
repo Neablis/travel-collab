@@ -328,6 +328,45 @@ describe("the ai.grant record", () => {
     expect(record.refusedBy).toBeNull();
   });
 
+  // **What an unsure verdict does to a turn** (M9's `certainty` band).
+  //
+  // The class the classifier chose is KEPT — that is the point of the band,
+  // against the old behaviour of forcing `plan` to buy the write tools — and
+  // the tier floor rises to `mid`. Uncertainty resolves upward on both axes,
+  // by as much as the doubt warrants and no more.
+  //
+  // **What this test does NOT cover, said plainly rather than implied.** The
+  // third half of the fix — `resolvedUpward` treating `unsure` as a class
+  // nobody determined, so it cannot narrow — is **not falsifiable here**.
+  // Narrowing by `question` removes nothing today, because every
+  // `TASK_CLASSES_FOR` entry includes it; deleting the `certainty` clause from
+  // `resolvedUpward` leaves every assertion below green (measured, not
+  // assumed). The clause is kept because the rule it serves is the one
+  // `resolvedUpward` exists to state, and because the hazard is real the moment
+  // a tool is tagged for `edit`/`plan` only. **The tripwire for that day lives
+  // in `grants.test.ts`** — "narrowing by a class never removes a tool the
+  // ungoverned grant allowed" pins that `question` is a no-op, so the first
+  // tool that changes it goes red there and leads back here.
+  //
+  // The write-tools half is `askIntent.test.ts`'s: `intentOf` is what resolves
+  // it, and this file stubs the classifier's record rather than running it.
+  it("keeps an unsure verdict's class and raises its tier floor", async () => {
+    const unsure: AskIntentRecord = { ...CLASSIFIED_AS_WRITE, taskClass: "question", certainty: "unsure", intent: "write" };
+    const { ports, records } = spyPorts({ classify: async () => unsure });
+    const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(admission.ok).toBe(true);
+    if (!admission.ok) return;
+    expect(admission.grant.taskClass).toBe("question");
+    expect(records[0]!.taskClass).toBe("question");
+    // `mid`, not `strong`: the floor rises, it does not jump.
+    expect(admission.grant.tier).toBe("mid");
+    // Nothing was taken away, so the model is not told a partial story it has
+    // no way to recover from — an unsure turn's posture is `propose`, so the
+    // escalation tool is not offered and could not rescue one.
+    expect(admission.grant.classWithheld).toBe(false);
+  });
+
   // A viewer's turn is read-only, and the record says so in the same field an
   // editor's does — which is what makes "what is and isn't allowed" one query.
   it("records a viewer's narrower grant, and never classifies their turn", async () => {

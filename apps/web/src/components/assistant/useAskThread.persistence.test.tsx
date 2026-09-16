@@ -1,10 +1,19 @@
 // **The conversation survives a reload** — M9's third remainder, at the hook.
 //
 // `askThreadStore.test.ts` covers what is written and what comes back.
-// What only this file can cover is the two things the HOOK owns, and both of
-// them are about a race rather than about storage: a restored thread must not
-// overwrite a live one, and the ids it restores must not collide with the ones
-// this session is about to mint.
+// What only this file can cover is what the HOOK owns: that a stored
+// conversation comes back on the next mount, that the ids it restores do not
+// collide with the ones this session is about to mint, and that a new
+// conversation forgets rather than merely empties.
+//
+// **This header used to claim a third invariant — "a restored thread must not
+// overwrite a live one" — and that claim was stale** (CodeRabbit, PR #184).
+// The restore effect replaces UNCONDITIONALLY, deliberately: `persistAs` IS the
+// conversation's identity, so a surface that switches conversations should get
+// the new one rather than keep the old, and making that one rule instead of two
+// is why the guard went. An invariant stated in a comment with no test
+// enforcing it is a documented recurring defect class in this repo (KI-1,
+// KI-14) — so it is corrected here rather than left to read as coverage.
 //
 // A reload is simulated by unmounting and mounting again under the same name,
 // which is what a reload is to a component.

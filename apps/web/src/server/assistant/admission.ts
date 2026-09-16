@@ -1043,8 +1043,27 @@ const grantTools: AdmissionStage = {
     // A page turn has no classification at all and is NOT this case: `compose`
     // is decided structurally from a scope `resolveSurface` verified, which is
     // the strongest determination on offer, so it narrows.
+    // **THREE ways to arrive at a class nobody determined, and `certainty` is
+    // the third** (CodeRabbit, PR #184).
+    //
+    // M9 added `certainty: "unsure"` and `intentOf` resolves such a turn to
+    // `write` — but the CLASS stays what the classifier said, which is the
+    // whole point of the band. That left `question | unsure` passing
+    // `"question"` to `toolsFor`: the effect axis granted the write tools and
+    // the class axis could take them away again. Today's `TASK_CLASSES_FOR`
+    // makes that a no-op (every entry includes `question`), so this was latent
+    // rather than live — and the rule above says what to do about it anyway:
+    // only a class somebody DETERMINED may narrow, and "unsure" is the
+    // classifier saying it determined nothing.
+    //
+    // The escalation tool cannot rescue this case either, which is what makes
+    // it worth closing rather than noting: an unsure turn's posture is already
+    // `propose`, so `request_change_tools` is not offered.
     const resolvedUpward =
-      classification !== null && (classification.failedOpen || classification.source === "affirmation");
+      classification !== null &&
+      (classification.failedOpen ||
+        classification.source === "affirmation" ||
+        classification.certainty === "unsure");
     const narrowBy = resolvedUpward ? undefined : taskClass;
 
     // Both sets, because "did the class filter take anything away" is the

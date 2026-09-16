@@ -279,9 +279,23 @@ export function recordAskTranscript(
   meta: Pick<AskTranscript, "name" | "about" | "question" | "scope">,
 ): { model: LanguageModel; transcript: () => Partial<AskTranscript> } {
   const steps: TranscriptStep[] = [];
+  // **Delegated through the prototype, never spread** (CodeRabbit, PR #184).
+  //
+  // Object spread copies own enumerable properties only, and a provider's model
+  // is a class instance: `provider`, `specificationVersion` and `supportedUrls`
+  // live on the prototype or as accessors, so a spread wrapper reaches the SDK
+  // without them. `LanguageModel` also admits a bare model-id STRING, which
+  // spreads into character keys and leaves `doGenerate` undefined.
+  //
+  // This function is the only path to a `recorded` transcript — the one word
+  // standing between the harness and M9's gate box — so the first real
+  // recording run is exactly where a broken wrapper would surface. Refusing the
+  // string form loudly beats discovering it mid-run.
+  if (typeof inner === "string") {
+    throw new Error("recordAskTranscript needs a model instance, not a model id.");
+  }
   const underlying = inner as unknown as { doGenerate: (o: unknown) => Promise<unknown>; doStream: (o: unknown) => Promise<unknown> };
-  const model = {
-    ...(inner as object),
+  const model = Object.assign(Object.create(inner as object), {
     async doGenerate(options: unknown) {
       const result = (await underlying.doGenerate(options)) as {
         content: TranscriptPart[];
@@ -291,7 +305,7 @@ export function recordAskTranscript(
       return result;
     },
     doStream: (options: unknown) => underlying.doStream(options),
-  } as unknown as LanguageModel;
+  }) as unknown as LanguageModel;
 
   return {
     model,

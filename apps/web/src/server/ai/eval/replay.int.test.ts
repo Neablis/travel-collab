@@ -186,6 +186,20 @@ describe("the eval set", () => {
   it("is discovered from the directory, and every member says what it is for", () => {
     const transcripts = everyTranscript();
     expect(transcripts.length).toBeGreaterThanOrEqual(5);
+    // **Witness floors, because the per-transcript assertions are CONDITIONAL**
+    // (CodeRabbit, PR #184). `locationNames`, `droppedCalls` and `outcome` each
+    // return early when a transcript omits them — so an eval set with no
+    // grounded member would run the grounding check zero times and stay green.
+    // `transcript.ts` calls `locationNames` "the one assertion that can tell
+    // grounding from a prompt", and a claim like that has to be MEASURED. The
+    // floor lives here because this is the test that already measures the
+    // directory.
+    expect(transcripts.filter((t) => t.expect.locationNames !== undefined).length).toBeGreaterThan(0);
+    expect(transcripts.filter((t) => (t.expect.droppedCalls ?? 0) > 0).length).toBeGreaterThan(0);
+    expect(transcripts.filter((t) => (t.expect.proposalChanges ?? 0) > 0).length).toBeGreaterThan(0);
+    // ...and at least one that does NOT end cleanly, or the outcome assertion
+    // is a constant.
+    expect(transcripts.filter((t) => (t.expect.outcome ?? "completed") !== "completed").length).toBeGreaterThan(0);
     for (const transcript of transcripts) {
       expect(transcript.about, transcript.name).toBeTruthy();
       expect(transcript.source.kind, transcript.name).toMatch(/^(recorded|synthetic)$/);

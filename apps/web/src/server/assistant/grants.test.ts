@@ -193,6 +193,30 @@ describe("a grant is a minimum over four independent caps", () => {
     ]);
   });
 
+  // **An unsure verdict must not narrow the tool set** (CodeRabbit, PR #184).
+  //
+  // `intentOf` resolves `question | unsure` to write intent, so the turn holds
+  // the change tools — and the CLASS stays `question`, because keeping what the
+  // classifier actually said is the whole point of the band. Narrowing by that
+  // class would let the class axis take back what the effect axis granted.
+  //
+  // Asserted on `toolsFor` directly rather than through admission, because the
+  // rule belongs to the filter: a tool tagged for `edit`/`plan` only — none
+  // exists today, which is why this was latent — would be removed from a turn
+  // that was handed the write tools on purpose.
+  it("narrowing by a class never removes a tool the ungoverned grant allowed", () => {
+    const editorTrip: EffectCaps = { surface: "trip", role: "propose", plan: "propose", classifier: "propose" };
+    const unnarrowed = toolsFor(grantFor(editorTrip), undefined, "propose").map((t) => t.name);
+    for (const taskClass of TASK_CLASSES) {
+      const narrowed = toolsFor(grantFor(editorTrip), taskClass, "propose").map((t) => t.name);
+      expect(unnarrowed, taskClass).toEqual(expect.arrayContaining(narrowed));
+    }
+    // And `question` in particular takes nothing away TODAY, which is what
+    // makes the admission-side fix latent rather than live — recorded so the
+    // next person to add a `taskClasses` entry can see what they are changing.
+    expect(toolsFor(grantFor(editorTrip), "question", "propose").map((t) => t.name)).toEqual(unnarrowed);
+  });
+
   // The term M20 owns. It has no source yet and must not have invented one:
   // today it permits everybody, which is what makes P2 a refactor.
   it("permits propose for everybody until M20 supplies a plan", () => {

@@ -935,6 +935,38 @@ describe("a stop the server already located", () => {
     expect(report.verified).toContain(GROUNDED.name);
   });
 
+  // **Another command's lookup must not relocate it either**, which is the
+  // half the first spelling of this skip missed (CodeRabbit, PR #184). The
+  // dedupe loop stopped the grounded stop being LOOKED UP; the output map
+  // resolved by normalized NAME and handed it the other command's answer. That
+  // is the post-hoc geocoder moving a grounded pin — the one thing KI-15 says
+  // this module may never do.
+  it("is not relocated by a same-named command that WAS looked up", async () => {
+    const ELSEWHERE = { lat: 52.907918, lng: -2.8901 };
+    const { geocoder, calls } = fakeGeocoder({
+      // The model typed the same name the vendor gave the grounded stop, and
+      // this lookup lands in Shropshire — the 2026-08-02 failure, verbatim.
+      [GROUNDED.name]: [{ canonicalName: "The Red Lion Coaching Inn, Shropshire", ...ELSEWHERE }],
+    });
+    const { commands } = await enrichCommandLocations(
+      [
+        addActivity("the falls", GROUNDED),
+        addActivity("dinner", { name: GROUNDED.name }),
+      ],
+      () => geocoder,
+      null,
+      noSleep,
+    );
+
+    // One lookup — the grounded stop contributed nothing to `pending`.
+    expect(calls).toEqual([GROUNDED.name]);
+    // The grounded stop keeps every field the server resolved.
+    expect((commands[0] as { location: Location }).location).toEqual(GROUNDED);
+    // ...and the model-typed one still gets its answer, so the skip is
+    // targeted rather than a blanket opt-out of enrichment.
+    expect((commands[1] as { location: Location }).location.lat).toBe(ELSEWHERE.lat);
+  });
+
   // Defence in depth over a shape the contract's own refinement already makes
   // unparseable (`precision` requires coordinates). What fails safe is a
   // redundant lookup, never a stop pinned nowhere.

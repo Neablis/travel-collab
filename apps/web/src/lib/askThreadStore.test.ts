@@ -111,6 +111,28 @@ describe("the ask thread store", () => {
     expect(loadAskThread(NAME).at(-1)!.id).toBe("u4");
   });
 
+  // **One turn can be over the ceiling on its own**, and the trimming loop
+  // stops at one turn — so without an explicit guard it wrote a value past the
+  // limit it documents (CodeRabbit, PR #184). The write is skipped rather than
+  // the turn truncated: half a message read back is a quieter lie than none.
+  it("writes nothing when a single turn is bigger than the ceiling", () => {
+    saveAskThread(NAME, [user("u1", "x".repeat(250_000))]);
+    expect(window.localStorage.getItem("ask_thread_v1:" + NAME)).toBeNull();
+  });
+
+  it("never stores a value over the ceiling, whatever it is handed", () => {
+    for (const thread of [
+      [user("u1", "x".repeat(250_000))],
+      [user("u1", "small"), user("u2", "x".repeat(250_000))],
+      Array.from({ length: 5 }, (_, i) => user(`u${i}`, "x".repeat(60_000))),
+    ]) {
+      window.localStorage.clear();
+      saveAskThread(NAME, thread);
+      const stored = window.localStorage.getItem("ask_thread_v1:" + NAME);
+      if (stored !== null) expect(stored.length).toBeLessThanOrEqual(200_000);
+    }
+  });
+
   // **Safari's private mode throws on `localStorage`**, and Node 26 leaves
   // `window.localStorage` undefined in the jsdom lane (KI-2026-09-02-a). The
   // conversation on screen must be unaffected; only its durability is.

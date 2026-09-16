@@ -147,6 +147,15 @@ export function saveAskThread(name: string, thread: readonly AssistantTurn[]): v
       kept = kept.slice(1);
       serialised = JSON.stringify(kept);
     }
+    // **One turn can be over the ceiling on its own**, and the loop above stops
+    // at `kept.length > 1` — so without this it wrote a value past the limit it
+    // documents (CodeRabbit, PR #184). A single pasted message is all it takes.
+    //
+    // The write is SKIPPED rather than the turn truncated: a transcript is a
+    // working surface, and half a message read back would be a quieter lie than
+    // no message. The conversation on screen is untouched either way — this
+    // function only ever decides what survives a reload.
+    if (serialised.length > MAX_STORED_CHARS) return;
     window.localStorage.setItem(keyFor(name), serialised);
   } catch {
     // Private mode, a full origin, or no `localStorage` at all. The

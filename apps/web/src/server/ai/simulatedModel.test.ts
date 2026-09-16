@@ -910,3 +910,43 @@ describe("simulatedModel — a request for a whole itinerary", () => {
     expect((await verdictFor(question)).intent).toBe(expected);
   });
 });
+
+
+// **The classifier and the turn shape must not disagree** — `asksToWrite` is
+// one predicate for exactly that reason, and its own comment says so.
+//
+// The first spelling of `asksForAnItinerary` joined `asksToWrite` and left
+// `askTurn`'s proposal branch checking `asksForAChange` alone, so "plan me a
+// six day trip" was classified a write, handed the write tools, did its reads
+// and then answered in prose without drafting anything. That is the same
+// failure the 2026-09-08 browser walk measured for `asksForAPlaybookDay`.
+// Caught by CodeRabbit on PR #184.
+describe("simulatedModel — a write turn proposes on every phrasing it classifies as one", () => {
+  /** The tools this model calls on the step AFTER it has read the trip. */
+  async function secondStepCalls(question: string) {
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "trip" }, [{ toolName: "read_trip", value: TRIP_READOUT }], {
+        question,
+        writeTools: true,
+      }),
+    );
+    return callsOf(result).map((call) => call.toolName);
+  }
+
+  it.each([
+    "add a coffee stop to day 1",
+    "plan me a six day trip to Kyoto",
+    "Create a 7 day itinerary for Rochester NY",
+    "there are no days yet — how should I start planning this trip?",
+  ])("drafts changes for %s", async (question) => {
+    const names = await secondStepCalls(question);
+    expect(names.length, `${question} proposed nothing`).toBeGreaterThan(0);
+    expect(names.every((name) => name === "AddActivity" || name === "AddDay"), names.join(",")).toBe(true);
+  });
+
+  // The other half, so the rule is "agree", not "always propose": a question
+  // still reads and answers.
+  it("still proposes nothing for a question", async () => {
+    expect(await secondStepCalls("which day has the most free time?")).toEqual([]);
+  });
+});

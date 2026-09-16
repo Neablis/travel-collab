@@ -781,7 +781,17 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     if (calls !== null) return { content: calls, finishReason: { unified: "tool-calls", raw: undefined } };
     return speak(SIMULATED_NO_PLAYBOOK_ANSWER);
   }
-  if (!proposed && canPropose(options) && asksForAChange(question)) {
+  // **`asksToWrite`, not `asksForAChange`** — the shared predicate, so the
+  // classifier and the turn shape cannot disagree.
+  //
+  // This line said `asksForAChange` and was wrong the moment
+  // `asksForAnItinerary` joined `asksToWrite`: "plan me a six day trip"
+  // classified as a write, was handed the write tools, did its reads, and then
+  // fell through to `askAnswer` without drafting anything. That is the exact
+  // failure the browser walk of 2026-09-08 measured for `asksForAPlaybookDay`
+  // — and `asksToWrite`'s own comment, two functions up, states the rule this
+  // line was breaking. Caught by CodeRabbit on PR #184.
+  if (!proposed && canPropose(options) && asksToWrite(question)) {
     return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
