@@ -163,14 +163,17 @@ describe("the transcript's theme contract", () => {
   // The aliases must stay aliases. Freezing one to a literal pins the
   // transcript to `paper`'s colours in every look.
   //
-  // **Measured, because the first version of this comment guessed and was
-  // wrong.** It claimed the contrast assertions above "would still pass", so
-  // this test was the only guard. They do not: freezing `--color-a-you-ink` to
-  // `#5a6472` drops `nightdesk` to 2.79:1, since paper's slate on a dark panel
-  // is illegible. What this test actually catches on its own is the three
-  // LIGHT looks — `ledger` and `airmail` stay above 4.5:1 with paper's slate,
-  // so they would go silently wrong. That is still worth a test; it is just a
-  // smaller claim than the one written here first.
+  // **What this catches, measured rather than assumed.** The first version of
+  // this comment claimed the contrast assertions above "would still pass", so
+  // that this test was the only guard against a frozen alias. Running the
+  // mutation disproved it: pinning `--color-a-you-ink` to paper's slate value
+  // drops `nightdesk` to 2.79:1, because a light-look slate on a dark panel is
+  // illegible, and the contrast test fires on its own.
+  //
+  // So the real division of labour is: `nightdesk` is caught above, and
+  // `ledger` and `airmail` are caught HERE — both are light, both stay over
+  // 4.5:1 with paper's slate, and both would go silently wrong. A smaller
+  // claim than the one written here first, and the true one.
   it("draws its colours from tokens the looks already tune", () => {
     const theme = declarationsIn(themeBlock());
     expect(theme.get("--color-a-you-rule")).toBe("var(--color-brand)");

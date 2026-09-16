@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
@@ -115,11 +116,77 @@ function announcementFor(turns: readonly AssistantTurn[]): string {
   return `Answer: ${last.text}${proposal}`;
 }
 
+/**
+ * **How it got there, as one line until asked** (design §2b, SPEC §30.5).
+ *
+ * The tool notes used to be a flat, always-visible list above every answer.
+ * Collapsed, they are `"<n> steps · <the last one>"` behind a disclosure.
+ *
+ * **The summary is derived, not captured, and that is load-bearing.** These
+ * lines are the visible "something is happening" during a stream — the whole
+ * reason they exist is that a conversation which silently pauses for four
+ * seconds reads as broken. Collapsed to a snapshot taken when the first step
+ * arrived, streaming would look stalled again in a new way. Reading
+ * `tools[tools.length - 1]` on every render is what keeps the line moving.
+ *
+ * **The bordered container stays.** §30.5 is explicit that this is a
+ * disclosure, not a third voice, and the border is what says so.
+ *
+ * No `role` and no live region: a second one nested inside the log is finding 4
+ * of the 2026-08-29 branch review, and `aria-expanded` on a real button is
+ * already the whole announcement a screen reader needs here.
+ */
+function ToolSteps({ tools }: { tools: readonly ToolNote[] }) {
+  const [open, setOpen] = useState(false);
+  const last = tools[tools.length - 1];
+  if (last === undefined) return null;
+
+  return (
+    <div className="rounded-md border border-hairline px-2.5 py-1.5">
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-expanded={open}
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        // `h-auto` undoes `sm`'s fixed height so a wrapped summary grows
+        // instead of spilling; `px-0` keeps the label flush with the list it
+        // reveals, so expanding does not shift the text sideways.
+        className="h-auto w-full justify-between gap-2 px-0 text-left text-xs font-normal"
+      >
+        <span>
+          {open
+            ? "Hide how it got there"
+            : `${tools.length} ${tools.length === 1 ? "step" : "steps"} · ${last.label}`}
+        </span>
+        <span aria-hidden>{open ? "⌃" : "⌄"}</span>
+      </Button>
+      {open && (
+        <ul className="mt-1.5 flex flex-col gap-0.5">
+          {tools.map((tool) => (
+            <li key={tool.id} className="text-xs text-slate">
+              {tool.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * **This component does not scroll.** It has no scrollport — its consumers do
+ * (`AssistantRail`'s `overflow-y-auto` column, and the New-trip sheet's
+ * thread). It used to call `scrollIntoView({ block: "end" })` on a trailing
+ * div, which moves EVERY scrollable ancestor rather than the intended one:
+ * banned repo-wide by SPEC §30.6, and KI-2026-09-13-a is an open bug in that
+ * family. Pinning is `usePinToBottom`, called by whoever owns the scrollport.
+ */
 export function Transcript({
   turns,
   onApproveProposal = () => {},
   onRejectProposal = () => {},
   approvalBlockedReason = null,
+  renderTurnFooter,
 }: {
   turns: AssistantTurn[];
   /** Commits the turn's proposal as one atomic batch. Keyed by turn id. */
@@ -132,20 +199,16 @@ export function Transcript({
    * properties of the board, not of a proposal.
    */
   approvalBlockedReason?: string | null;
+  /**
+   * **An optional slot under each turn, whose contents this component never
+   * learns about.** The New-trip flow needs a "Change" control under every
+   * answered turn; "Change" has no meaning in the assistant panel (design §3),
+   * so the shared component takes a render prop instead of the word.
+   *
+   * Optional, and `AssistantRail` passes nothing — it renders exactly as before.
+   */
+  renderTurnFooter?: (turn: AssistantTurn) => ReactNode;
 }) {
-  const endRef = useRef<HTMLDivElement | null>(null);
-
-  // Follow the answer as it streams. A transcript that does not scroll makes
-  // streaming look like it stopped — the tokens are arriving below the fold.
-  // `scrollIntoView` is absent in jsdom, so the guard is load-bearing for the
-  // unit suite as well as for anything without a layout engine.
-  useEffect(() => {
-    const node = endRef.current;
-    if (node !== null && typeof node.scrollIntoView === "function") {
-      node.scrollIntoView({ block: "end" });
-    }
-  }, [turns]);
-
   return (
     <>
       {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
@@ -169,24 +232,15 @@ export function Transcript({
           // No max-width utility: an arbitrary Tailwind value trips the design
           // wall (scripts/check-color-wall.mjs), and the rail is 356px wide —
           // the column's own sizing is the cap.
-          <p
-            key={turn.id}
-            className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink"
-          >
-            {turn.text}
-          </p>
+          <div key={turn.id} className="flex flex-col gap-1.5">
+            <p className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink">
+              {turn.text}
+            </p>
+            {renderTurnFooter?.(turn)}
+          </div>
         ) : (
           <div key={turn.id} className="flex flex-col gap-1.5">
-            {turn.tools.length > 0 && (
-              <ul className="flex flex-col gap-0.5">
-                {turn.tools.map((tool) => (
-                  <li key={tool.id} className="text-xs text-slate">
-                    <span aria-hidden>· </span>
-                    {tool.label}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ToolSteps tools={turn.tools} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
               // whose deltas concatenate with their spacing intact. Rendering
@@ -217,10 +271,10 @@ export function Transcript({
                 {turn.tools.length === 0 ? "Thinking…" : "Still writing…"}
               </p>
             )}
+            {renderTurnFooter?.(turn)}
           </div>
         ),
       )}
-      <div ref={endRef} />
       </div>
       {/* The one live region. `sr-only` because everything it says is already
           on screen — its job is timing, not content a sighted user is missing. */}
