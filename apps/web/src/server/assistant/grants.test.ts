@@ -21,6 +21,12 @@ import {
 import { TASK_CLASSES } from "./taskClass";
 
 const READ_TOOLS = ["read_trip", "read_day", "find_free_time", "search_playbooks"];
+// **In registry order, which puts it after the read tools and before the
+// commands** — `search_places` has to be read before the tools whose `placeRef`
+// cites it (registry.ts). Its own list rather than a fifth entry in
+// `READ_TOOLS`, because the two differ on the page surface: the reads are
+// offered there and this is not.
+const PLACE_TOOLS = ["search_places"];
 const COMMAND_TOOLS = BatchableCommand.options.map((option) => option.shape.type.value as string);
 const PAGE_TOOLS = ["insert_text", "insert_widget"];
 
@@ -35,8 +41,17 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES`. Every domain capped at `read`, whichever surface
   // asks — which is what makes a viewer's trip turn and an editor's withheld
   // turn the same set without either being a special case.
-  it("is the four read tools when every cap is `read`", () => {
-    expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual(READ_TOOLS);
+  it("is the four read tools plus search_places when every cap is `read`", () => {
+    // **`search_places` survives every `read` cap, and that is correct rather
+    // than an oversight.** It IS a read — it reads a public gazetteer and
+    // writes nothing — so a viewer may search and an editor whose turn was read
+    // as a question may too. What neither can do is CITE the result, because
+    // neither holds a write tool; the grant arithmetic already says so, and a
+    // second rule here would be a second place to keep it true.
+    expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual([
+      ...READ_TOOLS,
+      ...PLACE_TOOLS,
+    ]);
   });
 
   // Today's `READ_TOOL_NAMES + WRITE_TOOL_NAMES`. The command half is derived
@@ -44,7 +59,7 @@ describe("the three tool sets a turn can be offered", () => {
   // joins the set — and `minimumRoleFor`'s editor answer — with no edit here
   // (ADR-015 invariant 5).
   it("is the read tools plus every command plus insert_playbook_day on a trip or day surface", () => {
-    const expected = [...READ_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day"];
+    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day"];
     expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(expected);
     expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(expected);
   });
@@ -96,6 +111,7 @@ describe("the three tool sets a turn can be offered", () => {
     expect(domainOf("insert_playbook_day")).toBe("library");
     expect(domainOf("insert_text")).toBe("pages");
     expect(domainOf("insert_widget")).toBe("pages");
+    expect(domainOf("search_places")).toBe("places");
     for (const name of COMMAND_TOOLS) expect(domainOf(name), name).toBe("itinerary");
   });
 
@@ -119,7 +135,7 @@ describe("a grant is a minimum over four independent caps", () => {
     ["plan", { plan: "read" }],
     ["classifier", { classifier: "read" }],
   ] as const)("narrows a trip turn to the read tools when %s says read", (_label, override) => {
-    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual(READ_TOOLS);
+    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS]);
   });
 
   // The fourth cap, and the one that is not a scalar: the page surface caps
@@ -131,15 +147,49 @@ describe("a grant is a minimum over four independent caps", () => {
     expect(grant.pages).toBe("propose");
   });
 
-  // Silence denies. No tool declares `places`, `account` or `system` today, and
-  // one that did would be offered nowhere until a surface row named its domain.
+  // Silence denies. No tool declares `account` or `system` today, and one that
+  // did would be offered nowhere until a surface row named its domain.
+  //
+  // **`places` was on that list until M9's grounding, and adding the tool was
+  // not enough** — `search_places` existed, was in the registry, carried every
+  // tag, and was offered on no surface at all until `SURFACES` named its
+  // domain. That is the table working. The assertion below keeps measuring the
+  // table rather than a list of expected domains, so the next domain to arrive
+  // gets the same treatment without an edit here.
   it("grants no domain a surface does not name", () => {
     for (const surface of ["trip", "day", "page"] as const) {
       const named = new Set(SURFACES[surface].map((pair) => pair.domain as string));
       const grant = grantFor({ ...EDITOR, surface });
       expect(Object.keys(grant).sort()).toEqual([...named].sort());
-      expect(grant.places).toBeUndefined();
+      expect(grant.account).toBeUndefined();
+      expect(grant.system).toBeUndefined();
     }
+  });
+
+  // **A page turn holds no tool that can spend the vendor key**, which is the
+  // one row of the table that is a decision rather than the absence of a tool:
+  // a page turn composes prose and holds nothing that could cite a candidate,
+  // so a place search there would be the operator's money spent on a number
+  // nothing can use.
+  it("offers no place search on a page surface, on any cap", () => {
+    for (const caps of [EDITOR, { role: "read", plan: "read", classifier: "read" } as const]) {
+      expect(namesFor({ ...caps, surface: "page" })).not.toContain("search_places");
+    }
+    expect(SURFACES.page.map((pair) => pair.domain as string)).not.toContain("places");
+  });
+
+  // **The only tool that declares `spend: "vendor"`, and the set is a filter
+  // over the registry rather than a list somebody maintains.**
+  //
+  // P5 recorded the tag and nothing read it, for the reason M9's milestone file
+  // gives: the real LocationIQ door was `commitProposal`'s geocoder on the
+  // apply path, which is not a tool at all. Grounding made the tag true of
+  // something. A second spending tool is a decision, and this assertion is
+  // where it gets noticed.
+  it("has exactly one tool that can spend at a vendor", () => {
+    expect(ASSISTANT_TOOLS.filter((tool) => tool.spend === "vendor").map((tool) => tool.name)).toEqual([
+      "search_places",
+    ]);
   });
 
   // The term M20 owns. It has no source yet and must not have invented one:

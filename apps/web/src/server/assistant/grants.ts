@@ -48,19 +48,28 @@ export type SurfaceGrant = readonly DomainCap[];
 /**
  * The whole of "which tools exist on which surface", as data.
  *
- * A missing domain means NOT GRANTED — `places`, `account` and `system` are
- * absent from every row here because no tool declares them yet, and a tool that
- * did would be offered nowhere until a row named its domain. That is the
- * correct default for a capability table: silence denies.
+ * A missing domain means NOT GRANTED — `account` and `system` are absent from
+ * every row here because no tool declares them yet, and a tool that did would
+ * be offered nowhere until a row named its domain. That is the correct default
+ * for a capability table: silence denies. **`places` stopped being one of those
+ * three when M9's grounding landed**, and the fact that adding the tool was not
+ * enough — that it was offered nowhere until these two rows named its domain —
+ * is the table working rather than an obstacle to route around.
  */
 export const SURFACES = {
   trip: [
     { domain: "itinerary", max: "propose" },
     { domain: "library", max: "propose" },
+    // `read`, and it can never be more: `places` has no `propose` tool and the
+    // domain is a gazetteer lookup, not a change. Capped here rather than left
+    // to the tool's own `effect`, because the table is the thing a reader
+    // checks to answer "could a page turn ever spend the vendor key?".
+    { domain: "places", max: "read" },
   ],
   day: [
     { domain: "itinerary", max: "propose" },
     { domain: "library", max: "propose" },
+    { domain: "places", max: "read" },
   ],
   // A page turn reads the trip and writes the page. `library` stays at `read`
   // rather than being left out, because a page turn browses the corpus today
@@ -73,6 +82,11 @@ export const SURFACES = {
   // today. The tags are the audit vocabulary and what a fourth surface would
   // grant one of without the other; they are pinned directly in `grants.test.ts`
   // because nothing in this table can pin them.
+  // **No `places` row, deliberately.** A page turn composes prose about a trip
+  // that already exists; it holds no tool that could cite a candidate, so a
+  // place search on this surface would be the operator's money spent on a
+  // number nothing can use. This is the first row where leaving a domain out is
+  // a decision rather than the absence of a tool.
   page: [
     { domain: "itinerary", max: "read" },
     { domain: "library", max: "read" },

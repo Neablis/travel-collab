@@ -21,13 +21,32 @@ import { ASSISTANT_TOOLS, aiToolsFor } from "./registry";
 import { newTurnMeter } from "./ledger";
 import { defineTool } from "./defineTool";
 import { z } from "zod";
-import { newPageBuffer, newProposalBuffer } from "./deps";
+import { AMBIENT_DEP_KEYS, TURN_DEP_KEYS, newPageBuffer, newPlaceCache, newProposalBuffer } from "./deps";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { PAGE_TOOLS } from "./tools/page";
+import { PLACE_TOOLS } from "./tools/places";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 
-const DEP_KEYS = ["trip", "actor", "scope", "proposalBuffer", "pageBuffer", "playbooks", "savedDays"];
+// **Derived from the two runtime lists, not written out.** This was a
+// hand-typed array of seven strings, which is the manifest shape ADR-043
+// decision 2 deleted everywhere else — and it behaved like one: M9's grounding
+// added two keys to `AssistantDeps` and the assertion below failed for the
+// definition that used them rather than for the list that was stale.
+// `AMBIENT_DEP_KEYS` and `TURN_DEP_KEYS` together ARE `DepKey`, and
+// `TURN_DEP_KEY_SET`'s `Record<TurnDepKey, true>` is what makes the second half
+// exhaustive at compile time.
+const DEP_KEYS: readonly string[] = [...AMBIENT_DEP_KEYS, ...TURN_DEP_KEYS];
+
+/** Everything a turn supplies, for the adapter tests that build the whole registry. */
+const TURN_DEPS = {
+  proposalBuffer: newProposalBuffer(),
+  pageBuffer: newPageBuffer(),
+  playbooks: { discover: async () => [] },
+  savedDays: { readable: async () => null },
+  placeSearch: { search: async () => [] },
+  placeCache: newPlaceCache(),
+};
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
 function insertWidgetNameOptions(): readonly string[] | undefined {
@@ -44,6 +63,7 @@ describe("the registry", () => {
     expect(names.sort()).toEqual(
       [
         ...READ_TOOLS.map((t) => t.name),
+        ...PLACE_TOOLS.map((t) => t.name),
         ...PLANNING_TOOLS.map((t) => t.name),
         insertPlaybookDayTool.name,
         ...PAGE_TOOLS.map((t) => t.name),
@@ -93,6 +113,12 @@ describe("the AI SDK adapter", () => {
   it("refuses to build a tool whose declared collector the turn did not supply", () => {
     expect(() => aiToolsFor(PLANNING_TOOLS, {})).toThrow(/proposalBuffer/);
     expect(() => aiToolsFor(PAGE_TOOLS, {})).toThrow(/pageBuffer/);
+    // The same rule over M9's grounding pair: `search_places` cannot be built
+    // without the port it spends through OR the cache that numbers what it
+    // found, and a turn that minted one and forgot the other is the wiring
+    // mistake this check is for.
+    expect(() => aiToolsFor(PLACE_TOOLS, {})).toThrow(/placeSearch/);
+    expect(() => aiToolsFor(PLACE_TOOLS, { placeSearch: { search: async () => [] } })).toThrow(/placeCache/);
   });
 
   // Identity arrives on the context channel and nowhere else (ADR-022 §3), so
@@ -100,12 +126,7 @@ describe("the AI SDK adapter", () => {
   // that declares none must not, or the turn would have to supply a context
   // for a tool that reads nothing from it.
   it("attaches the context channel to exactly the tools that need it", () => {
-    const built = aiToolsFor(ASSISTANT_TOOLS, {
-      proposalBuffer: newProposalBuffer(),
-      pageBuffer: newPageBuffer(),
-      playbooks: { discover: async () => [] },
-      savedDays: { readable: async () => null },
-    });
+    const built = aiToolsFor(ASSISTANT_TOOLS, TURN_DEPS);
     for (const definition of ASSISTANT_TOOLS) {
       const wantsContext = definition.needs.some((key) => key === "trip" || key === "actor" || key === "scope");
       const attached = (built[definition.name] as { contextSchema?: unknown }).contextSchema !== undefined;

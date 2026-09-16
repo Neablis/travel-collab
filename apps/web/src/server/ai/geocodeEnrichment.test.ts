@@ -731,3 +731,221 @@ describe("hasUnverifiedLocations", () => {
     expect(hasUnverifiedLocations(emptyReport())).toBe(false);
   });
 });
+
+// **KI-93 — every vendor call goes through the quota**, and the half of it that
+// lives here.
+//
+// `geocodeQuota()` had exactly one caller for months: the `/api/geocode` proxy,
+// which a person drives one button press at a time and which is capped at 300
+// lookups a day. This function is the other end of the same key and can emit
+// fifteen lookups per approval, and it consulted nothing — so the endpoint a
+// user drives one press at a time was capped, and the one that emits dozens per
+// call was capped at nothing.
+//
+// The charge is an injected port, so these tests need no database. That the
+// real one is `consumeQuota(geocodeQuota(), actorId)` is asserted in
+// `writeTools.test.ts`, at the call site that binds it.
+describe("the geocode quota (KI-93)", () => {
+  const noSleep = async () => {};
+
+  /** A charge that allows `budget` lookups and then refuses, counting calls. */
+  function budgetOf(budget: number) {
+    let spent = 0;
+    const charge = vi.fn(async () => spent++ < budget);
+    return { charge, spent: () => spent };
+  }
+
+  it("charges once per lookup the batch actually makes", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      Alpha: [{ canonicalName: "Alpha", ...NIAGARA }],
+      Beta: [{ canonicalName: "Beta", ...NIAGARA }],
+    });
+    const { charge } = budgetOf(10);
+    await enrichCommandLocations(
+      [addActivity("a", { name: "Alpha" }), addActivity("b", { name: "Beta" })],
+      () => geocoder,
+      null,
+      noSleep,
+      charge,
+    );
+    expect(calls).toEqual(["Alpha", "Beta"]);
+    expect(charge).toHaveBeenCalledTimes(2);
+  });
+
+  // **The mid-batch decision, taken on KI-93's own argument**: enrichment is
+  // explicitly best-effort and never fails the request, so a daily ceiling must
+  // not become an outage on a path that already degrades gracefully. The names
+  // past the ceiling are reported `skipped` — exactly as the names past
+  // `MAX_LOOKUPS_PER_BATCH` already are — and the batch commits with those
+  // stops unpinned.
+  it("stops looking up at the ceiling, reports the rest skipped, and still commits", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      Alpha: [{ canonicalName: "Alpha, NY", ...NIAGARA }],
+      Beta: [{ canonicalName: "Beta", ...NIAGARA }],
+    });
+    const { charge } = budgetOf(1);
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("a", { name: "Alpha" }), addActivity("b", { name: "Beta" })],
+      () => geocoder,
+      null,
+      noSleep,
+      charge,
+    );
+    expect(calls).toEqual(["Alpha"]);
+    expect(report.skipped).toEqual(["Beta"]);
+    // Both commands survive: the first refined, the second keeping exactly what
+    // it arrived with. A ceiling costs a stop its pin, never the stop.
+    expect(commands).toHaveLength(2);
+    expect((commands[1] as { location: Location }).location).toEqual({ name: "Beta" });
+  });
+
+  // `consumeQuota` BUMPS a counter before it compares, so asking again after a
+  // refusal would inflate the user's own daily count with lookups that never
+  // happened and push their next window's first request further from the truth.
+  it("stops charging at the first refusal", async () => {
+    const { geocoder } = fakeGeocoder({});
+    const { charge } = budgetOf(0);
+    await enrichCommandLocations(
+      [addActivity("a", { name: "Alpha" }), addActivity("b", { name: "Beta" }), addActivity("c", { name: "Gamma" })],
+      () => geocoder,
+      null,
+      noSleep,
+      charge,
+    );
+    expect(charge).toHaveBeenCalledTimes(1);
+  });
+
+  // `getGeocoder()` throws without LOCATIONIQ_API_KEY. A batch the quota refused
+  // outright has nothing to look up, so it must not turn a daily ceiling into a
+  // 500 by constructing a vendor it will never call.
+  it("never constructs a geocoder when the quota refuses everything", async () => {
+    const getGeocoder = vi.fn(() => {
+      throw new Error("must not construct");
+    });
+    const { report } = await enrichCommandLocations(
+      [addActivity("a", { name: "Alpha" })],
+      getGeocoder,
+      null,
+      noSleep,
+      async () => false,
+    );
+    expect(getGeocoder).not.toHaveBeenCalled();
+    expect(report.skipped).toEqual(["Alpha"]);
+  });
+
+  // The city fallback is the COMMON path (KI-2026-08-30-f — our OSM-derived
+  // geocoder structurally cannot corroborate a small venue), so metering only
+  // the venue pass would leave the busier half of this function's vendor
+  // traffic uncounted.
+  it("charges the city fallback too", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      "Makgeolli alley": [],
+      "Jeonju-si, KR": [{ canonicalName: "Jeonju-si", lat: 35.82, lng: 127.14 }],
+    });
+    const { charge } = budgetOf(10);
+    await enrichCommandLocations(
+      [addActivity("drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" })],
+      () => geocoder,
+      null,
+      noSleep,
+      charge,
+    );
+    // One venue lookup, one city lookup, two charges.
+    expect(calls).toEqual(["Makgeolli alley", "Jeonju-si, KR"]);
+    expect(charge).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not run the city fallback once the ceiling is reached", async () => {
+    const { geocoder, calls } = fakeGeocoder({
+      "Makgeolli alley": [],
+      "Jeonju-si, KR": [{ canonicalName: "Jeonju-si", lat: 35.82, lng: 127.14 }],
+    });
+    const { charge } = budgetOf(1);
+    await enrichCommandLocations(
+      [addActivity("drinks", { name: "Makgeolli alley", city: "Jeonju-si", countryCode: "KR" })],
+      () => geocoder,
+      null,
+      noSleep,
+      charge,
+    );
+    expect(calls).toEqual(["Makgeolli alley"]);
+  });
+
+  // The default. Every caller that predates KI-93 gets it, which is what made
+  // the parameter additive — and the name says what it IS, so a call site that
+  // forgot to bind a real charge reads as a claim a reviewer can disagree with.
+  it("is unmetered when no charge is supplied", async () => {
+    const { geocoder, calls } = fakeGeocoder({ Alpha: [{ canonicalName: "Alpha", ...NIAGARA }] });
+    await enrichCommandLocations([addActivity("a", { name: "Alpha" })], () => geocoder, null, noSleep);
+    expect(calls).toEqual(["Alpha"]);
+  });
+});
+
+// **KI-15's demotion, made structural** (M9 grounding).
+//
+// Blind post-hoc enrichment can only confirm or corrupt a decision already
+// made — on the 2026-08-02 Rochester run it corrupted a correct answer and
+// silently dropped seven others. Grounding replaces it for places the model
+// chose; what is left for enrichment is a location a PERSON typed. The signal
+// is `precision`, which is server-written by construction:
+// `withoutClaimedPrecision` (inside `groundCitedPlaces`) strips whatever a
+// model claimed, so the field beside real coordinates means "the server
+// resolved this".
+describe("a stop the server already located", () => {
+  const noSleep = async () => {};
+  const GROUNDED: Location = {
+    name: "Niagara Falls State Park, Niagara Falls, NY, USA",
+    ...NIAGARA,
+    city: "Niagara Falls",
+    countryCode: "US",
+    precision: "venue",
+  };
+
+  it("is never looked up again, and is reported verified", async () => {
+    const { geocoder, calls } = fakeGeocoder({});
+    const { commands, report } = await enrichCommandLocations(
+      [addActivity("the falls", GROUNDED)],
+      () => geocoder,
+      null,
+      noSleep,
+    );
+    expect(calls).toEqual([]);
+    expect(report.verified).toEqual([GROUNDED.name]);
+    expect((commands[0] as { location: Location }).location).toEqual(GROUNDED);
+  });
+
+  it("costs no geocode quota, because it makes no lookup", async () => {
+    const { geocoder } = fakeGeocoder({});
+    const charge = vi.fn(async () => true);
+    await enrichCommandLocations([addActivity("the falls", GROUNDED)], () => geocoder, null, noSleep, charge);
+    expect(charge).not.toHaveBeenCalled();
+  });
+
+  // Mixed batches are the normal case — the assistant cites the places it
+  // searched and the user's own typed stop rides along beside them.
+  it("does not stop the batch's other, unlocated stops being enriched", async () => {
+    const { geocoder, calls } = fakeGeocoder({ "A gelateria": [{ canonicalName: "Gelateria, Rome", lat: 41.9, lng: 12.48 }] });
+    const { report } = await enrichCommandLocations(
+      [addActivity("the falls", GROUNDED), addActivity("pudding", { name: "A gelateria" })],
+      () => geocoder,
+      null,
+      noSleep,
+    );
+    expect(calls).toEqual(["A gelateria"]);
+    expect(report.verified).toContain(GROUNDED.name);
+  });
+
+  // Defence in depth over a shape the contract's own refinement already makes
+  // unparseable (`precision` requires coordinates). What fails safe is a
+  // redundant lookup, never a stop pinned nowhere.
+  it("is not treated as located when the coordinates are not plausible", async () => {
+    const { geocoder, calls } = fakeGeocoder({ Nowhere: [] });
+    await enrichCommandLocations(
+      [addActivity("x", { name: "Nowhere", lat: 0, lng: 0, precision: "venue" } as Location)],
+      () => geocoder,
+      null,
+      noSleep,
+    );
+    expect(calls).toEqual(["Nowhere"]);
+  });
+});

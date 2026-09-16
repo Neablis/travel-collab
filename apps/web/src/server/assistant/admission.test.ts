@@ -305,8 +305,11 @@ describe("the ai.grant record", () => {
     expect(record.outcome).toBe("granted");
     expect(record.userId).toBe(EDITOR);
     expect(record.surface).toBe("trip");
-    // The (domain, effect) pairs, not a boolean and not a set name.
-    expect(record.grants).toEqual({ itinerary: "propose", library: "propose" });
+    // The (domain, effect) pairs, not a boolean and not a set name. `places` is
+    // capped at `read` by the surface table and can never be anything else —
+    // there is no `places` tool that proposes — so an editor's turn and a
+    // viewer's carry the same value in that slot.
+    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read" });
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
     expect(record.tools).not.toContain("insert_widget");
@@ -330,7 +333,7 @@ describe("the ai.grant record", () => {
     });
     await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 
-    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read" });
+    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read" });
     expect(records[0]!.tools).not.toContain("AddActivity");
     // **A viewer's unclassified turn is a `question`, not an absence.** No model
     // was asked — there was no write half to withhold — and a turn holding only

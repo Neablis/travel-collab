@@ -61,8 +61,9 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
-import { playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
-import { newPageBuffer, newProposalBuffer } from "@/server/assistant/deps";
+import { placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
+import { newPageBuffer, newPlaceCache, newProposalBuffer } from "@/server/assistant/deps";
+import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
   renderPrompt,
@@ -198,6 +199,12 @@ export async function handleAskRequest(
   const proposesPage = grant.grants.pages === "propose";
   const proposalBuffer = newProposalBuffer();
   const pageBuffer = newPageBuffer();
+  // **This turn's numbered search results, and the reason a `placeRef` means
+  // anything** (M9 grounding). Minted per turn beside the two collectors and
+  // never shared: a ref that outlived its turn would resolve to a place from a
+  // different question. Read below by `buildProposal`, which turns each
+  // citation into the location that actually commits.
+  const placeCache = newPlaceCache();
 
   // The turn's meter: one object, handed to the tool set that fills it and to
   // the recorder that reads it. It is minted here rather than inside either,
@@ -212,6 +219,8 @@ export async function handleAskRequest(
       pageBuffer,
       playbooks: playbookLibrary,
       savedDays: savedDayLibrary,
+      placeSearch: placeSearchPort,
+      placeCache,
     },
     meter,
   );
@@ -441,7 +450,9 @@ export async function handleAskRequest(
     onEnd: async (end) => {
       recorder.finish(
         end,
-        proposesPlan ? droppedWriteCalls(proposalBuffer.collected(), detail, { tripId, actorId: userId }) : [],
+        proposesPlan
+          ? droppedWriteCalls(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache })
+          : [],
       );
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
@@ -535,7 +546,7 @@ export async function handleAskRequest(
         const proposal = buildProposal(
           proposalBuffer.collected(),
           detail,
-          { tripId, actorId: userId },
+          { tripId, actorId: userId, placeCache },
           proposalBuffer.inserts(),
         );
         return proposal === null ? undefined : { proposal };
@@ -905,6 +916,19 @@ export function instructionBlocks(
     "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
     `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
     "Call find_free_time for open time — never work gaps out yourself from read_day's times.",
+    // **M9's grounding, as the one sentence that makes the tool worth having.**
+    // The 2026-08-02 dogfood run produced a restaurant with no address, a
+    // restaurant that may not exist and a dinner persisted in Shropshire,
+    // because the model was asked to FIND places while unable to LOOK ANYTHING
+    // UP — so "find restaurants near the falls" was answered from parametric
+    // memory and was unverifiable by construction.
+    //
+    // The cost warning is not padding: the milestone says step count is the
+    // cost driver and that search-then-act should read 2-3 steps, not 18. A
+    // model that calls this once per place is the failure mode that turns one
+    // cheap turn into an expensive one, and the tool's own description says the
+    // same thing — twice, deliberately.
+    `Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`,
     ...(canWrite
       ? [
           "Read before you propose. A change that names a day or a stop you have not read is a guess.",
@@ -916,6 +940,17 @@ export function instructionBlocks(
           // "nobody knows yet". `cost` is optional in the contract precisely so
           // this can be left out.
           "NEVER invent a price. `cost` is optional: if you do not know what something costs, leave `cost` out entirely. A cost of 0 means free — writing 0 for something whose price you do not know is a wrong number, not a blank.",
+          // **The citation rule** — the same shape as the `savedDayId` rule two
+          // lines below, and for the same reason: the server resolves what the
+          // model cites, so a number it did not read resolves to nothing.
+          //
+          // It is worded as craft rather than as a safety property, like those
+          // two, because it IS craft here: `groundCitedPlaces` refuses an
+          // uncited coordinate whatever the prompt says, so ignoring this line
+          // costs the user a pinned stop and cannot cost them a wrong one. What
+          // the line buys is that the model searches BEFORE it decides, which
+          // is the half no server-side check can add after the fact.
+          "When a stop names a real place, call search_places first and put the candidate's number on the stop as `placeRef`. Do NOT write coordinates yourself — cite the number and the server fills in the place. A stop with no placeRef is one nobody has checked exists, which is fine for something vague (\"lunch somewhere near the station\") and wrong for something named.",
           // Neither line is a safety property — the card is still the only door
           // (ADR-042's Context) — so they are worded as craft, not as a rule
           // the model could break something by ignoring. The first stops it

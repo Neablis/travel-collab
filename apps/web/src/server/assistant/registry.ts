@@ -41,6 +41,7 @@ import { READ_TOOLS } from "./tools/read";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 import { PAGE_TOOLS } from "./tools/page";
+import { PLACE_TOOLS } from "./tools/places";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -49,6 +50,11 @@ import { PAGE_TOOLS } from "./tools/page";
  */
 export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...READ_TOOLS,
+  // Before the planning tools, and the order is the one thing about this array
+  // that is not arbitrary: `Object.keys(aiToolsFor(...))` is the offered set in
+  // registry order, which is the order the model reads them in. `search_places`
+  // has to be read before the tools whose `placeRef` cites it.
+  ...PLACE_TOOLS,
   ...PLANNING_TOOLS,
   insertPlaybookDayTool,
   ...PAGE_TOOLS,
