@@ -83,7 +83,7 @@ import {
   parseRequest,
 } from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
-import { SIMULATED_HEADER, type AskStreamMetadata, type Page } from "@tc/contracts";
+import { SIMULATED_HEADER, type AskStreamMetadata, type Page, type TripDetail } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
@@ -419,7 +419,14 @@ export async function handleAskRequest(
     // tools the model was actually handed AND stay true about what the user
     // may do. An editor whose turn classified as a question is told the turn
     // is retryable; a viewer is told what is actually true of them.
-    instructions: instructionsFor(scope, detail.days.length, grant.posture, briefFor(page), grant.classWithheld),
+    instructions: instructionsFor(
+      scope,
+      detail.days.length,
+      grant.posture,
+      briefFor(page),
+      grant.classWithheld,
+      standingOf(detail),
+    ),
     tools,
     // Keyed by tool name, and DERIVED from the same definitions: every tool
     // that declared an ambient dep gets the context, and nothing else does.
@@ -844,8 +851,70 @@ export function instructionsFor(
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
   classWithheld = false,
+  standing: TripStanding = FULLY_PLANNED,
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing));
+}
+
+/**
+ * **Two facts about the trip that decide whether a planning turn is allowed to
+ * finish the job — KI-12.**
+ *
+ * The gate box is *"the AI cannot leave a trip half-planned"*: "plan me a trip"
+ * has to name the trip and set its dates as part of the same approved batch,
+ * because a headline flow that cannot finish the job it advertises is not one
+ * anybody can trust.
+ *
+ * **The entry's own diagnosis is stale and its symptom is live.** It says
+ * *"there is no `SetTripName` command anywhere in the contract"*; there is, and
+ * `SetTripDates` beside it, and both are derived into tools. What stops a
+ * planning turn using them is two things that arrived afterwards: P5's
+ * `TASK_CLASSES_FOR` cut, which removed `SetTripName` from the `plan` class and
+ * whose own comment predicts exactly this dead end, and the fact that nothing
+ * ever told the model to name or date a trip that has neither.
+ *
+ * **These two booleans are what the server can honestly know**, and the second
+ * is the one that needed thought. The KI names the product question directly —
+ * *"it's worth deciding first whether an AI should silently rename a trip the
+ * user already named"* — and the answer here is that it must not, so the rule
+ * has to be conditioned on something. There is no "default name" constant to
+ * compare against: a trip's name is whatever the person typed into the wizard,
+ * and `"New TRip"` (the entry's own example) is indistinguishable from a
+ * considered one.
+ *
+ * So the condition is **emptiness, not the name**: a trip with no stops
+ * anywhere — no activities on any day, none in the backlog — is one nobody has
+ * invested anything in yet, and naming it is the flow finishing what it
+ * advertised. The moment there is a single stop, the name is somebody's and the
+ * assistant leaves it alone unless it was asked. That is a fact about the
+ * document rather than a guess about intent, which is what makes it safe to
+ * put in a rule.
+ *
+ * `dated` needs no such care: `startDate === null` means the trip has no dates,
+ * full stop.
+ */
+export interface TripStanding {
+  /** Any stop at all, on a day or in the backlog. */
+  planned: boolean;
+  /** `startDate !== null`. */
+  dated: boolean;
+}
+
+/**
+ * The standing that changes nothing — a trip with stops and dates, which is
+ * every trip an existing test was written against.
+ *
+ * Defaulted so the parameter is additive: a caller that does not pass one is
+ * told byte-identically what it was told before KI-12.
+ */
+const FULLY_PLANNED: TripStanding = { planned: true, dated: true };
+
+/** The two facts, read off the trip the guard already parsed. */
+export function standingOf(detail: TripDetail): TripStanding {
+  return {
+    planned: Object.keys(detail.activities).length > 0,
+    dated: detail.startDate !== null,
+  };
 }
 
 /**
@@ -869,6 +938,7 @@ export function instructionBlocks(
   posture: AskToolPosture = "read-only",
   page: PageBrief | null = null,
   classWithheld = false,
+  standing: TripStanding = FULLY_PLANNED,
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -957,6 +1027,31 @@ export function instructionBlocks(
           // guessing a savedDayId; the second keeps the card to one decision.
           "To add a ready-made day from the playbook library, call search_playbooks FIRST and then insert_playbook_day with a savedDayId it returned. Never write a savedDayId yourself.",
           "Propose at most ONE playbook day per turn, so the user has one thing to say yes to.",
+          // **KI-12 — the AI cannot leave a trip half-planned.** See
+          // `TripStanding` for why the condition is emptiness rather than the
+          // name, and for why there is a condition at all.
+          //
+          // Both halves are conditional and independent: a trip can have stops
+          // and no dates (set the dates, leave the name), or neither (do both).
+          // A trip that has both gets neither sentence and is told exactly what
+          // it was told before this existed.
+          //
+          // **The dates half deliberately does not invent a departure.** The
+          // entry's own note is that *"7 days starting when?" has no answer
+          // without asking the user*; a model that picks one is the fabrication
+          // this milestone exists to stop. "Set the dates the request implies"
+          // covers "six days from March 3" and covers nothing else, and the
+          // remaining case is a question the model should ask.
+          ...(!standing.dated
+            ? [
+                "This trip has NO DATES. If the request implies when it happens (\"six days from March 3\", \"the first week of May\"), call SetTripDates in the SAME batch as the rest of the plan. If it does not, ask them when it starts rather than choosing a date yourself — never invent a departure date.",
+              ]
+            : []),
+          ...(!standing.planned
+            ? [
+                "This trip is EMPTY — nothing has been added to it yet — so if you are planning it, name it too: call SetTripName in the same batch, with a short name for the trip they described. A plan that leaves the trip unnamed has not finished the job.",
+              ]
+            : []),
         ]
       : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,

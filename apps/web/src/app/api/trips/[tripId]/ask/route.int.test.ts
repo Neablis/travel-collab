@@ -12,6 +12,7 @@ import { simulatedModel } from "@/server/ai/simulatedModel";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { askScopeLine, parseAskScope } from "@/server/ai/context";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
+import { tripDetailFactory } from "@tc/factories";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
 
 const ACTOR_ID = "ask-owner";
@@ -67,6 +68,7 @@ const {
   PAGE_NOT_ON_TRIP_CODE,
   instructionBlocks,
   instructionsFor,
+  standingOf,
   MAX_ASK_STEPS,
 } = await import("@/server/ai/handleAskRequest");
 const { SIMULATED_HEADER } = await import("@tc/contracts");
@@ -88,12 +90,16 @@ const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
 const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
 
-// A `plan` turn is offered four fewer than the full derived set — the trip
+// A `plan` turn is offered three fewer than the full derived set — the trip
 // settings and conflict dismissal a "fill out my days" request has no business
 // calling (`TASK_CLASSES_FOR`, tools/planning.ts). **Spelled out here rather
 // than imported from that map**, so changing the policy breaks this test
 // instead of silently agreeing with it.
-const WITHHELD_FROM_PLAN = ["SetTripName", "SetTripCurrency", "SetTripBudget", "DismissConflict"];
+//
+// `SetTripName` was the fourth until M9's KI-12, which is a gate box: a
+// planning turn that cannot name the trip it just planned is the headline flow
+// failing to finish the job it advertises.
+const WITHHELD_FROM_PLAN = ["SetTripCurrency", "SetTripBudget", "DismissConflict"];
 const PLAN_TURN_TOOL_NAMES = PLANNING_TOOL_NAMES.filter((n) => !WITHHELD_FROM_PLAN.includes(n));
 const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 /** The propose half of a planning turn — what a page turn must not hold. */
@@ -469,7 +475,17 @@ describe("POST /api/trips/:id/ask", () => {
     // branch inside the handler.
     it("keeps the page and planning tool sets disjoint", () => {
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("AddActivity");
-      expect(PAGE_TURN_TOOL_NAMES).toEqual([...READ_TOOL_NAMES, "insert_text", "insert_widget"]);
+      // `READ_TOOL_NAMES` is a read-capped TRIP turn, which since M9's
+      // grounding includes `search_places`; a page turn has no `places` row at
+      // all, deliberately — it holds nothing that could cite a candidate, so a
+      // place search there would be the operator's money spent on a number
+      // nothing can use.
+      expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
+      expect(PAGE_TURN_TOOL_NAMES).toEqual([
+        ...READ_TOOL_NAMES.filter((name) => name !== "search_places"),
+        "insert_text",
+        "insert_widget",
+      ]);
       expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
       for (const name of WRITE_ONLY_NAMES) {
         expect(PAGE_TURN_TOOL_NAMES, `a page turn must not hold ${name}`).not.toContain(name);
@@ -765,6 +781,95 @@ describe("POST /api/trips/:id/ask", () => {
       expect(withheld).not.toContain("PROPOSE changes");
       expect(instructionsFor({ kind: "trip" }, 3, "propose")).toContain("PROPOSE changes to it");
       expect(instructionsFor({ kind: "trip" }, 3)).toContain("You can READ this trip and nothing else");
+    });
+
+    // **KI-12 — "the AI cannot leave a trip half-planned."** A gate box, and
+    // the headline flow finishing the job it advertises.
+    //
+    // Two conditional rules over two server-computed facts, and the conditions
+    // are the whole substance: the entry names the product question directly
+    // ("whether an AI should silently rename a trip the user already named"),
+    // and unconditional rules would answer it wrong.
+    it("tells a plan turn to name and date a trip that has neither", () => {
+      const fresh = instructionsFor({ kind: "trip" }, 3, "propose", null, false, {
+        planned: false,
+        dated: false,
+      });
+      expect(fresh).toContain("SetTripDates");
+      expect(fresh).toContain("SetTripName");
+      // It must not choose a departure date. The entry's own note is that
+      // "7 days starting when?" has no answer without asking the user, and a
+      // model that picks one is the fabrication this milestone exists to stop.
+      expect(fresh).toContain("never invent a departure date");
+    });
+
+    // The name is somebody's the moment there is a stop in the trip. There is
+    // no "default name" to compare against — `"New TRip"`, the entry's own
+    // example, is a string a person typed — so emptiness is the condition, and
+    // it is a fact about the document rather than a guess about intent.
+    it("never tells it to rename a trip that already has stops in it", () => {
+      const started = instructionsFor({ kind: "trip" }, 3, "propose", null, false, {
+        planned: true,
+        dated: false,
+      });
+      expect(started).not.toContain("SetTripName");
+      // The dates half is independent and still fires: a trip can have stops
+      // and no dates.
+      expect(started).toContain("SetTripDates");
+    });
+
+    // A trip with both gets neither sentence, and is told byte-identically what
+    // it was told before KI-12 — which is what makes the parameter additive.
+    it("says nothing about naming or dating a trip that has both", () => {
+      const complete = instructionsFor({ kind: "trip" }, 3, "propose", null, false, {
+        planned: true,
+        dated: true,
+      });
+      expect(complete).not.toContain("SetTripName");
+      expect(complete).not.toContain("SetTripDates");
+      expect(complete).toBe(instructionsFor({ kind: "trip" }, 3, "propose"));
+    });
+
+    // Both rules live in the `canWrite` branch, because a turn holding no write
+    // tool cannot act on either — and naming a tool a turn was not handed is the
+    // exact defect the page-branch test below was written for.
+    it("says nothing about either to a turn that cannot write", () => {
+      for (const posture of ["withheld", "read-only"] as const) {
+        const blocked = instructionsFor({ kind: "trip" }, 3, posture, null, false, {
+          planned: false,
+          dated: false,
+        });
+        expect(blocked).not.toContain("SetTripName");
+        expect(blocked).not.toContain("SetTripDates");
+      }
+    });
+
+    // The two facts, read off the trip the guard already parsed. `planned`
+    // counts every stop, including ones in the backlog — a trip somebody has
+    // put a stop into is one they are invested in, wherever it sits.
+    it("reads both facts off the trip", () => {
+      const empty = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 2, activitiesPerDay: 0 } });
+      expect(standingOf(empty)).toEqual({ planned: false, dated: false });
+
+      const dated = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 0, startDate: "2027-06-01" } });
+      expect(standingOf(dated)).toEqual({ planned: false, dated: true });
+
+      const started = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 2, activitiesPerDay: 1 } });
+      expect(standingOf(started)).toEqual({ planned: true, dated: false });
+    });
+
+    // **The other half of KI-12, and the half no prompt can supply.** Being
+    // told to name the trip is worth nothing if the turn was not handed the
+    // tool — which is exactly where this sat until now: P5's `TASK_CLASSES_FOR`
+    // removed `SetTripName` from the `plan` class, and its own comment
+    // predicted this dead end and named the remedy.
+    it("offers a plan turn the rename tool it is now told to use", () => {
+      const planning = toolsFor(
+        grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" }),
+        "plan",
+      ).map((tool) => tool.name);
+      expect(planning).toContain("SetTripName");
+      expect(planning).toContain("SetTripDates");
     });
 
     // **The page branch's actual text, because it went stale unnoticed.** It
@@ -1839,8 +1944,14 @@ describe("POST /api/trips/:id/ask", () => {
       // classified as a question, which is what the twelve entries that used to
       // be on this line cost in schema tokens every step. `search_playbooks`
       // joins the list for the same reason `read_day` is on it — a trip-wide
-      // question has no reason to reach the library (ADR-042).
-      expect(record.uncalledTools).toEqual(["read_day", "search_playbooks"]);
+      // question has no reason to reach the library (ADR-042). `search_places`
+      // joins it for a third reason, and one worth naming because it will
+      // change: the SIMULATED model never calls it. A question about a trip
+      // that already exists genuinely needs no gazetteer, so this is the right
+      // answer today — but it is also the number to watch once `ai-live` is
+      // flipped, because a real model calling `search_places` on a question is
+      // spend with nothing to buy.
+      expect(record.uncalledTools).toEqual(["read_day", "search_playbooks", "search_places"]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
@@ -1856,8 +1967,10 @@ describe("POST /api/trips/:id/ask", () => {
       expect(records[0]!.scope).toEqual({ kind: "day", dayIndex: 1 });
       // Every trip read tool used, and no write tool offered to go uncalled —
       // the day-scoped question is the shape this endpoint answers most. The
-      // library is the one thing a question about a day never needs.
-      expect(records[0]!.uncalledTools).toEqual(["search_playbooks"]);
+      // library and the gazetteer are the two things a question about a day
+      // never needs — one because the corpus is outside the trip (ADR-042), the
+      // other because the day's stops are already placed.
+      expect(records[0]!.uncalledTools).toEqual(["search_playbooks", "search_places"]);
     });
   });
 });

@@ -249,7 +249,12 @@ describe("the posture is derived, not passed in", () => {
 // proposed nothing. `domain` and `effect` cannot express this: every planning
 // command is `itinerary`/`propose` because they are derived from one union.
 describe("a task class narrows the tool set, and only ever subtracts", () => {
-  const WITHHELD_FROM_PLAN = ["SetTripName", "SetTripCurrency", "SetTripBudget", "DismissConflict"];
+  // Three, not four. `SetTripName` was the fourth until M9's KI-12: *"the AI
+  // cannot leave a trip half-planned"* is a gate box, and a planning turn that
+  // cannot name the trip it just planned is the headline flow failing to finish
+  // the job it advertises. `TASK_CLASSES_FOR`'s own comment predicted both the
+  // dead end and the remedy — one deleted entry — and this is it.
+  const WITHHELD_FROM_PLAN = ["SetTripCurrency", "SetTripBudget", "DismissConflict"];
   const editorTrip: EffectCaps = { ...EDITOR, surface: "trip" };
   const unnarrowed = toolsFor(grantFor(editorTrip)).map((t) => t.name);
 
@@ -258,12 +263,17 @@ describe("a task class narrows the tool set, and only ever subtracts", () => {
     expect(toolsFor(grantFor(editorTrip), undefined).map((t) => t.name)).toEqual(unnarrowed);
   });
 
-  it("withholds the four trip-settings commands from a plan turn and keeps the rest", () => {
+  it("withholds the three trip-settings commands from a plan turn and keeps the rest", () => {
     const planning = toolsFor(grantFor(editorTrip), "plan").map((t) => t.name);
     for (const name of WITHHELD_FROM_PLAN) expect(planning).not.toContain(name);
     // The ones a plan genuinely needs, including BOTH date commands — "plan me
-    // six days from March 3" is a planning turn that has to set dates.
-    for (const name of ["AddDay", "AddActivity", "SetTripDates", "SetTripStartDate", "insert_playbook_day"]) {
+    // six days from March 3" is a planning turn that has to set dates — and,
+    // since KI-12, `SetTripName`, so "plan me a trip" can produce a complete
+    // one. Being OFFERED the tool is not being told to use it: the instruction
+    // that does that is conditioned on the trip being empty
+    // (`handleAskRequest.ts`'s `TripStanding`), which is what keeps the
+    // assistant from renaming a trip somebody already named.
+    for (const name of ["AddDay", "AddActivity", "SetTripDates", "SetTripStartDate", "SetTripName", "insert_playbook_day"]) {
       expect(planning).toContain(name);
     }
     expect(planning).toEqual(expect.arrayContaining(READ_TOOLS));
