@@ -36,7 +36,22 @@ import {
 export type NewTripWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  createTrip: (input: { name: string }) => Promise<ApiResult<{ tripId: string }>>;
+  /**
+   * **`tripId` is sent, and an implementation that ignores it silently gives up
+   * KI-2026-09-12-e's guarantee.** The wizard mints the id so a retry after a
+   * lost response is the same command rather than a second trip.
+   *
+   * Declaring it here is documentation, not enforcement: structural typing
+   * accepts a narrower `(input: { name: string }) => …` by contravariance, so
+   * the compiler cannot make a caller read the property. This type said
+   * `{ name: string }` for a while after the id started being sent, which is
+   * exactly the gap worth closing — an implementer had no way to know.
+   *
+   * What actually holds the guarantee is a test, not a type: page.test.tsx's
+   * "creates a first trip from a name alone" asserts the real request body
+   * carries a uuid, through the real `createTrip` and a mocked `fetch`.
+   */
+  createTrip: (input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>;
   // Awaited, not fire-and-forget (CodeRabbit, PR #32): the setup sequence waits
   // for each dispatched command to confirm — or report a real failure — before
   // navigating, rather than racing an in-flight SetTripDates against the trip
