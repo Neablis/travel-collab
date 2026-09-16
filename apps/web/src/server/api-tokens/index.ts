@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import {
   API_TOKEN_DEFAULT_LIFETIME_DAYS,
@@ -70,18 +70,70 @@ export type MintResult =
   | { ok: false; reason: "not-entitled" }
   | { ok: false; reason: "invalid-lifetime"; maxDays: number };
 
+/** The pepper is missing, so no token can be minted or verified. */
+export class ApiTokenPepperMissingError extends Error {
+  constructor() {
+    super(
+      "API_TOKEN_PEPPER is not set. API tokens are keyed with it, so without it " +
+        "no token can be minted or verified. Generate one with " +
+        "`openssl rand -base64 32` and set it wherever this app runs. " +
+        "Changing it invalidates every existing token, by design.",
+    );
+    this.name = "ApiTokenPepperMissingError";
+  }
+}
+
 /**
- * `sha256(secret)`, hex.
+ * The server-side key every token digest is taken under.
  *
- * **Not bcrypt or argon2, and that is a decision rather than an omission.** The
- * secret is 256 bits of CSPRNG output, so there is no low-entropy space for a
- * slow KDF to defend — it would buy nothing and cost real latency on every
- * single API request. The threat a KDF answers (a guessable secret) does not
- * exist here; the threat that does (a stolen database) is answered by not
- * storing the secret at all.
+ * **Read per call rather than captured at module load**, so a test can set it
+ * and so a missing value fails the request that needed it rather than the import
+ * of anything that transitively touches this module.
+ */
+function pepper(): string {
+  const value = process.env.API_TOKEN_PEPPER ?? "";
+  // **Fails closed and loudly.** An empty pepper would still produce a stable
+  // digest, so tokens would keep working while the property this key exists for
+  // silently did not hold — the worst possible failure mode for a credential
+  // store, because nothing errors.
+  if (value === "") throw new ApiTokenPepperMissingError();
+  return value;
+}
+
+/**
+ * `HMAC-SHA256(pepper, secret)`, hex — a **keyed** digest, not a bare hash.
+ *
+ * **Why not bcrypt, argon2 or scrypt**, and this is a decision rather than an
+ * omission. A slow KDF exists to make *guessing* expensive, and it is the right
+ * answer for a human-chosen password drawn from a small, skewed space. This
+ * secret is 32 bytes of `randomBytes` — there is no space to guess through, so a
+ * KDF defends against nothing here and charges ~100ms of CPU on **every single
+ * API request** to do it. For an endpoint a customer's integration calls on a
+ * schedule, that is a real cost bought with no benefit. GitHub, Stripe and AWS
+ * all store high-entropy API credentials this way for the same reason.
+ *
+ * **What the key buys, which a bare `sha256` did not.** A bare digest is
+ * reproducible by anyone holding the database: leak a backup and every row can
+ * be checked against a guess, and — far worse — anyone who learns a token's
+ * plaintext through any other channel can confirm which row it is. Keyed, the
+ * digest cannot be computed without `API_TOKEN_PEPPER`, which does not live in
+ * Postgres. **A stolen database is no longer enough to verify a token.** That is
+ * a property worth having and it costs nothing measurable.
+ *
+ * **Rotating the pepper invalidates every token**, deliberately and with no
+ * migration path. That is the correct blast radius for a key compromise, and it
+ * is why it has its own variable rather than borrowing `AUTH_SECRET` — rotating
+ * sessions and rotating API credentials are different emergencies.
+ *
+ * **On the CodeQL finding** (`js/insufficient-password-hash`, alert 5): it fires
+ * on `sha256` reached by anything it has typed as a password, and it does not
+ * model entropy. The bare-hash form it flagged is genuinely gone; what replaces
+ * it is keyed. If the alert persists against `createHmac`, it is a false
+ * positive on this input and the reasoning above is the record of why — not a
+ * reason to put a 100ms KDF on a read path.
  */
 function hashOf(secret: string): string {
-  return createHash("sha256").update(secret, "utf8").digest("hex");
+  return createHmac("sha256", pepper()).update(secret, "utf8").digest("hex");
 }
 
 /**

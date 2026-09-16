@@ -479,10 +479,106 @@ one proves a founder is refused, the other proves the remedy is **an additive
 this account hold on 2026-09-14"* stays answerable. No new machinery either way;
 what is missing is only the decision about who should have tokens.
 
-**Open for Mitchell**, and it blocks nothing before Phase 3 puts a Tokens section
-in front of people:
+**Decided 2026-09-16 by Mitchell: leave it.** *"thats fine, lets just keep with
+this work, no need to do the founder grant Vs Premium 1 or 2 issue."* **No
+backfill migration.** A founder who wants API tokens gets an additive
+`premium@v2` grant from an operator, through the UI M20 already shipped — the
+second test above is what proves that path works and leaves the pinned v1 grant
+alone.
 
-1. **Nothing** — founders ask, and an operator grants `premium@v2` one at a time.
-2. **A backfill migration** — every founder gets an additive `premium@v2` grant,
-   the same shape as 0019 and equally idempotent.
-3. **Neither** — founders are deliberately not an API audience.
+**The two tests stay exactly as written.** They assert current behaviour, and
+current behaviour is now decided behaviour rather than an unexamined default —
+which is the difference between a gap and a choice. If the decision is ever
+reversed, the backfill is one migration shaped like 0019 and those tests change
+in the same diff.
+
+### The token digest is keyed — **CodeQL alert 5, fixed 2026-09-16**
+
+`github-advanced-security` raised `js/insufficient-password-hash` against
+`hashOf`'s bare `sha256`. **Fixed as `HMAC-SHA256(API_TOKEN_PEPPER, secret)`.**
+
+**Not by adding a slow KDF, and the distinction matters.** bcrypt, argon2 and
+scrypt exist to make *guessing* expensive, which is the right answer for a
+human-chosen password drawn from a small, skewed space. This secret is 32 bytes
+of `randomBytes` — there is no space to guess through, so a KDF defends against
+nothing here and charges roughly 100ms of CPU on **every API request** to do it.
+For a surface a customer's integration calls on a schedule that is a real cost
+bought with no benefit, and it is why GitHub, Stripe and AWS all store
+high-entropy API credentials with fast digests.
+
+**What the key buys, which the bare hash genuinely did not**, so the alert was
+worth acting on even though its stated reason does not apply: a bare digest is
+reproducible by anyone holding the database, so a leaked backup lets every row be
+checked against a guess and lets anyone who learns a token's plaintext confirm
+which row it is. Keyed, the digest cannot be computed without a value that does
+not live in Postgres. **A stolen database is no longer enough to verify a
+token**, and that costs nothing measurable.
+
+**`API_TOKEN_PEPPER` is required and fails closed.** Unset, minting and verifying
+both throw — an empty pepper still produces a stable digest, so a fallback would
+leave tokens working while the property the key exists for silently did not hold,
+which is the worst way for a credential store to be wrong because nothing errors.
+Its own variable rather than a reuse of `AUTH_SECRET`: rotating sessions and
+rotating API credentials are different emergencies and should not share a lever.
+Rotating it invalidates every token, deliberately and with no migration path.
+
+**No data migration was needed** — no token row exists anywhere. Migration 0023
+has not been dispatched to production and `v1` has never served a request.
+
+Two tests, both seen to fail first: one asserts the stored digest is **not** the
+unkeyed `sha256` an attacker holding only the table would compute and that a
+rotated pepper stops resolving the same secret; the other asserts the fail-closed
+throw. Reverting `hashOf` to the bare hash turns both red.
+
+### Phase 2 — the seam — **landed 2026-09-16**
+
+`src/server/public-api/actor.ts` (`Actor`, `resolveActor`, `actorHasScope`,
+`actorMayReachTrip`), `src/server/public-api/route.ts` (the wrapper),
+`conformance.test.ts`, and **two pilot endpoints**: `GET /v1/trips` and
+`GET /v1/trips/:tripId`.
+
+**`requireTripAccess` gained its actor-accepting sibling and all 46 call sites
+are untouched.** `tripAccessFor(userId, tripId, minimum)` is now the
+implementation and `requireTripAccess` a thin session-resolving wrapper over it,
+so exactly one place decides whether somebody may read a trip. It returns a
+*reason* rather than a `Response`, which is what lets the BFF keep its bare-string
+wire shapes while `v1` answers the same denial in its own envelope. Proven by the
+full integration suite passing unchanged.
+
+**Three decisions the design did not settle:**
+
+1. **One `HandlerContext`, not a `PageContext` that extends it.** The split reads
+   better and costs the thing the wrapper exists for: TypeScript cannot
+   contextually type a parameter through a union of two function types whose
+   parameters differ, so every declaration's `({ actor, trip })` became an
+   implicit `any` and each route had to annotate its own context. One shape keeps
+   a declaration a declaration.
+2. **The response/handler correspondence is enforced at runtime, not by the
+   compiler.** Typing `handle`'s return against `response`'s output is
+   expressible and turns the declaration object into eight inference sites. The
+   runtime check is also the stronger one for a public API: a compiler cannot
+   prove the row the database actually returned matches the schema, and the
+   wrapper's out-bound validation can.
+3. **`GET /v1/trips` keeps the member overlay**, against the design's call for
+   *"a reshaped"* collection. The design was right that the overlay's *motive* is
+   the Home avatar stack, and that is not a reason to publish a members list that
+   omits real members — this query returns trips reached through a
+   `trip_memberships` row, and answering those with an owner-only array is a
+   wrong answer rather than a lean one. One batched read for the page.
+
+**One deviation worth naming**: the design specified a rate-limit bucket
+`"api:token:<tokenId>"`; `consumeQuota` composes its own names as
+`"<policy>:user:<id>"`, so passing the token id as the identity gives
+`api:user:<tokenId>` and `api:global`. The global is exactly as designed; the
+first differs in spelling only, and forking the quota module over a substring
+would have been the more expensive mistake.
+
+**Verified.** Full `pnpm check` green. 15 integration tests drive the pilots as
+real HTTP, plus 5 conformance tests. Nine mutations against the wrapper, each
+turning exactly the tests that describe it red and nothing else. **The
+conformance test was proven both ways**: a raw `export async function GET` under
+`v1/` fails with *"exports a raw GET"*, and a `route()` declaration that names a
+trip without a role fails with *"is about a trip and names no role"*.
+
+**Still not clickable.** Phase 3 is the Tokens section, and the reachability rule
+is its to answer.

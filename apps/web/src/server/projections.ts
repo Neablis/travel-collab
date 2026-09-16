@@ -1,6 +1,6 @@
 import { TripDetail, TripEvent, type EventEnvelope } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Db } from "./db/client";
@@ -152,6 +152,47 @@ export async function listTripSummaries() {
  * matching if a planning event ever mints a non-owner — the JS predicate it
  * replaces (`members.some((m) => m.userId === userId)`) was role-agnostic too.
  */
+/**
+ * **One keyset page of the trips this user can see** (M22 Phase 2).
+ *
+ * The same visibility predicate as `listTripSummariesVisibleTo` — deliberately
+ * the same expression rather than a second copy, because a predicate that can
+ * drift is one edit away from a cross-tenant dump (project review L3).
+ *
+ * **Keyset, not offset.** The cursor is `createdAt|tripId` and the comparison is
+ * a Postgres row comparison, so a trip created while someone is paging cannot
+ * shift a later page and duplicate or skip a row. `tripId` is in the key because
+ * `created_at` alone ties: two trips created in the same millisecond would make
+ * the order non-deterministic, and a non-deterministic order is a pager that
+ * silently loses rows.
+ */
+export async function listTripSummariesPage(
+  userId: string,
+  page: { limit: number; after: string | null },
+) {
+  const visible = and(
+    eq(tripSummaries.status, "active"),
+    or(
+      sql`${tripSummaries.members} @> ${JSON.stringify([{ userId }])}::jsonb`,
+      hasMembershipRow(tripSummaries.tripId, userId),
+    ),
+  );
+  // A cursor we did not mint is treated as no cursor rather than as an error:
+  // it can only cost the caller a first page, and 400-ing on an opaque string
+  // we asked them not to interpret would be punishing them for obeying.
+  const [createdAt, tripId] = (page.after ?? "").split("|");
+  const seek =
+    createdAt !== undefined && tripId !== undefined && tripId !== ""
+      ? sql`(${tripSummaries.createdAt}, ${tripSummaries.tripId}) < (${createdAt}::timestamptz, ${tripId}::uuid)`
+      : undefined;
+  return db
+    .select()
+    .from(tripSummaries)
+    .where(seek === undefined ? visible : and(visible, seek))
+    .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
+    .limit(page.limit);
+}
+
 export async function listTripSummariesVisibleTo(userId: string) {
   return db
     .select()

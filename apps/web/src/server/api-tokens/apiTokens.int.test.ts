@@ -9,7 +9,7 @@
 // admin grant, which is account state; that is what M20 built the grant path
 // for, and it is why a tier gate in this repo is provable in CI rather than by
 // watching production once.
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
@@ -20,6 +20,7 @@ import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { accountCan } from "@/server/entitlements/resolver";
 import {
   API_TOKEN_MAX_LIFETIME_DAYS,
+  ApiTokenPepperMissingError,
   expiredTokensFor,
   listTokens,
   mintToken,
@@ -221,6 +222,62 @@ describe("who does NOT get api.tokens, and why that is a decision not a bug", ()
     const all = await allGrantsFor(founder);
     const original = all.find((g) => g.source === "founder")!;
     expect(original.planVersion).toBe(1);
+  });
+});
+
+describe("the pepper", () => {
+  // **A keyed digest, not a bare hash.** The point is that the database alone
+  // cannot verify a token: recomputing the digest needs a key that does not live
+  // in Postgres. CodeQL's `js/insufficient-password-hash` flagged the bare
+  // `sha256` this replaced; the reasoning for HMAC over a slow KDF — 32 bytes of
+  // CSPRNG has no space to guess through, and a KDF would charge ~100ms on every
+  // API request to defend nothing — is in `hashOf`.
+  it("keys the stored digest, so the same secret hashes differently under a different pepper", async () => {
+    const owner = await entitledAccount();
+    const minted = await mintToken(owner, input());
+    expect(minted.ok).toBe(true);
+    const secret = minted.ok ? minted.created.secret : "";
+    const tokenId = minted.ok ? minted.created.token.tokenId : "";
+    const stored = (await db.select().from(apiTokens).where(eq(apiTokens.id, tokenId)))[0]!;
+
+    // The digest is NOT the unkeyed sha256 of the secret — which is exactly what
+    // an attacker holding only this table would compute.
+    const unkeyed = createHash("sha256").update(secret, "utf8").digest("hex");
+    expect(stored.tokenHash).not.toBe(unkeyed);
+
+    // And under a rotated pepper the same secret no longer resolves — every
+    // token dies, deliberately and with no migration path, which is the right
+    // blast radius for a key compromise.
+    const original = process.env.API_TOKEN_PEPPER;
+    process.env.API_TOKEN_PEPPER = "a-different-key-entirely";
+    try {
+      const refused = await verifyToken(secret);
+      expect(refused.ok).toBe(false);
+      expect(refused.ok === false && refused.refusal.reason).toBe("unknown");
+    } finally {
+      process.env.API_TOKEN_PEPPER = original;
+    }
+    // Restored, it works again — nothing about the row changed.
+    expect((await verifyToken(secret)).ok).toBe(true);
+  });
+
+  // **Fails closed and loudly.** An empty pepper still produces a stable digest,
+  // so a silent fallback would leave tokens working while the property the key
+  // exists for did not hold — nothing would error, which is the worst way for a
+  // credential store to be wrong.
+  it("refuses to mint or verify at all when it is unset", async () => {
+    const owner = await entitledAccount();
+    const minted = await mintToken(owner, input());
+    const secret = minted.ok ? minted.created.secret : "";
+
+    const original = process.env.API_TOKEN_PEPPER;
+    delete process.env.API_TOKEN_PEPPER;
+    try {
+      await expect(mintToken(owner, input())).rejects.toThrow(ApiTokenPepperMissingError);
+      await expect(verifyToken(secret)).rejects.toThrow(/API_TOKEN_PEPPER is not set/);
+    } finally {
+      process.env.API_TOKEN_PEPPER = original;
+    }
   });
 });
 
