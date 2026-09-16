@@ -36,10 +36,38 @@ M20's gate closed. Order:
 links and the decided prices are in `docs/milestones/M21-subscriptions-and-billing.md`; the
 kickoff plan it shares with M20 is `docs/plans/2026-09-13-M20-M21-commercial.md`.
 
-**All four phases are written, on `claude/keen-darwin-qkkq41`** (2026-09-15) — the
-subscription table and priced plan versions, hosted checkout and the webhook, the `plans`
-route with the account sheet's billing surface, and the revenue half of the operator console.
-**Nine of seventeen gate boxes are ticked with evidence.** The milestone file's *What was
+**All four phases are written and merged** (#177, then #180 and #181) — the subscription
+table and priced plan versions, hosted checkout and the webhook, the `plans` route with the
+account sheet's billing surface, and the revenue half of the operator console.
+**Eleven of seventeen gate boxes are ticked with evidence.**
+
+**A real purchase and a real downgrade were walked in production on 2026-09-16**, and the
+database is the evidence rather than the screen: four `billing_events` rows, every one with
+`applied_at` set, in the order `customer.subscription.created` →
+`checkout.session.completed` → `invoice.payment_succeeded` →
+`customer.subscription.updated`; and one `subscriptions` row that after the downgrade reads
+`status: active`, `cancel_at_period_end: true`, `current_period_end: 2026-10-16` — access
+running to the end of the paid period rather than ending at the click. That closes the
+hosted-checkout box, the Stripe-driven half of the cancel box, and the migration box, whose
+dispatch was confirmed against the database (`subscriptions`, `billing_events.applied_at`
+and `users.stripe_customer_id` all present) rather than against `TODO.md`.
+
+**The walk was only possible because it found a defect first, and that is the part worth
+keeping.** Every paid path — first checkout and plan change alike — answered 500 in
+production: `findPriceByLookupKey` sent Stripe's `lookup_keys` ARRAY parameter as a scalar,
+so Stripe refused with `400: Invalid array`. Nothing caught it because `prices.test.ts`
+mocks that function wholesale, and `stripeApi.ts` — the module that builds every outbound
+Stripe request — **had no test file at all**. The bug lived below the mock line. #181 fixes
+the two brackets and adds `stripeApi.test.ts`, which stubs `fetch` and asserts the URL that
+actually leaves the process. **A mock is a boundary, and the code on the far side of it is
+untested until something asserts the wire.**
+
+**What the gate still wants** is the failure half: a `past_due` account through its
+three-day grace window, and a lapse walking M20's collaborator cap. Neither costs money —
+a Test Clock and card `4000 0000 0000 0341` walk both locally, per
+`docs/guidelines/billing-without-spending-money.md`. Also open: one Premium purchase (to
+resolve that version's Price the way the live `plus` purchase resolved its own), the
+network-log observation for the no-card-data box, and the retro. The milestone file's *What was
 built* has the five deviations from its own scope, each with its reason; **ADR-047** carries
 the three decisions that are one-way doors.
 

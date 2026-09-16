@@ -96,6 +96,22 @@ Rules (ADR-004 + M1 retro):
   | `pnpm --filter web db:state` | The same check locally against any `DATABASE_URL`. Exit 0 applied, 1 pending, 2 could-not-tell. |
   | `pnpm lint` → `scripts/check-migration-journal.mjs` | Refuses a migration whose `when` is not newer than `origin/main`'s newest, before it can merge. |
 
+  **A note in `TODO.md` or a milestone file is not one of these, and must never
+  be read as one.** On 2026-09-16 an agent told Mitchell five times across a
+  session to dispatch `0021` and `0022`, and named their absence as the likely
+  cause of a production 500 — on the authority of a bullet that said *"not
+  dispatched"*. Both had been applied the previous day. The bullet was stale
+  because a person dispatched the workflow and nobody edited the file, which is
+  the normal way prose about state goes wrong, not an unusual one. The real
+  cause of the 500 was unrelated (`lookup_keys` sent as a scalar), and every
+  minute spent on the wrong theory was available to be spent on the right one.
+
+  So: **the database answers this question, and the three rows above ask it.**
+  `pnpm --filter web db:state` is one command, works against any
+  `DATABASE_URL`, and exits 1 when something is genuinely pending. Ask it before
+  you tell anyone a migration is outstanding. Prose in this repository records
+  *intent*; only the schema records *state*.
+
   That last one is not tidiness. Drizzle's migrator applies an entry only if it
   is newer than the newest row already in `drizzle.__drizzle_migrations` — not
   the set difference — so a migration generated on a branch cut before someone

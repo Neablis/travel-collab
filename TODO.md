@@ -489,7 +489,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       including Test Clocks for the three-day grace window. **ADR-047** carries
       the three one-way decisions: Billing is its own module, the webhook is its
       sole writer, and a lapse is a derivation rather than a write. Migration
-      `0021` is applied locally and **not dispatched to production**. The
+      `0021` is applied locally **and dispatched to production** — verified
+      against the database 2026-09-16, not against this file. The
       milestone file's *What was built* lists five deviations from its own
       scope, each with its reason — the largest being that the price went onto
       the v1 plan entries rather than onto new versions, because naming a price
@@ -603,12 +604,6 @@ Captured so they aren't lost; not committed to a milestone yet.
   Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
   4 ("challenge to simplify") point opposite ways here until someone picks.
   *(Filed 2026-09-15 from PR #177's preview feedback.)*
-- **Two M20 migrations are merged-pending and undispatched: `0019` and
-  `0020`.** Dispatch from `main`, in order:
-  `gh workflow run migrate-production.yml -f confirm=migrate`. Merging does not
-  apply them, and an undispatched migration is production schema drift waiting
-  to happen — `0018` sat undispatched for two days before M20's build settled
-  it. *(Filed 2026-09-13 with the M20 build. Delete this bullet at dispatch.)*
 - **`ADMIN_USER_IDS` must be set in production before `/admin` is reachable
   there.** The operator console is gated on `users.is_admin` and nothing in the
   product sets that column, so the allowlist read at sign-in
