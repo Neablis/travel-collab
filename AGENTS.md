@@ -309,6 +309,28 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > gone stale. Corrected 2026-09-12.) `ci.yml` gets this right by
 > listing `*.md` rather than `**/*.md`; classify the same way.
 
+> **A Tier 1 branch may go straight to `main`, without a PR.** Mitchell,
+> 2026-09-16: *"you can merge directly to main when its only readme changes"*,
+> then *"commit to main directly"*. The Workstreams section's PR-promptness rule
+> is about **milestone phase and task branches**, whose PR is what makes finished
+> work visible and puts it in front of GitHub's conflict detection. A prose-only
+> change has no CI to report, no CodeRabbit review to collect (both filter these
+> paths out, per the paragraph above) and no merge risk worth a round trip, so a
+> PR buys nothing and costs a cycle.
+>
+> **The tier rule still decides, and it is a property of the whole branch.** If
+> any path the branch touches falls outside `docs/**`, `.claude/**`,
+> `.agents/**` or a root-level `*.md`, this does not apply — including
+> `.design-sync/**`, per the trap below. Verify before pushing rather than
+> assuming, which is one command:
+>
+> ```
+> git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.claude/|\.agents/)|^[A-Za-z]+\.md$'
+> ```
+>
+> Nothing printed means Tier 1 and main is fine. Anything printed means open a
+> PR the normal way.
+
 **Tier 2 — code, mid-branch.** Any change that is not Tier 1, before the branch
 is ready.
 

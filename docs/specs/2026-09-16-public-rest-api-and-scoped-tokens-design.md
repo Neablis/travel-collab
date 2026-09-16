@@ -207,6 +207,25 @@ invites exposes third-party email addresses, that read earns its own scope after
 all. Flagged rather than decided, because it depends on a DTO shape M22 has not
 written yet.
 
+**What each scope means, in the words the token-creation UI has to use.** This
+is not decoration: `SCOPE_CATALOGUE` is an exhaustive `Record<ApiScope, …>`, so
+a ninth scope **fails to compile** until somebody writes the sentence a person
+reads when deciding whether to grant it.
+
+| Scope | What a token holding it may do |
+|---|---|
+| `trips:read` | See your trips, their days and stops, costs, history, and existing share links |
+| `trips:write` | Create, change and delete trips, days and stops; undo, redo and revert |
+| `notebook:read` / `notebook:write` | Read / write the Notebook pages on a trip |
+| `library:read` / `library:write` | Read / write your saved-days library, including publishing to Discover |
+| `sharing:write` | Invite people to a trip, revoke invites, remove members, create and revoke share links |
+| `account:read` | Who you are and what plan you hold |
+
+The granularity was chosen against two alternatives, both rejected: **coarser**
+(a single `read` and `write`, under which one token does everything and the
+scope system stops meaning anything) and **finer** (per resource, roughly
+sixteen, most of which no caller would ever set differently from its neighbour).
+
 **Eight, confirmed by Mitchell 2026-09-16** (*"Sure, sound good"*) — deliberately
 not per-endpoint and deliberately not per-table. **No
 ordering export, no `atLeast`** — same reasoning as ADR-045 rule 4: a comparison
@@ -724,6 +743,21 @@ Phases 0 through 4 are buildable on the decisions above. The milestone file
 (scope + exit gate) is the remaining artifact, and per `TODO.md`'s standing
 tasks it is written before M22's first commit — which is after M21's gate
 closes.
+
+## What this work found on the way
+
+One defect in existing code, filed rather than fixed because it is outside this
+design's scope:
+
+- **`KI-2026-09-16-b`** — `planVersions.ts`'s header cites
+  `planVersions.immutability.test.ts` as enforcing that a published plan entry
+  cannot be mutated. **That file does not exist.** The field-pinning half is
+  genuinely covered, under a different name (`noExtension.test.ts`); the
+  runtime-freeze half is asserted by nothing, so removing an `Object.freeze`
+  call would leave every test passing and the header's claim false. Surfaced
+  while establishing whether `api.tokens` could go on `premium@v1` in place —
+  the answer turned on how immutability is enforced, and the enforcement was one
+  file short of what the comment described.
 
 ## What this design deliberately does not do
 
