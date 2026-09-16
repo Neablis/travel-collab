@@ -1,13 +1,14 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import type { z } from "zod";
 import {
   API_TOKEN_DEFAULT_LIFETIME_DAYS,
   API_TOKEN_MAX_LIFETIME_DAYS,
   API_TOKEN_PREFIX,
   API_TOKEN_PREFIX_LENGTH,
   ApiScope,
+  ApiTokenCreateInput,
   type ApiToken,
-  type ApiTokenCreateInput,
   type ApiTokenCreated,
 } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -68,7 +69,8 @@ export type VerifyResult =
 export type MintResult =
   | { ok: true; created: ApiTokenCreated }
   | { ok: false; reason: "not-entitled" }
-  | { ok: false; reason: "invalid-lifetime"; maxDays: number };
+  | { ok: false; reason: "invalid-lifetime"; maxDays: number }
+  | { ok: false; reason: "invalid-input"; issues: z.ZodIssue[] };
 
 /** The pepper is missing, so no token can be minted or verified. */
 export class ApiTokenPepperMissingError extends Error {
@@ -208,26 +210,38 @@ export async function mintToken(
   if (!(await accountCan(ownerId, "api.tokens", now))) {
     return { ok: false, reason: "not-entitled" };
   }
-  if (
-    !Number.isInteger(input.expiresInDays) ||
-    input.expiresInDays < 1 ||
-    input.expiresInDays > API_TOKEN_MAX_LIFETIME_DAYS
-  ) {
-    return { ok: false, reason: "invalid-lifetime", maxDays: API_TOKEN_MAX_LIFETIME_DAYS };
+  // **The WHOLE input is parsed here, not just the lifetime.**
+  //
+  // The lifetime was already re-checked with the argument that *"a ceiling that
+  // lives only in a request schema is one an internal caller walks straight
+  // past"* — and that argument covers `name`, `scopes` and `tripIds` exactly as
+  // well. Writing those through unparsed meant an internal caller could store a
+  // scope the enum does not know, which `toDto` then silently filters out: the
+  // token comes back with fewer powers than it was asked for, and nothing says
+  // so. Caught by CodeRabbit on pull request 185.
+  const parsed = ApiTokenCreateInput.safeParse(input);
+  if (!parsed.success) {
+    // The lifetime keeps its own answer, because a caller can act on it — the
+    // ceiling is a number they can lower. Everything else is a shape error.
+    const lifetime = parsed.error.issues.some((issue) => issue.path[0] === "expiresInDays");
+    return lifetime
+      ? { ok: false, reason: "invalid-lifetime", maxDays: API_TOKEN_MAX_LIFETIME_DAYS }
+      : { ok: false, reason: "invalid-input", issues: parsed.error.issues };
   }
+  const valid = parsed.data;
 
   const secret = mintSecret();
-  const expiresAt = new Date(now.getTime() + input.expiresInDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(now.getTime() + valid.expiresInDays * 24 * 60 * 60 * 1000);
   const [row] = await db
     .insert(apiTokens)
     .values({
       id: randomUUID(),
       ownerId,
-      name: input.name,
+      name: valid.name,
       tokenHash: hashOf(secret),
       prefix: secret.slice(0, API_TOKEN_PREFIX_LENGTH),
-      scopes: input.scopes,
-      tripIds: input.tripIds,
+      scopes: valid.scopes,
+      tripIds: valid.tripIds,
       createdAt: now,
       lastUsedAt: null,
       expiresAt,
@@ -249,10 +263,19 @@ export async function mintToken(
  * that sends someone to support.
  */
 export async function listTokens(ownerId: string): Promise<ApiToken[]> {
-  const rows = await db.select().from(apiTokens).where(eq(apiTokens.ownerId, ownerId));
-  return rows
-    .map(toDto)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  // **Ordered in SQL, and `id` is the tie-break rather than decoration.**
+  //
+  // This was a JS sort on `createdAt` alone over an unordered SELECT. Two tokens
+  // minted in the same millisecond compared equal, so their order was whatever
+  // Postgres happened to return — which can differ between two reads of the same
+  // rows. A list that reshuffles under someone deciding which token to revoke is
+  // a worse bug than the flaky test that found it (CodeRabbit on pull request 185).
+  const rows = await db
+    .select()
+    .from(apiTokens)
+    .where(eq(apiTokens.ownerId, ownerId))
+    .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id));
+  return rows.map(toDto);
 }
 
 /**
@@ -328,16 +351,29 @@ export async function touchLastUsed(
   now: Date = new Date(),
 ): Promise<void> {
   const staleBefore = new Date(now.getTime() - LAST_USED_COARSENING_MS);
-  await db
-    .update(apiTokens)
-    .set({ lastUsedAt: now })
-    .where(
-      and(
-        eq(apiTokens.id, tokenId),
-        // Null means never used, which is always worth recording.
-        sql`(${apiTokens.lastUsedAt} IS NULL OR ${apiTokens.lastUsedAt} < ${staleBefore})`,
-      ),
-    );
+  try {
+    await db
+      .update(apiTokens)
+      .set({ lastUsedAt: now })
+      .where(
+        and(
+          eq(apiTokens.id, tokenId),
+          // Null means never used, which is always worth recording.
+          sql`(${apiTokens.lastUsedAt} IS NULL OR ${apiTokens.lastUsedAt} < ${staleBefore})`,
+        ),
+      );
+  } catch (error) {
+    // **The contract is kept HERE, not by every caller remembering.** This
+    // function's own comment promises it never fails a request; without this it
+    // rejected, and the promise held only because the one caller happened to
+    // write `.catch`. A second caller that forgot would 500 a request whose
+    // token was perfectly valid (CodeRabbit on pull request 185).
+    //
+    // Logged rather than swallowed silently: a bookkeeping write that is failing
+    // every time is worth knowing about, even though it is never worth failing a
+    // request over.
+    console.error("api token last_used_at touch failed", { tokenId, error });
+  }
 }
 
 export type RevokeResult =

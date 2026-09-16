@@ -225,6 +225,40 @@ describe("who does NOT get api.tokens, and why that is a decision not a bug", ()
   });
 });
 
+describe("the mint boundary parses its whole input", () => {
+  // **Not just the lifetime.** Writing `name`, `scopes` and `tripIds` through
+  // unparsed meant an internal caller could store a scope the enum does not
+  // know — which `toDto` then silently filters out, so the token comes back with
+  // fewer powers than it was asked for and nothing says so (CodeRabbit on pull request 185).
+  it("refuses a scope the enum does not know rather than storing it", async () => {
+    const owner = await entitledAccount();
+    const refused = await mintToken(owner, {
+      ...input(),
+      scopes: ["trips:read", "trips:obliterate"] as never,
+    });
+    expect(refused.ok).toBe(false);
+    expect(refused.ok === false && refused.reason).toBe("invalid-input");
+    expect(await listTokens(owner)).toHaveLength(0);
+  });
+
+  it("still answers invalid-lifetime for a lifetime, so a caller can act on it", async () => {
+    const owner = await entitledAccount();
+    const over = await mintToken(owner, input({ expiresInDays: API_TOKEN_MAX_LIFETIME_DAYS + 1 }));
+    expect(over).toEqual({
+      ok: false,
+      reason: "invalid-lifetime",
+      maxDays: API_TOKEN_MAX_LIFETIME_DAYS,
+    });
+  });
+
+  it("refuses a blank name and an empty trip list", async () => {
+    const owner = await entitledAccount();
+    expect((await mintToken(owner, input({ name: "   " }))).ok).toBe(false);
+    expect((await mintToken(owner, input({ tripIds: [] }))).ok).toBe(false);
+    expect(await listTokens(owner)).toHaveLength(0);
+  });
+});
+
 describe("the pepper", () => {
   // **A keyed digest, not a bare hash.** The point is that the database alone
   // cannot verify a token: recomputing the digest needs a key that does not live
@@ -319,8 +353,16 @@ describe("the secret", () => {
     const secretB = b.ok ? b.created.secret : "";
     expect(secretA).not.toBe(secretB);
 
+    // **Both directions, because one direction proves less than it looks.**
+    // Verifying only A cannot detect a B-resolves-to-A mapping, which is the
+    // failure that matters — one token answering as another (CodeRabbit on pull request 185).
     const verifiedA = await verifyToken(secretA);
     expect(verifiedA.ok && verifiedA.token.tokenId).toBe(a.ok ? a.created.token.tokenId : "");
+    const verifiedB = await verifyToken(secretB);
+    expect(verifiedB.ok && verifiedB.token.tokenId).toBe(b.ok ? b.created.token.tokenId : "");
+    expect(verifiedA.ok && verifiedA.token.tokenId).not.toBe(
+      verifiedB.ok ? verifiedB.token.tokenId : "",
+    );
   });
 
   it("refuses a secret that was never minted, without touching the prefix check", async () => {
@@ -504,16 +546,55 @@ describe("last_used_at", () => {
   });
 });
 
+describe("bookkeeping never fails a request", () => {
+  // **The contract is the function's own, not every caller's.** `touchLastUsed`
+  // promises it never fails a request; before this it simply rejected, and the
+  // promise held only because the one caller happened to write `.catch`
+  // (CodeRabbit on pull request 185).
+  //
+  // A non-uuid id makes Postgres raise `22P02` inside the UPDATE — a real
+  // rejection from the real database, so this needs no mock to produce the
+  // failure the catch exists for.
+  it("resolves rather than rejecting when the update itself fails", async () => {
+    await expect(touchLastUsed("not-a-uuid")).resolves.toBeUndefined();
+  });
+});
+
 describe("listing", () => {
   it("shows this account's tokens newest first, and nobody else's", async () => {
     const owner = await entitledAccount();
     const stranger = await entitledAccount();
-    await mintToken(owner, input({ name: "First" }));
-    await mintToken(owner, input({ name: "Second" }));
-    await mintToken(stranger, input({ name: "Theirs" }));
+    // **Explicit, distinct timestamps.** `mintToken` defaults `now` to
+    // `new Date()`, so two mints can land in the same millisecond — and the
+    // assertion below would then be testing whatever order Postgres returned
+    // (CodeRabbit on pull request 185). The ordering is the implementation's job to guarantee;
+    // pinning these is what makes this test about the guarantee rather than
+    // about luck.
+    const firstAt = new Date(Date.now() - 60_000);
+    await mintToken(owner, input({ name: "First" }), firstAt);
+    await mintToken(owner, input({ name: "Second" }), new Date(firstAt.getTime() + 1_000));
+    await mintToken(stranger, input({ name: "Theirs" }), firstAt);
 
     const mine = await listTokens(owner);
     expect(mine.map((t) => t.name)).toEqual(["Second", "First"]);
     expect(mine.every((t) => !t.name.includes("Theirs"))).toBe(true);
+  });
+
+  // **The tie-break, which is what the flaky-test finding was really about.**
+  // Two tokens minted in the same millisecond must still come back in a stable
+  // order, or the list reshuffles under someone deciding which one to revoke.
+  it("orders tokens minted in the same millisecond stably", async () => {
+    const owner = await entitledAccount();
+    const sameInstant = new Date();
+    for (const name of ["A", "B", "C"]) {
+      await mintToken(owner, input({ name }), sameInstant);
+    }
+    const once = (await listTokens(owner)).map((t) => t.tokenId);
+    const twice = (await listTokens(owner)).map((t) => t.tokenId);
+    expect(once).toHaveLength(3);
+    expect(twice).toEqual(once);
+    // Descending by id is the declared tie-break, so the order is a fact about
+    // the rows rather than about the query plan.
+    expect(once).toEqual([...once].sort().reverse());
   });
 });

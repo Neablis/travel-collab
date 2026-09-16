@@ -111,12 +111,19 @@ describe("api_tokens is retained, never swept", () => {
   // token lives for months.
   it("keeps no plan or entitlement column on the table", () => {
     const schema = stripComments(readFileSync(path.join(WEB, "src/server/db/schema.ts"), "utf8"));
-    const table = schema.slice(
-      schema.indexOf('pgTable(\n    "api_tokens"') === -1
-        ? schema.indexOf('"api_tokens"')
-        : schema.indexOf('"api_tokens"'),
-    );
-    const body = table.slice(0, table.indexOf(");"));
+    // **Both boundaries are asserted before anything is sliced**, because a
+    // sweep that cannot find what it is sweeping passes vacuously — every
+    // `not.toContain` below holds trivially against an empty string, and the
+    // test would go on reporting success while checking nothing. (The ternary
+    // this replaces had the same expression in both branches, which is how the
+    // hazard got in.) CodeRabbit on pull request 185.
+    const start = schema.indexOf('"api_tokens"');
+    expect(start, "api_tokens is not in schema.ts — this sweep is checking nothing").toBeGreaterThan(-1);
+    const table = schema.slice(start);
+    const end = table.indexOf(");");
+    expect(end, "the api_tokens table body has no terminator").toBeGreaterThan(-1);
+    const body = table.slice(0, end);
+    expect(body.length).toBeGreaterThan(0);
     for (const forbidden of ["plan_id", "plan_version", "entitlement", "planId", "planVersion"]) {
       expect(body, forbidden).not.toContain(forbidden);
     }

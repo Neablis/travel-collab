@@ -43,13 +43,27 @@ export async function POST(request: Request) {
   const minted = await mintToken(userId, body.data);
   if (!minted.ok) {
     // 402 for the entitlement, matching `AI_NOT_ENTITLED_STATUS` rather than
-    // inventing a second shape for the same idea; 400 for a lifetime past the
-    // ceiling, which the schema above already refuses and this refuses again
-    // because a ceiling that lives only in a request schema is one an internal
-    // caller walks straight past.
-    return minted.reason === "not-entitled"
-      ? Response.json({ error: "api-not-entitled" }, { status: 402 })
-      : Response.json({ error: "invalid-token-lifetime", maxDays: minted.maxDays }, { status: 400 });
+    // inventing a second shape for the same idea; 400 for anything the module
+    // re-refused, which the schema above already refuses and the module refuses
+    // again because a rule that lives only in a request schema is one an
+    // internal caller walks straight past.
+    switch (minted.reason) {
+      case "not-entitled":
+        return Response.json({ error: "api-not-entitled" }, { status: 402 });
+      case "invalid-lifetime":
+        return Response.json(
+          { error: "invalid-token-lifetime", maxDays: minted.maxDays },
+          { status: 400 },
+        );
+      default:
+        // Unreachable through this route — the body parsed a line above — and
+        // answered rather than assumed, because the module is reachable from
+        // elsewhere and a silent `undefined` would be a 200 with no token.
+        return Response.json(
+          { error: "invalid-token-request", issues: minted.issues },
+          { status: 400 },
+        );
+    }
   }
 
   // **The one and only response that carries the secret.** Nothing stores it,
