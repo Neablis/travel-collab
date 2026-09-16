@@ -1,6 +1,22 @@
 # M9 remainder — the assistant cites what it plans
 
-**Written 2026-09-16.** Covers the build-order items of
+**Written and EXECUTED 2026-09-16.** Every item marked **Yes** below landed, in the
+five commits named in the branch's history. Two things the build corrected in this
+document rather than following it:
+
+- **§A said the resolution happens "in `buildProposal`, server-side".** It has to happen
+  BEFORE `resolveBatch`, on the raw intents — `UpdateActivity { activityRef, placeRef }`
+  is a domain no-op until the citation becomes a location, so the proposal came back
+  null. A test caught it; `droppedWriteCalls` had to move with it, or the analytics dry
+  run disagrees with the proposal it mirrors.
+- **§A did not mention `Location.precision`.** Grounding needs the field to MEAN
+  something (enrichment skips on it), so it had to stop being model-writable — which
+  closes the gap `contracts/src/activity.ts` names in its own comment.
+
+And one thing §E predicted and got: the harness found a defect on its first run
+(**KI-2026-09-16-a**).
+
+Covers the build-order items of
 `docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` §8 that are **not**
 covered by a plan already, and says for each whether this session builds it.
 It is the index plan that `docs/milestones/M9-ai-planning-partner.md`'s plan
