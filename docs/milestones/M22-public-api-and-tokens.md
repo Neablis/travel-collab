@@ -215,6 +215,24 @@ Three, so that no gate box overclaims and no later session is surprised.
 The first box is the milestone's thesis. The rest exist because a credential
 with a one-year life fails quietly.
 
+**No box here may be closed by a production observation, and the entitlement
+boxes least of all.** Mitchell, 2026-09-16: *"if we built a feature that gates
+functionality on a tier, and we need to see it actively work in prod once, than
+it's not a good feature or tested well."* That is this repo's own named defect
+class — an invariant asserted by a demonstration rather than by a test (KI-1,
+KI-14) — and it has a standing answer: **M20 proved its entire tier system in
+CI**, because a grant is account state and needs no vendor. Every `api.tokens`
+gate below is provable the same way, against a seeded account and a grant, with
+no Stripe and no deploy.
+
+**The single exception is not an entitlement box**: the reachability box asks
+that a person can do this by clicking, which is the Definition of Done's rule
+for every milestone. Its evidence is
+`pnpm --filter web test:e2e:ci-like` — a CI lane — and the browser walk on the
+preview is a second look, never the proof. If any box below ever comes to rest
+on *"we watched it work once"*, the box is wrong and the test behind it is
+missing.
+
 - [ ] **Adding endpoint N+1 costs a declaration and nothing else.** With the v1
       surface built, a new endpoint is added and its diff touches **one file
       under `v1/`** plus, at most, a schema in `packages/contracts` if its DTO
@@ -420,3 +438,51 @@ claim was proven separately: a ninth scope with no sentence errors `TS2741`.
 
 **Nothing reads any of it yet, and no gate box ticks.** Phase 0 is not clickable
 and its PR body says so — the reachability rule is Phase 3's to answer.
+
+### Phase 1 — storage, the module, the entitlement — **landed 2026-09-16**
+
+Migration `0023_api_tokens`. `apps/web/src/server/api-tokens/` — `mintToken`,
+`listTokens`, `verifyToken`, `touchLastUsed`, `revokeToken`, `expiredTokensFor`
+— with `accountCan(owner, "api.tokens")` on **both** mint and verify.
+**`premium@v2` published**, enumerating all four entitlements in full.
+19 integration tests against real Postgres, plus `apiTokens.retention.test.ts`.
+**No routes.**
+
+**`premium@v1` is byte-identical and `noExtension.test.ts` was not edited** — the
+gate box for that is below, and it is now provable by diff as well as by test.
+Two tests that hardcoded `1` were changed to *derive* the live version
+(`admin.int.test.ts`, `planVersions.test.ts`); they were asserting "the version a
+grant pins", and the literal was a coincidence of `premium` having had exactly
+one version.
+
+**Every entitlement gate here is proven in CI with no Stripe**, which is the rule
+this milestone's gate now states: the test fixture entitles an account with an
+**admin grant**, exactly as an operator would. A lapse is modelled by an expiring
+grant and time passing, so *"disables without revoking"* is asserted as a
+byte-identical row rather than watched in production.
+
+#### The founder cohort — a real gap, found by Mitchell asking
+
+**Migration 0019 backfilled every pre-M20 account with a permanent `founder`
+grant hardcoded at `'premium', 1`.** A grant confers the version it pinned,
+forever (M20 rule 4). `premium@v1` does not grant `api.tokens`.
+
+**So every founder keeps permanent premium-equivalent access and does not get API
+tokens.** That is M20's pinning rule working correctly, not a defect in it — but
+it is a product decision nobody has made, and it is larger than the subscriber
+cohort this file already noted, because founders **exist today** while
+`premium@v1` subscribers do not.
+
+Two tests state it as current behaviour rather than leaving it to be discovered:
+one proves a founder is refused, the other proves the remedy is **an additive
+`premium@v2` grant** that leaves the pinned v1 grant untouched — so *"what did
+this account hold on 2026-09-14"* stays answerable. No new machinery either way;
+what is missing is only the decision about who should have tokens.
+
+**Open for Mitchell**, and it blocks nothing before Phase 3 puts a Tokens section
+in front of people:
+
+1. **Nothing** — founders ask, and an operator grants `premium@v2` one at a time.
+2. **A backfill migration** — every founder gets an additive `premium@v2` grant,
+   the same shape as 0019 and equally idempotent.
+3. **Neither** — founders are deliberately not an API audience.

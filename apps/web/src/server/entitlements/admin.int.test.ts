@@ -13,6 +13,7 @@ import { recordAiUsage } from "./usage";
 import { allGrantsFor, issueGrant, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
 import { adminAccounts, adminTopSpenders, grantSourcePanel, isAdmin, planPanel } from "./admin";
+import { livePlanVersion, versionsOf } from "./planVersions";
 
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
@@ -111,8 +112,17 @@ describe("the console answers from real data", () => {
     const panel = await planPanel();
     const premium = panel.find((row) => row.planId === "premium")!;
     expect(premium.accounts).toBeGreaterThan(0);
-    expect(premium.live.version).toBe(1);
-    expect(premium.versions.map((v) => v.version)).toEqual([1]);
+    // **Derived, not a literal.** These read "the live version" and "every
+    // published version"; spelling them `1` and `[1]` was a coincidence of
+    // `premium` having had one version, and it broke the day M22 published
+    // `premium@v2` — which is this panel working, not this panel failing.
+    expect(premium.live.version).toBe(livePlanVersion("premium").version);
+    expect(premium.versions.map((v) => v.version)).toEqual(
+      versionsOf("premium").map((v) => v.version),
+    );
+    // The live version is the NEWEST published one, which is the property the
+    // literal was standing in for.
+    expect(premium.live.version).toBe(Math.max(...versionsOf("premium").map((v) => v.version)));
     // Read-only over plans: the panel carries no field anything could write.
     // `holdsByVersion` and `medianMicroUsd` joined it when the tier panel moved
     // to the design's shape; `mrrMicroUsd` and `medianMarginMicroUsd` joined it
@@ -207,8 +217,13 @@ describe("granting is the only write", () => {
     // nobody.
     expect(grant!.grantedBy).toBe(admin);
     expect(grant!.reason).toBe("Comped for a support case.");
-    // **Pinned**, not "the newest at read time".
-    expect(grant!.planVersion).toBe(1);
+    // **Pinned to what was live when it was issued**, not re-read later. The
+    // literal `1` here was the same coincidence as above: it asserted the pin
+    // by naming the only version that existed. It now names the live one, which
+    // is what `issueGrant` actually pins — and `resolver.test.ts` is where the
+    // pin's real property lives, that a grant issued at `v1` still confers `v1`
+    // after `v2` is published.
+    expect(grant!.planVersion).toBe(livePlanVersion("premium").version);
 
     // And it lapses on its own, with no job.
     const after = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
