@@ -26,6 +26,25 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (sessionUserId === null ? null : { user: { id: sessionUserId } })),
 }));
 
+// One-shot failure injection for the trip gate. Delegates to the real
+// implementation otherwise, so every other test in this file keeps its real
+// answers — the point is the wrapper's boundary, not a stubbed gate.
+let tripGateThrows: Error | null = null;
+vi.mock("@/server/access/trip-access", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/access/trip-access")>();
+  return {
+    ...actual,
+    tripAccessFor: (...args: Parameters<typeof actual.tripAccessFor>) => {
+      if (tripGateThrows !== null) {
+        const failure = tripGateThrows;
+        tripGateThrows = null;
+        return Promise.reject(failure);
+      }
+      return actual.tripAccessFor(...args);
+    },
+  };
+});
+
 const { db } = await import("@/server/db/client");
 const { tripDetails } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
@@ -378,6 +397,26 @@ describe("the answers a caller cannot fix, and the ones they can", () => {
       );
       expect(res.status, header.slice(0, 8)).toBe(200);
     }
+  });
+
+  // The other half of the same boundary. `tripAccessFor` deliberately lets a
+  // database failure through — it is not "this trip is unreadable" — and that
+  // call sits ABOVE the handler's try/catch, so without its own catch the
+  // throw left `route()` and the envelope with it.
+  it("answers a failing trip gate with the error envelope, not a crash", async () => {
+    const owner = await entitled();
+    const tripId = await seedTrip(owner, "Kyoto");
+    const secret = await tokenFor(owner);
+
+    tripGateThrows = new Error("connection terminated unexpectedly");
+    const res = await GET_TRIP(get("http://localhost/api/v1/trips/x", secret), withTrip(tripId));
+    expect(tripGateThrows, "the gate should have consumed the failure").toBeNull();
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe("server-error");
+    // Never the driver's words — a caller does not get to read our stack.
+    expect(JSON.stringify(body)).not.toContain("connection terminated");
   });
 
   // **A trip this server cannot parse is a 500 IN THE ENVELOPE.** `getTripDetail`

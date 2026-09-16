@@ -107,7 +107,10 @@ describe("the city index pages in the order it is ranked", () => {
     const { secret } = await entitledToken(["trips:read"]);
     searchCities.mockResolvedValue(RANKED);
 
-    for (const cursor of ["Salzburg", "x|y", "", "|"]) {
+    // `-1|Rome` and `3|` are the two that slipped through `Number.isInteger`:
+    // both have the right SHAPE and neither is anything `cursorOf` can emit,
+    // so both must take the first-page fallback rather than filtering a page.
+    for (const cursor of ["Salzburg", "x|y", "", "|", "-1|Rome", "3|", "03|Kyoto", "1e2|Kyoto"]) {
       const res = await LIST_CITIES(
         new Request(`http://localhost/api/v1/cities?q=s&cursor=${encodeURIComponent(cursor)}`, {
           headers: { authorization: `Bearer ${secret}` },
@@ -115,6 +118,9 @@ describe("the city index pages in the order it is ranked", () => {
         NO_PARAMS,
       );
       expect(res.status, cursor).toBe(200);
+      // The whole first page, not a filtered slice of it.
+      const body = (await res.json()) as { items: { city: string }[] };
+      expect(body.items.map((c) => c.city), cursor).toEqual(RANKED.map((c) => c.city));
     }
   });
 });

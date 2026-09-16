@@ -357,6 +357,31 @@ describe("a patch changes what it names, and nothing else", () => {
     expect((await cleared.json()).startDate).toBe(null);
   });
 
+  it("refuses a date it cannot parse with 400, not 500", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId } = await seed(secret);
+
+    // `"invalid"` fails the shape; `2027-13-45` passes the shape and is still
+    // not a date. Both reach `daySpan`, which throws — and a throw here is a
+    // 500 telling the caller the server broke when they sent a bad date.
+    for (const endDate of ["invalid", "2027-13-45", "2027-02-30"]) {
+      const res = await PATCH_TRIP(
+        req(secret, { startDate: "2027-04-01", endDate }, "PATCH"),
+        P({ tripId }),
+      );
+      expect(res.status, endDate).toBe(400);
+      expect((await res.json()).error.code, endDate).toBe("invalid-request");
+    }
+
+    // And the same for a start date the caller names outright.
+    const badStart = await PATCH_TRIP(
+      req(secret, { startDate: "2027-02-30", endDate: "2027-03-02" }, "PATCH"),
+      P({ tripId }),
+    );
+    expect(badStart.status).toBe(400);
+  });
+
   it("keeps a stop on its day when only its position is patched", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner, ["trips:read", "trips:write"]);

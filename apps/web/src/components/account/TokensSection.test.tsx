@@ -234,6 +234,37 @@ describe("the one-time secret", () => {
     expect((screen.getByTestId("token-secret") as HTMLInputElement).value).toBe("tc_theonlycopy");
   });
 
+  // The clipboard write is async, so its completion can land after the person
+  // has moved on. Labelling a DIFFERENT one-time secret as copied is the worst
+  // available lie here: they navigate away trusting a clipboard that holds the
+  // previous token.
+  it("does not label a second secret as copied when the first write lands late", async () => {
+    serve();
+    let settle: (() => void) | undefined;
+    const writeText = vi.fn(() => new Promise<void>((resolve) => (settle = resolve)));
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "First" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    await screen.findByTestId("token-secret");
+
+    // Click Copy, then dismiss and mint again before the write resolves.
+    fireEvent.click(screen.getByTestId("token-copy"));
+    fireEvent.click(screen.getByTestId("token-reveal-dismiss"));
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.change(screen.getByTestId("token-name"), { target: { value: "Second" } });
+    fireEvent.click(screen.getByTestId("token-create"));
+    await screen.findByTestId("token-secret");
+
+    settle!();
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    // The stale completion must not claim the secret now on screen.
+    expect(text("token-copy")).toBe("Copy");
+  });
+
   it("says Copied when the clipboard took it", async () => {
     serve();
     const writeText = vi.fn(async () => undefined);

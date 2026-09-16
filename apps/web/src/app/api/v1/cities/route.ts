@@ -21,9 +21,16 @@ function decodeCursor(after: string | null): { days: number; city: string } | nu
   if (after === null) return null;
   const sep = after.indexOf("|");
   if (sep === -1) return null;
-  const days = Number(after.slice(0, sep));
-  if (!Number.isInteger(days)) return null;
-  return { days, city: after.slice(sep + 1) };
+  // Only what `cursorOf` can actually produce: a canonical non-negative
+  // integer and a non-empty city. `Number.isInteger` alone let `-1|Rome` and
+  // `3|` through, and both then filter a page rather than taking the first-page
+  // fallback this function's own comment promises.
+  const daysText = after.slice(0, sep);
+  const city = after.slice(sep + 1);
+  if (!/^(0|[1-9]\d*)$/.test(daysText) || city === "") return null;
+  const days = Number(daysText);
+  if (!Number.isSafeInteger(days)) return null;
+  return { days, city };
 }
 
 export const { GET } = route({

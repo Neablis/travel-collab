@@ -77,7 +77,17 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
   const [days, setDays] = useState(String(API_TOKEN_DEFAULT_LIFETIME_DAYS));
   const [scopes, setScopes] = useState<ApiScope[]>(["trips:read"]);
   const [revealed, setRevealed] = useState<ApiTokenCreated | null>(null);
-  const [copied, setCopied] = useState(false);
+  // **Keyed on the REVEAL, not a boolean and not the secret's text.** The
+  // clipboard write is async, so a slow one can resolve after the person has
+  // dismissed the reveal and minted a second token — and a bare
+  // `setCopied(true)` then labelled that new secret as copied while the
+  // clipboard held the old one. They navigate away trusting it.
+  //
+  // Identity rather than value: two reveals are different objects even when
+  // their fields match, so this cannot be fooled by a repeated secret the way
+  // comparing the text can. Dismissing clears the label for free, because
+  // `revealed` becomes null and nothing equals it.
+  const [copiedFor, setCopiedFor] = useState<ApiTokenCreated | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -247,15 +257,16 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
                   // is to say so.
                   void (async () => {
                     try {
-                      await navigator.clipboard.writeText(revealed.secret);
-                      setCopied(true);
+                      const copying = revealed;
+                      await navigator.clipboard.writeText(copying.secret);
+                      setCopiedFor(copying);
                     } catch {
                       setError("This browser would not let us copy. Select the token and copy it.");
                     }
                   })();
                 }}
               >
-                {copied ? "Copied" : "Copy"}
+                {copiedFor === revealed ? "Copied" : "Copy"}
               </Button>
               <Button
                 variant="ghost"
@@ -263,7 +274,7 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
                 data-testid="token-reveal-dismiss"
                 onClick={() => {
                   setRevealed(null);
-                  setCopied(false);
+                  setCopiedFor(null);
                 }}
               >
                 Done

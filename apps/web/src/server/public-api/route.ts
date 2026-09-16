@@ -430,7 +430,22 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       // the actor handed in rather than resolved again. This is what makes a
       // token unable to grant more than its owner holds, and what makes it
       // degrade the instant a membership changes.
-      const outcome = await tripAccessFor(actor.userId, tripId, def.role ?? "viewer");
+      //
+      // **And it needs its own catch, because it runs before the handler's.**
+      // `tripAccessFor` converts a stored document it cannot parse into a
+      // denial, and deliberately lets everything else through — a dropped
+      // connection, a `22P02`, a pool timeout. Those are real and they are not
+      // "this trip is unreadable", so they propagate. But this call sits above
+      // the `try` below, so a propagated one left `route()` entirely and the
+      // caller got whatever Next renders for an unhandled throw, on a surface
+      // whose whole claim is one envelope, always.
+      let outcome: Awaited<ReturnType<typeof tripAccessFor>>;
+      try {
+        outcome = await tripAccessFor(actor.userId, tripId, def.role ?? "viewer");
+      } catch (error) {
+        console.error("v1 trip gate threw", { method, scope: def.scope, tripId, error });
+        return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+      }
       if (!outcome.ok) {
         const mapped = DENIAL_TO_ERROR[outcome.denial];
         return fail(mapped.code, mapped.message, mapped.status);

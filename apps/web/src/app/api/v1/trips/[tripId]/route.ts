@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { daySpan } from "@tc/domain";
+import { daySpan, isCalendarDate } from "@tc/domain";
 import { z } from "zod";
 import { Money, TripDetail } from "@tc/contracts";
-import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
+import { orThrow, PublicApiError, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
 // **Pilot endpoint 2 of 2** (M22 Phase 2) — a single resource on one trip, so it
@@ -66,6 +66,26 @@ export const { GET, PATCH, DELETE } = route({
       if (patch.name !== undefined) commands.push({ type: "SetTripName", tripId, name: patch.name });
       if (patch.endDate !== undefined) {
         const startDate = patch.startDate === undefined ? trip!.startDate : patch.startDate;
+        // **Shape is not calendar validity, and `daySpan` throws on the
+        // difference.** The body schema takes a string; `parseIsoDateUtc`
+        // raises `RangeError` for `"invalid"` and for shape-valid impossibles
+        // like `2027-13-45`. Before `newDayIds` existed nothing here touched a
+        // date and the domain answered 400 for both; computing the span first
+        // put a throw in front of that refusal, and the caller got a 500 for a
+        // request only they could fix.
+        //
+        // `isCalendarDate` is the predicate `decide.ts` uses for the same
+        // reason (KI-77), so this refuses exactly what the domain would. A
+        // regex on the schema would not: `2027-13-45` matches it and still
+        // throws.
+        for (const [field, value] of [
+          ["startDate", startDate],
+          ["endDate", patch.endDate],
+        ] as const) {
+          if (value !== null && !isCalendarDate(value)) {
+            throw new PublicApiError(400, `"${field}" is not a calendar date.`);
+          }
+        }
         // **The ids the reconcile will need, minted here.** `SetTripDates`
         // reconciles the day COUNT to the range and the domain is pure, so it
         // cannot mint the uuids for days it has to append (Invariant 4) — it
