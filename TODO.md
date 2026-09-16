@@ -37,7 +37,14 @@ first, sharing first — have since happened. **The order was then
 minted and placed 2026-09-01**, after M9, by Mitchell's call. **Reordered again
 2026-09-13 — M20 and M21 move ahead of M9's remaining work**, on Mitchell's
 direct request for the payment milestone, so the live order is
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`. M19 stays last regardless: its link 3
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.
+**Placed 2026-09-16 — M22 (a public API and scoped account tokens) runs after
+M21**, on Mitchell's direct answer (*"Im fine making it after M21"*), so the
+live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
+**Placed but not scoped**, the M19 way — one open decision still moves its
+scope. Placement note and the entitlement decision that came with it:
+`docs/milestones/README.md`, 2026-09-16. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
 
@@ -527,6 +534,36 @@ Where the work actually stands right now: `docs/STATUS.md`.
       2's migrate action no longer exists** — nothing in either milestone moves
       an existing subscriber onto a newer version. What you bought is what you
       get, now with no mechanism to change it.)*
+
+- [ ] **M22 An account can build on the API** →
+      *(**Placed 2026-09-16 by Mitchell — runs after M21, before M12.**
+      *"Im fine making it after M21."* A public REST API and account-generated
+      API tokens, scoped to the account or to named trips, with create and
+      revoke. Design: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+      **Placed but not scoped** — the milestone file waits on one open decision
+      (whether the planning-write surface is REST resources, the existing
+      command endpoint passed through, or both), the same way M19 is
+      deliberately placed but not scoped.
+      **Three boundaries fixed by Mitchell at placement**: user accounts only,
+      **no admin surface**, **no AI surface** — so a token can never spend model
+      budget, and the AI quota and entitlement paths need no change at all.
+      **Its entitlement is decided: `premium` grants a new `api.tokens`, and it
+      gates both minting a token and using one** — *"lets lock creating and
+      using API keys behind top tier for now"*. Recorded as a named plan and
+      never as a tier height, because ADR-045 rule 4 forbids plan ordering and
+      `planVersions.noExtension.test.ts` enforces it. That publishes
+      **`premium@v2`**, which raises the one question the placement left open:
+      a `premium@v1` subscriber is pinned to v1 forever and **there is
+      deliberately no mechanism to move them** (see M21's 2026-09-02 amendment
+      directly above), so they never get API tokens unless issued an admin grant
+      of `premium@v2` — which needs no new machinery, since entitlements are the
+      union of the held version and every grant's pinned version. **The cohort
+      needing that grows for as long as M21 sells `premium@v1` before M22
+      lands**, so it is worth settling before M21 goes live.
+      The design's own claim to test at the gate: adding endpoint N+1 costs a
+      declaration and nothing else — no auth, validation, error, pagination,
+      docs or client work — because `src/app/api/v1/**` is the registry and one
+      `route()` wrapper owns everything cross-cutting.)*
 
 - [ ] **M19 A cost knows who and what it is for** →
       `docs/milestones/M19-cost-model.md`

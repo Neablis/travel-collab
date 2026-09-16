@@ -202,7 +202,8 @@ Current milestone: **M21 — An account can pay for itself**
 (`M21-subscriptions-and-billing.md`), as of **2026-09-14, when M20's gate
 closed** — 32 of 32 live boxes, retro in its own file. No decision moved this
 one; the order set on 2026-09-13 simply advanced. Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 → M12 → M13 → M14 → M19`.
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
+**M22 was placed 2026-09-16** — see the note below.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and
@@ -218,6 +219,55 @@ scope and exit gate stand. **M9's gate was the previous `Current milestone`
 value** (set 2026-09-11 when M17's gate closed) and it did **not** close; this
 line moved by decision, which is the one way it may move other than a gate
 close.
+
+### 2026-09-16 — placed: M22, a public API and scoped account tokens
+
+**Mitchell's call, 2026-09-16**, answering a placement question directly —
+*"Im fine making it after M21."* **New execution order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.**
+Milestone numbers are unchanged; this is a placement, the same shape as ADR-018,
+ADR-021, ADR-022 and the two reorders below.
+
+**Placed, not scoped.** Per `TODO.md`'s standing tasks the milestone file is
+written *"before its first commit"*, and one open decision still moves the scope
+(the shape of the planning-write surface). M19 is the standing precedent for a
+milestone deliberately placed but not scoped. Design and the open questions:
+`docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**What it is.** A public REST API under `src/app/api/v1/**` plus
+account-generated API tokens, scoped to the whole account or to named trips,
+with create and revoke. The design's central claim — and the thing its gate
+should test — is that **adding endpoint N+1 costs a declaration and nothing
+else**: the directory is the registry, one `route()` wrapper owns credential
+resolution, scope and role checks, validation, the error envelope, pagination,
+rate limiting and the OpenAPI entry, and a conformance test walking `v1/**`
+fails CI on a handler that did not declare itself.
+
+**Three boundaries fixed by Mitchell at placement**: user accounts only, **no
+admin surface**, and **no AI surface** — so a token can never spend model
+budget, and the AI quota and entitlement paths need no change at all.
+
+**Its entitlement was decided the same day**: *"lets lock creating and using API
+keys behind top tier for now."* A new `api.tokens` entitlement, granted by
+`premium` and gating **both** minting a token and using one. Recorded as a named
+plan and never as a tier height — ADR-045 rule 4 forbids plan ordering,
+`studio` is the standing proof no rank expresses the set, and
+`planVersions.noExtension.test.ts` walks the AST and fails on a rank comparison.
+A lapse **disables** tokens rather than revoking them, so resubscribing restores
+every integration with zero writes — deliberately the same shape as M20's
+decision that granted memberships cap at `viewer` on read.
+
+**One question the entitlement answer opened, and it is worth settling before
+M21 goes live.** Granting `api.tokens` publishes **`premium@v2`**, because
+`planVersions.ts` is append-only and `noExtension.test.ts` pins every published
+v1 entry field by field. A subscription pins `planId@vN` forever and **there is
+deliberately no mechanism to move an existing subscriber** (M21's 2026-09-02
+amendment: *"what you bought is what you get, now with no mechanism to change
+it"*). So **a `premium@v1` subscriber never gets API tokens** unless issued an
+**admin grant of `premium@v2`** — which needs no new machinery, since
+entitlements resolve as the union of the held version and every grant's pinned
+version, and the grant UI already exists from M20. **The cohort needing that
+grant grows for every week M21 sells `premium@v1` before M22 lands.**
 
 ### 2026-09-13 — reorder: M20 and M21 run next, ahead of M9's remaining work
 

@@ -1,9 +1,13 @@
 # A public REST API, scoped tokens, and a route layer that does not grow linearly
 
-**Status: PROPOSED — 2026-09-16.** Nothing is built. This document exists to be
-argued with; five questions at the bottom are Mitchell's and one of them
-(placement) blocks the first line of code, because M21 is the current milestone
-and AGENTS.md forbids building ahead of it.
+**Status: PARTLY DECIDED — 2026-09-16.** Nothing is built. Of the five
+questions this document opened with, **Mitchell answered three the same day**:
+placement (**M22, after M21** — see *Placement*), entitlement (**`premium` only,
+both minting and using** — Decision 12), and that the REST-vs-commands choice
+could not be answered without knowing what the routes do (the *Endpoint
+inventory* now below exists for that, and **that question stays open**).
+**One new question was surfaced by the entitlement answer** and is Mitchell's:
+what happens to anyone holding `premium@v1`. See *Questions still open*.
 
 **Opened by:** Mitchell, 2026-09-16 — *"Make a plan to design a api, and the
 ability for accounts to generate scopes api tokens for account, or trip, etc.
@@ -311,6 +315,182 @@ rather than asserting it (`planVersions.fourthPlan.test.ts`,
 No lint-wall change is needed: `src/app/api/**` and `src/server/**` are already
 the exempt shell, and everything here lives in one or the other.
 
+### Decision 12 — API access is a `premium` entitlement, checked at mint time AND on every request
+
+**Mitchell, 2026-09-16: *"Lets lock creating and using API keys behind top tier
+for now."*** Recorded here as a named plan rather than a height, because this
+codebase has no heights.
+
+**"Top tier" has no meaning inside the Entitlements module and must not acquire
+one.** ADR-045 rule 4 and M20's single most load-bearing rule refuse any plan
+ordering — Mitchell's own words at the time were that tiers are *"not
+necessarily subsets — each have their own access and functionality"*, and
+`studio` exists as the standing proof that no rank can express the set
+(it grants `trip.collaborators` **without** `ai.command`). `planVersions.noExtension.test.ts`
+walks this file's AST and fails on a spread, an `extends`, a base-plan constant
+or a rank comparison.
+
+So the decision is recorded as: **`premium` grants `api.tokens`. `free`, `plus`
+and `studio` do not.** That is a membership fact about one plan, expressible
+with no ordering, and it is exactly the shape the module wants.
+
+**The change is three lines and one new version:**
+
+1. `Entitlement` in `packages/contracts/src/entitlement.ts` gains `"api.tokens"`
+   — a fourth member of a vocabulary whose stated rule is that *"a capability
+   that exists is a capability someone will eventually check."* This one is
+   checked in two places, below. Contracts change, so: changelog entry, all
+   consumers in the same PR.
+2. **`premium@v2` is published** carrying `["ai.ask", "ai.command",
+   "trip.collaborators", "api.tokens"]`, enumerated in full and never as
+   `[...PREMIUM_V1, "api.tokens"]`.
+3. The account sheet's plan surface learns the word.
+
+**Adding it to `premium@v1` in place is not an option, and the repo already
+stops you.** `planVersions.ts` is immutable and append-only; `noExtension.test.ts`
+pins every published v1 entry field by field, so a diff that edits one fails a
+test in the same diff. That is the mechanism working, not an obstacle.
+
+**Both halves of "creating and using" are enforced, in different places:**
+
+- **Minting** — `accountCan(userId, "api.tokens")` before a token is created.
+  A `free` or `plus` account gets **402**, matching the existing
+  `AI_NOT_ENTITLED_STATUS = 402` precedent rather than inventing a second shape.
+- **Using** — every token-authenticated request resolves **the token owner's**
+  entitlements and refuses with 402 if the answer is no. Resolved per request
+  from the database, **never cached on the `api_tokens` row and never read from
+  a JWT** — M20's third rule, whose stated reason is that *"a downgrade must
+  bite before a token refreshes."* A cached entitlement on a token row would be
+  that exact defect with a longer fuse, since a token lives for months.
+
+**A lapse disables tokens; it does not revoke them.** `revoked_at` stays null,
+the token simply stops being accepted, and re-subscribing restores every one of
+them **with zero writes**. This is deliberately the same shape as M20's
+decision that granted memberships cap at `viewer` **on read** rather than being
+written down — same reasoning, same recovery property, and it means a billing
+lapse can never destroy a customer's integration.
+
+**The honest cost:** `entitlementsFor` is three queries (`heldPlanFor`,
+`activeGrantsFor`, `standingFor`, run in parallel). Every API request now pays
+them. The wrapper resolves **once per request and passes the result down** —
+which is not an optimisation but the resolver's own documented contract
+(*"Resolve once per request and pass down; never re-query per check"*). If it
+ever matters, `heldPlanFor` and `standingFor` are collapsible into one join;
+it is not worth doing speculatively.
+
+### Placement — M22, after M21
+
+**Mitchell, 2026-09-16: *"Im fine making it after M21."*** So this is **M22**,
+running after M21's gate closes and before M12. Recorded in `TODO.md` and
+`docs/milestones/README.md` as a **placement**, the same shape as ADR-018,
+ADR-021, ADR-022 and the 2026-09-13 reorder.
+
+**Placed, not scoped.** Per `TODO.md`'s standing tasks the milestone file
+(scope + exit gate) is written *"before its first commit"*, and one open
+question (REST vs command passthrough) still moves the scope materially. M19 is
+the standing precedent for a milestone that is *"deliberately placed but not
+scoped"*.
+
+## Endpoint inventory — what the routes actually do
+
+Written 2026-09-16 because the REST-vs-commands question was unanswerable
+without it: *"dont think i know what any of the routes do, so i cant just say go
+ahead and approve commands but not days."* Product language, not code.
+
+### Every trip edit is one endpoint today, and it is 18 commands wide
+
+`POST /api/trips/:id/commands` is **every single edit anyone makes to a plan**.
+There is no `/days` endpoint to compare it against — that is why the question as
+posed had no answer. The 18 commands, and what a person did to cause each:
+
+| Command | What the user did | In a batch? |
+|---|---|---|
+| `CreateTrip` | Clicked "New trip" | no — it is a trip's first moment |
+| `AddDay` / `RemoveDay` | "+ Day", or deleted a day | yes |
+| `AddActivity` | Added a stop | yes |
+| `UpdateActivity` | Edited a stop — title, time, place, notes, cost, tags, booked/idea | yes |
+| `MoveActivity` | Dragged a stop to another day, position, or the backlog | yes |
+| `RemoveActivity` | Deleted a stop | yes |
+| `SetTripName` | Renamed the trip | yes |
+| `SetTripStartDate` / `SetTripDates` | Picked dates (the second also adds/drops days to match) | yes |
+| `SetTripCurrency` / `SetTripBudget` | Money settings | yes |
+| `DismissConflict` | Dismissed an overlap warning | yes |
+| `UndoLastChange` / `RedoChange` | Undo / Redo | no — decided against the log, not folded state |
+| `RevertToState` | "Revert to here" in History | no |
+| `DeleteTrip` / `RestoreTrip` | Deleted or restored the whole trip | no — stream-level |
+
+### As REST, those 18 commands are 13 endpoints
+
+They collapse, because several commands are the same HTTP shape:
+
+| Endpoint | Commands it covers |
+|---|---|
+| `POST /v1/trips` | `CreateTrip` |
+| `PATCH /v1/trips/:id` | **five** — name, start date, dates, currency, budget |
+| `DELETE /v1/trips/:id` · `POST /v1/trips/:id/restore` | `DeleteTrip` · `RestoreTrip` |
+| `POST /v1/trips/:id/days` · `DELETE …/days/:dayId` | `AddDay` · `RemoveDay` |
+| `POST /v1/trips/:id/activities` | `AddActivity` |
+| `PATCH …/activities/:id` | **two** — `UpdateActivity` and `MoveActivity` (a move is a patch of day + position) |
+| `DELETE …/activities/:id` | `RemoveActivity` |
+| `DELETE …/conflicts/:id` | `DismissConflict` |
+| `POST …/history/undo` · `/redo` · `/revert` | `UndoLastChange` · `RedoChange` · `RevertToState` |
+
+**Thirteen endpoints, of which ten are ordinary REST and three (undo, redo,
+revert) are actions REST has no noun for.** That is the whole planning write
+surface — not the open-ended list the question implied.
+
+The one debatable row is `PATCH …/activities/:id` covering both edit and move:
+one endpoint dispatching to two commands depending on which fields are present.
+Splitting it costs one more endpoint and buys clarity; either is defensible.
+
+### The finding that changes the recommendation
+
+**The command endpoints are BFF-shaped.** They return the whole refreshed trip
+**and** its history after every edit, because the board re-renders from the
+mutation response. `/commands/batch` additionally wraps its input in an envelope
+shaped for the browser's command queue.
+
+So exposing them publicly is **not** the free option the first draft of this
+document called it. It would freeze two things as public contract:
+
+1. **`TripCommand` itself** — an internal discriminated union in
+   `packages/contracts` that the domain adds to freely as the product grows.
+   Made public, every new command becomes a compatibility question.
+2. **A response shaped for our React re-render** — a full `TripDetail` plus
+   history on every write, which is a large payload a third party did not ask
+   for and cannot opt out of.
+
+The apparent zero-per-endpoint saving is borrowed against a contract we would
+rather keep free to change. **Recommendation: REST resources, thirteen
+endpoints, and the command envelope stays internal.**
+
+### What belongs in v1, and what does not
+
+| In `v1` | Why |
+|---|---|
+| Trip detail, history, history-at-revision, globals | Already clean general-purpose resources; six screens read the first one |
+| The thirteen planning writes above | The table above |
+| Notebook pages — list, get, create, patch, delete | Textbook single-resource CRUD already |
+| Saved days — list, get, create, delete, publish/unpublish | A clean collection and a clean two-state sub-resource |
+| Share links — list, create, revoke | Clean; the public share read is already the most API-like thing in the app |
+| Invites — create, revoke | Creates an invite and returns it; already general |
+| Cities search | `?q=` in, list out |
+| `GET /v1/account` | A "who am I" resource — **not** today's preferences blob, which has `isAdmin` bolted on for a menu item |
+| A **reshaped** `GET /v1/trips` | Today's version overlays member lists purely so the Home avatar stack renders; v1 gets the plain collection |
+
+| **Not** in `v1` | Why |
+|---|---|
+| `ask`, `ask/apply` | **Excluded by Mitchell.** A token may not spend model budget |
+| `admin/*` | **Excluded by Mitchell.** Keeps its 404-on-failure posture |
+| `billing/*`, the Stripe webhook | Moves money; session-only forever |
+| `/access`, Discover, the leaderboard, profiles, `account/plan`, `account/preferences` | Composed screen payloads — each exists to fill one panel and would have to be redesigned to be worth handing out |
+| `geocode` | Spends a metered third-party vendor allowance per call |
+| `dev/*`, `sentry-example-api`, `health/ai-mode`, the auth handlers | Tooling and plumbing, not product |
+
+Roughly **35 endpoints** in v1 at full build, of which 13 are the planning
+writes and most of the rest already exist in a clean shape. Phase 2's two pilots
+prove the wrapper; Phase 4 is then repetition, not design.
+
 ## The cost this design does NOT eliminate, stated plainly
 
 **REST over an event-sourced planning domain requires a translation per write
@@ -329,14 +509,15 @@ So the honest claim is narrower than "endpoints are free":
 - **Everything cross-cutting is free forever** — auth, scopes, validation,
   errors, docs, pagination, rate limits, the client, the mocks.
 
-There is a zero-maintenance alternative for writes and it should be named
-because Mitchell may want it: expose `POST /v1/trips/:id/commands` as a
-passthrough. Every planning mutation that exists or will ever exist becomes
-available the day its command is added, with no endpoint work at all, because
-`MINIMUM_ROLE` already decides who may run it. **It is not REST**, which is why
-it is not the recommendation — but it is the only genuinely
-zero-per-endpoint option, and a hybrid (REST resources for the common cases, the
-command endpoint for the long tail) is defensible. Question 4 below.
+The zero-maintenance alternative — exposing `POST /v1/trips/:id/commands` as a
+passthrough — **was examined and is now argued against**, on evidence the
+inventory produced: those endpoints are BFF-shaped, so publishing them would
+freeze both the internal `TripCommand` union and a React-re-render-shaped
+response as public contract. See *The finding that changes the recommendation*.
+
+So the recommendation is **thirteen REST endpoints for the planning writes**,
+and the total is bounded and known rather than open-ended. Question 4 below is
+what remains for Mitchell.
 
 ## What happens to the existing 46 routes
 
@@ -359,10 +540,10 @@ everything** — if the wrapper is wrong, it is wrong 200 endpoints later.
 
 | Phase | What lands | Proves |
 |---|---|---|
-| **0 — contracts** | `ApiScope`, `ApiToken` DTO, the error envelope, changelog entry. Own PR, per the contracts protocol. | The vocabulary, before anything depends on it |
-| **1 — storage + module** | Migration `api_tokens`; `src/server/api-tokens/` — mint, list, revoke, verify. Integration tests against real Postgres. No routes. | Hashing, revocation races, resolve-on-read |
+| **0 — contracts + the entitlement** | `ApiScope`, `ApiToken` DTO, the error envelope, **`Entitlement` gains `api.tokens`**, **`premium@v2` published**, changelog entry. Own PR, per the contracts protocol. | The vocabulary, before anything depends on it |
+| **1 — storage + module** | Migration `api_tokens`; `src/server/api-tokens/` — mint, list, revoke, verify, **and the `accountCan(owner, "api.tokens")` check on both mint and verify**. Integration tests against real Postgres. No routes. | Hashing, revocation races, resolve-on-read, and that a lapse disables without revoking |
 | **2 — the seam** | `Actor`, `resolveActor`, `route()`, the conformance test, and **two pilot endpoints** (`GET /v1/trips`, `GET /v1/trips/:id`) | The whole design, at the smallest size that can fail |
-| **3 — token UI** | A Tokens section in `AccountSettingsSheet` (the `PlanSection` precedent — a section, not a route): create with one-time reveal, list, revoke. E2E. | A person can actually do this by clicking |
+| **3 — token UI** | A Tokens section in `AccountSettingsSheet` (the `PlanSection` precedent — a section, not a route): create with one-time reveal, list, revoke — **and what a `free`/`plus` account sees instead**, which is an upgrade prompt, not a hidden section. E2E. | A person can actually do this by clicking |
 | **4 — surface + docs** | The rest of the v1 REST surface, `openapi.json`, `docs/guidelines/using-the-api.md` | That endpoint N+1 is cheap, measured rather than claimed |
 
 Phase 3 satisfies the Definition of Done's reachability rule — *"on the preview,
@@ -372,29 +553,79 @@ clickable, and that is the answer their PR bodies must carry.
 Phase 1 adds a migration, so its PR body says so and it needs an explicit
 `migrate-production` dispatch.
 
-## Questions for Mitchell — the first one blocks everything
+## Questions — three answered 2026-09-16, two open
 
-1. **Placement.** M21 is the current milestone and AGENTS.md forbids building
-   ahead of it. Does this become **M22** after M21's gate, or does it get placed
-   out of order the way ADR-021 and the 2026-09-13 reorder did? No code should
-   be written until this is answered.
-2. **Is API access entitled?** A new `Entitlement` member (`api.tokens`) gating
-   token creation on `plus`/`premium` is a one-line contracts change and one
-   entry per plan version — the `studio` fourth-plan proof shows it costs no
-   gate, resolver or authorization change. Or API access is free to every
-   account. **This is a pricing decision, not an engineering one**, and it is
-   the only part of this design that touches M20/M21 vocabulary.
-3. **Do the BFF routes and `v1` coexist permanently?** My recommendation is yes,
-   permanently, for the reason in *What happens to the existing 46 routes*. The
-   alternative — v1 eventually becomes the only API and the frontend consumes
-   its own public surface — is cleaner in the abstract and costs the freedom to
-   shape a response for one screen.
-4. **REST-only, or REST plus the command passthrough?** See *the cost this
-   design does NOT eliminate*. REST-only was what was asked for; the passthrough
-   is the only true zero-per-endpoint option and a hybrid is defensible.
-5. **Two smaller ones.** Is seven the right number of scopes? And should tokens
-   have a **mandatory** maximum lifetime (90 days, industry-typical) or an
-   optional one that defaults to never expiring?
+### Answered
+
+1. **Placement — ANSWERED.** *"Im fine making it after M21."* → **M22**, after
+   M21's gate, before M12. See *Placement* above. Read as "next after M21"
+   rather than "somewhere after M21"; it is one line to move if that is wrong.
+2. **Entitlement — ANSWERED.** *"Lets lock creating and using API keys behind
+   top tier for now."* → **`premium` grants `api.tokens`**, checked at mint time
+   and on every request. See Decision 12, including why it is recorded as a
+   named plan rather than a tier height.
+3. **Coexistence of the BFF routes and `v1` — NOT RAISED, so the recommendation
+   stands**: they coexist permanently. Flagged here so it is visibly a default
+   taken rather than a decision made.
+
+### Open
+
+4. **The planning-write surface — now a much smaller question than it was.**
+   Mitchell, 2026-09-16: *"dont think i know what any of the routes do, so i
+   cant just say go ahead and approve commands but not days."* Correct, and the
+   question was unanswerable as posed: **there is no `/days` endpoint today.**
+   Every trip edit goes through one endpoint that is 18 commands wide.
+
+   The *Endpoint inventory* above now lays out all 18 in product language.
+   Two things came out of writing it, and both narrow the decision:
+
+   - **As REST, 18 commands are 13 endpoints**, ten of them ordinary and three
+     (undo, redo, revert) actions REST has no noun for. The surface is bounded
+     and listable, not open-ended.
+   - **The command endpoints are BFF-shaped** — they return the whole refreshed
+     trip plus history on every write. So the passthrough this document
+     originally floated as "the only true zero-cost option" would publish both
+     our internal command vocabulary and a response shaped for our own
+     re-render. That is no longer a recommendation.
+
+   **So the recommendation is the thirteen REST endpoints, and the command
+   envelope stays internal.** What is left for Mitchell is to accept or reject
+   that, plus one genuinely optional sub-question: whether `PATCH
+   …/activities/:id` covers both editing and moving a stop (one endpoint, two
+   commands) or they split (one more endpoint, less magic).
+
+5. **NEW, surfaced by the entitlement answer: what happens to anyone holding
+   `premium@v1`?** Adding `api.tokens` publishes `premium@v2` (Decision 12).
+   A subscription pins `planId@vN` and reads its terms from that entry forever,
+   and **there is deliberately no mechanism to move an existing subscriber** —
+   M21 link 2's *what you bought is what you get*, and M20 amended
+   version-migration out of scope explicitly. So **a `premium@v1` subscriber
+   never gets API tokens** unless something is done.
+
+   Three options, in increasing cost:
+
+   a. **Accept it.** If M22 follows M21 closely, the `premium@v1` population is
+      small or empty — M21 has not shipped, has 9 of 17 gate boxes, and has
+      never charged a card. This is free if the gap is short.
+   b. **Grant them `premium@v2`** — *recommended, and it needs no new
+      machinery.* `resolveEntitlements` is the union of the conferred plan
+      version and every active grant's pinned version, so an admin grant of
+      `premium@v2` hands an existing v1 subscriber `api.tokens` **without
+      touching their subscription**. The admin grant UI already exists (M20),
+      and this is precisely the "comping, extending, fixing a billing dispute"
+      use for which the hand-grant path was called *permanent infrastructure
+      rather than scaffolding*.
+   c. **Build version migration.** Real scope, explicitly amended out of M20,
+      and not worth opening for this.
+
+   The risk grows with the gap: **every week M21 sells `premium@v1` before M22
+   lands is another cohort needing (b).** Worth deciding before M21 goes live,
+   not after.
+
+6. **Two small ones, still unanswered and both cheap to defer.** Is seven the
+   right number of scopes? And should tokens have a **mandatory** maximum
+   lifetime (90 days, industry-typical) or an optional one defaulting to never
+   expiring?
 
 ## What this design deliberately does not do
 
