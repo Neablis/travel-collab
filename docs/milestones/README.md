@@ -257,6 +257,23 @@ A lapse **disables** tokens rather than revoking them, so resubscribing restores
 every integration with zero writes — deliberately the same shape as M20's
 decision that granted memberships cap at `viewer` on read.
 
+**Two more answers, 2026-09-16.** The **planning-write surface is thirteen REST
+endpoints** and the internal command envelope is not published — the command
+routes are BFF-shaped, returning the whole refreshed trip plus history on every
+write, so exposing them would freeze both our `TripCommand` union and a
+response built for our own re-render as public contract. And **token expiry is
+mandatory, capped at 365 days**, 90-day default, with no "never" option; that
+makes `api_tokens.expires_at` a `notNull` column and puts three obligations on
+the UI (time remaining shown, expired distinguished from revoked, rotation named
+as two actions rather than assumed as a feature).
+
+**Writing the scope list out in plain language found a gap, now fixed.** The
+draft's seven scopes let `trips:write` create an invite, because an invite is an
+ordinary table write against a trip — so a token minted to sync an itinerary
+could have handed a stranger editor rights. That is Access & Membership, not
+Trip Planning. An eighth scope, `sharing:write`, now covers invites, member
+removal and share links.
+
 **One question the entitlement answer opened, and it is worth settling before
 M21 goes live.** Granting `api.tokens` publishes **`premium@v2`**, because
 `planVersions.ts` is append-only and `noExtension.test.ts` pins every published

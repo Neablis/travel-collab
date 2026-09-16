@@ -6,8 +6,11 @@ placement (**M22, after M21** — see *Placement*), entitlement (**`premium` onl
 both minting and using** — Decision 12), and that the REST-vs-commands choice
 could not be answered without knowing what the routes do (the *Endpoint
 inventory* now below exists for that, and **that question stays open**).
-**One new question was surfaced by the entitlement answer** and is Mitchell's:
-what happens to anyone holding `premium@v1`. See *Questions still open*.
+**Two further answers landed the same day** — the thirteen-REST-endpoint
+planning surface, and mandatory token expiry capped at one year (Decision 13).
+**Three questions remain and none of them blocks Phase 0**; writing one of them
+out in plain language found a real gap in the scope list, now fixed as an eighth
+scope (Decision 4). See *Questions*.
 
 **Opened by:** Mitchell, 2026-09-16 — *"Make a plan to design a api, and the
 ability for accounts to generate scopes api tokens for account, or trip, etc.
@@ -182,11 +185,31 @@ export const ApiScope = z.enum([
   "trips:read",    "trips:write",
   "notebook:read", "notebook:write",
   "library:read",  "library:write",   // saved days
+  "sharing:write",                    // invites and share links — see below
   "account:read",
 ]);
 ```
 
-Seven, deliberately not per-endpoint and deliberately not per-table. **No
+**Eight — and the eighth was a gap found by writing the list out in plain
+language for Mitchell, not by design.** The first draft had seven, and under it
+*creating an invite* fell under `trips:write`, because an invite is an ordinary
+table write against a trip.
+
+That is wrong, and the module map is what says so: **"let another person into my
+trip" is Access & Membership, not Trip Planning**, and it is a materially
+different power from "add a day". A token minted to sync an itinerary from a
+calendar should not be able to hand a stranger editor rights on that trip, and
+under the seven-scope draft it silently could. `sharing:write` covers trip
+invites, invite revocation, member removal, and share-link create/revoke.
+
+**Reads of the sharing surface stay under `trips:read`** — listing your own
+trip's share links is not more sensitive than reading the trip. One thing to
+check when it is built: the invite DTO carries an `email` label, so if listing
+invites exposes third-party email addresses, that read earns its own scope after
+all. Flagged rather than decided, because it depends on a DTO shape M22 has not
+written yet.
+
+Eight, deliberately not per-endpoint and deliberately not per-table. **No
 ordering export, no `atLeast`** — same reasoning as ADR-045 rule 4: a comparison
 operator anywhere near this forces every later scope to be a superset of an
 earlier one, permanently and quietly. `trips:write` does not imply `trips:read`;
@@ -248,7 +271,8 @@ Table `api_tokens`, shaped on `trip_shares` (the closest structural precedent):
 | `prefix` | text | display only |
 | `scopes` | text[] | parsed through `ApiScope` on read — a `text` column is not a guarantee |
 | `trip_ids` | text[] nullable | null = account-wide |
-| `created_at` / `last_used_at` / `expires_at` / `revoked_at` | timestamptz `mode: "date"` | the newer-table convention (KI-53) |
+| `created_at` / `last_used_at` / `revoked_at` | timestamptz `mode: "date"` | the newer-table convention (KI-53) |
+| `expires_at` | timestamptz `mode: "date"`, **`notNull`** | expiry is mandatory and capped at 365 days — Decision 13 |
 
 **Expiry and revocation are resolved on read and never swept** — the
 `entitlement_grants` rule, and `grants.retention.test.ts` is the precedent for a
@@ -377,6 +401,51 @@ which is not an optimisation but the resolver's own documented contract
 (*"Resolve once per request and pass down; never re-query per check"*). If it
 ever matters, `heldPlanFor` and `standingFor` are collapsible into one join;
 it is not worth doing speculatively.
+
+### Decision 13 — every token expires, and one year is the ceiling
+
+**Mitchell, 2026-09-16: *"yes mandatory token expiration, but lets pick a
+reasonable max, 1 year long?"*** Decided: **expiry is mandatory, and 365 days is
+the maximum.** "Never expires" is not an option a user can choose.
+
+One year is a defensible ceiling rather than an arbitrary one — GitHub's
+fine-grained personal access tokens cap at 366 days for the same reason: an
+unbounded credential is one whose blast radius only ever grows, and a token
+nobody has touched in three years is a liability with no owner.
+
+**Proposed shape, and the second number is the one worth arguing about:**
+
+| | Value |
+|---|---|
+| Maximum lifetime | **365 days**, enforced server-side. A longer request is a 400, not a silent clamp |
+| Default offered | **90 days** — the length most integrations actually need |
+| "Never" | not offered |
+
+**The schema consequence:** `api_tokens.expires_at` becomes **`notNull()`**.
+Decision 6's table had it nullable for a never-expiring token; that column can no
+longer be null, and the check is the same resolve-on-read it always was — no
+sweep, no job, consistent with the `entitlement_grants` rule.
+
+**What mandatory expiry owes the user, and this is the real cost of the
+decision.** A credential that dies on a schedule breaks a working integration on
+a schedule. Three things follow, and they are cheap only because they are
+designed in now rather than discovered at the first outage:
+
+1. **The token list shows time remaining**, not just a creation date — "expires
+   in 12 days" is the only form of this that anyone acts on.
+2. **An expired token answers differently from a revoked one.** Both are 401,
+   but the error `code` distinguishes them, so an integrator reading the
+   response learns "mint a new one" rather than "you were cut off".
+3. **Rotation is named but not built in M22.** The honest minimum is that
+   creating a replacement and revoking the old one are both already single
+   actions, so rotation is two clicks rather than a feature. A real
+   rotate-in-place (overlapping validity, one call) is a later ask, and saying
+   so here stops it being assumed.
+
+**Expiry never destroys anything.** An expired token is refused, not deleted —
+`revoked_at` stays null and the row stays listable, so a user can see what
+lapsed and why. Same reasoning as Decision 12's lapse behaviour, and the same
+resolve-on-read rule.
 
 ### Placement — M22, after M21
 
@@ -553,89 +622,76 @@ clickable, and that is the answer their PR bodies must carry.
 Phase 1 adds a migration, so its PR body says so and it needs an explicit
 `migrate-production` dispatch.
 
-## Questions — three answered 2026-09-16, two open
+## Questions — what is decided, and the three that remain
 
-### Answered
+### Decided
 
-1. **Placement — ANSWERED.** *"Im fine making it after M21."* → **M22**, after
-   M21's gate, before M12. See *Placement* above. Read as "next after M21"
-   rather than "somewhere after M21"; it is one line to move if that is wrong.
-2. **Entitlement — ANSWERED.** *"Lets lock creating and using API keys behind
-   top tier for now."* → **`premium` grants `api.tokens`**, checked at mint time
-   and on every request. See Decision 12, including why it is recorded as a
-   named plan rather than a tier height.
-3. **Coexistence of the BFF routes and `v1` — NOT RAISED, so the recommendation
-   stands**: they coexist permanently. Flagged here so it is visibly a default
-   taken rather than a decision made.
+1. **Placement** — **M22, after M21**, before M12. *"Im fine making it after
+   M21."* Placed but not scoped; see *Placement*.
+2. **Entitlement** — **`premium` grants `api.tokens`**, gating both minting and
+   using. *"Lets lock creating and using API keys behind top tier for now."*
+   Decision 12, including why it is a named plan and never a tier height.
+3. **The planning-write surface** — **thirteen REST endpoints; the command
+   envelope stays internal.** Accepted 2026-09-16. The *Endpoint inventory*
+   above is the list, and the reason the passthrough was withdrawn is that the
+   command endpoints are BFF-shaped and would publish both our internal command
+   vocabulary and a response built for our own re-render.
+4. **Token lifetime** — **mandatory, 365-day maximum, 90-day default.**
+   *"yes mandatory token expiration, but lets pick a reasonable max, 1 year
+   long?"* Decision 13, including the three things mandatory expiry owes the
+   user and the `expires_at notNull()` schema consequence.
+5. **BFF routes and `v1` coexist permanently** — never raised, so the
+   recommendation stands. Recorded as a default taken rather than a decision
+   made.
 
-### Open
+### Open — three, none of them blocking
 
-4. **The planning-write surface — now a much smaller question than it was.**
-   Mitchell, 2026-09-16: *"dont think i know what any of the routes do, so i
-   cant just say go ahead and approve commands but not days."* Correct, and the
-   question was unanswerable as posed: **there is no `/days` endpoint today.**
-   Every trip edit goes through one endpoint that is 18 commands wide.
+6. **Is the scope list right at eight?** Writing it out in plain language for
+   Mitchell **found a real gap and it is now fixed in Decision 4**: the
+   seven-scope draft let `trips:write` create invites, so a token minted to sync
+   an itinerary could have handed a stranger editor rights on the trip. That is
+   Access & Membership, not Trip Planning, and it is now `sharing:write`.
 
-   The *Endpoint inventory* above now lays out all 18 in product language.
-   Two things came out of writing it, and both narrow the decision:
+   What a token can be scoped to, in plain language:
 
-   - **As REST, 18 commands are 13 endpoints**, ten of them ordinary and three
-     (undo, redo, revert) actions REST has no noun for. The surface is bounded
-     and listable, not open-ended.
-   - **The command endpoints are BFF-shaped** — they return the whole refreshed
-     trip plus history on every write. So the passthrough this document
-     originally floated as "the only true zero-cost option" would publish both
-     our internal command vocabulary and a response shaped for our own
-     re-render. That is no longer a recommendation.
+   | Scope | What a token holding it may do |
+   |---|---|
+   | `trips:read` | See your trips, their days and stops, costs, history, and existing share links |
+   | `trips:write` | Create, change and delete trips, days and stops; undo and revert |
+   | `notebook:read` / `notebook:write` | Read / write the Notebook pages on a trip |
+   | `library:read` / `library:write` | Read / write your saved-days library, including publishing to Discover |
+   | `sharing:write` | Invite people to a trip, revoke invites, remove members, create and revoke share links |
+   | `account:read` | Who you are and what plan you hold |
 
-   **So the recommendation is the thirteen REST endpoints, and the command
-   envelope stays internal.** What is left for Mitchell is to accept or reject
-   that, plus one genuinely optional sub-question: whether `PATCH
-   …/activities/:id` covers both editing and moving a stop (one endpoint, two
-   commands) or they split (one more endpoint, less magic).
+   The question is granularity, and there are three honest answers: **coarser**
+   (just `read` and `write` — simpler, but then one token does everything),
+   **eight as above**, or **finer** (per resource, ~16). Recommendation is
+   eight: it matches the repo's own stated rule that *"a capability that exists
+   is a capability someone will eventually check"*, and every one of the eight
+   is checked by real code rather than reserved for later.
 
-5. **NEW, surfaced by the entitlement answer: what happens to anyone holding
-   `premium@v1`?** Adding `api.tokens` publishes `premium@v2` (Decision 12).
-   A subscription pins `planId@vN` and reads its terms from that entry forever,
-   and **there is deliberately no mechanism to move an existing subscriber** —
-   M21 link 2's *what you bought is what you get*, and M20 amended
-   version-migration out of scope explicitly. So **a `premium@v1` subscriber
-   never gets API tokens** unless something is done.
+7. **The `premium@v1` cohort — cheapest to settle now, while the answer is
+   "nobody".** Adding `api.tokens` publishes `premium@v2`; a subscription pins
+   its version forever and there is deliberately no mechanism to move a
+   subscriber. **M21's link-2 gate box records that `premium@v1` has never been
+   purchased**, so nobody is affected today. M21 intends to buy and refund one
+   Premium subscription to close that box, which mints the first row.
 
-   Three options, in increasing cost:
+   Two real options: **accept it** (free today, and the cohort is whoever buys
+   Premium between now and M22), or **grant `premium@v2`** to anyone who
+   appears — which needs no new machinery, since entitlements are the union of
+   the held version and every grant's pinned version, and M20's grant UI already
+   exists. Recommendation: accept it now, and grant if anyone shows up.
 
-   a. **Accept it.** If M22 follows M21 closely, the `premium@v1` population is
-      small or empty — M21 has not shipped, has 9 of 17 gate boxes, and has
-      never charged a card. This is free if the gap is short.
-   b. **Grant them `premium@v2`** — *recommended, and it needs no new
-      machinery.* `resolveEntitlements` is the union of the conferred plan
-      version and every active grant's pinned version, so an admin grant of
-      `premium@v2` hands an existing v1 subscriber `api.tokens` **without
-      touching their subscription**. The admin grant UI already exists (M20),
-      and this is precisely the "comping, extending, fixing a billing dispute"
-      use for which the hand-grant path was called *permanent infrastructure
-      rather than scaffolding*.
-   c. **Build version migration.** Real scope, explicitly amended out of M20,
-      and not worth opening for this.
+8. **One cosmetic sub-question.** Does `PATCH /v1/trips/:id/activities/:id`
+   cover both editing a stop and moving it (one endpoint dispatching to two
+   commands depending on which fields are present), or do they split into two
+   endpoints? One is tidier to document, the other is less magic. No
+   recommendation; it genuinely does not matter much.
 
-   **Measured 2026-09-16, and it makes (a) free today.** M21's exit gate
-   records that the live purchase resolved `plus@v1` against real Stripe and
-   charged $9, and states plainly that **`premium@v1` has never been purchased**
-   — its Stripe Price has never even been resolved
-   (`M21-subscriptions-and-billing.md`, link-2 gate box). **So the affected
-   cohort is currently empty**, and option (a) costs nothing as things stand.
-
-   That is a fact with a shelf life, and two things end it. M21 intends to
-   **buy and refund one Premium subscription** to close that same gate box,
-   which mints the first `premium@v1` row. And every real Premium sale after
-   that adds one. **The cheapest moment to decide is now, while the answer is
-   "nobody"** — after which it becomes (b), one admin grant per affected
-   account.
-
-6. **Two small ones, still unanswered and both cheap to defer.** Is seven the
-   right number of scopes? And should tokens have a **mandatory** maximum
-   lifetime (90 days, industry-typical) or an optional one defaulting to never
-   expiring?
+**None of these blocks Phase 0.** The contracts, the token table, the wrapper
+and the two pilot endpoints can all be built on what is decided; 6 and 8 land
+before Phase 4's surface work, and 7 is a product call with no code attached.
 
 ## What this design deliberately does not do
 
