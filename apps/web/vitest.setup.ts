@@ -26,6 +26,23 @@ afterEach(() => {
   // than per file, for the reason cleanup() is here — the file that forgets is
   // the one that debugs this for an afternoon.
   clearQueryCache();
+  // **`localStorage` is module-level state by another name**, and it leaks the
+  // same way — silently, and by PASSING with the previous test's value rather
+  // than failing. M9's conversation durability is what found it: the board's
+  // suite mounts the same trip in test after test, so the second test onward
+  // restored the first one's thread and nine assertions about an empty
+  // transcript went red at once.
+  //
+  // Cleared here for the reason `cleanup()` and `clearQueryCache()` are: the
+  // file that forgets is the one that spends an afternoon on it. Guarded on
+  // `window`, because the node project has no storage — and wrapped, because a
+  // test that stubs `localStorage` with something incomplete must not turn
+  // teardown into the failure.
+  try {
+    if (typeof window !== "undefined") window.localStorage?.clear?.();
+  } catch {
+    // A stubbed or refused storage. Nothing to clear, nothing to report.
+  }
 });
 
 // jsdom ships no matchMedia. Components that adapt to a breakpoint (the
