@@ -274,8 +274,15 @@ could have handed a stranger editor rights. That is Access & Membership, not
 Trip Planning. An eighth scope, `sharing:write`, now covers invites, member
 removal and share links.
 
-**One question the entitlement answer opened, and it is worth settling before
-M21 goes live.** Granting `api.tokens` publishes **`premium@v2`**, because
+**The design is fully decided as of 2026-09-16** — scopes settled at eight, and
+`PATCH` semantics settled by *"follow rest, you dont need to make opinions about
+whats actually happening a patch is a patch"*: one endpoint updates an activity
+whatever fields it carries, and a patch touching both a stop's fields and its day
+composes the existing all-or-nothing batch. The API never mirrors the internal
+command split, which is the same principle that kept the command envelope
+unpublished.
+
+**One item is flagged back and blocks nothing.** Granting `api.tokens` publishes **`premium@v2`**, because
 `planVersions.ts` is append-only and `noExtension.test.ts` pins every published
 v1 entry field by field. A subscription pins `planId@vN` forever and **there is
 deliberately no mechanism to move an existing subscriber** (M21's 2026-09-02
@@ -285,6 +292,18 @@ it"*). So **a `premium@v1` subscriber never gets API tokens** unless issued an
 entitlements resolve as the union of the held version and every grant's pinned
 version, and the grant UI already exists from M20. **The cohort needing that
 grant grows for every week M21 sells `premium@v1` before M22 lands.**
+
+**Mitchell's answer was *"just assign it to v1, its unused atm"*, and its premise
+is right — but it leads to `v2`.** Because nobody holds `premium@v1`, **neither**
+option strands anyone; and `livePlanVersion` returns the newest entry with no
+flag to set, so publishing `premium@v2` needs no other edit anywhere. Editing
+`v1` in place, by contrast, falsifies a **ticked M20 gate box** (*"`v1`'s entry
+is byte-identical afterwards"*) and requires rewriting `noExtension.test.ts`,
+whose stated purpose is to fail in the same diff that edits a published entry.
+The M21 price precedent does not cover it: that argued *"the field did not
+exist"*, and `entitlements` does. Recommendation recorded in the design as
+**`v2`**, reversible in one line plus one test line if Mitchell prefers
+otherwise.
 
 ### 2026-09-13 — reorder: M20 and M21 run next, ahead of M9's remaining work
 

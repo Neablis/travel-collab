@@ -1,16 +1,14 @@
 # A public REST API, scoped tokens, and a route layer that does not grow linearly
 
-**Status: PARTLY DECIDED — 2026-09-16.** Nothing is built. Of the five
-questions this document opened with, **Mitchell answered three the same day**:
-placement (**M22, after M21** — see *Placement*), entitlement (**`premium` only,
-both minting and using** — Decision 12), and that the REST-vs-commands choice
-could not be answered without knowing what the routes do (the *Endpoint
-inventory* now below exists for that, and **that question stays open**).
-**Two further answers landed the same day** — the thirteen-REST-endpoint
-planning surface, and mandatory token expiry capped at one year (Decision 13).
-**Three questions remain and none of them blocks Phase 0**; writing one of them
-out in plain language found a real gap in the scope list, now fixed as an eighth
-scope (Decision 4). See *Questions*.
+**Status: DECIDED — 2026-09-16. Nothing is built yet; M22 is placed, not
+scoped.** **Every question this document opened with was answered the same day** — placement,
+entitlement, the thirteen-REST-endpoint planning surface, mandatory token expiry
+capped at one year, eight scopes, and `PATCH` semantics. Two of those answers
+improved the design rather than just settling it: writing the scope list out in
+plain language exposed a gap now fixed as an eighth scope (Decision 4), and
+*"a patch is a patch"* removed a leak of our internal command split (Decision
+14). **One item is flagged back to Mitchell** — which `premium` version carries
+`api.tokens` — and it blocks nothing. See *Questions*.
 
 **Opened by:** Mitchell, 2026-09-16 — *"Make a plan to design a api, and the
 ability for accounts to generate scopes api tokens for account, or trip, etc.
@@ -209,7 +207,8 @@ invites exposes third-party email addresses, that read earns its own scope after
 all. Flagged rather than decided, because it depends on a DTO shape M22 has not
 written yet.
 
-Eight, deliberately not per-endpoint and deliberately not per-table. **No
+**Eight, confirmed by Mitchell 2026-09-16** (*"Sure, sound good"*) — deliberately
+not per-endpoint and deliberately not per-table. **No
 ordering export, no `atLeast`** — same reasoning as ADR-045 rule 4: a comparison
 operator anywhere near this forces every later scope to be a superset of an
 earlier one, permanently and quietly. `trips:write` does not imply `trips:read`;
@@ -370,10 +369,48 @@ with no ordering, and it is exactly the shape the module wants.
    `[...PREMIUM_V1, "api.tokens"]`.
 3. The account sheet's plan surface learns the word.
 
-**Adding it to `premium@v1` in place is not an option, and the repo already
-stops you.** `planVersions.ts` is immutable and append-only; `noExtension.test.ts`
-pins every published v1 entry field by field, so a diff that edits one fails a
-test in the same diff. That is the mechanism working, not an obstacle.
+#### Which version carries it — and why `v2` after all
+
+**Mitchell, 2026-09-16: *"Just assign it to v1, its unused atm."*** The premise
+is correct and is the reason this is easy: **`premium@v1` has never been
+purchased** (M21's link-2 gate box). But the premise leads somewhere else than
+the instruction did, and the argument is short enough to check.
+
+**Editing `v1` in place buys nothing.** The only thing it could buy is giving
+*existing* `premium@v1` holders the entitlement — and there are none. So the
+stranded cohort this was meant to avoid **does not exist under either option**.
+
+**Publishing `v2` costs nothing either, because `livePlanVersion` returns the
+newest entry** (`planVersions.ts:340-345`) — it does not consult `enabled` and
+has no notion of a "current" flag to set. So adding a `premium@v2` entry makes
+it the version every new purchase pins, automatically, with no other edit
+anywhere. `v1` is simply never selected again.
+
+**But editing `v1` in place costs two real things:**
+
+1. **It falsifies a ticked M20 gate box.** That box reads *"Editing `premium`'s
+   entitlements or ceilings creates `v2`; `v1`'s entry is byte-identical
+   afterwards"* — M20's gate closed 32 of 32, and this would make one of those
+   ticks retroactively untrue.
+2. **It requires editing the test whose entire purpose is to stop it.**
+   `noExtension.test.ts`'s `V1_AS_PUBLISHED` pins premium's entitlements to
+   `["ai.ask", "ai.command", "trip.collaborators"]` field by field, precisely so
+   that *"editing a published entry in place fails a test in the same diff that
+   does it, rather than being caught only if a reviewer notices."*
+
+**The price precedent does not cover this**, and it is worth being exact about
+why, because it looks like it should. M21 added `price` to published v1 entries
+under the argument *"naming a price for the first time is not editing one …
+there was nothing to edit, because nothing had been sold and the field did not
+exist."* Two conditions, and only one holds here: the `entitlements` array
+exists and already has a value. Adding to it is editing it.
+
+**So: `premium@v2`.** Same end state, nobody stranded, no gate box falsified, no
+guard test rewritten, and *"what did `premium` grant on 2026-09-13"* stays
+answerable — which is the property the append-only rule exists to produce.
+**Flagged for Mitchell rather than assumed**: this is his call to reverse, and
+if he wants `v1` amended anyway it is one line plus one test line, done
+deliberately and recorded here rather than quietly.
 
 **Both halves of "creating and using" are enforced, in different places:**
 
@@ -446,6 +483,34 @@ designed in now rather than discovered at the first outage:
 `revoked_at` stays null and the row stays listable, so a user can see what
 lapsed and why. Same reasoning as Decision 12's lapse behaviour, and the same
 resolve-on-read rule.
+
+### Decision 14 — a PATCH is a PATCH; the API never mirrors the command split
+
+**Mitchell, 2026-09-16: *"Follow rest, you dont need to make opinions about
+whats actually happening a patch is a patch."*** Decided: **one endpoint.**
+
+`PATCH /v1/trips/:tripId/activities/:activityId` updates an activity. Whether
+the fields sent are `title` and `cost`, or `dayId` and `position`, or all four,
+is not the API's business — an activity is a resource with fields, and a partial
+update is a partial update.
+
+That `UpdateActivity` and `MoveActivity` are two commands internally is **our
+implementation detail**, and this decision is the same principle that killed the
+command passthrough: the public surface does not leak the internal vocabulary.
+The earlier draft's "one endpoint dispatching to two commands, which is a bit
+magic" framed our own plumbing as the user's problem. It is not.
+
+**One mechanical consequence, and the machinery already exists.** A single PATCH
+touching both the stop's fields *and* its day maps to **two** commands, which
+must land together or not at all. That is exactly what the batch path is for —
+`executeTripCommandBatch` is already all-or-nothing and already what the
+browser uses when a drag both moves a stop and retimes it. So the handler
+composes one batch and the atomicity is free.
+
+The same rule generalises, and is worth stating once so the other twelve
+endpoints do not each re-litigate it: **`PATCH /v1/trips/:id` likewise covers
+name, dates, currency and budget in any combination** — five commands behind one
+resource, batched when more than one field moves.
 
 ### Placement — M22, after M21
 
@@ -622,76 +687,43 @@ clickable, and that is the answer their PR bodies must carry.
 Phase 1 adds a migration, so its PR body says so and it needs an explicit
 `migrate-production` dispatch.
 
-## Questions — what is decided, and the three that remain
+## Questions — all answered; one flagged back
 
-### Decided
+Every question this document opened with was answered on **2026-09-16**.
 
-1. **Placement** — **M22, after M21**, before M12. *"Im fine making it after
-   M21."* Placed but not scoped; see *Placement*.
-2. **Entitlement** — **`premium` grants `api.tokens`**, gating both minting and
-   using. *"Lets lock creating and using API keys behind top tier for now."*
-   Decision 12, including why it is a named plan and never a tier height.
-3. **The planning-write surface** — **thirteen REST endpoints; the command
-   envelope stays internal.** Accepted 2026-09-16. The *Endpoint inventory*
-   above is the list, and the reason the passthrough was withdrawn is that the
-   command endpoints are BFF-shaped and would publish both our internal command
-   vocabulary and a response built for our own re-render.
-4. **Token lifetime** — **mandatory, 365-day maximum, 90-day default.**
-   *"yes mandatory token expiration, but lets pick a reasonable max, 1 year
-   long?"* Decision 13, including the three things mandatory expiry owes the
-   user and the `expires_at notNull()` schema consequence.
-5. **BFF routes and `v1` coexist permanently** — never raised, so the
-   recommendation stands. Recorded as a default taken rather than a decision
-   made.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Placement | **M22, after M21**, before M12. Placed, not scoped |
+| 2 | Entitlement | **`premium` grants `api.tokens`**, gating both minting and using — Decision 12 |
+| 3 | Planning-write surface | **Thirteen REST endpoints**; the command envelope stays internal |
+| 4 | Token lifetime | **Mandatory, 365-day max, 90-day default** — Decision 13 |
+| 5 | BFF routes vs `v1` | **Coexist permanently** (default taken, never contested) |
+| 6 | Scope granularity | **Eight** — *"Sure, sound good"*. The eighth, `sharing:write`, was a gap found while writing the list out in plain language |
+| 7 | `premium@v1` holders | There are none, so **nobody is stranded either way** — see the one item flagged below |
+| 8 | `PATCH` on an activity | **One endpoint.** *"a patch is a patch"* — Decision 14 |
 
-### Open — three, none of them blocking
+### The one thing flagged back
 
-6. **Is the scope list right at eight?** Writing it out in plain language for
-   Mitchell **found a real gap and it is now fixed in Decision 4**: the
-   seven-scope draft let `trips:write` create invites, so a token minted to sync
-   an itinerary could have handed a stranger editor rights on the trip. That is
-   Access & Membership, not Trip Planning, and it is now `sharing:write`.
+**Which `premium` version carries `api.tokens`.** Mitchell said *"just assign it
+to v1, its unused atm"*, and the premise is right — `premium@v1` has never been
+purchased. But the premise makes **both** options free of stranded users, and
+between two free options the one that edits a published entry is the more
+expensive: it falsifies a ticked M20 gate box (*"`v1`'s entry is byte-identical
+afterwards"*) and requires rewriting the test that exists to catch exactly that.
 
-   What a token can be scoped to, in plain language:
+`livePlanVersion` returns the newest entry with no flag to set, so publishing
+`premium@v2` needs no other edit anywhere and strands nobody.
 
-   | Scope | What a token holding it may do |
-   |---|---|
-   | `trips:read` | See your trips, their days and stops, costs, history, and existing share links |
-   | `trips:write` | Create, change and delete trips, days and stops; undo and revert |
-   | `notebook:read` / `notebook:write` | Read / write the Notebook pages on a trip |
-   | `library:read` / `library:write` | Read / write your saved-days library, including publishing to Discover |
-   | `sharing:write` | Invite people to a trip, revoke invites, remove members, create and revoke share links |
-   | `account:read` | Who you are and what plan you hold |
+**Recommendation: `v2`.** Reversible in one line plus one test line if Mitchell
+prefers `v1` — recorded in Decision 12 either way, and not a blocker for
+Phase 0, which does not touch the plan file.
 
-   The question is granularity, and there are three honest answers: **coarser**
-   (just `read` and `write` — simpler, but then one token does everything),
-   **eight as above**, or **finer** (per resource, ~16). Recommendation is
-   eight: it matches the repo's own stated rule that *"a capability that exists
-   is a capability someone will eventually check"*, and every one of the eight
-   is checked by real code rather than reserved for later.
+### Nothing is blocking
 
-7. **The `premium@v1` cohort — cheapest to settle now, while the answer is
-   "nobody".** Adding `api.tokens` publishes `premium@v2`; a subscription pins
-   its version forever and there is deliberately no mechanism to move a
-   subscriber. **M21's link-2 gate box records that `premium@v1` has never been
-   purchased**, so nobody is affected today. M21 intends to buy and refund one
-   Premium subscription to close that box, which mints the first row.
-
-   Two real options: **accept it** (free today, and the cohort is whoever buys
-   Premium between now and M22), or **grant `premium@v2`** to anyone who
-   appears — which needs no new machinery, since entitlements are the union of
-   the held version and every grant's pinned version, and M20's grant UI already
-   exists. Recommendation: accept it now, and grant if anyone shows up.
-
-8. **One cosmetic sub-question.** Does `PATCH /v1/trips/:id/activities/:id`
-   cover both editing a stop and moving it (one endpoint dispatching to two
-   commands depending on which fields are present), or do they split into two
-   endpoints? One is tidier to document, the other is less magic. No
-   recommendation; it genuinely does not matter much.
-
-**None of these blocks Phase 0.** The contracts, the token table, the wrapper
-and the two pilot endpoints can all be built on what is decided; 6 and 8 land
-before Phase 4's surface work, and 7 is a product call with no code attached.
+Phases 0 through 4 are buildable on the decisions above. The milestone file
+(scope + exit gate) is the remaining artifact, and per `TODO.md`'s standing
+tasks it is written before M22's first commit — which is after M21's gate
+closes.
 
 ## What this design deliberately does not do
 
