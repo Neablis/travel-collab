@@ -618,9 +618,19 @@ Phase 1 adds a migration, so its PR body says so and it needs an explicit
    c. **Build version migration.** Real scope, explicitly amended out of M20,
       and not worth opening for this.
 
-   The risk grows with the gap: **every week M21 sells `premium@v1` before M22
-   lands is another cohort needing (b).** Worth deciding before M21 goes live,
-   not after.
+   **Measured 2026-09-16, and it makes (a) free today.** M21's exit gate
+   records that the live purchase resolved `plus@v1` against real Stripe and
+   charged $9, and states plainly that **`premium@v1` has never been purchased**
+   — its Stripe Price has never even been resolved
+   (`M21-subscriptions-and-billing.md`, link-2 gate box). **So the affected
+   cohort is currently empty**, and option (a) costs nothing as things stand.
+
+   That is a fact with a shelf life, and two things end it. M21 intends to
+   **buy and refund one Premium subscription** to close that same gate box,
+   which mints the first `premium@v1` row. And every real Premium sale after
+   that adds one. **The cheapest moment to decide is now, while the answer is
+   "nobody"** — after which it becomes (b), one admin grant per affected
+   account.
 
 6. **Two small ones, still unanswered and both cheap to defer.** Is seven the
    right number of scopes? And should tokens have a **mandatory** maximum
