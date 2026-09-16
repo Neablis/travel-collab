@@ -68,10 +68,18 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   // "Checked day 2" is behind the disclosure: this turn calls three tools and
   // ends on `find_free_time`. Opening it is also the only browser-level check
   // that the disclosure works at all.
-  const steps = log.getByRole("button", { name: /steps? · / });
-  await expect(steps).toContainText("3 steps · Looked for free time");
-  await steps.click();
-  await expect(steps).toHaveAttribute("aria-expanded", "true");
+  //
+  // Two locators, not one re-resolved: the disclosure's accessible NAME is the
+  // summary while collapsed and "Hide how it got there" while open, so a
+  // name-matched locator stops matching the moment it is clicked. The first
+  // version of this asserted `aria-expanded` on the collapsed locator and
+  // failed with "element(s) not found" against a button that was right there.
+  const collapsed = log.getByRole("button", { name: /steps? · / });
+  await expect(collapsed).toContainText("3 steps · Looked for free time");
+  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+  await collapsed.click();
+  const expanded = log.getByRole("button", { name: "Hide how it got there" });
+  await expect(expanded).toHaveAttribute("aria-expanded", "true");
   await expect(log).toContainText("Checked day 2");
   await expect(log).toContainText("Day 2");
   // The raw tool output is ~1.5 KB of JSON on the wire and none of it belongs
