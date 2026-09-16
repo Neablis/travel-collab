@@ -550,6 +550,42 @@ Where the work actually stands right now: `docs/STATUS.md`.
 
 Captured so they aren't lost; not committed to a milestone yet.
 
+- **Stripe test mode alongside live, without a redeploy to switch.** Asked for
+  2026-09-16: *"i would like to be able to use test card without needing to take
+  down prod with new ENV variables."* The want is real — today the only way to
+  exercise a paid flow against a deployment is to swap `STRIPE_SECRET_KEY` and
+  `STRIPE_WEBHOOK_SECRET` and redeploy, which means production is either live or
+  testable and never both.
+
+  **Not a config change, and the reason is a data problem rather than a wiring
+  one.** There is no `livemode` column on `subscriptions` or `billing_events`
+  (`schema.ts:679`), and `revenue.ts:270` sums every live subscription into MRR
+  through `conferringNow()` — so a test-mode subscription would be counted as
+  real revenue with nothing to filter it out by. `users.stripe_customer_id` is a
+  single column (`schema.ts:104`), so a test `cus_` and a live `cus_` for one
+  person collide. Minimum honest scope:
+
+  - migration adding `livemode` to `subscriptions` **and** `billing_events`
+  - `users.stripe_customer_id` keyed per mode
+  - every read that assumes "a subscription means money" filtered on it —
+    `revenue.ts`, the admin console's tier and underwater panels
+  - the webhook verifying against both secrets, taking mode only from the
+    **verified** event, never from the unverified payload (ADR-047 keeps this
+    seam narrow on purpose)
+  - the per-account switch strictly server-side and admin-gated: a flag that
+    grants real entitlements for a test card is a free-premium switch if it is
+    ever client-readable
+  - integration coverage for the mode boundary itself
+
+  **What covers the want in the meantime**, and why this stayed unscheduled:
+  `entitlement_grants` already gives a specific account premium with no payment,
+  through the admin console, and `revenue.ts:272-278` reads grants separately
+  from paying subscriptions so a granted tester never pollutes MRR. That covers
+  "let these accounts use the paid features". It does not cover exercising
+  checkout, the webhook, or the decline → grace → lapse chain — and those are
+  better walked in an environment that is entirely test mode (local with
+  `stripe listen`) than in a live one with a mode switch inside it.
+
 - **The header's "Add stop" on desktop — where should creating an UNSCHEDULED
   stop live?** Reported on the preview, 2026-09-15: *"This Add Stop button i
   believe was added for mobile, it shouldnt show in desktop"*. The premise is
