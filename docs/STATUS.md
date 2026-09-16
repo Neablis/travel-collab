@@ -33,7 +33,7 @@ general setup.
 **M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
 **Mitchell's decision and not by a gate closing**. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
-Scope and the gate — **18 of 19 ticked** — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
 **M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box

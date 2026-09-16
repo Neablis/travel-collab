@@ -303,14 +303,37 @@ missing.
       section would be — walked in a browser on the preview, and in
       `pnpm --filter web test:e2e:ci-like`.
 
-      **Half proven, and left unticked for the other half.** The CI-like lane is
-      green: `m22-api-tokens.spec.ts` walks the locked section, the operator
-      grant, the mint with its one-time reveal, the token opening
-      `GET /api/v1/trips` as a real bearer header, and the revoke closing it with
-      `token-revoked`. **The browser walk on the Vercel preview has not
-      happened** — there is no PR yet, so there is no preview — and this box asks
-      for both. It closes when someone drives the deployed preview, which also
-      needs `API_TOKEN_PEPPER` set there.
+      **The CI lane is green; the preview walk is one clause of three.** Walked
+      2026-09-16 against the PR's preview at commit `05afc81`.
+
+      | Clause | On the preview |
+      |---|---|
+      | a `free` account sees an upgrade prompt naming Premium, no *New token* | **met** — verified at 1280px and 1100px |
+      | mints, copies and revokes by clicking | **not walked** |
+      | time remaining shown on each | **not walked** |
+
+      **Blocked on the deployment, not on the code.** Entitling the account
+      needs `POST /api/admin/grants` as an operator, and this preview's
+      `ADMIN_USER_IDS` does not contain `dev-m20operator` — the grant answers
+      404, which is `requireAdminApi`'s deliberate spelling of *"you are not an
+      operator"*. The self-serve route is shut too: `/plans` renders every plan
+      button disabled behind the `<Preview>` shield. So no account reachable from
+      a browser can hold `premium` on this deployment.
+
+      **What the walk did establish beyond that clause**, none of which needed an
+      entitlement: `/api/v1/openapi` serves a real 143 KB OpenAPI 3.0 document
+      unauthenticated; `GET /api/v1/trips` with no credential is 401 with
+      `WWW-Authenticate: Bearer` and the envelope; and a `tc_`-prefixed bogus
+      secret is a clean 401 rather than a 500 — **which proves
+      `API_TOKEN_PEPPER` is set on the preview**, because `resolveActor` runs
+      outside `declare()`'s try/catch (`route.ts:285` against `:403`), so an
+      unset pepper would surface as a 500. No console errors on any page.
+
+      **Unblocking it is one deploy-time change**: add a dev id to
+      `ADMIN_USER_IDS` in the Vercel **Preview** environment and redeploy — env
+      vars are injected at build time, so setting it alone changes nothing.
+      `dev-m20operator` is the natural value, since the e2e suite already uses
+      it. `KI-2026-09-16-d` records the general problem.
 - [x] **The reference docs cannot drift from the implementation.** Changing a
       route's declared response schema changes `/api/v1/openapi.json` in the
       same diff, because it is derived from the declaration at build time and
