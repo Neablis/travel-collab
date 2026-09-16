@@ -769,9 +769,35 @@ describe("simulatedModel — the intent classification call", () => {
     expect(textOf(result)).toBe(askIntentVerdictText("question"));
   });
 
-  it("answers a change request with the verdict that keeps the write tools", async () => {
+  // **`edit`, not `plan` — KI-2026-09-12-a, closed.** This model had two
+  // verdicts where the real one has four, so every "write turn" in the
+  // integration suite was really a `plan` turn and `edit` was unreachable end
+  // to end. The entry says the split is a product judgement about the real
+  // classifier's prompt; M9's design makes it, and it is the same one the live
+  // instruction already states — `plan` is a whole itinerary or several days,
+  // and one imperative about one stop is not that.
+  it("answers a bounded change with the edit verdict", async () => {
     const result = await probe().doGenerate(classifyPrompt("Add a coffee stop to day 2"));
-    expect(textOf(result)).toBe(askIntentVerdictText("plan"));
+    expect(textOf(result)).toBe(askIntentVerdictText("edit"));
+  });
+
+  it("answers a whole-itinerary request with the plan verdict", async () => {
+    for (const question of ["plan me a six day trip to Kyoto", "there are no days yet — how should I start planning this trip?"]) {
+      const result = await probe().doGenerate(classifyPrompt(question));
+      expect(textOf(result), question).toBe(askIntentVerdictText("plan"));
+    }
+  });
+
+  // **`sure`, always, and it is honest rather than convenient.** This is a
+  // deterministic predicate over a regex; it is not hesitating. Reporting
+  // `unsure` would route every simulated write turn to a stronger tier for a
+  // doubt nothing has, and would make the suite's tier assertions measure a
+  // fiction.
+  it("is always sure, because it is a predicate rather than a model", async () => {
+    for (const question of ["Which day has the most free time?", "Add a coffee stop to day 2", "plan me a six day trip"]) {
+      const result = await probe().doGenerate(classifyPrompt(question));
+      expect(JSON.parse(textOf(result)).certainty, question).toBe("sure");
+    }
   });
 
   // **The assertion that actually protects the deployed path.** The three
@@ -814,8 +840,11 @@ describe("simulatedModel — the intent classification call", () => {
     "insert a playbook day",
     "browse the library for a day in Kyoto",
   ])("classifies %s as a write, because it is one this model would propose on", async (question) => {
+    // `edit`: inserting one ready-made day is a bounded change, not an
+    // itinerary. What this assertion is about is the EFFECT axis — that it is
+    // not classified `question` — and both write classes keep the write tools.
     const result = await probe().doGenerate(classifyPrompt(question));
-    expect(textOf(result)).toBe(askIntentVerdictText("plan"));
+    expect(textOf(result)).toBe(askIntentVerdictText("edit"));
   });
 
   // Without this the classification call would be read as an opening turn:
@@ -827,6 +856,57 @@ describe("simulatedModel — the intent classification call", () => {
       tools: [{ name: "read_trip" }, { name: "AddActivity" }],
     });
     expect(callsOf(withTools)).toEqual([]);
-    expect(textOf(withTools)).toBe(askIntentVerdictText("plan"));
+    expect(textOf(withTools)).toBe(askIntentVerdictText("edit"));
+  });
+});
+
+// **The deployed symptom, not the architectural gap** (M9 design §1).
+//
+// `ai-live` is off in every Vercel environment, so this model IS the
+// classifier everywhere anybody can click. `CHANGE_VERBS` deliberately excludes
+// the word "plan" — sound, because *"What's the plan for day 2"* is a question
+// — and the cost of that exclusion was that M9's headline flow, and KI-12's
+// gate box, classified as a question and were handed no write tools at all.
+describe("simulatedModel — a request for a whole itinerary", () => {
+  function verdictFor(question: string) {
+    return probe()
+      .doGenerate({
+        prompt: [
+          { role: "system", content: ASK_INTENT_INSTRUCTION },
+          { role: "user", content: [{ type: "text", text: question }] },
+        ],
+      })
+      .then((result) => JSON.parse(textOf(result)) as { intent: string; certainty: string });
+  }
+
+  it.each([
+    "plan me a six day trip to Kyoto",
+    "Plan a 3 day trip to Rochester ny",
+    "Create a 7 day itinerary for Rochester NY",
+    "there are no days yet — how should I start planning this trip?",
+  ])("classifies %s as a plan", async (question) => {
+    expect((await verdictFor(question)).intent).toBe("plan");
+  });
+
+  // The phrasing the exclusion existed to protect, and the reason the fix is a
+  // lookbehind rather than dropping the guard: `plan` after an article or a
+  // possessive is a NOUN, and the noun is what a question uses.
+  it.each([
+    "What's the plan for day 2?",
+    "does my plan look balanced",
+    "is that plan too packed",
+  ])("still classifies %s as a question", async (question) => {
+    expect((await verdictFor(question)).intent).toBe("question");
+  });
+
+  // One stop is an `edit`, a whole itinerary is a `plan`, and one empty day is
+  // an `edit` — filling a day is bounded however open-ended the wording.
+  it.each([
+    ["Add a coffee stop to day 2", "edit"],
+    ["move the temple to day 4", "edit"],
+    ["Day 3 is empty — what could I do with it?", "edit"],
+    ["find me a ready-made day for Kyoto", "edit"],
+  ])("classifies %s as %s", async (question, expected) => {
+    expect((await verdictFor(question)).intent).toBe(expected);
   });
 });

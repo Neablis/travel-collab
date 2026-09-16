@@ -21,10 +21,18 @@ import { ASSISTANT_TOOLS, aiToolsFor } from "./registry";
 import { newTurnMeter } from "./ledger";
 import { defineTool } from "./defineTool";
 import { z } from "zod";
-import { AMBIENT_DEP_KEYS, TURN_DEP_KEYS, newPageBuffer, newPlaceCache, newProposalBuffer } from "./deps";
+import {
+  AMBIENT_DEP_KEYS,
+  TURN_DEP_KEYS,
+  newEscalationBuffer,
+  newPageBuffer,
+  newPlaceCache,
+  newProposalBuffer,
+} from "./deps";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
+import { ESCALATION_TOOLS } from "./tools/escalate";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 
@@ -46,6 +54,7 @@ const TURN_DEPS = {
   savedDays: { readable: async () => null },
   placeSearch: { search: async () => [] },
   placeCache: newPlaceCache(),
+  escalation: newEscalationBuffer(),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -67,6 +76,7 @@ describe("the registry", () => {
         ...PLANNING_TOOLS.map((t) => t.name),
         insertPlaybookDayTool.name,
         ...PAGE_TOOLS.map((t) => t.name),
+        ...ESCALATION_TOOLS.map((t) => t.name),
       ].sort(),
     );
   });

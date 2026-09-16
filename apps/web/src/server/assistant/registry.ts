@@ -42,6 +42,7 @@ import { PLANNING_TOOLS } from "./tools/planning";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
+import { ESCALATION_TOOLS } from "./tools/escalate";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -58,6 +59,12 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...PLANNING_TOOLS,
   insertPlaybookDayTool,
   ...PAGE_TOOLS,
+  // Last, and it is the one position in this array that is a decision rather
+  // than a grouping: `request_change_tools` is the tool a turn reaches for when
+  // the others were not enough, and a model reads the list in order. It is also
+  // offered on its own in the only posture that holds it, so its neighbours are
+  // moot in practice.
+  ...ESCALATION_TOOLS,
 ];
 
 /**

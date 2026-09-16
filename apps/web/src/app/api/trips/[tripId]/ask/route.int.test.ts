@@ -11,6 +11,7 @@ import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { askScopeLine, parseAskScope } from "@/server/ai/context";
+import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import { tripDetailFactory } from "@tc/factories";
 import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
@@ -88,6 +89,15 @@ const planningTools = toolsFor(
 );
 const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
+// **What an EDITOR whose turn read as a question holds**, which is the read set
+// plus the one tool that gets them out of it (M9 escalation). A viewer's set is
+// `READ_TOOL_NAMES`: they resolve to `read-only`, where rephrasing would
+// recover nothing and so would escalating.
+const WITHHELD_TURN_TOOL_NAMES = toolsFor(
+  grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "read" }),
+  "question",
+  "withheld",
+).map((t) => t.name);
 const PLANNING_TOOL_NAMES = planningTools.map((t) => t.name);
 
 // A `plan` turn is offered three fewer than the full derived set — the trip
@@ -298,6 +308,133 @@ function recordingModel() {
   return { model, turnInstruction, providerOptions: () => providerOptions };
 }
 
+/**
+ * A model that MISCLASSIFIES, then escalates, then writes — M9's escalation,
+ * driven end to end.
+ *
+ * The simulated model cannot produce this state and that is not a gap in it:
+ * its classifier and its turn-shape predicate are the same function
+ * (`asksToWrite`), so it can never be handed read tools for a turn it would
+ * have proposed on. A misclassification is a property of a LIVE classifier, so
+ * the only way to exercise the recovery is to script one.
+ *
+ * It also records the tool names it was offered on each call, which is what
+ * proves the saving survives: the write schemas must not be on the wire until
+ * after the escalation.
+ */
+function escalatingModel() {
+  const offeredPerCall: string[][] = [];
+  const modelsPerCall: unknown[] = [];
+
+  function stepFor(options: {
+    prompt?: { role?: string; content?: unknown }[];
+    tools?: { name?: string }[];
+  }): { content: Record<string, unknown>[]; finishReason: { unified: string; raw: undefined } } {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    // A question, confidently — so the turn is `withheld` and the write tools
+    // are not handed over. This is the misclassification being recovered from.
+    if (isAskIntentCall(system)) {
+      const verdict = askIntentVerdictText("question", "sure");
+      return { content: [{ type: "text", text: verdict }], finishReason: { unified: "stop", raw: undefined } };
+    }
+    const called = (options.prompt ?? []).flatMap((message) =>
+      Array.isArray(message.content)
+        ? (message.content as { type?: string; toolName?: string }[])
+            .filter((part) => part.type === "tool-result" && typeof part.toolName === "string")
+            .map((part) => part.toolName!)
+        : [],
+    );
+    if (!called.includes("request_change_tools")) {
+      return {
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: randomUUID(),
+            toolName: "request_change_tools",
+            input: JSON.stringify({
+              reason: "they asked me to add a stop, which is a change",
+              intendedChange: "add a coffee stop to day 1",
+            }),
+          },
+        ],
+        finishReason: { unified: "tool-calls", raw: undefined },
+      };
+    }
+    if (!called.includes("AddActivity")) {
+      return {
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: randomUUID(),
+            toolName: "AddActivity",
+            input: JSON.stringify({ title: "Coffee", dayRef: "day 1" }),
+          },
+        ],
+        finishReason: { unified: "tool-calls", raw: undefined },
+      };
+    }
+    return {
+      content: [{ type: "text", text: "I've drafted that coffee stop for day 1." }],
+      finishReason: { unified: "stop", raw: undefined },
+    };
+  }
+
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+
+  const record = (options: { tools?: { name?: string }[] }) => {
+    offeredPerCall.push((options.tools ?? []).map((tool) => tool.name ?? "?"));
+  };
+
+  const model = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/escalating",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
+      record(options);
+      const { content, finishReason } = stepFor(options);
+      return { content, finishReason, usage, warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0] & { tools?: { name?: string }[] }) => {
+      record(options);
+      modelsPerCall.push(options);
+      const { content, finishReason } = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            let id = 0;
+            for (const part of content) {
+              if (part.type !== "text") {
+                controller.enqueue(part);
+                continue;
+              }
+              const textId = String(id++);
+              controller.enqueue({ type: "text-start", id: textId });
+              controller.enqueue({ type: "text-delta", id: textId, delta: part.text as string });
+              controller.enqueue({ type: "text-end", id: textId });
+            }
+            controller.enqueue({ type: "finish", finishReason, usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+
+  // The classification call goes through `doGenerate` and the turn's steps
+  // through `doStream`, so the turn's own offers are every call after the
+  // first — read by skipping it rather than by index arithmetic at the call
+  // site.
+  return { model, turnOffers: () => offeredPerCall.slice(1) };
+}
+
 // A model that fails the way a provider outage does: the stream opens and then
 // errors. Typed structurally for the same reason simulatedModel is — the
 // LanguageModelV4 interface lives in a package apps/web does not depend on.
@@ -506,8 +643,15 @@ describe("POST /api/trips/:id/ask", () => {
         (r) => records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
-      expect(records[0]!.classification).toMatchObject({ intent: "write", failedOpen: false });
+      // **An `edit`, not a `plan`, and this assertion moving is KI-2026-09-12-a
+      // closing.** That entry's own note was that "any integration assertion
+      // about a write turn is an assertion about a `plan` turn", because the
+      // simulated classifier had two verdicts. It has three now, one imperative
+      // about one stop is a bounded change, and `edit` is the class
+      // `TASK_CLASSES_FOR` narrows by nothing — so this turn holds every
+      // planning tool rather than the plan turn's thirteen.
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
+      expect(records[0]!.classification).toMatchObject({ intent: "write", taskClass: "edit", failedOpen: false });
     });
 
     // ~85% of a step's fixed input cost is tool schemas, and 12 of the 15
@@ -533,16 +677,22 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await change.text();
 
-      expect(asked[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      // The read set PLUS `request_change_tools` — this is an editor, so the
+      // turn is `withheld` rather than `read-only`, and M9's escalation is
+      // exactly the recovery a withheld turn gets.
+      expect(asked[0]!.offeredTools.sort()).toEqual([...WITHHELD_TURN_TOOL_NAMES].sort());
+      expect(asked[0]!.offeredTools).toContain("request_change_tools");
       // The verdict is the raw STRUCTURED answer, not a word (KI-88): the
-      // simulated model fills the same `Output.choice` field a live one does,
-      // so the flag-off path narrows for real rather than failing open.
+      // simulated model fills the same schema a live one does, so the flag-off
+      // path narrows for real rather than failing open. `certainty` rides in
+      // the same object since M9 — one call, two fields.
       expect(asked[0]!.classification).toMatchObject({
         intent: "question",
-        verdict: '{"result":"question"}',
+        certainty: "sure",
+        verdict: '{"intent":"question","certainty":"sure"}',
         failedOpen: false,
       });
-      expect(told[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
+      expect(told[0]!.offeredTools.sort()).toEqual([...PLANNING_TOOL_NAMES].sort());
     });
 
     // Mitchell's live thread, 2026-08-29, verbatim — and the regression this
@@ -647,8 +797,13 @@ describe("POST /api/trips/:id/ask", () => {
       await res.text();
 
       const instruction = turnInstruction();
-      expect(instruction).toContain("on THIS turn you have no tool to change it");
-      expect(instruction).toContain("ask again");
+      expect(instruction).toContain("You were NOT given the change tools this turn");
+      // **The recovery is the MODEL's now, not the user's** — M9's escalation,
+      // and Mitchell's complaint answered: *"i really dislike how the AI right
+      // now will ask me to reframe a ask in order for it to do the work."* The
+      // copy names the tool and closes the old door explicitly.
+      expect(instruction).toContain("request_change_tools");
+      expect(instruction).not.toContain("ask again saying what they want changed");
       // The viewer's sentence, which would be false here: this user CAN edit
       // this trip.
       expect(instruction).not.toContain("You can READ this trip and nothing else");
@@ -665,16 +820,27 @@ describe("POST /api/trips/:id/ask", () => {
     // no `SetTripName`, no instruction to mention that, and the rename just
     // never appears — the dead end `ACCESS_LINE`'s own comment rules out for
     // the all-or-nothing case.
+    //
+    // **The prompt for this moved when the simulated classifier gained `edit`**
+    // (KI-2026-09-12-a). "add a coffee stop to day 1" is a bounded change now,
+    // and `edit` is narrowed by nothing — so the turn that exercises the
+    // narrowing has to be one that genuinely classifies `plan`.
     it("tells a narrowed planning turn to disclose the change it has no tool for", async () => {
       const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
       const { model, turnInstruction } = recordingModel();
       const res = await handleAskRequest(
-        req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+        req(tripId, { messages: [userMessage("plan me a six day trip to Kyoto")], scope: { kind: "trip" } }),
         tripId,
         model,
-        () => {},
+        (r) => records.push(r),
       );
       await res.text();
+
+      // A real `plan` verdict, and the narrowed set that goes with it — which
+      // is what makes the instruction below necessary rather than decorative.
+      expect(records[0]!.classification).toMatchObject({ taskClass: "plan" });
+      expect(records[0]!.offeredTools.sort()).toEqual([...PLAN_TURN_TOOL_NAMES].sort());
 
       const instruction = turnInstruction();
       expect(instruction).toContain("Some change tools are not available on this turn");
@@ -686,6 +852,109 @@ describe("POST /api/trips/:id/ask", () => {
       expect(instruction).not.toContain("on THIS turn you have no tool to change it");
     });
 
+    // **M9's escalation, end to end** — Mitchell's complaint, answered:
+    //
+    // > *"i really dislike how the AI right now will ask me to reframe a ask in
+    // > order for it to do the work. It should do what it needs to do."*
+    //
+    // The classifier reads "add a coffee stop to day 1" as a question and says
+    // it is SURE, so the write tools are withheld. Before this, that cost the
+    // whole turn and the user had to do the classifier's job. Now the turn
+    // recovers itself, in the same conversation, having spent one charged step
+    // to say so.
+    describe("escalation", () => {
+      it("recovers a misclassified turn without the user rephrasing", async () => {
+        const tripId = await seedTrip();
+        const records: AskAnalyticsRecord[] = [];
+        const { model } = escalatingModel();
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+          (r) => records.push(r),
+        );
+        const chunks = await chunksOf(res);
+
+        // The turn was withheld — the classifier said question, confidently.
+        expect(records[0]!.classification).toMatchObject({
+          intent: "question",
+          certainty: "sure",
+          failedOpen: false,
+        });
+        // ...and it still produced a proposal. That is the whole claim: the
+        // write tool ran, on a turn that was not given write tools, because the
+        // model asked for them and `prepareStep` handed them over.
+        const proposal = chunks
+          .map((chunk) => (chunk as { messageMetadata?: { proposal?: { changes?: { text: string }[] } } }).messageMetadata)
+          .find((meta) => meta?.proposal)?.proposal;
+        expect(proposal?.changes?.map((change) => change.text)).toEqual(["Add “Coffee” to day 1"]);
+      });
+
+      // **The saving survives every turn that does not escalate**, which is the
+      // reason this is `activeTools` rather than a wider grant. ~85% of a step's
+      // fixed input is tool schemas and ~3,400 tokens of that is the write half
+      // (askIntent.ts's measurement) — if those schemas went out on step 1, the
+      // classifier call would be buying nothing.
+      it("sends no write schema until after the escalation", async () => {
+        const tripId = await seedTrip();
+        const { model, turnOffers } = escalatingModel();
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+          () => {},
+        );
+        await res.text();
+
+        const [beforeEscalating, afterEscalating] = turnOffers();
+        expect(beforeEscalating).toContain("request_change_tools");
+        expect(beforeEscalating).not.toContain("AddActivity");
+        expect(afterEscalating).toContain("AddActivity");
+        // And the escalation tool is gone once it has been used, so the turn
+        // cannot spend a second charged step asking for what it already has.
+        expect(afterEscalating).not.toContain("request_change_tools");
+      });
+
+      // **A labelled classifier miss, written by real use.** This is the eval
+      // corpus KI-11 needs: one row carrying the sentence, the verdict that was
+      // wrong, how sure it was, and the model's own statement of what it should
+      // have been allowed to do. Nobody labels anything by hand.
+      it("records the miss, in the model's own words", async () => {
+        const tripId = await seedTrip();
+        const records: AskAnalyticsRecord[] = [];
+        const { model } = escalatingModel();
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+          (r) => records.push(r),
+        );
+        await res.text();
+
+        expect(records[0]!.escalated).toEqual({
+          reason: "they asked me to add a stop, which is a change",
+          intendedChange: "add a coffee stop to day 1",
+        });
+        expect(records[0]!.question).toBe("add a coffee stop to day 1");
+        expect(records[0]!.classification!.taskClass).toBe("question");
+      });
+
+      // The ordinary turn, so the field means something when it is set: a turn
+      // that never escalated says so rather than leaving a reader to infer it
+      // from an absence.
+      it("records null on a turn that did not escalate", async () => {
+        const tripId = await seedTrip();
+        const records: AskAnalyticsRecord[] = [];
+        const res = await ask(
+          tripId,
+          { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } },
+          (r) => records.push(r),
+        );
+        await res.text();
+        expect(records[0]!.escalated).toBeNull();
+      });
+    });
+
     // The other half, and the one that keeps the line honest: a turn the
     // filter did not narrow is told byte-identically what it was told before
     // the line existed.
@@ -694,9 +963,10 @@ describe("POST /api/trips/:id/ask", () => {
     // this suite can produce: it holds the write tools (so the line is
     // reachable) AND is not narrowed (so it must not appear). A read-only turn
     // would prove nothing — it fails the `canWrite` half of the guard before
-    // `classWithheld` is ever consulted. An `edit` turn would also do, and is
-    // unreachable here: the simulated classifier has only two verdicts
-    // (KI-2026-09-12-a).
+    // `classWithheld` is ever consulted. An `edit` turn also does, and is
+    // reachable now that the simulated classifier has three verdicts
+    // (KI-2026-09-12-a, closed 2026-09-16) — the affirmation is kept because it
+    // is the case that found the bug.
     it("says nothing about withheld tools on a write turn that was not narrowed", async () => {
       const tripId = await seedTrip();
       const { model, turnInstruction } = recordingModel();
@@ -1951,7 +2221,18 @@ describe("POST /api/trips/:id/ask", () => {
       // answer today — but it is also the number to watch once `ai-live` is
       // flipped, because a real model calling `search_places` on a question is
       // spend with nothing to buy.
-      expect(record.uncalledTools).toEqual(["read_day", "search_playbooks", "search_places"]);
+      //
+      // `request_change_tools` is the fourth, and its presence here is the
+      // point rather than noise: this is an EDITOR whose turn read as a
+      // question, so M9's escalation was on the table and the model did not
+      // need it. A run where that name stops appearing is a classifier getting
+      // it wrong often enough to matter.
+      expect(record.uncalledTools).toEqual([
+        "read_day",
+        "search_playbooks",
+        "search_places",
+        "request_change_tools",
+      ]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
@@ -1969,8 +2250,9 @@ describe("POST /api/trips/:id/ask", () => {
       // the day-scoped question is the shape this endpoint answers most. The
       // library and the gazetteer are the two things a question about a day
       // never needs — one because the corpus is outside the trip (ADR-042), the
-      // other because the day's stops are already placed.
-      expect(records[0]!.uncalledTools).toEqual(["search_playbooks", "search_places"]);
+      // other because the day's stops are already placed. The third is the
+      // escalation this turn did not have to take.
+      expect(records[0]!.uncalledTools).toEqual(["search_playbooks", "search_places", "request_change_tools"]);
     });
   });
 });

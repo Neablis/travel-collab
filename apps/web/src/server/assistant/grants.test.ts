@@ -147,8 +147,8 @@ describe("a grant is a minimum over four independent caps", () => {
     expect(grant.pages).toBe("propose");
   });
 
-  // Silence denies. No tool declares `account` or `system` today, and one that
-  // did would be offered nowhere until a surface row named its domain.
+  // Silence denies. No tool declares `account` today, and one that did would be
+  // offered nowhere until a surface row named its domain.
   //
   // **`places` was on that list until M9's grounding, and adding the tool was
   // not enough** — `search_places` existed, was in the registry, carried every
@@ -162,7 +162,6 @@ describe("a grant is a minimum over four independent caps", () => {
       const grant = grantFor({ ...EDITOR, surface });
       expect(Object.keys(grant).sort()).toEqual([...named].sort());
       expect(grant.account).toBeUndefined();
-      expect(grant.system).toBeUndefined();
     }
   });
 
@@ -292,5 +291,109 @@ describe("a task class narrows the tool set, and only ever subtracts", () => {
       const narrowed = toolsFor(grantFor(editorTrip), taskClass).map((t) => t.name);
       expect(unnarrowed).toEqual(expect.arrayContaining(narrowed));
     }
+  });
+});
+
+// **Escalation never widens access — asserted as a PROPERTY, not a scenario**
+// (M9 design §9).
+//
+// The design says why in one line: *"Escalation exists only in `withheld`, and
+// `withheld` is by definition where role and plan both permit `propose`. Assert
+// `postureFor` never yields the tool outside it and the claim holds for cases
+// nobody enumerated."* Three scenario tests over three postures would prove
+// three things; this proves the rule.
+describe("the escalation tool is reachable in exactly one posture", () => {
+  const EFFECTS = ["read", "propose"] as const;
+  const SURFACES_UNDER_TEST = ["trip", "day", "page"] as const;
+
+  /** Every combination of the four caps — 24 of them, enumerated rather than sampled. */
+  function everyCaps(): EffectCaps[] {
+    const all: EffectCaps[] = [];
+    for (const surface of SURFACES_UNDER_TEST) {
+      for (const role of EFFECTS) {
+        for (const plan of EFFECTS) {
+          for (const classifier of EFFECTS) all.push({ surface, role, plan, classifier });
+        }
+      }
+    }
+    return all;
+  }
+
+  it("is offered when and only when the posture is withheld", () => {
+    for (const caps of everyCaps()) {
+      const offered = toolsFor(grantFor(caps), undefined, postureFor(caps)).map((tool) => tool.name);
+      const holdsIt = offered.includes("request_change_tools");
+      // A page turn is the one case where the posture can be `withheld` and the
+      // tool still absent, and it is absent for a different reason: the page
+      // surface grants no `system` domain at all. Both filters have to agree
+      // before a tool is offered, so the property is "offered implies
+      // withheld", plus "withheld on a planning surface implies offered".
+      if (holdsIt) expect(postureFor(caps), JSON.stringify(caps)).toBe("withheld");
+      if (postureFor(caps) === "withheld" && caps.surface !== "page") {
+        expect(holdsIt, JSON.stringify(caps)).toBe(true);
+      }
+    }
+  });
+
+  // The consequence that matters, said as the thing a reader is worried about:
+  // a viewer, or an account whose plan does not permit `propose`, can never
+  // reach it. Both resolve to `read-only`, where rephrasing would recover
+  // nothing — and neither would escalating.
+  it("is never offered to anyone who could not already propose", () => {
+    for (const caps of everyCaps()) {
+      if (caps.role === "propose" && caps.plan === "propose") continue;
+      expect(toolsFor(grantFor(caps), undefined, postureFor(caps)).map((t) => t.name)).not.toContain(
+        "request_change_tools",
+      );
+    }
+  });
+
+  // **An absent posture ARGUMENT does not offer it**, which is the opposite of
+  // how the task-class axis treats an absent argument — and deliberately so. A
+  // caller who has not classified the turn must not be handed a NARROWED set
+  // (fail-closed); a caller who does not know the posture must not be handed a
+  // tool whose one condition they cannot have checked (fail-closed again). Same
+  // direction, opposite default, because the tags mean different things.
+  it("is not offered to a caller that did not say which posture it is", () => {
+    const editorTrip: EffectCaps = { surface: "trip", role: "propose", plan: "propose", classifier: "read" };
+    expect(postureFor(editorTrip)).toBe("withheld");
+    expect(toolsFor(grantFor(editorTrip)).map((t) => t.name)).not.toContain("request_change_tools");
+    expect(toolsFor(grantFor(editorTrip), undefined, "withheld").map((t) => t.name)).toContain(
+      "request_change_tools",
+    );
+  });
+
+  // The escalated set is the same grant with ONE cap lifted, so it is bounded
+  // by exactly what the actor may do. This is the arithmetic `admission.ts`
+  // performs, asserted here where the arithmetic lives.
+  it("unlocks no more than the same actor would have held on a change turn", () => {
+    const withheld: EffectCaps = { surface: "trip", role: "propose", plan: "propose", classifier: "read" };
+    // The escalated set, computed the way `admission.ts` computes it: the same
+    // caps with ONE lifted — the classifier's, which is the cap the model has
+    // just said was wrong.
+    const lifted: EffectCaps = { ...withheld, classifier: "propose" };
+    const escalated = toolsFor(grantFor(lifted), "edit", postureFor(lifted)).map((t) => t.name);
+
+    // The CEILING it must not exceed, computed independently of the escalation
+    // path: everything this actor's role and plan permit on this surface, with
+    // no class narrowing at all.
+    const everythingTheActorMayDo = toolsFor(grantFor(lifted), undefined, postureFor(lifted)).map((t) => t.name);
+    expect(everythingTheActorMayDo).toEqual(expect.arrayContaining(escalated));
+
+    // And it is strictly wider than the turn was holding — an escalation that
+    // unlocked nothing would be a charged step for no reason.
+    const beforeEscalating = toolsFor(grantFor(withheld), "question", postureFor(withheld)).map((t) => t.name);
+    expect(escalated.length).toBeGreaterThan(beforeEscalating.length);
+    for (const name of ["AddActivity", "SetTripDates"]) expect(escalated).toContain(name);
+
+    // The escalation tool itself is gone from it: once the turn has the change
+    // tools there is nothing left to escalate to, and offering it would let a
+    // turn spend a second charged step saying so.
+    expect(escalated).not.toContain("request_change_tools");
+    expect(beforeEscalating).toContain("request_change_tools");
+
+    // `minimumRoleFor` over the wider set still answers `editor`, which is what
+    // `admission.ts` checks the actor against before admitting the turn at all.
+    expect(minimumRoleFor(toolsFor(grantFor(lifted), "edit", postureFor(lifted)))).toBe("editor");
   });
 });

@@ -65,11 +65,24 @@ export const SURFACES = {
     // to the tool's own `effect`, because the table is the thing a reader
     // checks to answer "could a page turn ever spend the vendor key?".
     { domain: "places", max: "read" },
+    // **`system` is the turn talking about itself**, not about the trip — the
+    // domain ADR-043 decision 2 reserved and left empty. Its one member is M9's
+    // escalation tool, which is further narrowed to a single POSTURE by
+    // `defineTool`'s `postures`; this row grants the domain, and that tag is
+    // what stops the tool being offered on every turn the row reaches.
+    //
+    // Two filters rather than one, deliberately: this table answers "which
+    // surfaces have system tools at all", which is a question about the
+    // product, and the tag answers "when is this particular one safe", which is
+    // a question about the tool. Collapsing them would put a tool's own
+    // condition in a table that knows nothing about it.
+    { domain: "system", max: "read" },
   ],
   day: [
     { domain: "itinerary", max: "propose" },
     { domain: "library", max: "propose" },
     { domain: "places", max: "read" },
+    { domain: "system", max: "read" },
   ],
   // A page turn reads the trip and writes the page. `library` stays at `read`
   // rather than being left out, because a page turn browses the corpus today
@@ -87,6 +100,13 @@ export const SURFACES = {
   // place search on this surface would be the operator's money spent on a
   // number nothing can use. This is the first row where leaving a domain out is
   // a decision rather than the absence of a tool.
+  //
+  // **No `system` row either, and that one is moot rather than decided.** A
+  // page turn is never classified (`classifyTask` skips it, the surface decides
+  // the class), so its classifier cap is `propose` and its posture is
+  // `propose` — never `withheld`, which is the only posture the one system tool
+  // is offered in. The row is left out because a grant nothing can reach is
+  // noise, not because a page turn was judged unfit to escalate.
   page: [
     { domain: "itinerary", max: "read" },
     { domain: "library", max: "read" },
@@ -192,10 +212,23 @@ export function grantFor(caps: EffectCaps): GrantedEffects {
 export function toolsFor(
   grant: GrantedEffects,
   taskClass?: TaskClass,
+  posture?: AskToolPosture,
 ): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     const granted = grant[definition.domain];
     if (granted === undefined || EFFECT_RANK[definition.effect] > EFFECT_RANK[granted]) return false;
+    // **The fourth axis (`defineTool`'s `postures`), and it does NOT follow the
+    // third's "absent argument disables the filter" rule.** That rule exists
+    // because a caller who has not classified the turn must not be handed a
+    // narrowed set it did not ask for — narrowing without a verdict would be
+    // fail-closed. Here the direction is reversed: a posture-tagged tool is
+    // tagged because it is only safe in that posture, so an absent argument
+    // means the caller does not know the posture and the tool is NOT offered.
+    // Erring toward "offer it" would be a tool escaping its one condition
+    // through a caller's omission, which is the whole thing the tag is for.
+    if (definition.postures !== undefined && (posture === undefined || !definition.postures.includes(posture))) {
+      return false;
+    }
     // The third axis (`defineTool`'s `taskClasses`). Absent on the definition
     // means every class; an absent ARGUMENT means "do not narrow", which is the
     // shape a caller that has not classified the turn yet must get — silently

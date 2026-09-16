@@ -48,6 +48,7 @@ const VIEWER = "grant-viewer";
 
 const CLASSIFIED_AS_WRITE: AskIntentRecord = {
   taskClass: "edit",
+  certainty: "sure",
   intent: "write",
   source: "model",
   context: null,
@@ -309,7 +310,12 @@ describe("the ai.grant record", () => {
     // capped at `read` by the surface table and can never be anything else —
     // there is no `places` tool that proposes — so an editor's turn and a
     // viewer's carry the same value in that slot.
-    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read" });
+    // `system` is granted at `read` on trip and day and carries exactly one
+    // tool, which `defineTool`'s `postures` narrows further to the `withheld`
+    // turn. A granted DOMAIN and an offered TOOL are different facts, and this
+    // is the record of the first: `record.tools` below is the second.
+    expect(record.grants).toEqual({ itinerary: "propose", library: "propose", places: "read", system: "read" });
+    expect(record.tools).not.toContain("request_change_tools");
     expect(record.tools).toContain("read_trip");
     expect(record.tools).toContain("AddActivity");
     expect(record.tools).not.toContain("insert_widget");
@@ -333,7 +339,11 @@ describe("the ai.grant record", () => {
     });
     await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 
-    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read" });
+    expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read", system: "read" });
+    // A viewer resolves to `read-only`, never `withheld`, so they are never
+    // offered the escalation tool — rephrasing would recover nothing for them,
+    // and neither would escalating.
+    expect(records[0]!.tools).not.toContain("request_change_tools");
     expect(records[0]!.tools).not.toContain("AddActivity");
     // **A viewer's unclassified turn is a `question`, not an absence.** No model
     // was asked — there was no write half to withhold — and a turn holding only

@@ -262,6 +262,56 @@ export function newPlaceCache(): PlaceCache {
 }
 
 /**
+ * What a turn asked for when it escalated, in the model's own words.
+ *
+ * `intendedChange` is the half that is worth keeping past the turn: an
+ * escalation is a LABELLED CLASSIFIER MISS — the sentence, the wrong verdict,
+ * and the model's own statement of what it should have been allowed to do.
+ * That is the eval corpus KI-11 needs, written by real use rather than by hand,
+ * and it is the reason this is a typed record rather than a boolean.
+ */
+export interface EscalationRequest {
+  reason: string;
+  intendedChange: string;
+}
+
+/**
+ * Where an escalation lands — **once per turn, tracked here rather than in the
+ * model's head**.
+ *
+ * A second call returns `false` and changes nothing. A latch in the prompt
+ * ("only call this once") is a request; a latch in the collector is a fact, and
+ * the difference matters because the thing being bounded is a charged step and
+ * a tier upgrade.
+ *
+ * It is a collector for the same reason `ProposalBuffer` is: the tool runs
+ * several SDK frames before anything downstream can read what it did, and a
+ * closure would make "did this turn escalate?" a property of which builder
+ * constructed the tool rather than a declared `needs`.
+ */
+export interface EscalationBuffer {
+  /** Records the request. `false` if this turn has already escalated. */
+  request(request: EscalationRequest): boolean;
+  /** What the turn escalated with, or null if it did not. */
+  escalated(): EscalationRequest | null;
+}
+
+/** One turn's escalation latch. Never shared between turns. */
+export function newEscalationBuffer(): EscalationBuffer {
+  let recorded: EscalationRequest | null = null;
+  return {
+    request: (request) => {
+      if (recorded !== null) return false;
+      recorded = { ...request };
+      return true;
+    },
+    // A copy, so a reader cannot edit the turn's own record of why it escalated
+    // — the same guarantee the other three collectors give.
+    escalated: () => (recorded === null ? null : { ...recorded }),
+  };
+}
+
+/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -295,6 +345,8 @@ export interface AssistantDeps {
   placeSearch: PlaceSearchPort;
   /** Where `search_places` numbers what it found, for a `placeRef` to cite. */
   placeCache: PlaceCache;
+  /** Where the escalation tool records that this turn was misclassified. */
+  escalation: EscalationBuffer;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -334,6 +386,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   savedDays: true,
   placeSearch: true,
   placeCache: true,
+  escalation: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

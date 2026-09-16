@@ -62,7 +62,7 @@ import {
 } from "@/server/ai/writeTools";
 import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
 import { placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
-import { newPageBuffer, newPlaceCache, newProposalBuffer } from "@/server/assistant/deps";
+import { newEscalationBuffer, newPageBuffer, newPlaceCache, newProposalBuffer } from "@/server/assistant/deps";
 import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
@@ -92,6 +92,7 @@ import { recordAiUsage } from "@/server/entitlements/usage";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
+import { ESCALATE_TOOL_NAME } from "@/server/assistant/tools/escalate";
 
 // The admission pipeline's public names, re-exported so that the one door has
 // one module to import: `route.ts`, the client-facing refusal codes and the two
@@ -195,7 +196,18 @@ export async function handleAskRequest(
   // than tracked beside it. They stay mutually exclusive by construction: a
   // page scope caps `itinerary` at `read`, so a page turn cannot propose a
   // planning change, and no other surface names `pages` at all.
-  const proposesPlan = grant.grants.itinerary === "propose";
+  // **Read as a function, because escalation can change the answer mid-turn.**
+  //
+  // `grant.grants` is the truth about the turn as ADMITTED, and on a withheld
+  // turn it says `itinerary: read` — which is exactly right until the model
+  // escalates, and a lie afterwards. Both call sites run at the END of the run
+  // (`onEnd` and `messageMetadata`), by which time the buffer knows, so this
+  // reads the grant that was actually in force rather than the one the turn
+  // started with. A boolean captured here would drop the proposal an escalated
+  // turn just built.
+  const proposesPlan = () =>
+    (escalation.escalated() !== null && grant.escalation !== null ? grant.escalation.grants : grant.grants)
+      .itinerary === "propose";
   const proposesPage = grant.grants.pages === "propose";
   const proposalBuffer = newProposalBuffer();
   const pageBuffer = newPageBuffer();
@@ -205,6 +217,10 @@ export async function handleAskRequest(
   // different question. Read below by `buildProposal`, which turns each
   // citation into the location that actually commits.
   const placeCache = newPlaceCache();
+  // **The turn's escalation latch** (M9 design §1b). Minted whether or not the
+  // turn can escalate: a buffer nothing can reach costs one object, and making
+  // it conditional would put "can this turn escalate?" in two places.
+  const escalation = newEscalationBuffer();
 
   // The turn's meter: one object, handed to the tool set that fills it and to
   // the recorder that reads it. It is minted here rather than inside either,
@@ -212,8 +228,21 @@ export async function handleAskRequest(
   // have to agree on which turn that is.
   const meter = newTurnMeter();
 
+  // **Every tool the turn could hold, BUILT — and only the ones it holds NOW,
+  // ACTIVE.** The distinction is the whole of how escalation stays cheap.
+  //
+  // A tool's SCHEMA is what costs: ~85% of a step's fixed input is tool schemas
+  // and ~3,400 tokens of that is the write half (askIntent.ts's measurement),
+  // which is the entire reason the classifier call exists. `activeTools` is
+  // what decides which schemas go on the wire, so building the escalated set up
+  // front and leaving it inactive costs nothing on a turn that never escalates
+  // — which is almost all of them.
+  //
+  // Building it up front is what lets `prepareStep` widen without re-minting
+  // tools mid-stream against a different set of collectors.
+  const buildable = grant.escalation === null ? grant.tools : dedupeTools([...grant.tools, ...grant.escalation.tools]);
   const tools = aiToolsFor(
-    grant.tools,
+    buildable,
     {
       proposalBuffer,
       pageBuffer,
@@ -221,10 +250,21 @@ export async function handleAskRequest(
       savedDays: savedDayLibrary,
       placeSearch: placeSearchPort,
       placeCache,
+      escalation,
     },
     meter,
   );
-  const offeredNames = Object.keys(tools);
+  // **What the model was actually handed this step**, which is the measurement
+  // `uncalledTools` is arithmetic over. It is the ACTIVE set, not the built
+  // one: a schema that never went on the wire was not offered, and counting it
+  // would make the number this endpoint's whole cost story rests on a fiction.
+  const offeredNames = grant.tools.map((tool) => tool.name);
+  // **The escalated set ALONE, which excludes the escalation tool itself.**
+  // Once the turn holds the change tools there is nothing left to escalate to,
+  // and leaving it active would let a model spend a second charged step asking
+  // for what it already has. `escalate.ts`'s latch would refuse it; not
+  // offering it is cheaper and clearer.
+  const escalatedNames = grant.escalation === null ? [] : grant.escalation.tools.map((tool) => tool.name);
 
   // The step settlement's promise, so the end-of-turn path below can AWAIT it.
   //
@@ -254,6 +294,10 @@ export async function handleAskRequest(
     // It is now the same array the grant's role check was computed from,
     // rather than a second one tied to it by a test.
     offeredTools: offeredNames,
+    // Read at write time, like `collectedWrites`: the escalation happens
+    // mid-stream, several frames after this recorder is built, so a value
+    // captured here would always be null.
+    escalation: () => escalation.escalated(),
     // **Read at write time, so an aborted step's writes are still in the
     // record.** Both buffers hand back copies, so this cannot mutate the turn's
     // own account of what the model asked for. The insert carries the saved
@@ -428,9 +472,32 @@ export async function handleAskRequest(
       standingOf(detail),
     ),
     tools,
+    // The narrow set is what step 1 sends. `prepareStep` below is the only
+    // thing that widens it, and only after the model has said — through a
+    // charged tool call — that the classifier was wrong about this turn.
+    activeTools: offeredNames,
     // Keyed by tool name, and DERIVED from the same definitions: every tool
     // that declared an ambient dep gets the context, and nothing else does.
-    toolsContext: ambientContextFor(grant.tools, { tripId, userId, detail, scope }),
+    // Over the BUILT set, not the active one: a tool activated mid-turn by
+    // `prepareStep` needs its context channel already attached, and attaching
+    // one to a tool that is never called costs nothing.
+    toolsContext: ambientContextFor(buildable, { tripId, userId, detail, scope }),
+    /**
+     * **The escalation, applied** (M9 design §1b).
+     *
+     * Not a turn restart and not a client retry: the read results already in
+     * the message history are kept, and only the tools and the slot change. The
+     * model that just said "this needed a change tool" gets one on its very
+     * next step, in the same conversation, having spent one step to say so.
+     *
+     * Read off the buffer rather than off the steps, because the buffer is
+     * where the once-per-turn latch lives — scanning the history for a tool
+     * call would reimplement it, one frame later and with a second answer.
+     */
+    prepareStep: () =>
+      escalation.escalated() === null || grant.escalation === null
+        ? {}
+        : { activeTools: escalatedNames, model: grant.escalation.model },
     stopWhen: isStepCount(MAX_ASK_STEPS),
     // **This is the whole of our AI-agent tracing, and it is one line.**
     //
@@ -457,7 +524,7 @@ export async function handleAskRequest(
     onEnd: async (end) => {
       recorder.finish(
         end,
-        proposesPlan
+        proposesPlan()
           ? droppedWriteCalls(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache })
           : [],
       );
@@ -549,7 +616,7 @@ export async function handleAskRequest(
         // on the surface that grants `pages` — so the final chunk carries a
         // proposal or a page, never both.
         if (proposesPage) return pageInsertsMetadata(pageBuffer.inserted());
-        if (!proposesPlan) return undefined;
+        if (!proposesPlan()) return undefined;
         const proposal = buildProposal(
           proposalBuffer.collected(),
           detail,
@@ -597,6 +664,21 @@ export async function handleAskRequest(
  * ADR-035 decision 1): a day is a widget's own param, so there is nothing at
  * page level left to resolve.
  */
+/**
+ * Two tool lists as one, keeping the first occurrence of each name.
+ *
+ * The escalated set is a SUPERSET of the offered one — same grant, one cap
+ * lifted — so almost every name appears twice, and `aiToolsFor` keys by name.
+ * Building the union rather than concatenating keeps `Object.keys(tools)` in
+ * registry order and stops a later definition of the same name silently
+ * replacing the one the turn was actually granted.
+ */
+function dedupeTools<T extends { name: string }>(tools: readonly T[]): T[] {
+  const byName = new Map<string, T>();
+  for (const tool of tools) if (!byName.has(tool.name)) byName.set(tool.name, tool);
+  return [...byName.values()];
+}
+
 export interface PageBrief {
   title: string;
 }
@@ -812,8 +894,17 @@ export async function handleApplyProposalRequest(
 //
 // The classifier is a live model and will be wrong sometimes; that is priced
 // in (askIntent.ts biases every uncertainty toward `propose`). A dead end is
-// not. So the withheld copy names the recovery: say what is missing, and the
-// user asks again.
+// not.
+//
+// **The recovery used to be the USER's, and that is what M9 changed.** This
+// comment's own words — *"there is no mid-turn escalation and no client
+// retry"* — were the diagnosis, not a permanent fact, and Mitchell named the
+// symptom directly: *"i really dislike how the AI right now will ask me to
+// reframe a ask in order for it to do the work. It should do what it needs to
+// do."* There is now a mid-turn escalation (`tools/escalate.ts`), so the
+// withheld copy stops describing a retry the user has to perform and starts
+// describing a tool the model can call. Asking the user to rephrase is now
+// explicitly the wrong answer rather than the honest one.
 const ACCESS_LINE: Record<AskToolPosture, string> = {
   // The propose→review→approve contract, said to the model in the terms it can
   // act on. It is not the mechanism — the write tools collect and commit
@@ -823,7 +914,7 @@ const ACCESS_LINE: Record<AskToolPosture, string> = {
   propose:
     "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
   withheld:
-    "You can read this trip, but on THIS turn you have no tool to change it. You are not refusing them — they can change this trip. If what they asked for was a change rather than a question, answer what you can, then tell them plainly that you cannot draft that change on this turn and to ask again saying what they want changed. Never tell them the assistant cannot make changes.",
+    `You can read this trip. You were NOT given the change tools this turn, because this message was read as a question — and if that reading is wrong, call ${ESCALATE_TOOL_NAME} and your next step will have them. Do that rather than telling them to ask again: they can change this trip, and they should never have to rephrase to get a change made. Never tell them the assistant cannot make changes.`,
   "read-only":
     "You can READ this trip and nothing else. You cannot add, move, remove or change anything — if you are asked to, say plainly that you can only answer questions about the trip for now.",
 };
