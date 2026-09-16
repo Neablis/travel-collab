@@ -21,6 +21,36 @@ data layer should exist first, and UI polish and sharing come before it —
 M18b, M16). ADR-022 is not overturned; its conditions are spent. Numbers
 unchanged; this is a placement, the same shape as ADR-018/ADR-021.
 
+## Design and plans
+
+**The remainder is designed.** `docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md`
+(2026-09-15) scopes everything below that has not shipped, plus the three
+additions that arrived with the design handoff (`.design-sync/handoff/SPEC.md`
+§30) — escalation and `certainty`, the transcript rebuild, and new trip as a
+conversation. **Read §8 (the build order) before starting anything here, and
+§10 (the decisions Mitchell owes) before estimating it.**
+
+The build is split into **eight plans**, one per slice of that build order.
+Plans live in `docs/plans/` while the milestone is in flight and are **deleted
+at gate close**, with anything durable promoted to an ADR or a known issue first
+— `docs/plans/README.md`. So this table is the index, and a plan missing from
+it either has not been written or has already been retired.
+
+| # | Plan | State |
+|---|---|---|
+| 1 | `docs/plans/2026-09-15-M9-01-step-quota-concurrency.md` — the step ceiling holds under concurrency | **Merged**, `cacc1af` (#178, 2026-09-15). KI-94 and KI-97 resolved; the gate box below stays unticked and carries an implementation note |
+| 4 | `docs/plans/2026-09-15-M9-04-four-turn-new-trip.md` — new trip is four turns | **Written, not executed** (2026-09-15). The first shippable slice. Carries four decisions Mitchell owes (D-A to D-D) and closes KI-2026-09-12-e |
+
+**Plan 4 is only half of build-order item 4.** That item reads *"the four-turn
+transcript and the deterministic free path"*; the plan is the transcript half,
+which the theme-authoring pass does **not** gate. The free path does need it,
+and gets its own plan.
+
+The other six — the transcript rebuild, the theme vocabulary, grounding + KI-93,
+the draft trip, escalation + `certainty`, and the gate close — are **not written
+yet**. Numbering follows the design's build order, not the order they are
+written in.
+
 ## What is actually left — audit, 2026-09-01
 
 Checked against `main` at `dd61c44`, not against the prose below.

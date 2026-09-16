@@ -12,10 +12,12 @@
 
 **This is plan 4 of 8**, and it is **the first shippable slice** (design §8's build order, item 4). Build order item 4 covers *"the four-turn transcript and the deterministic free path"*; this document is **only the transcript half**. The deterministic free path is gated by the theme-authoring pass (item 3) and gets its own plan. Nothing in this one is gated by it — see Correction 1 below.
 
-**Depends on:** nothing in plans 1–3 *as code*. It reads no quota, charges no step, calls no model. Two sequencing facts that are not code dependencies but are real:
+**Depends on:** nothing in plans 1–3 *as code*. It reads no quota, charges no step, calls no model.
 
-- **PR #178 (plan 1, KI-94/KI-97) is open and unmerged**, and it is the branch that carries `docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` and `docs/plans/2026-09-15-M9-01-step-quota-concurrency.md`. Neither document exists on `main`. An executor of this plan must either work after #178 lands or read the spec from `origin/claude/m9-plan1-step-quota`.
-- **PR #180 (M21) is open and unmerged.** See "Precondition" at the foot of this document.
+**Both sequencing preconditions cleared on 2026-09-15**, after this document was written and before it was merged. Recorded because the first draft of this paragraph named them as live blockers:
+
+- **Plan 1 (KI-94/KI-97) merged** — `cacc1af`, [#178](https://github.com/Neablis/travel-collab/pull/178). That is also the commit that put `docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` and `docs/plans/2026-09-15-M9-01-step-quota-concurrency.md` on `main`; until it landed, neither existed there. **Read the spec from `main`** — an earlier draft of this line sent readers to an unmerged branch.
+- **M21's open PRs merged** — [#180](https://github.com/Neablis/travel-collab/pull/180) (`ec53a39`) and [#181](https://github.com/Neablis/travel-collab/pull/181) (`649ca04`), leaving the repo with no open PRs. That satisfies the retro's rule that the current milestone's work lands before the next milestone's code starts. **M21's gate is still 9/17 and not closed**, which the rule does not require; M9 sits earlier in the order regardless.
 
 **Overlaps plan 2 (the transcript rebuild) in exactly one place** and nowhere else: Task 2 below moves scroll pinning off `scrollIntoView`, which is design §2c. Plan 2 must not redo it. Plan 2 keeps §2a (no bubbles), §2b (collapsed steps) and §2d (tokens); this plan touches none of those three.
 
@@ -773,7 +775,7 @@ Claude-Session: https://claude.ai/code/session_01V41cyiCnBLyGbCrU672qsF"
 **Files:**
 - Delete: `docs/known-issues/open/KI-20260912-e-newtripwizard-retry-cannot-survive-a-lost-response.md`
 - Create: `docs/known-issues/resolved/KI-20260912-e-newtripwizard-retry-cannot-survive-a-lost-response.md`
-- Modify: `docs/milestones/M9-ai-planning-partner.md` (the Exit gate at `:264`)
+- Modify: `docs/milestones/M9-ai-planning-partner.md` (the Exit gate at `:294`)
 - Modify: `docs/STATUS.md`
 
 - [ ] **Step 1: Move the entry with `git mv`**
@@ -805,7 +807,7 @@ The entry's own Scope line offers *"an idempotency key on the command envelope"*
 
 - [ ] **Step 3: Add the two gate boxes this slice bears on — unticked**
 
-Design §7 grows M9's gate from ten boxes to eighteen, four of them for New trip. **Two of the four are this plan's**; the other two (*"a free account's entire flow makes zero model calls, asserted"* and *"the fork reads entitlements and never a plan rank"*) belong to the free-path and fork plans and are not added here. Add these, unticked — **a box is ticked at gate close, not when its code merges** (`TODO.md`'s standing rule, and the M9 file's own note at `:266-268`):
+Design §7 grows M9's gate from ten boxes to eighteen, four of them for New trip. **Two of the four are this plan's**; the other two (*"a free account's entire flow makes zero model calls, asserted"* and *"the fork reads entitlements and never a plan rank"*) belong to the free-path and fork plans and are not added here. Add these, unticked — **a box is ticked at gate close, not when its code merges** (`TODO.md`'s standing rule, and the M9 file's own note at `:296-298`):
 
 ```markdown
 - [ ] **Four answers produce a named, dated trip.**
