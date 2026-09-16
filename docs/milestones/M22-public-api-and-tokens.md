@@ -10,9 +10,8 @@ Both notes: `docs/milestones/README.md`, 2026-09-16.
 
 > **This milestone runs with its stated prerequisite unmet**, which is a
 > deliberate decision and not an oversight. M21 is open at 11 of 17 and paused;
-> nothing about it is amended. **The one thing that prerequisite was protecting
-> has a checkpoint, below** — see *Phase 0 → Phase 1: the checkpoint M21's pause
-> creates*, which is a gate on entering Phase 1 rather than a box at the end.
+> nothing about it is amended. **Nothing in M22 waits on M21** — see *What M22
+> owes M21, which is less than it first appeared*.
 
 **Every decision is closed as of 2026-09-16**, including the last one flagged
 back to Mitchell — `api.tokens` ships on **`premium@v2`** (*"Just do v2 then."*).
@@ -90,31 +89,40 @@ the first thing to actually read it. Phase 0 then genuinely does not touch
 `planVersions.ts`, and the one owed decision (below) stops sitting on the
 critical path.
 
-### Phase 0 → Phase 1: the checkpoint M21's pause creates
+### What M22 owes M21, which is less than it first appeared
 
-**Phase 1 may not start until one of two things is true**, and this is the whole
-of what M22 owes M21 for running ahead of it.
+**Nothing. No phase of this milestone waits on anything in M21.**
 
-Publishing `premium@v2` makes it what `livePlanVersion("premium")` returns, and
-`startCheckout` buys the live version and nothing else
-(`billing/checkout.ts:119`). A version's Stripe Price is created **lazily, at its
-first checkout** (`prices.ts:104-160`), and **`premium@v1` has never been
-bought** — so its Price does not exist, and after `v2` publishes, nothing the
-product offers can ever create it. `checkPriceConsistency` cannot stand in for
-the purchase: a version with no Price reports `missing`, not `ok`
-(`prices.ts:184-213`).
+This section exists because the first version of it said the opposite, and the
+correction is worth keeping rather than deleting.
 
-So M21's second gate box — *every priced version's `stripe_price_id` resolves to
-a Stripe Price with a matching amount and currency* — becomes **unclosable as
-written for `premium@v1`** the moment Phase 1 lands. Either:
+**Building and proving M22 needs no purchase and no Stripe.** An admin grant of
+`premium` pins `livePlanVersion("premium")` (`api/admin/grants/route.ts:29`) and
+`resolveEntitlements` unions the held plan version with every grant's pinned
+version (`resolver.ts:149-174`). So granting an account `api.tokens` — to test
+with, or to hand a real user when the feature is ready — is one operator action
+against a UI that already exists. That is M20's stated design, in the grant
+route's own words: grants are *"the entire reason this milestone is provable
+without Stripe."*
 
-1. **One Premium subscription is bought and refunded first**, which is the
-   remedy M21's own box note already names; or
-2. **Mitchell amends the box**, which only he may do.
+**What publishing `premium@v2` actually changes**, stated accurately: after it
+lands, `livePlanVersion("premium")` returns v2, so a Premium purchase creates and
+verifies **v2's** Stripe Price rather than v1's — and `premium@v1`, which has
+never been bought, keeps a Price that was never created. M21's second gate box
+notes that buying and refunding one Premium subscription would close it.
 
-**Phase 0 is unaffected and needs no checkpoint** — it is the contracts change
-alone and does not touch `planVersions.ts`. That is why the split exists, and it
-now has two independent reasons.
+**That is a footnote, not a blocker, and it was wrong to treat it as one.**
+Once `v2` is live, `premium@v1` is unsellable, unheld and ungrantable — grants
+pin the live version too — so verifying the Stripe Price of a version nobody can
+ever buy or hold verifies nothing. `checkPriceConsistency` reports such a version
+`missing`, which its own documentation calls *"an ordinary state"* rather than a
+finding; `mismatch` is the verdict that matters and it cannot arise for a Price
+that does not exist. A Premium purchase made after Phase 1 proves the version
+that is actually live, which is the more useful proof.
+
+**So M21's box is M21's to close, on M21's schedule**, and if its wording needs
+to account for a superseded version that is an amendment for Mitchell — not
+something M22 pays for in advance.
 
 ### Phase 1 — storage, the module, and the entitlement it enforces
 
@@ -302,11 +310,12 @@ first, with the cost in front of him. AGENTS.md's rule against building ahead of
 the current milestone is what made this his call to make rather than a default
 taken quietly.
 
-**The dependency was real rather than procedural, so it did not vanish — it
-moved.** Phase 1 publishes `premium@v2`, and what `premium` costs and how it is
-sold is M21's to settle. That is now the **Phase 0 → Phase 1 checkpoint** above,
-which is a stricter statement of the same constraint: not *"M21 must close"* but
-*"one specific purchase must happen, or one box must be amended."*
+**The dependency looked real and was not.** Phase 1 publishes `premium@v2`, and
+the worry was that what `premium` costs and how it is sold is M21's to settle
+first. But M22 never needed a *sale* — it needs an account that holds
+`api.tokens`, and M20 built the grant path precisely so that does not require
+Stripe. See *What M22 owes M21* above for the accurate version, and for the
+footnote that a previous draft of this file inflated into a blocker.
 
 **Everything underneath already exists.** Entitlements and plan versions (M20),
 the trip-access seam, `consumeQuota`, the revocation pattern, the account sheet

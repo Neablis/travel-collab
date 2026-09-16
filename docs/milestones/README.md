@@ -204,7 +204,7 @@ Current milestone: **M22 — An account can build on the API**
 finished.** Order from here:
 `M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
-below, and the second one carries a cost that has a deadline.
+below. The second one also records a cost it first got wrong.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and
@@ -232,36 +232,27 @@ milestone line may move** — by decision rather than by a gate closing — and 
 untouched; six are open. Nothing about this note ticks, unticks or amends a box
 — only Mitchell amends a gate definition, and he has not.
 
-**The cost, established by reading the code rather than recalled.** One of
-M21's six open boxes gets *harder*, and one specific act inside it acquires a
-deadline:
+**What it costs M21, corrected.** The first version of this note claimed the
+reorder put a deadline on one of M21's open boxes. **It does not, and the claim
+was wrong in the way that matters** — it treated a bookkeeping question about a
+superseded plan version as a gate on building M22.
 
-- `stripePriceFor` creates a version's Stripe Price **lazily, at its first
-  checkout** (`billing/prices.ts:104-160`). **`premium@v1` has never been
-  purchased, so its Stripe Price has never been created** — there is nothing in
-  Stripe carrying its lookup key.
-- `startCheckout` buys **`livePlanVersion(planId)`** and nothing else
-  (`billing/checkout.ts:119`), and `livePlanVersion` returns the newest
-  published entry (`planVersions.ts:340-345`). **So the moment M22's Phase 1
-  publishes `premium@v2`, no path the product offers can ever create
-  `premium@v1`'s Price.**
-- `checkPriceConsistency` — *"the gate box, as a function"* — cannot substitute,
-  because a version with no Price is reported `missing`, not `ok`
-  (`prices.ts:184-213`). Checking cannot conjure the thing to check against.
+- **M22 needs no purchase and no Stripe.** An admin grant of `premium` pins
+  `livePlanVersion(planId)` (`api/admin/grants/route.ts:29`) and
+  `resolveEntitlements` unions the held plan with every grant's pinned version
+  (`resolver.ts:149-174`). Granting an account `api.tokens` is one operator
+  action against a UI M20 already shipped — which is the grant path's stated
+  purpose: *"the entire reason this milestone is provable without Stripe."*
+- **What publishing `premium@v2` really changes** is which version a later
+  Premium purchase verifies: v2's Stripe Price rather than v1's. `premium@v1`,
+  never bought, keeps a Price that was never created — and once superseded it is
+  unsellable, unheld and ungrantable, so verifying its Price verifies nothing.
+  `checkPriceConsistency` reports such a version `missing`, which its own
+  documentation calls *"an ordinary state"* rather than a finding.
 
-**Therefore M21's second gate box becomes unclosable as written for
-`premium@v1` once `premium@v2` is published** — not merely harder, which is how
-this was first put before the code was read. Its own note says the remedy:
-*"Buying and refunding one Premium subscription closes this box."* **That
-purchase has to happen before M22's Phase 1, or the box needs an amendment from
-Mitchell.**
-
-**What the reorder does NOT cost, and why it can start immediately.** M22's
-**Phase 0 is the contracts change alone** and does not touch `planVersions.ts`
-— a split this file already recorded for a different reason (Decision 12's
-flagged item), which now carries a second and stronger one. So Phase 0 runs at
-zero cost to M21, and **the deadline lands at the Phase 0 → Phase 1 boundary**
-rather than today. That boundary is the checkpoint, and M22's file says so.
+**So M21's second gate box stays M21's, on M21's schedule.** If its wording needs
+to account for a superseded version, that is an amendment for Mitchell — not a
+cost M22 pays in advance.
 
 **One finding surfaced on the way, filed not fixed**: `checkPriceConsistency`
 is described as the gate box as a function and **has no caller outside its own

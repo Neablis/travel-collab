@@ -6,15 +6,16 @@ decision to run M22 ahead of it, recorded in `docs/milestones/README.md` under
 scope, the seven links and all seventeen boxes stand exactly as written, and the
 six open ones are still owed.
 
-> **One box acquires a deadline from the pause, and it is box 2.** M22's Phase 1
-> publishes `premium@v2`, after which `livePlanVersion("premium")` returns v2 and
-> `startCheckout` (`billing/checkout.ts:119`) can never again create
-> `premium@v1`'s Stripe Price — which has never been created, because
-> `stripePriceFor` creates one lazily at a version's first checkout and
-> `premium@v1` has never been bought. `checkPriceConsistency` cannot substitute:
-> no Price means `missing`, not `ok`. **So the Premium buy-and-refund this box
-> names must happen before M22's Phase 1**, or the box needs an amendment —
-> which only Mitchell makes.
+> **One footnote follows from the pause, and it is box 2's.** M22's Phase 1
+> publishes `premium@v2`, after which `livePlanVersion("premium")` returns v2 —
+> so a Premium purchase then verifies **v2's** Stripe Price, and `premium@v1`,
+> never bought, keeps a Price that was never created. Once superseded, v1 is
+> unsellable, unheld and ungrantable, so verifying its Price verifies nothing;
+> `checkPriceConsistency` reports it `missing`, which it calls *"an ordinary
+> state"* rather than a finding. **Nothing here is owed before M22 proceeds** —
+> an earlier draft of this note said a purchase had to happen first, and that was
+> wrong. If this box's wording needs to account for a superseded version, that is
+> an amendment, which only Mitchell makes.
 
 **Was OPEN and building since 2026-09-14.** Phases 1–4 are written; what
 is still owed is a walk against a real Stripe test-mode key, which is the half
