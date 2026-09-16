@@ -316,17 +316,25 @@ export async function createCustomer(input: {
  * are merged. It is one extra call on a path that runs once per published
  * price, and it replaces a guess with an answer.
  */
+// **`lookup_keys[]`, with the brackets.** Stripe types this parameter as an
+// array and answers `400: Invalid array` to a scalar rather than reading it as
+// a one-element list — so the brackets are the difference between a checkout
+// and a 500, not a style choice. Sent without them, this took down every paid
+// path in production on 2026-09-16: first purchase and plan change alike, since
+// both reach here through `stripePriceFor`. `retrieveSubscriptionWithItems`
+// below already spelled its `expand[]` correctly, which is why the symptom was
+// confined to price resolution. `stripeApi.test.ts` pins both.
 export async function findPriceByLookupKey(lookupKey: string): Promise<StripePrice | null> {
   const [active, archived] = await Promise.all([
     stripeRequest<StripeList<StripePrice>>({
       method: "GET",
       path: "/prices",
-      query: { lookup_keys: lookupKey, active: "true", limit: "2" },
+      query: { "lookup_keys[]": lookupKey, active: "true", limit: "2" },
     }),
     stripeRequest<StripeList<StripePrice>>({
       method: "GET",
       path: "/prices",
-      query: { lookup_keys: lookupKey, active: "false", limit: "2" },
+      query: { "lookup_keys[]": lookupKey, active: "false", limit: "2" },
     }),
   ]);
   // Active first: if both somehow exist, the live one is the one being sold.
