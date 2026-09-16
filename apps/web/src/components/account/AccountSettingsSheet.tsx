@@ -10,6 +10,7 @@ import { DataText } from "@/components/ui/data-text";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useAccountPreferences } from "./PreferencesProvider";
 import { PlanSection } from "./PlanSection";
+import { TokensSection } from "./TokensSection";
 
 const UNIT_OPTIONS = [
   { value: "km" as const, label: "Kilometres" },
@@ -122,6 +123,11 @@ export function AccountSettingsSheet({
             every route and threading a plan through every one of them would
             make an unrelated surface care about entitlements. */}
         <PlanSection onNavigate={() => onOpenChange(false)} />
+        {/* **Tokens after plan, and for the same reason plan is first**: both
+            are things this account HOLDS, and what a token may do is decided by
+            the plan directly above it. A free account reads the two together —
+            the plan it is on, then the capability that plan does not include. */}
+        <TokensSection onNavigate={() => onOpenChange(false)} />
         <div className="flex flex-col gap-4">
           <FormField
             id="account-display-name"

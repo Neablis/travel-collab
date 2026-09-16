@@ -582,3 +582,66 @@ trip without a role fails with *"is about a trip and names no role"*.
 
 **Still not clickable.** Phase 3 is the Tokens section, and the reachability rule
 is its to answer.
+
+### Phase 3 — a person can actually do this by clicking — **landed 2026-09-16**
+
+`TokensSection` in `AccountSettingsSheet`, a section rather than a route
+(`PlanSection`'s precedent). The three BFF endpoints behind it:
+`GET`/`POST /api/account/tokens` and `DELETE /api/account/tokens/:tokenId`.
+A new design-system primitive, `components/ui/checkbox.tsx`.
+
+**Token management is session-only, and that is a security decision rather than
+a gap in the API.** These routes live under `/api/*`, not `v1/`, so no token can
+reach them and no scope names one. A token that could mint tokens could grant
+itself scopes its owner never approved; a token that could revoke tokens could
+lock its owner out of their own credentials. The API can change your trips — only
+you, signed in, decide what may hold that power. An integration test asserts it
+directly, with a token holding **all eight scopes** refused.
+
+**Listing and revoking are deliberately NOT gated on the entitlement.** Only
+minting is. Refusing a lapsed account its list would leave live credentials the
+owner can no longer reach, and taking away someone's ability to switch off a
+credential because they stopped paying is indefensible.
+
+**The three obligations mandatory expiry put on this screen are each a test**:
+time remaining rather than a creation date; an expired token reading differently
+from a revoked one; and rotation named as two actions rather than promised as a
+feature.
+
+**The design system gained a checkbox.** Nothing in the product had previously
+asked a person to pick several things from a fixed list, so no primitive existed
+— and the lint wall refused the raw `<input type="checkbox">`, correctly. The
+rule surfaced a real gap, so the primitive got written rather than the rule
+bypassed. `CheckboxField` carries the description beside the label because every
+caller so far is asking someone to grant a capability, and a checkbox whose whole
+meaning is a two-word title is one people tick without deciding anything.
+
+**Two real defects, both caught by the tests that were written to find them:**
+
+1. **Every scope checkbox would have thrown.** `e.currentTarget.checked` was read
+   *inside* the `setScopes` updater, which runs during the next render — by which
+   point React has released the synthetic event and `currentTarget` is null.
+   Found by this component's own unit test, not by a person failing to tick a
+   box. The fix is hoisted into `CheckboxField` so no future caller can repeat it.
+2. **The screen blamed the person for our misconfiguration.** With
+   `API_TOKEN_PEPPER` unset the route threw, and the error copy said *"Check the
+   name and the number of days"*. Found by the e2e going red against a server
+   that did not have the variable. There are now three messages because there are
+   three different actions: your plan, your input, and ours.
+
+**Verified.** Full `pnpm check` green, and the e2e in
+`pnpm --filter web test:e2e:ci-like` — the only lane that counts. It walks
+further than Phase 3 owns, deliberately: a free account sees the locked section,
+an operator grant entitles it, a token is minted **by clicking**, that token is
+then sent as a real `Authorization: Bearer` header to `GET /api/v1/trips` and
+returns this account's trip, revoking by clicking makes the same call **401 with
+`token-revoked` and `WWW-Authenticate: Bearer`**, and the dead token stays
+listed. Removing the revocation check from `verifyToken` turns it red on exactly
+that assertion (*"a revoked token must stop working at once"*, 200 where 401 was
+expected). **No Stripe anywhere in it** — the entitlement arrives through the
+operator console's own grant endpoint.
+
+> **DEPLOYMENT: `API_TOKEN_PEPPER` must be set in Vercel for preview and
+> production before this ships.** Unset, minting and verifying both throw and the
+> Tokens section says so. `openssl rand -base64 32`. It is in `.env.example` and
+> in CI; the hosted environments are the two nobody in this repo can set.
