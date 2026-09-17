@@ -65,25 +65,11 @@ const TIER_FOR: Readonly<Record<TaskClass, ModelTier>> = {
  * cap it (`capTier` below), the same cap-an-upper-bound shape as §2's surface
  * grant and §7c's effect intersection.
  */
-export function tierFor(taskClass: TaskClass, certainty: "sure" | "unsure" = "sure"): ModelTier {
-  // **An unsure verdict raises the FLOOR to `mid`; it does not jump to
-  // `strong`** (M9 design §1a). Uncertainty resolves upward — rule 1, and
-  // `strongerTier` below is the arithmetic — but only by as much as the doubt
-  // warrants. The old spelling could only express "unsure" by forcing the class
-  // to `plan`, which took the strongest model for a question the classifier had
-  // merely hesitated over; that is the double-counting the instruction change
-  // removed, and this is the other half of it.
-  //
-  // `strongerTier` rather than a literal, so `plan` + `unsure` stays `strong`
-  // instead of being quietly downgraded by a floor.
-  return certainty === "unsure" ? strongerTier(TIER_FOR[taskClass], "mid") : TIER_FOR[taskClass];
+export function tierFor(taskClass: TaskClass): ModelTier {
+  return TIER_FOR[taskClass];
 }
 
 const TIER_RANK: Readonly<Record<ModelTier, number>> = { cheap: 0, mid: 1, strong: 2 };
-
-// `strongerTier` is used by `tierFor` above and declared below it. A function
-// declaration hoists, so the order is legibility rather than a dependency: the
-// routing table and the thing that reads it come first.
 
 /**
  * **Uncertainty resolves UPWARD**, toward the stronger model — the same bias

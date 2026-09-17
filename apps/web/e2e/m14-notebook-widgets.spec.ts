@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard } from "./helpers";
 
 // M14's builder half, walked the way a person walks it.
 //
@@ -54,7 +53,9 @@ async function openNotebookIndex(page: Page): Promise<void> {
 async function tripWithTwoDays(page: Page): Promise<string> {
   const tripName = e2eTripName("Porto");
   await page.goto("/");
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
@@ -552,7 +553,9 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
 test("an undated trip says it has no days to filter by, and is not a dead end", async ({ page }) => {
   const tripName = e2eTripName("Undated");
   await page.goto("/");
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
   // §24: a trip opens on Overview; "Add a day" lives on Plan.

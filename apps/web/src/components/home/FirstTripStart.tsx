@@ -25,21 +25,12 @@ import { cn } from "@/lib/cn";
 // all already existed — they were simply not reachable from the one screen
 // where somebody has nothing and needs one.
 
-/**
- * The four questions `NewTripWizard` asks, said before it opens rather than
- * after.
- *
- * **These are the questions now, not the old stepper's headings.** The sheet
- * stopped being a four-step form (SPEC §30.1), and "Who & money" in particular
- * described a step that no longer exists — there is no turn for budget or
- * currency in a four-turn script. A screen that promises a step the sheet does
- * not have is worse than one that promises nothing.
- */
+/** The four steps `NewTripWizard` walks, said before it opens rather than after. */
 const WIZARD_STEPS: readonly { label: string; detail: string }[] = [
   { label: "Where", detail: "A name is enough — “Japan”, “Mum’s 60th”." },
-  { label: "When", detail: "Pick a length and an arrival, or say it in your own words." },
-  { label: "Pace", detail: "Slow, balanced or packed — or describe it." },
-  { label: "What it is about", detail: "Pick as many as fit, or none at all." },
+  { label: "When", detail: "Pick a length and an arrival, or skip it." },
+  { label: "Who & money", detail: "A budget to measure against, if you have one." },
+  { label: "Shape", detail: "How full the days should feel." },
 ];
 
 /**

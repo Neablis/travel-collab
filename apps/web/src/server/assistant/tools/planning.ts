@@ -54,42 +54,28 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
  * everywhere until somebody decides otherwise, which is the direction that
  * fails safe.
  *
- * **Only `plan` is narrowed, and now only by three commands.** A planning turn
- * is "fill out my days"; it has no business setting the trip's currency or
- * budget, or dismissing a conflict. Everything a plan might plausibly need is
- * kept, including both date commands — "plan me six days from March 3" is a
- * planning turn that has to set dates.
+ * **Only `plan` is narrowed, and only by four commands.** A planning turn is
+ * "fill out my days"; it has no business renaming the trip, setting its
+ * currency or budget, or dismissing a conflict. Everything a plan might
+ * plausibly need is kept, including both date commands — "plan me six days
+ * from March 3" is a planning turn that has to set dates.
  *
- * **`SetTripName` was the fourth, and M9's KI-12 is why it is not.** This
- * comment used to end: *"A user who says 'plan me a trip and rename it to Japan
- * 2027' in one turn gets the plan and no rename… If it proves annoying, the fix
- * is to delete an entry here and nothing else."* It did not prove annoying; it
- * proved to be a **gate box**. KI-12 is *"the AI cannot leave a trip
- * half-planned"* — the headline flow finishing the job it advertises — and a
- * planning turn that cannot name the trip it just planned is precisely that
- * flow not finishing. The prediction was right and so was the remedy: one
- * deleted entry, and nothing else here.
- *
- * It does not, on its own, make a plan turn NAME anything. Being offered a tool
- * is not being told to use it; the instruction that does that lives in
- * `handleAskRequest.ts`, is conditioned on the trip being empty, and is why an
- * assistant does not rename a trip somebody has already put stops into (see
- * `TripStanding`).
- *
- * **What this does NOT claim.** Three fewer tools (17 -> 14) is a move within
+ * **What this does NOT claim.** Four fewer tools (17 -> 13) is a move within
  * the 10-30 band the published measurements call degraded, not out of it. The
  * larger lever would be the twelve-way command split itself, and that is
  * `@tc/contracts`' closed action space (ADR-015) — the property that makes the
  * model structurally unable to invent an operation — so it is not something to
  * trade away for a token count. This is the cut that costs nothing.
  *
- * **The dead end the fourth entry bought is still real for the other three**,
- * and still handled: the `propose` posture tells the model to say what it
- * cannot draft this turn and to ask again — the same branch a viewer's turn
- * uses — so a request to set a budget mid-plan degrades to one extra turn
- * rather than to a silent omission.
+ * **The dead end is real and is handled.** A user who says "plan me a trip and
+ * rename it to Japan 2027" in one turn gets the plan and no rename. The
+ * `propose` posture already tells the model to say what it cannot draft this
+ * turn and to ask again — the same branch a viewer's turn uses — so this
+ * degrades to one extra turn rather than to a silent omission. If it proves
+ * annoying, the fix is to delete an entry here and nothing else.
  */
 const TASK_CLASSES_FOR: Partial<Record<BatchableCommandType["type"], readonly TaskClass[]>> = {
+  SetTripName: ["question", "edit", "compose"],
   SetTripCurrency: ["question", "edit", "compose"],
   SetTripBudget: ["question", "edit", "compose"],
   DismissConflict: ["question", "edit", "compose"],

@@ -1,0 +1,10 @@
+### KI-81 — An approved AI plan carries the model's own place names, ungrounded: `SearchPlaces` is M9's named remainder
+- **Severity:** correctness (a model guess is laundered into a stored fact — the same species as KI-15, one layer up)
+- **Area:** `apps/web/src/server/ai/writeTools.ts` (`commitProposal`), `apps/web/src/server/ai/geocodeEnrichment.ts`, ADR-022 §1 (the fourth read tool it foresees)
+- **What is missing:** M9's grounding half. The assistant can now propose and commit a batch (propose → review → approve), but a proposed `AddActivity`'s `location` is still whatever the model wrote. ADR-022 already names the fix and calls it earned under its own rule: a `search_places` READ tool the model must call, and a `placeRef` it must cite, so a stored place is a place the vendor returned rather than a name the model produced.
+- **Why the floor is not zero:** an approved batch runs the SAME `enrichCommandLocations` the command endpoint runs — region-biased, "refine, never relocate", everything unverified reported (`commitProposal` is asserted to call it before the batch, in `writeTools.test.ts` and in the apply route's integration suite). So approval is not a second door around KI-15's protection, and locations from the assistant are **no worse than the command path's today**. They are also no better.
+- **Why it was not built here:** it needs LocationIQ throttling at 2 req/s inside a streaming turn, a `placeRef` the resolver understands, and a review step that shows the user which candidate was chosen. That is its own scoped unit; folding it into the write-tools task was the single largest way to not finish either.
+- **Tripwire:** the day `ai-live` is switched on for a real user, this is the entry to read first — an unreviewed model-authored place name is the failure KI-15 already cost a day to.
+- **Found by:** the Task 6 implementer, 2026-08-29, recording it as the deliberate remainder its brief named.
+- **Cross-reference:** KI-15 (the enrichment rewrite this rests on), ADR-022 §1, `docs/milestones/` M9.
+- **First noted:** 2026-08-29.

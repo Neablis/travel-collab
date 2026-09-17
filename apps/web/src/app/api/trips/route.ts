@@ -33,24 +33,7 @@ export async function GET() {
   return Response.json({ trips });
 }
 
-// **The client may mint the id** (KI-2026-09-12-e). `CreateTrip` in
-// `packages/contracts/src/trip.ts` has always carried `tripId`; what forbade a
-// caller from supplying one was this route-local schema, and what minted it was
-// `randomUUID()` below. Optional, so every existing caller is unaffected.
-//
-// Why it matters: if the command commits and the browser then loses the
-// response, `createTrip` returns `ok: false` and a retry used to mint a SECOND
-// trip. With the id supplied by the caller the retry is the same command, and
-// `decideCreateTrip` answers `trip-already-exists` — which the client reads as
-// "it landed" rather than as a failure.
-//
-// A uuid, not any string: the id reaches the database as a key, and accepting
-// an arbitrary caller-supplied string here would be a wider door than the
-// defect needs.
-const CreateTripBody = z.object({
-  name: z.string().min(1).max(200),
-  tripId: z.string().uuid().optional(),
-});
+const CreateTripBody = z.object({ name: z.string().min(1).max(200) });
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -62,15 +45,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "name is required (1-200 chars)" }, { status: 400 });
   }
   const result = await executeTripCommand(
-    { type: "CreateTrip", tripId: body.data.tripId ?? randomUUID(), name: body.data.name },
+    { type: "CreateTrip", tripId: randomUUID(), name: body.data.name },
     session.user.id,
   );
   if (!result.ok) {
-    // **`code` on the wire, the way `POST /api/trips/:id/commands` already does
-    // it.** That asymmetry was the whole gap on the create half: the server has
-    // always distinguished `trip-already-exists` from a real failure, and this
-    // route threw the distinction away before the client could read it.
-    return Response.json({ error: result.error.message, code: result.error.code }, { status: 400 });
+    return Response.json({ error: result.error.message }, { status: 400 });
   }
   return Response.json({ tripId: result.tripId }, { status: 201 });
 }

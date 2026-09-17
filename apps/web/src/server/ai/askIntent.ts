@@ -70,7 +70,6 @@
 // anywhere. A reasoning model still populates structured output *after* it
 // reasons, which is the whole point of asking for a typed field instead of a
 // word.
-import { z } from "zod";
 import { generateText, Output, type LanguageModel } from "ai";
 import { sanitizeForLog, type AskIntentRecord, type AskUsage } from "@/server/ai/askAnalytics";
 import type { TaskClass } from "@/server/assistant/taskClass";
@@ -89,39 +88,6 @@ export type AskIntent = AskIntentRecord["intent"];
  * task class is what picks a tier.
  */
 export type AskTaskClass = Exclude<TaskClass, "compose">;
-
-/**
- * **How sure the classifier is — the widened band** (M9 design §1a).
- *
- * Until this existed, *"confidently a question"* and *"unsure, defaulting to
- * plan"* arrived as the same value, so the classifier's guess rate was
- * structurally unobservable. Splitting them makes the fail-open rate measurable
- * for the first time, which is what the eval harness needs and what nobody
- * could have produced by reading the old records.
- *
- * It also does work. Uncertainty resolves upward on BOTH axes and always has —
- * that is rule 1 — but the old spelling could only express it by lying about
- * the class: an unsure question had to become `plan` to get the write tools,
- * which threw away what the classifier actually thought. Now `question` +
- * `unsure` keeps the class, keeps the write tools (`intentOf`) and takes the
- * `mid` tier (`tierFor`), and the record says which of the two it was.
- *
- * **It is an enum, never a float**, and KI-88 is the precedent. The verdict used
- * to be free text capped at 8 output tokens; a reasoning model spent the whole
- * budget reasoning, emitted nothing, and the classifier failed open on every
- * turn with no error anywhere. The fix was to demand a typed field instead of a
- * word. A self-reported probability is that mistake's cousin — and a threshold
- * over it is a knob nobody can defend a value for.
- */
-export type AskCertainty = "sure" | "unsure";
-
-/**
- * What an absent, unparseable or errored `certainty` means.
- *
- * `"unsure"`, which preserves rule 3's fail-open direction: a classifier that
- * could not tell us how sure it was is, by that very fact, not sure.
- */
-export const FAIL_OPEN_CERTAINTY: AskCertainty = "unsure";
 
 // The line that tells `simulatedModel` this is a classification call and not a
 // turn — the same trick, and the same reasoning, as `ASK_SCOPE_PREFIX` in
@@ -147,12 +113,7 @@ export const ASK_INTENT_INSTRUCTION = [
   'Use "question" if it only asks about the trip as it already is.',
   'Use "edit" if it asks to add, move, remove or replace something in an existing trip.',
   'Use "plan" if it asks for a whole itinerary or several days, or agrees to one offered.',
-  // **Replaces the old tie-break line, never sits beside it** (design §1a).
-  // That line was `If you are unsure, use "plan".` — the same bias, expressed
-  // as a forced choice. Keeping both would count the bias twice: the model
-  // would round up to `plan` AND report `unsure`, and the turn would take the
-  // strong tier for a question it merely hesitated over.
-  'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
+  'If you are unsure, use "plan".',
   ASK_INTENT_MARKER,
 ].join("\n");
 
@@ -175,40 +136,16 @@ export function isAskIntentCall(instructions: string): boolean {
  * writer-and-reader-in-one-module rule `ASK_INTENT_MARKER` follows.
  */
 const INTENT_CHOICES: AskTaskClass[] = ["question", "edit", "plan"];
-
-/**
- * **Two fields, not one, since M9's `certainty`** — which is why this is
- * `Output.object` rather than the `Output.choice` it was.
- *
- * The KI-88 property is unchanged and is the reason the shape moved rather than
- * a second call being added: the SDK validates the whole object against this
- * schema before `generateText` returns, so a missing or off-enum `certainty`
- * arrives here as a THROW, which is already the fail-open branch. Nothing
- * downstream normalises anything, because nothing downstream sees prose.
- */
-const IntentVerdict = z.object({
-  intent: z.enum(INTENT_CHOICES as [AskTaskClass, ...AskTaskClass[]]),
-  certainty: z.enum(["sure", "unsure"]),
-});
-
-const INTENT_OUTPUT = Output.object({
-  schema: IntentVerdict,
-  name: "verdict",
+const INTENT_OUTPUT = Output.choice({
+  options: INTENT_CHOICES,
+  name: "intent",
   description:
-    "Whether the last message asks about the trip (question), asks for a bounded change to it (edit), or asks for a whole itinerary to be generated (plan) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
+    "Whether the last message asks about the trip (question), asks for a bounded change to it (edit), or asks for a whole itinerary to be generated (plan).",
 });
 
-/**
- * One classification verdict, in the wire shape `INTENT_OUTPUT` parses.
- *
- * Exported so `simulatedModel` emits a verdict in the same shape rather than
- * hard-coding the SDK's wire format at a second site — writer and reader in one
- * module, the same rule `ASK_INTENT_MARKER` follows. The shape changed here
- * when `certainty` arrived and the simulated model needed no edit to keep
- * PARSING, which is the whole value of the rule.
- */
-export function askIntentVerdictText(taskClass: AskTaskClass, certainty: AskCertainty = "sure"): string {
-  return JSON.stringify({ intent: taskClass, certainty });
+/** One classification verdict, in the wire shape `INTENT_OUTPUT` parses. */
+export function askIntentVerdictText(taskClass: AskTaskClass): string {
+  return JSON.stringify({ result: taskClass });
 }
 
 /**
@@ -220,13 +157,7 @@ export function askIntentVerdictText(taskClass: AskTaskClass, certainty: AskCert
  * verdict buys is upstream of the gate — which tier answers — and nothing
  * downstream of this function can tell the two classifiers apart.
  */
-export function intentOf(taskClass: AskTaskClass, certainty: AskCertainty = "sure"): AskIntent {
-  // **An unsure question does not withhold** (design §1a). Rule 1's bias, said
-  // on the axis it is actually about: a change request wrongly denied write
-  // tools cannot act at all, and "probably a question" is not a good enough
-  // reason to risk that. The class stays `question` — that is what the
-  // classifier said, and throwing it away is what the old forced `plan` did.
-  if (certainty === "unsure") return "write";
+export function intentOf(taskClass: AskTaskClass): AskIntent {
   return taskClass === "question" ? "question" : "write";
 }
 
@@ -414,15 +345,7 @@ export async function classifyAskIntent(
       // no round-trip is made — so the only cost of resolving upward here is
       // the tier the turn itself runs on.
       taskClass: FAIL_OPEN_TASK_CLASS,
-      // **`unsure`, and it is the truest use of the field in this module.**
-      // This rule's own comment says so: "Yes go ahead" can be agreeing to a
-      // single stop or to a six-day itinerary, and the rule is deliberately not
-      // a parser. Before `certainty` existed, that admission could only be
-      // expressed by resolving to `plan` and flagging nothing — which is why
-      // `grantTools` has to special-case `source: "affirmation"` beside
-      // `failedOpen` to avoid narrowing on it. The flag now says it directly.
-      certainty: FAIL_OPEN_CERTAINTY,
-      intent: intentOf(FAIL_OPEN_TASK_CLASS, FAIL_OPEN_CERTAINTY),
+      intent: intentOf(FAIL_OPEN_TASK_CLASS),
       source: "affirmation",
       model: null,
       verdict: "bare agreement — no model call",
@@ -477,11 +400,10 @@ export async function classifyAskIntent(
     // by reasoning tokens ends on `length` and lands here — so "the model
     // never filled it in" joins the throw, the timeout and the abort in one
     // fail-open branch rather than needing a second one.
-    const { intent: taskClass, certainty } = result.output;
+    const taskClass = result.output;
     return {
       taskClass,
-      certainty,
-      intent: intentOf(taskClass, certainty),
+      intent: intentOf(taskClass),
       source: "model",
       model: modelIdOf(model),
       // The raw JSON the model returned, not the parsed enum: `intent` already
@@ -496,8 +418,7 @@ export async function classifyAskIntent(
   } catch (err) {
     return {
       taskClass: FAIL_OPEN_TASK_CLASS,
-      certainty: FAIL_OPEN_CERTAINTY,
-      intent: intentOf(FAIL_OPEN_TASK_CLASS, FAIL_OPEN_CERTAINTY),
+      intent: intentOf(FAIL_OPEN_TASK_CLASS),
       source: "model",
       model: modelIdOf(model),
       verdict: failureVerdict(err, emitted),

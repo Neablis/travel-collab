@@ -18,7 +18,7 @@ import {
   type RawToolIntent,
 } from "./writeTools";
 import { savedDayLibrary } from "@/server/ai/assistantPorts";
-import { newPlaceCache, newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
+import { newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
 import { aiToolsFor, contextTool, type AssistantToolSet } from "@/server/assistant/registry";
 import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
 import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
@@ -50,24 +50,6 @@ vi.mock("@/server/savedDays", async (importOriginal) => {
     })),
   };
 });
-
-// `commitProposal` now charges the geocode quota for every lookup it makes
-// (KI-93), and `consumeQuota` bumps a Postgres counter. It FAILS CLOSED, so an
-// unmocked call here would not error — it would quietly refuse every lookup and
-// turn each geocoding assertion in this file into a passing test of the wrong
-// thing.
-//
-// **That is exactly the shape M9 Phase 0's retro warns about — a mock is a
-// boundary, and the code on the far side of it is untested until something
-// asserts the wire.** So this stub covers the tests that are ABOUT something
-// else, and `charges the geocode quota…` below drives the real call path with
-// an explicit charge and asserts the wiring. The counter itself is
-// `quota.int.test.ts`'s.
-vi.mock("@/server/quota", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/server/quota")>();
-  return { ...actual, consumeQuota: vi.fn(async () => ({ allowed: true as const })) };
-});
-const { consumeQuota, geocodeQuota } = await import("@/server/quota");
 
 const DAY_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 const COLOSSEUM_ID = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
@@ -635,167 +617,6 @@ describe("parseApprovedCommands", () => {
   });
 });
 
-// **Grounding's resolution half — where M9's title actually happens.**
-//
-// `search_places` numbers candidates and `tools/places.test.ts` covers that.
-// What is covered here is the other end: a model that cited `placeRef: N` gets
-// the place the SERVER found written onto its command, and a model that cited a
-// number nobody searched for gets nothing invented for it.
-describe("grounding — a cited placeRef becomes the location that commits", () => {
-  /** A cache holding two real candidates, numbered 1 and 2. */
-  function cacheWithFalls() {
-    const cache = newPlaceCache();
-    cache.add([
-      {
-        name: "Niagara Falls State Park, Niagara Falls, NY, USA",
-        lat: 43.0866,
-        lng: -79.0628,
-        city: "Niagara Falls",
-        countryCode: "US",
-      },
-      { name: "Top of the Falls Restaurant", lat: 43.0812, lng: -79.0711 },
-    ]);
-    return cache;
-  }
-
-  function proposeGrounded(intents: RawToolIntent[], cache = cacheWithFalls()) {
-    return buildProposal(intents, detail, {
-      tripId: TRIP_ID,
-      actorId: ACTOR,
-      mintId: mints(),
-      proposalId: "p1",
-      placeCache: cache,
-    });
-  }
-
-  it("writes the cited candidate's name and coordinates, and drops the ref", () => {
-    const proposal = proposeGrounded([
-      { type: "AddActivity", args: { title: "The falls", dayRef: "day 1", placeRef: 1 } },
-    ]);
-    const command = proposal!.commands[0] as { location?: unknown; placeRef?: unknown };
-    expect(command.location).toEqual({
-      name: "Niagara Falls State Park, Niagara Falls, NY, USA",
-      lat: 43.0866,
-      lng: -79.0628,
-      city: "Niagara Falls",
-      countryCode: "US",
-      // The same answer `resolveOne` already gives on the enrichment path: the
-      // vendor answered a venue query with a place, so that is what its
-      // coordinate describes. Not a second tier invented for this path.
-      precision: "venue",
-    });
-    // Transport only. It is resolved before the proposal is serialised, so the
-    // apply door needs no new trust — and `contracts/test/m9-place-ref.test.ts`
-    // pins the same absence from the stored event, from the other end.
-    expect("placeRef" in command).toBe(false);
-    expect(JSON.stringify(proposal)).not.toContain("placeRef");
-  });
-
-  // The card a human approves has to name the place the SERVER found, not the
-  // place the model typed — the same rule `insert_playbook_day` follows for a
-  // saved day's name.
-  it("overwrites whatever location the model typed beside the citation", () => {
-    const proposal = proposeGrounded([
-      {
-        type: "AddActivity",
-        args: {
-          title: "The falls",
-          dayRef: "day 1",
-          placeRef: 2,
-          location: { name: "Somewhere in Shropshire", lat: 52.7, lng: -2.75 },
-        },
-      },
-    ]);
-    expect((proposal!.commands[0] as { location: { name: string } }).location.name).toBe(
-      "Top of the Falls Restaurant",
-    );
-  });
-
-  // **A refusal somebody can see beats a coordinate nobody checked.** The stop
-  // is still made — dropping it would lose work over a bookkeeping mistake —
-  // but nothing is invented and the user is told.
-  it("drops an unresolvable citation, keeps the stop, and says so in skipped", () => {
-    const proposal = proposeGrounded([
-      { type: "AddActivity", args: { title: "Mystery lunch", dayRef: "day 1", placeRef: 9 } },
-    ]);
-    const command = proposal!.commands[0] as { location?: unknown; placeRef?: unknown };
-    expect("placeRef" in command).toBe(false);
-    expect(command.location).toBeUndefined();
-    expect(proposal!.skipped).toEqual([
-      expect.stringContaining("Mystery lunch"),
-    ]);
-    expect(proposal!.skipped[0]).toContain("not confirmed");
-  });
-
-  // A turn on a surface that grants no `places` domain has nothing to resolve
-  // against, so every citation is unresolvable — which must degrade to the
-  // same visible refusal rather than to a throw.
-  it("refuses every citation when the turn searched nothing at all", () => {
-    const proposal = buildProposal(
-      [{ type: "AddActivity", args: { title: "Lunch", dayRef: "day 1", placeRef: 1 } }],
-      detail,
-      { tripId: TRIP_ID, actorId: ACTOR, mintId: mints(), proposalId: "p1" },
-    );
-    expect("placeRef" in (proposal!.commands[0] as object)).toBe(false);
-    expect(proposal!.skipped).toHaveLength(1);
-  });
-
-  // **The gap `contracts/src/activity.ts` names in its own comment**: a model
-  // could write `precision: "venue"` beside a guessed coordinate and reach the
-  // map indistinguishable from a vendor-verified one. It also decides whether
-  // enrichment will look the stop up, so leaving it model-writable would let a
-  // guess skip the only check that would have caught it.
-  it("strips a precision the model claimed for its own coordinates", () => {
-    const proposal = proposeGrounded([
-      {
-        type: "AddActivity",
-        args: {
-          title: "Invented",
-          dayRef: "day 1",
-          location: { name: "Nowhere", lat: 52.7, lng: -2.75, precision: "venue" },
-        },
-      },
-    ]);
-    expect((proposal!.commands[0] as { location: { precision?: string } }).location.precision).toBeUndefined();
-    expect((proposal!.commands[0] as { location: { name: string } }).location.name).toBe("Nowhere");
-  });
-
-  // The ORDER of the two transforms, which is load-bearing: the strip runs
-  // before grounding writes, so a cited stop keeps the server's `venue` rather
-  // than losing it to the model's own claim being cleaned up afterwards.
-  it("keeps the server's precision on a cited stop that also claimed one", () => {
-    const proposal = proposeGrounded([
-      {
-        type: "AddActivity",
-        args: {
-          title: "The falls",
-          dayRef: "day 1",
-          placeRef: 1,
-          location: { name: "Nowhere", lat: 52.7, lng: -2.75, precision: "city" },
-        },
-      },
-    ]);
-    expect((proposal!.commands[0] as { location: { precision?: string } }).location.precision).toBe("venue");
-  });
-
-  it("grounds an UpdateActivity the same way it grounds an add", () => {
-    const proposal = proposeGrounded([
-      { type: "UpdateActivity", args: { activityRef: "Colosseum tour", placeRef: 2 } },
-    ]);
-    const command = proposal!.commands[0] as { location: { name: string }; placeRef?: unknown };
-    expect(command.location.name).toBe("Top of the Falls Restaurant");
-    expect("placeRef" in command).toBe(false);
-  });
-
-  it("leaves a command that cited nothing exactly as it was", () => {
-    const proposal = proposeGrounded([
-      { type: "AddActivity", args: { title: "Gelato", dayRef: "day 1", location: { name: "A gelateria" } } },
-    ]);
-    expect((proposal!.commands[0] as { location: unknown }).location).toEqual({ name: "A gelateria" });
-    expect(proposal!.skipped).toEqual([]);
-  });
-});
-
 describe("commitProposal", () => {
   const okBatch = { ok: true as const, tripId: TRIP_ID, detail, history: { tripId: TRIP_ID, entries: [], canUndo: false, canRedo: false } };
 
@@ -834,62 +655,6 @@ describe("commitProposal", () => {
     expect(order).toEqual(["geocode", "batch"]);
     expect(vi.mocked(flushPlanningBatch)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(flushPlanningBatch).mock.calls[0]![1]).toHaveLength(2);
-  });
-
-  // **KI-93's wiring, asserted at the call site that binds it.**
-  //
-  // `geocodeEnrichment.test.ts` proves what the charge DOES — stop at the
-  // ceiling, report `skipped`, never fail the batch — against an injected port.
-  // What only this call site can prove is that the port it binds is the real
-  // geocode ceiling, charged against the person who clicked Approve. That is
-  // the far side of this file's own `@/server/quota` mock, and the assertion
-  // M9 Phase 0's retro says a mock boundary always needs.
-  it("charges the geocode quota, as the approver, once per lookup it makes", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
-    vi.mocked(consumeQuota).mockClear();
-    const geocoder = {
-      forward: vi.fn(async () => [{ canonicalName: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833 }]),
-    };
-    await commitProposal(
-      TRIP_ID,
-      [
-        {
-          type: "AddActivity",
-          tripId: TRIP_ID,
-          activityId: "00000000-0000-4000-8000-000000000001",
-          dayId: DAY_ID,
-          title: "Coins",
-          location: { name: "Trevi Fountain", lat: 41.9, lng: 12.48 },
-        },
-      ],
-      ACTOR,
-      detail,
-      geocoder as never,
-    );
-
-    expect(consumeQuota).toHaveBeenCalledTimes(1);
-    const [policies, userId] = vi.mocked(consumeQuota).mock.calls[0]!;
-    // The policy, by name and by ceiling, rather than by identity: what matters
-    // is that this is the SAME daily bucket `/api/geocode` charges, not that it
-    // is the same object.
-    expect(policies.map((policy) => policy.name)).toEqual(["geocode-daily"]);
-    expect(policies).toEqual(geocodeQuota());
-    expect(userId).toBe(ACTOR);
-  });
-
-  // A batch with nothing to look up spends no allowance. The charge has to sit
-  // beside the lookup rather than around the request, or a rest day would cost
-  // somebody a geocode.
-  it("charges nothing when no command carries a location", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
-    vi.mocked(consumeQuota).mockClear();
-    await commitProposal(
-      TRIP_ID,
-      [{ type: "AddDay", tripId: TRIP_ID, dayId: "aaaaaaaa-1111-4222-8333-444455556666" }],
-      ACTOR,
-      detail,
-    );
-    expect(consumeQuota).not.toHaveBeenCalled();
   });
 
   it("never reaches a geocoder when no command carries a location", async () => {

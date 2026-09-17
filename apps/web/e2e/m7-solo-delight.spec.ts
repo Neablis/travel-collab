@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
-import { openHistory, createEmptyTripViaWizard } from "./helpers";
+import { openHistory } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // The two seeds a new trip is planted with, read from `@tc/pages` rather than
@@ -114,7 +114,9 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   const tripName = e2eTripName("Faro");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
@@ -206,7 +208,9 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   const tripName = e2eTripName("Lagos");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
@@ -267,7 +271,9 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   const tripName = e2eTripName("Sintra");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // Wait for the real SPA navigation, not just a heading with this name
   // becoming visible: since M10's home-page restyle, a brand-new trip's name

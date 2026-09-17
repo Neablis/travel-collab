@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openPlan, createEmptyTripViaWizard } from "./helpers";
+import { openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("optimistic add renders instantly and persists", async ({ page }) => {
@@ -9,7 +9,9 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
   const tripName = e2eTripName("Oslo");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openPlan(page);
@@ -44,7 +46,9 @@ test("a rejected change stays visible, shows an error, and can be retried", asyn
   const tripName = e2eTripName("Bergen");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openPlan(page);

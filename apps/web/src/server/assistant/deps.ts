@@ -9,17 +9,15 @@
 // reaching an undeclared dep is a compile error rather than a convention.
 //
 // The keys are what the tools that exist TODAY actually need, read off them
-// rather than guessed at: `trip` (four read tools now — `search_places`
-// region-biases on it), `actor` (the two that reach the library as somebody),
-// `scope` (the day-scope fallback that a model must not be able to omit its way
-// out of), the three per-turn collectors, and the three library ports. A key
-// nothing needs is a key nothing can audit.
+// rather than guessed at: `trip` (three read tools), `actor` (the two that
+// reach the library as somebody), `scope` (the day-scope fallback that a model
+// must not be able to omit its way out of), the two per-turn collectors, and
+// the two library ports. A key nothing needs is a key nothing can audit.
 import { z } from "zod";
 import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/ai/batchResolver";
 import type { AskScope } from "@/server/ai/context";
-import type { BoundingBox } from "@/server/geocoding/geocoder";
 
 /**
  * Who is asking, and about which trip.
@@ -153,165 +151,6 @@ export interface SavedDayLibrary {
 }
 
 /**
- * One place a vendor returned, normalised — never one a model wrote.
- *
- * It is `GeocodeResult` minus `canonicalName`'s name, and the rename is the
- * point: `name` here is what will be written onto a stop's `Location.name` if
- * the model cites it, so the field the tool prints and the field that commits
- * are the same field. A shape that printed one label and stored another would
- * make the approval card a claim about something the user did not see.
- */
-export interface ResolvedPlace {
-  name: string;
-  lat: number;
-  lng: number;
-  countryCode?: string;
-  city?: string;
-  area?: string;
-}
-
-/**
- * What one query got, which is not always places.
- *
- * `skipped` is set when the lookup was never sent — the geocode ceiling was
- * reached mid-batch (KI-93), or the vendor was unreachable. It is a per-QUERY
- * fact rather than a per-CALL one because a five-query call can cross the
- * ceiling in the middle, and telling the model "nothing worked" when three
- * queries did would make it search again for places it already has.
- */
-export interface PlaceLookup {
-  query: string;
-  places: readonly ResolvedPlace[];
-  skipped?: "quota" | "unavailable";
-}
-
-/**
- * How the assistant looks a place up — the third library port, and the first
- * one that SPENDS.
- *
- * A port for the two reasons the other two are: the kernel's import wall
- * refuses `@/server/geocoding` (`getGeocoder()` reads `serverConfig` and
- * constructs the vendor adapter), and a tool may reach only what it declares.
- * It is also where the geocode quota is charged, which is the half KI-93 is
- * about — the charge belongs beside the lookup it is charging for, and a
- * kernel that could charge a quota would be a kernel that could read a
- * database.
- *
- * `userId` rides in the input rather than being closed over, because the
- * ceiling is per-user and the adapter is per-process.
- */
-export interface PlaceSearchPort {
-  search(input: {
-    queries: readonly string[];
-    /** Soft bias toward where the trip already is. Null on a trip with no coordinates yet. */
-    region: BoundingBox | null;
-    userId: string;
-  }): Promise<readonly PlaceLookup[]>;
-}
-
-/**
- * One candidate, numbered — and the number is the whole of M9's grounding.
- *
- * `AddActivity.placeRef` is an index into this cache, so a place the model did
- * not search for has no number and therefore cannot be cited. That is the
- * guarantee `idFields.ts` already gives for UUIDs, extended to locations, and
- * it is structural rather than prompted: there is no spelling of "somewhere in
- * Shropshire" that resolves.
- *
- * 1-based, because the model reads the numbers in a printed list and a list
- * starting at 0 invites an off-by-one the schema cannot catch. (The contract
- * allows 0 — `nonnegative`, deliberately, so the numbering stays this file's
- * to choose.)
- */
-export interface PlaceCandidate extends ResolvedPlace {
-  ref: number;
-}
-
-/**
- * One turn's numbered candidates. Never shared between turns, for the same
- * reason a proposal buffer is not: a ref that outlived its turn would resolve
- * to a place from a different question.
- *
- * It is a collector, not a closure — see `ProposalBuffer` above for why that
- * distinction is worth a type.
- */
-export interface PlaceCache {
-  /** Number and keep these candidates, in order. Returns them as the model will see them. */
-  add(places: readonly ResolvedPlace[]): readonly PlaceCandidate[];
-  /** The candidate a `placeRef` cites, or null when nothing was searched under that number. */
-  get(ref: number): PlaceCandidate | null;
-  /** How many candidates this turn has numbered. */
-  size(): number;
-}
-
-/** One turn's place cache. Never shared between turns. */
-export function newPlaceCache(): PlaceCache {
-  const candidates: PlaceCandidate[] = [];
-  return {
-    add: (places) => {
-      const added = places.map((place, index) => ({ ...place, ref: candidates.length + index + 1 }));
-      candidates.push(...added);
-      return added;
-    },
-    // `?? null` rather than an index guard: `ref` arrives from a model and may
-    // be any non-negative integer the schema admits, including one past the end
-    // and including 0, which this numbering never issues.
-    get: (ref) => candidates[ref - 1] ?? null,
-    size: () => candidates.length,
-  };
-}
-
-/**
- * What a turn asked for when it escalated, in the model's own words.
- *
- * `intendedChange` is the half that is worth keeping past the turn: an
- * escalation is a LABELLED CLASSIFIER MISS — the sentence, the wrong verdict,
- * and the model's own statement of what it should have been allowed to do.
- * That is the eval corpus KI-11 needs, written by real use rather than by hand,
- * and it is the reason this is a typed record rather than a boolean.
- */
-export interface EscalationRequest {
-  reason: string;
-  intendedChange: string;
-}
-
-/**
- * Where an escalation lands — **once per turn, tracked here rather than in the
- * model's head**.
- *
- * A second call returns `false` and changes nothing. A latch in the prompt
- * ("only call this once") is a request; a latch in the collector is a fact, and
- * the difference matters because the thing being bounded is a charged step and
- * a tier upgrade.
- *
- * It is a collector for the same reason `ProposalBuffer` is: the tool runs
- * several SDK frames before anything downstream can read what it did, and a
- * closure would make "did this turn escalate?" a property of which builder
- * constructed the tool rather than a declared `needs`.
- */
-export interface EscalationBuffer {
-  /** Records the request. `false` if this turn has already escalated. */
-  request(request: EscalationRequest): boolean;
-  /** What the turn escalated with, or null if it did not. */
-  escalated(): EscalationRequest | null;
-}
-
-/** One turn's escalation latch. Never shared between turns. */
-export function newEscalationBuffer(): EscalationBuffer {
-  let recorded: EscalationRequest | null = null;
-  return {
-    request: (request) => {
-      if (recorded !== null) return false;
-      recorded = { ...request };
-      return true;
-    },
-    // A copy, so a reader cannot edit the turn's own record of why it escalated
-    // — the same guarantee the other three collectors give.
-    escalated: () => (recorded === null ? null : { ...recorded }),
-  };
-}
-
-/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -341,12 +180,6 @@ export interface AssistantDeps {
   playbooks: PlaybookLibrary;
   /** How `insert_playbook_day` resolves the row it was handed. */
   savedDays: SavedDayLibrary;
-  /** How `search_places` reaches the gazetteer — and the quota that bounds it. */
-  placeSearch: PlaceSearchPort;
-  /** Where `search_places` numbers what it found, for a `placeRef` to cite. */
-  placeCache: PlaceCache;
-  /** Where the escalation tool records that this turn was misclassified. */
-  escalation: EscalationBuffer;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -372,10 +205,8 @@ export type TurnDeps = Pick<AssistantDeps, TurnDepKey>;
 // A dep that is not ambient has to be listed here, or the adapter stops
 // checking that a turn supplied it — silently, on exactly the tool that needs
 // it most. Neither list is derivable from `AssistantDeps` at runtime, so the
-// exhaustiveness is bought with a `Record<TurnDepKey, true>`: a further
-// non-ambient key fails to compile until it appears below. (It said "a fifth"
-// while there were four; M9's grounding added the sixth, and a count in a
-// comment beside a list is a count that goes stale.)
+// exhaustiveness is bought with a `Record<TurnDepKey, true>`: a fifth
+// non-ambient key fails to compile until it appears below.
 //
 // (The obvious spelling — `const _: Exclude<TurnDepKey, …>[] = []` — asserts
 // nothing, because an empty array satisfies any element type. Measured.)
@@ -384,9 +215,6 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   pageBuffer: true,
   playbooks: true,
   savedDays: true,
-  placeSearch: true,
-  placeCache: true,
-  escalation: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

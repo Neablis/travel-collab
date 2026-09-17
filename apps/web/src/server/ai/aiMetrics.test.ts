@@ -66,7 +66,6 @@ const ASK_RECORD: AskAnalyticsRecord = {
   offeredTools: ["read_trip", "read_day", "find_free_time"],
   uncalledTools: ["find_free_time"],
   classification: null,
-  escalated: null,
   answered: true,
   outcome: "completed",
   cause: null,
@@ -289,7 +288,6 @@ describe("recordAskMetrics", () => {
       ...ASK_RECORD,
       classification: {
         taskClass: "question",
-        certainty: "sure",
         intent: "question",
         source: "model",
         context: null,
@@ -330,7 +328,6 @@ describe("recordAskMetrics", () => {
       record({
         ...CLASSIFIED,
         classification: { ...CLASSIFIED.classification!, model: "openai/gpt-oss-20b" },
-        escalated: null,
       });
       const classifierTokens = counted("gen_ai.usage.input_tokens").find((m) => m.attributes.call === "classifier");
       expect(classifierTokens!.attributes).toMatchObject({ model: "gpt-oss-20b", provider: "openai" });
@@ -343,7 +340,6 @@ describe("recordAskMetrics", () => {
         ...CLASSIFIED,
         classification: {
           taskClass: "plan",
-          certainty: "unsure",
           intent: "write",
           source: "affirmation",
           context: null,
@@ -374,7 +370,6 @@ describe("recordAskMetrics", () => {
       ...ASK_RECORD,
       classification: {
         taskClass: "edit",
-        certainty: "sure",
         intent: "write",
         source: "model",
         context: "Earlier in the conversation: user: add a temple",

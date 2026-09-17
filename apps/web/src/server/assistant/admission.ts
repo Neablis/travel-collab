@@ -270,38 +270,6 @@ export interface AiGrant {
   /** What the instruction may honestly claim about this turn (grants.ts). */
   posture: AskToolPosture;
   /**
-   * **What a successful escalation unlocks** — null on every turn that cannot
-   * escalate (M9 design §1b).
-   *
-   * Resolved HERE rather than in the handler, and that is the whole reason it
-   * is a field. The escalated set is `toolsFor` asked the same question with
-   * the classifier's cap lifted, and the escalated tier is `capTier` applied to
-   * the escalated class — both of which are this pipeline's arithmetic, both of
-   * which are checked against `minimumRoleFor` before the turn is admitted. A
-   * handler that computed them mid-stream would be a second grant nobody
-   * audited, reached after the `ai.grant` line was already written.
-   *
-   * Non-null exactly when `posture === "withheld"`, because that is the only
-   * posture the escalation tool is offered in — which is a tag on the tool
-   * (`postures`) rather than a condition restated here.
-   */
-  escalation: {
-    /** The set the next step holds once the model escalates. */
-    tools: readonly AnyAssistantTool[];
-    /**
-     * The (domain, effect) pairs the escalated turn holds.
-     *
-     * Carried rather than assumed, because the handler reads it to decide
-     * whether a proposal is even possible — and `grant.grants` says `read` on a
-     * withheld turn, which is the truth about the turn as ADMITTED and a lie
-     * about the turn after it escalates.
-     */
-    grants: GrantedEffects;
-    /** The slot that answers the escalated steps. */
-    tier: ModelTier;
-    model: LanguageModel;
-  } | null;
-  /**
    * **Whether the task-class filter removed a tool the grant would otherwise
    * have offered** — measured by comparing the two sets, never inferred from
    * the class.
@@ -994,14 +962,7 @@ const grantTools: AdmissionStage = {
     // places, one idea. Nothing here knows a model id: `tier` names a slot and
     // `selected.models` is where the far side of the port already put one.
     const taskClass = taskClassFor(page !== null, classification);
-    // **`certainty` is the second input to the tier, and it only ever raises
-    // it** (M9 design §1a). A page turn has no classification and is `sure` by
-    // construction: `compose` is decided from a scope the server verified,
-    // which is the strongest determination on offer.
-    const tier = capTier(
-      tierFor(taskClass, classification?.certainty ?? "sure"),
-      selected.entitlements.ceilings.maxTier,
-    );
+    const tier = capTier(tierFor(taskClass), selected.entitlements.ceilings.maxTier);
     const model = selected.models[tier];
 
     // **The class is computed BEFORE the tool set, because it narrows it.**
@@ -1043,27 +1004,8 @@ const grantTools: AdmissionStage = {
     // A page turn has no classification at all and is NOT this case: `compose`
     // is decided structurally from a scope `resolveSurface` verified, which is
     // the strongest determination on offer, so it narrows.
-    // **THREE ways to arrive at a class nobody determined, and `certainty` is
-    // the third** (CodeRabbit, PR #184).
-    //
-    // M9 added `certainty: "unsure"` and `intentOf` resolves such a turn to
-    // `write` — but the CLASS stays what the classifier said, which is the
-    // whole point of the band. That left `question | unsure` passing
-    // `"question"` to `toolsFor`: the effect axis granted the write tools and
-    // the class axis could take them away again. Today's `TASK_CLASSES_FOR`
-    // makes that a no-op (every entry includes `question`), so this was latent
-    // rather than live — and the rule above says what to do about it anyway:
-    // only a class somebody DETERMINED may narrow, and "unsure" is the
-    // classifier saying it determined nothing.
-    //
-    // The escalation tool cannot rescue this case either, which is what makes
-    // it worth closing rather than noting: an unsure turn's posture is already
-    // `propose`, so `request_change_tools` is not offered.
     const resolvedUpward =
-      classification !== null &&
-      (classification.failedOpen ||
-        classification.source === "affirmation" ||
-        classification.certainty === "unsure");
+      classification !== null && (classification.failedOpen || classification.source === "affirmation");
     const narrowBy = resolvedUpward ? undefined : taskClass;
 
     // Both sets, because "did the class filter take anything away" is the
@@ -1071,39 +1013,9 @@ const grantTools: AdmissionStage = {
     // same rule `tools` itself follows. Inferring it from `taskClass === "plan"`
     // would be a second copy of `TASK_CLASSES_FOR` that drifts the first time
     // a tool's `taskClasses` changes.
-    const posture = postureFor(caps);
-    const offerable = toolsFor(grants, undefined, posture);
-    const tools = narrowBy === undefined ? offerable : toolsFor(grants, narrowBy, posture);
+    const offerable = toolsFor(grants);
+    const tools = narrowBy === undefined ? offerable : toolsFor(grants, narrowBy);
     const classWithheld = tools.length < offerable.length;
-
-    // **What escalating buys, resolved before the turn starts** (design §1b).
-    //
-    // It is the same question with ONE cap lifted: the classifier's. Nothing
-    // else moves — `surface`, `role` and `plan` are the caps this turn already
-    // holds, so the escalated set is bounded by exactly what the actor may do,
-    // and the `minimumRoleFor` check below is asked about the wider set rather
-    // than the narrow one.
-    //
-    // **`edit` is the escalated class**, not `plan`. The classifier said this
-    // was a question and the model is saying it was a change; a bounded change
-    // is the reading that follows from the correction, and `edit` is also the
-    // class `TASK_CLASSES_FOR` narrows by nothing — so an escalated turn holds
-    // every change tool rather than a set narrowed by a verdict that was just
-    // shown to be wrong.
-    const escalation =
-      posture === "withheld"
-        ? (() => {
-            const lifted = { ...caps, classifier: "propose" as const };
-            const escalatedGrants = grantFor(lifted);
-            const escalatedTier = capTier(tierFor("edit"), selected.entitlements.ceilings.maxTier);
-            return {
-              tools: toolsFor(escalatedGrants, "edit", postureFor(lifted)),
-              grants: escalatedGrants,
-              tier: escalatedTier,
-              model: selected.models[escalatedTier],
-            };
-          })()
-        : null;
 
     // The rule is enforced rather than commented: `minimumRoleFor` is asked what
     // the set about to be handed to the agent requires — the maximum
@@ -1112,13 +1024,7 @@ const grantTools: AdmissionStage = {
     // it is here: the next person to add a branch to them is who this catches.
     //
     // Every branch is asserted in the /ask route's integration suite.
-    // **Over BOTH sets**, because the escalated one is reachable from this turn
-    // without another admission. Unreachable as a refusal — `withheld` implies
-    // an editor, and an editor covers every tool in either set — which is
-    // exactly why it is computed rather than argued: the next person to add a
-    // branch to `caps`, or a tool with `minimumRole: "owner"`, is who this
-    // catches.
-    const needed = minimumRoleFor([...tools, ...(escalation?.tools ?? [])]);
+    const needed = minimumRoleFor(tools);
     if (!hasAtLeast(userId, detail.members, needed)) {
       return refuse(
         "grantTools",
@@ -1136,8 +1042,7 @@ const grantTools: AdmissionStage = {
       page,
       grants,
       tools,
-      posture,
-      escalation,
+      posture: postureFor(caps),
       classWithheld,
       model,
       classifierModel: selected.classifierModel,

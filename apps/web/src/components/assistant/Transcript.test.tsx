@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Transcript, toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -45,121 +44,25 @@ describe("Transcript", () => {
     );
   });
 
-  // **The "different treatment" test that used to sit here is gone, and where
-  // it went matters.** It asserted `question.className` contained
-  // `bg-brand-tint` — two `expect(…).className` calls, each carrying a
-  // grandfathered `no-restricted-syntax` disable marked *"KI-2026-09-02-b:
-  // pre-existing. Do not add more."*
-  //
-  // §2a deletes the bubble those assertions were pinned to, so keeping them
-  // meant rewriting two banned assertions rather than removing them. The
-  // contract they were reaching for — the two voices are distinct, and neither
-  // is a filled box — now lives in `transcriptLook.test.ts`, which reads
-  // committed source and measures per-look contrast instead of poking at
-  // classes on a rendered node. KI-2026-09-02-b is two disables shorter.
+  // Visibly distinct from one another, and asserted on the rendered treatment
+  // rather than on a test id, because "distinct" is the requirement.
+  it("gives a user turn a different treatment from an assistant turn", () => {
+    render(<Transcript turns={THREAD} />);
+    const question = screen.getByText("What's planned for day 3?");
+    const answer = screen.getByText("Day 3 has 5 stops.");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(question.className).toContain("bg-brand-tint");
+    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    expect(answer.className).not.toContain("bg-brand-tint");
+  });
 
   // Quiet, and one line. Never the raw tool output — a trip-scoped read_trip
   // is ~1.5 KB of JSON on the wire.
-  it("collapses tool calls to one line, with no JSON", () => {
+  it("shows tool calls as one-line notes, with no JSON", () => {
     render(<Transcript turns={THREAD} />);
-    expect(screen.getByRole("button", { name: /1 step · Checked day 3/ })).not.toBeNull();
+    expect(screen.getByText("Checked day 3")).not.toBeNull();
     const log = screen.getByRole("log", { name: "Conversation" });
     expect(log.textContent).not.toContain("{");
-  });
-
-  it("reveals the full list in place, and says how to put it back", async () => {
-    const user = userEvent.setup();
-    render(
-      <Transcript
-        turns={[
-          {
-            id: "a1",
-            role: "assistant",
-            text: "Day 3 has 5 stops.",
-            tools: [
-              { id: "t1", label: "Read the trip" },
-              { id: "t2", label: "Checked day 3" },
-            ],
-            pending: false,
-          },
-        ]}
-      />,
-    );
-    const disclosure = screen.getByRole("button", { name: /2 steps · Checked day 3/ });
-    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
-    // Collapsed, the earlier step is not on screen at all — "2 steps" is the
-    // only trace of it, which is the point of collapsing.
-    expect(screen.queryByText("Read the trip")).toBeNull();
-
-    await user.click(disclosure);
-
-    expect(screen.getByText("Read the trip")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Hide how it got there" })).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Hide how it got there" }).getAttribute("aria-expanded"),
-    ).toBe("true");
-  });
-
-  // These lines ARE the "something is happening" during a stream — the reason
-  // they exist is that a silent four-second pause reads as broken. Collapsed to
-  // a snapshot they would stall again in a new way, so the summary is derived
-  // on every render rather than captured when the first step landed.
-  it("keeps the collapsed summary on the newest step as steps arrive", () => {
-    const streaming = (tools: { id: string; label: string }[]): AssistantTurn[] => [
-      { id: "a1", role: "assistant", text: "", tools, pending: true },
-    ];
-    const { rerender } = render(<Transcript turns={streaming([{ id: "t1", label: "Read the trip" }])} />);
-    expect(screen.getByRole("button", { name: /1 step · Read the trip/ })).not.toBeNull();
-
-    rerender(
-      <Transcript
-        turns={streaming([
-          { id: "t1", label: "Read the trip" },
-          { id: "t2", label: "Checked day 3" },
-        ])}
-      />,
-    );
-    expect(screen.getByRole("button", { name: /2 steps · Checked day 3/ })).not.toBeNull();
-  });
-
-  // SPEC §30.6 bans `scrollIntoView` repo-wide: it moves every scrollable
-  // ancestor, not the intended one, and KI-2026-09-13-a is an open bug in that
-  // family. Pinning belongs to whoever owns the scrollport — `usePinToBottom`.
-  //
-  // jsdom does not implement `scrollIntoView` at all, so there is nothing to
-  // spy on — it has to be INSTALLED for its absence to be observable. That is
-  // also why the deleted effect carried a `typeof … === "function"` guard, and
-  // why a test written the obvious way would have passed against code that
-  // still called it.
-  it("does not scroll anything itself", () => {
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-      value: scrollIntoView,
-      configurable: true,
-      writable: true,
-    });
-    try {
-      render(<Transcript turns={THREAD} />);
-      expect(scrollIntoView).not.toHaveBeenCalled();
-    } finally {
-      Reflect.deleteProperty(Element.prototype, "scrollIntoView");
-    }
-  });
-
-  // The slot knows nothing about what it renders: "Change" has no meaning in
-  // the assistant panel, so the shared component never learns the word.
-  it("renders a consumer's footer under each turn, and nothing when none is given", () => {
-    const { rerender } = render(<Transcript turns={THREAD} />);
-    expect(screen.queryByText("Change")).toBeNull();
-
-    rerender(
-      <Transcript
-        turns={THREAD}
-        renderTurnFooter={(turn) => (turn.role === "user" ? <span>Change {turn.id}</span> : null)}
-      />,
-    );
-    expect(screen.getByText("Change u1")).not.toBeNull();
-    expect(screen.getByText("Change u2")).not.toBeNull();
   });
 
   // A conversation that silently pauses reads as broken.

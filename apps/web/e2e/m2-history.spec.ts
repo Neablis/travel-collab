@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
@@ -31,7 +31,9 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.goto("/");
 
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openPlan(page);

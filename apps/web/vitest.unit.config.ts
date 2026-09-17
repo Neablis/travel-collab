@@ -21,9 +21,6 @@ const JSDOM_TS_FILES = [
   // `localStorage` is a browser API, and this module's whole job is surviving
   // the ways a browser can refuse it.
   "src/lib/pendingDemoClone.test.ts",
-  // The same, for M9's conversation durability: every access is wrapped, and
-  // what the wrapping is FOR is a browser that throws or has no storage at all.
-  "src/lib/askThreadStore.test.ts",
 ];
 
 // Never a unit test in either project: integration specs have their own

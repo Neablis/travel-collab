@@ -4,34 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { NewTripWizard } from "./NewTripWizard";
 
-// THE SHEET IS A TRANSCRIPT NOW (SPEC §30.1, design §3).
-//
-// **Where the four retry tests went.** This file used to carry the regression
-// cover for CodeRabbit PR #32, KI-2026-09-08-a and CodeRabbit PR #165, driven
-// by typing into the budget and currency fields. A four-turn script has no turn
-// for either, so that sequence moved to `newTripSubmit.ts` and is tested
-// directly in `newTripSubmit.test.ts` — ten cases where there were four. They
-// are not deleted; they are somewhere they can still be reached.
-//
-// What belongs here is what only a rendered sheet can show: that a question is
-// asked, that an answer commits and appears as the reader's own words, that
-// Change goes back without losing what came after, and that nothing reaches the
-// network until an exit is pressed.
 afterEach(cleanup);
 
 const user = userEvent.setup({ delay: null });
 
 function renderWizard() {
-  // `tripId` is optional on the prop because the CLIENT mints it now
-  // (KI-2026-09-12-e) — the mock has to accept what the component really sends.
-  const createTrip =
-    vi.fn<(input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>>();
-  createTrip.mockImplementation(async (input) =>
-    ({ ok: true, value: { tripId: input.tripId ?? "trip-1" } }),
-  );
-  const dispatch = vi
-    .fn<(command: BoardCommand) => Promise<ApiResult<CommandOutcome>>>()
-    .mockResolvedValue({ ok: true, value: {} as CommandOutcome });
+  const createTrip = vi.fn<(input: { name: string }) => Promise<ApiResult<{ tripId: string }>>>();
+  // Resolves ok by default (submit() now awaits and checks each dispatch,
+  // PR #32) — individual tests override with mockResolvedValueOnce/reject
+  // only when they specifically want a failure path.
+  const dispatch = vi.fn<(command: BoardCommand) => Promise<ApiResult<CommandOutcome>>>().mockResolvedValue({
+    ok: true,
+    value: {} as CommandOutcome,
+  });
   const onOpenChange = vi.fn();
   const onCreated = vi.fn();
   render(
@@ -46,249 +31,336 @@ function renderWizard() {
   return { createTrip, dispatch, onOpenChange, onCreated };
 }
 
-/** Walk to the last turn by clicking one chip per question. */
-async function answerThroughToFeel() {
-  await user.click(screen.getByRole("button", { name: "Lisbon" }));
-  await user.click(screen.getByRole("button", { name: "A week" }));
-  await user.click(screen.getByRole("button", { name: "Slow" }));
-}
-
-describe("NewTripWizard — the four turns", () => {
-  it("opens on turn one and asks where, with chips and a composer both live", () => {
+describe("NewTripWizard", () => {
+  it("walks four steps with a progress rail", async () => {
     renderWizard();
-    const log = screen.getByRole("log", { name: "Conversation" });
-    expect(log.textContent).toContain("Where are you going?");
-    // The composer's accessible name IS the question. "Trip name" is gone, and
-    // that rename is why the e2e suite grew one seam onto this sheet first.
-    expect(screen.getByLabelText("Where are you going?")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Lisbon" })).not.toBeNull();
-    // D-A: no "Recent and nearby" label over the chips — nothing stores a
-    // destination, so the claim had no data behind it.
-    expect(screen.queryByText("Recent and nearby")).toBeNull();
+    expect(screen.getAllByTestId("wizard-step")).toHaveLength(4);
   });
 
-  it("commits a chip on click and shows the answer as the reader's own words", async () => {
-    renderWizard();
-    await user.click(screen.getByRole("button", { name: "Seoul" }));
-
-    const log = screen.getByRole("log", { name: "Conversation" });
-    expect(log.textContent).toContain("Seoul");
-    // And it moves on: turn two is asked.
-    expect(log.textContent).toContain("How long, roughly?");
-  });
-
-  it("commits the composer on Enter, and refuses an empty or whitespace answer", async () => {
-    renderWizard();
-    const composer = screen.getByLabelText("Where are you going?");
-
-    await user.type(composer, "   {Enter}");
-    // Still on turn one: a space bar is not a destination.
-    expect(screen.getByRole("log").textContent).not.toContain("How long, roughly?");
-
-    await user.clear(composer);
-    await user.type(composer, "  Porto  {Enter}");
-    const log = screen.getByRole("log");
-    // Trimmed on the way in.
-    expect(log.textContent).toContain("Porto");
-    expect(log.textContent).toContain("How long, roughly?");
-  });
-
-  // SPEC §30.1: "Later answers are kept, not cleared — you re-answer forward."
-  //
-  // **"Kept" is a claim about the data, not the transcript**, and the first
-  // version of this test got that wrong: it asserted the later answer was still
-  // ON SCREEN after going back, and it is not — you are being re-asked that
-  // turn, so it has no committed user turn until you answer it again. What
-  // survives is the answer itself, which is observable in what gets created.
-  it("offers Change under an answered turn, returns to it, and keeps the later answers", async () => {
-    const { dispatch } = renderWizard();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.click(screen.getByRole("button", { name: "A week" }));
-
-    const changes = screen.getAllByRole("button", { name: "Change" });
-    expect(changes.length).toBeGreaterThan(0);
-    await user.click(changes[0]!);
-
-    // Back on turn one, being asked again, with the old answer replaced…
-    expect(screen.getByLabelText("Where are you going?")).not.toBeNull();
-    await user.click(screen.getByRole("button", { name: "Seoul" }));
-    const log = screen.getByRole("log");
-    expect(log.textContent).toContain("Seoul");
-    expect(log.textContent).not.toContain("Lisbon");
-
-    // …and the length answered AFTER it was never lost: finishing now still
-    // applies seven days, which only the kept `when` answer could supply.
-    await user.click(screen.getByRole("button", { name: "Create with this" }));
-    await waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "SetTripDates",
-          startDate: "2026-10-03",
-          endDate: "2026-10-09",
-        }),
-      ),
-    );
-  });
-
-  it("commits feel as the default when nothing is picked", async () => {
-    const { createTrip } = renderWizard();
-    await answerThroughToFeel();
-
-    // Nothing picked: the button says so, and says what it will do anyway.
-    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
-
-    await waitFor(() => expect(createTrip).toHaveBeenCalled());
-    expect(screen.getByRole("log").textContent).toContain("A bit of everything");
-  });
-
-  it("names the picked chips together once some are picked", async () => {
-    renderWizard();
-    await answerThroughToFeel();
-    await user.click(screen.getByRole("button", { name: "Food" }));
-    await user.click(screen.getByRole("button", { name: "Markets" }));
-
-    expect(screen.getByRole("button", { name: "That is it — build it" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing in particular" })).toBeNull();
-  });
-
-  it("offers Create empty from turn one and Create with this from the first answer", async () => {
-    renderWizard();
-    const createEmpty = screen.getByRole("button", { name: "Create empty" });
-    // Present but inert until there is a name to use: `CreateTrip.name` is
-    // `z.string().min(1)`, so an unnamed trip is a request the domain refuses.
-    expect(createEmpty.hasAttribute("disabled")).toBe(true);
-    expect(screen.queryByRole("button", { name: "Create with this" })).toBeNull();
-
-    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    // The uncommitted composer text is a usable name — this is what preserves
-    // "type a name, press Create empty" from the old single-field dialog.
-    expect(screen.getByRole("button", { name: "Create empty" }).hasAttribute("disabled")).toBe(false);
-
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    expect(screen.getByRole("button", { name: "Create with this" })).not.toBeNull();
-  });
-
-  it("makes the footer's primary Open the trip once the trip exists", async () => {
-    const { createTrip } = renderWizard();
-    await answerThroughToFeel();
-    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
-
-    await waitFor(() => expect(createTrip).toHaveBeenCalled());
-    expect(screen.getByRole("button", { name: "Open the trip" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Create empty" })).toBeNull();
-  });
-
-  // **D-C, answered 2026-09-16.** The design's closing copy claims the trip was
-  // laid out around the `feel` answer. Nothing stores `pace` or `feel`, so that
-  // sentence would describe something that did not happen.
-  it("closes by saying what was made, and what was not", async () => {
-    const { createTrip } = renderWizard();
-    await answerThroughToFeel();
-    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
-    await waitFor(() => expect(createTrip).toHaveBeenCalled());
-
-    const log = screen.getByRole("log").textContent ?? "";
-    expect(log).toContain("is created");
-    expect(log).toContain("The days are empty and yours to fill");
-    expect(log).toMatch(/pace and what the trip is about is not built in yet/);
-    // The design's own wording, which is the thing not to ship.
-    expect(log).not.toContain("laid out as Day 1");
-  });
-
-  it("never renders a typing indicator or a step rail", async () => {
-    renderWizard();
-    // §30.1: the stepper is not replaced with a progress bar — a transcript
-    // shows its own progress, and the rail was what made the sheet grow.
-    expect(screen.queryAllByTestId("wizard-step")).toHaveLength(0);
-    // §30.2: there is nothing to wait for, so a typing indicator would be an
-    // animation pretending to be latency.
-    expect(screen.queryByText(/thinking/i)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    expect(screen.queryByText(/thinking/i)).toBeNull();
-    expect(screen.queryByText(/still writing/i)).toBeNull();
-  });
-
-  // The §30.2 property, asserted where it can actually be held.
-  it("sends nothing to the network while the four turns are being answered", async () => {
+  it("creates the trip with just a name, then applies dates and budget", async () => {
     const { createTrip, dispatch } = renderWizard();
-    await answerThroughToFeel();
-    await user.click(screen.getByRole("button", { name: "Food" }));
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "new-trip" } });
 
-    expect(createTrip).not.toHaveBeenCalled();
-    expect(dispatch).not.toHaveBeenCalled();
-  });
-
-  // **Found by a mutation that stayed green.** Breaking the component's `dated`
-  // guard changed nothing any test could see: the real gate on `SetTripDates`
-  // is in `newTripSubmit.ts` and is covered there, so `dated` turned out to
-  // drive only this confirmation line — and nothing asserted it. The line is
-  // the reader's one chance to notice the trip is about to be dated wrongly,
-  // which makes it worth its own test rather than a shrug.
-  it("confirms the computed span only once both a length and an arrival exist", async () => {
-    renderWizard();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    await user.click(screen.getByRole("button", { name: "A week" }));
-    // A length alone is not a dated trip — there is nothing to count from.
-    expect(screen.queryByText(/7 days —/)).toBeNull();
-
-    // Back to the length turn, and give it an arrival this time.
-    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
+    await user.type(screen.getByLabelText("Trip name"), "Japan");
+    await user.click(screen.getByRole("button", { name: "Next" }));
     await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.click(screen.getByRole("button", { name: "A week" }));
+    // Step 2 is Arrive plus a length chip — there is no Leave input to type into
+    // (the 2026-08-23 amendment above). "2 weeks" is 14 days, so the end the
+    // wizard computes is 2026-10-16, which is what this test then asserts.
+    await user.click(screen.getByRole("button", { name: "2 weeks" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
 
-    // Re-asked at the pace turn now, so go back once more to read the line.
-    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
-    expect(screen.getByText(/7 days —/)).not.toBeNull();
-  });
-
-  it("applies the dates only when an arrival anchors a chosen length", async () => {
-    const { dispatch } = renderWizard();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.click(screen.getByRole("button", { name: "A week" }));
-    await user.click(screen.getByRole("button", { name: "Slow" }));
-    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
-
+    expect(createTrip).toHaveBeenCalledWith({ name: "Japan" });
     await waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "SetTripDates",
+          tripId: "new-trip",
           startDate: "2026-10-03",
-          endDate: "2026-10-09",
+          endDate: "2026-10-16",
         }),
       ),
     );
+  });
+
+  // The 2026-08-23 amendment as an enforced rule rather than a stated one:
+  // AGENTS.md's testing model says an invariant a comment asserts is "a lie with
+  // a timer on it" unless a test holds it. Task 8b.6 removes the same field from
+  // the Trip settings Dates row; this is the wizard's half of that decision.
+  it("offers no way to type an end date", async () => {
+    renderWizard();
+    await user.type(screen.getByLabelText("Trip name"), "Japan");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByLabelText("Arrive")).toBeTruthy();
+    expect(screen.queryByLabelText("Leave")).toBeNull();
+  });
+
+  it("can still create a trip from the name alone", async () => {
+    const { createTrip } = renderWizard();
+    await user.type(screen.getByLabelText("Trip name"), "Lisbon");
+    await user.click(screen.getByRole("button", { name: "Create empty" }));
+
+    expect(createTrip).toHaveBeenCalledWith({ name: "Lisbon" });
+  });
+
+  // Own coverage beyond the given block (per AGENTS.md's testing philosophy):
+
+  it("renders Longer as an inert Preview badge that sets no day count", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-longer" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Peru");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    // Preview shields pointer events, so this click is expected to be
+    // rejected by userEvent's own pointer-events check — same pattern
+    // preview.test.tsx uses to prove a wrapped control is truly inert.
+    await user.click(screen.getByText("Longer")).catch(() => {});
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates" }));
+  });
+
+  it("stages budget and currency locally and dispatches both at final submit", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-money" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Nairobi");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    // Currency first, then the amount: MoneyInput commits the currency it
+    // was rendered with at blur time, so setting the amount after the
+    // currency avoids staging a budget still tagged with the old currency.
+    await user.selectOptions(screen.getByLabelText("Currency"), "EUR");
+    await user.type(screen.getByLabelText("Total for the trip"), "2500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "SetTripBudget",
+          tripId: "trip-money",
+          budget: { amountMinor: 250000, currency: "EUR" },
+        }),
+      ),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SetTripCurrency", tripId: "trip-money", currency: "EUR" }),
+    );
+  });
+
+  it("dispatches nothing when creating an empty trip from the name alone", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-empty" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Oslo");
+    await user.click(screen.getByRole("button", { name: "Create empty" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalledWith({ name: "Oslo" }));
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it("shows the create-trip error inline and keeps the sheet open on failure", async () => {
     const { createTrip, onOpenChange } = renderWizard();
-    createTrip.mockResolvedValue({ ok: false, error: { status: 500, message: "server exploded" } });
+    createTrip.mockResolvedValue({ ok: false, error: { status: 400, message: "name already taken" } });
 
-    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
+    await user.type(screen.getByLabelText("Trip name"), "Iceland");
     await user.click(screen.getByRole("button", { name: "Create empty" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toMatch(/server exploded/i);
-    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(alert.textContent).toMatch(/name already taken/i);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
-  it("dispatches nothing when creating an empty trip from the name alone", async () => {
+  // Regression (CodeRabbit, PR #32): submit() used to fire every dates/
+  // budget/currency dispatch without awaiting it, then navigate
+  // unconditionally — a failed command was silently lost, no error, no
+  // sign anything was wrong. Now each dispatch is awaited and checked
+  // before the next one, and a failure stops there with an inline error
+  // rather than navigating past it.
+  it("surfaces a failed setup command inline and does not navigate", async () => {
     const { createTrip, dispatch, onCreated } = renderWizard();
-    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    await user.click(screen.getByRole("button", { name: "Create empty" }));
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-fails-dates" } });
+    dispatch.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "server exploded" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  // The other half of the same fix: a failed setup command must not leave
+  // a retry free to mint a second trip — createTrip only fires once across
+  // both attempts, and the second attempt reuses the tripId the first one
+  // already created.
+  it("retrying after a failed setup command does not create a second trip", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-retry" } });
+    dispatch.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "server exploded" } });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+    await screen.findByRole("alert");
+
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
 
     await waitFor(() =>
-      expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Porto" })),
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripDates", tripId: "trip-retry" }),
+      ),
     );
-    expect(dispatch).not.toHaveBeenCalled();
-    // **The id is minted by the client** (KI-2026-09-12-e), so it is random
-    // rather than a fixture — and the claim worth making is that the id handed
-    // back is the SAME one that was sent, not that it equals some literal.
-    const sent = createTrip.mock.calls[0]?.[0]?.tripId;
-    expect(sent).toMatch(/^[0-9a-f-]{36}$/);
-    // `navigate: false` — the old dialog closed and left you on the trip list
-    // to open the card yourself, and every pre-Phase-7 e2e spec is built on it.
-    expect(onCreated).toHaveBeenCalledWith(sent, { navigate: false });
+    expect(createTrip).toHaveBeenCalledTimes(1);
+  });
+
+  // KI-2026-09-08-a: a transient failure on budget (a step AFTER dates) used
+  // to be permanent, because the retry re-sent the already-applied
+  // SetTripDates unconditionally. The real backend rejects a repeat of an
+  // identical SetTripDates as a no-op (okUnlessNoOp, decide.ts), so this
+  // dispatch stub reproduces that rule directly rather than trusting a mock
+  // that would happily accept the same command twice.
+  it("retrying after dates succeeded but budget failed does not re-send dates", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-retry-budget" } });
+
+    let datesApplied: { startDate: string | null; endDate: string | null } | null = null;
+    let budgetAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripDates") {
+        if (
+          datesApplied !== null &&
+          datesApplied.startDate === command.startDate &&
+          datesApplied.endDate === command.endDate
+        ) {
+          return { ok: false, error: { status: 409, message: "This change would have no effect." } };
+        }
+        datesApplied = { startDate: command.startDate, endDate: command.endDate };
+        return { ok: true, value: {} as CommandOutcome };
+      }
+      if (command.type === "SetTripBudget") {
+        budgetAttempts += 1;
+        if (budgetAttempts === 1) {
+          return { ok: false, error: { status: 500, message: "server exploded" } };
+        }
+        return { ok: true, value: {} as CommandOutcome };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Prague");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.type(screen.getByLabelText("Total for the trip"), "500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripBudget" })),
+    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates" }));
+  });
+
+  // CodeRabbit, PR #165. The latch above fixed re-sending a value that had
+  // already landed. It did not cover the other direction: a field CLEARED
+  // between attempts. Guarding the dates block on `ISO_DATE.test(arrive)`
+  // skipped it entirely once `arrive` was emptied, so the retry kept dates the
+  // user had just removed and reported success. Reachable because `Back` is
+  // enabled whenever a submit is not in flight, which is exactly the state an
+  // inline error leaves the sheet in.
+  it("retrying after clearing the dates sends a clearing SetTripDates, not silence", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-clear-dates" } });
+
+    let budgetAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripBudget") {
+        budgetAttempts += 1;
+        if (budgetAttempts === 1) return { ok: false, error: { status: 500, message: "server exploded" } };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Porto");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.type(screen.getByLabelText("Total for the trip"), "500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/server exploded/i);
+
+    // Back to the dates step and remove them, the way a user correcting a
+    // mistake mid-failure would.
+    await user.click(screen.getByRole("button", { name: "Back" })); // Shape -> Who & Money
+    await user.click(screen.getByRole("button", { name: "Back" })); // Who & Money -> When
+    await user.clear(screen.getByLabelText("Arrive"));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "SetTripDates",
+          tripId: "trip-clear-dates",
+          startDate: null,
+          endDate: null,
+          newDayIds: [],
+        }),
+      ),
+    );
+  });
+
+  // The same defect on the money half: `MoneyInput` emits null when cleared,
+  // and `if (budget !== null)` skipped the block rather than clearing what had
+  // already landed. `SetTripBudget.budget` is `Money.nullable()` — "null
+  // clears" — so the command to send exists and was simply never sent.
+  it("retrying after clearing the budget sends SetTripBudget with null, not silence", async () => {
+    const { createTrip, dispatch } = renderWizard();
+    createTrip.mockResolvedValue({ ok: true, value: { tripId: "trip-clear-budget" } });
+
+    let currencyAttempts = 0;
+    dispatch.mockImplementation(async (command) => {
+      if (command.type === "SetTripCurrency") {
+        currencyAttempts += 1;
+        if (currencyAttempts === 1) return { ok: false, error: { status: 500, message: "currency exploded" } };
+      }
+      return { ok: true, value: {} as CommandOutcome };
+    });
+
+    await user.type(screen.getByLabelText("Trip name"), "Lisbon");
+    await user.click(screen.getByRole("button", { name: "Next" })); // Where -> When
+    await user.click(screen.getByRole("button", { name: "Next" })); // When -> Who & Money
+    await user.selectOptions(screen.getByLabelText("Currency"), "EUR");
+    await user.type(screen.getByLabelText("Total for the trip"), "2500");
+    await user.click(screen.getByRole("button", { name: "Next" })); // -> Shape
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/currency exploded/i);
+
+    await user.click(screen.getByRole("button", { name: "Back" })); // Shape -> Who & Money
+    await user.clear(screen.getByLabelText("Total for the trip"));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    dispatch.mockClear();
+    await user.click(screen.getByRole("button", { name: "Create trip" }));
+
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SetTripBudget", tripId: "trip-clear-budget", budget: null }),
+      ),
+    );
   });
 });

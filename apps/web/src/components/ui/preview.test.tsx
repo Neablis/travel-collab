@@ -71,14 +71,9 @@ describe("Preview", () => {
   });
   it("reserves space for the compact badge instead of overlapping the host", () => {
     render(
-      // Any compact shell will do, and this slot has now been handed on
-      // TWICE: "share-button" left the registry when M11 link 4 made Share
-      // real, and `wizard-longer-chip` left it on 2026-09-16 when D-B
-      // confirmed 21 nights and made Longer a real length chip. Recording the
-      // second hand-off the way the first was recorded, because a fixture id
-      // that quietly follows whatever is still unbuilt is how this test ends
-      // up broken by a change in a file it has nothing to do with.
-      <Preview id="add-stop-suggestions" size="compact">
+      // Any compact shell will do; this one is `wizard-longer-chip` because
+      // "share-button" left the registry when M11 link 4 made Share real.
+      <Preview id="wizard-longer-chip" size="compact">
         <button>Share</button>
       </Preview>,
     );

@@ -889,10 +889,8 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     await expect(demoLink).toHaveAttribute("href", "/demo");
 
     // Operable, not just visible: the click has to actually reach the
-    // button and open the wizard at this width. The composer's accessible name
-    // is the question being asked — the sheet is four turns now (SPEC §30.1),
-    // and there is no field called "Trip name" to look for.
+    // button and open the wizard at this width.
     await nameButton.click();
-    await expect(page.getByLabel("Where are you going?")).toBeVisible();
+    await expect(page.getByLabel("Trip name")).toBeVisible();
   });
 });

@@ -238,16 +238,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     tripId,
     scope: askScope,
     errorMessage: askErrorMessage,
-    // **The conversation survives a reload** (M9 design §6). Named per TRIP,
-    // because that is what this rail's conversation is about — a notebook page
-    // on the same trip mounts its own hook and gets its own name, which is why
-    // the hook takes the name rather than deriving one from `tripId`.
-    //
-    // `localStorage`, so it does not survive a device change or cleared site
-    // data. That is the honest lifetime for a working surface, and the reason
-    // the restored transcript carries no Approve button: `askThreadStore`
-    // drops the proposal, keeping the prose that made the answer readable.
-    persistAs: `trip:${tripId}`,
     onEvent: (event, patchAnswer) => {
       if (event.type !== "proposal") return;
       patchAnswer((turn) => ({

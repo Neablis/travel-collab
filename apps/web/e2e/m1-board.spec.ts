@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   const tripName = e2eTripName("Lisbon");
   await page.goto("/");
 
-  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("button", { name: "New trip" }).click();
+  await page.getByLabel("Trip name").fill(tripName);
+  await page.getByRole("button", { name: "Create empty" }).click();
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading —
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see

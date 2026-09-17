@@ -6,17 +6,8 @@
 // The geo vocabulary lives on the geocoder seam (it appears in
 // `Geocoder.forward`'s options), and is re-exported here so callers of these
 // predicates need only one import.
-//
-// **From `geocoding/geocoder` rather than the `geocoding` barrel, and that is
-// not tidiness.** The barrel's `index.ts` constructs the vendor adapter and
-// reads `serverConfig`, so importing it — even `import type` — puts the whole
-// vendor edge in this module's import graph. `geocoder.ts` imports NOTHING: it
-// is the interface file, and the ADR-007 seam itself. The distinction became
-// load-bearing when M9's grounding put this module on the assistant kernel's
-// import allowlist (eslint.config.mjs), whose stated criterion is the whole
-// closure and not the direct imports.
 import type { TripDetail } from "@tc/contracts";
-import type { BoundingBox, LatLng } from "@/server/geocoding/geocoder";
+import type { BoundingBox, LatLng } from "@/server/geocoding";
 export type { BoundingBox, LatLng };
 
 // Half a degree around 0,0 — roughly 55 km of open water in the Gulf of Guinea.

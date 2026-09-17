@@ -177,18 +177,6 @@ disables.
 
 ## 3. New trip is four turns
 
-**BUILT 2026-09-16.** Two things about the shipped version that this section does not
-otherwise say, and that anyone reading it as a description of the product needs:
-
-- **Only `where` and `when` reach the database.** `where` becomes the trip's name and
-  `when` becomes `SetTripDates` — and only when a length chip is paired with an arrival,
-  since free text would need the model call §30.2 forbids. **`pace` and `feel` are
-  collected and stored nowhere.** No field models either; nothing consumes them until
-  §4b's theme vocabulary exists. The closing turn says so in as many words rather than
-  implying otherwise (see §10's D-C).
-- **Four turns, not five.** `who` was dropped on Mitchell's instruction, 2026-09-15.
-  `.design-sync/handoff/SPEC.md` §30.1 still says five; `DRIFT.md`'s D11 carries the delta.
-
 **Supersedes** `NewTripWizard`'s four-step stepper (Where · When · Who & Money · Shape)
 entirely. In its place, inside the same sheet, a transcript asking one question at a time.
 
@@ -483,23 +471,9 @@ grandfathered violations) and KI-2026-09-02-c (`packages/*` have no ESLint at al
    or `TripDetail`. `DRIFT.md`'s D11 now calls the shells "no longer orphaned", but the data
    gap is unchanged. Either the label drops and they become static suggestions, or something
    starts storing destinations — which is D6/KI-34's neighbourhood, not M9's.
-   **ANSWERED 2026-09-16: the label drops.** Plain suggestions, no label;
-   `wizard-destination-chips` leaves the registry. Nothing starts storing destinations.
 8. **"Longer" acquired a day count.** `NT_NIGHTS` maps it to 21 nights, reversing the
    2026-08-23 decision that `Longer` has no day count the design implies. Confirm it is
    intentional.
-   **ANSWERED 2026-09-16: intentional — 21 nights holds and the 2026-08-23 decision is
-   reversed.** `Longer` becomes a fifth real length chip and `wizard-longer-chip` leaves
-   the registry. Recorded here and in plan 4's D-B now; `NewTripWizard.tsx:25-30` states
-   the old decision as live fact and **is corrected in the same commit that wires the
-   chip**, not before — a comment recording the reversal above code still implementing
-   the old one is the defect class that cost #184 two findings.
-
-**Items 1–4 and 6 remain open**, and they gate the fork (§4) and the theme pass (§4b) —
-not the four turns (§3) or the transcript (§2), which are unblocked by the three answers
-above. Item 5 was **taken in code** while building KI-93: a geocode ceiling reached
-mid-batch stops further lookups and does not fail the request, with the skipped names
-reported. See `docs/plans/2026-09-16-M9-remainder.md` §B.
 
 ## 11. Deltas from the 2026-09-15 design handoff
 

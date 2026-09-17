@@ -97,6 +97,8 @@ export const PREVIEW_REGISTRY = {
   "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
+  "wizard-destination-chips": { milestone: "unplaced", wiredUpBy: "No destination field on TripSummary/TripDetail to read recent-and-nearby from — and no milestone owns adding one. `unplaced` rather than a guess: see the note above the registry" },
+  "wizard-longer-chip": { milestone: "unplaced", wiredUpBy: "Manual day-count entry beyond the four preset lengths. NOT blocked on a field — the only shell here that is purely unbuilt UI, so any milestone could take it" },
   // **M21 link 5 wired both of the account sheet's plan shells up and removed
   // them**, 2026-09-14 — `account-plan-change` and `account-plan-billing`.
   //
@@ -107,17 +109,8 @@ export const PREVIEW_REGISTRY = {
   // minted per click. Neither is a `<Preview>` any more, so neither has an
   // entry here — removed rather than retagged, because there is nothing left
   // to wire.
-  // **This one SURVIVES the four-turn rewrite, and that is the point of the
-  // rule above.** Its three siblings left because the turns they stood in for
-  // became real answer affordances (`wizard-pace-tags`) or because a decision
-  // removed what was unbuilt about them (`wizard-destination-chips` on D-A,
-  // `wizard-longer-chip` on D-B, both 2026-09-16). This one is the ENTITLEMENT
-  // FORK — design §4 — which that slice deliberately does not build. Deleting
-  // its shell would move a false claim rather than remove one.
-  //
-  // `wiredUpBy` restated: "proactive drafting" was never the blocker. What is
-  // outstanding is the fork itself (who gets it) and the generation behind it.
-  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The entitlement fork and the draft it generates (design §4) — neither exists; the four turns collect the answers it would need" },
+  "wizard-pace-tags": { milestone: "M9", wiredUpBy: "Pace and tags exist only to feed the assistant's draft" },
+  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "M9 proactive drafting" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

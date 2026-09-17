@@ -184,7 +184,7 @@ describe("Home trip actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Iceland");
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Iceland");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     const alert = await screen.findByRole("alert");
@@ -223,7 +223,7 @@ describe("Home trip actions", () => {
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Reykjavik");
+    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
@@ -520,7 +520,7 @@ describe("Home first-run experience", () => {
 
     // Step 1 of the existing wizard — the same surface the page-head "New
     // trip" button opens, not a parallel one-field screen.
-    expect(await screen.findByLabelText("Where are you going?")).toBeTruthy();
+    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
   });
 
   // "Building a trip from total scratch is a rough experience" (Mitchell,
@@ -596,31 +596,18 @@ describe("Home first-run experience", () => {
 
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
-    await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
+    await userEvent.type(screen.getByLabelText(/trip name/i), "Japan");
 
-    // The first turn — "Create empty" is enabled by the name alone, which is why
+    // Step 1 of 4 — "Create empty" is enabled by the name alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
     await userEvent.click(screen.getByRole("button", { name: "Create empty" }));
 
-    // **The body now carries a client-minted `tripId`** (KI-2026-09-12-e), so
-    // this can no longer be an exact `JSON.stringify` match. It is the only
-    // test that exercises the real wire format end to end — `createTrip` and
-    // `fetch` are both real here — which makes it the right place to pin that
-    // the id actually reaches the request rather than stopping at the module
-    // boundary.
-    // The POST, not call zero: the page loads its trip list first, and that GET
-    // has no `init` at all — reading `.method` off it is a TypeError, not a
-    // failed assertion.
-    const createCall = () =>
-      (fetchMock.mock.calls as [string, RequestInit | undefined][]).find(
-        ([url, init]) => url.includes("/api/trips") && init?.method === "POST",
-      );
-    await waitFor(() => expect(createCall()).toBeDefined());
-    const init = createCall()![1]!;
-    expect(JSON.parse(String(init.body)) as { name: string; tripId: string }).toEqual({
-      name: "Japan",
-      tripId: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
-    });
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/trips"),
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Japan" }) }),
+      ),
+    );
 
     // Post-create state: the first-run empty state is gone, the new trip's
     // own card is showing in its place, and "Create empty" never navigates
@@ -803,13 +790,13 @@ describe("Home finishing a demo clone", () => {
     // screen, and it's what a person who clicks before the list has loaded
     // actually has available.
     await userEvent.click(screen.getByRole("button", { name: "New trip" }));
-    expect(await screen.findByLabelText("Where are you going?")).toBeTruthy();
+    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
 
     // Now let the list resolve empty: `takeDemoClone`'s effect fires, closing
     // the wizard out from under whatever was being typed into it.
     resolveList(jsonResponse({ trips: [] }));
 
-    await waitFor(() => expect(screen.queryByLabelText("Where are you going?")).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText(/trip name/i)).toBeNull());
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
   });
 });

@@ -13,12 +13,7 @@ pair ahead of M9's remainder on 2026-09-13 — *"start the milestone that create
 the stripe work and ability to pay for the app."* **M20 closed 2026-09-14**, so
 the second half of that sentence is what M21 now is. **M9 is paused, not cancelled**: its Phase 0 completed
 2026-09-11 and ticked no gate box by design, and it keeps its place immediately
-after M21. **Most of its remaining BUILD landed 2026-09-16 anyway** — grounding,
-KI-93, KI-12, escalation and `certainty`, conversation durability and the replay
-harness, under `docs/plans/2026-09-16-M9-remainder.md`. That does not move the
-marker: what is left of M9 is its GATE, and every unticked box needs a live
-model call or a browser walk rather than more code. `docs/STATUS.md` has the
-four things to know before touching it. The note, the three costs accepted with it, and the prices decided
+after M21. The note, the three costs accepted with it, and the prices decided
 the same day are in `docs/milestones/README.md` under **2026-09-13**. The
 history below is kept because it is the argument, not the live instruction —
 per the order set on 2026-08-29 when Mitchell placed two of the three
