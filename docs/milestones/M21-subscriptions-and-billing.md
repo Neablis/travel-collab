@@ -1,6 +1,23 @@
 # M21 — An account can pay for itself
 
-**Status:** **OPEN and building since 2026-09-14.** Phases 1–4 are written; what
+**Status:** **OPEN at 11 of 17, and PAUSED since 2026-09-16** — Mitchell's
+decision to run M22 ahead of it, recorded in `docs/milestones/README.md` under
+*2026-09-16 — reordered*. **Nothing in this file is amended by that pause**: the
+scope, the seven links and all seventeen boxes stand exactly as written, and the
+six open ones are still owed.
+
+> **One footnote follows from the pause, and it is box 2's.** M22's Phase 1
+> publishes `premium@v2`, after which `livePlanVersion("premium")` returns v2 —
+> so a Premium purchase then verifies **v2's** Stripe Price, and `premium@v1`,
+> never bought, keeps a Price that was never created. Once superseded, v1 is
+> unsellable, unheld and ungrantable, so verifying its Price verifies nothing;
+> `checkPriceConsistency` reports it `missing`, which it calls *"an ordinary
+> state"* rather than a finding. **Nothing here is owed before M22 proceeds** —
+> an earlier draft of this note said a purchase had to happen first, and that was
+> wrong. If this box's wording needs to account for a superseded version, that is
+> an amendment, which only Mitchell makes.
+
+**Was OPEN and building since 2026-09-14.** Phases 1–4 are written; what
 is still owed is a walk against a real Stripe test-mode key, which is the half
 no lane in this repo can drive. **Build log and the five deviations from this
 file are at the bottom**, under *What was built*. Originally scoped and placed

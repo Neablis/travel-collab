@@ -62,6 +62,12 @@ permissions:
 env:
   DATABASE_URL: postgres://postgres:postgres@localhost:5432/travel
   AUTH_SECRET: ci-secret
+  # API tokens are stored as HMAC-SHA256(API_TOKEN_PEPPER, secret), and both
+  # minting and verifying throw without it rather than falling back — an empty
+  # pepper still produces a stable digest, so a fallback would leave tokens
+  # working while the property the key exists for silently did not hold. CI does
+  # not need a real one; it needs a present one.
+  API_TOKEN_PEPPER: ci-pepper
   AUTH_DEV_LOGIN: "true"
   # Auth.js v5 rejects requests from untrusted hosts under `next start`
   # (production mode) unless the platform sets this itself (Vercel does).

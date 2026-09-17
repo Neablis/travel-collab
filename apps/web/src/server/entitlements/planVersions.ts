@@ -250,6 +250,47 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
     enabled: true,
   },
   {
+    // **`premium@v2` — the API tokens version** (M22 Phase 1, 2026-09-16).
+    //
+    // **Published rather than editing `v1` in place, and that was a decision
+    // rather than a habit.** Mitchell's first answer was *"just assign it to
+    // v1, its unused atm"*, and its premise is correct — `premium@v1` has never
+    // been purchased, so nobody is stranded under either option. But between two
+    // options that strand nobody, the one that edits a published entry is the
+    // more expensive: it falsifies a ticked M20 gate box (*"`v1`'s entry is
+    // byte-identical afterwards"*) and requires rewriting
+    // `noExtension.test.ts`'s `V1_AS_PUBLISHED`, which exists to fail in the
+    // same diff that edits a published entry. Shown that, he closed it:
+    // **"Just do v2 then."**
+    //
+    // **Publishing costs nothing anywhere else.** `livePlanVersion` returns the
+    // newest entry for a plan and consults no flag, so this entry becomes what
+    // every new purchase and every new admin grant pins, automatically, with no
+    // other edit in the codebase. `v1` is simply never selected again.
+    //
+    // **Enumerated in full, never as a spread of `v1`.** Four strings, repeating
+    // three, because that is the rule the header states and the one
+    // `noExtension.test.ts` walks the AST to enforce.
+    planId: "premium",
+    version: 2,
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
+    // **Unchanged from `v1`.** This version sells one more capability at the
+    // same price; the ceilings are the assistant's and the API does not spend
+    // model budget, so nothing here moves. A token's cost bound is
+    // `consumeQuota`'s, which is environment-configured and not a plan ceiling.
+    ceilings: { perUserRequestsPerDay: 200, perUserStepsPerDay: 1600, maxTier: null },
+    // **The same $19, and a NEW Stripe Price all the same.** `priceLookupKey` is
+    // derived from the version ref, so `premium@v2` resolves to its own Price,
+    // created on its first checkout. That is the design working rather than a
+    // duplication: Stripe Prices are immutable, and a version pinning a Price
+    // created for a different version is how the catalogue and the card
+    // statement start to disagree.
+    price: { minor: 1900, currency: "usd", stripePriceId: null },
+    displayOrder: 3,
+    publishedAt: "2026-09-16",
+    enabled: true,
+  },
+  {
     // **The fourth-plan proof** (M20's gate box). A plan that is not a subset
     // of any other: `trip.collaborators` WITHOUT `ai.command`. No rank can
     // express it — it is above `premium` on one axis and below `plus` on

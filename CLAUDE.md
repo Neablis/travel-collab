@@ -19,6 +19,8 @@ Quick orientation:
   `docs/guidelines/content-bundles.md` (ADR-041)
 - Walking checkout, a failed payment or a lapse **without spending real money**:
   `docs/guidelines/billing-without-spending-money.md` (ADR-047)
+- Calling the public API, or adding an endpoint to it without writing auth,
+  errors, pagination or docs again: `docs/guidelines/using-the-api.md` (M22)
 - What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 

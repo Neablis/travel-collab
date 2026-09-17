@@ -30,11 +30,24 @@ general setup.
 
 ## Where the work is right now
 
-**M21 — AN ACCOUNT CAN PAY FOR ITSELF — IS THE CURRENT MILESTONE, OPENED 2026-09-14**, when
-M20's gate closed. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 → M12 → M13 → M14 → M19`. Scope, the seven
-links and the decided prices are in `docs/milestones/M21-subscriptions-and-billing.md`; the
-kickoff plan it shares with M20 is `docs/plans/2026-09-13-M20-M21-commercial.md`.
+**M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
+**Mitchell's decision and not by a gate closing**. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box
+stand unamended, and the six open ones are still owed. Its state is recorded below rather
+than deleted, because a paused milestone that stops being described is one nobody returns to.
+
+**The reorder costs M21 nothing, and an earlier version of this file said otherwise.**
+M22 needs an account holding `api.tokens`, not a sale — an admin grant pins
+`livePlanVersion(planId)` (`api/admin/grants/route.ts:29`) and `resolveEntitlements` unions the
+held plan with every grant's pinned version, which is what M20 built the grant path for.
+Publishing `premium@v2` does mean a later Premium purchase verifies v2's Stripe Price rather
+than v1's, leaving v1 — unsellable, unheld and ungrantable once superseded — with a Price that
+was never created; `checkPriceConsistency` calls that `missing`, *"an ordinary state"*, not a
+finding. **That is M21's footnote to settle on M21's schedule, not a gate on M22.**
 
 **All four phases are written and merged** (#177, then #180 and #181) — the subscription
 table and priced plan versions, hosted checkout and the webhook, the `plans` route with the
