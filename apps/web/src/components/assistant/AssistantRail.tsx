@@ -12,6 +12,7 @@ import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
+import { usePinToBottom } from "./usePinToBottom";
 import { useAiEntitled } from "./useAiEntitled";
 
 /**
@@ -387,6 +388,15 @@ export function AssistantRail({
   // component's, so by the time an effect here could read `activeElement` the
   // opener has already lost focus.
   const openerRef = useRef<Element | null>(null);
+  // **This column is the scrollport, so pinning belongs here** rather than
+  // inside `Transcript`, which owns none. The component used to scroll itself
+  // with `scrollIntoView`, which moves every scrollable ancestor — banned by
+  // SPEC §30.6, and the reason KI-2026-09-13-a is open.
+  const scrollportRef = useRef<HTMLDivElement | null>(null);
+  // `[turns]` and not `[turns.length]`: a streaming answer mutates the LAST
+  // turn without adding one, and following the tokens as they arrive is the
+  // whole reason a transcript scrolls at all.
+  usePinToBottom(scrollportRef, [turns]);
   if (isSheet && openerRef.current === null) openerRef.current = document.activeElement;
 
   useEffect(() => {
@@ -558,7 +568,10 @@ export function AssistantRail({
             what the modal lock does, and it is the mechanism most likely to
             produce that symptom under touch. It is NOT verified against the
             report: see the note by `isSheet` and KI-2026-09-06-e. */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5">
+        <div
+          ref={scrollportRef}
+          className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-3.5"
+        >
           {turns.length === 0 ? (
             <>
               <p className="text-sm leading-relaxed text-slate">{emptyHint}</p>

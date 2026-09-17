@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { e2eTripName } from "./tripNames";
+import { createEmptyTripViaWizard } from "./helpers";
 
 // This is the one spec that still covers the front door end to end from the
 // landing page — every other spec runs pre-authenticated via the
@@ -55,9 +56,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   ]);
 
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
-  await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
+  await createEmptyTripViaWizard(page, tripName);
 
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 });

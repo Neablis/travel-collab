@@ -95,3 +95,31 @@
   ([F-F12](../../reviews/2026-09-05-overnight-review/findings/F-F12-geocodenamematch-lives-in-ai-but-only-seed-uses-it.md)).
   The finding carries a unit-level reproduction. Wiring it is smaller than M9
   grounding and does not replace it.
+- **2026-09-16 — NARROWED, not resolved. The architectural half is closed by M9's grounding; the enrichment residual above is what is left.**
+
+  **What closed.** The half this entry's own *Fix path* names — *"the model
+  cites a `placeRef` from a real `SearchPlaces` result, so there is nothing to
+  overwrite and nothing to guess"* — is built (KI-81, resolved). A stop the
+  assistant chose now carries the place a vendor returned, resolved server-side
+  from the turn's own numbered search results, and **`enrichCommandLocations`
+  does not look it up at all**: a location carrying `precision` beside real
+  coordinates is one the server itself resolved, and the blind pass skips it.
+  So the specific 2026-08-02 failure — a right answer discarded for a fuzzy
+  string match on another continent — is no longer reachable for an
+  assistant-planned stop, because there is no second opinion being taken.
+
+  **Why the entry stays open, which is the sentence to read before assuming
+  otherwise.** *"Enrichment survives only as a fallback for user-typed text"* is
+  now true, and **that fallback is still the code F-G02 is about**. A location a
+  PERSON typed goes through `resolveOne` exactly as before, which accepts on
+  distance-to-hint or `withinBox` alone and then overwrites `location.name` with
+  the vendor's `canonicalName` — so a wrong venue inside the right box still
+  renames the stop, moves the pin and reports `verified`. `placeNameVerdict`
+  still has no caller on the request path. Grounding reduced the BLAST RADIUS of
+  that path (it no longer runs over assistant-chosen stops, which are the bulk
+  of what a planning turn writes) and changed nothing about the path itself.
+
+  **So what this entry now is:** wire `placeNameVerdict` into `resolveOne`.
+  Smaller than grounding was, unblocked by it, and no longer entangled with a
+  milestone — it is one function acquiring the caller it was written for.
+- **Cross-reference:** KI-81 (resolved 2026-09-16 — the grounding half), KI-93 (resolved with it), F-G02, F-F12.

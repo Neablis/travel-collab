@@ -70,7 +70,12 @@ export function apiUrl(path: string): string {
 // Same shape as duplicateTrip below — POST, no dates/budget on this call
 // (CreateTrip only ever carries a name; the wizard applies dates/budget as
 // separate commands against the tripId this returns).
-export async function createTrip(input: { name: string }): Promise<ApiResult<{ tripId: string }>> {
+export async function createTrip(input: {
+  name: string;
+  /** Supplied by the caller so a lost response can be retried safely — see
+   *  `CreateTripBody` in the route, and KI-2026-09-12-e. */
+  tripId?: string;
+}): Promise<ApiResult<{ tripId: string }>> {
   // The first helper here to carry the guard (CodeRabbit, PR #32): its only
   // caller (the wizard's submit()) has no try/catch of its own, so a rejected
   // fetch left the wizard stuck "submitting" with no error shown. Every other
@@ -82,8 +87,13 @@ export async function createTrip(input: { name: string }): Promise<ApiResult<{ t
       body: JSON.stringify(input),
     });
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      // `code` is carried for the same reason `sendTripCommand` carries it: the
+      // caller has to tell "this trip already exists" from "this failed".
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };
@@ -219,8 +229,13 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/duplicate`), { method: "POST" });
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      // `code` is carried for the same reason `sendTripCommand` carries it: the
+      // caller has to tell "this trip already exists" from "this failed".
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };
@@ -241,8 +256,13 @@ export async function resetDemoData(): Promise<ApiResult<{ tripId: string }>> {
   try {
     const res = await fetch(apiUrl("/api/dev/reset-demo-data"), { method: "POST" });
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+      // `code` is carried for the same reason `sendTripCommand` carries it: the
+      // caller has to tell "this trip already exists" from "this failed".
+      return {
+        ok: false,
+        error: { status: res.status, message: data.error ?? res.statusText, code: data.code },
+      };
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };

@@ -617,23 +617,88 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
  * matched. One predicate, so the two answers cannot disagree.
  */
 function asksToWrite(text: string): boolean {
-  return asksForAChange(text) || asksForAPlaybookDay(text);
+  // **`asksForAnItinerary` belongs in this judgement for the same reason
+  // `asksForAPlaybookDay` does**, and its absence would have the same
+  // consequence the browser walk of 2026-09-08 measured for that one: a
+  // classifier and a turn-shape predicate that disagree, so a request reaches
+  // the branch written for it holding no tool it can use. "One predicate, so
+  // the two answers cannot disagree" is the rule, and this is the third half of
+  // it.
+  return asksForAChange(text) || asksForAPlaybookDay(text) || asksForAnItinerary(text);
+}
+
+// **A request for a whole itinerary** — the `plan` class, and the phrase the
+// deployed path could not recognise at all.
+//
+// Two things are wrong with the old predicate and this fixes both (M9 design
+// §1, *"the deployed symptom and the architectural gap have different causes.
+// Both are fixed here"*):
+//
+//   1. **`edit` was unreachable** — KI-2026-09-12-a. Two verdicts where the
+//      real classifier has four, so every write turn in the integration suite
+//      was really a `plan` turn.
+//   2. **`plan` was unreachable by its own name.** `CHANGE_VERBS` deliberately
+//      excludes the word, on the sound ground that *"What's the plan for day
+//      2"* is a question — so on every Vercel environment, where `ai-live` is
+//      off and this IS the classifier, *"plan me a six day trip"* classified as
+//      a question and was offered no write tools. That is M9's headline flow
+//      and KI-12's gate box, dark on the only path anyone can click.
+//
+// **The lookbehind is what makes the word usable again.** `plan` preceded by an
+// article or a possessive is a NOUN — "the plan", "my plan", "that plan" — and
+// a noun is what the question uses. `plan` on its own is the verb. That is a
+// narrower rule than dropping the word, and it is checkable: both phrasings are
+// asserted in `simulatedModel.test.ts`.
+//
+// `\d+[-\s]day` catches "Create a 7 day itinerary for Rochester NY" — KI-15's
+// verbatim dogfood prompt, whose verb is in no list. It will also match "is
+// there a 2 day gap?", which is a question given the write tools: that is rule
+// 1's direction (a question wrongly given write tools costs tokens; a change
+// request denied them cannot act), so it is the side to be wrong on.
+const ITINERARY_REQUEST =
+  /(?<!\b(?:the|a|your|my|our|this|that)\s)\b(?:plan|itinerary)\b[^?]{0,40}?\b(?:trip|days?|week|weekend|itinerary)\b|\bhow should i start\b|\b\d+[-\s]day\b/i;
+
+/** True for a request to generate a whole itinerary — see `ITINERARY_REQUEST`. */
+function asksForAnItinerary(text: string): boolean {
+  return ITINERARY_REQUEST.test(text);
+}
+
+/**
+ * The simulated classifier's task class.
+ *
+ * Three verdicts where there used to be two — **KI-2026-09-12-a, closed.** That
+ * entry's point stands: every "write turn" assertion in the integration suite
+ * was really an assertion about a `plan` turn, because `edit` was unreachable.
+ * It also said why nobody fixed it in passing: the split is a product judgement
+ * about the real classifier's prompt, not a test-fixture detail. M9's design
+ * makes that judgement, and it is the same one the live instruction already
+ * states — `plan` is *"a whole itinerary or several days"*, and one imperative
+ * about one stop is not that.
+ *
+ * Still deterministic and still a predicate. It is the flag-off path's
+ * stand-in, not a model, and a stand-in that guessed would make the integration
+ * suite's verdicts unreproducible.
+ */
+function simulatedTaskClass(text: string): "question" | "edit" | "plan" {
+  if (asksForAnItinerary(text)) return "plan";
+  return asksToWrite(text) ? "edit" : "question";
 }
 
 function classifyStep(options: CallOptionsLike): SimulatedStep {
   // The STRUCTURED verdict, via askIntent.ts's own writer — not the bare word
-  // this used to emit. `classifyAskIntent` now asks for a typed field
-  // (`Output.choice`), and the SDK parses this text as JSON against that
-  // schema before returning: a bare `write` would fail to parse and fail open
-  // on every turn of the only path anyone deploys.
+  // this used to emit. `classifyAskIntent` asks for a typed field, and the SDK
+  // parses this text as JSON against that schema before returning: a bare
+  // `write` would fail to parse and fail open on every turn of the only path
+  // anyone deploys. The shape moved when `certainty` arrived (M9) and this
+  // function needed no edit, which is the whole value of writer and reader
+  // living in one module.
   //
-  // **`plan`, not `edit`, for every write** (P5). The verdict widened to a task
-  // class, and this model has one predicate — `asksToWrite` — which answers the
-  // EFFECT question and cannot tell a bounded change from a whole itinerary.
-  // Guessing between them here would be inventing a measurement; resolving
-  // upward is the rule the live classifier already follows for the same
-  // uncertainty, and it costs nothing on a path that contacts no provider.
-  const verdict = askIntentVerdictText(asksToWrite(latestUserText(options)) ? "plan" : "question");
+  // **`certainty: "sure"`, always, and that is honest rather than convenient.**
+  // This is a deterministic predicate over a regex; it is not hesitating. A
+  // stand-in that reported `unsure` would route every simulated write turn to a
+  // stronger tier for a doubt nothing actually has, and would make the
+  // integration suite's tier assertions measure a fiction.
+  const verdict = askIntentVerdictText(simulatedTaskClass(latestUserText(options)), "sure");
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },
@@ -716,7 +781,17 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     if (calls !== null) return { content: calls, finishReason: { unified: "tool-calls", raw: undefined } };
     return speak(SIMULATED_NO_PLAYBOOK_ANSWER);
   }
-  if (!proposed && canPropose(options) && asksForAChange(question)) {
+  // **`asksToWrite`, not `asksForAChange`** — the shared predicate, so the
+  // classifier and the turn shape cannot disagree.
+  //
+  // This line said `asksForAChange` and was wrong the moment
+  // `asksForAnItinerary` joined `asksToWrite`: "plan me a six day trip"
+  // classified as a write, was handed the write tools, did its reads, and then
+  // fell through to `askAnswer` without drafting anything. That is the exact
+  // failure the browser walk of 2026-09-08 measured for `asksForAPlaybookDay`
+  // — and `asksToWrite`'s own comment, two functions up, states the rule this
+  // line was breaking. Caught by CodeRabbit on PR #184.
+  if (!proposed && canPropose(options) && asksToWrite(question)) {
     return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));

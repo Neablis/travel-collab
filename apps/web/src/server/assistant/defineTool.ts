@@ -39,6 +39,7 @@ import type { z } from "zod";
 import type { TripRole } from "@tc/contracts";
 import type { AssistantDeps, DepKey } from "./deps";
 import type { TaskClass } from "./taskClass";
+import type { AskToolPosture } from "./grants";
 
 /**
  * What a tool is ABOUT. Six values, fixed by ADR-043 decision 2.
@@ -133,6 +134,31 @@ export interface ToolSpec<
    * rot the same way. `toolsFor` reads this; nothing else may.
    */
   taskClasses?: readonly TaskClass[];
+  /**
+   * **Which postures this tool is offered on** — the fourth filter axis, and
+   * the narrowest one. Omitted means all of them, the same default
+   * `taskClasses` takes and for the same reason: a tool earns a restriction, it
+   * does not earn its way in.
+   *
+   * It exists because M9's escalation tool must be offered in EXACTLY ONE
+   * posture, `withheld`, and no combination of the other three axes can say
+   * that. `domain`/`effect` describe what a tool is and does; `taskClasses`
+   * describes what kind of request it suits. A posture is a fact about the
+   * relationship between the actor's rights and the classifier's verdict —
+   * `withheld` is precisely *role and plan both permit `propose`, and the
+   * classifier did not* — and nothing else in the tag vocabulary reaches it.
+   *
+   * **This is what makes "escalation never widens access" structural rather
+   * than argued.** A tool tagged `["withheld"]` cannot be offered to a viewer
+   * or to an unentitled plan, because both of those resolve to `read-only`.
+   * `grants.test.ts` asserts it as a property over every combination of caps
+   * rather than over three scenarios somebody thought of.
+   *
+   * The tag goes on the definition, never in a list somewhere else — the same
+   * rule `taskClasses` states at length, and the same reason: a central "which
+   * tools in which posture" manifest is `offeredToolNamesFor` again.
+   */
+  postures?: readonly AskToolPosture[];
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,

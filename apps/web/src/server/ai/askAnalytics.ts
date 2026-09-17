@@ -109,6 +109,23 @@ export interface AskIntentRecord {
    */
   taskClass: Exclude<TaskClass, "compose">;
   /**
+   * **How sure the classifier was** (M9 design §1a), and the field that makes
+   * its guess rate observable at all.
+   *
+   * Before it, "confidently a question" and "unsure, defaulting to plan"
+   * arrived as the same `taskClass`, so the only signal was `failedOpen` —
+   * which is about the CALL failing, not about the model hesitating. A run of
+   * `question`/`unsure` records is a classifier that needs a better prompt; a
+   * run of `question`/`sure` that users then escalate out of is a classifier
+   * that is confidently wrong. Those want opposite fixes and used to be the
+   * same row.
+   *
+   * `unsure` is what an absent, unparseable or errored verdict means, which
+   * keeps `askIntent.ts` rule 3's fail-open direction: a classifier that could
+   * not say how sure it was is, by that fact, not sure.
+   */
+  certainty: "sure" | "unsure";
+  /**
    * What decided it. `affirmation` is the rule that never called a model at
    * all ("Yes go ahead"); `model` is the classification call.
    */
@@ -257,6 +274,24 @@ export interface AskAnalyticsRecord {
   uncalledTools: string[];
   /** What decided `offeredTools`' write half, and what that decision cost. Null when nothing was classified. */
   classification: AskIntentRecord | null;
+  /**
+   * **A labelled classifier miss** — set when the turn escalated, null
+   * otherwise (M9 design §1b).
+   *
+   * This is the field the eval harness is built out of, and it is the reason
+   * escalation records the model's words rather than a boolean. An escalated
+   * turn carries, in one row: the sentence (`question`), the verdict that was
+   * wrong (`classification`), how sure the classifier was about it
+   * (`classification.certainty`), and the model's own statement of what it
+   * should have been allowed to do (`intendedChange`). Nobody has to label
+   * anything — real use writes the corpus.
+   *
+   * `certainty` and this field answer different halves of the same question and
+   * want opposite fixes: a run of `unsure` verdicts is a classifier that needs
+   * a better prompt; a run of escalations out of `sure` verdicts is a
+   * classifier that is confidently wrong.
+   */
+  escalated: { reason: string; intendedChange: string } | null;
   /** False when the run produced no assistant text — a turn that spent steps and said nothing. */
   answered: boolean;
   /** How the turn ended. Count error rates from THIS, not from `finishReason`. */
@@ -471,6 +506,13 @@ export interface AskRecorderParams {
   simulated: boolean;
   model: string;
   offeredTools: readonly string[];
+  /**
+   * Whether this turn escalated, read at WRITE time rather than passed as a
+   * value — the same reason `collectedWrites` is a thunk. The escalation
+   * happens mid-stream, several frames after the recorder is constructed, so a
+   * value captured here would always be null.
+   */
+  escalation?: () => { reason: string; intendedChange: string } | null;
   /** The pre-turn classification that decided the write half of `offeredTools`, or null when none ran. */
   classification?: AskIntentRecord | null;
   /**
@@ -678,6 +720,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       offeredTools: [...params.offeredTools],
       uncalledTools: params.offeredTools.filter((name) => !called.has(name)),
       classification: params.classification ?? null,
+      escalated: params.escalation?.() ?? null,
       answered: text.trim().length > 0,
       outcome,
       cause,
