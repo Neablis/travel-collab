@@ -370,7 +370,42 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
           </div>
 
           <fieldset className="flex flex-col gap-1.5">
-            <legend className="text-sm font-medium text-ink">What it may do</legend>
+            <div className="flex items-baseline justify-between gap-2">
+              <legend className="text-sm font-medium text-ink">What it may do</legend>
+              {/* **Two buttons rather than one that flips its label.** A single
+                  toggle reading "Select all" until everything is on cannot clear
+                  a partial selection in one click — you would have to select all
+                  first. With eight scopes the common shape is "most of them", so
+                  both directions are worth one click each.
+
+                  `ghost`/`sm`, which is the lightest the design system offers:
+                  these are adjuncts to the legend and must not out-weigh the
+                  Create button below them. The first draft hand-rolled a
+                  `<button>` with a link-ish class to get lighter still, and the
+                  lint wall refused it — correctly. A control that looks like
+                  nothing else in the app is a worse outcome than one that is
+                  slightly heavier than I wanted. */}
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="token-scopes-all"
+                  disabled={scopes.length === API_SCOPES.length}
+                  onClick={() => setScopes([...API_SCOPES])}
+                >
+                  Select all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid="token-scopes-none"
+                  disabled={scopes.length === 0}
+                  onClick={() => setScopes([])}
+                >
+                  Select none
+                </Button>
+              </div>
+            </div>
             {/* **Every scope, in the sentence somebody decided it needed.**
                 `SCOPE_CATALOGUE` is exhaustive over `ApiScope`, so a ninth scope
                 cannot compile until that sentence exists — which is why this

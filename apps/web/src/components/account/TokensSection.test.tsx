@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApiToken } from "@tc/contracts";
+import { API_SCOPES, type ApiToken } from "@tc/contracts";
 import { TokensSection, relativeDays, tokenState } from "./TokensSection";
 
 // **What a person can READ and DO on this screen** — `PlanSection.test.tsx`'s
@@ -182,6 +182,35 @@ describe("the one-time reveal", () => {
     expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByTestId("token-scope-trips:read"));
+    expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // Mitchell, on the preview: "Add select all/ select none button to quickly
+  // select or deselect all". Eight scopes is enough that picking them one at a
+  // time is the tedious part of minting a token.
+  it("selects and clears every scope in one click", async () => {
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+
+    const checked = () =>
+      API_SCOPES.filter(
+        (scope) => (screen.getByTestId(`token-scope-${scope}`) as HTMLInputElement).checked,
+      );
+
+    // The form opens with one scope pre-selected, so "Select all" has work to do
+    // and "Select none" is already live — neither starts disabled by accident.
+    expect(checked()).toEqual(["trips:read"]);
+
+    fireEvent.click(screen.getByTestId("token-scopes-all"));
+    expect(checked()).toEqual([...API_SCOPES]);
+    // Nothing left to select; the button says so rather than being a no-op.
+    expect((screen.getByTestId("token-scopes-all") as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByTestId("token-scopes-none"));
+    expect(checked()).toEqual([]);
+    expect((screen.getByTestId("token-scopes-none") as HTMLButtonElement).disabled).toBe(true);
+    // And clearing them all leaves Create refused, as picking none by hand does.
     expect((screen.getByTestId("token-create") as HTMLButtonElement).disabled).toBe(true);
   });
 
