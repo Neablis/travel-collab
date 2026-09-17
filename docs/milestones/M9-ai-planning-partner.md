@@ -40,16 +40,19 @@ it either has not been written or has already been retired.
 |---|---|---|
 | 1 | `docs/plans/2026-09-15-M9-01-step-quota-concurrency.md` — the step ceiling holds under concurrency | **Merged**, `cacc1af` (#178, 2026-09-15). KI-94 and KI-97 resolved; the gate box below stays unticked and carries an implementation note |
 | 4 | `docs/plans/2026-09-15-M9-04-four-turn-new-trip.md` — new trip is four turns | **Written, not executed** (2026-09-15). The first shippable slice. Carries four decisions Mitchell owes (D-A to D-D) and closes KI-2026-09-12-e |
+| 5, 8, 9, 10 + §6 | `docs/plans/2026-09-16-M9-remainder.md` — grounding + KI-93, escalation + `certainty`, the replay harness, KI-12, and conversation durability | **Written and executed**, 2026-09-16. One plan for four build-order items plus the un-numbered durability one, because three of them are one dependency chain and two are a handful of files each. What it does NOT cover, and why, is its own first table |
 
 **Plan 4 is only half of build-order item 4.** That item reads *"the four-turn
 transcript and the deterministic free path"*; the plan is the transcript half,
 which the theme-authoring pass does **not** gate. The free path does need it,
 and gets its own plan.
 
-The other six — the transcript rebuild, the theme vocabulary, grounding + KI-93,
-the draft trip, escalation + `certainty`, and the gate close — are **not written
-yet**. Numbering follows the design's build order, not the order they are
-written in.
+**Still not written: build-order items 2, 3, 6 and 7** — the transcript
+rebuild, the theme vocabulary, `TripStatus: "draft"`, and the paid fork. Three
+of those are UI or content and the fourth is a contracts PR only an unbuilt
+consumer needs; none of them ticks a gate box, and item 3 additionally has an
+unanswered ownership question (design §10.6). Numbering follows the design's
+build order, not the order they are written in.
 
 ## What is actually left — audit, 2026-09-01
 
@@ -60,17 +63,24 @@ Full working: `docs/reviews/2026-09-01-milestone-audit.md`.
 
 | Scope item | State |
 |---|---|
-| Grounding (`SearchPlaces` → `placeRef`) | **Not built.** `READ_TOOL_NAMES` is `read_trip`, `read_day`, `find_free_time` — no place search exists |
+| Grounding (`SearchPlaces` → `placeRef`) | **Not built.** `READ_TOOL_NAMES` is `read_trip`, `read_day`, `find_free_time` — no place search exists. **Built 2026-09-16** — `search_places`, cited by `placeRef`, resolved server-side (KI-81, KI-93) |
 | Honest unknowns | **Shipped** — `withoutFabricatedCost`, `writeTools.ts:173` |
-| Thread contract | **Partial** — messages ride the request; **no conversation table** in `schema.ts`, so a reload loses the thread |
+| Thread contract | **Partial** — messages ride the request; **no conversation table** in `schema.ts`, so a reload loses the thread. **Closed 2026-09-16** by `localStorage` rather than by a table (design §6, Mitchell's decision); there is still no conversation table and there is deliberately not going to be one |
 | Streaming | **Shipped** (M16) |
 | Propose → review → approve | **Shipped** — `ProposalCard.tsx`, `POST /ask/apply` |
 | Refinement | **Shipped** within a session |
-| Observability | **Partial** — `askAnalytics.ts` records `steps`, `usageByStep`, `uncalledTools`, `droppedCalls`; **no replay harness exists** |
+| Observability | **Partial** — `askAnalytics.ts` records `steps`, `usageByStep`, `uncalledTools`, `droppedCalls`; **no replay harness exists**. **Built 2026-09-16** — `src/server/ai/eval/` (KI-11) |
 
 **So the remaining milestone is three things:** the assistant cites the places
 it plans, its conversation survives a reload, and its behaviour is provable in
 CI without a live call. That is what the new title names.
+
+**All three are built as of 2026-09-16** — plus escalation, `certainty` and
+KI-12, which arrived with the 2026-09-15 design rather than with this audit.
+**What is left of the gate is what a build cannot supply**: a live model call,
+and the browser walks that rest on one. `docs/plans/2026-09-16-M9-remainder.md`
+is the plan they landed under, and its first table says what it deliberately
+did not touch.
 
 **The cost of leaving it last.** `ai-live` defaults to false
 (`modelSelection.ts:19-30`) and Vercel holds one real-model record across seven
@@ -319,8 +329,22 @@ of a gate close, which this was not.**
       coordinate-less place, nothing on another continent. This prompt is the
       regression test for grounding — **KI-15 keeps it verbatim, as typed**, so
       it can be replayed exactly rather than approximated.
+      **Grounding is built (2026-09-16) and this box is a LIVE RUN, not a
+      build.** `search_places` numbers what a vendor returned, the write tools
+      cite `placeRef: N`, and the server resolves the citation into the place
+      that commits — so the model is structurally incapable of naming a place it
+      did not search for, which is what makes the Rochester run answerable at
+      all. KI-81 is resolved; KI-15 narrowed to its enrichment residual
+      (`placeNameVerdict` still has no caller on the request path). The replay
+      lane asserts the resolution on a fixed transcript, which is evidence about
+      the code and not about what a model will do with it.
 - [ ] No activity carries a fabricated cost — unknown reads as unknown, not as
       `0`/free.
+      **And since 2026-09-16 it is watched rather than only enforced**: the
+      replay lane asserts it over every transcript, one of which is a model
+      writing `amountMinor: 0` on the shipped path. Verified to catch the
+      regression by deleting `withoutFabricatedCost` from `buildProposal` and
+      watching it go red.
       **Met, and enforced more strongly than written (2026-09-01).**
       `withoutFabricatedCost` runs in `buildProposal` *and* again in
       `parseApprovedCommands` (`writeTools.ts:412`), so a client cannot post a
@@ -336,16 +360,48 @@ of a gate close, which this was not.**
       analytics, `ai.ask` records with `usageByStep`, `uncalledTools` and
       `droppedCalls`) **is already shipped** by that PR's Task 3. This is also
       the criterion that closes **KI-11**, open since M7's post-gate retro.
+      **THE HARNESS IS BUILT AND THE BOX STAYS UNTICKED, 2026-09-16, and the
+      gap is one word.** `src/server/ai/eval/` replays a transcript through the
+      real handler — the model is a recording, everything else is the shipped
+      path — and the lane asserts shape, never prose, over a discovered set. It
+      found a defect on its first run (**KI-2026-09-16-a**: a truncated tool
+      input ends the whole turn, losing the reads it had already paid for),
+      which is precisely the class KI-11 says CI cannot see. **KI-11 is
+      resolved by it.** What is missing is *recorded*: the five transcripts that
+      ship declare `source: synthetic` — hand-written from a recorded incident,
+      each naming it — because no lane here has a gateway key.
+      `recordAskTranscript` is the wrapper that makes a real one, and the
+      harness carries the three lines. One live run ticks this.
 - [ ] **The AI cannot leave a trip half-planned — KI-12.** "Plan me a trip"
       names the trip and sets its dates as part of the same approved batch. The
       headline flow finishes the job it advertises. *(Promoted to a gate box
       2026-09-01 by Mitchell's decision to assign every AI known issue to this
       milestone — see the section below for why three of twelve gate and nine
       do not.)*
+      **KI-12 is resolved, 2026-09-16, and the box needs the walk.** The entry's
+      diagnosis had gone stale — `SetTripName` and `SetTripDates` are both
+      `BatchableCommand` members and both derived into tools — and what
+      reproduced the symptom was P5's `TASK_CLASSES_FOR` cut plus a missing
+      instruction. Both fixed, conditioned on the trip being EMPTY so an
+      assistant never renames a trip somebody already named. A second defect
+      closed with it and was live: the simulated classifier excludes the word
+      "plan", so on every Vercel environment *"plan me a six day trip"*
+      classified as a question and got no write tools — this flow, dark on the
+      only path anyone can click (KI-2026-09-12-a).
 - [ ] **Every vendor call goes through the quota — KI-93.** Server-side
       geocoding consults the geocode quota rather than spending the LocationIQ
       key through a second unmetered door. Grounding multiplies the traffic
       through that vendor, so this closes with it, not after it.
+      **Done, 2026-09-16, exactly as this line predicted — with grounding, and
+      there turned out to be TWO doors rather than one.** Grounding added the
+      second (`search_places`'s port) in the same change that closed the first
+      (`enrichCommandLocations`, both passes, the city fallback included), so a
+      fix covering one would have swapped an unmetered door for another. The
+      mid-batch question the entry said was owed is answered: a ceiling stops
+      further lookups and never fails the request. `grants.test.ts` now measures
+      the set of `spend: "vendor"` tools as a filter over the registry, so a
+      third door is a decision somebody notices. **Confirm at the gate; do not
+      rebuild.**
 - [ ] **The step ceiling holds under concurrency — KI-94.** The quota's
       admission charge no longer lets simultaneous requests overshoot the global
       ceiling together. **KI-97 closes with it**, per its own entry — it is a
@@ -380,7 +436,7 @@ breaks or costs money the moment the assistant goes live.
 | KI | Why it gates |
 |---|---|
 | **KI-12** | *"The AI cannot name a trip or set its dates, so 'plan me a trip' can't produce a complete one."* This milestone exists to make the planning flow trustworthy; a flow that cannot finish is not trustworthy. Correctness, on the headline path |
-| **KI-93** | The geocoding path spends the LocationIQ key **without consulting the geocode quota at all**. Grounding is about to send far more traffic through that same vendor — closing the second unmetered door is part of building the first one, not a follow-up |
+| **KI-93** | The geocoding path spends the LocationIQ key **without consulting the geocode quota at all**. Grounding is about to send far more traffic through that same vendor — closing the second unmetered door is part of building the first one, not a follow-up. **Resolved 2026-09-16, and the sentence was right in a way it did not expect: grounding added a THIRD door, so all of them had to close at once** |
 | **KI-94** (+ **KI-97**, its tracking-only duplicate) | The step quota's admission charge is one step, so concurrent requests overshoot the global ceiling together. A spend ceiling with a burst hole is the wrong thing to have when the switch flips. KI-97 closes with it, per its own entry |
 
 ### Carried, not gating (six)

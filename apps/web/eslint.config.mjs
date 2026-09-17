@@ -67,6 +67,26 @@ const ASSISTANT_KERNEL_ALLOWED_MODULES = [
   "ai/markdownToPageNodes",
   // `RawToolIntent` and the resolver: `@tc/domain` plus the two above.
   "ai/batchResolver",
+  // **Added by M9's grounding (build order 5), and both entries are one
+  // claim.** `search_places` region-biases its lookups on the trip's own
+  // geocoded activities, which is `tripRegionOf` — a pure function over a
+  // `TripDetail` — and the kernel's port signature names the box it returns.
+  //
+  // The closure was checked, and checking it moved a line: `ai/geocodeRegion`
+  // imported its two coordinate types from the `@/server/geocoding` BARREL,
+  // whose `index.ts` reads `serverConfig` and constructs the LocationIQ
+  // adapter. That is the whole vendor edge, one hop down, which is exactly the
+  // shape that defeated the denylist this allowlist replaced. It now imports
+  // them from `geocoding/geocoder` — the interface file, which imports nothing
+  // at all — so the closure of both entries below is `@tc/contracts` plus
+  // arithmetic.
+  //
+  // `geocoding/geocoder` is on the list for the same reason and with the same
+  // check: it is the ADR-007 seam's TYPES. There is no implementation behind it
+  // to reach, which is what makes admitting it different from admitting the
+  // barrel that builds one.
+  "ai/geocodeRegion",
+  "geocoding/geocoder",
   // **Added by P4, when the admission pipeline moved inside the wall.** The
   // grant carries `AskIntentRecord` — the classifier's whole record, which the
   // per-ask analytics line also carries — and `AiGrant.taskClass` is a field of

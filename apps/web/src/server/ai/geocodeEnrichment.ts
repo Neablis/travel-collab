@@ -33,12 +33,7 @@ import {
   type BoundingBox,
   type LatLng,
 } from "@/server/ai/geocodeRegion";
-import { mapRateLimited } from "@/server/ai/rateLimit";
-
-// LocationIQ's free tier is 5,000/day but capped at 2 requests/second, and the
-// per-second limit is the one that actually binds on a 9-name itinerary.
-const REQUESTS_PER_SECOND = 2;
-const MIN_INTERVAL_MS = 1000 / REQUESTS_PER_SECOND;
+import { mapRateLimited, MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 
 // Serialized at 500 ms apart, every lookup is wall-clock latency added to an AI
 // request that is already slow. 15 caps that at ~7 s, past which the marginal
@@ -121,6 +116,87 @@ export function hasCityLevelLocations(report: LocationEnrichmentReport): boolean
 // geocode there — and `undefined` means "unchanged" on both command types.
 function hasLocation(command: BatchableCommand): command is LocationCommand & { location: Location } {
   return (command.type === "AddActivity" || command.type === "UpdateActivity") && command.location != null;
+}
+
+/**
+ * **Permission to spend one lookup at the vendor — KI-93's second half.**
+ *
+ * `geocodeQuota()` had exactly one caller for months: the `/api/geocode` proxy,
+ * which a person drives one button press at a time and which is capped at 300
+ * lookups a day. This function is the other end of the same key and can emit
+ * fifteen per approval, and it consulted nothing. The ceilings that exist to
+ * protect `LOCATIONIQ_API_KEY` bounded the cheap door and not the expensive one.
+ *
+ * It is a PORT rather than a `consumeQuota` call because this module is pure
+ * over its inputs by design — every test in `geocodeEnrichment.test.ts` drives
+ * it with a stub geocoder and no database — and because the charge belongs to
+ * the CALLER's identity: `commitProposal` knows whose approval this is, and
+ * this function only knows a list of commands.
+ *
+ * **Returning false stops further lookups; it never fails the batch.** That is
+ * the mid-batch decision KI-93 says is a product call, taken in
+ * `docs/plans/2026-09-16-M9-remainder.md` §B on the entry's own argument:
+ * enrichment is explicitly best-effort and never fails the request, so a daily
+ * ceiling must not become an outage on a path that already degrades. The names
+ * past the ceiling are reported `skipped`, exactly as the names past
+ * `MAX_LOOKUPS_PER_BATCH` already are, and the batch commits with those stops
+ * unpinned.
+ */
+export type GeocodeCharge = () => Promise<boolean>;
+
+/**
+ * The default: no ceiling at all.
+ *
+ * Every existing caller and every test gets this, which is what makes the
+ * parameter additive — and it is deliberately named for what it IS rather than
+ * `noop`, so a call site that forgot to pass a real one reads as a claim
+ * ("this path is unmetered") that a reviewer can disagree with.
+ */
+const UNMETERED: GeocodeCharge = async () => true;
+
+/**
+ * The prefix of `entries` this batch may actually look up, charging one unit
+ * per entry.
+ *
+ * **Charged up front rather than between lookups, and the count is exact**:
+ * each pass below makes exactly one `geocoder.forward` per entry it is handed
+ * (lines 234 and 303 are the only two vendor calls in this file), so `n`
+ * charges buys `n` lookups and nothing is charged for a lookup that does not
+ * happen. Discovering the boundary before the vendor calls rather than between
+ * them is the same behaviour with one fewer interleaving to reason about.
+ *
+ * Stops at the FIRST refusal rather than continuing to ask: a daily ceiling
+ * does not un-reach itself inside one batch, and `consumeQuota` bumps a counter
+ * before it compares — so asking again would inflate the user's own count with
+ * lookups that never happened.
+ */
+async function affordable<T>(entries: readonly T[], charge: GeocodeCharge): Promise<T[]> {
+  const allowed: T[] = [];
+  for (const entry of entries) {
+    if (!(await charge())) break;
+    allowed.push(entry);
+  }
+  return allowed;
+}
+
+/**
+ * Whether this location was resolved by the SERVER rather than typed by a
+ * person or guessed by a model — the one signal that lets enrichment be a
+ * fallback instead of a blanket pass (M9 grounding).
+ *
+ * `precision` is the signal because nothing else can be: a model can type a
+ * name and it can type a coordinate, and both look exactly like a person's. It
+ * cannot type `precision`, because `withoutClaimedPrecision` strips it before
+ * either of the two writers here and there is `contracts/src/activity.ts`'s
+ * own refinement keeping the field from outliving the coordinates it describes.
+ *
+ * Coordinates are checked too rather than trusted from the field: the
+ * refinement makes `precision` without them unparseable, so this is defence in
+ * depth over a shape that is already impossible — cheap, and the thing that
+ * fails safe is a redundant lookup rather than a stop pinned nowhere.
+ */
+function isServerLocated(location: Location): boolean {
+  return location.precision !== undefined && plausibleCoords(location) !== null;
 }
 
 function normalize(name: string): string {
@@ -352,15 +428,39 @@ export async function enrichCommandLocations(
   getGeocoder: () => Geocoder,
   tripRegion: BoundingBox | null = null,
   sleep?: (ms: number) => Promise<void>,
+  charge: GeocodeCharge = UNMETERED,
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
   // Dedupe by normalized name, keeping the first spelling and the first
   // plausible coordinate hint seen for it. This drives the ONE shared
   // geocoder lookup per unique name and nothing else — it is not the source
   // of truth for any individual command's final location. See the per-command
   // resolution in the final `.map()` below for why that distinction matters.
+  // Declared before the dedupe loop rather than after it: the loop now records
+  // the stops it SKIPS looking up (see `isServerLocated` below), so the report
+  // has to exist by then.
+  const report = emptyReport();
   const pending = new Map<string, { name: string; hint: LatLng | null }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
+    // **Already located by the server — do not look it up again** (M9
+    // grounding, KI-15's demotion).
+    //
+    // `precision` is server-written by construction: the geocoder writes it
+    // here, `groundCitedPlaces` writes it for a cited search result, and
+    // `withoutClaimedPrecision` (writeTools.ts) strips whatever a model claimed
+    // before either runs. So `precision` beside real coordinates means *the
+    // server resolved this place*, and a blind second lookup over it is exactly
+    // the post-hoc enrichment KI-15 is about — it can only confirm or corrupt a
+    // decision that was already made against a vendor.
+    //
+    // Reported `verified`, because it is: it names a place a vendor returned.
+    // Leaving it out of the report entirely would be cheaper and would make
+    // `verified` mean "looked up in THIS batch", which is a fact about our
+    // plumbing rather than about the stop.
+    if (isServerLocated(command.location)) {
+      report.verified.push(command.location.name);
+      continue;
+    }
     const key = normalize(command.location.name);
     const existing = pending.get(key);
     const hint = plausibleCoords(command.location);
@@ -371,12 +471,23 @@ export async function enrichCommandLocations(
     }
   }
 
-  const report = emptyReport();
   if (pending.size === 0) return { commands, report };
 
   const entries = Array.from(pending.entries());
-  const attempted = entries.slice(0, MAX_LOOKUPS_PER_BATCH);
-  for (const [, { name }] of entries.slice(MAX_LOOKUPS_PER_BATCH)) report.skipped.push(name);
+  const withinBatchCap = entries.slice(0, MAX_LOOKUPS_PER_BATCH);
+  // **Two ceilings, and they are different ceilings.** `MAX_LOOKUPS_PER_BATCH`
+  // is about the wall clock of the request the user is waiting on; the geocode
+  // quota is about the operator's daily spend at the vendor (KI-93). A name
+  // past either is reported the same way — `skipped`, never looked up, keeping
+  // whatever coordinates it arrived with — because to the person reading the
+  // notice they are the same fact.
+  const attempted = await affordable(withinBatchCap, charge);
+  for (const [, { name }] of entries.slice(attempted.length)) report.skipped.push(name);
+
+  // AFTER the charge, and only if something survived it: `getGeocoder()` throws
+  // without the key, and a batch the quota refused outright must not turn a
+  // ceiling into a 500.
+  if (attempted.length === 0) return { commands, report };
 
   const geocoder = getGeocoder();
 
@@ -458,8 +569,17 @@ export async function enrichCommandLocations(
   // naming a CITY in a report whose every other entry is a stop name would read
   // as a stop we failed on.
   const cityBudget = Math.max(0, MAX_LOOKUPS_PER_BATCH - attempted.length);
+  // The quota binds here too, and it has to: the city fallback is the COMMON
+  // path (KI-2026-08-30-f — our OSM-derived geocoder structurally cannot
+  // corroborate a small venue), so metering only the venue pass would leave the
+  // busier half of this function's vendor traffic uncounted. Same charge, same
+  // stop-at-the-first-refusal rule.
+  const affordableCities = await affordable(
+    Array.from(cityQueries.entries()).slice(0, cityBudget),
+    charge,
+  );
   const cityCoords = new Map<string, LatLng>();
-  if (cityQueries.size > 0 && cityBudget > 0) {
+  if (affordableCities.length > 0) {
     // Checked against everything the venue pass settled on, which is strictly
     // more evidence than any single lookup inside that pass had.
     const region = tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
@@ -470,7 +590,7 @@ export async function enrichCommandLocations(
     // twice separately.
     await wait(MIN_INTERVAL_MS);
     const resolvedCities = await mapRateLimited(
-      Array.from(cityQueries.entries()).slice(0, cityBudget),
+      affordableCities,
       MIN_INTERVAL_MS,
       async ([key, query]) => [key, await resolveCityCoords(geocoder, query, region)] as const,
       wait,
@@ -519,6 +639,22 @@ export async function enrichCommandLocations(
   return {
     commands: commands.map((command) => {
       if (!hasLocation(command)) return command;
+      // **The same skip the dedupe loop applies, and applying it in only one of
+      // the two places was a defect** (CodeRabbit, PR #184).
+      //
+      // The dedupe loop stops a server-located stop being LOOKED UP. It does
+      // not stop this map handing that stop another command's resolution:
+      // `resolutionByKey` is keyed by normalized NAME, so a second command
+      // whose model-typed name normalizes the same — easy for a well-known
+      // place, where the model types what the vendor would return — resolves,
+      // and the grounded stop takes its answer. `{ ...approved,
+      // ...resolution.location }` would then replace the cited coordinates,
+      // name and `precision` with the vendor's answer for a different stop.
+      //
+      // That is the post-hoc geocoder relocating a grounded pin, which is the
+      // one thing this module may never do (KI-15) and precisely the demotion
+      // M9's grounding is supposed to guarantee.
+      if (isServerLocated(command.location)) return command;
       const resolution = resolutionByKey.get(normalize(command.location.name));
       if (!resolution) return command;
       // `verified`/`unchecked` both carry a real geocoder match (`found`,

@@ -106,6 +106,49 @@
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
   --container-content: 70rem;   /* 1120px — default page + non-full lenses */
+
+  /* ── The assistant transcript's own register (design §2a/§2d, SPEC §30.5).
+     The design gives the two voices 13px/1.5 and 14px/1.65, a 2px rule, an
+     11px indent and a 15px turn gap. Every one of those is an arbitrary
+     Tailwind value unless it is named here, and §2d is explicit that they
+     become TOKENS rather than four more entries on KI-2026-09-05-v's 128
+     line-level disables.
+
+     **No new `text-*` size token, on purpose.** 13px and 14px are already
+     `--text-sm` and `--text-base`; only the leading differs. And the note
+     above `--text-3xl` records why a bespoke `text-a-you` would be actively
+     wrong: tailwind-merge classifies an unknown `text-*` as a COLOR, so it
+     would collide with `text-a-you-ink` below and one of the two would be
+     dropped. `leading-*` and `--spacing-*` carry no such ambiguity. */
+  --leading-a-you: 1.5;
+  --leading-a-asst: 1.65;
+  --spacing-a-indent: 11px;
+  --spacing-a-turn: 15px;
+
+  /* **The transcript's theme contract — and why `@theme` and NOT `@theme inline`.**
+
+     §2a states it: a look may restyle `--color-a-you-rule`, `--color-a-you-ink`
+     and `--color-a-asst-ink`; both inks sit on the panel background
+     (`--color-surface`, which is what `AssistantRail` paints) and both must stay
+     legible there; and no look may reintroduce a filled message box.
+     `transcriptLook.test.ts` asserts the contrast half per look, and the
+     no-filled-box half against `Transcript.tsx`'s source.
+
+     `@theme inline` — the form the font aliases below use — would compile
+     `text-a-you-ink` down to `var(--color-slate)` at build time, and a look
+     overriding `--color-a-you-ink` would then do nothing at all. That silently
+     breaks the first clause of the contract. Plain `@theme` emits the alias as a
+     custom property and the utility reads it through `var()`, so a look can
+     retarget EITHER this token or the one it points at. The two forms look
+     interchangeable here and are not.
+
+     Aliases rather than new literals: the color wall keeps raw colors to this
+     file, and the looks already tune `--color-slate`, `--color-ink` and
+     `--color-brand`. A transcript that did not follow them would be a fifth look
+     nobody asked for. */
+  --color-a-you-rule: var(--color-brand);
+  --color-a-you-ink: var(--color-slate);
+  --color-a-asst-ink: var(--color-ink);
 }
 
 @theme inline {
