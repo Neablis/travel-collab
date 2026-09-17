@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
@@ -92,6 +92,16 @@ export class ApiTokenPepperMissingError extends Error {
  * and so a missing value fails the request that needed it rather than the import
  * of anything that transitively touches this module.
  */
+/**
+ * `N=16384, r=8, p=1` — Node's own defaults, ~37ms here, ~16MB of memory.
+ *
+ * Changing any of these invalidates every stored digest exactly as rotating the
+ * pepper does, so they are a constant rather than an environment knob: a
+ * parameter someone can tune per deployment is one that silently locks an
+ * environment's tokens out when it differs from the one that wrote them.
+ */
+const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
+
 function pepper(): string {
   const value = process.env.API_TOKEN_PEPPER ?? "";
   // **Fails closed and loudly.** An empty pepper would still produce a stable
@@ -103,39 +113,44 @@ function pepper(): string {
 }
 
 /**
- * `HMAC-SHA256(pepper, secret)`, hex — a **keyed** digest, not a bare hash.
+ * `scrypt(secret, pepper)`, hex — **keyed AND deliberately slow**.
  *
- * **Why not bcrypt, argon2 or scrypt**, and this is a decision rather than an
- * omission. A slow KDF exists to make *guessing* expensive, and it is the right
- * answer for a human-chosen password drawn from a small, skewed space. This
- * secret is 32 bytes of `randomBytes` — there is no space to guess through, so a
- * KDF defends against nothing here and charges ~100ms of CPU on **every single
- * API request** to do it. For an endpoint a customer's integration calls on a
- * schedule, that is a real cost bought with no benefit. GitHub, Stripe and AWS
- * all store high-entropy API credentials this way for the same reason.
+ * **Two properties, and they are separate.** The pepper is the salt, so the
+ * digest cannot be computed by anyone holding only the database: a stolen
+ * backup is not enough to verify a token, or to confirm which row a plaintext
+ * leaked through some other channel belongs to. The work factor is on top of
+ * that, and is what a bare keyed digest did not have.
  *
- * **What the key buys, which a bare `sha256` did not.** A bare digest is
- * reproducible by anyone holding the database: leak a backup and every row can
- * be checked against a guess, and — far worse — anyone who learns a token's
- * plaintext through any other channel can confirm which row it is. Keyed, the
- * digest cannot be computed without `API_TOKEN_PEPPER`, which does not live in
- * Postgres. **A stolen database is no longer enough to verify a token.** That is
- * a property worth having and it costs nothing measurable.
+ * **A FIXED salt, on purpose.** Per-row salts exist to stop one precomputation
+ * attacking every row at once — a real concern for human-chosen passwords, and
+ * a non-concern for 32 bytes of `randomBytes`, where no precomputation is
+ * possible at any scale. A fixed salt is also what keeps verification a single
+ * indexed equality: per-row salts would force a scan of every live token on
+ * every request, which is both slower and a worse failure mode than the one
+ * they would be defending against.
+ *
+ * **The cost is real and it is accepted.** Measured on this hardware:
+ * HMAC-SHA256 is under a microsecond, `N=16384` is ~37ms, `N=32768` ~87ms.
+ * At `N=16384` every authenticated `v1` request pays ~37ms of CPU it did not
+ * pay before. Against the per-token quota of 1,000 requests an hour that is
+ * ~37 CPU-seconds an hour for a maximally busy integration.
+ *
+ * **Why pay it, when the input has no guessable space.** It is genuinely
+ * belt-and-braces: 2^256 is not searchable whatever the work factor, so the
+ * marginal security is close to nil, and the honest case for it is not
+ * cryptographic. It is that a credential store should not be the place where
+ * this codebase argues with a high-severity scanner finding, and that the
+ * failure mode of being wrong here is unbounded while the failure mode of
+ * paying 37ms is a slower background sync. Mitchell called it twice; the
+ * asymmetry is the reason, not the CodeQL rule's own model, which does not
+ * consider entropy.
  *
  * **Rotating the pepper invalidates every token**, deliberately and with no
- * migration path. That is the correct blast radius for a key compromise, and it
- * is why it has its own variable rather than borrowing `AUTH_SECRET` — rotating
- * sessions and rotating API credentials are different emergencies.
- *
- * **On the CodeQL finding** (`js/insufficient-password-hash`, alert 5): it fires
- * on `sha256` reached by anything it has typed as a password, and it does not
- * model entropy. The bare-hash form it flagged is genuinely gone; what replaces
- * it is keyed. If the alert persists against `createHmac`, it is a false
- * positive on this input and the reasoning above is the record of why — not a
- * reason to put a 100ms KDF on a read path.
+ * migration path — the correct blast radius for a key compromise, and why it
+ * has its own variable rather than borrowing `AUTH_SECRET`.
  */
 function hashOf(secret: string): string {
-  return createHmac("sha256", pepper()).update(secret, "utf8").digest("hex");
+  return scryptSync(secret, pepper(), 32, SCRYPT).toString("hex");
 }
 
 /**
