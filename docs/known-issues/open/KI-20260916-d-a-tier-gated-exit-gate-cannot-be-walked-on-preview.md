@@ -82,6 +82,24 @@
 - **Recheck:** as a dev-login operator on a preview,
   `POST <preview>/api/admin/grants` returning **201** instead of 404 means it is
   fixed.
+- **Rechecked 2026-09-17, still open — and the build is no longer the excuse.**
+  Walked again on PR 185's preview at branch HEAD `a357fdd` (Vercel deployment
+  `6493295397`, built 00:53Z, walked ~01:05Z). `GET /api/auth/session` returned
+  the operator identity spelled exactly as the variable would need it
+  (`{"id":"dev-m20operator", ...}`), and `POST /api/admin/grants` still answered
+  **404**; so did `GET /api/admin/overview` and `GET /admin`. `GET
+  /api/account/plan` came back `free@v1` with no `api.tokens` entitlement.
+  - **Not a stale build.** The served client bundle contains `token-scopes-all`
+    and `Select none`, strings that exist only since `bad0ae1` (00:50Z).
+  - **Not a create-only promotion.** `apps/web/src/server/users.ts:144` sets
+    `isAdmin` in the `onConflictDoUpdate` branch, so it promotes on *every*
+    sign-in, not just on account creation. The walk signed that identity in
+    against this build; had the deployed `ADMIN_USER_IDS` carried it, the column
+    would have been written and the grant would have succeeded.
+  - So the variable is still absent from the build serving the branch alias —
+    either never set, or set without the redeploy the fix sketch calls for.
+    Telling those two apart needs dashboard or API access to read the variable,
+    which the walking session did not have.
 - **Debris to be aware of:** the walk left two dev-login accounts on the preview
   database — `dev-m22walk590121` (with one trip, `M22 walk 2026-09-16T20:22`)
   and a sign-in as `m20operator`. Harmless, and named here so nobody is puzzled
