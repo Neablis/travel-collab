@@ -48,8 +48,8 @@ export type SurfaceGrant = readonly DomainCap[];
 /**
  * The whole of "which tools exist on which surface", as data.
  *
- * A missing domain means NOT GRANTED — `account` and `system` are absent from
- * every row here because no tool declares them yet, and a tool that did would
+ * A missing domain means NOT GRANTED — `account` is absent from every row here
+ * because no tool declares it yet, and a tool that did would
  * be offered nowhere until a row named its domain. That is the correct default
  * for a capability table: silence denies. **`places` stopped being one of those
  * three when M9's grounding landed**, and the fact that adding the tool was not

@@ -20,6 +20,13 @@ const REGION = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -78 };
 function harness(opts: { allow?: boolean[]; forward?: ReturnType<typeof vi.fn> } = {}) {
   const charged: string[] = [];
   const slept: number[] = [];
+  // **One ordered list, because counting cannot see order** (CodeRabbit, PR
+  // #188). "Charges ... before the vendor is asked" was asserted with two
+  // separate tallies, which an implementation that forwards first and charges
+  // afterwards satisfies exactly as well. The repo's own review rule — flag a
+  // test that asserts nothing on the path it claims to cover — is what this
+  // was failing.
+  const events: string[] = [];
   let call = 0;
   const forward =
     opts.forward ??
@@ -27,22 +34,45 @@ function harness(opts: { allow?: boolean[]; forward?: ReturnType<typeof vi.fn> }
       { canonicalName: `${query} — found`, lat: 43.08, lng: -79.06, city: "Niagara Falls", countryCode: "US" },
     ]);
   const port = createPlaceSearchPort({
-    geocoder: () => ({ forward }) as never,
+    geocoder: () =>
+      ({
+        // The cast is what the old `({ forward }) as never` was doing
+        // implicitly: `vi.fn()`'s default type is not callable with arguments,
+        // and this is the first code to call it in a typed position.
+        forward: async (query: string, options?: unknown) => {
+          events.push(`forward:${query}`);
+          return (forward as unknown as (q: string, o?: unknown) => Promise<unknown[]>)(
+            query,
+            options,
+          );
+        },
+      }) as never,
     charge: async (userId) => {
       charged.push(userId);
+      events.push(`charge:${userId}`);
       return opts.allow?.[call++] ?? true;
     },
     sleep: async (ms) => void slept.push(ms),
   });
-  return { port, charged, slept, forward };
+  return { port, charged, slept, forward, events };
 }
 
 describe("the place search port", () => {
   it("charges the geocode quota once per query, before the vendor is asked", async () => {
-    const { port, charged, forward } = harness();
+    const { port, charged, forward, events } = harness();
     await port.search({ queries: ["falls", "lunch", "hotel"], region: REGION, userId: "asker" });
     expect(charged).toEqual(["asker", "asker", "asker"]);
     expect(forward).toHaveBeenCalledTimes(3);
+    // The order is the claim: a charge that lands after its own lookup has
+    // already spent the request it was supposed to authorise.
+    expect(events).toEqual([
+      "charge:asker",
+      "forward:falls",
+      "charge:asker",
+      "forward:lunch",
+      "charge:asker",
+      "forward:hotel",
+    ]);
   });
 
   // **The mid-batch decision, taken in the plan on KI-93's own argument:** a

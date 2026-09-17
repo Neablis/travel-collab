@@ -144,6 +144,8 @@ export function useAskThread({
   // nobody wants, and navigating away mid-answer leaves the read running and
   // its setState firing into a tree that is gone.
   const abort = useRef<AbortController | null>(null);
+  /** The key `thread` is known to belong to; see the save effect below. */
+  const savedKey = useRef<string | undefined>(undefined);
   // Runs on unmount only, so it must not be keyed on anything that changes.
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -168,6 +170,14 @@ export function useAskThread({
   // what makes that one rule instead of two.
   useEffect(() => {
     if (persistAs === undefined) return;
+    // **A request in flight belongs to the conversation being left.** Its
+    // deltas would otherwise keep arriving after the new one is loaded, and
+    // `patchAnswer` patches BY ID — a restored `a3` under the new key is a
+    // legitimate target for the old turn's `a3`. Clearing the ref is what
+    // makes the identity guard in `runAsk` reject them; aborting stops the
+    // work as well as the writes. (CodeRabbit, PR #188.)
+    abort.current?.abort();
+    abort.current = null;
     const stored = loadAskThread(persistAs);
     setThread(stored);
     // The stored ids have to stay unique against the ones this session mints.
@@ -205,6 +215,20 @@ export function useAskThread({
   // which a mutation test would not let stand.
   useEffect(() => {
     if (persistAs === undefined) return;
+    // **The transition render is skipped, and that is the whole fix**
+    // (CodeRabbit, PR #188). Effects run in declaration order, so on the
+    // render where `persistAs` goes A -> B the restore above has only
+    // SCHEDULED its `setThread`: `thread` here is still A's. Writing it
+    // stored A's conversation under B's name — and because `saveAskThread`
+    // returns early on an empty thread rather than removing, the next save
+    // could not undo it. Opening B then showed A's conversation.
+    //
+    // A ref rather than state: it has to be readable in the same commit the
+    // key changed in, which is exactly what state cannot do.
+    if (savedKey.current !== persistAs) {
+      savedKey.current = persistAs;
+      return;
+    }
     saveAskThread(persistAs, thread);
   }, [persistAs, thread]);
 

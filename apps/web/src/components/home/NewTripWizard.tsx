@@ -194,8 +194,8 @@ function WizardBody({
   const days = where === undefined ? null : (LENGTH_DAYS[state.answers.when ?? ""] ?? null);
   const dated = ISO_DATE.test(arrive) && days !== null;
 
-  async function submit(applySetup: boolean) {
-    if (name === "" || submitting) return;
+  async function submit(applySetup: boolean): Promise<boolean> {
+    if (name === "" || submitting) return false;
     setError(null);
     setSubmitting(true);
 
@@ -224,17 +224,26 @@ function WizardBody({
     setSubmitting(false);
     if (!result.ok) {
       setError(result.error);
-      return;
+      return false;
     }
     onDone(result.latch.tripId, applySetup);
+    return true;
   }
 
-  /** The last turn's commit: make the trip, then say what was made. */
+  /**
+   * The last turn's commit: make the trip, then say what was made.
+   *
+   * **The phase moves only after the trip exists** (CodeRabbit, PR #188).
+   * Setting `"made"` first meant a failed create still printed "<name> is
+   * created" and swapped the retry controls for "Open the trip" — and when it
+   * was `createTrip` itself that failed, `progress` was still null, so that
+   * button closed the sheet without ever calling `onCreated`. The error was
+   * on screen the whole time, underneath a sentence contradicting it.
+   */
   async function finish() {
     const committed = commitMulti(state);
     setState(committed);
-    setPhase("made");
-    await submit(true);
+    if (await submit(true)) setPhase("made");
   }
 
   function commit(value: string) {
@@ -249,7 +258,8 @@ function WizardBody({
   // fabricated note in a repo that keeps a registry to mark exactly those.
   const closing =
     phase === "made"
-      ? `${name} is created, ${days ?? 0} days${dated ? ` from ${formatTripDate(arrive)}` : ""}. ` +
+      ? `${name} is created${days === null ? "" : `, ${days} days`}` +
+        `${dated ? ` from ${formatTripDate(arrive)}` : ""}. ` +
         "The days are empty and yours to fill — what you said about pace and what the trip is " +
         "about is not built in yet."
       : null;

@@ -72,7 +72,12 @@ export const NEW_TRIP_QUESTIONS: readonly NewTripQuestion[] = [
     id: "when",
     ask: "How long, roughly?",
     placeholder: "e.g. nine nights in April",
-    chipLabel: "Pick a length, or set the exact dates",
+    // **The length is required for dates to reach the trip, so the label no
+    // longer offers a dates-only path** (CodeRabbit, PR #188). `SetTripDates`
+    // needs a start AND an end, and the end is computed from the length — so
+    // an arrival date with no chip picked was accepted by the form, computed
+    // nothing, and sent no command. The date silently did not apply.
+    chipLabel: "Pick a length — and an arrival date if you know it",
     chips: ["Long weekend", "A week", "10 days", "2 weeks", "Longer"],
     dates: true,
   },

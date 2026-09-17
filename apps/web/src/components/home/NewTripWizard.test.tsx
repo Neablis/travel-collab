@@ -21,13 +21,19 @@ afterEach(cleanup);
 
 const user = userEvent.setup({ delay: null });
 
-function renderWizard() {
+type NewTripCreate = (input: {
+  name: string;
+  tripId?: string;
+}) => Promise<ApiResult<{ tripId: string }>>;
+
+function renderWizard(overrides: { createTrip?: NewTripCreate } = {}) {
   // `tripId` is optional on the prop because the CLIENT mints it now
   // (KI-2026-09-12-e) — the mock has to accept what the component really sends.
   const createTrip =
     vi.fn<(input: { name: string; tripId?: string }) => Promise<ApiResult<{ tripId: string }>>>();
-  createTrip.mockImplementation(async (input) =>
-    ({ ok: true, value: { tripId: input.tripId ?? "trip-1" } }),
+  createTrip.mockImplementation(
+    overrides.createTrip ??
+      (async (input) => ({ ok: true, value: { tripId: input.tripId ?? "trip-1" } })),
   );
   const dispatch = vi
     .fn<(command: BoardCommand) => Promise<ApiResult<CommandOutcome>>>()
@@ -167,6 +173,46 @@ describe("NewTripWizard — the four turns", () => {
 
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
     expect(screen.getByRole("button", { name: "Create with this" })).not.toBeNull();
+  });
+
+  // **A failed create used to print the opposite of what happened**
+  // (CodeRabbit, PR #188). `finish()` set the phase to "made" and only then
+  // awaited `submit`, so the closing line claimed the trip existed while the
+  // error sat underneath it, and the footer swapped the retry controls for
+  // "Open the trip" — which, with no `progress` latched, closed the sheet
+  // without ever calling `onCreated`. The trip was nowhere.
+  it("says nothing was created, and keeps the retry controls, when the create fails", async () => {
+    const { createTrip, onCreated, onOpenChange } = renderWizard({
+      // `status: 0` is this repo's shape for "the request never produced a
+      // response" — the offline case, which is the one that made the old
+      // ordering worst: no trip, and a sheet saying there was one.
+      createTrip: async () => ({ ok: false, error: { status: 0, message: "Network is down" } }),
+    });
+    await answerThroughToFeel();
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    const log = screen.getByRole("log");
+    expect(log.textContent).not.toContain("is created");
+    expect(screen.queryByRole("button", { name: "Open the trip" })).toBeNull();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  // Only a LENGTH CHIP sets `days`; free text cannot, because parsing it is the
+  // model call §30.2 forbids. The closing line used to fall back to `days ?? 0`
+  // and announce "0 days" (CodeRabbit, PR #188).
+  it("names no day count in the closing line when no length chip was picked", async () => {
+    const { createTrip } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.type(screen.getByLabelText("How long, roughly?"), "nine nights in April{Enter}");
+    await user.click(screen.getByRole("button", { name: "Slow" }));
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    const log = screen.getByRole("log");
+    expect(log.textContent).toContain("Lisbon is created.");
+    expect(log.textContent).not.toContain("0 days");
   });
 
   it("makes the footer's primary Open the trip once the trip exists", async () => {

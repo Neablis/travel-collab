@@ -46,6 +46,34 @@ function declarationsIn(block: string): Map<string, string> {
   return out;
 }
 
+/** Brace-matched body of an at-rule, by its opening text. Returns "" when the
+ *  block is absent, so a caller can assert presence itself. */
+function blockAfter(opening: string): string {
+  const start = CSS_BARE.indexOf(opening);
+  if (start < 0) return "";
+  let depth = 0;
+  for (let i = CSS_BARE.indexOf("{", start); i < CSS_BARE.length; i += 1) {
+    if (CSS_BARE[i] === "{") depth += 1;
+    else if (CSS_BARE[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return CSS_BARE.slice(start, i);
+    }
+  }
+  throw new Error(`unterminated block: ${opening}`);
+}
+
+/** Every `html[data-look="x"] <selector> { ... }` RULE — the ones `lookBlocks`
+ *  deliberately skips, because they carry a selector rather than tokens. */
+function lookScopedRules(): { look: string; selector: string; body: string }[] {
+  const out: { look: string; selector: string; body: string }[] = [];
+  for (const match of CSS_BARE.matchAll(/html\[data-look="(\w+)"\]\s+([^{}]+?)\s*\{([^}]*)\}/g)) {
+    const [, look, selector, body] = match;
+    if (look === undefined || selector === undefined || body === undefined) continue;
+    out.push({ look, selector: selector.trim(), body });
+  }
+  return out;
+}
+
 /** The `@theme` block IS the `paper` look — it is what you get by overriding
  *  nothing, which is why `paper` has no block of its own in globals.css. */
 function themeBlock(): string {
@@ -184,10 +212,22 @@ describe("the transcript's theme contract", () => {
   // `@theme inline` would compile the utility down to `var(--color-slate)` and
   // a look overriding `--color-a-you-ink` would do nothing — the first clause
   // of §2a's contract, broken silently. The two forms are one word apart.
+  //
+  // **Checking only the FIRST occurrence was not enough** (CodeRabbit, PR
+  // #188): a second declaration inside `@theme inline` leaves the first one in
+  // `@theme` exactly where it was, so the old assertion passed while the
+  // override it protects was already dead. The inline block is parsed and each
+  // alias asserted absent from it.
   it("declares those aliases in @theme, not @theme inline", () => {
-    const inlineStart = CSS_BARE.indexOf("@theme inline");
-    expect(inlineStart).toBeGreaterThan(-1);
-    expect(CSS_BARE.indexOf("--color-a-you-ink")).toBeLessThan(inlineStart);
+    const inline = blockAfter("@theme inline");
+    expect(inline, "no @theme inline block — has globals.css been restructured?").not.toBe("");
+    const inlineNames = declarationsIn(inline);
+    for (const alias of ["--color-a-you-rule", "--color-a-you-ink", "--color-a-asst-ink"]) {
+      expect(inlineNames.has(alias), `${alias} is declared in @theme inline`).toBe(false);
+      // And it really is declared in the plain block, so "absent from inline"
+      // cannot be satisfied by being absent everywhere.
+      expect(declarationsIn(themeBlock()).has(alias)).toBe(true);
+    }
   });
 });
 
@@ -205,6 +245,34 @@ describe("no look reintroduces a filled message box", () => {
     expect(markup).toContain("pl-a-indent");
     expect(markup).not.toMatch(/\bbg-/);
     expect(markup).not.toMatch(/\brounded/);
+  });
+
+  // **A look cannot add a fill by reassigning a token — but it CAN by scoping a
+  // rule** (CodeRabbit, PR #188). `lookBlocks()` parses only the flat token
+  // blocks, so `html[data-look="x"] .pl-a-indent { background: … }` was
+  // invisible to every assertion in this file, and the rendered tests never
+  // read computed style. This reads the scoped rules the other parser skips.
+  it("lets no look scope a fill onto the transcript's own classes", () => {
+    const rules = lookScopedRules();
+    // A witness: the parser must be finding the scoped rules that DO exist,
+    // or the loop below is a pass over nothing.
+    expect(rules.length, "no look-scoped rules parsed — the scanner is blind").toBeGreaterThan(0);
+
+    const TRANSCRIPT_CLASSES = [
+      "a-you-rule",
+      "a-you-ink",
+      "a-asst-ink",
+      "a-indent",
+      "a-turn",
+      "leading-a-you",
+      "leading-a-asst",
+    ];
+    for (const rule of rules) {
+      if (!TRANSCRIPT_CLASSES.some((name) => rule.selector.includes(name))) continue;
+      expect(rule.body, `${rule.look} fills the transcript via ${rule.selector}`).not.toMatch(
+        /background|border-radius|\bradius\b/,
+      );
+    }
   });
 
   // 13px/1.5 and 14px/1.65 are arbitrary Tailwind values unless tokenised, and

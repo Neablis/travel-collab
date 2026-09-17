@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
-import { saveAskThread } from "@/lib/askThreadStore";
+import { loadAskThread, saveAskThread } from "@/lib/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";
@@ -110,6 +110,39 @@ describe("useAskThread — durability", () => {
   // one and then closes the tab does not come back to the old thread.
   // `clearAskThread` is the only thing that forgets — the save effect never
   // removes, deliberately (see the hook's own note).
+  // **Switching trips used to move one trip's conversation onto another**
+  // (CodeRabbit, PR #188). Effects run in declaration order, so on the render
+  // where `persistAs` changes the restore has only SCHEDULED its `setThread`
+  // and the save still sees the OLD thread — which it then wrote under the NEW
+  // name. `saveAskThread` returns early on an empty thread rather than
+  // removing, so the empty restore that followed could not undo it: opening
+  // the second trip showed the first trip's conversation, and it persisted.
+  it("does not carry one trip's conversation into another when the surface re-keys", async () => {
+    const OTHER = "trip:99999999-2222-4333-8444-555566667777";
+    saveAskThread(NAME, stored);
+
+    const view = renderHook(
+      ({ name }: { name: string }) =>
+        useAskThread({
+          tripId: TRIP,
+          scope: { kind: "trip" },
+          errorMessage: (error: ApiError) => error.message,
+          persistAs: name,
+        }),
+      { initialProps: { name: NAME } },
+    );
+    await waitFor(() => expect(view.result.current.thread).toHaveLength(2));
+
+    view.rerender({ name: OTHER });
+    await waitFor(() => expect(view.result.current.thread).toHaveLength(0));
+
+    // The trip with no conversation still has none — in storage, not just on
+    // screen, which is the half that outlived the switch.
+    expect(loadAskThread(OTHER)).toEqual([]);
+    // And the trip that owns it kept it.
+    expect(loadAskThread(NAME)).toHaveLength(2);
+  });
+
   it("forgets the stored conversation when a new one is started", async () => {
     saveAskThread(NAME, stored);
     const first = mount(NAME);
