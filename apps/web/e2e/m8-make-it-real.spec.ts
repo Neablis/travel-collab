@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dragCardTo, openPlan } from "./helpers";
+import { dragCardTo, openPlan, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
@@ -32,9 +32,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 
   await page.goto("/");
 
-  await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
+  await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
@@ -184,9 +182,7 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
   const tripName = e2eTripName("Anchor");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
+  await createEmptyTripViaWizard(page, tripName);
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 
   // Hold every per-card TripDetail response until `release()`, then reload:

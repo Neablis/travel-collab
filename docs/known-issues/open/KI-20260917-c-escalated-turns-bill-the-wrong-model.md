@@ -1,0 +1,11 @@
+### KI-2026-09-17-c — an escalated turn records all of its usage against the model it started on
+
+- **Severity:** accounting (cost per turn is understated for escalated turns; no user-visible behaviour changes)
+- **Area:** `apps/web/src/server/ai/handleAskRequest.ts` — the recorder at `model: grant.modelId` against the `prepareStep` swap to `grant.escalation.model`
+- **Symptom:** a `withheld` turn is admitted on `tierFor("question")` and calls `request_change_tools`; `prepareStep` then re-enters the remaining steps with `grant.escalation.model`, which is a different and more expensive tier. The usage recorder captures `grant.modelId` once, so `ledgerFor` stores the initial model in `cost.turn.model`, `ai.ask` logs it, and `recordAiUsage` persists it. Every token the escalated steps spent is billed at the cheap model's rate.
+- **Found by:** CodeRabbit, PR #188. Confirmed by reading the two lines: the swap and the recorder disagree, and nothing between them reconciles the two.
+- **Why it is filed rather than fixed in #188:** the turn genuinely spends tokens on BOTH models, so the fix is not "record the final model" — that trades an understatement for an overstatement. It needs per-step usage, which means splitting one turn into more than one usage entry, and `recordAiUsage` and the margin views downstream assume one row per turn. That is a change to the cost ledger's shape, on a PR that is already 97 files and in review for something else.
+- **What bounds the damage today:** escalation only fires on a `withheld` turn that asks for write tools, so the misattributed population is small and its direction is known (understated, never over). The token totals themselves are correct; only their model label is wrong.
+- **Fix path, if taken:** have the recorder read usage per step rather than per turn — the AI SDK reports `steps` with their own usage — and persist one entry per distinct model, or persist the turn with a breakdown. Decide first whether `cost.turn.model` stays a single value, because the margin list reads it.
+- **Cross-reference:** KI-2026-09-12-a (resolved — escalation itself), `docs/guidelines/ai-cost-and-quality.md`, the `ai-usage` skill, which reports cost per turn from exactly these records.
+- **First noted:** 2026-09-17, working CodeRabbit's review of PR #188.

@@ -165,8 +165,36 @@ could, and the two boxes ticked with a caveat named are the retro in
 - **`ai_usage` is best-effort on the abort and error paths** — `KI-2026-09-14-b`. The ledger
   M21 prices against is complete for every turn that finishes and eventual for the rest.
 
-**M9 is paused, not cancelled**, and keeps its place immediately after M21. Its Phase 0 is
-below, unchanged, because it is what M9's three real pieces of work are still built on.
+**M9 IS NO LONGER PAUSED, AND MOST OF ITS REMAINING BUILD LANDED 2026-09-16** on
+`claude/dreamy-meitner-4o27ml`, under `docs/plans/2026-09-16-M9-remainder.md` — which is
+also where the four build-order items it deliberately did NOT touch are listed (the
+transcript rebuild, the theme pass, the draft trip, the paid fork). It keeps its place
+after M21 for the *gate*, which is what is left of it.
+
+**Grounding** (`search_places` → `placeRef`, resolved server-side), **KI-93** (every door
+into the vendor key charges the geocode quota), **KI-12**, **escalation + `certainty`**,
+**conversation durability** (`localStorage`, no table) and **the replay harness**.
+Resolved with them: **KI-81, KI-11, KI-2026-09-12-a**; KI-15 narrowed to its enrichment
+residual. The milestone file's exit gate carries what each one did and did not close.
+
+**Four things to know before touching it.**
+
+1. **What is left of the gate is what a build cannot supply**: a live model call, the
+   Rochester re-run that rests on one, and the browser walks. The replay lane is evidence
+   about the code AROUND the model and is **not** the live-call box — its own header says
+   so, and the five transcripts that ship declare `source: synthetic`.
+2. **The harness found a defect on its first run** — `KI-2026-09-16-a`: a tool call whose
+   arguments were truncated ends the WHOLE turn, losing the reads it had already paid for.
+   Exactly the class KI-11 said CI could not see.
+3. **`Location.precision` is server-written by construction now.** A model's claim is
+   stripped before the server's is written, and `enrichCommandLocations` SKIPS a location
+   that already carries it — so the field is load-bearing rather than descriptive, and
+   that is what closes the gap `contracts/src/activity.ts` names in its own comment.
+4. **A `withheld` turn is no longer a dead end.** It holds `request_change_tools` and
+   re-enters with the write set via `prepareStep`. Every escalation is a labelled
+   classifier miss on the `ai.ask` line, which is the eval corpus written by real use.
+
+Phase 0 is below, unchanged, because it is what all of the above is built on.
 
 **M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
 P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and

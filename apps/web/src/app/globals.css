@@ -106,6 +106,77 @@
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
   --container-content: 70rem;   /* 1120px — default page + non-full lenses */
+
+  /* ── The assistant transcript's own register (design §2a/§2d, SPEC §30.5).
+     The design gives the two voices 13px/1.5 and 14px/1.65, a 2px rule, an
+     11px indent and a 15px turn gap. Every one of those is an arbitrary
+     Tailwind value unless it is named here, and §2d is explicit that they
+     become TOKENS rather than four more entries on KI-2026-09-05-v's 128
+     line-level disables.
+
+     **No new `text-*` size token, on purpose.** 13px and 14px are already
+     `--text-sm` and `--text-base`; only the leading differs. And the note
+     above `--text-3xl` records why a bespoke `text-a-you` would be actively
+     wrong: tailwind-merge classifies an unknown `text-*` as a COLOR, so it
+     would collide with `text-a-you-ink` below and one of the two would be
+     dropped. `leading-*` and `--spacing-*` carry no such ambiguity. */
+  --leading-a-you: 1.5;
+  --leading-a-asst: 1.65;
+  --spacing-a-indent: 11px;
+  --spacing-a-turn: 15px;
+
+  /* **The new-trip transcript is chat-shaped, and only that one** (SPEC §31.1,
+     2026-09-18). It revises §30.5 for this surface alone: the desktop panel and
+     the phone Ask sheet keep the prose treatment above. The reason is length —
+     in the panel a turn is a question and a long answer, so voice is enough; in
+     new trip half the transcript is two- and three-word answers ("Lisbon",
+     "Slow"), and at that length a left-ruled quote reads as a caption rather
+     than as something a person said.
+
+     Tokenised rather than written inline for §2d's reason: 13.5px, a notched
+     radius and a 22px mark are arbitrary Tailwind values otherwise, and this
+     repo has ~40 line-level eslint escapes (KI-2026-09-05-v) from the last
+     time that was the answer. */
+  --text-a-chat: 13.5px;
+  --spacing-a-turn-chat: 12px;
+  --spacing-a-bubble-x: 13px;
+  --spacing-a-bubble-y: 8px;
+  /* The notch marks the side, so this is deliberately not symmetric. */
+  --radius-a-bubble: 14px 14px 4px 14px;
+  --spacing-a-mark: 22px;
+  /* Percentages, so they belong to the `--container-*` namespace that feeds
+     `max-w-*` rather than to `--spacing-*`. */
+  /* The inline first-run conversation's column. In the sheet the surface
+     supplies the height; on the empty Home it has none, and §31.3 is explicit
+     that the transcript must never be the thing that grows its container. */
+  --spacing-a-thread: 28rem;
+  --container-a-you: 78%;
+  --container-a-asst: 88%;
+
+  /* **The transcript's theme contract — and why `@theme` and NOT `@theme inline`.**
+
+     §2a states it: a look may restyle `--color-a-you-rule`, `--color-a-you-ink`
+     and `--color-a-asst-ink`; both inks sit on the panel background
+     (`--color-surface`, which is what `AssistantRail` paints) and both must stay
+     legible there; and no look may reintroduce a filled message box.
+     `transcriptLook.test.ts` asserts the contrast half per look, and the
+     no-filled-box half against `Transcript.tsx`'s source.
+
+     `@theme inline` — the form the font aliases below use — would compile
+     `text-a-you-ink` down to `var(--color-slate)` at build time, and a look
+     overriding `--color-a-you-ink` would then do nothing at all. That silently
+     breaks the first clause of the contract. Plain `@theme` emits the alias as a
+     custom property and the utility reads it through `var()`, so a look can
+     retarget EITHER this token or the one it points at. The two forms look
+     interchangeable here and are not.
+
+     Aliases rather than new literals: the color wall keeps raw colors to this
+     file, and the looks already tune `--color-slate`, `--color-ink` and
+     `--color-brand`. A transcript that did not follow them would be a fifth look
+     nobody asked for. */
+  --color-a-you-rule: var(--color-brand);
+  --color-a-you-ink: var(--color-slate);
+  --color-a-asst-ink: var(--color-ink);
 }
 
 @theme inline {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { dragCardTo, openHistory, openPlan } from "./helpers";
+import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
@@ -24,9 +24,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   await page.goto("/");
 
-  await page.getByRole("button", { name: "New trip" }).click();
-  await page.getByLabel("Trip name").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
+  await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();

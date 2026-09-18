@@ -175,7 +175,62 @@ The file already records that an arbitrary Tailwind value trips the design wall.
 tokens. **Add tokens** rather than four more entries to KI-2026-09-05-v's 128 line-level
 disables.
 
-## 3. New trip is four turns
+## 3. New trip is a scripted conversation
+
+**BUILT 2026-09-16**, and **the turn count stopped being a constant on 2026-09-18** — see
+§3c. Two things about the shipped version that this section does not otherwise say, and
+that anyone reading it as a description of the product needs:
+
+- **Only the destination, the arrival and the length reach the database.** `where` becomes
+  the trip's name; `start` and `len` together become `SetTripDates`, and only together,
+  since a start with no length has no end and free text would need the model call §30.2
+  forbids. **`pace` and `feel` are collected and stored nowhere.** No field models either;
+  nothing consumes them until §4b's theme vocabulary exists. The closing turn says so in as
+  many words rather than implying otherwise (see §10's D-C).
+- **`who` is not asked**, on Mitchell's instruction, 2026-09-15.
+  `.design-sync/handoff/SPEC.md` §30.1 and §32.3 both still list it; `DRIFT.md`'s D11
+  carries the delta.
+
+### 3a. The sheet became chat-shaped — `SPEC.md` §31, built 2026-09-18
+
+§31 revises §30.1 and, **for this surface only**, §30.5. The four-turn script is
+unchanged; what changed is that the sheet now reads at a glance as a conversation.
+
+- **Two visibly different sides.** The reader's turns are right-aligned bubbles
+  (`--color-moss`, a hairline border, the notched `14px 14px 4px 14px` radius that marks
+  the side); the assistant stays containerless prose behind a 22px brand mark. The panel
+  and the phone Ask sheet keep §2a's prose treatment — `Transcript` takes a `look` prop
+  and `"chat"` is passed by this sheet alone, so the divergence cannot spread by accident.
+- **The live question is the last message in the thread**, and the thread opens with one
+  line stating §30.2's contract. That line said **"Four quick questions"**, and
+  **§3c retired the count altogether** the same week: the flow stopped being a fixed
+  length, so the line says "A few quick questions" and nothing counts the turns.
+- **One answer dock at the foot** — dates, chips, the multi-commit, then the field, in
+  that order, behind a single hairline rule. The per-question chip label is gone; the
+  placeholders now carry "or tap one above", because the chips sit in the composer's own
+  frame. The transcript scrolls and the dock does not.
+- **Exact dates became a real answer** — *and §3c then took the range picker away again*,
+  because a trip is a start date plus a length everywhere else in this app. Read the rest
+  of this bullet as history. The sheet took an arrival only, so a reader who
+  knew their dates still had to pick a length chip for anything to reach the trip —
+  `SetTripDates` needs both ends. There are two date inputs and a *Use these dates* button
+  now, and the committed answer is the range itself. This is what §30.1 always asked for,
+  and it retires the label patch that had been withdrawing the promise instead.
+
+### 3b. The empty Home renders the conversation, not a description of it
+
+`FirstTripStart` listed the four questions as a numbered `<ol>` beside a button that
+opened the sheet. Two problems, and the second is the one that mattered: it was a second
+account of the same script, so it drifted — it shipped a "Who & money" step the flow does
+not have — and a numbered list of steps is exactly the form framing §31.2 removed from the
+sheet. It renders `NewTripConversation` inline now, so a new account's first screen is the
+first question, already answerable.
+
+The page head's "New trip" focuses that field instead of opening the sheet when the list is
+empty. Two composers with the same accessible name on one page is ambiguous to a screen
+reader and a strict-mode violation for any test addressing the field by its label, so the
+sheet is additionally gated on `!hasNoTrips` — the state is unrepresentable rather than
+merely unlikely.
 
 **Supersedes** `NewTripWizard`'s four-step stepper (Where · When · Who & Money · Shape)
 entirely. In its place, inside the same sheet, a transcript asking one question at a time.
@@ -194,7 +249,7 @@ entirely. In its place, inside the same sheet, a transcript asking one question 
 - `feel` unpicked commits as "A bit of everything" rather than blocking.
 - No stepper and no progress bar: a transcript shows its own progress, and the stepper was
   the element that made the sheet grow.
-- **No typing indicator and no artificial delay during the four turns.** There is nothing
+- **No typing indicator and no artificial delay while the questions are being asked.** There is nothing
   to wait for. A fake delay to make it feel like a model is explicitly wrong.
 
 **Both exits stay open.** *Create empty* from turn one — this path already exists, since
@@ -208,6 +263,137 @@ disclosure.
 **Close KI-2026-09-12-e while the file is open.** `NewTripWizard`'s retry is safe against a
 *rejected* command but not a *lost response*, so a committed write can still duplicate or
 deadlock. Rewriting the file around an open defect and keeping it is not acceptable.
+
+### 3c. One question became two — `SPEC.md` §32.3, built 2026-09-18
+
+**The busiest control in the flow is gone.** The `when` turn carried a length chip row
+*and* an arrive→leave range *and* a *Use these dates* button: three controls answering one
+question. It also modelled a trip as a date range, while `SetTripDates`, the board, the
+calendar and every card in this product model it as **a start date plus a length**. §32.3
+splits it into two plain questions, and the range picker is deleted rather than relocated.
+
+1. **"Do you have a start date in mind?"** — chips *Yes* / *Not yet*, and a composer.
+2. **Yes** inserts **"When do you arrive?"**, one date input and *Use this date*.
+   *Not yet* goes straight to the length.
+3. The length turn then asks *"And how long are you staying?"* when a day is fixed and
+   *"How long, roughly?"* when it is not. **No date input appears on it.**
+
+Four things a build owes, and what holds each here:
+
+- **The list is derived.** `questionsFor(answers)` builds it, so the flow is five turns
+  without a date and six with one. There is no exported array of questions to read a length
+  off — `questionAt` and `isComplete` both take the state, so the question being committed
+  and the length completion is measured against come from the same answers. A list captured
+  before a commit and one captured after disagree by exactly one turn; this shape makes
+  that unrepresentable rather than merely avoided.
+- **Nothing states the count, including the copy.** §31.2's opening line said *"Four quick
+  questions"*; it says *"A few quick questions"*. The test asserts the **absence** of any
+  count rather than the presence of the right one, because updating the number is the fix
+  that breaks again on the next split.
+- **Revising the date question away from *Yes* drops the picked day.** `commitAnswer`
+  deletes `answers.start`, and `dated` requires it before the ISO still in component state
+  may date anything. Two halves, and the guard is the one worth owning: a defensive
+  `setArrive("")` on that branch was written, survived every mutation, and was deleted.
+- **Dates are formatted at commit.** The picker's `2026-10-03` becomes `Oct 3, 2026`
+  before it enters the transcript or the closing line; the raw value reaches `SetTripDates`
+  and nothing else. `formatTripDateWithYear`, not `formatTripDate` — the weekday-first
+  variant the board uses drops the year, which reads fine on a day inside an open trip and
+  badly as the answer to "when do you arrive".
+
+**A typed answer to the date question does not date the trip.** "Sometime in April" commits,
+reads back in the transcript and takes the undated path, because parsing prose into a day is
+the model call §30.2 forbids — the same line free text already takes on the length turn. The
+prototype's summary prints such an answer as though it were a date; this does not.
+
+### 3d. The phone, and what §32.2 actually owed — built 2026-09-18
+
+Two of §32.2's three asks are already true here and needed no build, which is worth writing
+down so they are not "built" twice:
+
+- **The *New trip* pill** it adds to the phone Trips screen closes a gap in the prototype,
+  not in this app: the page head's button has been at every width since M15.
+- **The tab bar it hides** is hidden already. The sheet renders in `.overlay-layer` at
+  z-60, over `PhoneTabBar`'s z-20.
+
+What was owed is **control sizing**. The answer dock's field, chips, *Send*, *Use this
+date* and both exits carry `min-h-11 sm:min-h-0`, so a phone gets `SPEC.md` §13.1's 44px
+floor and the desktop keeps the sizes §31 left. `responsive.spec.ts` measures the rendered
+boxes at 375px rather than reading a class — the class is one way to get there, the height
+is what §13.1 asks for, and `toHaveClass` is banned in this suite for that reason.
+
+**The 40px chip §32.2 draws is a deliberate refusal.** It would be a sixth control height
+in a scale that has four, to sit 4px under a floor §13.1 calls absolute.
+
+### 3e. §32.1's `ntLand()` needed no build — and widening it broke nine specs
+
+§32.1 says finishing a first run has to land you in an app, and names the two exits that do
+it: *Create with this* and *Open the trip*. Both already pass `navigate: true` and push.
+
+Making *Create empty* navigate as well was tried and reverted. It is this build's escape
+hatch from the old single-field dialog; `createEmptyTripViaWizard` reaches it on an empty
+list and then asserts the new trip's link **on the home page** — so navigating there is the
+precise regression CI caught on PR #32, across nine spec files. The prototype needs
+`ntLand` because its first-run screen has no app behind it; ours re-renders Home with the
+new trip's card on it, which is an app and is not "staring at nothing".
+
+What §32.1 did change here is the opening line: first run gets its own
+(`NEW_TRIP_OPENING_FIRST_RUN`), because *"I will draft the trip"* has no antecedent on a
+screen with no trips behind it.
+
+### 3f. Two defects the preview found that no test had — 2026-09-18
+
+Both came from Mitchell's Vercel Toolbar comment on the `5c27d37` preview, and
+both are the kind only a rendered page shows.
+
+**The sheet contained a chat box instead of being one.** *"This is still wrong,
+the input and decisions are at bototm, and the chat at top, this should look
+like a chat box"*, anchored to the composer inside the dialog.
+
+`Sheet` puts every child inside its own `flex-1 overflow-y-auto` scrollport, and
+that scrollport is a **block**: it sizes its child to content. So
+`NewTripConversation`'s `flex-1` transcript had nothing to fill. The thread grew
+the sheet, carried the dock down with it, and the composer left the fold as the
+conversation got longer — **§31.3's "original sin", reintroduced one level up
+from where §31 fixed it**. `FirstTripStart` never showed it because it bounds the
+conversation with `h-a-thread`; the sheet path had no bound at all.
+
+Two changes, both small:
+
+- **`h-full` on the conversation's root.** It takes the scrollport's resolved
+  height, so the column is definite, `min-h-0` bites, and the transcript becomes
+  the only thing that scrolls. The sheet's own scrollport then has nothing to
+  scroll, which is what nails the dock to the foot.
+- **The input and the decisions became one block.** They were two, with the
+  `wizard-assistant-draft` Preview between them — so "the input" and "the
+  decisions" were separated by something that is neither. The shell moved into
+  the scrolling half, above the dock, where it belongs: it is something to read,
+  not something to answer with.
+
+Asserted in `responsive.spec.ts` at 420×620, because a layout defect has to be
+caught where layout exists. The invariant is the one §31.3 states — the
+transcript scrolls and the dock does not — in its observable form: **the sheet's
+scrollport never has anything to scroll**, and the transcript's does. Without
+`h-full` the flow's commit button reports `viewport ratio 0`.
+
+**And the sheet a reader is typing into was being taken away.** Found by the
+same session's e2e run, where `createEmptyTripViaWizard` hung for its full 30s
+timeout on a permanently disabled "Create empty".
+
+"New trip" is pressable while `trips` is still null, so the sheet can be open
+when the list lands empty and the first-run screen appears beneath it. Three
+shapes have now stood here:
+
+1. **Render both** — the original defect: two fields with one accessible name.
+2. **`open={newTripOpen && !hasNoTrips}` plus an effect clearing the request** —
+   CodeRabbit's round 2. It fixed (1) and broke something worse: every keystroke
+   already typed into the sheet was destroyed the instant the empty list
+   resolved, leaving an empty inline field and a disabled exit.
+3. **The sheet wins and `FirstTripStart` yields its conversation.** The surface
+   a reader is USING is not the one to take away.
+
+(3) also retires the resurfacing case (2) existed for: nothing is ever
+requested-but-hidden, so nothing latches, and a reader cannot create a first trip
+inline while the sheet is up — there is no moment for it to reappear over.
 
 ## 4. The fork, and what generates
 
@@ -402,7 +588,7 @@ Not a second gate — the dependency chain.
    component; every later surface inherits it finished.
 3. **The theme authoring pass** — schema, ADR-041 amendment, 148 days. Long lead time, no
    code dependency, so it runs alongside everything from here.
-4. **The four-turn transcript and the deterministic free path.** Depends on 2 and 3, not on
+4. **The scripted transcript and the deterministic free path.** Depends on 2 and 3, not on
    grounding. **This is the first shippable slice.**
 5. **Grounding + KI-93.** Grounding multiplies LocationIQ traffic, so the unmetered door
    closes with it.
@@ -456,7 +642,7 @@ grandfathered violations) and KI-2026-09-02-c (`packages/*` have no ESLint at al
 
 1. **Generation failure** (§30.6). The four answers must survive it; *Create with this* is
    the floor, never a lost conversation.
-2. **Offline at the fork** (§30.6). The four turns work offline because they are local; the
+2. **Offline at the fork** (§30.6). The questions work offline because they are local; the
    generation does not. Say so at the fork, not at the start.
 3. **Ceiling reached with access** (§30.6). Has assistant access, no turns left today.
    §17's meter copy, not a plan gate.
@@ -471,9 +657,23 @@ grandfathered violations) and KI-2026-09-02-c (`packages/*` have no ESLint at al
    or `TripDetail`. `DRIFT.md`'s D11 now calls the shells "no longer orphaned", but the data
    gap is unchanged. Either the label drops and they become static suggestions, or something
    starts storing destinations — which is D6/KI-34's neighbourhood, not M9's.
+   **ANSWERED 2026-09-16: the label drops.** Plain suggestions, no label;
+   `wizard-destination-chips` leaves the registry. Nothing starts storing destinations.
 8. **"Longer" acquired a day count.** `NT_NIGHTS` maps it to 21 nights, reversing the
    2026-08-23 decision that `Longer` has no day count the design implies. Confirm it is
    intentional.
+   **ANSWERED 2026-09-16: intentional — 21 nights holds and the 2026-08-23 decision is
+   reversed.** `Longer` becomes a fifth real length chip and `wizard-longer-chip` leaves
+   the registry. Recorded here and in plan 4's D-B now; `NewTripWizard.tsx:25-30` states
+   the old decision as live fact and **is corrected in the same commit that wires the
+   chip**, not before — a comment recording the reversal above code still implementing
+   the old one is the defect class that cost #184 two findings.
+
+**Items 1–4 and 6 remain open**, and they gate the fork (§4) and the theme pass (§4b) —
+not the new-trip script (§3) or the transcript (§2), which are unblocked by the three answers
+above. Item 5 was **taken in code** while building KI-93: a geocode ceiling reached
+mid-batch stops further lookups and does not fail the request, with the skipped names
+reported. See `docs/plans/2026-09-16-M9-remainder.md` §B.
 
 ## 11. Deltas from the 2026-09-15 design handoff
 
