@@ -225,12 +225,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -253,6 +255,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -601,12 +653,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -629,6 +683,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -1029,12 +1133,14 @@
                                     "lat": {
                                       "type": "number",
                                       "minimum": -90,
-                                      "maximum": 90
+                                      "maximum": 90,
+                                      "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                                     },
                                     "lng": {
                                       "type": "number",
                                       "minimum": -180,
-                                      "maximum": 180
+                                      "maximum": 180,
+                                      "description": "Send with lat, or omit both."
                                     },
                                     "countryCode": {
                                       "type": "string",
@@ -1057,6 +1163,56 @@
                                         "area",
                                         "city"
                                       ]
+                                    },
+                                    "address": {
+                                      "type": "object",
+                                      "properties": {
+                                        "countryCode": {
+                                          "type": "string",
+                                          "pattern": "^[A-Z]{2}$",
+                                          "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                        },
+                                        "lines": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "minItems": 1,
+                                          "maxItems": 4,
+                                          "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                        },
+                                        "dependentLocality": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                        },
+                                        "locality": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "City, town or post town."
+                                        },
+                                        "administrativeArea": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "State, province, prefecture or region."
+                                        },
+                                        "postalCode": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 20,
+                                          "description": "A string: keeps leading zeros and letters."
+                                        }
+                                      },
+                                      "required": [
+                                        "countryCode",
+                                        "lines"
+                                      ],
+                                      "additionalProperties": false
                                     }
                                   },
                                   "required": [
@@ -1410,12 +1566,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -1438,6 +1596,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -1756,12 +1964,14 @@
                       "lat": {
                         "type": "number",
                         "minimum": -90,
-                        "maximum": 90
+                        "maximum": 90,
+                        "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                       },
                       "lng": {
                         "type": "number",
                         "minimum": -180,
-                        "maximum": 180
+                        "maximum": 180,
+                        "description": "Send with lat, or omit both."
                       },
                       "countryCode": {
                         "type": "string",
@@ -1784,6 +1994,56 @@
                           "area",
                           "city"
                         ]
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "countryCode": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{2}$",
+                            "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                          },
+                          "dependentLocality": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "District, neighbourhood or suburb when it is part of the postal address."
+                          },
+                          "locality": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "City, town or post town."
+                          },
+                          "administrativeArea": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "State, province, prefecture or region."
+                          },
+                          "postalCode": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 20,
+                            "description": "A string: keeps leading zeros and letters."
+                          }
+                        },
+                        "required": [
+                          "countryCode",
+                          "lines"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -2153,12 +2413,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -2181,6 +2443,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -2671,12 +2983,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -2699,6 +3013,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -3046,12 +3410,14 @@
                       "lat": {
                         "type": "number",
                         "minimum": -90,
-                        "maximum": 90
+                        "maximum": 90,
+                        "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                       },
                       "lng": {
                         "type": "number",
                         "minimum": -180,
-                        "maximum": 180
+                        "maximum": 180,
+                        "description": "Send with lat, or omit both."
                       },
                       "countryCode": {
                         "type": "string",
@@ -3074,6 +3440,56 @@
                           "area",
                           "city"
                         ]
+                      },
+                      "address": {
+                        "type": "object",
+                        "properties": {
+                          "countryCode": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{2}$",
+                            "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            },
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                          },
+                          "dependentLocality": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "District, neighbourhood or suburb when it is part of the postal address."
+                          },
+                          "locality": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "City, town or post town."
+                          },
+                          "administrativeArea": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                            "description": "State, province, prefecture or region."
+                          },
+                          "postalCode": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 20,
+                            "description": "A string: keeps leading zeros and letters."
+                          }
+                        },
+                        "required": [
+                          "countryCode",
+                          "lines"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -3434,12 +3850,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -3462,6 +3880,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -3954,12 +4422,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -3982,6 +4452,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -4474,12 +4994,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -4502,6 +5024,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -4986,12 +5558,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -5014,6 +5588,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -5662,12 +6286,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -5690,6 +6316,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -6174,12 +6850,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -6202,6 +6880,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -6707,12 +7435,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -6735,6 +7465,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -7402,12 +8182,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -7430,6 +8212,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -10563,12 +11395,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -10591,6 +11425,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -11075,12 +11959,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -11103,6 +11989,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -11634,12 +12570,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -11662,6 +12600,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -12144,12 +13132,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -12172,6 +13162,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -13057,12 +14097,14 @@
                               "lat": {
                                 "type": "number",
                                 "minimum": -90,
-                                "maximum": 90
+                                "maximum": 90,
+                                "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
                               },
                               "lng": {
                                 "type": "number",
                                 "minimum": -180,
-                                "maximum": 180
+                                "maximum": 180,
+                                "description": "Send with lat, or omit both."
                               },
                               "countryCode": {
                                 "type": "string",
@@ -13085,6 +14127,56 @@
                                   "area",
                                   "city"
                                 ]
+                              },
+                              "address": {
+                                "type": "object",
+                                "properties": {
+                                  "countryCode": {
+                                    "type": "string",
+                                    "pattern": "^[A-Z]{2}$",
+                                    "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                  },
+                                  "lines": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "minItems": 1,
+                                    "maxItems": 4,
+                                    "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                  },
+                                  "dependentLocality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "City, town or post town."
+                                  },
+                                  "administrativeArea": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 200,
+                                    "description": "State, province, prefecture or region."
+                                  },
+                                  "postalCode": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 20,
+                                    "description": "A string: keeps leading zeros and letters."
+                                  }
+                                },
+                                "required": [
+                                  "countryCode",
+                                  "lines"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [

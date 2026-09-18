@@ -33,6 +33,7 @@ function fakeGeocoder(answers: Record<string, GeocodeResult[] | Error>) {
       if (answer instanceof Error) throw answer;
       return answer ?? [];
     },
+    forwardAddress: async () => [],
   };
   return { geocoder, calls };
 }
@@ -196,7 +197,7 @@ describe("enrichCommandLocations", () => {
     const forward = vi.fn(async () => []);
     await enrichCommandLocations(
       [addActivity("Dinner", { name: "Somewhere" })],
-      () => ({ forward }),
+      () => ({ forward, forwardAddress: async () => [] }),
       { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 },
     );
     expect(forward).toHaveBeenCalledWith("Somewhere", {
@@ -225,7 +226,10 @@ describe("enrichCommandLocations", () => {
   });
 
   it("never lets a geocoder failure reject the whole batch", async () => {
-    const geocoder: Geocoder = { async forward() { throw new Error("vendor down"); } };
+    const geocoder: Geocoder = {
+      async forward() { throw new Error("vendor down"); },
+      forwardAddress: async () => [],
+    };
     await expect(
       enrichCommandLocations([addActivity("Lunch", { name: "X" })], () => geocoder),
     ).resolves.toBeDefined();
@@ -270,7 +274,7 @@ describe("enrichCommandLocations", () => {
     const region = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 };
     await enrichCommandLocations(
       [addActivity("Dinner", { name: "Somewhere", lat: 52.9, lng: -2.89 })],
-      () => ({ forward }),
+      () => ({ forward, forwardAddress: async () => [] }),
       region,
     );
     expect(forward).toHaveBeenCalledWith("Somewhere", { limit: 1, viewbox: region });
@@ -592,6 +596,7 @@ describe("enrichCommandLocations", () => {
         inFlight -= 1;
         return [];
       },
+      forwardAddress: async () => [],
     };
     await enrichCommandLocations(
       [
@@ -654,6 +659,7 @@ describe("enrichCommandLocations", () => {
         inFlight -= 1;
         return [];
       },
+      forwardAddress: async () => [],
     };
     await enrichCommandLocations(
       ["a", "b", "c", "d"].map((n) => addActivity(n, { name: `place ${n}` })),

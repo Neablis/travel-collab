@@ -1,3 +1,5 @@
+import type { PostalAddress } from "@tc/contracts";
+
 export interface LatLng {
   lat: number;
   lng: number;
@@ -36,10 +38,20 @@ export interface GeocodeOptions {
   // excluding everything outside it — the caller applies its own acceptance
   // test to the answer.
   viewbox?: BoundingBox;
+  // Restricts results to one country (ISO alpha-2). A filter, unlike `viewbox`.
+  countryCode?: string;
 }
 
 // The swappable seam (ADR-007). Callers depend only on this; each adapter hides
 // its vendor. We persist normalized GeocodeResults, never raw vendor payloads.
 export interface Geocoder {
   forward(query: string, opts?: GeocodeOptions): Promise<GeocodeResult[]>;
+  // Structured lookup of a caller-authored address (Location.address). Never
+  // free-text: a structured query cannot match a same-named place in another
+  // country. The address carries its own country, so `countryCode` is not the
+  // caller's to set here.
+  forwardAddress(
+    address: PostalAddress,
+    opts?: Omit<GeocodeOptions, "countryCode">,
+  ): Promise<GeocodeResult[]>;
 }
