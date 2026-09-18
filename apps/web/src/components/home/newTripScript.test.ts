@@ -24,14 +24,26 @@ describe("the four-turn script", () => {
     expect(NEW_TRIP_QUESTIONS.map((q) => q.id)).toEqual(["where", "when", "pace", "feel"]);
   });
 
-  // D-A, answered 2026-09-16: the label drops. "Recent and nearby" over six
-  // hardcoded cities is a claim no field on TripSummary or TripDetail can
-  // support, and the chips are plain suggestions without it.
-  it("offers the destination chips with no label over them", () => {
-    const where = NEW_TRIP_QUESTIONS.find((q) => q.id === "where")!;
-    expect(where.chipLabel).toBe("");
-    expect(where.chips).toContain("Lisbon");
-    expect(where.chips.length).toBeGreaterThan(0);
+  // D-A (2026-09-16) dropped the label over the destination chips, because
+  // "Recent and nearby" is a claim no field on TripSummary or TripDetail can
+  // support. SPEC §31.3 then dropped the per-question label from EVERY turn:
+  // with the chips inside the composer's own frame it was captioning the
+  // obvious. So the field itself is gone rather than empty on one turn, and
+  // this asserts the shape rather than a value.
+  it("carries no per-question chip label on any turn", () => {
+    for (const question of NEW_TRIP_QUESTIONS) {
+      expect(question, `${question.id} still has a chipLabel`).not.toHaveProperty("chipLabel");
+      expect(question.chips.length, `${question.id} has no chips`).toBeGreaterThan(0);
+    }
+    expect(NEW_TRIP_QUESTIONS.find((q) => q.id === "where")!.chips).toContain("Lisbon");
+  });
+
+  // §31.3: the placeholder is where "a chip and a typed sentence are the same
+  // answer" is said, now that no label says it.
+  it("tells every turn's composer that typing and the chips are one answer", () => {
+    for (const question of NEW_TRIP_QUESTIONS) {
+      expect(question.placeholder, `${question.id}`).toMatch(/tap (one|any) above/);
+    }
   });
 
   // D-B, answered 2026-09-16: 21 confirmed, REVERSING the 2026-08-23 decision

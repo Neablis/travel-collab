@@ -13,11 +13,12 @@ import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
-import { addDaysIso } from "@/lib/dates";
+import { addDaysIso, parseIsoDateUtc } from "@/lib/dates";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { formatTripDate } from "@/lib/formatDate";
 import {
   LENGTH_DAYS,
+  NEW_TRIP_OPENING,
   NEW_TRIP_QUESTIONS,
   NEW_TRIP_START,
   changeTo,
@@ -102,7 +103,7 @@ export function NewTripWizard({
           reopened, rather than reusing whatever was left over from a
           previous open/cancel. */}
       {open && (
-        <WizardBody
+        <NewTripConversation
           createTrip={createTrip}
           dispatch={dispatch}
           firstRun={firstRun}
@@ -130,7 +131,12 @@ export function NewTripWizard({
  * to be latency.
  */
 function threadFor(state: NewTripState, closing: string | null): AssistantTurn[] {
-  const turns: AssistantTurn[] = [];
+  const turns: AssistantTurn[] = [
+    // **§31.2 — one line before any question.** It states §30.2's contract in
+    // the reader's own reading order, and it means turn one is never an empty
+    // pane with a dock under it.
+    { id: "opening", role: "assistant", text: NEW_TRIP_OPENING, tools: [], pending: false },
+  ];
   NEW_TRIP_QUESTIONS.forEach((question, index) => {
     if (index > state.turn) return;
     turns.push({
@@ -151,23 +157,65 @@ function threadFor(state: NewTripState, closing: string | null): AssistantTurn[]
   return turns;
 }
 
-function WizardBody({
+/**
+ * **The conversation itself, with no chrome of its own.**
+ *
+ * Exported because two surfaces render it: this file's `Sheet`, and
+ * `FirstTripStart` on a Home with no trips. Before this it was private and the
+ * empty Home instead described the four questions in a numbered list beside a
+ * button that opened the sheet — a second, drifting account of the same script
+ * (it had already gone stale once, promising a "Who & money" step the flow does
+ * not have). One conversation, rendered in both places, cannot drift from
+ * itself.
+ */
+export function NewTripConversation({
   createTrip,
   dispatch,
   onDone,
-  firstRun,
-  browseHref,
+  firstRun = false,
+  browseHref = "/playbooks",
+  composerId,
+  disabled = false,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
-  firstRun: boolean;
-  browseHref: string;
+  firstRun?: boolean;
+  browseHref?: string;
+  /**
+   * An id for the answer field, so a control outside this component can focus
+   * it. The empty Home's page-head "New trip" button uses it: with the
+   * conversation already on the page, opening a second copy in a sheet would
+   * put two composers with the same accessible name on one screen.
+   */
+  composerId?: string;
+  /**
+   * Blocks the exits while another trip-start is already in flight — Home's
+   * `cloningDemo`. The first-run screen can be on display at that exact moment
+   * (an empty list is what both "no trips yet" and "the clone has not resolved
+   * yet" look like), and creating here would race the same `duplicateTrip` the
+   * page head's button is already guarded against (CodeRabbit, PR #104).
+   *
+   * The QUESTIONS stay live: answering them costs nothing and sends nothing
+   * (§30.2), so freezing the conversation would be theatre. Only the two
+   * controls that write are held.
+   */
+  disabled?: boolean;
 }) {
   const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
   const [phase, setPhase] = useState<"asking" | "made">("asking");
   const [draft, setDraft] = useState("");
   const [arrive, setArrive] = useState("");
+  // **Both ends, because "14-22 April" is a legitimate answer to "how long"**
+  // (SPEC §30.1). Before this the sheet took an arrival only, so a reader who
+  // knew their exact dates still had to pick a length chip for anything to
+  // reach the trip — `SetTripDates` needs a start AND an end. The old build
+  // accepted the arrival, computed nothing and sent no command, and the label
+  // was rewritten to stop promising it (CodeRabbit, PR #188). This makes the
+  // promise true instead of withdrawing it.
+  const [depart, setDepart] = useState("");
+  /** Days derived from a committed date RANGE; a length chip supersedes it. */
+  const [rangeDays, setRangeDays] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // What a previous attempt got through. Carried across attempts so a retry
@@ -189,9 +237,12 @@ function WizardBody({
   // before it has been committed — which is what preserves "type a name, press
   // Create empty" exactly as the old single-field dialog worked.
   const name = (where ?? draft).trim();
-  // Only a LENGTH CHIP gives a day count. Free text like "nine nights in April"
-  // gives none, because parsing it would be the model call §30.2 forbids.
-  const days = where === undefined ? null : (LENGTH_DAYS[state.answers.when ?? ""] ?? null);
+  // A length CHIP or a committed date RANGE gives a day count. Free text like
+  // "nine nights in April" still gives none, because parsing prose would be the
+  // model call §30.2 forbids — the date inputs are how that answer is made
+  // exact without a model.
+  const days =
+    where === undefined ? null : (LENGTH_DAYS[state.answers.when ?? ""] ?? rangeDays);
   const dated = ISO_DATE.test(arrive) && days !== null;
 
   async function submit(applySetup: boolean): Promise<boolean> {
@@ -249,6 +300,32 @@ function WizardBody({
   function commit(value: string) {
     setState((current) => commitAnswer(current, value));
     setDraft("");
+    // A chip or a typed length replaces a range that was committed earlier,
+    // so the two cannot both claim to own `days`.
+    setRangeDays(null);
+  }
+
+  /** Inclusive, so 3 Oct to 9 Oct is seven days and not six — the same
+   *  arithmetic `newTripSubmit.ts` runs in reverse when it computes the end. */
+  function spanDays(from: string, to: string): number {
+    const ms = parseIsoDateUtc(to).getTime() - parseIsoDateUtc(from).getTime();
+    return Math.round(ms / 86_400_000) + 1;
+  }
+
+  const rangeReady =
+    ISO_DATE.test(arrive) && ISO_DATE.test(depart) && spanDays(arrive, depart) >= 1;
+
+  /** **Commits the `when` turn from the two date inputs** (§31.3's first dock
+   *  row). The answer that lands in the transcript is the range itself, because
+   *  that is what the reader said — not a day count they never typed. */
+  function useDates() {
+    if (!rangeReady) return;
+    const span = spanDays(arrive, depart);
+    setRangeDays(span);
+    setState((current) =>
+      commitAnswer(current, `${formatTripDate(arrive)} to ${formatTripDate(depart)}`),
+    );
+    setDraft("");
   }
 
   // **D-C, answered 2026-09-16.** The design's `made` copy says the trip was
@@ -291,9 +368,17 @@ function WizardBody({
 
       {/* **No stepper.** §30.1: the rail is not replaced with a progress bar —
           a transcript shows its own progress, and the stepper was what made the
-          sheet grow as it filled. */}
+          sheet grow as it filled.
+
+          **The transcript is the only thing that scrolls** (§31.3). `mt-auto`
+          on the inner wrapper is what bottom-aligns a short thread against the
+          dock, so the newest turn always sits directly above the answer — and
+          it is used instead of `justify-end` on the scrollport, which clips the
+          top of an overflowing column in more than one engine. */}
       <div ref={threadRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="mt-auto">
         <Transcript
+          look="chat"
           turns={thread}
           renderTurnFooter={(turn) => {
             if (turn.role !== "user" || phase === "made") return null;
@@ -317,15 +402,59 @@ function WizardBody({
             );
           }}
         />
+        </div>
       </div>
 
+      {/* **The answer dock** (§31.3): one unit at the foot, separated by a
+          single hairline rule, in a fixed order — dates, chips, the multi
+          commit, then the field. It does not scroll, and the per-question chip
+          label is gone: with the chips inside the composer's own frame it was
+          captioning the obvious. A chip and a typed sentence fill the same
+          answer and commit the same turn. */}
       {phase === "asking" && question !== undefined && (
-        <div className="flex flex-col gap-2.5">
-          {question.chipLabel !== "" && (
-            <Text variant="muted" className="mb-0.5">
-              {question.chipLabel}
-            </Text>
+        <div className="flex flex-col gap-2.5 border-t border-hairline pt-3">
+          {question.dates === true && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <FormField id="wizard-arrive" label="Arrive">
+                  <Input
+                    id="wizard-arrive"
+                    type="date"
+                    value={arrive}
+                    onChange={(e) => setArrive(e.target.value)}
+                    aria-label="Arrive"
+                  />
+                </FormField>
+                <FormField id="wizard-depart" label="Depart">
+                  <Input
+                    id="wizard-depart"
+                    type="date"
+                    value={depart}
+                    onChange={(e) => setDepart(e.target.value)}
+                    aria-label="Depart"
+                  />
+                </FormField>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!rangeReady}
+                  onClick={useDates}
+                >
+                  Use these dates
+                </Button>
+              </div>
+              {/* Real, not Preview: both ends come from real state, so this is
+                  honest derived data. It is also the reader's one chance to
+                  notice a trip about to be dated wrongly. */}
+              {dated && (
+                <Banner variant="info">
+                  {days} days — {formatTripDate(arrive)} to{" "}
+                  {formatTripDate(addDaysIso(arrive, (days ?? 1) - 1))}.
+                </Banner>
+              )}
+            </div>
           )}
+
           <div className="flex flex-wrap gap-1.5">
             {question.chips.map((chip) => (
               <Button
@@ -349,30 +478,13 @@ function WizardBody({
             ))}
           </div>
 
-          {question.dates === true && (
-            <>
-              <FormField id="wizard-arrive" label="Arrive">
-                <Input
-                  id="wizard-arrive"
-                  type="date"
-                  value={arrive}
-                  onChange={(e) => setArrive(e.target.value)}
-                  aria-label="Arrive"
-                />
-              </FormField>
-              {/* Real, not Preview: both the start and the length come from
-                  real state, so this is honest derived data. */}
-              {dated && (
-                <Banner variant="info">
-                  {days} days — {formatTripDate(arrive)} to{" "}
-                  {formatTripDate(addDaysIso(arrive, (days ?? 1) - 1))}.
-                </Banner>
-              )}
-            </>
-          )}
-
           {question.multi === true ? (
-            <Button type="button" variant="primary" disabled={submitting} onClick={() => void finish()}>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={disabled || submitting}
+              onClick={() => void finish()}
+            >
               {state.picked.length > 0 ? "That is it — build it" : "Nothing in particular"}
             </Button>
           ) : (
@@ -384,6 +496,7 @@ function WizardBody({
                     grew `createEmptyTripViaWizard` first, so the rename landed
                     in one place rather than fifteen. */}
                 <Input
+                  {...(composerId === undefined ? {} : { id: composerId })}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={submitOnEnter(() => commit(draft))}
@@ -438,7 +551,7 @@ function WizardBody({
             <Button
               type="button"
               variant="secondary"
-              disabled={name === "" || submitting}
+              disabled={disabled || name === "" || submitting}
               onClick={() => void submit(false)}
             >
               Create empty
@@ -447,7 +560,7 @@ function WizardBody({
               <Button
                 type="button"
                 variant="primary"
-                disabled={submitting}
+                disabled={disabled || submitting}
                 onClick={() => void submit(true)}
               >
                 Create with this

@@ -19,9 +19,12 @@ export type NewTripQuestionId = "where" | "when" | "pace" | "feel";
 export interface NewTripQuestion {
   id: NewTripQuestionId;
   ask: string;
+  /**
+   * The answer dock's text field. **It says that typing and the chips are the
+   * same answer** (SPEC §31.3): they are one control, not two, and the chip
+   * row sits directly above this field inside the same frame.
+   */
   placeholder: string;
-  /** Sits above the chip row. `""` means no label at all — see `where`. */
-  chipLabel: string;
   chips: readonly string[];
   /** `when` also offers exact dates, which no other turn does. */
   dates?: boolean;
@@ -54,45 +57,46 @@ export const LENGTH_DAYS: Readonly<Record<string, number>> = {
 /** What `feel` commits when the reader picks nothing and writes nothing. */
 export const FEEL_DEFAULT = "A bit of everything";
 
+/**
+ * **The line the thread opens with, before any question** (SPEC §31.2).
+ *
+ * It does two jobs. It states §30.2's contract in the reader's own reading
+ * order — nothing is generated, so an abandoned sheet costs nothing — and it
+ * means turn one is never an empty pane.
+ *
+ * **"Four", not the spec's "Five".** §31.2 quotes a five-question line because
+ * §30.1 still says five turns; `who` was dropped on Mitchell's instruction,
+ * 2026-09-15, and that delta is recorded here and in `DRIFT.md`. Copy that
+ * miscounts its own flow is worse than copy that disagrees with a stale spec
+ * line, and the reader can count the turns.
+ */
+export const NEW_TRIP_OPENING =
+  "Four quick questions and I will draft the trip. Nothing is generated until the last answer lands.";
+
 export const NEW_TRIP_QUESTIONS: readonly NewTripQuestion[] = [
   {
     id: "where",
     ask: "Where are you going?",
-    placeholder: "Type a city, or pick one below",
-    // **D-A, answered 2026-09-16: no label.** The design's "Recent and nearby"
-    // is a claim about the reader's own history, and nothing stores one — there
-    // is no destination field on `TripSummary` or `TripDetail`, which is why
-    // `wizard-destination-chips` was tagged `unplaced` in the first place.
-    // Without the label the same six cities are honest suggestions, and the
-    // registry entry goes away because nothing is left unbuilt.
-    chipLabel: "",
+    placeholder: "Type a city, or tap one above",
     chips: ["Lisbon", "Mexico City", "Seoul", "Copenhagen", "Big Sur", "Back to Kyoto"],
   },
   {
     id: "when",
     ask: "How long, roughly?",
-    placeholder: "e.g. nine nights in April",
-    // **The length is required for dates to reach the trip, so the label no
-    // longer offers a dates-only path** (CodeRabbit, PR #188). `SetTripDates`
-    // needs a start AND an end, and the end is computed from the length — so
-    // an arrival date with no chip picked was accepted by the form, computed
-    // nothing, and sent no command. The date silently did not apply.
-    chipLabel: "Pick a length — and an arrival date if you know it",
+    placeholder: "Type a length, or tap one above",
     chips: ["Long weekend", "A week", "10 days", "2 weeks", "Longer"],
     dates: true,
   },
   {
     id: "pace",
     ask: "What pace do you want?",
-    placeholder: "Or describe it",
-    chipLabel: "",
+    placeholder: "Describe the pace, or tap one above",
     chips: ["Slow", "Balanced", "Packed"],
   },
   {
     id: "feel",
     ask: "What is the trip about?",
-    placeholder: "Or say it in your own words",
-    chipLabel: "Pick as many as fit",
+    placeholder: "Say what it is about, or tap any above",
     chips: [
       "Food",
       "Art",

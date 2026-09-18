@@ -849,7 +849,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
 test.describe("responsive (narrow viewport, first trip)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("all four steps and all three actions stay visible and operable below sm", async ({ page }) => {
+  test("the conversation and both other routes stay visible and operable below sm", async ({ page }) => {
     // Set before signing in, matching this file's own pattern for a
     // breakpoint below the narrow project's own 1100px — 375px is a real
     // phone width already used elsewhere in this file (the hero-art and
@@ -861,14 +861,18 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     const card = page.getByTestId("first-trip-start");
     await expect(card).toBeVisible();
 
-    // Four steps, every one of them actually on screen — not just present in
-    // the DOM, which a `grid-cols-2` collapse that clipped rather than
-    // reflowed would still satisfy.
-    const steps = page.getByTestId("first-trip-steps").getByRole("listitem");
-    await expect(steps).toHaveCount(4);
-    for (const step of await steps.all()) {
-      await expect(step).toBeInViewport();
-    }
+    // **The four steps were a numbered list DESCRIBING the questions; the
+    // conversation itself is here now** (SPEC §31, 2026-09-18). What this
+    // width has to prove is the same thing it always did — that the first-run
+    // screen reflows rather than clips — so it is asserted against the parts
+    // that exist: the thread, and the field that answers it, both actually on
+    // screen rather than merely in the DOM.
+    const thread = card.getByRole("log", { name: "Conversation" });
+    await expect(thread).toBeVisible();
+    await expect(thread).toContainText("Where are you going?");
+    const composer = card.getByLabel("Where are you going?");
+    await expect(composer).toBeVisible();
+    await expect(composer).toBeInViewport();
 
     // The three actions, scoped to the card: `FirstTripStart`'s own file
     // header says the library link used to live at the page head too (M11b),
@@ -876,23 +880,21 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     // from a Playbook" })` here resolves two elements and trips Playwright's
     // strict mode. The two links are checked for their real destination
     // rather than clicked — clicking either would navigate away from this
-    // screen, which is what "Name your trip" is checked by doing below
-    // instead.
-    const nameButton = card.getByRole("button", { name: "Name your trip" });
+    // screen, which is what the composer is checked by doing below instead.
+    const createEmpty = card.getByRole("button", { name: "Create empty" });
     const playbookLink = card.getByRole("link", { name: "Start from a Playbook" });
     const demoLink = card.getByRole("link", { name: "Look around an example trip" });
-    await expect(nameButton).toBeVisible();
-    await expect(nameButton).toBeEnabled();
+    await expect(createEmpty).toBeVisible();
     await expect(playbookLink).toBeVisible();
     await expect(playbookLink).toHaveAttribute("href", "/playbooks");
     await expect(demoLink).toBeVisible();
     await expect(demoLink).toHaveAttribute("href", "/demo");
 
-    // Operable, not just visible: the click has to actually reach the
-    // button and open the wizard at this width. The composer's accessible name
-    // is the question being asked — the sheet is four turns now (SPEC §30.1),
-    // and there is no field called "Trip name" to look for.
-    await nameButton.click();
-    await expect(page.getByLabel("Where are you going?")).toBeVisible();
+    // Operable, not just visible. Typing an answer at this width has to reach
+    // the field and commit — the exit only becomes usable once there is a name,
+    // which is also what proves the conversation is live rather than painted.
+    await expect(createEmpty).toBeDisabled();
+    await composer.fill("Reykjavik");
+    await expect(createEmpty).toBeEnabled();
   });
 });

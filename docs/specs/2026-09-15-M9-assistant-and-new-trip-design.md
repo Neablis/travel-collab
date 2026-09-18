@@ -189,6 +189,45 @@ otherwise say, and that anyone reading it as a description of the product needs:
 - **Four turns, not five.** `who` was dropped on Mitchell's instruction, 2026-09-15.
   `.design-sync/handoff/SPEC.md` §30.1 still says five; `DRIFT.md`'s D11 carries the delta.
 
+### 3a. The sheet became chat-shaped — `SPEC.md` §31, built 2026-09-18
+
+§31 revises §30.1 and, **for this surface only**, §30.5. The four-turn script is
+unchanged; what changed is that the sheet now reads at a glance as a conversation.
+
+- **Two visibly different sides.** The reader's turns are right-aligned bubbles
+  (`--color-moss`, a hairline border, the notched `14px 14px 4px 14px` radius that marks
+  the side); the assistant stays containerless prose behind a 22px brand mark. The panel
+  and the phone Ask sheet keep §2a's prose treatment — `Transcript` takes a `look` prop
+  and `"chat"` is passed by this sheet alone, so the divergence cannot spread by accident.
+- **The live question is the last message in the thread**, and the thread opens with one
+  line stating §30.2's contract. That line says **"Four quick questions"**: the spec
+  quotes five because §30.1 does, and copy that miscounts its own flow is worse than copy
+  that disagrees with a stale spec line.
+- **One answer dock at the foot** — dates, chips, the multi-commit, then the field, in
+  that order, behind a single hairline rule. The per-question chip label is gone; the
+  placeholders now carry "or tap one above", because the chips sit in the composer's own
+  frame. The transcript scrolls and the dock does not.
+- **Exact dates became a real answer.** The sheet took an arrival only, so a reader who
+  knew their dates still had to pick a length chip for anything to reach the trip —
+  `SetTripDates` needs both ends. There are two date inputs and a *Use these dates* button
+  now, and the committed answer is the range itself. This is what §30.1 always asked for,
+  and it retires the label patch that had been withdrawing the promise instead.
+
+### 3b. The empty Home renders the conversation, not a description of it
+
+`FirstTripStart` listed the four questions as a numbered `<ol>` beside a button that
+opened the sheet. Two problems, and the second is the one that mattered: it was a second
+account of the same script, so it drifted — it shipped a "Who & money" step the flow does
+not have — and a numbered list of steps is exactly the form framing §31.2 removed from the
+sheet. It renders `NewTripConversation` inline now, so a new account's first screen is the
+first question, already answerable.
+
+The page head's "New trip" focuses that field instead of opening the sheet when the list is
+empty. Two composers with the same accessible name on one page is ambiguous to a screen
+reader and a strict-mode violation for any test addressing the field by its label, so the
+sheet is additionally gated on `!hasNoTrips` — the state is unrepresentable rather than
+merely unlikely.
+
 **Supersedes** `NewTripWizard`'s four-step stepper (Where · When · Who & Money · Shape)
 entirely. In its place, inside the same sheet, a transcript asking one question at a time.
 

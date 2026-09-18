@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
+import { NewTripConversation, type NewTripWizardProps } from "./NewTripWizard";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
 // feedback that turned out to be the same one (Mitchell, 2026-09-01):
@@ -24,42 +25,42 @@ import { cn } from "@/lib/cn";
 // None of them is new capability — the wizard, the library and the demo board
 // all already existed — they were simply not reachable from the one screen
 // where somebody has nothing and needs one.
+//
+// **2026-09-18: the card stopped DESCRIBING the conversation and became it.**
+// Until now this screen listed the four questions as a numbered `<ol>` beside a
+// button that opened the sheet. Two problems, and the second is the one that
+// matters. It was a second account of the same script, so it drifted — it
+// shipped a "Who & money" step the flow does not have. And a numbered list of
+// steps is the form framing SPEC §31.2 removed from the sheet itself: the
+// design's whole point is that this reads as a conversation, and the screen
+// that introduces it was arguing the opposite. The conversation now renders
+// here directly (`NewTripConversation`), so the first thing a new account sees
+// is the first question, already answerable — no click-through, and no list
+// that can disagree with the script.
 
 /**
- * The four questions `NewTripWizard` asks, said before it opens rather than
- * after.
+ * Somebody's first screen: the new-trip conversation itself, and the two routes
+ * that are not "start from nothing".
  *
- * **These are the questions now, not the old stepper's headings.** The sheet
- * stopped being a four-step form (SPEC §30.1), and "Who & money" in particular
- * described a step that no longer exists — there is no turn for budget or
- * currency in a four-turn script. A screen that promises a step the sheet does
- * not have is worse than one that promises nothing.
- */
-const WIZARD_STEPS: readonly { label: string; detail: string }[] = [
-  { label: "Where", detail: "A name is enough — “Japan”, “Mum’s 60th”." },
-  { label: "When", detail: "Pick a length and an arrival, or say it in your own words." },
-  { label: "Pace", detail: "Slow, balanced or packed — or describe it." },
-  { label: "What it is about", detail: "Pick as many as fit, or none at all." },
-];
-
-/**
- * Presents options for beginning a first trip.
- *
- * @param onStart - Called when the user starts the trip wizard
- * @param disabled - Disables the trip wizard button while another trip-start operation is in progress
- * @returns The first-trip start card
+ * @param createTrip - Mints the trip; carries the client-minted `tripId`.
+ * @param dispatch - Sends the setup commands the answers imply.
+ * @param onDone - Called once the trip exists and its commands have confirmed.
+ * @param composerId - Lets the page head's "New trip" button focus the answer field.
+ * @param disabled - Holds the exits while a demo clone is still in flight.
+ * @returns The first-trip screen.
  */
 export function FirstTripStart({
-  onStart,
+  createTrip,
+  dispatch,
+  onDone,
+  composerId,
   disabled = false,
 }: {
-  onStart: () => void;
-  // True while a demo clone is landing in the background (Home's
-  // `cloningDemo`) — this card can be on screen at that exact moment (an
-  // empty list is what both "no trips yet" and "the clone hasn't resolved
-  // yet" look like), and starting the wizard here races the same
-  // already-in-flight `duplicateTrip` this button's sibling on the page head
-  // is guarded against (CodeRabbit, pull request 104).
+  createTrip: NewTripWizardProps["createTrip"];
+  dispatch: NewTripWizardProps["dispatch"];
+  onDone: (tripId: string | null, navigate: boolean) => void;
+  composerId?: string;
+  /** True while a demo clone is landing — see `NewTripConversation`. */
   disabled?: boolean;
 }) {
   return (
@@ -73,52 +74,38 @@ export function FirstTripStart({
         </Text>
       </div>
 
-      {/* Said up front, because "four steps" is what makes a wizard feel
-          finishable — and because every step after the first is genuinely
-          optional, which is not obvious from inside a step. */}
-      <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="first-trip-steps">
-        {WIZARD_STEPS.map((step, index) => (
-          <li key={step.label} className="flex gap-2.5 rounded-lg bg-moss p-3">
-            <span
-              aria-hidden
-              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-semibold text-slate"
-            >
-              {index + 1}
-            </span>
-            <div className="min-w-0">
-              <Text as="span" className="block text-sm font-semibold text-ink">
-                {step.label}
-              </Text>
-              <Text as="span" variant="secondary" className="block text-sm">
-                {step.detail}
-              </Text>
-            </div>
-          </li>
-        ))}
-      </ol>
+      {/* **The same component the sheet renders.** `firstRun` is false: the
+          framing it would add is the two paragraphs above, and saying it twice
+          on one screen is worse than saying it once. The height is bounded here
+          rather than by a sheet, because on a page the transcript must not be
+          the thing that grows the card (§31.3's "original sin"). */}
+      <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
+        <NewTripConversation
+          createTrip={createTrip}
+          dispatch={dispatch}
+          onDone={onDone}
+          disabled={disabled}
+          {...(composerId === undefined ? {} : { composerId })}
+        />
+      </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="primary" disabled={disabled} onClick={onStart}>
-          Name your trip
-        </Button>
+      <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
+        <Text as="span" variant="secondary" className="text-sm">
+          Rather not start from nothing?
+        </Text>
         {/* The library, which is the real answer to "from total scratch is
             rough": somebody has already planned a good day in the place you are
             going, and taking it is one click. It was reachable from the page
             head and from the end of a trip — never from the screen where a
             person has no trip to be at the end of. */}
-        <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
+        <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>
           Start from a Playbook
         </Link>
         {/* The third route, and the only one that costs nothing: look at a
             finished trip before making one. `/demo` is the same board with the
             changes turned off (ADR-031), and it carries its own "make this
             trip mine". */}
-        {/* `secondary`, not `ghost`: ghost is `text-slate` with no border and
-            no background, so this read as body text rather than as the third
-            route out of an empty Home (2026-09-06 preview feedback, finding 3).
-            Primary still carries the hierarchy — this only has to look like
-            something you can click. */}
-        <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
+        <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>
           Look around an example trip
         </Link>
       </div>

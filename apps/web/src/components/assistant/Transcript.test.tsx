@@ -148,6 +148,28 @@ describe("Transcript", () => {
 
   // The slot knows nothing about what it renders: "Change" has no meaning in
   // the assistant panel, so the shared component never learns the word.
+  // **Two looks, and the default must not move** (SPEC §31.1). The new-trip
+  // sheet is chat-shaped because half its transcript is two- and three-word
+  // answers; the desktop panel and the phone Ask sheet keep §30.5's prose. The
+  // mark is the observable difference a test can hold without touching class
+  // names — the wall bans `toHaveClass` and `.className` in tests, and it is
+  // right to: a class assertion passes on markup nobody can see.
+  it("marks the assistant's turns in the chat look, and leaves prose unmarked", () => {
+    const { unmount } = render(<Transcript turns={THREAD} />);
+    // Default: no mark anywhere. Passing nothing is what the panel does.
+    expect(screen.queryByText("C")).toBeNull();
+    unmount();
+
+    render(<Transcript turns={THREAD} look="chat" />);
+    // One per assistant turn, and `aria-hidden` so it is not read aloud before
+    // every line — the log's turn order already carries who is speaking.
+    const marks = screen.getAllByText("C");
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) expect(mark.getAttribute("aria-hidden")).toBe("true");
+    // The words are unchanged: this is a presentation change, not a content one.
+    expect(screen.getByRole("log").textContent).toContain("What's planned for day 3?");
+  });
+
   it("renders a consumer's footer under each turn, and nothing when none is given", () => {
     const { rerender } = render(<Transcript turns={THREAD} />);
     expect(screen.queryByText("Change")).toBeNull();

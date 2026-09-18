@@ -187,6 +187,7 @@ export function Transcript({
   onRejectProposal = () => {},
   approvalBlockedReason = null,
   renderTurnFooter,
+  look = "prose",
 }: {
   turns: AssistantTurn[];
   /** Commits the turn's proposal as one atomic batch. Keyed by turn id. */
@@ -208,14 +209,36 @@ export function Transcript({
    * Optional, and `AssistantRail` passes nothing — it renders exactly as before.
    */
   renderTurnFooter?: (turn: AssistantTurn) => ReactNode;
+  /**
+   * **Which of the two transcript treatments to draw** (SPEC §31.1).
+   *
+   * `"prose"` is §30.5 and the default: no containers anywhere, the two voices
+   * told apart by type. It is what the desktop panel and the phone Ask sheet
+   * use, and passing nothing keeps them byte-identical to before this prop
+   * existed.
+   *
+   * `"chat"` is the new-trip sheet, and only that. The divergence is decided
+   * rather than accidental: there, half the transcript is two- and three-word
+   * answers, and at that length a left-ruled quote is indistinguishable from a
+   * caption. So the reader's turns become right-aligned bubbles and the
+   * assistant gains a mark. §31.1 is explicit that this does NOT spread to the
+   * other two surfaces.
+   */
+  look?: "prose" | "chat";
 }) {
+  const chat = look === "chat";
   return (
     <>
       {/* `aria-live="off"` is explicit and load-bearing: `role="log"` carries
           an IMPLICIT polite live region, so leaving the attribute off would
           not turn the announcements off — only stop saying so. The one region
           that does announce is below, outside the mutating content. */}
-      <div role="log" aria-label="Conversation" aria-live="off" className="flex flex-col gap-a-turn">
+      <div
+        role="log"
+        aria-label="Conversation"
+        aria-live="off"
+        className={chat ? "flex flex-col gap-a-turn-chat" : "flex flex-col gap-a-turn"}
+      >
       {turns.map((turn) =>
         turn.role === "user" ? (
           // **No bubble** (design §2a, SPEC §30.5). A 2px rule and an indent,
@@ -232,14 +255,42 @@ export function Transcript({
           // No max-width utility: an arbitrary Tailwind value trips the design
           // wall (scripts/check-color-wall.mjs), and the rail is 356px wide —
           // the column's own sizing is the cap.
+          chat ? (
+            // **§31.1 — a right-aligned bubble, and the notch marks the side.**
+            // This is the one surface that keeps a filled message box; the
+            // theme contract below still forbids looks from adding one to the
+            // prose treatment, which is what `transcriptLook.test.ts` measures.
+            <div key={turn.id} className="flex flex-col items-end gap-1">
+              <p className="max-w-a-you rounded-a-bubble border border-hairline bg-moss px-a-bubble-x py-a-bubble-y text-right text-a-chat leading-a-you text-ink">
+                {turn.text}
+              </p>
+              {renderTurnFooter?.(turn)}
+            </div>
+          ) : (
           <div key={turn.id} className="flex flex-col gap-1.5">
             <p className="border-l-2 border-a-you-rule pl-a-indent text-sm leading-a-you text-a-you-ink">
               {turn.text}
             </p>
             {renderTurnFooter?.(turn)}
           </div>
+          )
         ) : (
-          <div key={turn.id} className="flex flex-col gap-1.5">
+          <div key={turn.id} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
+            {/* **The mark is what makes a one-line question read as the other
+                party rather than as a form label** (§31.1). `aria-hidden`: the
+                role is already carried by the log's turn order, and a screen
+                reader announcing "C" before every assistant line would be
+                noise. It is the assistant's only ornament — no name, no
+                timestamp. */}
+            {chat && (
+              <span
+                aria-hidden
+                className="flex size-a-mark shrink-0 items-center justify-center rounded-sm bg-brand font-mono text-xs text-paper"
+              >
+                C
+              </span>
+            )}
+            <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1.5" : "contents"}>
             <ToolSteps tools={turn.tools} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
@@ -272,6 +323,7 @@ export function Transcript({
               </p>
             )}
             {renderTurnFooter?.(turn)}
+            </div>
           </div>
         ),
       )}

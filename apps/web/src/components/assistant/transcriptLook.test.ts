@@ -247,6 +247,28 @@ describe("no look reintroduces a filled message box", () => {
     expect(markup).not.toMatch(/\brounded/);
   });
 
+  // **One bubble is sanctioned, and exactly one** (SPEC §31.1, 2026-09-18).
+  // The new-trip sheet diverges from §30.5 because half its transcript is
+  // two- and three-word answers, where a left-ruled quote reads as a caption.
+  // That exception now lives in this same file, so the assertion above could
+  // have been satisfied by prose while a fill was reintroduced everywhere via
+  // the other branch. This pins the exception to the chat look and to tokens.
+  it("keeps its one filled bubble behind the chat look, spent in tokens", () => {
+    const at = TRANSCRIPT.indexOf('className="max-w-a-you');
+    expect(at, "the chat bubble is gone — has §31.1 been reverted?").toBeGreaterThan(-1);
+    const bubble = TRANSCRIPT.slice(at, TRANSCRIPT.indexOf('"', at + 'className="'.length) + 1);
+    expect(bubble).toContain("bg-moss");
+    expect(bubble).toContain("rounded-a-bubble");
+    expect(bubble).toContain("border-hairline");
+    // Tokenised, not arbitrary: §2d's rule, and the reason the theme file
+    // carries `--radius-a-bubble` and `--text-a-chat` at all.
+    expect(bubble).not.toMatch(/\[[0-9]/);
+
+    // And it is reachable ONLY through the opt-in look, never by default.
+    expect(TRANSCRIPT).toContain('look = "prose"');
+    expect(TRANSCRIPT).toContain('const chat = look === "chat"');
+  });
+
   // **A look cannot add a fill by reassigning a token — but it CAN by scoping a
   // rule** (CodeRabbit, PR #188). `lookBlocks()` parses only the flat token
   // blocks, so `html[data-look="x"] .pl-a-indent { background: … }` was

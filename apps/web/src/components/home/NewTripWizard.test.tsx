@@ -215,6 +215,49 @@ describe("NewTripWizard — the four turns", () => {
     expect(log.textContent).not.toContain("0 days");
   });
 
+  // **§31.2 — the thread opens with one line before any question.** It states
+  // §30.2's contract in the reader's own reading order, and it means turn one
+  // is never an empty pane above a dock. "Four", not the spec's "Five": `who`
+  // was dropped 2026-09-15 and copy that miscounts its own flow is worse than
+  // copy that disagrees with a stale spec line.
+  it("opens the thread by saying nothing is generated until the end", () => {
+    renderWizard();
+    const log = screen.getByRole("log", { name: "Conversation" });
+    expect(log.textContent).toContain("Four quick questions");
+    expect(log.textContent).toContain("Nothing is generated until the last answer lands");
+  });
+
+  // **Exact dates are a legitimate answer to "how long"** (SPEC §30.1), and
+  // until now they were not: the sheet took an arrival only, so `days` stayed
+  // null unless a chip was picked, `SetTripDates` was never built, and the date
+  // silently did not apply. The label was rewritten to stop promising it
+  // (CodeRabbit, PR #188); §31.3's dock makes the promise true instead.
+  it("takes the two date inputs as the length answer, and sends that range", async () => {
+    const { dispatch } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+
+    // No length chip is touched anywhere in this test.
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.type(screen.getByLabelText("Depart"), "2026-10-09");
+    await user.click(screen.getByRole("button", { name: "Use these dates" }));
+
+    // It lands in the transcript as what the reader actually said — the range,
+    // not a day count they never typed.
+    expect(screen.getByRole("log").textContent).toMatch(/Oct 3.*Oct 9/);
+
+    await user.click(screen.getByRole("button", { name: "Create with this" }));
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "SetTripDates",
+          startDate: "2026-10-03",
+          // Inclusive: 3 Oct to 9 Oct is seven days, not six.
+          endDate: "2026-10-09",
+        }),
+      ),
+    );
+  });
+
   it("makes the footer's primary Open the trip once the trip exists", async () => {
     const { createTrip } = renderWizard();
     await answerThroughToFeel();

@@ -17,6 +17,9 @@ import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
+
+/** The inline first-run composer, so the page head's "New trip" can focus it. */
+const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
 import { ShareButton } from "@/components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
@@ -80,7 +83,7 @@ export default function Home() {
   // request is in flight creates an extra trip nobody asked for (CodeRabbit,
   // pull request 104): the wizard's own `createTrip` has no idea a copy is already
   // headed for this same list. Both launchers into the wizard — the page-head
-  // "New trip" button and `FirstTripStart`'s "Name your trip" — are disabled
+  // "New trip" button and the first-run conversation's own "Create empty" — are disabled
   // below for the same reason.
   const [cloningDemo, setCloningDemo] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
@@ -108,6 +111,26 @@ export default function Home() {
   // and hooks cannot read a value declared below them.
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
+
+  /**
+   * **"New trip" opens the sheet — unless the conversation is already on the
+   * page**, which it is on a Home with no trips, where `FirstTripStart` renders
+   * it inline. Opening the sheet there would put a second composer with the
+   * same accessible name on one screen: ambiguous to a screen reader, and a
+   * strict-mode violation for any test that addresses the field by its label.
+   * So here the button moves the cursor into the conversation that exists.
+   */
+  function startNewTrip() {
+    if (!hasNoTrips) {
+      setNewTripOpen(true);
+      return;
+    }
+    // `focus()` only — **`scrollIntoView` is banned repo-wide** (SPEC §30.6,
+    // KI-2026-09-13-a): it scrolls every scrollable ancestor, which is the bug
+    // `usePinToBottom` exists to avoid on this very flow. Focusing a form
+    // control brings it into view natively, so the ban costs nothing here.
+    document.getElementById(FIRST_TRIP_COMPOSER_ID)?.focus();
+  }
 
   // Every render branch below is gated on `trips !== null`, so "the read
   // failed" and "the read has not finished" are the same state to them —
@@ -372,7 +395,7 @@ export default function Home() {
                 type="button"
                 variant="primary"
                 disabled={cloningDemo}
-                onClick={() => setNewTripOpen(true)}
+                onClick={startNewTrip}
               >
                 New trip
               </Button>
@@ -415,7 +438,14 @@ export default function Home() {
         )}
 
         <NewTripWizard
-          open={newTripOpen}
+          // **Never open while the conversation is inline.** `startNewTrip`
+          // already routes around it, but `hasNoTrips` is false while `trips`
+          // is still null — so a click during that first load could open the
+          // sheet and then find the inline conversation rendered underneath it
+          // when the empty list resolved. Two composers with one accessible
+          // name is the failure; this makes it unrepresentable rather than
+          // unlikely.
+          open={newTripOpen && !hasNoTrips}
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
@@ -472,7 +502,19 @@ export default function Home() {
                suite is a function of which spec ran first. A first run that is
                one obvious click away is worth more than one that is sometimes
                a trap. */
-            <FirstTripStart onStart={() => setNewTripOpen(true)} disabled={cloningDemo} />
+            <FirstTripStart
+              createTrip={createTripApi}
+              dispatch={sendTripCommand}
+              composerId={FIRST_TRIP_COMPOSER_ID}
+              disabled={cloningDemo}
+              onDone={(tripId, navigate) => {
+                if (tripId !== null && navigate) {
+                  router.push(`/trips/${tripId}`);
+                } else {
+                  void load();
+                }
+              }}
+            />
           ) : (
             <>
               {visibleTrips.length > 0 && (
