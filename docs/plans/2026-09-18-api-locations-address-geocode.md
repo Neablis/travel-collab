@@ -67,7 +67,7 @@
 
 Left out on purpose (addable later, and they don't change existing fields): `sortingCode` (FR CEDEX), `languageCode`/script (we store romanised text; see the `accept-language=en` rationale in `locationiq.ts`), recipient and organisation (a stop has a `title`).
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 Create `packages/contracts/test/location-address.test.ts`:
 
@@ -175,12 +175,12 @@ describe("public API geocode vocabulary", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `pnpm --filter @tc/contracts test -- location-address`
 Expected: FAIL, because `PostalAddress`, `GeocodeOutcome` and `GeocodeCandidates` are not exported (an import error or undefined).
 
-- [ ] **Step 3: Implement the contract**
+- [x] **Step 3: Implement the contract**
 
 In `packages/contracts/src/activity.ts`, directly above `export const Location`:
 
@@ -272,7 +272,7 @@ export const GeocodeCandidates = z.object({ results: z.array(Location) });
 export type GeocodeCandidates = z.infer<typeof GeocodeCandidates>;
 ```
 
-- [ ] **Step 4: Run to verify it passes, then prove it can fail**
+- [x] **Step 4: Run to verify it passes, then prove it can fail**
 
 Run: `pnpm --filter @tc/contracts test -- location-address`
 Expected: PASS.
@@ -280,7 +280,7 @@ Prove it: temporarily delete the countryCode refine and confirm "refuses a locat
 
 Then run the whole contracts suite: `pnpm --filter @tc/contracts test`. `activity-payload-parity.test.ts` must still pass.
 
-- [ ] **Step 5: Write the failing equality test**
+- [x] **Step 5: Write the failing equality test**
 
 Create `packages/domain/test/location-address-equality.test.ts`. First open `packages/domain/test/ki35-location-area.test.ts` and copy how it builds an `ActivityState` and imports `activityStatesEqual`. Then:
 
@@ -307,7 +307,7 @@ it("absent vs present address is not equal", () => {
 Run: `pnpm --filter @tc/domain test -- location-address-equality`
 Expected: the first and third tests FAIL, because equality ignores `address` today.
 
-- [ ] **Step 6: Implement equality**
+- [x] **Step 6: Implement equality**
 
 In `packages/domain/src/trip/equality.ts`, add a helper above `activityStatesEqual`:
 
@@ -329,7 +329,7 @@ function sameAddress(a: PostalAddress | undefined, b: PostalAddress | undefined)
 
 Run: `pnpm --filter @tc/domain test`. Expected: PASS. Prove it: remove the `sameAddress` call, watch test 1 go red, restore.
 
-- [ ] **Step 7: CHANGELOG entry**
+- [x] **Step 7: CHANGELOG entry**
 
 Add at the top of `docs/contracts/CHANGELOG.md` (below the format block):
 
@@ -356,7 +356,7 @@ Add at the top of `docs/contracts/CHANGELOG.md` (below the format block):
   only reject a document that has `address`, and none exists yet.
 ```
 
-- [ ] **Step 8: Typecheck and commit**
+- [x] **Step 8: Typecheck and commit**
 
 Run: `pnpm --filter @tc/contracts typecheck && pnpm --filter @tc/domain typecheck && pnpm --filter web typecheck`
 Expected: clean. (A consumer that builds `Location` by listing fields one by one still compiles because the field is optional. Grep `apps/web/src` for `precision:` to find such places and confirm none needs `address`: the assistant read tool, `LocationInput`, and enrichment are out of scope per decision 3/4.)
@@ -388,9 +388,9 @@ git commit -m "contracts: structured PostalAddress on Location, and v1 geocode v
   }
   ```
 
-- [ ] **Step 0: Confirm LocationIQ's structured-search parameter names.** Open https://docs.locationiq.com/reference/search (use WebFetch) and confirm the params this task uses: `street`, `city`, `county`, `state`, `postalcode`, `countrycodes`, and that structured params cannot be combined with `q`. If a name differs, use the documented name and note it in the commit message. Do not guess.
+- [x] **Step 0: Confirm LocationIQ's structured-search parameter names.** Open https://docs.locationiq.com/reference/search (use WebFetch) and confirm the params this task uses: `street`, `city`, `county`, `state`, `postalcode`, `countrycodes`, and that structured params cannot be combined with `q`. If a name differs, use the documented name and note it in the commit message. Do not guess.
 
-- [ ] **Step 1: Write the failing adapter tests** (append to `locationiq.test.ts`, same fetch-stub style as the file's first test)
+- [x] **Step 1: Write the failing adapter tests** (append to `locationiq.test.ts`, same fetch-stub style as the file's first test)
 
 ```ts
 it("geocodes an address with structured params, never `q`, restricted to its country", async () => {
@@ -445,7 +445,7 @@ it("treats LocationIQ's 404 'Unable to geocode' as no results, not an error", as
 Run: `pnpm --filter web test -- src/server/geocoding/locationiq.test.ts`
 Expected: FAIL (`forwardAddress is not a function`, and `countrycodes` is null).
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 `geocoder.ts`: add `countryCode?: string` to `GeocodeOptions` with the comment "Restricts results to one country (ISO alpha-2). A filter, unlike `viewbox`." Add `forwardAddress` to `Geocoder` with the comment "Structured lookup of a caller-authored address (Location.address). Never free-text: a structured query cannot match a same-named place in another country."
 
@@ -469,13 +469,13 @@ async forwardAddress(address, opts) {
 
 In `search`: `if (opts?.countryCode) url.searchParams.set("countrycodes", opts.countryCode.toLowerCase());`
 
-- [ ] **Step 3: Fix fakes, run, prove**
+- [x] **Step 3: Fix fakes, run, prove**
 
 Run: `pnpm --filter web typecheck`. Every `Geocoder` fake missing `forwardAddress` fails here. Add `forwardAddress: async () => []` (or `vi.fn(async () => [])`) to each.
 Run: `pnpm --filter web test -- src/server/geocoding src/server/ai/geocodeEnrichment.test.ts src/server/ai/writeTools.test.ts`
 Expected: PASS. Prove it: make `forwardAddress` send `q` instead of `street`, watch the first test go red, restore.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/server/geocoding apps/web/src/server/ai apps/web/src/app/api/trips
@@ -507,7 +507,7 @@ git commit -m "geocoding: structured address lookup and country filter behind th
 
 Before writing, open `apps/web/src/server/quota.ts` and read the exact return type of `consumeQuota`. It has `allowed`, and `reason: "unavailable"` when the counter store fails (see `route.ts` `decision.reason === "unavailable"`). Make `charge`'s type match it exactly and adjust the snippet below if the refusal carries more fields.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
@@ -593,7 +593,7 @@ describe("resolveStopLocation", () => {
 Run: `pnpm --filter web test -- src/server/public-api/locations.test.ts`
 Expected: FAIL (module not found).
 
-- [ ] **Step 2: Implement `locations.ts`**
+- [x] **Step 2: Implement `locations.ts`**
 
 ```ts
 import type { GeocodeOutcome, Location } from "@tc/contracts";
@@ -684,7 +684,7 @@ export async function resolveStopLocation(
 
 If `quota.ts`'s refusal reason for an exceeded limit is something other than a non-`"unavailable"` string, adjust the `reason` comparison to the real values, and make the test's `reason` argument match them.
 
-- [ ] **Step 3: Run, prove, commit**
+- [x] **Step 3: Run, prove, commit**
 
 Run: `pnpm --filter web test -- src/server/public-api/locations.test.ts`. Expected: PASS.
 Prove it: swap the order so `name` is tried before `address`, and confirm "an address beats a name" goes red. Move `charge` after the vendor call, and confirm "quota spent: no vendor call" goes red. Restore both.
@@ -711,7 +711,7 @@ git commit -m "public-api: resolveStopLocation — coords, then address, then na
   - `HandlerContext.responseHeaders: Headers`. The handler may set headers, and the wrapper sends them on success **and** on a `PublicApiError` refusal (Task 5 uses that for `Retry-After`).
   - `BaseDef.responseHeaders?: Readonly<Record<string, string>>`, a header name → description map published in `openapi.json`.
 
-- [ ] **Step 1: Write the failing integration test**
+- [x] **Step 1: Write the failing integration test**
 
 Create `locations.int.test.ts`. Copy the setup verbatim from `surface.int.test.ts` lines 1–90 (the `auth` mock, `entitled()`, `tokenFor()`, `req()`, `P()`, and `seed()` minus its stop). Add a geocoder mock **before** the route imports:
 
@@ -788,7 +788,7 @@ Add `beforeEach(() => { forward.mockReset(); forwardAddress.mockReset(); forward
 Run: `pnpm --filter web test:int -- src/server/public-api/locations.int.test.ts` (needs local Postgres; check with `docker ps` first, per the repo memory. Fresh worktrees also need `.env.local`.)
 Expected: FAIL (header is null, and coordinates are absent).
 
-- [ ] **Step 2: Implement headers in `route()`**
+- [x] **Step 2: Implement headers in `route()`**
 
 In `route.ts`:
 - `BaseDef`: add
@@ -818,7 +818,7 @@ In `openapi.ts`, inside the success response object:
     }),
 ```
 
-- [ ] **Step 3: Wire the stop routes**
+- [x] **Step 3: Wire the stop routes**
 
 Shared description string, defined once in `locations.ts` (Task 3's file) and exported:
 
@@ -856,7 +856,7 @@ handle: async ({ actor, params, body, trip, responseHeaders }) => {
 
 Note: the header is set even if the command is then refused (a 400 from the domain), because the lookup already happened and was charged. That is accurate, since the header describes the location, not the write.
 
-- [ ] **Step 4: Run, prove, commit**
+- [x] **Step 4: Run, prove, commit**
 
 Run: `pnpm --filter web test:int -- src/server/public-api/locations.int.test.ts src/server/public-api/surface.int.test.ts src/server/public-api/route.int.test.ts`
 Expected: PASS.
@@ -880,7 +880,7 @@ git commit -m "v1: stop writes resolve locations (coords → address → name) a
 - Consumes: `GeocodeCandidates` (Task 1), `Geocoder.forward` with `countryCode` (Task 2), `defaultResolveDeps.charge` (Task 3), `responseHeaders` (Task 4), `tripRegionOf`, `PublicApiError`.
 - Produces: `GET /v1/trips/{tripId}/geocode?q=<1..200 chars>&countryCode=<XX>` → `200 { results: Location[] }` (up to 5). `429` + `Retry-After` when the geocode quota is spent. `503` when the geocoder is unconfigured, the vendor fails, or the quota store is down.
 
-- [ ] **Step 1: Write the failing tests** (in `locations.int.test.ts`; import `{ GET: GEOCODE }` from the new route)
+- [x] **Step 1: Write the failing tests** (in `locations.int.test.ts`; import `{ GET: GEOCODE }` from the new route)
 
 ```ts
 it("returns Location-shaped candidates that POST /activities accepts unchanged", async () => {
@@ -942,7 +942,7 @@ it("a spent geocode quota is a 429 with Retry-After", async () => {
 
 Run: `pnpm --filter web test:int -- src/server/public-api/locations.int.test.ts`. Expected: FAIL (module not found).
 
-- [ ] **Step 2: Implement the route**
+- [x] **Step 2: Implement the route**
 
 ```ts
 import { z } from "zod";
@@ -1016,7 +1016,7 @@ export const { GET } = route({
 
 Make `ResolveDeps.charge`'s return type (Task 3) carry `retryAfterSeconds?: number` if `consumeQuota` returns it, so the `in` check becomes a plain property read.
 
-- [ ] **Step 3: Run, prove, commit**
+- [x] **Step 3: Run, prove, commit**
 
 Run: `pnpm --filter web test:int -- src/server/public-api/locations.int.test.ts` and `pnpm --filter web test -- src/server/public-api/conformance.test.ts`. Expected: PASS. The conformance test walks `v1/**`, so it covers the new route automatically.
 Prove it: change `scope` to `trips:read`, watch the read-only-token test go red, restore. Remove the `.slice(0, 200)` and feed a 250-char `canonicalName`; the response-schema check answers 500. Add that as a test if it isn't already covered.
@@ -1035,12 +1035,12 @@ git commit -m "v1: GET /trips/{tripId}/geocode — Location-shaped candidates, q
 - Modify: `docs/guidelines/using-the-api.md` (new section under "## For a caller")
 - Modify: `docs/STATUS.md` (one line under M22, if STATUS tracks post-gate follow-ups; follow its existing format)
 
-- [ ] **Step 1: Regenerate the spec**
+- [x] **Step 1: Regenerate the spec**
 
 Run: `pnpm --filter web openapi:generate`, then `pnpm --filter web test -- src/server/public-api/openapi.test.ts`. Expected: PASS.
 Check the diff of `openapi.json` shows: `address` under both stop bodies, the `lat` description, the `Geocode-Outcome` response header on POST/PATCH activities, and the new `/v1/trips/{tripId}/geocode` path.
 
-- [ ] **Step 2: Write the guide section**
+- [x] **Step 2: Write the guide section**
 
 Add `### Putting a stop on the map` under "## For a caller" in `using-the-api.md`:
 
@@ -1092,7 +1092,23 @@ Needs `trips:write`.
 
 This branch changes code, so per CLAUDE.md rule 4 the full suite runs once here: `pnpm check`. Report the real output. Then dispatch `phase-verifier` against the PR's Vercel preview to call the three write paths and the geocode endpoint over real HTTP with a real token. Local runs have no LocationIQ key (repo memory), so the preview is the first place a real vendor answer is seen. Confirm the Step 0 parameter names from Task 2 against a real response there.
 
-- [ ] **Step 4: Commit**
+**Half done, 2026-09-18.** `pnpm check` passes on this branch — 7 typechecks,
+lint and every wall script, 2889 unit tests across 210 files, and the 704-test
+integration lane against real Postgres.
+
+**The preview walk is still owed, and it is the one thing standing between this
+branch and "proven".** Vercel builds a preview per PR and no PR has been opened,
+so it has not run. Until it does, *no LocationIQ response has ever been seen by
+this code*: `LOCATIONIQ_API_KEY` is empty in this container's `.env.local`, and
+every test mocks the geocoder. What that leaves unverified is specific — Task 2
+learned from LocationIQ's published OpenAPI spec that structured search is a
+separate endpoint (`/v1/search/structured`, not structured params on
+`/v1/search`), and that the structured endpoint's `country` takes a country
+*name* so `countrycodes` is used instead. Both facts are load-bearing and
+neither has met a live answer. `docs.locationiq.com` is blocked by this
+container's egress proxy, which is why the mirrored spec was the source.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/app/api/v1/openapi.json docs/guidelines/using-the-api.md docs/STATUS.md
