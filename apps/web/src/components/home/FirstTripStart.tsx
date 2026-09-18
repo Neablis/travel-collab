@@ -27,7 +27,7 @@ import { NewTripConversation, type NewTripWizardProps } from "./NewTripWizard";
 // where somebody has nothing and needs one.
 //
 // **2026-09-18: the card stopped DESCRIBING the conversation and became it.**
-// Until now this screen listed the four questions as a numbered `<ol>` beside a
+// Until now this screen listed the questions as a numbered `<ol>` beside a
 // button that opened the sheet. Two problems, and the second is the one that
 // matters. It was a second account of the same script, so it drifted — it
 // shipped a "Who & money" step the flow does not have. And a numbered list of
@@ -74,16 +74,19 @@ export function FirstTripStart({
         </Text>
       </div>
 
-      {/* **The same component the sheet renders.** `firstRun` is false: the
-          framing it would add is the two paragraphs above, and saying it twice
-          on one screen is worse than saying it once. The height is bounded here
-          rather than by a sheet, because on a page the transcript must not be
-          the thing that grows the card (§31.3's "original sin"). */}
+      {/* **The same component the sheet renders**, told it is a first run so
+          the thread opens with §32.1's own line — "Welcome. A few quick
+          questions and I will draft your first trip". The sheet's line says "I
+          will draft the trip", which has no antecedent on a screen with no
+          trips behind it. The height is bounded here rather than by a sheet,
+          because on a page the transcript must not be the thing that grows the
+          card (§31.3's "original sin"). */}
       <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
         <NewTripConversation
           createTrip={createTrip}
           dispatch={dispatch}
           onDone={onDone}
+          firstRun
           disabled={disabled}
           {...(composerId === undefined ? {} : { composerId })}
         />

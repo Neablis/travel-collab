@@ -896,5 +896,20 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     await expect(createEmpty).toBeDisabled();
     await composer.fill("Reykjavik");
     await expect(createEmpty).toBeEnabled();
+
+    // **44px targets at phone width** — SPEC §32.2 draws the new-trip dock with
+    // phone-sized controls, and §13.1 is the standing rule they answer to:
+    // "44px targets, always". Measured, not read off a class: the class is one
+    // way to get there, the rendered height is the thing §13.1 actually asks
+    // for, and `toHaveClass` is banned in this suite for exactly that reason.
+    for (const [label, control] of [
+      ["the answer field", composer],
+      ["Create empty", createEmpty],
+      ["a destination chip", card.getByRole("button", { name: "Lisbon" })],
+    ] as const) {
+      const box = await control.boundingBox();
+      expect(box, `${label} has no box`).not.toBeNull();
+      expect(box!.height, `${label} is under the 44px touch floor`).toBeGreaterThanOrEqual(44);
+    }
   });
 });

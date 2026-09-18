@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { NewTripWizard } from "./NewTripWizard";
 
-// THE SHEET IS A TRANSCRIPT NOW (SPEC §30.1, design §3).
+// THE SHEET IS A TRANSCRIPT NOW (SPEC §30.1, design §3), and since §32.3 its
+// question list is DERIVED: "do you have a start date" inserts a day-picker
+// turn when it is answered Yes, so the flow is five turns or six. Nothing here
+// may count them, which is why every walk below names the turns it answers.
 //
 // **Where the four retry tests went.** This file used to carry the regression
 // cover for CodeRabbit PR #32, KI-2026-09-08-a and CodeRabbit PR #165, driven
@@ -52,14 +55,25 @@ function renderWizard(overrides: { createTrip?: NewTripCreate } = {}) {
   return { createTrip, dispatch, onOpenChange, onCreated };
 }
 
-/** Walk to the last turn by clicking one chip per question. */
+/** Walk to the last turn by clicking one chip per question, undated. */
 async function answerThroughToFeel() {
   await user.click(screen.getByRole("button", { name: "Lisbon" }));
+  await user.click(screen.getByRole("button", { name: "Not yet" }));
   await user.click(screen.getByRole("button", { name: "A week" }));
   await user.click(screen.getByRole("button", { name: "Slow" }));
 }
 
-describe("NewTripWizard — the four turns", () => {
+/** The same walk, with a real arrival: Yes, then the picker, then a length. */
+async function answerThroughToFeelDated(iso: string) {
+  await user.click(screen.getByRole("button", { name: "Lisbon" }));
+  await user.click(screen.getByRole("button", { name: "Yes" }));
+  await user.type(screen.getByLabelText("Arrive"), iso);
+  await user.click(screen.getByRole("button", { name: "Use this date" }));
+  await user.click(screen.getByRole("button", { name: "A week" }));
+  await user.click(screen.getByRole("button", { name: "Slow" }));
+}
+
+describe("NewTripWizard — the turns", () => {
   it("opens on turn one and asks where, with chips and a composer both live", () => {
     renderWizard();
     const log = screen.getByRole("log", { name: "Conversation" });
@@ -80,7 +94,7 @@ describe("NewTripWizard — the four turns", () => {
     const log = screen.getByRole("log", { name: "Conversation" });
     expect(log.textContent).toContain("Seoul");
     // And it moves on: turn two is asked.
-    expect(log.textContent).toContain("How long, roughly?");
+    expect(log.textContent).toContain("Do you have a start date in mind?");
   });
 
   it("commits the composer on Enter, and refuses an empty or whitespace answer", async () => {
@@ -89,14 +103,14 @@ describe("NewTripWizard — the four turns", () => {
 
     await user.type(composer, "   {Enter}");
     // Still on turn one: a space bar is not a destination.
-    expect(screen.getByRole("log").textContent).not.toContain("How long, roughly?");
+    expect(screen.getByRole("log").textContent).not.toContain("Do you have a start date");
 
     await user.clear(composer);
     await user.type(composer, "  Porto  {Enter}");
     const log = screen.getByRole("log");
     // Trimmed on the way in.
     expect(log.textContent).toContain("Porto");
-    expect(log.textContent).toContain("How long, roughly?");
+    expect(log.textContent).toContain("Do you have a start date in mind?");
   });
 
   // SPEC §30.1: "Later answers are kept, not cleared — you re-answer forward."
@@ -109,7 +123,9 @@ describe("NewTripWizard — the four turns", () => {
   it("offers Change under an answered turn, returns to it, and keeps the later answers", async () => {
     const { dispatch } = renderWizard();
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
     await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
     await user.click(screen.getByRole("button", { name: "A week" }));
 
     const changes = screen.getAllByRole("button", { name: "Change" });
@@ -123,8 +139,9 @@ describe("NewTripWizard — the four turns", () => {
     expect(log.textContent).toContain("Seoul");
     expect(log.textContent).not.toContain("Lisbon");
 
-    // …and the length answered AFTER it was never lost: finishing now still
-    // applies seven days, which only the kept `when` answer could supply.
+    // …and the date and length answered AFTER it were never lost: finishing now
+    // still applies seven days from 3 Oct, which only the kept `start` and
+    // `len` answers could supply.
     await user.click(screen.getByRole("button", { name: "Create with this" }));
     await waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith(
@@ -205,6 +222,7 @@ describe("NewTripWizard — the four turns", () => {
   it("names no day count in the closing line when no length chip was picked", async () => {
     const { createTrip } = renderWizard();
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
     await user.type(screen.getByLabelText("How long, roughly?"), "nine nights in April{Enter}");
     await user.click(screen.getByRole("button", { name: "Slow" }));
     await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
@@ -217,44 +235,142 @@ describe("NewTripWizard — the four turns", () => {
 
   // **§31.2 — the thread opens with one line before any question.** It states
   // §30.2's contract in the reader's own reading order, and it means turn one
-  // is never an empty pane above a dock. "Four", not the spec's "Five": `who`
-  // was dropped 2026-09-15 and copy that miscounts its own flow is worse than
-  // copy that disagrees with a stale spec line.
+  // is never an empty pane above a dock.
+  //
+  // **And it never counts the questions** (§32.3: *"Nothing may hardcode the
+  // count — including the copy"*). It used to say "Four quick questions", which
+  // was true of a fixed four-turn script and became a lie the moment the list
+  // started depending on the answers. This asserts the absence, because the
+  // tempting fix — updating the number — is the one that breaks again.
   it("opens the thread by saying nothing is generated until the end", () => {
     renderWizard();
     const log = screen.getByRole("log", { name: "Conversation" });
-    expect(log.textContent).toContain("Four quick questions");
-    expect(log.textContent).toContain("Nothing is generated until the last answer lands");
+    const text = log.textContent ?? "";
+    expect(text).toContain("A few quick questions");
+    expect(text).toContain("Nothing is generated until the last answer lands");
+    expect(text).not.toMatch(/\b(three|four|five|six|3|4|5|6) quick questions\b/i);
   });
 
-  // **Exact dates are a legitimate answer to "how long"** (SPEC §30.1), and
-  // until now they were not: the sheet took an arrival only, so `days` stayed
-  // null unless a chip was picked, `SetTripDates` was never built, and the date
-  // silently did not apply. The label was rewritten to stop promising it
-  // (CodeRabbit, PR #188); §31.3's dock makes the promise true instead.
-  it("takes the two date inputs as the length answer, and sends that range", async () => {
-    const { dispatch } = renderWizard();
+  // **§32.3 — one question became two.** The old `when` turn carried a length
+  // chip row AND an arrive→leave range AND a "Use these dates" button: three
+  // controls for one answer, and the busiest thing in the flow. It also
+  // modelled a trip as a date range while every other surface in this app
+  // models it as a start date plus a length.
+  it("asks about a date before asking for one, and inserts the picker only on Yes", async () => {
+    renderWizard();
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
 
-    // No length chip is touched anywhere in this test.
+    // The date question itself offers no date control — it is a plain question.
+    expect(screen.getByRole("log").textContent).toContain("Do you have a start date in mind?");
+    expect(screen.queryByLabelText("Arrive")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    // …and now the picker turn exists, with one input rather than a range.
+    expect(screen.getByRole("log").textContent).toContain("When do you arrive?");
+    expect(screen.getByLabelText("Arrive")).not.toBeNull();
+    expect(screen.queryByLabelText("Depart")).toBeNull();
+  });
+
+  it("skips straight to the length when there is no date yet", async () => {
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+
+    const log = screen.getByRole("log");
+    expect(log.textContent).toContain("How long, roughly?");
+    expect(log.textContent).not.toContain("When do you arrive?");
+    // And the length turn carries no date control of its own — §32.3 put the
+    // one date input on the arrival turn and nowhere else.
+    expect(screen.queryByLabelText("Arrive")).toBeNull();
+  });
+
+  // §32.3: the length turn reads differently once a day is fixed. "How long,
+  // roughly?" is the wrong thing to ask somebody who just named the exact day.
+  it("asks the length differently once an arrival is fixed", async () => {
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
     await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.type(screen.getByLabelText("Depart"), "2026-10-09");
-    await user.click(screen.getByRole("button", { name: "Use these dates" }));
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
 
-    // It lands in the transcript as what the reader actually said — the range,
-    // not a day count they never typed.
-    expect(screen.getByRole("log").textContent).toMatch(/Oct 3.*Oct 9/);
+    expect(screen.getByRole("log").textContent).toContain("And how long are you staying?");
+    expect(screen.getByLabelText("And how long are you staying?")).not.toBeNull();
+  });
 
-    await user.click(screen.getByRole("button", { name: "Create with this" }));
+  // **§32.3 — "Dates are formatted at commit, never passed through raw."** The
+  // picker's value is ISO; a conversational surface printing `2026-10-03` reads
+  // machine-generated and drifts from every other date in the product. The raw
+  // value must reach the trip and nothing else.
+  it("puts the arrival in the app's date style, never the picker's ISO", async () => {
+    const { dispatch } = renderWizard();
+    await answerThroughToFeelDated("2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    const log = screen.getByRole("log").textContent ?? "";
+    expect(log).toContain("Oct 3, 2026");
+    expect(log).not.toContain("2026-10-03");
+
+    // The ISO still reaches the domain, which is the half that must stay exact.
     await waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "SetTripDates",
           startDate: "2026-10-03",
-          // Inclusive: 3 Oct to 9 Oct is seven days, not six.
+          // Inclusive: seven days from 3 Oct ends on the 9th, not the 10th.
           endDate: "2026-10-09",
         }),
       ),
+    );
+  });
+
+  // **§32.3: "Revising the date question back to *Not yet* must drop the picked
+  // day with it, or the summary keeps a date the user just removed."**
+  //
+  // Two halves, one behaviour. `commitAnswer` drops `answers.start`; `dated`
+  // requires it before the ISO still sitting in component state may date
+  // anything. Dropping either half of `dated` turns this red — which is what
+  // makes the guard, rather than a defensive `setArrive("")`, the thing worth
+  // owning here.
+  it("dates nothing once the arrival is taken back", async () => {
+    const { dispatch, createTrip } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
+    await user.click(screen.getByRole("button", { name: "A week" }));
+
+    // Back to the date question, and change the answer.
+    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+
+    await user.click(screen.getByRole("button", { name: "Create with this" }));
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    // The length survives (you re-answer forward), the day does not.
+    expect(screen.getByRole("log").textContent).not.toContain("Oct 3");
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SetTripDates" }),
+    );
+  });
+
+  // The same rule, reached the other way: typing over the arrival replaces a
+  // fixed day with prose. The prose cannot date a trip, and the day it replaced
+  // must not go on doing it silently.
+  it("dates nothing once the arrival is typed over in words", async () => {
+    const { dispatch, createTrip } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
+    await user.click(screen.getAllByRole("button", { name: "Change" })[2]!);
+
+    await user.type(screen.getByLabelText("When do you arrive?"), "early October{Enter}");
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Create with this" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(screen.getByRole("log").textContent).toContain("early October");
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SetTripDates" }),
     );
   });
 
@@ -317,54 +433,37 @@ describe("NewTripWizard — the four turns", () => {
     expect(screen.queryByText(/still writing/i)).toBeNull();
   });
 
-  // The §30.2 property, asserted where it can actually be held.
-  it("sends nothing to the network while the four turns are being answered", async () => {
+  // The §30.2 property, asserted where it can actually be held — and now over
+  // the LONGER walk, the one with the day picker in it, because that is the
+  // path §32.3 added and the one where a date control could plausibly reach for
+  // a geocoder.
+  it("sends nothing to the network while the turns are being answered", async () => {
     const { createTrip, dispatch } = renderWizard();
-    await answerThroughToFeel();
+    await answerThroughToFeelDated("2026-10-03");
     await user.click(screen.getByRole("button", { name: "Food" }));
 
     expect(createTrip).not.toHaveBeenCalled();
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  // **Found by a mutation that stayed green.** Breaking the component's `dated`
-  // guard changed nothing any test could see: the real gate on `SetTripDates`
-  // is in `newTripSubmit.ts` and is covered there, so `dated` turned out to
-  // drive only this confirmation line — and nothing asserted it. The line is
-  // the reader's one chance to notice the trip is about to be dated wrongly,
-  // which makes it worth its own test rather than a shrug.
-  it("confirms the computed span only once both a length and an arrival exist", async () => {
-    renderWizard();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    await user.click(screen.getByRole("button", { name: "A week" }));
-
-    // **Back to the length turn BEFORE asserting the line is absent**
-    // (CodeRabbit, PR #188). Committing a length advances to `pace`, and only
-    // `when` carries `dates: true` — so asserting from there passed because the
-    // whole dates block was unrendered, never because `dated` was false. The
-    // assertion said nothing about the guard it is named for. Standing on the
-    // turn that draws the block is what makes `dated` the only reason it is
-    // missing; the Arrive field is checked to prove the block really is here.
-    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
-    expect(screen.getByLabelText("Arrive")).not.toBeNull();
-    // A length alone is not a dated trip — there is nothing to count from.
-    expect(screen.queryByText(/7 days —/)).toBeNull();
-
-    // Same turn, now with an arrival: the line appears.
-    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    expect(screen.getByText(/7 days —/)).not.toBeNull();
-  });
-
+  // A length alone is not a dated trip — there is nothing to count from — and
+  // an arrival alone has no end. `SetTripDates` needs both, which is exactly
+  // why §32.3 asks for them as two turns instead of one crowded control.
   it("applies the dates only when an arrival anchors a chosen length", async () => {
-    const { dispatch } = renderWizard();
-    await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.click(screen.getByRole("button", { name: "A week" }));
-    await user.click(screen.getByRole("button", { name: "Slow" }));
+    const { dispatch, createTrip } = renderWizard();
+    await answerThroughToFeel();
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    // A length, no arrival: nothing to date from.
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates" }));
+
+    cleanup();
+    const second = renderWizard();
+    await answerThroughToFeelDated("2026-10-03");
     await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
 
     await waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith(
+      expect(second.dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "SetTripDates",
           startDate: "2026-10-03",

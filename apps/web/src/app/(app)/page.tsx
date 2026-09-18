@@ -460,12 +460,12 @@ export default function Home() {
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
-          // Full screen and first-run framing only when there is nothing
-          // behind the sheet to keep context with — Mitchell, 2026-09-01:
-          // "The 'New trip' side bar should be a full screen experience when
-          // you have no trips". The same person's fourth trip gets the rail.
-          size={hasNoTrips ? "full" : "rail"}
-          firstRun={hasNoTrips}
+          // Always the rail. The full-screen, first-run-framed variant this
+          // used to pass was already unreachable: `open` above is gated on
+          // `!hasNoTrips`, so by the time the sheet can render, both of those
+          // ternaries have resolved to the ordinary branch. First run is the
+          // inline conversation now (SPEC §32.1), not a sheet at all.
+          size="rail"
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "Create empty" is
@@ -518,6 +518,19 @@ export default function Home() {
               dispatch={sendTripCommand}
               composerId={FIRST_TRIP_COMPOSER_ID}
               disabled={cloningDemo}
+              // **SPEC §32.1's `ntLand()` is already satisfied here, and
+              // widening it would break nine e2e specs.** §32.1 says finishing
+              // a first run has to land you in an app, and names the two exits
+              // that do it: *Create with this* and *Open the trip*. Both pass
+              // `navigate: true`, so both already push. `Create empty` is not
+              // one of them — it is this build's own escape hatch from the old
+              // single-field dialog, and making IT navigate is the precise
+              // regression CI caught on PR #32: `createEmptyTripViaWizard`
+              // reaches this component on an empty list and then asserts the
+              // new trip's link on THIS page. The prototype needs `ntLand`
+              // because its first-run screen has no app behind it; ours
+              // re-renders Home with the new trip's card on it, which is an
+              // app, and is not "staring at nothing".
               onDone={(tripId, navigate) => {
                 if (tripId !== null && navigate) {
                   router.push(`/trips/${tripId}`);

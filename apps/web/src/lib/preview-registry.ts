@@ -117,7 +117,7 @@ export const PREVIEW_REGISTRY = {
   //
   // `wiredUpBy` restated: "proactive drafting" was never the blocker. What is
   // outstanding is the fork itself (who gets it) and the generation behind it.
-  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The entitlement fork and the draft it generates (design §4) — neither exists; the four turns collect the answers it would need" },
+  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The entitlement fork and the draft it generates (design §4) — neither exists; the script collects the answers it would need" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

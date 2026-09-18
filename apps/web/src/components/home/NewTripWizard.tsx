@@ -1,29 +1,33 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
-import { addDaysIso, parseIsoDateUtc } from "@/lib/dates";
 import { submitOnEnter } from "@/lib/submitOnEnter";
-import { formatTripDate } from "@/lib/formatDate";
+// `…WithYear`, not `formatTripDate`: §32.3's own example of "the app's own
+// style" is `Apr 10, 2027`, and a trip being planned eleven months out is the
+// ordinary case here. The weekday-first variant the board uses drops the year,
+// which reads fine on a day inside an open trip and badly as the answer to
+// "when do you arrive".
+import { formatTripDateWithYear } from "@/lib/formatDate";
 import {
   LENGTH_DAYS,
   NEW_TRIP_OPENING,
-  NEW_TRIP_QUESTIONS,
+  NEW_TRIP_OPENING_FIRST_RUN,
   NEW_TRIP_START,
   changeTo,
   commitAnswer,
   commitMulti,
+  questionAt,
+  questionsFor,
   togglePick,
   type NewTripState,
 } from "./newTripScript";
@@ -33,6 +37,23 @@ import {
   createTripWithSetup,
   type SetupLatch,
 } from "./newTripSubmit";
+
+/**
+ * **44px on a phone, this app's own size on a pointer** (SPEC §32.2, §13.1).
+ *
+ * §32.2 draws the new-trip dock with 44px inputs and 40px chips; §13.1 is the
+ * standing rule the design system already enforces — *"44px targets, always"*.
+ * This build is one responsive surface rather than the handoff's two frames, so
+ * the floor is applied at phone width and released above it, leaving the
+ * desktop dock exactly as §31 left it. `min-h`, not `h`, because a wrapped
+ * label on a 390px screen must push the control taller rather than spill out of
+ * it — and because `min-height` beats the variants' fixed `h-*` without having
+ * to restate it.
+ *
+ * The 40px chip is deliberately not built: it would be a sixth control height
+ * in a scale that has four, to sit 4px under a floor §13.1 says is absolute.
+ */
+const TOUCH = "min-h-11 sm:min-h-0";
 
 export type NewTripWizardProps = {
   open: boolean;
@@ -66,19 +87,8 @@ export type NewTripWizardProps = {
   // built on that, and a version of this that always navigated broke every one
   // of them (CI, PR #32) by leaving the home page before the click ever ran.
   onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
-  /**
-   * `full` on a first run — see `SheetSize`. The caller decides, because
-   * "do you have any trips yet" is the trip LIST's question, not the wizard's.
-   */
+  /** See `SheetSize`. The caller decides how much of the window this takes. */
   size?: SheetSize;
-  /**
-   * First-run framing: a line under the title saying what this is for, and a
-   * way out that is not the ✕. Withheld for the ordinary "New trip" press,
-   * where the person already knows.
-   */
-  firstRun?: boolean;
-  /** First-run only: "or take a day somebody else already planned". */
-  browseHref?: string;
 };
 
 export function NewTripWizard({
@@ -88,8 +98,6 @@ export function NewTripWizard({
   dispatch,
   onCreated,
   size = "rail",
-  firstRun = false,
-  browseHref = "/playbooks",
 }: NewTripWizardProps) {
   return (
     // The title stays "New trip" on both paths. It is the dialog's accessible
@@ -106,8 +114,6 @@ export function NewTripWizard({
         <NewTripConversation
           createTrip={createTrip}
           dispatch={dispatch}
-          firstRun={firstRun}
-          browseHref={browseHref}
           onDone={(tripId, navigate) => {
             onOpenChange(false);
             if (tripId !== null) onCreated?.(tripId, { navigate });
@@ -126,18 +132,23 @@ export function NewTripWizard({
  * consumer of that component rather than a fourth implementation of one.
  *
  * `pending: false` and `tools: []` on every assistant turn: there is nothing to
- * wait for. SPEC §30.2 — the four turns make **zero model calls and zero
- * network calls**, so a typing indicator here would be an animation pretending
- * to be latency.
+ * wait for. SPEC §30.2 — the turns make **zero model calls and zero network
+ * calls**, so a typing indicator here would be an animation pretending to be
+ * latency.
+ *
+ * The list comes from `questionsFor(state.answers)` rather than a constant,
+ * because §32.3's flow is five turns or six depending on the date answer, and a
+ * thread built from a stale list would print a question the reader is no longer
+ * being asked.
  */
-function threadFor(state: NewTripState, closing: string | null): AssistantTurn[] {
+function threadFor(state: NewTripState, closing: string | null, opening: string): AssistantTurn[] {
   const turns: AssistantTurn[] = [
     // **§31.2 — one line before any question.** It states §30.2's contract in
     // the reader's own reading order, and it means turn one is never an empty
     // pane with a dock under it.
-    { id: "opening", role: "assistant", text: NEW_TRIP_OPENING, tools: [], pending: false },
+    { id: "opening", role: "assistant", text: opening, tools: [], pending: false },
   ];
-  NEW_TRIP_QUESTIONS.forEach((question, index) => {
+  questionsFor(state.answers).forEach((question, index) => {
     if (index > state.turn) return;
     turns.push({
       id: `ask-${question.id}`,
@@ -162,26 +173,28 @@ function threadFor(state: NewTripState, closing: string | null): AssistantTurn[]
  *
  * Exported because two surfaces render it: this file's `Sheet`, and
  * `FirstTripStart` on a Home with no trips. Before this it was private and the
- * empty Home instead described the four questions in a numbered list beside a
- * button that opened the sheet — a second, drifting account of the same script
- * (it had already gone stale once, promising a "Who & money" step the flow does
- * not have). One conversation, rendered in both places, cannot drift from
- * itself.
+ * empty Home instead described the questions in a numbered list beside a button
+ * that opened the sheet — a second, drifting account of the same script (it had
+ * already gone stale once, promising a "Who & money" step the flow does not
+ * have). One conversation, rendered in both places, cannot drift from itself.
  */
 export function NewTripConversation({
   createTrip,
   dispatch,
   onDone,
   firstRun = false,
-  browseHref = "/playbooks",
   composerId,
   disabled = false,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
+  /**
+   * Somebody's first trip, which changes exactly one thing here: the line the
+   * thread opens with (SPEC §32.1). "I will draft the trip" has no antecedent
+   * on a screen with no trips behind it.
+   */
   firstRun?: boolean;
-  browseHref?: string;
   /**
    * An id for the answer field, so a control outside this component can focus
    * it. The empty Home's page-head "New trip" button uses it: with the
@@ -205,17 +218,16 @@ export function NewTripConversation({
   const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
   const [phase, setPhase] = useState<"asking" | "made">("asking");
   const [draft, setDraft] = useState("");
+  /**
+   * **The ISO behind the arrival answer**, and only ever set by the day picker.
+   *
+   * §32.3 replaced the old arrive→leave range with one picked day, so this is
+   * now a single value rather than two ends and a computed span. It is cleared
+   * whenever the `start` answer is replaced by prose or dropped by revising the
+   * date question, because an answer that says "early April" must not still be
+   * dating the trip to a day the reader picked and then removed.
+   */
   const [arrive, setArrive] = useState("");
-  // **Both ends, because "14-22 April" is a legitimate answer to "how long"**
-  // (SPEC §30.1). Before this the sheet took an arrival only, so a reader who
-  // knew their exact dates still had to pick a length chip for anything to
-  // reach the trip — `SetTripDates` needs a start AND an end. The old build
-  // accepted the arrival, computed nothing and sent no command, and the label
-  // was rewritten to stop promising it (CodeRabbit, PR #188). This makes the
-  // promise true instead of withdrawing it.
-  const [depart, setDepart] = useState("");
-  /** Days derived from a committed date RANGE; a length chip supersedes it. */
-  const [rangeDays, setRangeDays] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // What a previous attempt got through. Carried across attempts so a retry
@@ -231,7 +243,8 @@ export function NewTripConversation({
   const threadRef = useRef<HTMLDivElement | null>(null);
   usePinToBottom(threadRef, [state.turn, phase]);
 
-  const question = NEW_TRIP_QUESTIONS[state.turn];
+  const questions = questionsFor(state.answers);
+  const question = questionAt(state);
   const where = state.answers.where;
   // The trip's name is the destination answer, or whatever is in the composer
   // before it has been committed — which is what preserves "type a name, press
@@ -245,13 +258,16 @@ export function NewTripConversation({
   // being asked is the more recent intent.
   const composing = question?.id === "where" && draft.trim() !== "";
   const name = (composing ? draft : (where ?? draft)).trim();
-  // A length CHIP or a committed date RANGE gives a day count. Free text like
-  // "nine nights in April" still gives none, because parsing prose would be the
-  // model call §30.2 forbids — the date inputs are how that answer is made
-  // exact without a model.
-  const days =
-    where === undefined ? null : (LENGTH_DAYS[state.answers.when ?? ""] ?? rangeDays);
-  const dated = ISO_DATE.test(arrive) && days !== null;
+  // **Only a length chip gives a day count.** Free text like "nine nights"
+  // still gives none, because parsing prose would be the model call §30.2
+  // forbids. §32.3 removed the other source: the date range that used to be
+  // able to imply a length is gone, and a trip is a start date plus a length
+  // everywhere in this app.
+  const days = where === undefined ? null : (LENGTH_DAYS[state.answers.len ?? ""] ?? null);
+  // Both halves, and the answer as well as the ISO: `start` present in the
+  // answers is what says the reader actually fixed a day, and `arrive` is the
+  // machine-readable half of that same answer.
+  const dated = state.answers.start !== undefined && ISO_DATE.test(arrive) && days !== null;
 
   async function submit(applySetup: boolean): Promise<boolean> {
     if (name === "" || submitting) return false;
@@ -261,13 +277,15 @@ export function NewTripConversation({
     const result = await createTripWithSetup({
       setup: {
         name,
-        arrive,
+        // Never the raw picker value on its own: `dated` is what says this ISO
+        // is still the live answer, so a replaced arrival cannot date the trip.
+        arrive: dated ? arrive : "",
         days,
-        // **No budget or currency turn exists in a four-turn script**, so this
-        // UI never populates either. The branches for them stay in
-        // `newTripSubmit.ts` — tested directly there — because a later plan may
-        // reintroduce the fields, and deleting working code that a closed known
-        // issue depends on is not a saving.
+        // **No budget or currency turn exists in this script**, so this UI never
+        // populates either. The branches for them stay in `newTripSubmit.ts` —
+        // tested directly there — because a later plan may reintroduce the
+        // fields, and deleting working code that a closed known issue depends
+        // on is not a saving.
         budget: null,
         currency: DEFAULT_CURRENCY,
       },
@@ -306,33 +324,34 @@ export function NewTripConversation({
   }
 
   function commit(value: string) {
+    // **Typing over the arrival replaces a fixed day with prose**, so the ISO
+    // behind it goes too — otherwise "early October" reads as the answer while
+    // a day the reader overwrote is still dating the trip (SPEC §32.3).
+    //
+    // The OTHER way a picked day stops being the answer — revising the date
+    // question away from *Yes* — deliberately has no line here. `commitAnswer`
+    // drops `answers.start`, and `dated` below requires it, so a `setArrive("")`
+    // on that branch is unreachable as a defect: written, it passed every
+    // mutation, which is how it was found. The half that holds it is the
+    // `state.answers.start !== undefined` in `dated`, and that is where the
+    // test points.
+    if (question?.id === "start") setArrive("");
     setState((current) => commitAnswer(current, value));
     setDraft("");
-    // A chip or a typed length replaces a range that was committed earlier,
-    // so the two cannot both claim to own `days`.
-    setRangeDays(null);
   }
 
-  /** Inclusive, so 3 Oct to 9 Oct is seven days and not six — the same
-   *  arithmetic `newTripSubmit.ts` runs in reverse when it computes the end. */
-  function spanDays(from: string, to: string): number {
-    const ms = parseIsoDateUtc(to).getTime() - parseIsoDateUtc(from).getTime();
-    return Math.round(ms / 86_400_000) + 1;
-  }
-
-  const rangeReady =
-    ISO_DATE.test(arrive) && ISO_DATE.test(depart) && spanDays(arrive, depart) >= 1;
-
-  /** **Commits the `when` turn from the two date inputs** (§31.3's first dock
-   *  row). The answer that lands in the transcript is the range itself, because
-   *  that is what the reader said — not a day count they never typed. */
-  function useDates() {
-    if (!rangeReady) return;
-    const span = spanDays(arrive, depart);
-    setRangeDays(span);
-    setState((current) =>
-      commitAnswer(current, `${formatTripDate(arrive)} to ${formatTripDate(depart)}`),
-    );
+  /**
+   * **Commits the arrival from the day picker** (§32.3's one date control).
+   *
+   * The answer that lands in the transcript is the app's own date style, never
+   * the picker's ISO: *"a conversational surface showing `2027-04-10` reads
+   * machine-generated and drifts from every other date in the product."* That
+   * is why this formats here, at the commit, rather than anywhere downstream —
+   * the raw value never enters the thread, the closing line, or the trip.
+   */
+  function commitArrival() {
+    if (!ISO_DATE.test(arrive)) return;
+    setState((current) => commitAnswer(current, formatTripDateWithYear(arrive)));
     setDraft("");
   }
 
@@ -344,36 +363,20 @@ export function NewTripConversation({
   const closing =
     phase === "made"
       ? `${name} is created${days === null ? "" : `, ${days} days`}` +
-        `${dated ? ` from ${formatTripDate(arrive)}` : ""}. ` +
+        `${dated ? ` from ${formatTripDateWithYear(arrive)}` : ""}. ` +
         "The days are empty and yours to fill — what you said about pace and what the trip is " +
         "about is not built in yet."
       : null;
 
-  const thread = threadFor(state, closing);
+  const thread = threadFor(
+    state,
+    closing,
+    firstRun ? NEW_TRIP_OPENING_FIRST_RUN : NEW_TRIP_OPENING,
+  );
   const answered = Object.keys(state.answers).length > 0;
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      {/* The first-run framing, and the answer to "building a trip from total
-          scratch is a rough experience" (Mitchell, 2026-09-01). Only on a first
-          run: someone opening "New trip" for their fourth trip has met all of
-          this. */}
-      {firstRun && (
-        <div className="flex flex-col gap-2 rounded-lg bg-moss p-3.5">
-          <Text as="p" variant="secondary" className="text-pretty">
-            A name is enough to start — dates, days and everyone else can come later, and nothing
-            here is locked in. Every step after this one is optional.
-          </Text>
-          <Text as="p" variant="secondary" className="text-pretty">
-            Rather not start from nothing?{" "}
-            <Link href={browseHref} className="font-semibold text-brand underline">
-              Take a day somebody has already planned
-            </Link>{" "}
-            and build the trip around it.
-          </Text>
-        </div>
-      )}
-
       {/* **No stepper.** §30.1: the rail is not replaced with a progress bar —
           a transcript shows its own progress, and the stepper was what made the
           sheet grow as it filled.
@@ -390,7 +393,7 @@ export function NewTripConversation({
           turns={thread}
           renderTurnFooter={(turn) => {
             if (turn.role !== "user" || phase === "made") return null;
-            const index = NEW_TRIP_QUESTIONS.findIndex((q) => `said-${q.id}` === turn.id);
+            const index = questions.findIndex((q) => `said-${q.id}` === turn.id);
             if (index < 0 || index === state.turn) return null;
             return (
               <div>
@@ -414,52 +417,39 @@ export function NewTripConversation({
       </div>
 
       {/* **The answer dock** (§31.3): one unit at the foot, separated by a
-          single hairline rule, in a fixed order — dates, chips, the multi
-          commit, then the field. It does not scroll, and the per-question chip
-          label is gone: with the chips inside the composer's own frame it was
-          captioning the obvious. A chip and a typed sentence fill the same
-          answer and commit the same turn. */}
+          single hairline rule, in a fixed order — the day picker, chips, the
+          multi commit, then the field. It does not scroll, and the
+          per-question chip label is gone: with the chips inside the composer's
+          own frame it was captioning the obvious. A chip and a typed sentence
+          fill the same answer and commit the same turn. */}
       {phase === "asking" && question !== undefined && (
         <div className="flex flex-col gap-2.5 border-t border-hairline pt-3">
+          {/* **One day, not a range** (§32.3). The turn before this one asked
+              whether there is a date at all, so this control only ever appears
+              for a reader who said yes — and it asks for the single thing the
+              rest of the app models, a start. The length is the next turn's
+              job, and no date input appears there. */}
           {question.dates === true && (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-end gap-2">
-                <FormField id="wizard-arrive" label="Arrive">
-                  <Input
-                    id="wizard-arrive"
-                    type="date"
-                    value={arrive}
-                    onChange={(e) => setArrive(e.target.value)}
-                    aria-label="Arrive"
-                  />
-                </FormField>
-                <FormField id="wizard-depart" label="Depart">
-                  <Input
-                    id="wizard-depart"
-                    type="date"
-                    value={depart}
-                    onChange={(e) => setDepart(e.target.value)}
-                    aria-label="Depart"
-                  />
-                </FormField>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!rangeReady}
-                  onClick={useDates}
-                >
-                  Use these dates
-                </Button>
-              </div>
-              {/* Real, not Preview: both ends come from real state, so this is
-                  honest derived data. It is also the reader's one chance to
-                  notice a trip about to be dated wrongly. */}
-              {dated && (
-                <Banner variant="info">
-                  {days} days — {formatTripDate(arrive)} to{" "}
-                  {formatTripDate(addDaysIso(arrive, (days ?? 1) - 1))}.
-                </Banner>
-              )}
+            <div className="flex flex-wrap items-end gap-2">
+              <FormField id="wizard-arrive" label="Arrive">
+                <Input
+                  id="wizard-arrive"
+                  type="date"
+                  className={TOUCH}
+                  value={arrive}
+                  onChange={(e) => setArrive(e.target.value)}
+                  aria-label="Arrive"
+                />
+              </FormField>
+              <Button
+                type="button"
+                variant="secondary"
+                className={TOUCH}
+                disabled={!ISO_DATE.test(arrive)}
+                onClick={commitArrival}
+              >
+                Use this date
+              </Button>
             </div>
           )}
 
@@ -474,7 +464,7 @@ export function NewTripConversation({
                   question.multi === true && state.picked.includes(chip) ? "primary" : "secondary"
                 }
                 size="sm"
-                className="rounded-full"
+                className={`rounded-full ${TOUCH}`}
                 onClick={() =>
                   question.multi === true
                     ? setState((current) => togglePick(current, chip))
@@ -490,6 +480,7 @@ export function NewTripConversation({
             <Button
               type="button"
               variant="primary"
+              className={TOUCH}
               disabled={disabled || submitting}
               onClick={() => void finish()}
             >
@@ -505,6 +496,7 @@ export function NewTripConversation({
                     in one place rather than fifteen. */}
                 <Input
                   {...(composerId === undefined ? {} : { id: composerId })}
+                  className={TOUCH}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={submitOnEnter(() => commit(draft))}
@@ -515,6 +507,7 @@ export function NewTripConversation({
               <Button
                 type="button"
                 variant="secondary"
+                className={TOUCH}
                 disabled={draft.trim() === ""}
                 onClick={() => commit(draft)}
               >
@@ -534,7 +527,7 @@ export function NewTripConversation({
       {/* The fork is design §4 and is NOT built in this slice, so its shell
           survives rather than being deleted — removing it would move a false
           claim rather than remove one (plan 4, Task 6). */}
-      {phase === "asking" && state.turn === NEW_TRIP_QUESTIONS.length - 1 && (
+      {phase === "asking" && state.turn === questions.length - 1 && (
         <Preview id="wizard-assistant-draft" size="container" className="bg-brand-tint p-3.5">
           <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
           <Text variant="secondary" className="mt-0.5 text-brand-pressed">
@@ -549,6 +542,7 @@ export function NewTripConversation({
           <Button
             type="button"
             variant="primary"
+            className={TOUCH}
             disabled={submitting}
             onClick={() => onDone(progress?.tripId ?? null, true)}
           >
@@ -559,6 +553,7 @@ export function NewTripConversation({
             <Button
               type="button"
               variant="secondary"
+              className={TOUCH}
               disabled={disabled || name === "" || submitting}
               onClick={() => void submit(false)}
             >
@@ -568,6 +563,7 @@ export function NewTripConversation({
               <Button
                 type="button"
                 variant="primary"
+                className={TOUCH}
                 disabled={disabled || submitting}
                 onClick={() => void submit(true)}
               >
