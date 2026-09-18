@@ -13,6 +13,27 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-18 — `Location.address`, and the geocode vocabulary of `v1`
+
+- Added: `PostalAddress` and optional `Location.address`
+  (`packages/contracts/src/activity.ts`). Structured on the CLDR /
+  libaddressinput model — `countryCode`, `lines[]` in local order,
+  `dependentLocality`, `locality`, `administrativeArea`, `postalCode` (string) —
+  because addresses differ too much across countries for one string or a
+  `street`+`houseNumber` split. Caller-authored only; never assembled from
+  vendor output.
+- Added: refine — `Location.countryCode`, when present, must equal
+  `address.countryCode`.
+- Added: `GeocodeOutcome`, `GEOCODE_OUTCOME_HEADER`, `GeocodeCandidates`
+  (`packages/contracts/src/publicApi.ts`).
+- Why: an AI building trips over `v1` had no way to get a stop onto the map
+  without already knowing its coordinates.
+- Consumers updated: `packages/domain` (`activityStatesEqual` compares
+  `address`), `apps/web` (v1 stop routes, new geocode route, `openapi.json`).
+- Breaking? no — every addition is optional; a stored document without
+  `address` parses unchanged (location-address.test.ts). The new refine can
+  only reject a document that has `address`, and none exists yet.
+
 ## 2026-09-16 — `conflict`, and `PageSummary` gains `createdAt`
 
 - Added: `ApiErrorCode` gains **`conflict`** (409)

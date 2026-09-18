@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Location } from "./activity.ts";
 
 /**
  * The public REST API's wire vocabulary (M22, the 2026-09-16 design).
@@ -384,3 +385,26 @@ export const ApiTokenCreateInput = z.object({
     ),
 });
 export type ApiTokenCreateInput = z.infer<typeof ApiTokenCreateInput>;
+
+/**
+ * What happened to a stop's location on a v1 write, sent as the
+ * `Geocode-Outcome` response header whenever the body carried a `location`.
+ *
+ * A header rather than a body field so `TripDetail`, the published response,
+ * does not change shape. The body also shows the result directly:
+ * `location.lat` is absent when nothing resolved.
+ */
+export const GeocodeOutcome = z.enum([
+  "provided",        // the caller sent lat/lng; nothing was looked up
+  "address",         // coordinates came from geocoding `location.address`
+  "name",            // coordinates came from geocoding `location.name`
+  "no-match",        // looked up, vendor found nothing; saved without coordinates
+  "quota-exhausted", // the owner's daily geocode allowance is spent; saved without coordinates
+  "unavailable",     // geocoder unconfigured, erroring, or quota store down; saved without coordinates
+]);
+export type GeocodeOutcome = z.infer<typeof GeocodeOutcome>;
+export const GEOCODE_OUTCOME_HEADER = "Geocode-Outcome";
+
+/** `GET /v1/trips/{tripId}/geocode` — each result is a `Location` a caller can send back as a stop's `location` unchanged. */
+export const GeocodeCandidates = z.object({ results: z.array(Location) });
+export type GeocodeCandidates = z.infer<typeof GeocodeCandidates>;
