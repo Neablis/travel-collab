@@ -158,8 +158,34 @@ could, and the two boxes ticked with a caveat named are the retro in
 **M9 IS NO LONGER PAUSED, AND MOST OF ITS REMAINING BUILD LANDED 2026-09-16** on
 `claude/dreamy-meitner-4o27ml`, under `docs/plans/2026-09-16-M9-remainder.md` — which is
 also where the four build-order items it deliberately did NOT touch are listed (the
-transcript rebuild, the theme pass, the draft trip, the paid fork). It keeps its place
-after M21 for the *gate*, which is what is left of it.
+theme pass, the draft trip, the paid fork; the transcript rebuild has since landed). It
+keeps its place after M21 for the *gate*, which is what is left of it.
+
+**IT WAS REVERTED AND RELANDED, AND THE HISTORY MATTERS MORE THAN THE DATES.** Both halves
+(#184's server side, #186's UI) were merged, then reverted wholesale in `17ecd52` at
+Mitchell's request — *"there was some bad ui problems, but i was struggling to get code
+rabbit to review"*. Reverting content does **not** un-merge commits, so neither branch could
+serve as a PR head again: git treats them as already merged and a PR from either shows an
+empty or half diff. The work came back as fresh commits in **#188**, whose diff and merge
+therefore agree. Two design passes and three review rounds landed on it there:
+
+- **`SPEC.md` §31** — the new-trip sheet reads as a conversation (two sides, the live
+  question as the last message, one answer dock), and the empty Home renders that
+  conversation instead of a numbered list describing it.
+- **`SPEC.md` §32** — the dates turn split in two ("do you have a start date", then an
+  optional day picker, then a length), so **the question list is derived and nothing states
+  its length, including the copy**. A trip is a start date plus a length on this surface now,
+  as it already was everywhere else.
+- **Three CodeRabbit rounds, eighteen findings**, every one verified against the code before
+  being believed; two push-backs accepted and filed as `KI-2026-09-17-b`/`-c`.
+- **The preview found two defects no test layer could**, on Mitchell's own walk: the sheet
+  *contained* a chat box rather than being one (`Sheet`'s scrollport is a block, so the
+  conversation's `flex-1` transcript had nothing to fill and the composer scrolled off the
+  fold), and the sheet was being closed under a reader who was typing into it. That is the
+  argument for the walk, made by the walk.
+
+`docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` §3a–§3f carries all of it.
+**No gate box moved**, which is the point of the next paragraph.
 
 **Grounding** (`search_places` → `placeRef`, resolved server-side), **KI-93** (every door
 into the vendor key charges the geocode quota), **KI-12**, **escalation + `certainty`**,
