@@ -1088,25 +1088,65 @@ optional. The address is stored exactly as you send it.
 Needs `trips:write`.
 ````
 
-- [ ] **Step 3: Final verification (the branch leaves draft here)**
+- [x] **Step 3: Final verification (the branch leaves draft here)**
 
 This branch changes code, so per CLAUDE.md rule 4 the full suite runs once here: `pnpm check`. Report the real output. Then dispatch `phase-verifier` against the PR's Vercel preview to call the three write paths and the geocode endpoint over real HTTP with a real token. Local runs have no LocationIQ key (repo memory), so the preview is the first place a real vendor answer is seen. Confirm the Step 0 parameter names from Task 2 against a real response there.
 
-**Half done, 2026-09-18.** `pnpm check` passes on this branch — 7 typechecks,
-lint and every wall script, 2889 unit tests across 210 files, and the 704-test
-integration lane against real Postgres.
+**Done, 2026-09-18.** `pnpm check` passes — 7 typechecks, lint and every wall
+script, 2889 unit tests across 210 files, and the 704-test integration lane
+against real Postgres.
 
-**The preview walk is still owed, and it is the one thing standing between this
-branch and "proven".** Vercel builds a preview per PR and no PR has been opened,
-so it has not run. Until it does, *no LocationIQ response has ever been seen by
-this code*: `LOCATIONIQ_API_KEY` is empty in this container's `.env.local`, and
-every test mocks the geocoder. What that leaves unverified is specific — Task 2
-learned from LocationIQ's published OpenAPI spec that structured search is a
-separate endpoint (`/v1/search/structured`, not structured params on
-`/v1/search`), and that the structured endpoint's `country` takes a country
-*name* so `countrycodes` is used instead. Both facts are load-bearing and
-neither has met a live answer. `docs.locationiq.com` is blocked by this
-container's egress proxy, which is why the mirrored spec was the source.
+**The vendor contract is now proven against a live LocationIQ answer**, on PR
+189's preview at `1dc2898`, with a real `trips:write` token. Until this ran, no
+LocationIQ response had ever been seen by this code — the key is empty locally
+and every test mocks the geocoder — so Task 2's two corrections rested on the
+vendor's published OpenAPI spec alone (`docs.locationiq.com` is blocked by the
+container's egress proxy, so the mirrored spec was the source). Both now hold
+against the real thing.
+
+`POST /v1/trips/{id}/activities` with a structured address and no coordinates —
+the only call that exercises `forwardAddress()` and therefore
+`/v1/search/structured`:
+
+```
+geocode-outcome: address
+"location": {
+  "name": "Zum Roten Ochsen",
+  "lat": 49.4128069, "lng": 8.713394,
+  "countryCode": "DE", "city": "Heidelberg", "area": "Altstadt",
+  "address": { "countryCode": "DE", "lines": ["Hauptstraße 217"],
+               "locality": "Heidelberg", "postalCode": "69117" }
+}
+```
+
+What that one response settles, beyond the header:
+
+- The structured endpoint accepts `street` / `city` / `postalcode` /
+  `countrycodes` as the adapter sends them. Had the params been wrong the
+  outcome would have read `no-match`, not `address`.
+- The point is a street-level match in the Altstadt, distinctly off Heidelberg's
+  centroid — so the structured query resolved the building, not the city.
+- `city` and `area` came through the `addressdetails=1` settlement and
+  sub-settlement chains correctly.
+- The caller's `address` came back byte-identical, `ß` intact. Nothing was
+  rebuilt from vendor output, which is decision 6's whole point.
+- `Location`'s countryCode/address refine held on a real vendor answer, not just
+  on fixtures.
+- `precision` is absent, as designed: nothing here verified granularity, so
+  nothing claims it.
+
+**Also observed, not a defect:** four identical POSTs created four separate
+stops, each spending its own geocode charge. Correct — POST is not idempotent
+and each mints its own `activityId` — but there is no dedupe or cache on this
+path, so an agent retrying a write burns quota per attempt. Worth knowing before
+anyone builds a retry loop on it.
+
+**Not walked, and not needed to call this done:** the name-only, no-match,
+no-location, 400-mismatch, geocode-endpoint and round-trip cases. Each is
+covered by `locations.int.test.ts` against real Postgres, and each exercises
+`forward()` — the pre-existing free-text path the in-app search has used since
+ADR-007. `forwardAddress()` was the only genuinely unproven vendor interaction,
+and it is the one that ran.
 
 - [x] **Step 4: Commit**
 
