@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { TripDetail, type TripRole } from "@tc/contracts";
 import { auth } from "../auth";
 import { hasAtLeast, memberRole } from "../accessPolicy";
@@ -125,31 +126,100 @@ export async function requireTripAccess(
   if (!session?.user?.id) {
     return { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
   }
-  const userId = session.user.id;
-  const projected = await getTripDetail(tripId);
-  if (projected === null) {
-    return { error: Response.json({ error: "not-found" }, { status: 404 }) };
+  const outcome = await tripAccessFor(session.user.id, tripId, minimum);
+  if (outcome.ok) return { userId: outcome.userId, role: outcome.role, detail: outcome.detail };
+  return { error: DENIAL_RESPONSES[outcome.denial](tripId) };
+}
+
+/**
+ * The BFF's wire shapes for a denial, unchanged from when they were inline.
+ *
+ * **Bare-string errors, deliberately preserved.** Every one of these is what a
+ * `/api/*` route has answered since M1, and 46 call sites plus their tests
+ * depend on it. `v1` does not share them — it has its own envelope, and the
+ * whole reason `tripAccessFor` returns a *reason* rather than a `Response` is so
+ * two surfaces can answer the same denial in two vocabularies without either
+ * one re-deciding who may read a trip.
+ */
+const DENIAL_RESPONSES: Record<TripAccessDenial, (tripId: string) => Response> = {
+  "not-found": () => Response.json({ error: "not-found" }, { status: 404 }),
+  // 403 for a member without the rank AND for a stranger: telling a stranger
+  // apart from an under-privileged member would confirm the trip exists.
+  forbidden: () => Response.json({ error: "forbidden" }, { status: 403 }),
+  // 500, not 4xx: the request is well-formed and the actor is authorized — what
+  // is broken is a row this server wrote, and no caller can retry their way out
+  // of it.
+  "malformed-trip": () => Response.json({ error: "malformed-trip" }, { status: 500 }),
+};
+
+/** Why a trip was not served. A reason, deliberately not a `Response`. */
+export type TripAccessDenial = "not-found" | "forbidden" | "malformed-trip";
+
+export type TripAccessOutcome =
+  | { ok: true; userId: string; role: TripRole; detail: TripDetail }
+  | { ok: false; denial: TripAccessDenial };
+
+/**
+ * **The same authorization, for an actor who is already known** (M22 Phase 2).
+ *
+ * `requireTripAccess` above calls `auth()` itself, which is right for a route
+ * serving a browser and useless to one serving a bearer token. This is the
+ * sibling that takes the actor instead — and it is the *implementation*, with
+ * `requireTripAccess` now a thin session-resolving wrapper over it, so there is
+ * exactly one place that decides whether somebody may read a trip.
+ *
+ * **This is gate two, and it is unchanged.** A token's scopes are checked
+ * before this is ever reached; what happens here is the same membership
+ * question a session has always asked. That ordering is what makes a token
+ * unable to grant more than its owner holds, and it is what makes a token
+ * degrade automatically: remove someone's membership and every token they hold
+ * loses that trip on the next request, because this query is the same query it
+ * always was and no token state was ever copied from it.
+ *
+ * **No `allowDemo`.** The demo is an anonymous session-less browser read
+ * (ADR-031); a bearer token is neither anonymous nor a browser, and a public
+ * API that served the demo trip under someone's credential would be answering a
+ * question nobody asked.
+ */
+export async function tripAccessFor(
+  userId: string,
+  tripId: string,
+  minimum: TripRole,
+): Promise<TripAccessOutcome> {
+  // **`getTripDetail` THROWS on a stored doc it cannot parse**, so until this
+  // catch existed the `malformed-trip` denial below could only ever fire for
+  // the member overlay — the stored-document case it was written for escaped
+  // the seam entirely. Past `route()` that matters twice over: the trip gate
+  // runs BEFORE the handler try/catch, so the ZodError left the wrapper
+  // without producing the `ApiError` envelope every v1 response promises, and
+  // the caller got whatever Next.js renders for an unhandled throw.
+  //
+  // Only the parse failure is converted. A dropped connection or a `22P02` is
+  // still an exception, because those are not "this trip is unreadable" —
+  // they are "the database did not answer", and swallowing them here would
+  // report a healthy trip as corrupt.
+  let projected: TripDetail | null;
+  try {
+    projected = await getTripDetail(tripId);
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, denial: "malformed-trip" };
+    throw error;
   }
+  if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);
-  if (!hasAtLeast(userId, members, minimum)) {
-    // 403 for a member without the rank AND for a stranger: telling a stranger
-    // apart from an under-privileged member would confirm the trip exists.
-    return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
-  }
+  if (!hasAtLeast(userId, members, minimum)) return { ok: false, denial: "forbidden" };
   const parsed = TripDetail.safeParse({ ...projected, members });
   if (!parsed.success) {
-    // 500, not 4xx: the request is well-formed and the actor is authorized —
-    // what is broken is a row this server wrote, and no caller can retry their
-    // way out of it. The issues are logged because the response deliberately
-    // does not carry them: the shape of a stored document is not something an
-    // API client gets to read, and the trip id is what makes the row findable.
+    // The issues are logged because the response deliberately does not carry
+    // them: the shape of a stored document is not something an API client gets
+    // to read, and the trip id is what makes the row findable.
     console.error("trip_details doc failed TripDetail parse", {
       tripId,
       issues: parsed.error.issues,
     });
-    return { error: Response.json({ error: "malformed-trip" }, { status: 500 }) };
+    return { ok: false, denial: "malformed-trip" };
   }
-  return { userId, role: memberRole(userId, members)!, detail: parsed.data };
+  return { ok: true, userId, role: memberRole(userId, members)!, detail: parsed.data };
 }
 
 /**

@@ -10,6 +10,13 @@ import { clearQueryCache } from "./src/lib/queryCache";
 // real DATABASE_URL (as int tests set) untouched.
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 
+// `src/server/api-tokens` refuses to mint or verify without a pepper, on purpose
+// — an empty one would still produce a stable digest, so tokens would keep
+// working while the property the key exists for silently did not hold. `??=`
+// leaves a real value alone; this one only has to be present and stable within a
+// run, because nothing here asserts a digest against a fixture.
+process.env.API_TOKEN_PEPPER ??= "test-pepper-not-a-real-key";
+
 // @testing-library/react's automatic cleanup-after-each only self-registers
 // when it detects `globals: true`-style test framework globals. This repo's
 // vitest config does not set `test.globals`, so without this, DOM/body state

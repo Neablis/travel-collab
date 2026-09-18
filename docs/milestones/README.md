@@ -198,12 +198,13 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M21 — An account can pay for itself**
-(`M21-subscriptions-and-billing.md`), as of **2026-09-14, when M20's gate
-closed** — 32 of 32 live boxes, retro in its own file. No decision moved this
-one; the order set on 2026-09-13 simply advanced. Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 → M22 → M12 → M13 → M14 → M19`.
-**M22 was placed 2026-09-16** — see the note below.
+Current milestone: **M22 — An account can build on the API**
+(`M22-public-api-and-tokens.md`), as of **2026-09-16, by Mitchell's decision**
+— **not** by a gate closing. **M21 is OPEN at 11 of 17 and is paused, not
+finished.** Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+**M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
+below. The second one also records a cost it first got wrong.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and
@@ -220,6 +221,44 @@ value** (set 2026-09-11 when M17's gate closed) and it did **not** close; this
 line moved by decision, which is the one way it may move other than a gate
 close.
 
+### 2026-09-16 — reordered: M22 runs AHEAD of M21, which pauses at 11/17
+
+**Mitchell's decision, 2026-09-16**, taken with the cost below in front of him
+and chosen over closing M21 first. **This is the second way the Current
+milestone line may move** — by decision rather than by a gate closing — and the
+2026-09-13 reorder is the standing precedent for the shape.
+
+**M21 is paused, not abandoned.** Its file, scope and seventeen gate boxes stand
+untouched; six are open. Nothing about this note ticks, unticks or amends a box
+— only Mitchell amends a gate definition, and he has not.
+
+**What it costs M21, corrected.** The first version of this note claimed the
+reorder put a deadline on one of M21's open boxes. **It does not, and the claim
+was wrong in the way that matters** — it treated a bookkeeping question about a
+superseded plan version as a gate on building M22.
+
+- **M22 needs no purchase and no Stripe.** An admin grant of `premium` pins
+  `livePlanVersion(planId)` (`api/admin/grants/route.ts:29`) and
+  `resolveEntitlements` unions the held plan with every grant's pinned version
+  (`resolver.ts:149-174`). Granting an account `api.tokens` is one operator
+  action against a UI M20 already shipped — which is the grant path's stated
+  purpose: *"the entire reason this milestone is provable without Stripe."*
+- **What publishing `premium@v2` really changes** is which version a later
+  Premium purchase verifies: v2's Stripe Price rather than v1's. `premium@v1`,
+  never bought, keeps a Price that was never created — and once superseded it is
+  unsellable, unheld and ungrantable, so verifying its Price verifies nothing.
+  `checkPriceConsistency` reports such a version `missing`, which its own
+  documentation calls *"an ordinary state"* rather than a finding.
+
+**So M21's second gate box stays M21's, on M21's schedule.** If its wording needs
+to account for a superseded version, that is an amendment for Mitchell — not a
+cost M22 pays in advance.
+
+**One finding surfaced on the way, filed not fixed**: `checkPriceConsistency`
+is described as the gate box as a function and **has no caller outside its own
+unit tests** — no script, no route, no scheduled check, nothing a deploy
+reaches. `KI-2026-09-16-c`.
+
 ### 2026-09-16 — placed: M22, a public API and scoped account tokens
 
 **Mitchell's call, 2026-09-16**, answering a placement question directly —
@@ -228,11 +267,21 @@ close.
 Milestone numbers are unchanged; this is a placement, the same shape as ADR-018,
 ADR-021, ADR-022 and the two reorders below.
 
-**Placed, not scoped.** Per `TODO.md`'s standing tasks the milestone file is
-written *"before its first commit"*, and one open decision still moves the scope
-(the shape of the planning-write surface). M19 is the standing precedent for a
-milestone deliberately placed but not scoped. Design and the open questions:
+**Placed, then scoped the same day.** This note was first written *"placed, not
+scoped"* because one open decision still moved the scope — the shape of the
+planning-write surface — and that was answered hours later as thirteen REST
+endpoints. So the milestone file exists: `docs/milestones/M22-public-api-and-tokens.md`,
+five phases and a 19-box exit gate — **all five phases landed 2026-09-16, 18 of 19 boxes ticked** — satisfying `TODO.md`'s standing task that
+it be written *"before its first commit"*. **Placed and scoped is still not
+started**: M22's prerequisite is M21 closed, and M21 is open. Design:
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**One correction the milestone file makes to the design's phasing table**, named
+here because it moves what a phase may touch: the table put *"`premium@v2`
+published"* in Phase 0 while Decision 12 said the open version question *"is not
+a blocker for Phase 0, which does not touch the plan file"*. Both cannot hold,
+so **Phase 0 is the contracts change only and publishing the plan version moved
+to Phase 1**, where the first `accountCan` check reads it.
 
 **What it is.** A public REST API under `src/app/api/v1/**` plus
 account-generated API tokens, scoped to the whole account or to named trips,
@@ -282,7 +331,8 @@ composes the existing all-or-nothing batch. The API never mirrors the internal
 command split, which is the same principle that kept the command envelope
 unpublished.
 
-**One item is flagged back and blocks nothing.** Granting `api.tokens` publishes **`premium@v2`**, because
+**The last open item closed the same day: `premium@v2`.** Mitchell, on the
+design's recommendation — *"Just do v2 then."* Granting `api.tokens` publishes **`premium@v2`**, because
 `planVersions.ts` is append-only and `noExtension.test.ts` pins every published
 v1 entry field by field. A subscription pins `planId@vN` forever and **there is
 deliberately no mechanism to move an existing subscriber** (M21's 2026-09-02
@@ -293,17 +343,18 @@ entitlements resolve as the union of the held version and every grant's pinned
 version, and the grant UI already exists from M20. **The cohort needing that
 grant grows for every week M21 sells `premium@v1` before M22 lands.**
 
-**Mitchell's answer was *"just assign it to v1, its unused atm"*, and its premise
-is right — but it leads to `v2`.** Because nobody holds `premium@v1`, **neither**
-option strands anyone; and `livePlanVersion` returns the newest entry with no
-flag to set, so publishing `premium@v2` needs no other edit anywhere. Editing
-`v1` in place, by contrast, falsifies a **ticked M20 gate box** (*"`v1`'s entry
-is byte-identical afterwards"*) and requires rewriting `noExtension.test.ts`,
-whose stated purpose is to fail in the same diff that edits a published entry.
-The M21 price precedent does not cover it: that argued *"the field did not
-exist"*, and `entitlements` does. Recommendation recorded in the design as
-**`v2`**, reversible in one line plus one test line if Mitchell prefers
-otherwise.
+**Mitchell's first answer was *"just assign it to v1, its unused atm"*, and its
+premise is right — but it leads to `v2`, and that is where he landed.** Because
+nobody holds `premium@v1`, **neither** option strands anyone; and
+`livePlanVersion` returns the newest entry with no flag to set, so publishing
+`premium@v2` needs no other edit anywhere. Editing `v1` in place, by contrast,
+falsifies a **ticked M20 gate box** (*"`v1`'s entry is byte-identical
+afterwards"*) and requires rewriting `noExtension.test.ts`, whose stated purpose
+is to fail in the same diff that edits a published entry. The M21 price
+precedent does not cover it: that argued *"the field did not exist"*, and
+`entitlements` does. **Decided `v2`** — and M22's gate now carries a box
+requiring `premium@v1` to be byte-identical when the milestone closes, so the
+decision is enforced rather than remembered.
 
 ### 2026-09-13 — reorder: M20 and M21 run next, ahead of M9's remaining work
 

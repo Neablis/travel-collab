@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type {
+  ApiScope,
   DistanceUnit,
   GrantSource,
   PlanId,
@@ -176,6 +177,76 @@ export const entitlementGrants = pgTable(
     // Phase 6's console counts *accounts per active grant source*, which scans
     // by source and filters on the two lifecycle columns.
     index("entitlement_grants_source").on(t.source),
+  ],
+);
+
+// **Scoped account API tokens** (M22 Phase 1, the 2026-09-16 design).
+//
+// Shaped on `trip_shares`, which is the closest structural precedent — a bearer
+// credential with a lifecycle — but it **breaks with that precedent on one
+// thing, deliberately: the secret is hashed.** `trip_invites` and `trip_shares`
+// store their tokens in plaintext and say exactly why (*"the owner's invite list
+// has to be able to re-show a link they already handed out"*). That
+// justification does not transfer. An API token is shown once at creation and
+// never again, so nothing needs to re-show it, so nothing needs to store it.
+//
+// **SHA-256 rather than bcrypt/argon2, and that is not a shortcut.** The secret
+// is 256 bits of CSPRNG output; there is no low-entropy space to brute-force, so
+// a deliberately slow KDF buys nothing and costs real latency on EVERY API
+// request. `timingSafeEqual` does the comparison, as it already does in
+// `server/admission.ts` and `server/billing/signature.ts`.
+//
+// **EXPIRY AND REVOCATION ARE RESOLVED ON READ AND NEVER SWEPT** — the
+// `entitlement_grants` rule, for a second reason of its own here: an expired
+// token is REFUSED, not deleted, so its owner can still see what lapsed and
+// revoke what they meant to. A cleanup job would erase the evidence a person
+// needs in order to understand why their integration stopped.
+// `apiTokens.retention.test.ts` fails if one is added.
+//
+// **NOTHING HERE CACHES AN ENTITLEMENT.** Whether the owner may use a token is
+// resolved per request from the database, never from this row and never from a
+// JWT (M20's third rule) — a downgrade must bite before a token refreshes, and a
+// token lives for months. There is deliberately no `plan_id` column.
+export const apiTokens = pgTable(
+  "api_tokens",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on the same no-foreign-key terms as every other table here
+    // (ADR-025). Do not introduce this repo's first foreign key.
+    ownerId: text("owner_id").notNull(),
+    // What the person called it. The only way they will tell two apart later.
+    name: text("name").notNull(),
+    // `sha256(secret)`, hex. The lookup key — one indexed equality select, the
+    // same cost as the invite lookup.
+    tokenHash: text("token_hash").notNull(),
+    // The first 8 characters of the secret (`tc_7Fq2xR9a`), for the list UI.
+    // Display only: far too short to narrow a 256-bit secret.
+    prefix: text("prefix").notNull(),
+    // Parsed through `ApiScope` on read — a `text[]` column is not a guarantee.
+    scopes: text("scopes").array().$type<ApiScope[]>().notNull(),
+    // Null means ACCOUNT-WIDE and follows membership live, including trips
+    // created after the token was. A list confines the token to those ids —
+    // and only while the owner still holds the role each endpoint demands,
+    // because the role gate is the unchanged one a session already passes.
+    tripIds: uuid("trip_ids").array(),
+    // `mode: "date"`, not `"string"` — the newer-table convention (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // **Coarse to five minutes, on purpose** (Decision 7). Writing a row on
+    // every authenticated read is a write on a read path; the only question
+    // anyone asks of this column is "was this used today".
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+    // **`notNull`, because expiry is mandatory and capped at 365 days**
+    // (Decision 13). There is no "never expires" and no null to mean it.
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    // The verify path: one equality select per authenticated request. Unique,
+    // because two rows sharing a hash would make "which token was this"
+    // unanswerable — and a collision here is a bug, not a coincidence.
+    uniqueIndex("api_tokens_hash").on(t.tokenHash),
+    // The list path: "this account's tokens", which is every other read.
+    index("api_tokens_owner").on(t.ownerId),
   ],
 );
 

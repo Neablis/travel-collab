@@ -20,7 +20,7 @@ function toPage(row: typeof pages.$inferSelect): Page {
 // response unbounded, and the Notebooks menu re-reads this list on every open.
 // Projecting here makes the declared return type true (Copilot, PR #126).
 function toSummary(row: typeof pages.$inferSelect): PageSummary {
-  return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, updatedAt: row.updatedAt, actorId: row.actorId };
+  return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
 }
 
 function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {

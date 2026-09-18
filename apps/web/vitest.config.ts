@@ -11,6 +11,13 @@ if (existsSync(envLocalPath)) {
   process.loadEnvFile(envLocalPath);
 }
 
+// `src/server/api-tokens` refuses to mint or verify without a pepper, on purpose
+// — an empty one would still produce a stable digest, so tokens would keep
+// working while the property the key exists for silently did not hold. `??=`
+// leaves a real value from `.env.local` or CI alone; this only has to be present
+// and stable within a run, because nothing asserts a digest against a fixture.
+process.env.API_TOKEN_PEPPER ??= "test-pepper-not-a-real-key";
+
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   test: {

@@ -283,7 +283,21 @@ export async function listSavedDays(ownerId: string): Promise<SavedDay[]> {
     // A row this server can no longer read is left out rather than allowed to
     // fail the whole library (see `fromRow`); it is logged, never silent.
     .filter((day): day is SavedDay => day !== null)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+    // The `savedDayId` tie-break is what makes this order a total one. Without
+    // it two days saved in the same millisecond compare equal, the SELECT above
+    // has no ORDER BY to fall back on, and the pair can swap between two reads
+    // — which a keyset pager turns from "cosmetic" into a day it never returns.
+    .sort((a, b) =>
+      a.createdAt < b.createdAt
+        ? 1
+        : a.createdAt > b.createdAt
+          ? -1
+          : a.savedDayId < b.savedDayId
+            ? 1
+            : a.savedDayId > b.savedDayId
+              ? -1
+              : 0,
+    );
 }
 
 /**
