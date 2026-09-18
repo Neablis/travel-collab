@@ -1466,3 +1466,65 @@ filled message box.
   **ceiling reached** case, where the account has access but no turns left today (that is
   §17's meter copy, not a plan gate).
 - D11's orphaned wizard Preview shells are resolved by this section — see `DRIFT.md`.
+
+---
+
+## 31. The new-trip transcript is chat-shaped — 2026-09-18
+
+**Revises §30.1 and, for this one surface, §30.5.** The five-turn script is unchanged.
+What changed is that the sheet now reads, at a glance, as a conversation with the
+assistant — because that is what it is pretending to be, and because on a paid account
+it literally becomes one after the fifth answer (§30.3).
+
+### 31.1 Two visibly different sides
+
+The prose-only treatment of §30.5 still holds in the **desktop assistant panel** and the
+phone **Ask** sheet: no bubbles, two voices told apart by type. It does **not** hold in
+the new-trip sheet, and the divergence is deliberate. In the panel a turn is a question
+and a long answer — voice is enough. In new trip, half the transcript is two- and
+three-word answers ("Lisbon", "Just me", "Slow"), and at that length a left-ruled quote
+is indistinguishable from a caption. So here:
+
+- **Your turn** — right-aligned bubble, max width 78%, `--color-moss` ground, 1px
+  `--color-hairline` border, radius `14px 14px 4px 14px` (the notch marks the side),
+  8px/13px padding, 13.5px / 1.5, `--color-ink`. Right-aligned text. The quiet
+  **Change** sits under it, right-aligned.
+- **The assistant** — left-aligned, no container: 14px / 1.65 `--color-ink` prose, max
+  width 88%, preceded by a 22px `--color-brand` square (radius 6px) holding a mono
+  `C` in `--color-paper`. The mark is what makes a one-line assistant question read as
+  the other party rather than as a form label.
+
+Turn gap 12px. The avatar is the assistant's only ornament — no name label, no timestamps.
+
+### 31.2 The thread opens with a line, and the current question lives in it
+
+- The transcript opens with one assistant message before any question:
+  *"Five quick questions and I will draft the trip. Nothing is generated until the last
+  answer lands."* It sets the contract of §30.2 in the user's own reading order, and it
+  means turn one is never an empty pane.
+- **The question being asked is the last message in the thread**, not a heading above the
+  controls. Previously the live question sat in its own block below the scroller, which
+  read as a form label and broke the illusion the flow depends on.
+
+### 31.3 One answer dock at the foot of the sheet
+
+**Supersedes the "chips under the question" arrangement of §30.1.** The sheet is a full-
+height column: transcript above, flexing, its content bottom-aligned so the newest turn
+always sits against the dock; the dock pinned at the foot, above the footer buttons.
+
+The dock is a single unit separated by one hairline rule, stacked in this order:
+
+1. the two date inputs + *Use these dates* (the **how long** turn only),
+2. the chip row for this question,
+3. the *That is it — build it* button + running selection (the multi turn only),
+4. the text field + **Send** / **Ask**.
+
+They are one control, not two: a chip and a typed sentence fill the same answer and
+commit the same turn. Placeholders were rewritten to say so ("Type a city, or tap one
+above"). The per-question chip label ("Recent and nearby", "Pick a length…") is gone —
+with the chips sitting inside the composer's own frame it was captioning the obvious.
+
+A build owes two things here: the transcript scrolls, **the dock does not**, and the
+transcript must never be the thing that grows the sheet (§30.1's original sin). And the
+dock disappears entirely on the free fork, replaced by the plans note (§30.3) — never a
+disabled input.

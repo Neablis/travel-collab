@@ -4,9 +4,19 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-15.** New trip became a scripted conversation and the
-assistant transcript lost its message bubbles (§30). The pass before it, 2026-09-14, moved
-the plan chooser out of the account sheet into a route with a confirm-and-pay step (§29).
+Last substantive pass: **2026-09-18.** The new-trip transcript was made chat-shaped: two
+visibly different sides, the live question inside the thread, and one answer dock at the
+foot of the sheet (§31). It builds on 2026-09-15, when new trip became a scripted
+conversation and the assistant transcript lost its message bubbles (§30), and 2026-09-14,
+which moved the plan chooser into a route with a confirm-and-pay step (§29).
+
+### What changed on 2026-09-18, in build terms
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| New-trip transcript has two visibly different sides | §31.1 | Your turns = right-aligned moss bubbles (notched radius, 13.5px ink); assistant = left prose + 22px brand avatar. The panel and Ask sheet keep §30.5's no-bubble treatment — this divergence is intentional |
+| The live question is the last message in the thread | §31.2 | No question heading above the controls; plus one opening assistant line stating the no-generation contract |
+| One answer dock at the foot | §31.3 | Full-height column: transcript flexes and is bottom-aligned, dock is fixed at the foot (dates → chips → multi-commit → input+Send). Chips and typing fill the same answer. Dock is absent, not disabled, on the free fork |
 
 **Read §30.2 before estimating M9.** The new-trip flow looks like the assistant but is a
 fixed local script on purpose — that is what keeps an abandoned New-trip sheet from being

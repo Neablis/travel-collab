@@ -3621,58 +3621,58 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ ntOpen }}" onOpenChange="{{ setNtOpen }}" title="New trip">
-    <div style="display: flex; flex-direction: column; gap: 14px; padding: 2px 2px 0;">
+    <div style="display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 2px 2px 0;">
 
-      <div style="display: flex; flex-direction: column; gap: 10px; max-height: min(58vh, 520px); min-height: 150px; overflow-y: auto; padding: 2px 2px 4px;" ref="{{ ntThreadRef }}">
+      <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 14px;" ref="{{ ntThreadRef }}">
         <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
-          <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px;">
-            <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
-            <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
-              <button onClick="{{ m.change }}" style="align-self: flex-start; margin-left: 13px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+            <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
             </sc-if>
+            <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
+              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ m.change }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+              </sc-if>
+            </div>
           </div>
         </sc-for>
       </div>
 
-      <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-          <div style="align-self: stretch; font-size: 14px; line-height: 1.65; color: var(--color-ink); text-wrap: pretty;">{{ ntAsk }}</div>
-          <sc-if value="{{ ntChipLabel }}" hint-placeholder-val="{{ true }}">
-            <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">{{ ntChipLabel }}</span>
-          </sc-if>
-          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-            <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
-              <button onClick="{{ c.act }}" style="font-size: 13px; border-radius: 999px; padding: 6px 13px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
-            </sc-for>
-          </div>
-          <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
-              <span style="font-size: 12px; color: var(--color-slate);">{{ ntMultiCount }}</span>
-            </div>
-          </sc-if>
-          <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="160px,36px" type="date" aria-label="Arrive" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
-              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">→</span>
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="160px,36px" type="date" aria-label="Leave" value="{{ end }}" onChange="{{ setEnd }}" className="w-auto"></x-import>
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ ntUseDates }}">Use these</x-import>
-            </div>
-          </sc-if>
-        </div>
-      </sc-if>
-
       <sc-if value="{{ ntGateNote }}" hint-placeholder-val="{{ false }}">
-        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--color-hairline); border-radius: 10px; background: var(--color-paper); padding: 12px 14px;">
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--color-hairline); border-radius: 10px; background: var(--color-paper); padding: 12px 14px; margin-bottom: 12px;">
           <span style="flex: 1 1 220px; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ ntGateNote }}</span>
           <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntSeePlans }}">See plans</x-import>
         </div>
       </sc-if>
 
       <sc-if value="{{ ntComposer }}" hint-placeholder-val="{{ true }}">
-        <div style="display: flex; gap: 6px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
-          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
-          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntSend }}">{{ ntSendLabel }}</x-import>
+        <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+          <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="150px,36px" type="date" aria-label="Arrive" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
+              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">→</span>
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="150px,36px" type="date" aria-label="Leave" value="{{ end }}" onChange="{{ setEnd }}" className="w-auto"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ ntUseDates }}">Use these dates</x-import>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
+                <button onClick="{{ c.act }}" style="font-size: 13px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
+              <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ ntMultiCount }}</span>
+            </div>
+          </sc-if>
+          <div style="display: flex; gap: 6px;">
+            <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntSend }}">{{ ntSendLabel }}</x-import>
+          </div>
         </div>
       </sc-if>
     </div>
@@ -5258,15 +5258,15 @@ class Component extends DCLogic {
   // local script, so nothing is generated (and nothing is billed) until the last answer
   // lands. Only then does it either hand to the live assistant (paid) or generate once.
   NT_QS = [
-    { id: 'where', ask: 'Where are you going?', ph: 'Type a city, or pick one below', label: 'Recent and nearby',
+    { id: 'where', ask: 'Where are you going?', ph: 'Type a city, or tap one above', label: 'Recent and nearby',
       chips: ['Lisbon', 'Mexico City', 'Seoul', 'Copenhagen', 'Big Sur', 'Back to Kyoto'] },
     { id: 'when', ask: 'How long, roughly?', ph: 'e.g. nine nights in April', label: 'Pick a length, or set the exact dates',
       chips: ['Long weekend', 'A week', '10 days', '2 weeks', 'Longer'], dates: true },
     { id: 'who', ask: 'Who is coming?', ph: 'A name or an email', label: '',
       chips: ['Just me', 'Two of us', 'Family', 'Invite later'] },
-    { id: 'pace', ask: 'What pace do you want?', ph: 'Or describe it', label: '',
+    { id: 'pace', ask: 'What pace do you want?', ph: 'Or describe the pace in your own words', label: '',
       chips: ['Slow', 'Balanced', 'Packed'] },
-    { id: 'feel', ask: 'What is the trip about?', ph: 'Or say it in your own words', label: 'Pick as many as fit',
+    { id: 'feel', ask: 'What is the trip about?', ph: 'Or say what it is about in your own words', label: 'Pick as many as fit',
       chips: ['Food', 'Art', 'Hiking', 'Nightlife', 'Markets', 'Architecture', 'With kids', 'Slow mornings'], multi: true }
   ];
   NT_NIGHTS = { 'Long weekend': 4, 'A week': 7, '10 days': 10, '2 weeks': 14, 'Longer': 21 };
@@ -5277,10 +5277,13 @@ class Component extends DCLogic {
     return (status === 'lapsed' ? 'free' : (status === 'trial' ? 'plus' : plan)) !== 'free';
   }
   ntBub(role) {
-    // Same two voices as the assistant panel, same rule: type, not boxes.
+    // Two clearly different sides: your answers are bubbles on the right,
+    // the assistant speaks as plain prose on the left.
     return role === 'u'
-      ? { align: 'stretch', rule: '2px solid var(--color-brand)', pad: '1px 0 1px 11px', size: '13px', lh: '1.5', ink: 'var(--color-slate)' }
-      : { align: 'stretch', rule: '0', pad: '0', size: '14px', lh: '1.65', ink: 'var(--color-ink)' };
+      ? { align: 'flex-end', isA: false, ta: 'right', max: '78%', bg: 'var(--color-moss)', edge: '1px solid var(--color-hairline)',
+          radius: '14px 14px 4px 14px', pad: '8px 13px', size: '13.5px', lh: '1.5', ink: 'var(--color-ink)' }
+      : { align: 'flex-start', isA: true, ta: 'left', max: '88%', bg: 'transparent', edge: '0',
+          radius: '0', pad: '0', size: '14px', lh: '1.65', ink: 'var(--color-ink)' };
   }
   ntCommit(val) {
     const s = this.state, turn = s.ntTurn || 0, q = this.NT_QS[turn];
@@ -5322,6 +5325,7 @@ class Component extends DCLogic {
     const sum = this.ntSummary(ans);
 
     const rows = [];
+    rows.push(Object.assign({ text: 'Five quick questions and I will draft the trip. Nothing is generated until the last answer lands.', canChange: false }, this.ntBub('a')));
     qs.slice(0, turn).forEach((qq, i) => {
       rows.push(Object.assign({ text: qq.ask, canChange: false }, this.ntBub('a')));
       rows.push(Object.assign({ text: ans[qq.id] || '—', canChange: true, change: () => this.setState({ ntTurn: i, ntPhase: 'ask', ntMulti: [], ntChat: [] }) }, this.ntBub('u')));
@@ -5333,6 +5337,7 @@ class Component extends DCLogic {
       if (paid) rows.push(Object.assign({ canChange: false, text: 'Tell me what to change and I will redraw it before you open it.' }, this.ntBub('a')));
       (s.ntChat || []).forEach(m => rows.push(Object.assign({ text: m.text, canChange: false }, this.ntBub(m.role))));
     }
+    if (q) rows.push(Object.assign({ text: q.ask, canChange: false }, this.ntBub('a')));
 
     return {
       ntThreadRef: this.ntThreadEl,
