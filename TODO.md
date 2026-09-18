@@ -603,10 +603,16 @@ Where the work actually stands right now: `docs/STATUS.md`.
       true, and the gate's "round-trip is equivalent" and "a bad bundle
       is refused" boxes can pull against each other. **Whose rules the
       linter states** is an open question in M25's file, to settle
-      before link 1. A second one found the same way: a **dateless**
-      trip is a real shipped state (`TripDetail.startDate` is nullable)
-      that `BundleTrip` cannot express at all today.
-)*
+      before link 1. A second one found the same way was **decided 2026-09-18**: a
+      **dateless** trip is a real shipped state (`TripDetail.startDate`
+      is nullable) that `BundleTrip` could not express at all, and
+      Mitchell's answer is that it needs no date — *"we just have
+      offsets, day 1, not January 15th"*. `BundleDay` already carries no
+      date field, so the anchor relaxes from *exactly one* to *at most
+      one* and neither means dateless. Not a one-liner:
+      `tripStartDate`'s `?? 0` currently resolves a missing anchor to
+      *starting today*, so the refine alone would make a dateless trip
+      silently dated.)*
 
 - [ ] **M23 A playbook can be more than one day** →
       `docs/milestones/M23-multi-day-playbooks.md`

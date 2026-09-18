@@ -236,7 +236,8 @@ Four links, smallest first. Link 3 is the larger half of the milestone and links
 
 ## Open questions — flagged, not answered
 
-**These are for Mitchell, or for the design pass. Nothing below is decided.**
+**These are for Mitchell, or for the design pass.** *(Question 2's third case
+was decided 2026-09-18 and is marked in place; everything else below is open.)*
 
 ### 1. What a trip export must carry that the bundle does not model today
 
@@ -264,7 +265,7 @@ gap: an export naming collaborators is a copy of a membership list leaving the
 system. Notebook pages are the largest missing piece by volume and would need a
 section the format does not have.
 
-### 2. Whether an exported trip's dates survive
+### 2. Whether an exported trip's dates survive — *half of this is DECIDED, 2026-09-18*
 
 **A bundle trip takes exactly one of `startsInDays` or `startDate` — enforced,
 not conventional**: `.refine((t) => (t.startsInDays === undefined) !==
@@ -279,11 +280,50 @@ date is an expired trip three months later and the homepage hero has nothing
 upcoming to show (`schema.ts:34-38`). A backup wants the first; a template a
 person re-uses wants the second.
 
-**And there is a third case with no representation at all.**
-`TripDetail.startDate` is `z.string().nullable()` (`detail.ts:42`) — a trip with
-no dates set is an ordinary, shipped state — and the `.refine` above means such
-a trip **cannot be expressed as a bundle trip**. Whatever is decided about the
-first two, that one needs an answer before link 1 is built.
+**There was a third case with no representation at all, and Mitchell decided it
+on 2026-09-18.** `TripDetail.startDate` is `z.string().nullable()`
+(`detail.ts:42`) — a trip with no dates set is an ordinary, shipped state — and
+the `.refine` above meant such a trip **could not be expressed as a bundle trip**.
+
+**Decided: a bundle trip may carry NEITHER anchor, and neither means dateless.**
+Mitchell: *"The collection of days bundle can exist, we just have offsets, day 1,
+not January 15th."* The days are then addressed by **position** — day 1, day 2 —
+rather than by calendar date.
+
+**The format is already shaped for this, which is why it is the cheap answer.**
+`BundleDay` carries **no date field of any kind** (`schema.ts:72-83`): a day's
+only identity in a bundle is its index in `days[]`. The anchor is the sole
+date-bearing thing in a trip, so removing it leaves a structure that is already
+complete — it is what a playbook has been since ADR-041. The `.refine` relaxes
+from *exactly one* to **at most one** of `startsInDays` / `startDate`, which is
+purely widening: **all four bundles under `content/` give `startsInDays`**
+(checked), so nothing that exists becomes invalid, and `lint.ts` states no rule
+about either field, so no content rule conflicts with it.
+
+**It is NOT a one-line change, and the reason is a silent default.**
+`tripStartDate` (`toCommands.ts:68`) reads:
+
+```ts
+return trip.startDate ?? addDays(today, trip.startsInDays ?? 0);
+```
+
+That `?? 0` already tolerates a missing `startsInDays`, so relaxing the refine
+**alone** would make a dateless bundle import as *a trip starting today* —
+dated, silently, and wrong. A trip that quietly acquires a start date it never
+had is the same class as `budgetPerPerson` asserting a per-person meaning it did
+not have. So the change is two things, and the second is the one that matters:
+
+1. `.refine` relaxed to *at most one*.
+2. **`tripStartDate` stops defaulting.** Absent both anchors it returns no date,
+   and the day-creation path (`toCommands.ts:99-107`, which also derives
+   `endDate` from `startDate` plus `days.length - 1`) builds days with no date
+   rather than dates counted from today.
+
+**Still open, and untouched by this**: which anchor a *dated* trip's export
+emits. `startDate` says *my trip to Kyoto in March* and re-imports a year later
+as an expired trip; `startsInDays` says *a ten-day shape* and is what the seeded
+library uses, for the reason the schema header gives. A backup wants the first,
+a re-usable template the second. That choice is still for the design pass.
 
 ### 3. Whose rules the linter states
 
@@ -314,6 +354,15 @@ subset, or run none — is a decision, not a detail.
       `location`, `notes`, `anchors`, `kind`, `tags`, `cost`) equal on both
       sides. This is the milestone's thesis and the box every later field
       addition has to keep green.
+- [ ] **A DATELESS trip round-trips as dateless, and does not quietly acquire
+      today's date.** A trip whose `startDate` is `null` exports a bundle with
+      **neither** `startsInDays` nor `startDate`; re-imported, it is still
+      dateless, and its days are still in order. A test that pins this **must be
+      seen to fail first against the current `tripStartDate`**
+      (`toCommands.ts:68`), whose `?? 0` resolves a missing anchor to *starting
+      today* — the defect this box exists to catch is silent, so a test that
+      passes before the change proves nothing. *(Decided 2026-09-18; see open
+      question 2.)*
 - [ ] **An upload MINTS fresh ids and can never overwrite an existing trip.**
       The same file uploaded twice produces **two** trips. A file whose content
       would derive onto an existing row through `bundleId`
