@@ -241,7 +241,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <span style="width: 30px; height: 30px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
               </div>
               <div style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding: 22px 0 6px;">{{ todayLabel }}</div>
-              <div style="font-family: var(--font-next-display); font-size: 28px; font-weight: 600; color: var(--color-ink);">Your trips</div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div style="font-family: var(--font-next-display); font-size: 28px; font-weight: 600; color: var(--color-ink);">Your trips</div>
+                <button onClick="{{ openNewTrip }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 16px; background: var(--color-brand); border: 0; border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-surface); cursor: pointer;">New trip</button>
+              </div>
               <div style="display: flex; flex-direction: column; gap: 9px; padding-top: 16px;">
                 <sc-for list="{{ tripCards }}" as="t" hint-placeholder-count="3">
                   <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,76px" className="rounded-lg p-0 shrink-0 cursor-pointer" onClick="{{ t.open }}">
@@ -256,6 +259,67 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </x-import>
                 </sc-for>
               </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ phoneNewTrip }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--color-surface);">
+              <div style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 58px 16px 10px; border-bottom: 1px solid var(--color-hairline);">
+                <button onClick="{{ ntCancel }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">Cancel</button>
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">New trip</span>
+                <button onClick="{{ createBlank }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Empty</button>
+              </div>
+              <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+        <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
+          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+            <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+            </sc-if>
+            <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
+              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+<sc-if value="{{ ntGateNote }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--color-hairline); padding: 14px 16px 0;">
+                <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ ntGateNote }}</span>
+                <button onClick="{{ ntSeePlans }}" style="min-height: 44px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">See plans</button>
+              </div>
+            </sc-if>
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--color-hairline); padding: 12px 16px 30px;">
+              <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" dc-props="{{ tall44 }}" type="date" aria-label="Start date" value="{{ start }}" onChange="{{ setStart }}"></x-import>
+                  <button onClick="{{ ntUseDate }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 14px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Use</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                  <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
+                    <button onClick="{{ c.act }}" style="min-height: 40px; font-size: 14px; border-radius: 999px; padding: 0 15px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ ntMultiDone }}" style="min-height: 44px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">{{ ntMultiLabel }}</button>
+              </sc-if>
+              <sc-if value="{{ ntComposer }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" dc-props="{{ tall44 }}" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
+                  <button onClick="{{ ntSend }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 18px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ ntSendLabel }}</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntDone }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ ntOpenTrip }}" style="min-height: 48px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">Open the trip</button>
+              </sc-if>
+              <sc-if value="{{ ntHasAns }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ ntCreateNow }}" style="min-height: 40px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">{{ ntCreateNowLabel }}</button>
+              </sc-if>
+            </div>
             </div>
           </sc-if>
 
@@ -1076,6 +1140,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </div>
           </sc-if>
 
+          <sc-if value="{{ phoneTabBar }}" hint-placeholder-val="{{ true }}">
           <div style="position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; background: var(--color-surface); border-top: 1px solid var(--color-hairline); padding: 8px 0 30px;">
             <sc-for list="{{ phoneTabs }}" as="tb" hint-placeholder-count="4">
               <button onClick="{{ tb.go }}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 44px; background: none; border: 0; font-family: inherit; color: {{ tb.ink }}; cursor: pointer;">
@@ -1084,6 +1149,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </button>
             </sc-for>
           </div>
+          </sc-if>
         </div>
       </x-import>
     </div>
@@ -3650,10 +3716,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
           <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="150px,36px" type="date" aria-label="Arrive" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
-              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">→</span>
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="150px,36px" type="date" aria-label="Leave" value="{{ end }}" onChange="{{ setEnd }}" className="w-auto"></x-import>
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ ntUseDates }}">Use these dates</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="170px,36px" type="date" aria-label="Start date" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntUseDate }}">Use this date</x-import>
             </div>
           </sc-if>
           <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
@@ -4466,50 +4530,150 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 </sc-if>
 
 <sc-if value="{{ isFirstRun }}" hint-placeholder-val="{{ false }}">
-  <div style="min-height: 100vh; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-next-sans);">
-    <header style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 18px 28px;">
+  <div style="height: 100vh; min-height: 0; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-next-sans);">
+    <header style="flex: 0 0 auto; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 16px clamp(14px, 4vw, 28px);">
       <span style="display: flex; align-items: center; gap: 9px;">
         <span style="width: 32px; height: 32px; border-radius: 4px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;"><span style="display: flex; align-items: stretch; gap: 4px; height: 18px;"><span style="width: 4px; background: currentColor;"></span><span style="width: 4px; background: currentColor;"></span></span></span>
         <span style="font-family: var(--font-next-display); font-weight: 600; font-size: 16px;">Caesura</span>
       </span>
       <div style="flex: 1;"></div>
-      <span style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-slate);">
-        <span style="width: 26px; height: 26px; border-radius: 999px; background: var(--color-moss); border: 1px solid var(--color-hairline); display: grid; place-items: center; font-size: 11px; font-weight: 600;">SK</span>
-        <span>Signed in as sam@example.com</span>
+      <span style="display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; color: var(--color-slate);">
+        <span style="flex: 0 0 auto; width: 26px; height: 26px; border-radius: 999px; background: var(--color-moss); border: 1px solid var(--color-hairline); display: grid; place-items: center; font-size: 11px; font-weight: 600;">SK</span>
+        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">sam@example.com</span>
       </span>
     </header>
-    <main style="flex: 1; display: grid; place-items: center; padding: 12px 24px 80px;">
-      <div style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 20px;">
-        <div style="display: flex; flex-direction: column; gap: 8px;">
+    <main style="flex: 1; min-height: 0; display: flex; justify-content: center; padding: 0 clamp(14px, 4vw, 28px) clamp(16px, 4vh, 40px);">
+      <div style="flex: 1; min-height: 0; max-width: 620px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px;">
           <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">First trip</span>
-          <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: 32px; line-height: 1.12; letter-spacing: -0.015em;">What are you planning, Sam?</h1>
-          <p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">A name is enough to start. Dates, days and everyone else can come later — nothing here is locked in.</p>
+          <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(24px, 5vw, 32px); line-height: 1.14; letter-spacing: -0.015em; text-wrap: pretty;">What are you planning, Sam?</h1>
         </div>
-
-        <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,240px" raised="{{ true }}">
-          <div style="display: flex; flex-direction: column; gap: 16px;">
-            <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,74px" id="fr1" label="Trip name" hint="You can rename it any time">
-              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,40px" id="fr1" value="{{ frName }}" onChange="{{ setFrName }}" placeholder="Japan: Tokyo → Kyoto → Osaka"></x-import>
-            </x-import>
-            <div data-preview-id="first-run-when" style="position: relative; display: flex; flex-direction: column; gap: 8px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 12px 12px 14px;">
-              <span style="position: absolute; top: -9px; left: 12px; background: var(--color-paper); padding: 0 6px; font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Not built yet · needs a CreateTrip field</span>
-              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Roughly when?</span>
-              <div style="display: flex; flex-wrap: wrap; gap: 8px; opacity: 0.55; pointer-events: none;">
-                <sc-for list="{{ frWhens }}" as="w" hint-placeholder-count="4">
-                  <span style="border: 1px solid {{ w.border }}; background: {{ w.bg }}; color: {{ w.ink }}; border-radius: 999px; padding: 7px 14px; font-family: inherit; font-size: 13px; font-weight: 500;">{{ w.label }}</span>
-                </sc-for>
-              </div>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 2px;">
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,40px" variant="primary" onClick="{{ createFirstTrip }}">Start planning</x-import>
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,40px" variant="ghost" onClick="{{ firstRunPlaybooks }}">Start from a Playbook instead</x-import>
+        <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 12px;" ref="{{ ntThreadRef }}">
+        <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
+          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+            <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+            </sc-if>
+            <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
+              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+              </sc-if>
             </div>
           </div>
-        </x-import>
-
-        <p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Travelling with other people? You'll be able to invite them from inside the trip — they don't need an account to look.</p>
+        </sc-for>
+      </div>
+        <sc-if value="{{ ntGateNote }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--color-hairline); border-radius: 10px; background: var(--color-surface); padding: 12px 14px; margin-bottom: 12px;">
+            <span style="flex: 1 1 220px; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ ntGateNote }}</span>
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntSeePlans }}">See plans</x-import>
+          </div>
+        </sc-if>
+        <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+          <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="170px,36px" type="date" aria-label="Start date" value="{{ start }}" onChange="{{ setStart }}" className="w-auto"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntUseDate }}">Use this date</x-import>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
+                <button onClick="{{ c.act }}" style="min-height: 34px; font-size: 13px; border-radius: 999px; padding: 0 13px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
+              <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ ntMultiCount }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntComposer }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; gap: 6px;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntSend }}">{{ ntSendLabel }}</x-import>
+            </div>
+          </sc-if>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 2px;">
+            <sc-if value="{{ ntDone }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntOpenTrip }}">Open the trip</x-import>
+            </sc-if>
+            <button onClick="{{ createFirstTrip }}" style="min-height: 32px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">Create an empty trip</button>
+            <button onClick="{{ firstRunPlaybooks }}" style="min-height: 32px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">Start from a Playbook instead</button>
+          </div>
+        </div>
       </div>
     </main>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isFirstRunPhone }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 400; background: var(--color-moss); display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 22px 0 30px; overflow-y: auto; font-family: var(--font-next-sans);">
+    <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 12px;">
+      <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">Phone surface · first trip</span>
+      <button onClick="{{ toDesktop }}" style="min-height: 30px; padding: 0 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; font-family: inherit; font-size: 12px; color: var(--color-ink); cursor: pointer;">Desktop</button>
+    </div>
+    <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px" width="{{ 402 }}" height="{{ 874 }}" style="flex: 0 0 auto;">
+      <div style="height: 100%; display: flex; flex-direction: column; background: var(--color-surface); font-family: var(--font-next-sans);">
+        <div style="flex: 0 0 auto; padding: 58px 16px 12px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">First trip</span>
+          <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; color: var(--color-ink); padding-top: 4px;">What are you planning, Sam?</div>
+        </div>
+        <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+        <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
+          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+            <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
+              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+            </sc-if>
+            <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
+              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+<sc-if value="{{ ntGateNote }}" hint-placeholder-val="{{ false }}">
+              <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--color-hairline); padding: 14px 16px 0;">
+                <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ ntGateNote }}</span>
+                <button onClick="{{ ntSeePlans }}" style="min-height: 44px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">See plans</button>
+              </div>
+            </sc-if>
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--color-hairline); padding: 12px 16px 30px;">
+              <sc-if value="{{ ntDatesOn }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" dc-props="{{ tall44 }}" type="date" aria-label="Start date" value="{{ start }}" onChange="{{ setStart }}"></x-import>
+                  <button onClick="{{ ntUseDate }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 14px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Use</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                  <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
+                    <button onClick="{{ c.act }}" style="min-height: 40px; font-size: 14px; border-radius: 999px; padding: 0 15px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ ntMultiDone }}" style="min-height: 44px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">{{ ntMultiLabel }}</button>
+              </sc-if>
+              <sc-if value="{{ ntComposer }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" dc-props="{{ tall44 }}" placeholder="{{ ntPh }}" value="{{ ntInput }}" onChange="{{ setNtInput }}" onKeyDown="{{ ntKey }}"></x-import>
+                  <button onClick="{{ ntSend }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 18px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ ntSendLabel }}</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ntDone }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ ntOpenTrip }}" style="min-height: 48px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">Open the trip</button>
+              </sc-if>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <button onClick="{{ createFirstTrip }}" style="min-height: 40px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">Create an empty trip</button>
+                <button onClick="{{ firstRunPlaybooks }}" style="min-height: 40px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 13.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">Use a Playbook</button>
+              </div>
+            </div>
+      </div>
+    </x-import>
   </div>
 </sc-if>
 </x-dc>
@@ -5257,18 +5421,30 @@ class Component extends DCLogic {
   // New trip is a scripted conversation, not a model one: these five turns are a fixed
   // local script, so nothing is generated (and nothing is billed) until the last answer
   // lands. Only then does it either hand to the live assistant (paid) or generate once.
-  NT_QS = [
+  // The question list is derived, not fixed: answering "yes" to a start date inserts the
+  // day picker turn. Everywhere else in the app a trip is a start date + a length, so the
+  // conversation asks for exactly those two things, one at a time, never both at once.
+  ntQs() {
+    const a = this.state.ntAns || {};
+    const dated = (a.date || '') === 'Yes';
+    return [
     { id: 'where', ask: 'Where are you going?', ph: 'Type a city, or tap one above', label: 'Recent and nearby',
       chips: ['Lisbon', 'Mexico City', 'Seoul', 'Copenhagen', 'Big Sur', 'Back to Kyoto'] },
-    { id: 'when', ask: 'How long, roughly?', ph: 'e.g. nine nights in April', label: 'Pick a length, or set the exact dates',
-      chips: ['Long weekend', 'A week', '10 days', '2 weeks', 'Longer'], dates: true },
+    { id: 'date', ask: 'Do you have a start date in mind?', ph: 'Or type the date', label: '',
+      chips: ['Yes', 'Not yet'] }
+    ].concat(dated ? [
+    { id: 'start', ask: 'When do you arrive?', ph: 'Or type it — 14 April', label: '', chips: [], dates: true }
+    ] : []).concat([
+    { id: 'len', ask: dated ? 'And how long are you staying?' : 'How long, roughly?', ph: 'e.g. nine nights', label: '',
+      chips: ['Long weekend', 'A week', '10 days', '2 weeks', 'Longer'] },
     { id: 'who', ask: 'Who is coming?', ph: 'A name or an email', label: '',
       chips: ['Just me', 'Two of us', 'Family', 'Invite later'] },
     { id: 'pace', ask: 'What pace do you want?', ph: 'Or describe the pace in your own words', label: '',
       chips: ['Slow', 'Balanced', 'Packed'] },
     { id: 'feel', ask: 'What is the trip about?', ph: 'Or say what it is about in your own words', label: 'Pick as many as fit',
       chips: ['Food', 'Art', 'Hiking', 'Nightlife', 'Markets', 'Architecture', 'With kids', 'Slow mornings'], multi: true }
-  ];
+    ]);
+  }
   NT_NIGHTS = { 'Long weekend': 4, 'A week': 7, '10 days': 10, '2 weeks': 14, 'Longer': 21 };
   ntAIAccess() {
     const s = this.state, P = this.props;
@@ -5285,18 +5461,33 @@ class Component extends DCLogic {
       : { align: 'flex-start', isA: true, ta: 'left', max: '88%', bg: 'transparent', edge: '0',
           radius: '0', pad: '0', size: '14px', lh: '1.65', ink: 'var(--color-ink)' };
   }
+  ntDay(v) {
+    const d = new Date(String(v) + 'T00:00:00');
+    if (isNaN(d)) return String(v);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
   ntCommit(val) {
-    const s = this.state, turn = s.ntTurn || 0, q = this.NT_QS[turn];
+    const s = this.state, qs = this.ntQs(), turn = s.ntTurn || 0, q = qs[turn];
     if (!q || !String(val).trim()) return;
-    const ans = Object.assign({}, s.ntAns, { [q.id]: String(val).trim() });
+    const raw = String(val).trim();
+    const ans = Object.assign({}, s.ntAns, { [q.id]: q.id === 'start' ? this.ntDay(raw) : raw });
+    // Revising "do you have a date" back to no must take the picked day with it.
+    if (q.id === 'date' && ans.date !== 'Yes') delete ans.start;
     const next = turn + 1;
     const patch = { ntAns: ans, ntTurn: next, ntInput: '', ntMulti: [] };
-    if (next >= this.NT_QS.length) patch.ntPhase = this.ntAIAccess() ? 'live' : 'made';
+    const after = this.ntQs.call({ state: { ntAns: ans } }).length;
+    if (next >= after) patch.ntPhase = this.ntAIAccess() ? 'live' : 'made';
     this.setState(patch);
   }
+  // From first run there is no app behind the conversation yet — finishing it has to
+  // put you in one. Everywhere else the flow just closes over the trip you were on.
+  ntLand() {
+    return this.state.screen === 'firstrun' ? { screen: 'app', route: 'trip', tripId: 'japan', focus: 0 } : {};
+  }
   ntSummary(ans) {
-    const n = this.NT_NIGHTS[ans.when] || 7;
-    return { n: n, where: ans.where || 'your destination', pace: (ans.pace || 'Balanced').toLowerCase(), feel: (ans.feel || 'a bit of everything').toLowerCase() };
+    const n = this.NT_NIGHTS[ans.len] || 7;
+    const when = ans.start ? ' from ' + ans.start : (ans.date && ans.date !== 'Yes' && ans.date !== 'Not yet' ? ' from ' + ans.date : '');
+    return { n: n, when: when, where: ans.where || 'your destination', pace: (ans.pace || 'Balanced').toLowerCase(), feel: (ans.feel || 'a bit of everything').toLowerCase() };
   }
   ntThreadEl = React.createRef();
   // Called from componentDidUpdate. Previous values are tracked on the instance because
@@ -5316,7 +5507,7 @@ class Component extends DCLogic {
     this.setState(st => ({ ntInput: '', ntChat: (st.ntChat || []).concat([{ role: 'u', text: t }, { role: 'a', text: 'Redrawn. The plan reflects that — open it when you are ready.' }]) }));
   }
   ntFlow() {
-    const s = this.state, qs = this.NT_QS;
+    const s = this.state, qs = this.ntQs();
     const turn = s.ntTurn || 0, ans = s.ntAns || {}, sel = s.ntMulti || [];
     const phase = s.ntPhase || 'ask';
     const asking = phase === 'ask' && turn < qs.length;
@@ -5325,15 +5516,17 @@ class Component extends DCLogic {
     const sum = this.ntSummary(ans);
 
     const rows = [];
-    rows.push(Object.assign({ text: 'Five quick questions and I will draft the trip. Nothing is generated until the last answer lands.', canChange: false }, this.ntBub('a')));
+    rows.push(Object.assign({ canChange: false, text: s.screen === 'firstrun'
+      ? 'Welcome. A few quick questions and I will draft your first trip — nothing is generated until the last answer lands.'
+      : 'A few quick questions and I will draft the trip. Nothing is generated until the last answer lands.' }, this.ntBub('a')));
     qs.slice(0, turn).forEach((qq, i) => {
       rows.push(Object.assign({ text: qq.ask, canChange: false }, this.ntBub('a')));
       rows.push(Object.assign({ text: ans[qq.id] || '—', canChange: true, change: () => this.setState({ ntTurn: i, ntPhase: 'ask', ntMulti: [], ntChat: [] }) }, this.ntBub('u')));
     });
     if (phase !== 'ask') {
       rows.push(Object.assign({ canChange: false, text: paid
-        ? 'Here is the shape: ' + sum.n + ' days in ' + sum.where + ' at a ' + sum.pace + ' pace, built around ' + sum.feel + '. Bookings are left to you, and I have flagged the three days that need a decision.'
-        : sum.n + ' days in ' + sum.where + ' at a ' + sum.pace + ' pace, laid out as Day 1 to Day ' + sum.n + ' around ' + sum.feel + '. Every stop is yours to move.' }, this.ntBub('a')));
+        ? 'Here is the shape: ' + sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, built around ' + sum.feel + '. Bookings are left to you, and I have flagged the three days that need a decision.'
+        : sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, laid out as Day 1 to Day ' + sum.n + ' around ' + sum.feel + '. Every stop is yours to move.' }, this.ntBub('a')));
       if (paid) rows.push(Object.assign({ canChange: false, text: 'Tell me what to change and I will redraw it before you open it.' }, this.ntBub('a')));
       (s.ntChat || []).forEach(m => rows.push(Object.assign({ text: m.text, canChange: false }, this.ntBub(m.role))));
     }
@@ -5359,7 +5552,7 @@ class Component extends DCLogic {
       ntMultiCount: sel.length ? sel.join(', ') : '',
       ntMultiDone: () => this.ntCommit(sel.length ? sel.join(', ') : 'A bit of everything'),
       ntDatesOn: !!(q && q.dates),
-      ntUseDates: () => this.ntCommit(s.start && s.end ? s.start + ' to ' + s.end : 'A week'),
+      ntUseDate: () => this.ntCommit(s.start || ''),
       ntComposer: asking || phase === 'live',
       ntPh: asking ? q.ph : 'Tell me what to change',
       ntSendLabel: asking ? 'Send' : 'Ask',
@@ -5369,8 +5562,9 @@ class Component extends DCLogic {
       ntSend: () => this.ntSendNow(),
       ntHasAns: Object.keys(ans).length > 0 && phase === 'ask',
       ntCreateNowLabel: 'Create with this',
-      ntCreateNow: () => { this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }); this.flash('Trip created from what you answered'); },
-      ntOpenTrip: () => { this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }); this.flash(sum.n + ' days in ' + sum.where + ' — open'); },
+      ntCancel: () => this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [], ntInput: '' }),
+      ntCreateNow: () => { this.setState(Object.assign({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }, this.ntLand())); this.flash('Trip created from what you answered'); },
+      ntOpenTrip: () => { this.setState(Object.assign({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }, this.ntLand())); this.flash(sum.n + ' days in ' + sum.where + sum.when + ' — open'); },
       ntGateNote: phase === 'made'
         ? 'The trip above is finished and yours to edit. Changing it by asking — and everything else the assistant does — is part of Plus.'
         : '',
@@ -8362,7 +8556,8 @@ class Component extends DCLogic {
       ],
       isAuth: s.screen === 'signin' || s.screen === 'signup',
       isSignin: s.screen === 'signin', isSignup: s.screen === 'signup',
-      isFirstRun: s.screen === 'firstrun',
+      isFirstRun: s.screen === 'firstrun' && this.surface() !== 'phone',
+      isFirstRunPhone: s.screen === 'firstrun' && this.surface() === 'phone',
       goLanding: () => this.setState({ screen: 'landing' }),
       goSignin: () => this.setState({ screen: 'signin' }),
       goSignup: () => this.setState({ screen: 'signup' }),
@@ -8854,7 +9049,11 @@ class Component extends DCLogic {
       })).filter(g => g.items.length),
       // Every phone screen is an explicit route — 'playbooks' and 'day' own theirs, so
       // Trips must not fall through to "anything that isn't a trip".
-      phoneTrips: route === 'home' || route === 'board' || route === 'profile',
+      phoneTrips: (route === 'home' || route === 'board' || route === 'profile') && !s.ntOpen,
+      // The new-trip conversation owns the whole phone screen: it is a task, not a view,
+      // so the tab bar steps aside rather than competing with Cancel.
+      phoneNewTrip: (route === 'home' || route === 'board' || route === 'profile') && !!s.ntOpen,
+      phoneTabBar: !s.ntOpen,
       // Playbooks is account-scope, like Trips — so it is a route, not a view of the
       // open trip. 'plan'/'map'/'notebook' remain views onto the trip.
       phonePb: route === 'playbooks',

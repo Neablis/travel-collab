@@ -10,7 +10,17 @@ foot of the sheet (§31). It builds on 2026-09-15, when new trip became a script
 conversation and the assistant transcript lost its message bubbles (§30), and 2026-09-14,
 which moved the plan chooser into a route with a confirm-and-pay step (§29).
 
-### What changed on 2026-09-18, in build terms
+### What changed on 2026-09-18, in build terms — part two (§32)
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| First run is the conversation, not a name form | §32.1 | Fluid 620px page column; first-run opening line; exits as quiet links; `ntLand()` must put a finished first-run flow into an app, not just close it |
+| The phone gets the flow | §32.2 | **New trip** pill on Trips; full-screen conversation (Cancel · Empty header); 44px inputs / 40px chips; tab bar hidden while the flow is open; first run renders in-frame too |
+| Dates: one question became two | §32.3 | "Do you have a start date in mind?" → Yes inserts a single day-picker turn; Not yet goes to length chips. No range picker anywhere |
+| The question list is derived | §32.3 | `ntQs()` from answers (6 turns, 7 with a date); no hardcoded count in logic **or** copy; revising to *Not yet* drops the picked day |
+| Dates are formatted at commit | §32.3 | ISO → the app's date style before it enters transcript/summary/toast |
+
+### What changed on 2026-09-18, in build terms — part one (§31)
 
 | Change | Spec | What a build owes |
 |---|---|---|
