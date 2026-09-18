@@ -214,12 +214,14 @@ Four links, smallest first. Link 3 is the larger half of the milestone and links
      needs a ceiling, refused as a **400 with the limit named** rather than
      clamped or truncated — M22's precedent for `?limit=`, which refuses an
      out-of-range value rather than quietly changing it.
-   - **A partially-invalid bundle.** The script's answer is all-or-nothing and
-     stated in one line: `errors.length > 0` → *"n error(s) — nothing
-     imported."* and exit 1 (`apps/web/scripts/import-content.ts:267-271`).
-     Warnings do not block. Whether an upload keeps that rule — and what it does
-     with the warnings, which the script prints to a terminal nobody is looking
-     at here — is this link's to decide.
+   - **A partially-invalid bundle — settled 2026-09-18, and it is the script's
+     own rule.** All-or-nothing: a file that does not parse imports **nothing**,
+     which is what the script already does in one line — `errors.length > 0` →
+     *"n error(s) — nothing imported."* and exit 1
+     (`apps/web/scripts/import-content.ts:267-271`). The half this link was
+     going to have to decide — what an upload does with the linter's
+     **warnings** — **is gone**, because the content rules do not run on uploads
+     (open question 3). With no warnings there is no partial state to design.
 
    **The endpoint shape carries one constraint from M22.** Importing creates a
    trip, so a **trip-confined token must be refused**, for the same reason
@@ -234,36 +236,63 @@ Four links, smallest first. Link 3 is the larger half of the milestone and links
    applied. This is the box that fails when a later milestone adds a field to a
    trip and not to the export.
 
-## Open questions — flagged, not answered
+## Questions this milestone had — one is still open
 
-**These are for Mitchell, or for the design pass.** *(Question 2's third case
-was decided 2026-09-18 and is marked in place; everything else below is open.)*
+**Three were flagged when this file was written and Mitchell answered all of
+question 1, all of question 3, and the half of question 2 that had no
+representation, on 2026-09-18.** They are kept here rather than deleted, with
+the decision marked in each, because the reasoning is what a later session needs
+in order not to reopen them.
 
-### 1. What a trip export must carry that the bundle does not model today
+**Still open, and it is one sentence:** which anchor a *dated* trip's export
+emits — `startDate` or `startsInDays`. See question 2.
 
-Checked against `packages/fixtures/src/bundle/schema.ts` and
-`packages/contracts/src/detail.ts` rather than guessed:
+### 1. What a trip export carries — *DECIDED 2026-09-18*
 
-| Part of a trip | In `BundleTrip`? |
+**Days and activities. Nothing else.** Mitchell, 2026-09-18: *"just the days and
+activities, nothing else, no budget, invites or notebooks."*
+
+So this stopped being a question about what the format is missing and became a
+**scope line**: the parts listed below as absent are absent **by decision**, and
+a later session finding them missing has found the decision rather than a gap.
+
+| Part of a trip | Exported? |
 |---|---|
-| Stops — title, time window, location, notes, anchors, kind, tags, cost | **yes**, field for field (`BundleStop`, `schema.ts:54`) |
-| Days, in order, with their stops | **yes** (`BundleDay`, `schema.ts:72`) — but see the label note below |
-| Backlog | **yes** (`schema.ts:101`) |
-| Trip name, currency, budget | **yes** (`schema.ts:90-96`) |
-| Per-stop costs and the trip total | costs **yes**; totals are derived (`TripDetail.tripCostTotal`, `budgetRemaining`) and correctly absent |
-| **Members** | **no.** `TripDetail.members` is `z.array(TripMember).min(1)` (`detail.ts:45`); `BundleTrip` has no member field of any kind |
-| **Share links** | **no** |
-| **Invites** | **no** |
-| **Notebook pages authored on this trip** | **no — and this is the one most likely to be assumed.** The bundle *has* a `notebooks` section, and it carries **templates only**: `BundleNotebook` is `{ key, title, description, seedIntoNewTrips, content }` (`schema.ts:158-198`), trip-agnostic by construction. A real page is `Page` — `{ id, tripId, title, content, context, createdAt, updatedAt, actorId }` (`packages/contracts/src/pages.ts:281-289`) — with a `PageContext` bound to a `tripId` (`pages.ts:228-229`). The importer only writes notebooks at all when `--trip` names one, and it writes them as new pages. **The section exists; it does not cover this.** |
-| **Lineage** (`forkedFrom`) | **no** (`detail.ts:55`) |
-| **Trip status** (`active` / soft-deleted, ADR-016) | **no** |
-| **Dismissed conflicts** (`dismissedConflictIds`, content-derived ids) | **no** |
+| Days, in order, with their stops | **yes** — `BundleDay` (`schema.ts:72`) |
+| Stops — title, time window, location, notes, anchors, kind, tags | **yes**, field for field (`BundleStop`, `schema.ts:54`) |
+| A stop's `cost` | **yes** — see the reading below |
+| Backlog | **yes** — see the reading below |
+| Trip name | **yes**; it is required by `BundleTrip` and an export has to name something |
+| **Trip budget** | **no** — named out |
+| **Trip currency** | **no** — trip-level money, following the budget |
+| **Members, invites, share links** | **no** — named out |
+| **Notebook pages** | **no** — named out (and the bundle's `notebooks` section is templates only, so it never covered them) |
+| **Lineage** (`forkedFrom`), trip status, dismissed conflicts | **no** — not days and not activities |
+| Derived totals (`tripCostTotal`, `budgetRemaining`) | **no**, and never could be: they are computed from what is carried |
 
-Members, shares and invites are Access & Membership rather than planning state,
-and whether a file should carry them at all is a real question rather than a
-gap: an export naming collaborators is a copy of a membership list leaving the
-system. Notebook pages are the largest missing piece by volume and would need a
-section the format does not have.
+**Two readings of "days and activities" that the sentence does not settle, taken
+this way and cheap to reverse if either is wrong:**
+
+- **A stop's `cost` stays**, because it is a field *of an activity* and
+  activities are in, while `budget` is a field of the *trip* and was named out.
+  `Money` carries its own currency (`{ amountMinor, currency }`), so a stop's
+  cost is self-describing and survives the trip-level `currency` going with the
+  budget. One consequence to accept rather than discover: an imported trip has
+  no currency of its own and falls to the domain's default, USD
+  (`schema.ts:93`), even where its stop costs are all in JPY.
+- **The backlog stays.** `BundleTrip.backlog` is *"parked ideas — no day, no
+  clock, no price"* (`schema.ts:101`) — activities that have no day yet, not a
+  separate kind of thing. Dropping them would silently lose real work on export.
+
+**A property this narrowing buys, worth naming because it was a live concern.**
+With members, invites and share links out, **an export cannot carry a copy of a
+membership list out of the system**, and an exported file says nothing about who
+else is on the trip. That concern is now closed by scope rather than managed.
+
+**What it costs, stated plainly.** An export is not a backup. Re-importing your
+own trip loses its budget, its collaborators, its notebooks and its history (the
+last already decided, being a snapshot rather than the log). It is a copy of the
+plan, which is the thing this milestone says it is.
 
 ### 2. Whether an exported trip's dates survive — *half of this is DECIDED, 2026-09-18*
 
@@ -325,25 +354,42 @@ as an expired trip; `startsInDays` says *a ten-day shape* and is what the seeded
 library uses, for the reason the schema header gives. A backup wants the first,
 a re-usable template the second. That choice is still for the design pass.
 
-### 3. Whose rules the linter states
+### 3. Whose rules the linter states — *DECIDED 2026-09-18*
 
-Found while reading `lint.ts` and recorded here because it decides what the
-"refused at upload" gate box can assert. The content rules were written for
-**authored library content**, and some of them are errors a **real user's trip**
-can legitimately trip over:
+**An upload is validated by the schema and not by the content rules.** Mitchell,
+2026-09-18: *"For linting, keep it simple, and wait for a real issue to emerge."*
 
-- `"trip has no days"` — an **error** (`lint.ts:175`). A trip with no days is a
-  real state.
-- A day whose stops are not in clock order — an **error** (`lint.ts:97`),
-  because for authored content written order *is* the order a person sees. A
-  user who reordered stops on their own board produces exactly this.
-- `backlog item carries a time window` — an **error** (`lint.ts:191`).
-- A stop with no `location.city` — a **warning** (`lint.ts:113`), aimed at
-  Discover matching, which a private trip does not care about.
+**The reading, stated because the sentence admits two.** "Keep it simple" could
+mean *run the existing linter on uploads and change nothing* — but that is not
+waiting for an issue, because we already know which issues it produces. Three of
+`lint.ts`'s rules are **errors** a legitimate user trip trips routinely:
 
-So "export a real trip, import it, and it passes the linter" is **not
-automatically true**, and the choice — run the content rules on uploads, run a
-subset, or run none — is a decision, not a detail.
+- `"trip has no days"` — an error (`lint.ts:175`), and an empty trip is a real
+  state the product creates on purpose.
+- A day whose stops are not in clock order — an error (`lint.ts:97`), which a
+  person reordering stops on their own board produces by ordinary use.
+- `backlog item carries a time window` — an error (`lint.ts:191`).
+
+Shipping that would reject real trips on day one. So the simple thing is the
+**smaller** thing: `parseBundle` — the Zod parse, which is the actual
+correctness boundary and the thing that makes a malformed file a 400 — runs on
+uploads, and the content rules do not.
+
+**The content rules keep their one job and their one audience.** They exist for
+**authored library content** headed for Discover, checked in `content/` by
+`content:verify` and `packages/fixtures/src/bundle/content.test.ts`. Nothing
+about this decision touches them, and the file a person uploads to their own
+account was never their audience.
+
+**No subset, no second rule set, no per-audience flag** — which is the part that
+would have been the machinery. If unlinted uploads turn out to cause a real
+problem, that is the point to revisit, and this paragraph is the note saying it
+was a decision rather than an oversight.
+
+**One consequence for link 3.** Its *"a partially-invalid bundle"* bullet asks
+what an upload does with the linter's **warnings**. With no linter on the path
+there are none, so what is left is the schema's own all-or-nothing answer: a file
+that does not parse imports nothing, and there is no partial state to design.
 
 ## Exit gate
 
@@ -352,8 +398,11 @@ subset, or run none — is a decision, not a detail.
       not by a person reading the JSON and not by a screenshot. Days in order,
       stops in order, and every `BundleStop` field (`title`, `timeWindow`,
       `location`, `notes`, `anchors`, `kind`, `tags`, `cost`) equal on both
-      sides. This is the milestone's thesis and the box every later field
-      addition has to keep green.
+      sides. **Equivalent over what is exported, which is days and activities
+      and nothing else** (question 1) — a re-imported trip legitimately has no
+      budget, no members and no notebook pages, and a test asserting otherwise
+      is testing a scope this milestone does not have. This is the milestone's
+      thesis and the box every later field addition has to keep green.
 - [ ] **A DATELESS trip round-trips as dateless, and does not quietly acquire
       today's date.** A trip whose `startDate` is `null` exports a bundle with
       **neither** `startsInDays` nor `startDate`; re-imported, it is still
@@ -369,11 +418,15 @@ subset, or run none — is a decision, not a detail.
       (`packages/fixtures/src/bundle/ids.ts:39`) still produces a new trip.
       Demonstrated by uploading a file exported from another account and
       watching the original trip go untouched.
-- [ ] **A bundle that fails the linter is refused at upload with a readable
-      error** naming the file's own problem — the importer's `where` and
-      `message` (`lint.ts:17-22`), not a generic 400. Nothing is written: a
-      bundle with one bad day imports **zero** days, matching
-      `import-content.ts:267-271`'s *"nothing imported"*.
+- [ ] **A malformed bundle is refused at upload with a readable error**, as a
+      400 naming what is wrong, with **nothing written** — the schema's
+      all-or-nothing answer, not a partial import. *(`parseBundle` only: the
+      content lint rules do not run on uploads — decided 2026-09-18, open
+      question 3.)*
+- [ ] **A real trip that the CONTENT rules would reject still round-trips** —
+      an empty trip, a day whose stops are out of clock order, and a backlog
+      item carrying a time window each export and re-import cleanly. This is the
+      box that fails if somebody later wires `lint.ts` into the upload path.
 - [ ] **The OpenAPI document at `GET /api/v1/openapi` describes the export
       endpoint with no hand-editing** — its scope, its role, its response — and
       `pnpm --filter web openapi:generate` is the only thing that touched the
@@ -446,7 +499,13 @@ transport, no widget and no subscription. It is placed ahead of them because
 every one of them makes a trip carry more, and a round-trip test is cheaper to
 write before that than after.
 
-**Two things must be decided before link 1 is built, not during it**: which date
-form an export emits and what a dateless trip becomes (open question 2), and
-whose rules the linter states at upload (open question 3). Both are small; both
-change the shape of the first endpoint.
+**Three things had to be decided before link 1 was built, and Mitchell decided
+all but one of them on 2026-09-18** — what the export carries (question 1: days
+and activities, nothing else), what a dateless trip becomes (question 2: neither
+anchor, days as offsets), and whose rules the linter states at upload (question
+3: the schema's, and no content rules on the path).
+
+**One remains, and it does not block starting**: whether a *dated* trip's export
+emits `startDate` or `startsInDays`. Links 1, 3 and 4 are buildable either way —
+it changes one expression in the converter and one line of the round-trip test's
+expectation, not the shape of the endpoint.

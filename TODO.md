@@ -593,26 +593,27 @@ Where the work actually stands right now: `docs/STATUS.md`.
       not walk into the `premium@v1` pinning problem M22 raised. Import is the
       larger half — a user upload must **mint fresh ids**, where the content
       script derives them from keys so a re-import updates rows instead.
-      **One qualification found while scoping, and it dents the
-      round-trip claim rather than the format choice**: `lint.ts` states rules
-      written for *authored library content*, and three of them are
-      **errors a real user trip can trip** — a trip with no days, a day
-      whose stops are out of clock order (which the board produces by
-      ordinary reordering), and a backlog item carrying a time window.
-      So *export → re-import → passes the linter* is not automatically
-      true, and the gate's "round-trip is equivalent" and "a bad bundle
-      is refused" boxes can pull against each other. **Whose rules the
-      linter states** is an open question in M25's file, to settle
-      before link 1. A second one found the same way was **decided 2026-09-18**: a
-      **dateless** trip is a real shipped state (`TripDetail.startDate`
-      is nullable) that `BundleTrip` could not express at all, and
-      Mitchell's answer is that it needs no date — *"we just have
-      offsets, day 1, not January 15th"*. `BundleDay` already carries no
-      date field, so the anchor relaxes from *exactly one* to *at most
-      one* and neither means dateless. Not a one-liner:
-      `tripStartDate`'s `?? 0` currently resolves a missing anchor to
-      *starting today*, so the refine alone would make a dateless trip
-      silently dated.)*
+      **Three scoping questions were decided 2026-09-18.** **What it
+      carries: days and activities, nothing else** — no budget, no
+      members, invites or share links, no notebook pages, no lineage or
+      trip status. That is a scope line, not a gap, and it buys a
+      property worth naming: an export cannot carry a copy of a
+      membership list out of the system. It also means an export is a
+      copy of the plan and **not a backup**. **Linting: the schema
+      validates an upload and the content rules do not run on it** —
+      `lint.ts` states rules for authored library content headed for
+      Discover, and three are errors a real trip trips routinely (an
+      empty trip, stops out of clock order after an ordinary board
+      reorder, a backlog item with a time window), so running it would
+      reject real trips on day one. No subset and no second rule set;
+      revisit if a real problem emerges. **Dates: a dateless trip needs
+      no anchor** — *"we just have offsets, day 1, not January 15th"*.
+      `BundleDay` already carries no date field, so the trip anchor
+      relaxes from *exactly one* to *at most one* and neither means
+      dateless. Not a one-liner: `tripStartDate`'s `?? 0` currently
+      resolves a missing anchor to *starting today*, so the refine alone
+      would make a dateless trip silently dated. **One question stays
+      open**: which anchor a *dated* trip's export emits.)*
 
 - [ ] **M23 A playbook can be more than one day** →
       `docs/milestones/M23-multi-day-playbooks.md`
