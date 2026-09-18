@@ -73,6 +73,21 @@ export const LENGTH_DAYS: Readonly<Record<string, number>> = {
   Longer: 21,
 };
 
+/**
+ * **The day count for a length answer, or `null` if it is not one of the five.**
+ *
+ * A function rather than an index, because `LENGTH_DAYS[answer]` reads the
+ * PROTOTYPE too: a reader who types `constructor` on the length turn got
+ * `Object` back, which is not null, so the closing line rendered function source
+ * and `addDaysIso` was handed a `NaN` that throws before the date command is
+ * sent (CodeRabbit, PR #188). `Object.hasOwn` is the guard, and it lives here,
+ * beside the map, so a second call site cannot reintroduce the same lookup.
+ */
+export function daysFor(answer: string | undefined): number | null {
+  if (answer === undefined || !Object.hasOwn(LENGTH_DAYS, answer)) return null;
+  return LENGTH_DAYS[answer] ?? null;
+}
+
 /** What `feel` commits when the reader picks nothing and writes nothing. */
 export const FEEL_DEFAULT = "A bit of everything";
 

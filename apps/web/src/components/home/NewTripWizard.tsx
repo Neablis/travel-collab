@@ -19,7 +19,7 @@ import { submitOnEnter } from "@/lib/submitOnEnter";
 // "when do you arrive".
 import { formatTripDateWithYear } from "@/lib/formatDate";
 import {
-  LENGTH_DAYS,
+  daysFor,
   NEW_TRIP_OPENING,
   NEW_TRIP_OPENING_FIRST_RUN,
   NEW_TRIP_START,
@@ -53,7 +53,7 @@ import {
  * The 40px chip is deliberately not built: it would be a sixth control height
  * in a scale that has four, to sit 4px under a floor §13.1 says is absolute.
  */
-const TOUCH = "min-h-11 sm:min-h-0";
+export const TOUCH = "min-h-11 sm:min-h-0";
 
 export type NewTripWizardProps = {
   open: boolean;
@@ -263,7 +263,10 @@ export function NewTripConversation({
   // forbids. §32.3 removed the other source: the date range that used to be
   // able to imply a length is gone, and a trip is a start date plus a length
   // everywhere in this app.
-  const days = where === undefined ? null : (LENGTH_DAYS[state.answers.len ?? ""] ?? null);
+  //
+  // `daysFor`, never a bare index: `LENGTH_DAYS["constructor"]` reads the
+  // prototype and hands back a function (CodeRabbit, PR #188).
+  const days = where === undefined ? null : daysFor(state.answers.len);
   // Both halves, and the answer as well as the ISO: `start` present in the
   // answers is what says the reader actually fixed a day, and `arrive` is the
   // machine-readable half of that same answer.

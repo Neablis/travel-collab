@@ -971,6 +971,12 @@ test.describe("responsive (narrow viewport, first trip)", () => {
       ["the answer field", composer],
       ["Create empty", createEmpty],
       ["a destination chip", card.getByRole("button", { name: "Lisbon" })],
+      // The two exits belong in this loop as much as the dock does
+      // (CodeRabbit, PR #188). They are `size: "sm"`, which is 28px, and
+      // measuring only the controls the dock happened to own made §13.1 hold
+      // for those and not for the ones beside them.
+      ["the Playbook exit", playbookLink],
+      ["the example-trip exit", demoLink],
     ] as const) {
       const box = await control.boundingBox();
       expect(box, `${label} has no box`).not.toBeNull();

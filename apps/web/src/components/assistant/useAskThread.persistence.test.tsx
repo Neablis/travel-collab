@@ -310,7 +310,14 @@ describe("useAskThread — durability", () => {
 
   // The conversation on screen is unaffected by a browser that refuses
   // storage; only its durability is.
+  //
+  // **It has to have a turn to be unaffected about** (CodeRabbit, PR #188).
+  // This asserted an empty thread on an empty mount, and `saveAskThread`
+  // returns before touching `setItem` when the thread is empty — so the
+  // throwing stub below was never called and the test passed without ever
+  // exercising a refused write. It runs a real ask now.
   it("still works when the browser refuses storage", async () => {
+    vi.stubGlobal("fetch", answeringFetch("Still available."));
     vi.stubGlobal("localStorage", {
       getItem: () => {
         throw new Error("SecurityError");
@@ -323,8 +330,13 @@ describe("useAskThread — durability", () => {
       },
     });
     const { result } = mount(NAME);
-    await waitFor(() => expect(result.current.asking).toBe(false));
-    expect(result.current.thread).toEqual([]);
+    await act(async () => {
+      await result.current.runAsk("Does this still work?");
+    });
+    expect(result.current.thread.map((turn) => turn.text)).toEqual([
+      "Does this still work?",
+      "Still available.",
+    ]);
     expect(() => act(() => result.current.startNewConversation())).not.toThrow();
   });
 });

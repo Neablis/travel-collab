@@ -345,7 +345,11 @@ describe("NewTripWizard — the turns", () => {
 
     await user.click(screen.getByRole("button", { name: "Create with this" }));
     await waitFor(() => expect(createTrip).toHaveBeenCalled());
-    // The length survives (you re-answer forward), the day does not.
+    // The day is gone. **The other half — that the length survives — is NOT
+    // assertable here** and this comment used to claim it anyway (CodeRabbit,
+    // PR #188): dropping the date shrinks the question list, so `len` is being
+    // re-asked and has no committed user turn on screen to look at. It is a
+    // reducer property, and `newTripScript.test.ts` asserts it directly.
     expect(screen.getByRole("log").textContent).not.toContain("Oct 3");
     expect(dispatch).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "SetTripDates" }),

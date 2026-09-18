@@ -7,7 +7,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
-import { NewTripConversation, type NewTripWizardProps } from "./NewTripWizard";
+import { NewTripConversation, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
 // feedback that turned out to be the same one (Mitchell, 2026-09-01):
@@ -121,14 +121,25 @@ export function FirstTripStart({
             going, and taking it is one click. It was reachable from the page
             head and from the end of a trip — never from the screen where a
             person has no trip to be at the end of. */}
-        <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>
+        {/* `TOUCH` here too (CodeRabbit, PR #188): `size: "sm"` is `h-7`, 28px,
+            and these are the first-run screen's two real exits. The dock beside
+            them already carries §13.1's floor — leaving these under it made the
+            rule hold for the controls a test happened to measure and not for
+            the ones next to them. */}
+        <Link
+          href="/playbooks"
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), TOUCH)}
+        >
           Start from a Playbook
         </Link>
         {/* The third route, and the only one that costs nothing: look at a
             finished trip before making one. `/demo` is the same board with the
             changes turned off (ADR-031), and it carries its own "make this
             trip mine". */}
-        <Link href={DEMO_PATH} className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>
+        <Link
+          href={DEMO_PATH}
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), TOUCH)}
+        >
           Look around an example trip
         </Link>
       </div>

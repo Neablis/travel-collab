@@ -5,6 +5,7 @@ import {
   FEEL_DEFAULT,
   LENGTH_DAYS,
   changeTo,
+  daysFor,
   commitAnswer,
   commitMulti,
   isComplete,
@@ -80,6 +81,21 @@ describe("the script", () => {
     for (const question of questionsFor({ date: DATE_YES })) {
       if (question.chips.length === 0) continue;
       expect(question.placeholder, `${question.id}`).toMatch(/tap (one|any) above/);
+    }
+  });
+
+  // **A length answer is one of five strings, not any key on an object.**
+  // `LENGTH_DAYS["constructor"]` reads the prototype and returns `Object`, so a
+  // reader who typed `constructor` on the length turn got a function where a
+  // day count belongs: the closing line rendered its source, and `addDaysIso`
+  // was handed a NaN that throws before the date command is sent (CodeRabbit,
+  // PR #188). The guard lives beside the map so no call site can skip it.
+  it("reads no day count off the prototype", () => {
+    expect(daysFor("A week")).toBe(7);
+    expect(daysFor(undefined)).toBeNull();
+    expect(daysFor("nine nights")).toBeNull();
+    for (const inherited of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+      expect(daysFor(inherited), `${inherited} is not a length`).toBeNull();
     }
   });
 
@@ -175,7 +191,16 @@ describe("Change", () => {
       answers: { where: "Lisbon", date: DATE_YES, start: "Apr 10, 2027", len: "A week" },
       picked: [],
     };
-    expect(commitAnswer(changeTo(dated, 1), DATE_NOT_YET).answers.start).toBeUndefined();
+    const revised = commitAnswer(changeTo(dated, 1), DATE_NOT_YET);
+    expect(revised.answers.start).toBeUndefined();
+    // **And only the day goes.** §30.1's "you re-answer forward" still holds
+    // across this revision: the length answered AFTER the date survives it.
+    // The component test that covers the same walk cannot assert this — the
+    // shrunken list leaves `len` being re-asked, so it has no user turn on
+    // screen — which is exactly why the claim is enforced here instead
+    // (CodeRabbit, PR #188: a comment asserting an invariant with no test
+    // behind it is KI-1/KI-14's defect class).
+    expect(revised.answers.len).toBe("A week");
     expect(commitAnswer(changeTo(dated, 1), "not sure yet").answers.start).toBeUndefined();
     // Re-confirming Yes keeps it: that is not a revision, and losing the day
     // would punish somebody for checking their own answer.
