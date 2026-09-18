@@ -157,6 +157,16 @@ export function buildOpenApi(
         responses: {
           [String(status)]: {
             description: "Success.",
+            ...(def.responseHeaders === undefined
+              ? {}
+              : {
+                  headers: Object.fromEntries(
+                    Object.entries(def.responseHeaders).map(([name, description]) => [
+                      name,
+                      { description, schema: { type: "string" } },
+                    ]),
+                  ),
+                }),
             content: { "application/json": { schema: responseSchema } },
           },
           "4XX": {

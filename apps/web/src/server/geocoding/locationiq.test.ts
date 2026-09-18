@@ -142,4 +142,79 @@ describe("LocationIQ geocoder adapter", () => {
     const withoutBox = new URL(fetchMock.mock.calls[1]![0] as string);
     expect(withoutBox.searchParams.get("viewbox")).toBeNull();
   });
+
+  // LocationIQ's structured lookup is a SEPARATE ENDPOINT (/v1/search/structured),
+  // not structured params on /v1/search — confirmed against its published
+  // OpenAPI spec on 2026-09-18. A structured query cannot be mixed with `q`.
+  it("geocodes an address on the structured endpoint with structured params, never `q`, restricted to its country", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) =>
+      new Response(
+        JSON.stringify([
+          {
+            lat: "49.41",
+            lon: "8.69",
+            display_name: "Hauptstraße 5, Heidelberg",
+            address: { country_code: "de", city: "Heidelberg" },
+          },
+        ]),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await createLocationIQGeocoder("K").forwardAddress(
+      {
+        countryCode: "DE",
+        lines: ["Hauptstraße 5"],
+        dependentLocality: "Altstadt",
+        locality: "Heidelberg",
+        administrativeArea: "Baden-Württemberg",
+        postalCode: "69117",
+      },
+      { limit: 1 },
+    );
+
+    expect(results[0]).toMatchObject({ lat: 49.41, lng: 8.69, countryCode: "DE", city: "Heidelberg" });
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.pathname).toBe("/v1/search/structured");
+    expect(url.searchParams.get("q")).toBeNull();
+    expect(url.searchParams.get("street")).toBe("Hauptstraße 5");
+    expect(url.searchParams.get("city")).toBe("Heidelberg");
+    expect(url.searchParams.get("state")).toBe("Baden-Württemberg");
+    expect(url.searchParams.get("postalcode")).toBe("69117");
+    // `countrycodes` (ISO alpha-2), not the structured endpoint's `country`,
+    // which takes a country NAME — we hold the code.
+    expect(url.searchParams.get("countrycodes")).toBe("de");
+    expect(url.searchParams.get("limit")).toBe("1");
+    expect(url.searchParams.get("accept-language")).toBe("en");
+  });
+
+  it("joins multiple address lines into one street param, in the caller's order", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createLocationIQGeocoder("K").forwardAddress({ countryCode: "GB", lines: ["Flat 4", "221B Baker Street"] });
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.searchParams.get("street")).toBe("Flat 4, 221B Baker Street");
+  });
+
+  it("restricts a free-text lookup to a country when asked, and keeps it on the free-text endpoint", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createLocationIQGeocoder("K").forward("Blue Bottle", { countryCode: "JP" });
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.pathname).toBe("/v1/search");
+    expect(url.searchParams.get("q")).toBe("Blue Bottle");
+    expect(url.searchParams.get("countrycodes")).toBe("jp");
+  });
+
+  // LocationIQ answers a miss with HTTP 404 {"error":"Unable to geocode"}
+  // (confirmed against its docs, 2026-09-18). It must surface as [] so a caller
+  // can tell `no-match` from `unavailable`; every other non-OK status still throws.
+  it("treats LocationIQ's 404 'Unable to geocode' as no results, not an error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "Unable to geocode" }), { status: 404 })),
+    );
+    await expect(createLocationIQGeocoder("K").forward("zzzz")).resolves.toEqual([]);
+  });
 });

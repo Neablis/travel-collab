@@ -78,7 +78,17 @@ describe("ApiScope", () => {
     // first version of this line read `\bask\b` and matched "Ask for fewer"
     // in a lifetime-ceiling message, which is user copy and not an AI surface.
     expect(CODE).not.toMatch(/\bai\.\w|\/ask\b|\bapi\/admin\b/i);
-    expect(CODE).not.toMatch(/\b(requireAdminApi|stripe|checkout|geocode)\b/i);
+    // `geocode` used to sit in this list and no longer does. It was never one
+    // of the three absences the comment above names — it rode along because
+    // geocoding also spends a metered vendor key — and the 2026-09-18 design
+    // deliberately admits that surface to `v1`: `GET /v1/trips/{tripId}/geocode`
+    // under `trips:write`, charged through `consumeQuota(geocodeQuota())` on the
+    // same ceilings as the in-app search. The word now appears here honestly, as
+    // the `Geocode-Outcome` header's wire name (the hyphen is what matched; the
+    // identifiers never did). The three absences are unchanged and still
+    // guarded: model spend by the line above, admin by `requireAdminApi`,
+    // billing by `stripe|checkout`.
+    expect(CODE).not.toMatch(/\b(requireAdminApi|stripe|checkout)\b/i);
   });
 
   // **A scope is a set, not a rank** — the same refusal as `PlanId`, for the

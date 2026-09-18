@@ -33,6 +33,7 @@ function throwingGeocoder(err: unknown): Geocoder {
     forward: async () => {
       throw err;
     },
+    forwardAddress: async () => [],
   };
 }
 
@@ -100,7 +101,7 @@ describe("resolveJob outcome classification (KI-78)", () => {
     // The other shape a zero-result answer could arrive in. It is not what
     // LocationIQ sends, but it is a legitimate Geocoder response and must
     // land on the box outcome, not on either error outcome.
-    const empty: Geocoder = { forward: async () => [] };
+    const empty: Geocoder = { forward: async () => [], forwardAddress: async () => [] };
     const result = (await resolveJob(empty, job)) as Unresolved;
     expect(result.reason).toBe("no-candidate-in-box");
   });

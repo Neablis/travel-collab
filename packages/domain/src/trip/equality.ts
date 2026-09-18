@@ -1,4 +1,4 @@
-import type { ActivityTag, Anchor, Money } from "@tc/contracts";
+import type { ActivityTag, Anchor, Money, PostalAddress } from "@tc/contracts";
 import type { ActivityState, DayState, TripState } from "./state";
 
 export function moneyEqual(a: Money | null, b: Money | null): boolean {
@@ -34,6 +34,21 @@ function sameTags(a: readonly ActivityTag[], b: readonly ActivityTag[]): boolean
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
 
+// `lines` order is significant — it is the street-level part in the country's
+// own order, so ["Apt 4", "5 High St"] and ["5 High St", "Apt 4"] are different
+// addresses. Compared positionally, like anchors and tags.
+function sameAddress(a: PostalAddress | undefined, b: PostalAddress | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return (
+    a.countryCode === b.countryCode &&
+    sameList(a.lines, b.lines) &&
+    a.dependentLocality === b.dependentLocality &&
+    a.locality === b.locality &&
+    a.administrativeArea === b.administrativeArea &&
+    a.postalCode === b.postalCode
+  );
+}
+
 export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean {
   return (
     a.title === b.title &&
@@ -51,7 +66,10 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
     // where forgetting would be least visible: two locations identical but for
     // their granularity would compare equal, so re-geocoding a stop from a city
     // centroid up to a real venue fix would be rejected as a no-op — the exact
-    // shape of KI-54, one field later.
+    // shape of KI-54, one field later. `address` (compared by `sameAddress`) is
+    // the one after that, and it is nested rather than scalar — correcting a
+    // street number changes nothing else about the stop, not even its
+    // coordinates, so no other comparison here can stand in for it.
     (a.location === null ||
       (a.location.name === b.location!.name &&
         a.location.lat === b.location!.lat &&
@@ -59,7 +77,8 @@ export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean
         a.location.city === b.location!.city &&
         a.location.countryCode === b.location!.countryCode &&
         a.location.area === b.location!.area &&
-        a.location.precision === b.location!.precision)) &&
+        a.location.precision === b.location!.precision &&
+        sameAddress(a.location.address, b.location!.address))) &&
     sameAnchors(a.anchors, b.anchors) &&
     a.kind === b.kind &&
     sameTags(a.tags, b.tags) &&

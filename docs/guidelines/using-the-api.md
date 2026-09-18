@@ -131,6 +131,56 @@ response carries `items` and `nextCursor`; `nextCursor: null` is the end.
 rather than clamped, so you cannot silently page forever against a number the
 server quietly changed.
 
+### Putting a stop on the map
+
+A stop's `location` can carry coordinates, a postal address, or just a name.
+The map draws coordinates only, so on `POST`/`PATCH …/activities` the server
+fills them in when you leave them out, in this order:
+
+1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither.
+2. **`address`** — geocoded as a structured address.
+3. **`name`** — geocoded as free text, preferring places near the trip's other stops
+   (and inside `countryCode`, if you set it).
+
+If the lookup finds nothing, the stop is **still created**, without coordinates.
+Every write whose body had a `location` answers with a `Geocode-Outcome` header:
+`provided`, `address`, `name`, `no-match`, `quota-exhausted` or `unavailable`.
+Lookups count against your account's daily geocoding allowance.
+
+```json
+{
+  "title": "Dinner",
+  "location": {
+    "name": "Zum Roten Ochsen",
+    "address": {
+      "countryCode": "DE",
+      "lines": ["Hauptstraße 217"],
+      "locality": "Heidelberg",
+      "postalCode": "69117"
+    }
+  }
+}
+```
+
+**Addresses are structured, not one string.** `lines` is the street-level
+part in the country's own order (`["221B Baker Street"]`, `["Hauptstraße 5"]`,
+`["1-2-3 Nishi-Azabu"]`); `countryCode` (ISO alpha-2) is required; `locality`,
+`dependentLocality`, `administrativeArea` and `postalCode` (a string) are
+optional. The address is stored exactly as you send it — we never assemble one
+from a geocoder's answer, because those come back as components with no
+per-country ordering. Geocoding only ever *adds* coordinates to what you wrote.
+
+If you send `countryCode` on the location as well, it must match the address's.
+Two country fields that can disagree is a bug generator, so the write is
+refused rather than one of them silently winning.
+
+**To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
+(optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
+`location`: send one back as-is and the write costs no second lookup. Needs
+`trips:write` — a lookup spends the operator's geocoding allowance, so a
+read-only token cannot make one. A spent allowance answers `429` with
+`Retry-After`; a geocoder that is down answers `503`.
+
 ### What is not here, and will not be
 
 - **The assistant.** A token cannot spend model budget.
