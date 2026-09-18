@@ -202,14 +202,50 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M22 — An account can build on the API**
-(`M22-public-api-and-tokens.md`), as of **2026-09-16, by Mitchell's decision**
-— **not** by a gate closing. **M21 is OPEN at 11 of 17 and is paused, not
-finished.** Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+Current milestone: **M25 — A trip is a file you can take with you**
+(`M25-a-trip-is-a-file.md`), as of **2026-09-18, by Mitchell's decision** —
+**not** by a gate closing. **M22 is OPEN at 18 of 19 and is paused, not
+finished; M21 is OPEN at 11 of 17 and is paused.** Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
 **Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
 below. The second one also records a cost it first got wrong.
+**This line then moved to M25 on 2026-09-18** — the third time it has moved by
+decision rather than by a gate close, and the note recording it is directly
+below.
+
+### 2026-09-18 — Current milestone moves to M25; M22 pauses at 18/19
+
+**Mitchell's decision, 2026-09-18** — *"Start next milestone."* Taken with the
+order above already settled the same day, so the decision is *which* milestone
+is current, not what runs next: M25 is the next milestone in it.
+
+**M22 is paused, not abandoned.** Its file, scope and nineteen gate boxes stand
+untouched; one is open. Nothing here ticks, unticks or amends a box — only
+Mitchell amends a gate definition, and he has not.
+
+**What is open on M22, and why pausing is not a choice to pay for it later.**
+The one box is the reachability walk — *a person mints, copies and revokes a
+token by clicking, and sees time remaining on each*. Its CI lane is green and
+one of its three preview clauses is met; the other two need a Vercel preview
+with `API_TOKEN_PEPPER` set, which is a **deployment**, not code
+(`KI-20260916-d`). No amount of building closes it, and it is no harder to
+close after M25 than before.
+
+**What it costs M25's predecessor, checked rather than assumed.** M25 adds **no
+entitlement** (so no plan version, so no `premium@v3` and no second pinned
+cohort — M25's own gate box asserts this with a test), touches **no token
+path**, and writes **no migration**. So it cannot move M22's open box in either
+direction. The one thing M25 *does* to M22 is measure it: M25 link 1 is the
+second independent test of M22's headline claim that endpoint N+1 costs a
+declaration and nothing else, this time on an endpoint with a body to build
+rather than an array to slice.
+
+**The preflight this kickoff owes, run and recorded.** `TODO.md`'s live-order
+line had gone stale — it still named the pre-2026-09-18 order two days after
+that order changed — and is corrected in the same commit as this note. No other
+flag was unflipped: M22's gate has not passed, so its gate-close checklist is
+not yet owed.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and

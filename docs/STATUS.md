@@ -30,9 +30,17 @@ general setup.
 
 ## Where the work is right now
 
-**M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
-**Mitchell's decision and not by a gate closing**. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+**M25 — A TRIP IS A FILE YOU CAN TAKE WITH YOU — IS THE CURRENT MILESTONE AS OF 2026-09-18**,
+by **Mitchell's decision and not by a gate closing** (*"Start next milestone."*). Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+**M22 is paused at 18 of 19, not finished**, and its one open box is a preview
+walk blocked on a deployment rather than on code (`KI-20260916-d`) — so it is no
+harder to close after M25 than before. Scope, the three decided questions and a
+14-box gate: `docs/milestones/M25-a-trip-is-a-file.md`; the kickoff plan and the
+decisions this session took on top of it: `docs/plans/2026-09-18-M25-trip-as-a-file.md`.
+**M25 adds no entitlement, publishes no plan version, touches no token path and
+needs no migration** — which is checked rather than assumed, and is why the move
+costs M22 and M21 nothing.
 **The tail of that order changed 2026-09-18** — three milestones minted (**M23**
 multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
 moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
@@ -44,7 +52,7 @@ and are easy to lose for that reason: the activity-field descriptor refactor
 generated, drift-checked architecture map is designed in
 `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
 in principle.
-Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-20260916-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
 **Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
@@ -377,13 +385,41 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M21 is open and nothing of it is built.** Read
-`docs/milestones/M21-subscriptions-and-billing.md` before planning anything: seven links, the
-prices already decided (`free` $0, `plus` $9, `premium` $19) and living in that file alone,
-and a gate whose hard parts are signature verification, idempotency under Stripe's retries,
-out-of-order tolerance, and *no card number ever reaches this application*. **It adds no
-entitlement and no gate** — a diff touching `modelSelection.ts`, `quota.ts` or `members.ts`
-means the split from M20 failed.
+**M25 is the current milestone and it is buildable from its own file** — all
+three of its scoping questions were decided by Mitchell on 2026-09-18, so
+nothing on it waits on anybody. Read `docs/milestones/M25-a-trip-is-a-file.md`,
+then `docs/plans/2026-09-18-M25-trip-as-a-file.md` for the task order.
+
+**Four things to know before touching it**, each of which costs a re-derivation
+if it is missed:
+
+1. **A session cookie satisfies every scope on a `v1` route**
+   (`public-api/actor.ts` — *"a session actor satisfies every scope check"*).
+   That is what makes export free in the UI with no second endpoint and no
+   entitlement anywhere on the path: the browser calls the same `v1` route an
+   API caller does. `api.tokens` gates minting and verifying a **token**, not a
+   session, so a `free` account downloading its own trip never meets it.
+2. **A `v1` resource response is returned raw, not enveloped** — only a
+   `collection` gets `{ items, nextCursor }` (`public-api/route.ts:525`). So the
+   export endpoint's body *is* the bundle, byte for byte, and what a person
+   downloads is what `parseBundle` reads back. Wrapping it would have broken the
+   round trip silently.
+3. **`SetTripDates` with both dates null adds no days** (`decide.ts:177`), so a
+   **dateless** bundle cannot build its days through the command the dated path
+   uses. It needs `AddDay` per day instead — which is the real content of M25's
+   *"not a one-line change"* note, and the reason relaxing the schema's `.refine`
+   alone would import a dateless trip as one silently starting today.
+4. **M21 has not moved and is still open at 11/17.** The paragraph that used to
+   be here said *"M21 is open and nothing of it is built"* — which stopped being
+   true on 2026-09-14, when all four of its phases merged, and stayed on this
+   page through two milestone boundaries. Eleven of its seventeen boxes are
+   ticked with evidence; what the gate still wants is above, under *What the
+   gate still wants*. **This is the third time this section has gone stale while
+   the file's length stayed respectable** — it named M17 on the day M17's gate
+   closed, then M9 on the day M20 was already built and merged, then M21 as
+   unbuilt for four days after all four of its phases merged. That is the reason
+   it exists as its own heading rather than as a sentence in the narrative, and
+   the reason to read it with suspicion rather than trust.
 
 **Two things are waiting rather than blocked, and both are Mitchell's.** Whether to flip
 `ai-live` now that its precondition is met (above, with what it would expose), and whether
@@ -391,24 +427,17 @@ the three open questions M9 Phase 0 raised get answered before M21 prices anythi
 second of them, *which quota window a sold ceiling binds*, is the one M21 pays for if it is
 left: it is implemented per-day and stated in no contract.
 
-*(This section named M9 as the current work until 2026-09-14, on the day M20 was already
-built and merged — the second time this file's most-read section went stale while its length
-stayed respectable. The section above is where the work is; this one is what happens next.)*
+**M9's three real pieces of work are BUILT, and what is left of it is its gate.** Grounding,
+conversation durability and the eval/replay harness all landed 2026-09-16 and relanded as
+#188 — the section above carries it. What the gate still wants is what a build cannot
+supply: a live model call, the Rochester re-run resting on one, and the browser walks. *(An
+earlier version of this paragraph said "M9 stays paused behind M21" and listed all three as
+unchanged. It had been wrong for two days.)*
 
-**M9 stays paused behind M21**, and its three real pieces of work are unchanged, per the
-2026-09-01 audit (`docs/reviews/2026-09-01-milestone-audit.md`):
-
-- **Grounding** — a `SearchPlaces` read tool, with `AddActivity`/`UpdateActivity` citing a
-  `placeRef: N` against that turn's search cache instead of a free-text `location`. This is
-  what makes the model *structurally incapable* of naming a place it did not search for, and
-  it is the reason `ai-live` is still dark. Closes KI-81/KI-15.
-- **Conversation durability** — no conversation table exists, so a reload loses the thread.
-- **An eval/replay harness** — KI-11, inherited from M16's gate.
-
-**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks starting
-the above, and the second is the one that costs if it is left: whether the usage row carries a
+**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks anything
+current, and the second is the one that costs if it is left: whether the usage row carries a
 `planVersionRef`; **which quota window a *sold* ceiling binds** (implemented per-day, stated
-nowhere — M20 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
+nowhere — M21 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
 env var.
 
 ## Landed in the last week
