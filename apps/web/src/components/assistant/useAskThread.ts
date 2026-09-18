@@ -178,6 +178,18 @@ export function useAskThread({
     // work as well as the writes. (CodeRabbit, PR #188.)
     abort.current?.abort();
     abort.current = null;
+    // **Everything transient belongs to the conversation being left**
+    // (CodeRabbit, PR #188). Aborting stops the request; it does not clear what
+    // the request already put on screen. Without this, switching trips carried
+    // the previous trip's error banner, its "simulated" notice and its restored
+    // draft into a conversation that never produced them — and a status still
+    // reading "loading" would leave the composer disabled for a request that
+    // was cancelled.
+    setStatus("idle");
+    setAskError(null);
+    setAskErrorCode(null);
+    setSimulated(false);
+    setRestoredDraft(null);
     const stored = loadAskThread(persistAs);
     setThread(stored);
     // The stored ids have to stay unique against the ones this session mints.

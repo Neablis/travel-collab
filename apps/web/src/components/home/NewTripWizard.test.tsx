@@ -258,6 +258,25 @@ describe("NewTripWizard — the four turns", () => {
     );
   });
 
+  // **`changeTo` keeps the answers, so the old destination outlived the edit**
+  // (CodeRabbit, PR #188). Going back to turn one and typing a different city
+  // left `answers.where` committed, and `name` preferred it — so Create empty
+  // made a trip named the thing on screen a moment ago rather than the thing in
+  // the field. An uncommitted edit to the question being ASKED is the more
+  // recent intent.
+  it("creates from the composer when turn one is being re-answered", async () => {
+    const { createTrip } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getAllByRole("button", { name: "Change" })[0]!);
+
+    // Typed, deliberately not committed — this is the state the bug lived in.
+    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
+    await user.click(screen.getByRole("button", { name: "Create empty" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(createTrip.mock.calls[0]![0]).toMatchObject({ name: "Porto" });
+  });
+
   it("makes the footer's primary Open the trip once the trip exists", async () => {
     const { createTrip } = renderWizard();
     await answerThroughToFeel();
@@ -318,16 +337,21 @@ describe("NewTripWizard — the four turns", () => {
     renderWizard();
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
     await user.click(screen.getByRole("button", { name: "A week" }));
+
+    // **Back to the length turn BEFORE asserting the line is absent**
+    // (CodeRabbit, PR #188). Committing a length advances to `pace`, and only
+    // `when` carries `dates: true` — so asserting from there passed because the
+    // whole dates block was unrendered, never because `dated` was false. The
+    // assertion said nothing about the guard it is named for. Standing on the
+    // turn that draws the block is what makes `dated` the only reason it is
+    // missing; the Arrive field is checked to prove the block really is here.
+    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
+    expect(screen.getByLabelText("Arrive")).not.toBeNull();
     // A length alone is not a dated trip — there is nothing to count from.
     expect(screen.queryByText(/7 days —/)).toBeNull();
 
-    // Back to the length turn, and give it an arrival this time.
-    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
+    // Same turn, now with an arrival: the line appears.
     await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
-    await user.click(screen.getByRole("button", { name: "A week" }));
-
-    // Re-asked at the pace turn now, so go back once more to read the line.
-    await user.click(screen.getAllByRole("button", { name: "Change" })[1]!);
     expect(screen.getByText(/7 days —/)).not.toBeNull();
   });
 

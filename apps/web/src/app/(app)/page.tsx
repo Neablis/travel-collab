@@ -112,6 +112,17 @@ export default function Home() {
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
 
+  // **The render guard hides the sheet; it does not un-request it** (CodeRabbit,
+  // PR #188). `newTripOpen` stays true behind `!hasNoTrips`, so a click made
+  // while the list was still loading would sit latched — and the moment the
+  // reader created their first trip inline, `hasNoTrips` flipped false and the
+  // sheet appeared over the trip they had just made, asking them to make
+  // another. Clearing the request when the conversation takes over is what
+  // makes the guard a decision rather than a delay.
+  useEffect(() => {
+    if (hasNoTrips) setNewTripOpen(false);
+  }, [hasNoTrips]);
+
   /**
    * **"New trip" opens the sheet — unless the conversation is already on the
    * page**, which it is on a Home with no trips, where `FirstTripStart` renders

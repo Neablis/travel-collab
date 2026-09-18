@@ -578,6 +578,54 @@ describe("Home first-run experience", () => {
     ).toHaveProperty("href", expect.stringContaining("/demo"));
   });
 
+  // **A hidden sheet is not a cancelled one** (CodeRabbit, PR #188). The render
+  // guard `open={newTripOpen && !hasNoTrips}` stops the sheet appearing beside
+  // the inline conversation, but `newTripOpen` stayed latched true — so a click
+  // made while the list was still loading resurfaced the moment `hasNoTrips`
+  // flipped false, which is exactly when the reader had just created their
+  // first trip. The sheet asked them to make another, over the one they made.
+  it("does not resurface a sheet requested before the list loaded", async () => {
+    const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
+    let resolveList!: (response: Response) => void;
+    const listPending = new Promise<Response>((resolve) => {
+      resolveList = resolve;
+    });
+    let listCallCount = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips") && init?.method === "POST") {
+        return jsonResponse({ tripId: newTripId }, 201);
+      }
+      if (url.endsWith("/api/trips")) {
+        listCallCount += 1;
+        // Held open on the first call so the click below lands while `trips`
+        // is still null — the one window where the page-head button opens the
+        // sheet rather than focusing the inline field.
+        if (listCallCount === 1) return listPending;
+        return jsonResponse({ trips: [tripSummaryFixture({ tripId: newTripId, name: "Osaka" })] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+
+    // The list lands empty: the conversation takes over and the sheet goes.
+    resolveList(jsonResponse({ trips: [] }));
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull());
+
+    // Make the first trip inline, which flips `hasNoTrips` false.
+    await userEvent.type(within(firstRun).getByLabelText("Where are you going?"), "Osaka");
+    await userEvent.click(within(firstRun).getByRole("button", { name: /^create empty$/i }));
+
+    expect(await screen.findByRole("heading", { name: "Osaka", level: 3 })).toBeTruthy();
+    // The trip is here and the sheet did NOT come back with it.
+    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+  });
+
   // Mitchell, 2026-09-01: *"The 'New trip' side bar should be a full screen
   // experience when you have no trips"*. That is now satisfied more directly
   // than by a full-screen sheet — the conversation is the page. What has to

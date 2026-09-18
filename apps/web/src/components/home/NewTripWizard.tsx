@@ -236,7 +236,15 @@ export function NewTripConversation({
   // The trip's name is the destination answer, or whatever is in the composer
   // before it has been committed — which is what preserves "type a name, press
   // Create empty" exactly as the old single-field dialog worked.
-  const name = (where ?? draft).trim();
+  //
+  // **While `where` is the live question, the composer wins** (CodeRabbit, PR
+  // #188). `changeTo` keeps the answers rather than clearing them, so pressing
+  // Change back to turn one leaves the OLD destination committed; typing a new
+  // one and pressing Create empty then made a trip named the thing on screen a
+  // moment ago, not the thing in the field. An uncommitted edit to the question
+  // being asked is the more recent intent.
+  const composing = question?.id === "where" && draft.trim() !== "";
+  const name = (composing ? draft : (where ?? draft)).trim();
   // A length CHIP or a committed date RANGE gives a day count. Free text like
   // "nine nights in April" still gives none, because parsing prose would be the
   // model call §30.2 forbids — the date inputs are how that answer is made

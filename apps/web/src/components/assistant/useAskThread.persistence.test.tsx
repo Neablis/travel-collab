@@ -143,6 +143,48 @@ describe("useAskThread — durability", () => {
     expect(loadAskThread(NAME)).toHaveLength(2);
   });
 
+  // **An error belongs to the conversation that produced it** (CodeRabbit, PR
+  // #188). Re-keying aborted the request but left everything the request had
+  // already put on screen: switching trips carried the previous trip's error
+  // banner into a conversation that never failed — and a `status` still reading
+  // "loading" would have left the composer disabled for a cancelled request.
+  it("does not carry one trip's error into the next conversation", async () => {
+    const OTHER = "trip:99999999-2222-4333-8444-555566667777";
+    // A real 500, spelled out here because this file has no `jsonResponse`
+    // helper — and a mock that merely THROWS would set an error too, which
+    // would make this test pass for a reason it does not name.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: "the assistant is unavailable" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    const view = renderHook(
+      ({ name }: { name: string }) =>
+        useAskThread({
+          tripId: TRIP,
+          scope: { kind: "trip" },
+          errorMessage: (error: ApiError) => error.message,
+          persistAs: name,
+        }),
+      { initialProps: { name: NAME } },
+    );
+
+    await act(async () => {
+      await view.result.current.runAsk("how does this trip look?");
+    });
+    expect(view.result.current.askError).not.toBeNull();
+
+    view.rerender({ name: OTHER });
+    await waitFor(() => expect(view.result.current.askError).toBeNull());
+    expect(view.result.current.asking).toBe(false);
+  });
+
   it("forgets the stored conversation when a new one is started", async () => {
     saveAskThread(NAME, stored);
     const first = mount(NAME);
