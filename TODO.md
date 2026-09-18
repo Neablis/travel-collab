@@ -606,14 +606,18 @@ Where the work actually stands right now: `docs/STATUS.md`.
       empty trip, stops out of clock order after an ordinary board
       reorder, a backlog item with a time window), so running it would
       reject real trips on day one. No subset and no second rule set;
-      revisit if a real problem emerges. **Dates: a dateless trip needs
-      no anchor** — *"we just have offsets, day 1, not January 15th"*.
-      `BundleDay` already carries no date field, so the trip anchor
-      relaxes from *exactly one* to *at most one* and neither means
-      dateless. Not a one-liner: `tripStartDate`'s `?? 0` currently
-      resolves a missing anchor to *starting today*, so the refine alone
-      would make a dateless trip silently dated. **One question stays
-      open**: which anchor a *dated* trip's export emits.)*
+      revisit if a real problem emerges. **Dates: a dated trip exports
+      its real `startDate`, never `startsInDays`**, and a **dateless**
+      trip carries neither anchor —
+      *"we just have offsets, day 1, not January 15th"*. `BundleDay`
+      already has no date field, so the trip anchor relaxes from
+      *exactly one* to *at most one*. The export is a copy of **your**
+      trip rather than a re-usable shape, so a stale export importing as
+      a *past* trip is the correct answer, not a defect to design
+      around. The dateless half is not a one-liner: `tripStartDate`'s
+      `?? 0` currently resolves a missing anchor to *starting today*, so
+      relaxing the refine alone would make a dateless trip silently
+      dated. **Nothing on this milestone is waiting on a decision.**)*
 
 - [ ] **M23 A playbook can be more than one day** →
       `docs/milestones/M23-multi-day-playbooks.md`

@@ -236,16 +236,14 @@ Four links, smallest first. Link 3 is the larger half of the milestone and links
    applied. This is the box that fails when a later milestone adds a field to a
    trip and not to the export.
 
-## Questions this milestone had — one is still open
+## Questions this milestone had — all three are answered
 
-**Three were flagged when this file was written and Mitchell answered all of
-question 1, all of question 3, and the half of question 2 that had no
-representation, on 2026-09-18.** They are kept here rather than deleted, with
-the decision marked in each, because the reasoning is what a later session needs
-in order not to reopen them.
+**Three were flagged when this file was written, and Mitchell answered all of
+them on 2026-09-18.** They are kept here rather than deleted, with the decision
+marked in each, because the reasoning is what a later session needs in order not
+to reopen them.
 
-**Still open, and it is one sentence:** which anchor a *dated* trip's export
-emits — `startDate` or `startsInDays`. See question 2.
+**Nothing on this milestone is waiting on a decision.**
 
 ### 1. What a trip export carries — *DECIDED 2026-09-18*
 
@@ -270,8 +268,8 @@ a later session finding them missing has found the decision rather than a gap.
 | **Lineage** (`forkedFrom`), trip status, dismissed conflicts | **no** — not days and not activities |
 | Derived totals (`tripCostTotal`, `budgetRemaining`) | **no**, and never could be: they are computed from what is carried |
 
-**Two readings of "days and activities" that the sentence does not settle, taken
-this way and cheap to reverse if either is wrong:**
+**Two readings of "days and activities" that the sentence did not settle. Both
+were put to Mitchell and CONFIRMED on 2026-09-18:**
 
 - **A stop's `cost` stays**, because it is a field *of an activity* and
   activities are in, while `budget` is a field of the *trip* and was named out.
@@ -294,14 +292,14 @@ own trip loses its budget, its collaborators, its notebooks and its history (the
 last already decided, being a snapshot rather than the log). It is a copy of the
 plan, which is the thing this milestone says it is.
 
-### 2. Whether an exported trip's dates survive — *half of this is DECIDED, 2026-09-18*
+### 2. Whether an exported trip's dates survive — *DECIDED 2026-09-18*
 
 **A bundle trip takes exactly one of `startsInDays` or `startDate` — enforced,
 not conventional**: `.refine((t) => (t.startsInDays === undefined) !==
 (t.startDate === undefined), "give exactly one of startsInDays or startDate")`
 (`schema.ts:103-105`).
 
-Both answers are defensible and they are different products. `startDate` says
+Both answers were defensible and they are different products. `startDate` says
 *this is my trip to Kyoto in March*, and re-importing it a year later imports an
 expired trip. `startsInDays` says *this is a ten-day shape*, and is the form the
 whole seeded library uses for the reason the schema header gives: a fixed start
@@ -309,8 +307,29 @@ date is an expired trip three months later and the homepage hero has nothing
 upcoming to show (`schema.ts:34-38`). A backup wants the first; a template a
 person re-uses wants the second.
 
-**There was a third case with no representation at all, and Mitchell decided it
-on 2026-09-18.** `TripDetail.startDate` is `z.string().nullable()`
+**Decided: a dated trip exports its real `startDate`.** Mitchell, 2026-09-18.
+The export is a copy of **your** trip, not a shape to re-use, so it says when the
+trip is — and **re-importing it a year later producing an expired trip is the
+correct answer**, not a defect to design around. A test asserting an import
+lands in the future would be asserting the losing side of this decision.
+
+**So an export emits `startDate`, or it emits neither anchor. It never emits
+`startsInDays`.** That form stays exactly what it is today — the way *authored
+library content* keeps itself upcoming — and nothing this milestone writes
+produces one. The two shapes an export can take are therefore:
+
+| The trip | What the bundle carries |
+|---|---|
+| Has a start date | `startDate`, its real one |
+| Has none (`TripDetail.startDate` is `null`) | **neither** anchor — days by position |
+
+**Nothing in the import path has to change for the dated half**, which is worth
+saying because the dateless half below is not free: `tripStartDate`
+(`toCommands.ts:68`) already reads `trip.startDate` first, so a dated bundle
+imports correctly today.
+
+**And there was a third case with no representation at all, decided the same
+day.** `TripDetail.startDate` is `z.string().nullable()`
 (`detail.ts:42`) — a trip with no dates set is an ordinary, shipped state — and
 the `.refine` above meant such a trip **could not be expressed as a bundle trip**.
 
@@ -403,6 +422,13 @@ that does not parse imports nothing, and there is no partial state to design.
       budget, no members and no notebook pages, and a test asserting otherwise
       is testing a scope this milestone does not have. This is the milestone's
       thesis and the box every later field addition has to keep green.
+- [ ] **A DATED trip round-trips with its real date**, and the bundle carries
+      `startDate` rather than `startsInDays` — a trip starting on a fixed day
+      exports that day, re-imports onto it, and **an export that has been
+      sitting around imports as a past trip rather than being shifted forward**.
+      A test that asserts an imported trip starts in the future is asserting the
+      losing side of this decision and is the finding, not the fix. *(Decided
+      2026-09-18; see question 2.)*
 - [ ] **A DATELESS trip round-trips as dateless, and does not quietly acquire
       today's date.** A trip whose `startDate` is `null` exports a bundle with
       **neither** `startsInDays` nor `startDate`; re-imported, it is still
@@ -500,12 +526,11 @@ every one of them makes a trip carry more, and a round-trip test is cheaper to
 write before that than after.
 
 **Three things had to be decided before link 1 was built, and Mitchell decided
-all but one of them on 2026-09-18** — what the export carries (question 1: days
+all three on 2026-09-18** — what the export carries (question 1: days
 and activities, nothing else), what a dateless trip becomes (question 2: neither
 anchor, days as offsets), and whose rules the linter states at upload (question
 3: the schema's, and no content rules on the path).
 
-**One remains, and it does not block starting**: whether a *dated* trip's export
-emits `startDate` or `startsInDays`. Links 1, 3 and 4 are buildable either way —
-it changes one expression in the converter and one line of the round-trip test's
-expectation, not the shape of the endpoint.
+**The last of them closed the same day**: a dated trip's export emits its real
+`startDate`, and an export never emits `startsInDays`. **So nothing about this
+milestone is waiting on a decision** — it is buildable from its file.
