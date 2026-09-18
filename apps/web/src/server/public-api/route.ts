@@ -71,6 +71,8 @@ interface BaseDef {
    * should say 200. One number, declared where it is true.
    */
   readonly status?: number;
+  /** Response headers this endpoint may set, name → description, published in openapi.json. */
+  readonly responseHeaders?: Readonly<Record<string, string>>;
 }
 
 /** An endpoint returning one resource. */
@@ -165,6 +167,12 @@ export interface HandlerContext {
     /** The opaque cursor, or `null` for the first page. */
     readonly after: string | null;
   };
+  /**
+   * Headers the handler wants on its response. Sent on success and on a
+   * deliberate `PublicApiError` refusal (e.g. `Retry-After` on a 429), never on
+   * a 500 — a crashed handler's half-set headers describe nothing.
+   */
+  readonly responseHeaders: Headers;
 }
 
 /**
@@ -464,7 +472,8 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     }
 
     // ---- the thing the endpoint actually does ----------------------------
-    const base: HandlerContext = { actor, params, query, body, trip, role, page };
+    const responseHeaders = new Headers();
+    const base: HandlerContext = { actor, params, query, body, trip, role, page, responseHeaders };
     let payload: unknown;
     try {
       payload = isCollection(def)
@@ -480,6 +489,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
           (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
           error.message,
           error.status,
+          { headers: Object.fromEntries(responseHeaders) },
         );
       }
       // Anything else is ours to explain and never the caller's to read.
@@ -514,6 +524,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
 
     return Response.json(shape === undefined ? payload : shape.data, {
       status: def.status ?? (method === "POST" ? 201 : 200),
+      headers: responseHeaders,
     });
   };
 

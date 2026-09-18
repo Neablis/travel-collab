@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { TripDetail, UpdateActivity } from "@tc/contracts";
+import { GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity, type Location } from "@tc/contracts";
+import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
+import { GEOCODE_OUTCOME_DOC, resolveStopLocation } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
 
 // **The endpoint Decision 14 is about.**
@@ -32,13 +34,25 @@ export const { PATCH, DELETE } = route({
     role: "editor",
     body: PatchStopBody,
     response: TripDetail,
-    handle: async ({ actor, params, body, trip }) => {
+    responseHeaders: { [GEOCODE_OUTCOME_HEADER]: GEOCODE_OUTCOME_DOC },
+    handle: async ({ actor, params, body, trip, responseHeaders }) => {
       const { dayId, position, ...fields } = body as {
         dayId?: string | null;
         position?: number;
       } & Record<string, unknown>;
       const tripId = params["tripId"]!;
       const activityId = params["activityId"]!;
+      // Only a location the caller actually sent is resolved. `location: null`
+      // clears the stop's pin and an absent one leaves it alone; neither is a
+      // place to look up, so neither spends a geocode.
+      if (typeof fields["location"] === "object" && fields["location"] !== null) {
+        const resolved = await resolveStopLocation(fields["location"] as Location, {
+          userId: actor.userId,
+          region: tripRegionOf(trip!),
+        });
+        fields["location"] = resolved.location;
+        responseHeaders.set(GEOCODE_OUTCOME_HEADER, resolved.outcome);
+      }
       const commands: CommandInput[] = [];
       if (Object.keys(fields).length > 0) {
         commands.push({ ...fields, type: "UpdateActivity", tripId, activityId } as CommandInput);
