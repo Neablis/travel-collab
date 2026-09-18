@@ -36,12 +36,14 @@ general setup.
 Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
-**Post-gate follow-up, in flight on `claude/api-locations-address-geocode-d5hc4j`:** a v1
-caller can give a stop coordinates, a structured postal address, or just a name, and the
-stop gets a pin — `Location.address` (the CLDR / libaddressinput model), resolution on the
-stop writes reported through a `Geocode-Outcome` header, and `GET /v1/trips/{tripId}/geocode`
-for looking coordinates up first. Design decisions and the task breakdown:
-`docs/plans/2026-09-18-api-locations-address-geocode.md`. It adds no scope and no migration.
+**Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
+`c42be58`): a v1 caller can give a stop coordinates, a structured postal address, or just a
+name, and the stop gets a pin — `Location.address` (the CLDR / libaddressinput model),
+resolution on the stop writes reported through a `Geocode-Outcome` header, and
+`GET /v1/trips/{tripId}/geocode` for looking coordinates up first. No new scope and no
+migration, so nothing was owed after the merge. How to call it:
+`docs/guidelines/using-the-api.md` → *Putting a stop on the map*; the decisions and task
+breakdown: `docs/plans/2026-09-18-api-locations-address-geocode.md`.
 **Not gate work** — M22's 19 boxes are unchanged by it.
 
 **M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box

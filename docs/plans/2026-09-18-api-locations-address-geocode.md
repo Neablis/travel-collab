@@ -1,5 +1,15 @@
 # API Locations — structured address, geocode on write, geocode endpoint — Implementation Plan
 
+> **DONE — shipped 2026-09-18** in #189, merged as `c42be58` and live in production.
+> Every task and step below is ticked. Two things a later reader should not have to
+> reconstruct: **Task 2's plan text was wrong about LocationIQ** — structured search is its
+> own endpoint (`/v1/search/structured`), not structured params on `/v1/search`, and the
+> structured `country` takes a country *name* so `countrycodes` is used instead; both are
+> corrected in place and confirmed against a live vendor answer, not just its spec. And
+> **Task 1 narrowed one guard test** (`publicApi.test.ts` no longer forbids the string
+> `geocode`), which is explained where it happens and in the PR. Kept as a record of how
+> the work was done; it is not live instruction.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A public-API caller can give a stop coordinates, a structured postal address, or just a name, and the stop gets a map pin. A caller can also look up coordinates first through a new geocode endpoint.
