@@ -376,7 +376,25 @@ export function NewTripConversation({
   const answered = Object.keys(state.answers).length > 0;
 
   return (
-    <div className="flex min-h-0 flex-col gap-4">
+    // **`h-full`, and it is the whole reason this reads as a chat box** — the
+    // defect Mitchell caught on the `5c27d37` preview: *"the input and
+    // decisions are at bottom, and the chat at top, this should look like a
+    // chat box"*.
+    //
+    // `Sheet` puts every child inside its own `flex-1 overflow-y-auto`
+    // scrollport, which is a BLOCK. A block sizes its child to content, so
+    // `flex-1` on the transcript below had nothing to fill: the thread grew
+    // the sheet, the dock was pushed down with it, and the composer scrolled
+    // out of reach as the conversation got longer — §31.3's "original sin"
+    // exactly, reintroduced one level up from where it was fixed.
+    // `FirstTripStart` never showed it because it bounds this with
+    // `h-a-thread`; the sheet path had no bound at all.
+    //
+    // `h-full` takes the scrollport's resolved height, so this column is
+    // definite, `min-h-0` bites, and the transcript becomes the ONLY thing
+    // that scrolls. The sheet's own scrollport then never has anything to
+    // scroll, which is what keeps the dock nailed to the foot.
+    <div className="flex h-full min-h-0 flex-col gap-4">
       {/* **No stepper.** §30.1: the rail is not replaced with a progress bar —
           a transcript shows its own progress, and the stepper was what made the
           sheet grow as it filled.
@@ -413,9 +431,32 @@ export function NewTripConversation({
             );
           }}
         />
+
+        {/* The fork is design §4 and is NOT built in this slice, so its shell
+            survives rather than being deleted — removing it would move a false
+            claim rather than remove one (plan 4, Task 6). It sits INSIDE the
+            scrolling half, above the dock: it is something to read, not
+            something to answer with, and under the composer it was one of the
+            two blocks that stopped the input being the last thing on screen. */}
+        {phase === "asking" && state.turn === questions.length - 1 && (
+          <Preview id="wizard-assistant-draft" size="container" className="mt-4 bg-brand-tint p-3.5">
+            <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
+            <Text variant="secondary" className="mt-0.5 text-brand-pressed">
+              Once you say go, the assistant lays out your days at the pace you pick, leaves the
+              bookings to you, and flags anything that needs a decision.
+            </Text>
+          </Preview>
+        )}
         </div>
       </div>
 
+      {/* **Everything you answer with, in one block at the foot** — the dock
+          (§31.3) and the decisions that end the flow, behind a single hairline
+          rule and pinned under the transcript. They were two blocks with a
+          `Preview` between them, so "the input" and "the decisions" were
+          separated by something that is neither. `shrink-0` so a long thread
+          squeezes the scrollport, never this. */}
+      <div className="flex shrink-0 flex-col gap-2.5 border-t border-hairline pt-3">
       {/* **The answer dock** (§31.3): one unit at the foot, separated by a
           single hairline rule, in a fixed order — the day picker, chips, the
           multi commit, then the field. It does not scroll, and the
@@ -423,7 +464,7 @@ export function NewTripConversation({
           own frame it was captioning the obvious. A chip and a typed sentence
           fill the same answer and commit the same turn. */}
       {phase === "asking" && question !== undefined && (
-        <div className="flex flex-col gap-2.5 border-t border-hairline pt-3">
+        <div className="flex flex-col gap-2.5">
           {/* **One day, not a range** (§32.3). The turn before this one asked
               whether there is a date at all, so this control only ever appears
               for a reader who said yes — and it asks for the single thing the
@@ -524,19 +565,6 @@ export function NewTripConversation({
         </Text>
       )}
 
-      {/* The fork is design §4 and is NOT built in this slice, so its shell
-          survives rather than being deleted — removing it would move a false
-          claim rather than remove one (plan 4, Task 6). */}
-      {phase === "asking" && state.turn === questions.length - 1 && (
-        <Preview id="wizard-assistant-draft" size="container" className="bg-brand-tint p-3.5">
-          <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
-          <Text variant="secondary" className="mt-0.5 text-brand-pressed">
-            Once you say go, the assistant lays out your days at the pace you pick, leaves the
-            bookings to you, and flags anything that needs a decision.
-          </Text>
-        </Preview>
-      )}
-
       <DialogFooter>
         {phase === "made" ? (
           <Button
@@ -573,6 +601,7 @@ export function NewTripConversation({
           </>
         )}
       </DialogFooter>
+      </div>
     </div>
   );
 }

@@ -112,16 +112,24 @@ export default function Home() {
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
 
-  // **The render guard hides the sheet; it does not un-request it** (CodeRabbit,
-  // PR #188). `newTripOpen` stays true behind `!hasNoTrips`, so a click made
-  // while the list was still loading would sit latched — and the moment the
-  // reader created their first trip inline, `hasNoTrips` flipped false and the
-  // sheet appeared over the trip they had just made, asking them to make
-  // another. Clearing the request when the conversation takes over is what
-  // makes the guard a decision rather than a delay.
-  useEffect(() => {
-    if (hasNoTrips) setNewTripOpen(false);
-  }, [hasNoTrips]);
+  // **One composer, and an open sheet wins it.**
+  //
+  // "New trip" is pressable while `trips` is still null, so the sheet can be
+  // open when the list lands empty and the first-run screen appears under it.
+  // Two earlier shapes were tried here and both were wrong. Rendering both was
+  // the original defect — two fields with one accessible name. Closing the
+  // sheet when `hasNoTrips` flipped (the guard CodeRabbit's round 2 produced)
+  // fixed that and introduced a worse one: it threw away whatever the reader
+  // had already typed INTO the sheet, leaving a permanently disabled "Create
+  // empty" over an empty inline field. `createEmptyTripViaWizard` hung on
+  // exactly that for its full 30s timeout (e2e, 2026-09-18).
+  //
+  // So the sheet opens whenever it is asked to, and `FirstTripStart` yields
+  // its conversation while it is open (`showConversation`). Nothing latches,
+  // because nothing is ever requested-but-hidden — which also retires the
+  // resurfacing case that guard existed for: a reader cannot create a first
+  // trip inline while the sheet is up, so there is no moment for it to
+  // reappear over.
 
   /**
    * **"New trip" opens the sheet — unless the conversation is already on the
@@ -449,14 +457,10 @@ export default function Home() {
         )}
 
         <NewTripWizard
-          // **Never open while the conversation is inline.** `startNewTrip`
-          // already routes around it, but `hasNoTrips` is false while `trips`
-          // is still null — so a click during that first load could open the
-          // sheet and then find the inline conversation rendered underneath it
-          // when the empty list resolved. Two composers with one accessible
-          // name is the failure; this makes it unrepresentable rather than
-          // unlikely.
-          open={newTripOpen && !hasNoTrips}
+          // Open whenever it is asked for — see the note by `hasNoTrips`
+          // above. The inline conversation is what yields, because it is not
+          // the surface the reader is typing into.
+          open={newTripOpen}
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
@@ -518,6 +522,7 @@ export default function Home() {
               dispatch={sendTripCommand}
               composerId={FIRST_TRIP_COMPOSER_ID}
               disabled={cloningDemo}
+              showConversation={!newTripOpen}
               // **SPEC §32.1's `ntLand()` is already satisfied here, and
               // widening it would break nine e2e specs.** §32.1 says finishing
               // a first run has to land you in an app, and names the two exits

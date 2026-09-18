@@ -846,6 +846,71 @@ test.describe("responsive (narrow viewport, signed out)", () => {
 // M11a's invite gate admits only with the super code `signInAsDevUser`
 // already presents — see that helper's own comment for why dev login goes
 // through the gate rather than around it.
+test.describe("responsive (new trip sheet, short viewport)", () => {
+  // **The sheet has to BE a chat box, not contain one.** Mitchell, on the
+  // 5c27d37 preview: *"This is still wrong, the input and decisions are at
+  // bototm, and the chat at top, this should look like a chat box"* — anchored
+  // to the composer inside the dialog.
+  //
+  // `Sheet` puts its children in a `flex-1 overflow-y-auto` scrollport, which
+  // is a block, so it sizes them to content. `NewTripConversation`'s `flex-1`
+  // transcript therefore had nothing to fill: the thread grew the sheet, took
+  // the dock down with it, and the composer left the fold as the conversation
+  // got longer. §31.3's "original sin", one level up from where it was fixed.
+  //
+  // This is a layout defect, so it is asserted where layout exists. The
+  // invariant §31.3 states is "the transcript scrolls and the dock does not",
+  // and its observable form is that **the sheet's own scrollport never has
+  // anything to scroll** — the conversation is exactly its height. A short
+  // viewport is what makes the broken version overflow deterministically.
+  test("the thread scrolls inside the sheet, and the composer stays docked", async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 620 });
+    // A trip has to exist, or Home renders the conversation inline instead of
+    // in a sheet — that path is bounded by `h-a-thread` and never had this bug.
+    await page.request.post("/api/trips", { data: { name: e2eTripName("Dock") } });
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "New trip" }).click();
+    const sheet = page.getByRole("dialog", { name: "New trip" });
+    await expect(sheet).toBeVisible();
+
+    const scrollport = sheet.getByTestId("sheet-scrollport");
+    const thread = sheet.getByRole("log", { name: "Conversation" });
+
+    // Answer the long path — the six-turn one, with the day picker in it — so
+    // the thread is as tall as this flow ever gets.
+    await sheet.getByLabel("Where are you going?").fill("Lisbon");
+    await sheet.getByRole("button", { name: "Send" }).click();
+    await sheet.getByRole("button", { name: "Yes" }).click();
+    // `exact`, because Playwright's `getByLabel` is a substring match and the
+    // composer on this very turn is labelled "When do you arrive?".
+    await sheet.getByLabel("Arrive", { exact: true }).fill("2026-10-03");
+    await sheet.getByRole("button", { name: "Use this date" }).click();
+    await sheet.getByRole("button", { name: "A week" }).click();
+    await sheet.getByRole("button", { name: "Slow" }).click();
+    await expect(thread).toContainText("What is the trip about?");
+
+    // The composer is gone on the multi-pick turn, so the control checked here
+    // is the one that ends the flow — still the last thing, still on screen.
+    const commit = sheet.getByRole("button", { name: "Nothing in particular" });
+    await expect(commit).toBeVisible();
+    await expect(commit).toBeInViewport();
+
+    // **The sheet does not scroll.** With the bug this overflows by the height
+    // of everything the thread added.
+    const outer = await scrollport.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(outer.scroll, "the sheet scrollport is scrolling — the thread is growing the sheet").toBeLessThanOrEqual(outer.client + 1);
+
+    // …because the thread is the thing that scrolls instead.
+    const inner = await thread.evaluate((el) => {
+      const port = el.closest("[class*='overflow-y-auto']");
+      return port === null ? null : { scroll: port.scrollHeight, client: port.clientHeight };
+    });
+    expect(inner, "the transcript has no scrollport of its own").not.toBeNull();
+    expect(inner!.scroll, "the transcript is not the thing that scrolls").toBeGreaterThan(inner!.client);
+  });
+});
+
 test.describe("responsive (narrow viewport, first trip)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 

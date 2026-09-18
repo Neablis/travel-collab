@@ -340,6 +340,61 @@ What §32.1 did change here is the opening line: first run gets its own
 (`NEW_TRIP_OPENING_FIRST_RUN`), because *"I will draft the trip"* has no antecedent on a
 screen with no trips behind it.
 
+### 3f. Two defects the preview found that no test had — 2026-09-18
+
+Both came from Mitchell's Vercel Toolbar comment on the `5c27d37` preview, and
+both are the kind only a rendered page shows.
+
+**The sheet contained a chat box instead of being one.** *"This is still wrong,
+the input and decisions are at bototm, and the chat at top, this should look
+like a chat box"*, anchored to the composer inside the dialog.
+
+`Sheet` puts every child inside its own `flex-1 overflow-y-auto` scrollport, and
+that scrollport is a **block**: it sizes its child to content. So
+`NewTripConversation`'s `flex-1` transcript had nothing to fill. The thread grew
+the sheet, carried the dock down with it, and the composer left the fold as the
+conversation got longer — **§31.3's "original sin", reintroduced one level up
+from where §31 fixed it**. `FirstTripStart` never showed it because it bounds the
+conversation with `h-a-thread`; the sheet path had no bound at all.
+
+Two changes, both small:
+
+- **`h-full` on the conversation's root.** It takes the scrollport's resolved
+  height, so the column is definite, `min-h-0` bites, and the transcript becomes
+  the only thing that scrolls. The sheet's own scrollport then has nothing to
+  scroll, which is what nails the dock to the foot.
+- **The input and the decisions became one block.** They were two, with the
+  `wizard-assistant-draft` Preview between them — so "the input" and "the
+  decisions" were separated by something that is neither. The shell moved into
+  the scrolling half, above the dock, where it belongs: it is something to read,
+  not something to answer with.
+
+Asserted in `responsive.spec.ts` at 420×620, because a layout defect has to be
+caught where layout exists. The invariant is the one §31.3 states — the
+transcript scrolls and the dock does not — in its observable form: **the sheet's
+scrollport never has anything to scroll**, and the transcript's does. Without
+`h-full` the flow's commit button reports `viewport ratio 0`.
+
+**And the sheet a reader is typing into was being taken away.** Found by the
+same session's e2e run, where `createEmptyTripViaWizard` hung for its full 30s
+timeout on a permanently disabled "Create empty".
+
+"New trip" is pressable while `trips` is still null, so the sheet can be open
+when the list lands empty and the first-run screen appears beneath it. Three
+shapes have now stood here:
+
+1. **Render both** — the original defect: two fields with one accessible name.
+2. **`open={newTripOpen && !hasNoTrips}` plus an effect clearing the request** —
+   CodeRabbit's round 2. It fixed (1) and broke something worse: every keystroke
+   already typed into the sheet was destroyed the instant the empty list
+   resolved, leaving an empty inline field and a disabled exit.
+3. **The sheet wins and `FirstTripStart` yields its conversation.** The surface
+   a reader is USING is not the one to take away.
+
+(3) also retires the resurfacing case (2) existed for: nothing is ever
+requested-but-hidden, so nothing latches, and a reader cannot create a first trip
+inline while the sheet is up — there is no moment for it to reappear over.
+
 ## 4. The fork, and what generates
 
 After turn 4 the flow forks on **assistant access, resolved from M20's entitlements**.

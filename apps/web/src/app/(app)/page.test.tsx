@@ -578,13 +578,21 @@ describe("Home first-run experience", () => {
     ).toHaveProperty("href", expect.stringContaining("/demo"));
   });
 
-  // **A hidden sheet is not a cancelled one** (CodeRabbit, PR #188). The render
-  // guard `open={newTripOpen && !hasNoTrips}` stops the sheet appearing beside
-  // the inline conversation, but `newTripOpen` stayed latched true — so a click
-  // made while the list was still loading resurfaced the moment `hasNoTrips`
-  // flipped false, which is exactly when the reader had just created their
-  // first trip. The sheet asked them to make another, over the one they made.
-  it("does not resurface a sheet requested before the list loaded", async () => {
+  // **The sheet a reader is typing into is not the one to take away.**
+  //
+  // Three shapes have stood here. Rendering the sheet beside the inline
+  // conversation was the original defect — two fields with one accessible
+  // name. CodeRabbit's round 2 produced `open={newTripOpen && !hasNoTrips}`
+  // plus an effect that cleared the request, which fixed that and broke
+  // something worse: a reader who pressed "New trip" while the list was still
+  // loading, and typed, lost every keystroke the instant the empty list
+  // resolved — the sheet vanished and an empty inline field took its place,
+  // with "Create empty" disabled and no way to enable it. That is what hung
+  // `createEmptyTripViaWizard` for its full 30s timeout (e2e, 2026-09-18).
+  //
+  // The sheet wins now and `FirstTripStart` yields its conversation. Both
+  // halves of the original concern still hold, and both are asserted here.
+  it("keeps the sheet and what was typed into it when the list lands empty", async () => {
     const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
     let resolveList!: (response: Response) => void;
     const listPending = new Promise<Response>((resolve) => {
@@ -610,20 +618,34 @@ describe("Home first-run experience", () => {
 
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
-    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
 
-    // The list lands empty: the conversation takes over and the sheet goes.
+    // Typing starts before the list has resolved, which is the whole point.
+    await userEvent.type(within(sheet).getByLabelText("Where are you going?"), "Osaka");
+
     resolveList(jsonResponse({ trips: [] }));
-    const firstRun = await screen.findByTestId("first-trip-start");
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull());
+    await screen.findByTestId("first-trip-start");
 
-    // Make the first trip inline, which flips `hasNoTrips` false.
-    await userEvent.type(within(firstRun).getByLabelText("Where are you going?"), "Osaka");
-    await userEvent.click(within(firstRun).getByRole("button", { name: /^create empty$/i }));
+    // The sheet is still here, and so is what was typed into it.
+    expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getByLabelText("Where are you going?")).toHaveProperty("value", "Osaka");
+    // Exactly one composer: the first-run screen yielded its conversation
+    // rather than putting a second field with the same name on the page.
+    expect(screen.getAllByLabelText("Where are you going?")).toHaveLength(1);
+    expect(screen.queryByTestId("first-trip-conversation")).toBeNull();
 
-    expect(await screen.findByRole("heading", { name: "Osaka", level: 3 })).toBeTruthy();
-    // The trip is here and the sheet did NOT come back with it.
-    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+    // And it still works: the typed name reaches the create.
+    await userEvent.click(within(sheet).getByRole("button", { name: /^create empty$/i }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/trips"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    const body = JSON.parse(
+      String(fetchMock.mock.calls.find((c) => c[1]?.method === "POST")?.[1]?.body),
+    ) as { name: string };
+    expect(body.name).toBe("Osaka");
   });
 
   // Mitchell, 2026-09-01: *"The 'New trip' side bar should be a full screen

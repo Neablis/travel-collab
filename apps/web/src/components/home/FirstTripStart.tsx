@@ -47,6 +47,7 @@ import { NewTripConversation, type NewTripWizardProps } from "./NewTripWizard";
  * @param onDone - Called once the trip exists and its commands have confirmed.
  * @param composerId - Lets the page head's "New trip" button focus the answer field.
  * @param disabled - Holds the exits while a demo clone is still in flight.
+ * @param showConversation - False while the sheet owns the conversation.
  * @returns The first-trip screen.
  */
 export function FirstTripStart({
@@ -55,6 +56,7 @@ export function FirstTripStart({
   onDone,
   composerId,
   disabled = false,
+  showConversation = true,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
@@ -62,6 +64,22 @@ export function FirstTripStart({
   composerId?: string;
   /** True while a demo clone is landing — see `NewTripConversation`. */
   disabled?: boolean;
+  /**
+   * **Exactly one composer, and the open sheet wins.**
+   *
+   * The sheet can be open on this screen: "New trip" is pressable while the
+   * trip list is still loading, and `hasNoTrips` is false until it resolves.
+   * If the list then lands empty, two composers with the same accessible name
+   * would be on one screen — ambiguous to a screen reader, and a strict-mode
+   * violation for any test addressing the field by its label.
+   *
+   * Yielding here is what resolves it. The alternative — closing the sheet —
+   * was tried and is worse: it destroys what the reader had already typed into
+   * it, which made `createEmptyTripViaWizard` hang on a permanently disabled
+   * "Create empty" (e2e, 2026-09-18). The surface a reader is USING is not the
+   * one to take away.
+   */
+  showConversation?: boolean;
 }) {
   return (
     <Card raised className="flex flex-col gap-5 p-6" data-testid="first-trip-start">
@@ -81,16 +99,18 @@ export function FirstTripStart({
           trips behind it. The height is bounded here rather than by a sheet,
           because on a page the transcript must not be the thing that grows the
           card (§31.3's "original sin"). */}
-      <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
-        <NewTripConversation
-          createTrip={createTrip}
-          dispatch={dispatch}
-          onDone={onDone}
-          firstRun
-          disabled={disabled}
-          {...(composerId === undefined ? {} : { composerId })}
-        />
-      </div>
+      {showConversation && (
+        <div className="flex h-a-thread min-h-0 flex-col" data-testid="first-trip-conversation">
+          <NewTripConversation
+            createTrip={createTrip}
+            dispatch={dispatch}
+            onDone={onDone}
+            firstRun
+            disabled={disabled}
+            {...(composerId === undefined ? {} : { composerId })}
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
         <Text as="span" variant="secondary" className="text-sm">
