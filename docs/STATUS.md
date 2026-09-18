@@ -32,7 +32,18 @@ general setup.
 
 **M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
 **Mitchell's decision and not by a gate closing**. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+**The tail of that order changed 2026-09-18** — three milestones minted (**M23**
+multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
+moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
+**not here**: `docs/milestones/README.md`'s *2026-09-18* note carries it, the
+Phase 3 table carries each milestone's decisions, and each new file carries its
+own scope and exit gate. Two things placed the same day are **not** milestones
+and are easy to lose for that reason: the activity-field descriptor refactor
+(`KI-20260905-o`) runs **once, before M13**, and is a gate box there; and a
+generated, drift-checked architecture map is designed in
+`docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
+in principle.
 Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
