@@ -1528,3 +1528,75 @@ A build owes two things here: the transcript scrolls, **the dock does not**, and
 transcript must never be the thing that grows the sheet (§30.1's original sin). And the
 dock disappears entirely on the free fork, replaced by the plans note (§30.3) — never a
 disabled input.
+
+---
+
+## 32. The conversation is every surface's new-trip flow — 2026-09-18
+
+Same pass as §31, later in the day. Three things: the conversation replaced the first-run
+form, it got a phone surface, and the dates turn was split in two.
+
+### 32.1 First run is the conversation, not a form
+
+**Supersedes the first-run "Trip name + roughly when" card.** The name field, the dashed
+"Not built yet" when-chips placeholder and *Start planning* are gone. First run is now the
+same five-question conversation as New trip, rendered as a page rather than a sheet:
+
+- Page column max 620px, fluid — `clamp()` padding, `clamp(24px, 5vw, 32px)` title, no
+  fixed widths — so the same markup holds at 400px and at 1600px.
+- Above the thread, two fixed lines that stay put: the mono **First trip** eyebrow and
+  *"What are you planning, Sam?"*. Below it the same answer dock as §31.3.
+- The opening assistant line is first-run specific ("Welcome. A few quick questions and I
+  will draft your first trip…").
+- The exits live under the dock as two quiet text links: **Create an empty trip** and
+  **Start from a Playbook instead** (the old ghost buttons' jobs, unchanged targets).
+- **Finishing from first run has to land you in an app.** `ntLand()` returns the
+  screen/route patch when `screen === 'firstrun'` and `{}` everywhere else — both
+  *Create with this* and *Open the trip* go through it. A build that only closes the sheet
+  leaves a brand-new account staring at nothing.
+
+### 32.2 The phone surface
+
+Two additions inside the device frame:
+
+- **Trips** gained a **New trip** pill beside the "Your trips" heading — previously the
+  phone had no way into trip creation at all.
+- **New trip is a full screen, not a sheet**: header (*Cancel* · New trip · *Empty*),
+  thread, then the dock. Controls are phone-sized — 44px inputs (`tall44`), 40px chips,
+  full-width primaries, `Open the trip` as a 48px button, *Create with this* as a quiet
+  link under it.
+- **The tab bar is hidden while the conversation owns the screen** (`phoneTabBar`).
+  Creating a trip is a task, not a view; a tab bar there would compete with *Cancel* and
+  break CLAUDE.md rule 2. `phoneTrips` and `phoneNewTrip` are the same route, forked on
+  whether the flow is open.
+- First run on the phone surface renders the same conversation inside the frame
+  (`isFirstRunPhone`), so the entry point isn't desktop-only.
+
+### 32.3 The dates turn split in two
+
+**Supersedes §30.1's "how long, with the date range inline".** That turn carried a length
+chip row *and* an arrive→leave range *and* a *Use these* button — three controls for one
+answer, and it was the busiest thing in the flow. It also modelled a trip as a date range,
+while the rest of the app models it as **a start date plus a length**.
+
+It is now two plain questions:
+
+1. **"Do you have a start date in mind?"** — chips *Yes* / *Not yet*. Typing an actual
+   date answers it directly and skips step 2.
+2. **Yes** inserts a **single day picker** turn ("When do you arrive?") with one date input
+   and *Use this date*. **Not yet** goes straight to the length chips.
+
+Then the length turn asks *"And how long are you staying?"* (dated) or *"How long,
+roughly?"* (not), chips only, no date inputs anywhere.
+
+A build owes:
+
+- **The question list is derived, not fixed.** `ntQs()` builds it from the answers so far,
+  so the flow is 6 turns without a date and 7 with one. Nothing may hardcode the count —
+  including the copy: the opening line says "a few quick questions", never a number.
+- Revising the date question back to *Not yet* must drop the picked day (`ans.start`) with
+  it, or the summary keeps a date the user just removed.
+- **Dates are formatted at commit, never passed through raw.** The picker's ISO value
+  becomes the app's own style (`Apr 10, 2027`) before it enters the transcript, the shape
+  line or the toast. A conversational surface showing `2027-04-10` reads machine-generated
+  and drifts from every other date in the product.
