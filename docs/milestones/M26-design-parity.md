@@ -397,6 +397,42 @@ previous day's line on screen.
 Reuse `MapLens.tsx`'s mount discipline, and transcribe these four constraints
 into the code as comments. Each is cheaper to read than to rediscover.
 
+**Link 4 is PART DONE as of 2026-09-19, and the half that is done is the half
+that can be decided without a browser.**
+
+**Done: `sharedDayGeometry.ts`, with 18 tests.** It owns the three rules that
+have historically been got wrong, and each is now impossible rather than merely
+avoided:
+
+- **`All days` merges by concatenating per-day results**, never by one pass over
+  all the stops. That is what makes "no leg across a night" structural: a single
+  pass joins the last located stop of day 1 to the first of day 2, and the
+  resulting line looks exactly like every other leg. Proven by writing that
+  defect and watching four tests go red.
+- **The cache key includes the scope.** Without it, switching from `All days` to
+  `Day 2` leaves the previous line on screen — the points are a subset, so
+  nothing looks changed.
+- **`worthDrawing` is the degrade rule** — below two located stops the surface is
+  list-only rather than an empty canvas (§16).
+
+Two decisions inside it worth knowing before building the rendering: pin numbers
+follow the **list**, so an unlocated stop leaves a gap in the pin numbers rather
+than shifting them (a pin 4 beside a list row 5 is worse than a missing 4); and
+a leg that steps over an unlocated stop is marked `contiguous: false`, because
+it is a guess about a route that skipped something rather than a leg somebody
+took.
+
+**Not done: the rendering, and it cannot be finished to this gate's standard
+without a browser.** What remains is the `SharedDayMap` component itself —
+transcribing `MapLens.tsx`'s mount discipline (the four constraints above are
+each a bug already hit) and the 3.5s / 7.5s / 11s per-instance recovery ladder,
+which **does not exist anywhere in the build yet**: no `3500`/`7500`/`11000`
+appears in `apps/web/src`, so it is new work rather than a copy. The gate asks
+for that ladder to be **proven by forcing it**, which is a browser walk, so this
+link stays open on purpose rather than being marked done from inspection.
+
+---
+
 ## Link 5 — The Map lens's day rail
 
 **5a. The hover-to-detail card, and the decision it needs first.**
