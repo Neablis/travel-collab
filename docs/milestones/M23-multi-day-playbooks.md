@@ -507,8 +507,27 @@ ordinary answer is one day.
 
 1. **"Make these a Table ... fit the longest text, but also all be aligned in
    height and width."** The strip was `flex-wrap` with each chip sized to its
-   own label, so a row lined up on nothing. It is a CSS grid now, with
-   `ToggleChip` filling its cell. A grid rather than a real `<table>`: these are
+   own label, so a row lined up on nothing. It is a two-column CSS grid now,
+   with `ToggleChip` filling its cell.
+
+   **It took two goes, and the second one is the lesson.** The first fix was
+   `grid-cols-2 sm:grid-cols-3`, shipped with a comment asserting three columns
+   "fits the longest label this can produce". Measured on the preview: a
+   3-column cell has a 114.00px content box and the widest label a dated trip
+   can render — `Day 3` over `Wed, Sep 16 · 10 stops` — is 124.19px, so 10 of
+   12 chips ate all their right padding and the worst crossed the border by
+   1.19px. **The alignment half of the ask was exact** (132.00px × 12, 42.38px
+   × 12) **and the fit half was wrong**, which is why a walk that only asked
+   "are they equal?" would have passed it.
+   Two things worth keeping. First, **the probe that seemed obvious reports a
+   false pass**: `scrollWidth <= clientWidth` on the label spans is clean
+   everywhere, because a `nowrap` inline box grows to fit its own text by
+   construction. The overflow is only visible by comparing the span's rect
+   against the *chip's* content box. Second, **the date is what makes the label
+   long** — a dateless trip renders `6 stops` and has 74px of slack, so every
+   fixture used before this one looked fine. The defect needed a trip with a
+   start date, two-digit day numbers and a two-digit stop count to appear at
+   all. A grid rather than a real `<table>`: these are
    toggle buttons in a `role="group"`, and table semantics would tell a screen
    reader they are tabular data. The alignment is the ask; the roles stay
    honest.

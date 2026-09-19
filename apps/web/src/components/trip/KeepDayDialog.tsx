@@ -284,21 +284,42 @@ export function KeepDayDialog({
                 semantics would tell a screen reader they are tabular data. The
                 grid gives the alignment the feedback is about; the roles stay
                 honest.
-                **Two columns, three from `sm` up — a fixed count rather than an
-                `auto-fill` track.** The obvious spelling,
-                `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`, is an
-                arbitrary Tailwind value and `check-color-wall` refuses those
-                (design-system.md: tokens only). It was right to: the dialog is
-                `max-w-md`, so the track count was never really responsive to
-                anything but a width this control already knows. Three columns in
-                a 28rem dialog is ~8rem a cell, which fits the longest label this
-                can produce — a date, a separator and a two-digit stop count at
-                `text-xs` — and two columns below `sm` keeps that true on a phone.
+                **Two columns at every width, and the number is measured
+                rather than chosen.** This shipped as `grid-cols-2
+                sm:grid-cols-3` with a comment asserting that three columns
+                "fits the longest label this can produce". Measured on the
+                preview: it does not. At 1280px the group is 408px, so a
+                3-column cell is `(408 - 2×6) / 3 = 132px` with a 114px content
+                box — and the widest label this can render, `Day 3` over
+                `Wed, Sep 16 · 10 stops`, is **124.19px**. It does not wrap
+                (`whitespace-nowrap`) and does not ellipsise (`overflow:
+                visible`), so it simply spilled: 10 of 12 chips ate all 8px of
+                their right padding and the worst crossed the 1px border by
+                1.19px.
+                The label needs 124.19 + 16 padding + 2 border = **142.19px**.
+                Two columns give 201px at desktop and 182.5px at 411px —
+                +58.81 and +40.31 of slack, enough for a three-digit stop count
+                and any month abbreviation. Three columns were short by 10.19px
+                at desktop and 22.52px on a phone, so `sm:grid-cols-3` was never
+                right at any width; the `sm` branch only hid it on the screen
+                nobody was measuring.
+                **The date is what makes the label long.** A dateless trip
+                renders `6 stops` (39.48px) and had 74px of slack at three
+                columns — which is why every earlier fixture looked fine and
+                only a trip with a start date showed the overflow.
+                A fixed count rather than an `auto-fill` track because the
+                obvious spelling, `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`,
+                is an arbitrary Tailwind value and `check-color-wall` refuses
+                those (design-system.md: tokens only). It was right to: the
+                dialog is `max-w-md`, so the track count was never responsive to
+                anything but a width this control already knows.
                 Equal `1fr` columns give the width half of the ask; grid items
-                stretch by default, so the heights agree without being asked. */}
+                stretch by default, so the heights agree without being asked —
+                and that half was already correct, at 132.00px × 12 and
+                42.38px × 12 before this change. */}
             <div
               id={daysId}
-              className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+              className="grid grid-cols-2 gap-1.5"
               role="group"
               aria-label="Days to keep"
             >
