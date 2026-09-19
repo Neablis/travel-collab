@@ -180,7 +180,7 @@ describe("a shared day", () => {
   it("credits the author with the profile's own numbers, and links to it", async () => {
     renderDay();
     const strip = await screen.findByTestId("author-strip");
-    expect(within(strip).getByText("2 days shared · added to 3 trips")).toBeTruthy();
+    expect(within(strip).getByText("2 playbooks shared · added to 3 trips")).toBeTruthy();
     // A readable handle, never the raw identifier — the link still CARRIES the
     // id, which is the distinction: `displayNameFor` decides what the link
     // says, not where it goes.

@@ -373,6 +373,20 @@ export const PublicAuthor = z.object({
    */
   displayName: z.string().min(1),
   /** Days currently published. A private day is not "shared". */
+  /**
+   * How many PLAYBOOKS this author has published — **not how many days**.
+   *
+   * The name predates M23, when a Playbook was exactly one day and the two
+   * counts were the same number. They are not any more: a three-day Playbook
+   * adds one to this. Every surface that renders it was saying "1 day shared"
+   * over a Playbook three days long, which is the `budgetPerPerson` defect
+   * class again — a name asserting a semantic the computation does not have.
+   *
+   * **The labels are fixed here; the FIELD keeps its name on purpose.** It is
+   * produced by `publishedDayCount` and read by three screens, and renaming it
+   * in this milestone's diff would widen a PR that already carries a migration
+   * and a contract change. `KI-20260919-c` carries the rename.
+   */
   daysShared: z.number().int().nonnegative(),
   /**
    * Ledger rows against this person's days — "how often their days were added".

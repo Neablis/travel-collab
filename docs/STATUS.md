@@ -33,8 +33,9 @@ general setup.
 **M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
 by **M25's gate closing**, which is the ordinary way this line moves. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**M23 is at 8 of 11 — links 2 and 3 are built, link 4 all but its browser
-walk, and `test:e2e:ci-like` is green at 137.** Its scope and exit gate are in
+**M23 is at 10 of 11 — only the retro is left.** Links 2, 3 and 4 are built,
+`test:e2e:ci-like` is green at 137, and the two-actor multi-day walk passed on
+PR #192's preview. Its scope and exit gate are in
 `docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
 planning anything. The one-line version: a saved day **generalises** into a
 saved sequence rather than gaining a sibling object type.
@@ -49,8 +50,23 @@ stated in the milestone file** and are marked ✳ there and in the ADR — the
 milestone's 2026-09-19 note is the short version, and Mitchell overrules either
 in the ADR if he wants the original reading.
 
-**What is left: the two-actor browser walk on a multi-day playbook, the
-Discover `cities`/ledger walk, and the retro.** `pnpm check` is green locally (3,096 unit + 782 integration), with one
+**What is left: the retro — and a second walk that is owed but is not a gate
+box.** The preview walk on 2026-09-19 passed every behavioural box and then
+found **five defects in the surfaces around them**, one of them shipped by the
+branch itself: `ToggleChip` used `bg-brand-subtle` and `text-muted`, **neither
+of which is a token this app defines**, so a selected day chip rendered with a
+transparent background. **The colour wall scans for raw hex, so an undefined
+token NAME passes it** — worth knowing beyond this fix. The other four were
+surfaces still speaking in the singular: a third copy of the window fact in
+`SavedDaysDialog` stating a false clock range across three days, the shared-day
+route saying nothing about days at all, and `AddToTripDialog` — the surface
+that actually performs the append — never naming N. All five are fixed; **the
+fixes themselves are unwalked**, and that second pass is owed before the gate
+closes.
+
+**The lesson worth carrying past M23:** link 4 was claimed complete when it was
+one surface of four. Behaviour was right everywhere; the gate box named only
+the Discover card, and that let three unbuilt surfaces through. `pnpm check` is green locally (3,096 unit + 782 integration), with one
 caveat worth repeating rather than burying: **the integration lane needs
 `API_TOKEN_PEPPER` set in the shell.** `apps/web/.env.local` ships it EMPTY and
 vitest's `??=` does not override an empty string, so a fresh container fails ~91

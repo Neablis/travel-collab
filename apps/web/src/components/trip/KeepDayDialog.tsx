@@ -213,12 +213,20 @@ export function KeepDayDialog({
     <Dialog open={open} onOpenChange={onOpenChange} title={selected.length > 1 ? "Keep these days" : "Keep this day"}>
       <div className="flex flex-col gap-3">
         <FormField id={nameId} label="Name">
-          {/* Enter saves. This dialog opens with the name already filled in
-              and the field focused, so the whole interaction is "accept it and
-              press Enter" — which did nothing until now (Mitchell, 2026-09-01).
-              Guarded the same way the Save button is: an empty day cannot be
-              kept, and `save()` itself refuses a blank name with the same
-              message either way. */}
+          {/* Enter saves — **once this field has focus**, which it does not
+              get on open. The comment here used to say the dialog "opens with
+              the name already filled in and the field focused, so the whole
+              interaction is 'accept it and press Enter'". The first half is
+              true and the second is not: Radix focuses the first tabbable node
+              in `DialogContent`, which is the header's Close button, so a bare
+              Enter on open closes the dialog and saves nothing. Measured on a
+              preview, 2026-09-19; PRE-EXISTING, not something M23 did, and
+              recorded as `KI-2026-09-19-d` rather than fixed on the way past —
+              focusing the field changes a shipped dialog's behaviour and is
+              not this milestone's to change.
+              Guarded the same way the Save button is: a selection with nothing
+              in it cannot be kept, and `save()` itself refuses a blank name
+              with the same message either way. */}
           <Input
             id={nameId}
             value={name}

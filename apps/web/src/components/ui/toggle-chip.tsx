@@ -34,9 +34,18 @@ export function ToggleChip({
       aria-pressed={pressed}
       className={cn(
         "flex min-w-16 flex-col items-start rounded-md border px-2 py-1 text-left text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand",
+        // **`brand-tint` and `slate`, and the names matter.** This shipped as
+        // `bg-brand-subtle` / `text-muted`, and NEITHER is a token this app
+        // defines — `globals.css` has `--color-brand-tint` and `--color-slate`.
+        // Tailwind emits nothing for an unknown utility, so a pressed chip had
+        // a transparent background and the unpressed label fell through to the
+        // default ink: the selected state, which is this control's entire
+        // purpose, was carried by a border alone. Found by walking the preview
+        // (M23), not by any check — the colour wall scans for raw hex, so an
+        // undefined TOKEN NAME passes it clean.
         pressed
-          ? "border-brand bg-brand-subtle text-brand"
-          : "border-border-input bg-surface text-muted hover:border-border-strong",
+          ? "border-brand bg-brand-tint text-brand"
+          : "border-border-input bg-surface text-slate hover:border-border-strong",
         className,
       )}
       {...props}

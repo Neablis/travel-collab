@@ -111,7 +111,9 @@ export function LeaderboardScreen() {
                     {displayNameFor({ userId: author.userId })}
                   </Link>
                   <Text variant="secondary">
-                    {author.daysShared} day{author.daysShared === 1 ? "" : "s"} shared
+                    {/* "Playbooks", not "days": this counts published rows, and
+                        a Playbook can be several days since M23. */}
+                    {author.daysShared} playbook{author.daysShared === 1 ? "" : "s"} shared
                   </Text>
                 </div>
                 {isMe && <Badge variant="brand">You</Badge>}

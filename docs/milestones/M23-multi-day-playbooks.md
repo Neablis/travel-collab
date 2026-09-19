@@ -186,13 +186,26 @@ Four links. Link 1 is an ADR and gates the rest.
 - [x] Starting a new trip from an N-day playbook produces a trip with **N days**
       in the playbook's order, and starting one from a single-day playbook
       produces **one**. `TODO.md:802` is deleted in the same PR.
-- [ ] **Publish → discover → add is walked in a real browser as two actors** for
+- [x] **Publish → discover → add is walked in a real browser as two actors** for
       a multi-day playbook — one account publishes, a second finds it and takes
-      it — the standard M11b's gate held itself to.
-- [ ] The Discover card **states the day count**, `cities` covers stops on
+      it — the standard M11b's gate held itself to. **Walked 2026-09-19** on
+      PR #192's preview with two fresh accounts (`m23alice`, `m23bob`) in
+      separate browser contexts: a 3-day Playbook kept from trip days 1/3/5,
+      published, found by the second account under *Everyone*, opened and
+      added. `KI-2026-09-16-d`'s blocker class did not recur — the ADR-034
+      bypass plus `AUTH_DEV_LOGIN` admitted both accounts.
+- [x] The Discover card **states the day count**, `cities` covers stops on
       **every** day of the sequence, and the adds ledger counts a multi-day add
       per the ADR's key decision, with `saved_days.adds` unable to drift from
-      `count(*)` over the ledger.
+      `count(*)` over the ledger. **Walked 2026-09-19.** The card read
+      `3 days · 14 stops · $86.00` with chips `Kyoto · Lisbon · Glencoe` — one
+      city from each of the three days, so the per-day fold is real and not
+      just tested — and the day count is correctly suppressed on one-day cards.
+      Adding the same Playbook to one trip twice held at *"Added to 1 trip"*;
+      adding it to a second gave *"Added to 2 trips"* — the ledger keys on the
+      sequence (ADR-048 decision 5). **The `adds`-vs-`count(*)` half is not
+      browser-visible** and rests on `savedDayAdds.int.test.ts`, which is said
+      plainly rather than folded into the tick.
 - [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`. **137 passed**,
       matching M25's baseline; `pnpm check` green (3,096 unit + 782
@@ -302,7 +315,13 @@ bounded at 366.
 
 **Link 4's picker, as Mitchell specified it** (2026-09-19): the pennant is
 unchanged and still opens on one day, already selected, so the one-day keep is
-still accept-and-Enter. Under it is a strip of the trip's days as toggles —
+as cheap as it was. (**This sentence first said "still accept-and-Enter", and
+that was wrong** — a bare Enter on open hits the Close button, because the name
+field is never focused. Pre-existing, not M23's doing, and now
+`KI-2026-09-19-d`; the claim was inherited from `KeepDayDialog.tsx`'s own
+comment, which asserted the same thing and is corrected too. Repeating a
+neighbouring comment's claim without checking it is how a false one survives
+two years.) Under it is a strip of the trip's days as toggles —
 **not a range**: *"I would really prefer they don't have to be sequential days
 in your trip ... you aren't selecting a range."* Selection is held in TRIP
 order rather than click order, because a calendar can show that a day is chosen
@@ -317,6 +336,57 @@ form stays flat and indexed; the authored form does not have to be, and nothing
 parses old bundle bytes out of a database. **The M25 round-trip tripwire does
 not cover this** — `fromTrip` emits `playbooks: z.tuple([])` — which is why the
 ADR wrote it down.
+
+## 2026-09-19 (later) — the preview walk, and what it caught that no test did
+
+Gate boxes 8 and 9 walked and ticked; `test:e2e:ci-like` green at 137. **The
+walk also found five defects, and the first was shipped by this branch.** None
+were visible to `pnpm check`, which is the part worth keeping.
+
+- **F1 — `bg-brand-subtle` and `text-muted` are not tokens this app defines.**
+  New in this branch, in `ToggleChip`, the picker's own control. `globals.css`
+  has `--color-brand-tint` and `--color-slate`; Tailwind emits nothing for an
+  unknown utility, so a **pressed day chip had a transparent background** and
+  the selected state — the entire purpose of the control — was carried by a
+  border alone. **The colour wall did not catch it because it scans for raw
+  hex, and an undefined token NAME is not a hex literal.** That gap is worth
+  knowing about independently of this fix.
+- **F2 — a THIRD construction of the window fact.** `SavedDaysDialog`'s
+  `spanOf()` computed `stops[0].start → stops[n].end` itself, so the library
+  dialog stated `14 stops · 7:30 am – 3:30 pm` for a three-day Playbook: the
+  exact falsehood ADR-048 decision 4 exists to refuse, on the surface whose
+  button says *Add to trip*. It now folds `savedDayFacts`. This is the
+  duplication `citiesOfDay` and `rollupCosts` are the standing argument
+  against, and the ADR's own "one implementation" reasoning did not save it
+  because nobody grepped for a third copy.
+- **F3 — the shared-day route said nothing about days, and its Window row was
+  false.** `WINDOW: No times set` on a Playbook every one of whose fourteen
+  stops shows a time. It now reads *"Spans several days"* above one day, and
+  the stop list carries `Day N` headings so the boundaries are visible rather
+  than implied.
+- **F4 — `AddToTripDialog` never stated N**, and `git diff` against main for
+  that file was **empty**: the branch had not touched the one surface that
+  actually performs the append. Its hint even read *"this day is day 1"* for a
+  three-day Playbook. This is link 4's one substantive rule — *a surface states
+  the count it is acting on before it acts* — unmet at the sharpest possible
+  place.
+- **F5 — `daysShared` counts playbooks, not days** (`KI-2026-09-19-c`), and
+  Discover's header still promised *"One good day, saved on its own"*.
+
+**The honest reading: link 4 was claimed complete when it was one surface of
+four.** The Discover card and the Keep dialog were built; the library dialog,
+the shared-day route and the insert dialog were not, and a gate box naming only
+the card let that pass. Behaviour was right everywhere — the engine appended,
+ordered and undid correctly in every case walked — but three of the four
+surfaces were still speaking in the singular about it.
+
+**Not walked, and it should be before the gate closes:** the four surfaces
+changed in response to this walk are themselves unwalked. A second pass over
+the library dialog, the shared-day route and the insert dialog is owed.
+
+Also pre-existing and now recorded rather than fixed: the Keep dialog never
+focuses its name field, so *"accept it and press Enter"* has never worked
+(`KI-2026-09-19-d`). Two places asserted it did, including this file.
 
 ## Deliberately not here
 

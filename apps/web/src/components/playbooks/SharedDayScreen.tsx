@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { AuthorKindBadge } from "./AuthorKindBadge";
@@ -269,7 +269,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 {isAuthor ? "You" : displayNameFor({ userId: author.userId })}
               </Link>
               <Text variant="secondary">
-                {author.daysShared} day{author.daysShared === 1 ? "" : "s"} shared · added to{" "}
+                {author.daysShared} playbook{author.daysShared === 1 ? "" : "s"} shared · added to{" "}
                 {author.adds} trip{author.adds === 1 ? "" : "s"}
               </Text>
             </div>
@@ -299,7 +299,27 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
           ) : (
             <ol className="flex flex-col gap-2" data-testid="stop-list">
               {day.stops.map((stop, index) => (
-                <Card as="li" key={index} className="flex flex-col gap-1.5 p-3">
+                <Fragment key={index}>
+                  {/* **Where one day ends and the next begins.** Without this the
+                      sequence reads as one flat list of fourteen stops and a
+                      reader cannot tell which day they are looking at — which
+                      makes the day count in the rail a number with nothing to
+                      point at. Rendered whenever this stop opens a day, so the
+                      first day is labelled too; suppressed entirely on a
+                      one-day Playbook, which is unchanged.
+                      A GAP is respected rather than closed: an empty day leaves
+                      no stop to carry its index, so day 2 of a {0, 2} sequence
+                      simply has no stops under it — and the heading numbering
+                      comes from `dayIndex`, never from a running counter, so a
+                      rest day cannot silently renumber the days after it. */}
+                  {day.dayCount > 1 && (index === 0 || day.stops[index - 1]!.dayIndex !== stop.dayIndex) && (
+                    <li className="mt-2 first:mt-0">
+                      <Text as="span" className="text-xs font-semibold tracking-wide text-slate uppercase">
+                        Day {stop.dayIndex + 1}
+                      </Text>
+                    </li>
+                  )}
+                <Card as="li" className="flex flex-col gap-1.5 p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="font-semibold text-ink">{stop.title}</span>
                     {stop.timeWindow !== null && (
@@ -318,6 +338,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                     <DataText size="xs">{formatMoney(stop.cost.amountMinor, stop.cost.currency)}</DataText>
                   )}
                 </Card>
+                </Fragment>
               ))}
             </ol>
           )}
@@ -326,10 +347,30 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
         {/* The sticky rail: the facts, and the one action. */}
         <aside className="lg:w-72 lg:shrink-0">
           <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
+            {/* **The day count, first** (M23 link 4). This route is one of the
+                surfaces the milestone names: it has to say how many days it is
+                about to move, and it said nothing at all until a walk of the
+                preview caught it. Shown only above one day — "Days 1" on every
+                single-day Playbook is noise that teaches a reader to skip the
+                rail. */}
+            {day.dayCount > 1 && <Fact label="Days" value={String(day.dayCount)} />}
             <Fact label="Stops" value={String(facts.stopCount)} />
+            {/* **Three states, not two.** `facts.window` is null for two
+                genuinely different reasons and this row used to render both as
+                "No times set" — which on a three-day Playbook whose every stop
+                shows a time is not merely unhelpful, it is false. A sequence
+                HAS no single clock window (ADR-048 decision 4), so it says so;
+                a one-day Playbook whose stops carry no times still says what it
+                always said. */}
             <Fact
               label="Window"
-              value={facts.window === null ? "No times set" : toClockRange(facts.window.start, facts.window.end)}
+              value={
+                facts.window !== null
+                  ? toClockRange(facts.window.start, facts.window.end)
+                  : day.dayCount > 1
+                    ? "Spans several days"
+                    : "No times set"
+              }
             />
             {/* Length, as its OWN row rather than appended to the Window value
                 (Mitchell, 2026-09-01: "also add length, with a tag short medium
@@ -480,6 +521,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
         onOpenChange={setAdding}
         savedDayId={day.savedDayId}
         dayName={day.name}
+        dayCount={day.dayCount}
         onConflict={() => {
           setWithdrawn(true);
           feed.reload();

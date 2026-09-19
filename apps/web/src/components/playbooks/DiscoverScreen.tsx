@@ -147,8 +147,12 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
       <div>
         <Heading level={1}>Discover</Heading>
         <Text variant="secondary" className="mt-1.5 max-w-2xl">
-          One good day, saved on its own — the stops, the order, the timings, the notes. Search a
-          city, take a day into your trip, and the times reflow around it.
+          {/* Was "One good day, saved on its own ... take a day into your
+              trip". True until M23, when a Playbook became a SEQUENCE — and a
+              header promising one day above a card reading "3 days" is the
+              first thing a reader would disbelieve. */}
+          A day or a whole run of them, saved together — the stops, the order, the timings, the
+          notes. Search a city, take a playbook into your trip, and the times reflow around it.
         </Text>
       </div>
 
