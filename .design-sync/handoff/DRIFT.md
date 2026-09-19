@@ -1,11 +1,15 @@
-<!-- GENERATED — do not edit. Exported from the project root at the 2026-09-12 handoff.
-     Edit the root file and regenerate; two copies drift. -->
-
 # Design ↔ build drift — Caesura / travel-collab
 
 Design: `Trip Planner Redesign.dc.html` (desktop + phone surfaces, landing, auth, first run),
 plus the three Notebook widget components.
 Build: `Neablis/travel-collab@main`, read from the attached working tree.
+
+**Resynced 2026-09-19** against the attached working tree. Four milestones closed since the
+last read — **M20** (tiers and entitlements), **M22** (a public REST API and scoped tokens,
+paused at 18/19), **M25** (a trip is a file) and **M23** (multi-day playbooks) — and the
+design side had a surface for none of the first three. This pass designs them: **API
+tokens in Account settings**, **Download as a file** on a trip, **Import a file** on Home,
+and the mobile remainder those exposed (§3c). M23 was already answered by SPEC §33.
 
 **Resynced 2026-09-12, then extended the same day by a large design pass** (tabs, the trip's
 Overview page, widget settings out of flow, trip lifecycle, read-only, the mark and the
@@ -37,23 +41,32 @@ Read this before §1; it is why §1 is short now.
 - **The roadmap order is `M17 ✓ → M9 → M20 → M21 → M12 → M13 → M14 → M19`.** M9 is the
   current work. This document's old closing line ("M10 Wave 2 Phase 9 is the next work")
   was wrong — M10's gate closed 2026-08-27.
-- **New 2026-09-15 — the new-trip wizard is a conversation (`SPEC.md` §30), and the
-  assistant transcript lost its bubbles.** D11 below is answered rather than open. One
-  property of §30 is load-bearing for cost, not cosmetics: **the questions are a
-  fixed local script and the first model call is the one after the last answer.**
-  (Four questions in the build, not five — see D11(a).) A build
-  that makes the questions themselves conversational turns every abandoned New-trip sheet
-  into billed turns. The fork at the end reads entitlements (M20's resolver, already
-  real — see D10), never a plan name. Three states are undrawn: generation failure,
-  offline at the fork, and ceiling-reached-with-access.
-- **New 2026-09-19 — Playbooks are multi-day, and the Discover bar was re-sorted
-  (`SPEC.md` §33).** Two things for the build to check rather than assume: a Playbook's
-  stops need a real `day` field on the API (the design parses a `Day N · ` prefix off the
-  time because the fixture carries one — do not reproduce that), and the **Season filter
-  was cut** while a **Length filter** (on `days`) was added, so the Discover query
-  parameters change. `Sort` is no longer counted as an active filter anywhere.
 - **`docs/STATUS.md` was cut twice** (2026-08-28, 2026-09-11) and is now the short
   resume-from-here file. History lives in `docs/retros/*-status-archive.md`.
+
+## 0b. What moved since 2026-09-12
+
+- **M20 ✓ (2026-09-14)** — tiers, entitlements, the operator console, migrations 0019/0020
+  in production. The design's billing surfaces (§2c) are no longer ahead of the seam.
+- **M21 OPEN, paused at 11 of 17** — Stripe subscriptions are built and a real purchase and
+  downgrade were walked in production; the failure half of the gate is what is left.
+- **M22 OPEN, paused at 18 of 19** — **a public REST API and scoped account tokens are
+  built.** `api/v1/**` IS the registry (a route is public iff its file lives there), one
+  `route()` wrapper does auth, scope, role, parse, envelope, rate limit and the OpenAPI
+  entry, and `openapi.json` is derived. Eight scopes, mandatory expiry capped at 365 days,
+  SHA-256 at rest, shown once. `api.tokens` is **premium@v2** and is checked at mint AND on
+  every request. The one open gate box is a preview walk blocked on `ADMIN_USER_IDS`
+  (KI-20260916-d), not on code.
+- **M25 ✓ (2026-09-19)** — **a trip downloads as a `content-bundle/v1` file and uploads
+  back**, through the same two `v1` endpoints the browser calls with its own cookie.
+  Export is **free on every plan** (Mitchell, 2026-09-18) and carries no entitlement; the
+  export is a **snapshot, not the event log**, so a re-imported trip starts a fresh undo
+  stack.
+- **M23 ✓ (2026-09-19)** — a saved day generalises into a saved **sequence** (flat
+  `stops[]` with `dayIndex`, stored `day_count`). The design already answered this in
+  SPEC §33 on the same day; nothing is owed.
+- **M13 (collaboration) is the current milestone as of 2026-09-19**, by M23's gate closing.
+  Its preflight — the activity-field descriptor refactor, `KI-20260905-o` — is a gate box.
 
 ## 1. Open drift — code and design still disagree
 
@@ -62,7 +75,12 @@ Read this before §1; it is why §1 is short now.
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins, or design adds it back. **Not re-verified this pass** — carried forward as stated, flag if it has since changed. |
 | **D6** | "Next trip" | `TripSummary` still carries only `createdAt`; `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, still open and unchanged.** The only survivor of the original list. With nothing to sort by the hero can surface the *wrong trip*. KI-34 names the fix path: add a start date to `TripSummary`, then date-sort. |
 | **D10** | Billing | **Changed shape.** No `plan`, `plan_versions`, `entitlement_grants`, `is_admin`, `subscriptions` or `ai_usage` table — but the **port now exists**: `server/assistant/entitlements.ts` defines `ResolvedEntitlements` (a `has()` set, never a rank), `EntitlementCeilings` and `planVersionRef`; `EVERYONE_IS_ENTITLED` was widened to `permitEverything`, and a `TurnLedger` is already shaped as M20 link 9's `ai_usage` row with model identity and cost as variable inputs | Four surfaces: pricing, operator console, collaboration gate, plan + usage (§2c) | Design is still ahead and still blocked on M20/M21 **tables**, but no longer on the *seam*. The gate the design shows (AI, 402 `ai-not-entitled`) has a real resolver behind it now. Not a defect on either side. |
-| **D11** | The new-trip wizard | A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`**), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | **Changed 2026-09-15 (`SPEC.md` §30).** The four-step wizard is now a five-turn scripted conversation; every chip is an inline answer in a transcript | **BUILT 2026-09-16, and three of the four numbers in this row were wrong.** (a) **Four turns, not five** — `who` was dropped on Mitchell's instruction, 2026-09-15; `SPEC.md` §30.1 still says five and this is the recorded delta it is owed. (b) **Three shells left the registry, they did not survive**: `wizard-pace-tags` because turns 3 and 4 are real answer affordances now, `wizard-destination-chips` because **D-A** dropped the "Recent and nearby" label that was the unsupported claim, and `wizard-longer-chip` because **D-B** confirmed 21 nights and made `Longer` a real fifth length — reversing the 2026-08-23 decision that it had no day count. Only `wizard-assistant-draft` survives, because it is the fork and the fork is not built. (c) **There is no first model call.** SPEC §30.2: the four turns make zero model calls and zero network calls, and the only traffic is `POST /api/trips` (+ commands) when an exit is pressed. The generation the row imagines after the last answer is design §4, unbuilt. **Re-answered 2026-09-18 for `SPEC.md` §31**, which made this sheet chat-shaped: the reader's turns are right-aligned moss bubbles with a notched radius, the assistant gains a 22px mark, the live question is the last message in the thread rather than a heading, and the chips and the composer became one answer dock at the foot. Three notes a build needs. (d) **Still four turns**, so §31.2's opening line reads *"Four quick questions"* and not the five the spec quotes — the same delta as (a), now visible in shipped copy. (e) **The divergence is scoped**: `Transcript` takes a `look` prop, `"chat"` is passed by this sheet alone, and the desktop panel and phone Ask sheet keep §30.5's prose treatment unchanged. (f) **The empty-Home screen stopped describing the conversation and became it** — `FirstTripStart` rendered a numbered list of the four questions beside a button that opened the sheet, which had already drifted (it promised a "Who & money" step the flow does not have) and which is the form framing §31.2 removes. It now renders `NewTripConversation` inline, and the page head's "New trip" focuses that field rather than opening a second composer with the same accessible name. **Re-answered again 2026-09-18 for `SPEC.md` §32.** (g) **The turn count is no longer a constant, so nothing may state it.** §32.3 split the old `when` turn — a length chip row *and* an arrive→leave range *and* a *Use these* button, three controls for one answer — into "do you have a start date in mind?", an optional single day picker, and a length. The list is built by `questionsFor(answers)`: five turns without a date, six with one. §31.2's *"Four quick questions"* line is therefore gone, replaced by *"A few quick questions"*, and a test asserts the ABSENCE of any count rather than the presence of the right one — updating the number is the fix that breaks again. Delta (a) and (d) are retired by this: the copy no longer disagrees with §30.1's five, it declines to count at all. (h) **A trip is a start date plus a length, everywhere.** The range picker is gone rather than moved; `SetTripDates`'s end is computed from the length as it always was. The one date input's ISO is formatted to `Oct 3, 2026` at commit and the raw value reaches the domain and nothing else. (i) **§32.1's `ntLand()` needed no build.** It asks that finishing a first run land you in an app, and names *Create with this* and *Open the trip*; both already pass `navigate: true` and push. Widening it to *Create empty* was tried and reverted — that is this build's escape hatch from the old single-field dialog, `createEmptyTripViaWizard` reaches it on an empty list, and making it navigate is the exact regression CI caught on PR #32. The prototype needs `ntLand` because its first-run screen has no app behind it; ours re-renders Home with the new trip's card on it. (j) **§32.2's phone surface is mostly already ours.** The *New trip* pill it adds to the phone Trips screen is a gap in the prototype, not here — the page head's button has always been at every width. The tab bar it hides is hidden already: the sheet is a `.overlay-layer` at z-60 over the bar's z-20. What was owed is the control sizing, and the dock now carries `min-h-11 sm:min-h-0` so a phone gets §13.1's 44px floor while the desktop keeps the §31 sizes. **The 40px chip is a deliberate refusal**: a sixth height in a four-height scale, to sit 4px under a floor §13.1 calls absolute. (l) **The sheet was not actually a chat box, and only the preview showed it.** Mitchell, on `5c27d37`: *"the input and decisions are at bototm, and the chat at top, this should look like a chat box"*. `Sheet` wraps its children in a `flex-1 overflow-y-auto` BLOCK, which sizes them to content, so the conversation's `flex-1` transcript had nothing to fill: the thread grew the sheet and the composer scrolled out of reach — §31.3's "original sin" one level up from where §31 fixed it. `h-full` on the conversation root makes the column definite so the transcript is the only scroller, and the input and the decisions are now one block at the foot with the `wizard-assistant-draft` shell moved above the dock rather than between them. Asserted at 420×620 in `responsive.spec.ts`, because layout defects do not show up in jsdom. (k) **A typed answer to the date question does not date the trip.** "Sometime in April" commits, reads back in the transcript and takes the undated path, because parsing prose into a day is the model call §30.2 forbids — the same line free text already takes on the length turn. The prototype's summary prints such an answer as if it were a date; ours does not. |
+| **D11** | First-run "roughly when?" | **New.** A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`** — no milestone will wire them), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | First-run screen offers date-range chips, pace and tags | **Supersedes the old D4.** The contract question moved: it is no longer "add a field to `CreateTrip`" but "does any milestone own the wizard's chips at all". Two of the four shells are honestly orphaned. Design should either drop the destination chips and the longer-chip, or Mitchell places them. |
+
+| **D12** | Trip-scoped tokens | `api_tokens.trip_ids` is real and `route()` checks a token's set against `[tripId]`, but `TokensSection.tsx` posts `tripIds: null` **always** — the UI can only mint account-wide tokens | The token form offers **All trips / Chosen trips**, with the build's own rule stated where it applies: a trip-scoped token cannot create a trip, because that is a widening (Decision 5) | Design is ahead by one control over a field that already exists. Cheap, and the alternative is a capability nobody can reach. |
+| **D13** | Where a trip's lifecycle lives | `SettingsSheet.tsx` carries **Download, Duplicate and Delete** together at the foot of the sheet | Download is in Trip settings; **duplicate and delete stay on the trip card's popover** on Home (SPEC §27) | **Duplication, and the design's call stands** (project rule 4): a trip you are inside is not where you delete it, and two homes for one verb is how they drift. Build should drop the two from the sheet, or say why. |
+
+| **D14** | Where account settings live | `AccountSettingsSheet.tsx` — one sheet holding plan, meters, referrals, identity, preferences and tokens | A route with three tabs (§3d, SPEC §34.4) | Design is ahead by a container. The sections themselves are unchanged, so this is a move rather than a rewrite. |
 
 D1, D2, D4, D5, D7, D8 and D9 are closed — §5.
 
@@ -87,19 +105,6 @@ design touches — whether the usage row carries a `planVersionRef`, **which quo
 *sold* ceiling binds** (implemented per-day, stated nowhere), and whether the tier map is
 a Vercel Flag or an env var. The second one is the expensive one, and the plan-and-usage
 screen is where a wrong answer becomes visible to a customer. Settle it before M20 opens.
-
-**New 2026-09-14 — the plan chooser is a route (`SPEC.md` §29).** M21 link 5 said *"an
-inline three-plan chooser in the same sheet … without a pricing route inside the app"*.
-**The design now adds that route** (`plans`), and only the chooser and a new confirm step
-moved out — §17.4's plan/version/state, meters, past-due copy and referral row all stay in
-the account sheet. This is a deliberate deviation from a written milestone link and wants
-agreeing before M21 opens; it makes link 5's sheet work smaller, not larger. Three things
-it owes that are not drawn: **return-from-Stripe before the webhook lands** (a pending
-state — the design's success state is reached by a click and must not be built that way),
-**a stale plan version at pay time**, and **plan data unavailable / offline**. The order
-card's `$16.00` / `−$4.53` / `17 days` are fixtures; proration comes from Stripe's preview
-of the change, never from the UI. And the assistant dock on this route is
-`visibility: hidden`, still mounted — unlike `admin`, where it is not rendered at all.
 
 **§2e / §18 — Notebook widgets.** A page has no scope; each widget owns its inputs.
 Still the correct model and now largely agreed with the build (ADR-037). The design was
@@ -157,6 +162,67 @@ contract field:
 - **The phone front door** — a pinned scroll sequence (SPEC §28).
 
 And one thing the build asked for is answered: **a day column sorts by start time.**
+
+**Loading and not-yet-data (2026-09-12).** Four surfaces — account home, the trip's
+Overview, the Map lens and the Notebook — now paint their own shape before any data
+arrives and fill in **region by region**, each swapping the moment its own request lands.
+Placeholders are hairline outlines only, never invented values, with one slow breathe
+(`prefers-reduced-motion` off). Three rules the build should take literally: a page's
+chrome and its primary actions are real from the first frame and never placeholdered;
+a failed region is a retry **in place** while every region that did arrive stays on the
+page (partial failure, not a dead screen); and an account with nothing in it gets one
+empty state per surface, not one per section. `dataState` on the design component
+(`live` / `loading` / `empty` / `failed`) drives all four for review.
+
+## 3c. Designed 2026-09-19 — the three new features, and the mobile remainder they exposed
+
+**API tokens (M22).** In **Account settings**, not a route and not anywhere trip-scoped:
+minting is session-only in the build, and a token is a thing you hold. The screen carries
+the three obligations mandatory expiry forces — **time remaining, never a creation date**;
+**expired reads differently from revoked** (a schedule versus a decision); and **rotation
+stated as two acts**, mint then revoke, because it is not a feature. The secret is a
+one-time reveal in a selectable field with a Copy that can honestly fail. `free` and
+`plus` see the section **locked, not hidden** — hiding it answers "this product has no
+API", which is false. Eight scopes, each with the sentence `SCOPE_CATALOGUE` already
+makes mandatory; lifetime is **30 / 90 / a year** rather than a raw day field, and the
+ceiling is stated rather than enforced silently.
+
+**Download a trip (M25 link 2).** In Trip settings under *Take it with you*, a navigation
+rather than a button, free on every plan, and it says what the file is and what it does
+**not** carry (history does not travel).
+
+**Import a trip (M25 link 3).** On Home beside New trip, and in the empty state, where the
+sentence about what a file is belongs. A refusal is the server's own words in a banner and
+nothing on the page changes — the new `importOutcome` prop shows that state for review.
+
+**The mobile remainder, which is the answer to "what did we forget".**
+
+- **The phone had no account surface at all.** The avatar in the phone header was a
+  decoration: plan, usage, preferences and now tokens were desktop-only, so the one place
+  you see what you are paying for could not be reached from the surface most people open.
+  It is now a screen — a task, so it takes the whole frame and the tab bar steps aside,
+  the same shape as the new-trip conversation.
+- **Plans was a desktop route with no phone treatment**, so every CTA that points at it —
+  Change plan, the invite gate, and now the token gate — landed a phone user on a blank
+  screen. Same three cards, same confirm step, same Stripe hand-off, one column.
+- **Download is on the phone's Trip settings**, and **Import is on the phone's trips
+  list**. A file is not a desktop idea.
+- Still open on the phone, and listed in §8: the operator console (deliberately never),
+  and the conflict state.
+
+### 3d. Account became a page — 2026-09-19
+
+Its styling rules are SPEC §34.5 and they are the part a build should copy rather than
+re-derive: panels on a 580px measure inside labelled cards, a 170px label column, controls
+sized to their content, and **a list of like things rendered as a table** (the token list)
+rather than a stack of per-row cards.
+
+The design's Account settings is no longer a `Sheet`: it is the route `/account` with
+**Profile · Plan & usage · API tokens** (SPEC §34.4). The build still renders
+`AccountSettingsSheet` with `PlanSection` and `TokensSection` inside it — **D14**, and
+the cheapest kind: the two sections move unchanged into a route, and Plans' back link
+points at the tab instead of re-opening a sheet. Inviting stays trip-scoped, which the
+build already has right.
 
 ## 4. Real in code, absent from design
 
@@ -265,6 +331,8 @@ The KI id scheme changed — older numeric ids (`KI-034`) coexist with dated one
 | **KI-046** | Below 1100px the app's desktop layout does not hold. Our phone surface answers the mobile half; this is the *tablet gap* and no design covers it. |
 | **KI-048** | Small design-audit cosmetics, still open, including `1 travellers`. Our copy says "4 travelers". |
 | **KI-049** | Map tiles never visually confirmed — see §6. |
+| **KI-2026-09-19-a** | `API_TOKEN_PEPPER` ships empty in `.env.local`, so ~91 token tests fail in a fresh container. Ours only in that it is why a token walk may look broken when it is not. |
+| **KI-20260916-d** | M22's last gate box: `POST /api/admin/grants` answers 404 on a preview, so no preview account can hold `api.tokens` — the token surface cannot be walked there yet. Hypothesis is the **value** of `ADMIN_USER_IDS`, not its absence. |
 | **KI-052** | The tag chip row ships four tags. Our designed chip rows assume more; check the two don't contradict before the next tag pass. |
 | **KI-20260905-c** | The widget editor is inline with its value — relevant to ADR-037 d6 and our chrome-row design. |
 | **KI-20260905-i** | Widget vocabulary and coverage debt — bears on the 21-designed / 7-in-registry catalogue gap. |
@@ -276,9 +344,14 @@ missing `tags` field are all resolved. Four items this document argued for, all 
 
 ## 8. Still open, on our side
 
-- **The billing surfaces are desktop and landing only.** No phone treatment for plan and
-  usage or the collaboration gate; the console is deliberately never on the phone. Rule 6's
-  two phone states for the plan section are undesigned.
+- ~~**The billing surfaces are desktop and landing only.**~~ **Closed 2026-09-19** — the
+  phone has an account screen (plan, usage, preferences, tokens) and a Plans screen with
+  the confirm step. The console is still deliberately never on the phone. What remains
+  undesigned is rule 6's two phone states **for the plan section itself** (offline, and a
+  failed read of the plan).
+- **The phone's token surface has no loading or failed region.** The desktop sections got
+  the 2026-09-12 region-by-region treatment; this one was written live-only and owes the
+  same two states.
 - **The phone Notebook has one hardwired widget** — its stop repeater follows the focused
   day rather than carrying a binding. Deliberate: per-widget rebinding on 390px needs its
   own pass.
@@ -301,17 +374,16 @@ missing `tags` field are all resolved. Four items this document argued for, all 
 
 ## Suggested order
 
-1. **Answer the quota-window question** with Mitchell before M20 opens — the plan-and-usage
+1. **Settle D12 and D13** — one control the build already has the field for, and one
+   duplicated verb. Both are small and both get worse once somebody builds around them.
+2. **Answer the quota-window question** with Mitchell before M20 opens — the plan-and-usage
    screen is where a wrong answer reaches a customer (§2c).
-2. ~~**Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
-   placed.~~ **ANSWERED 2026-09-16 and built.** Neither was dropped from the design and
-   neither stayed `unplaced`: **D-A** removed the label that made the destination chips a
-   claim nobody could support, and **D-B** gave `Longer` the day count it had been refused,
-   so both shells became real affordances and left `preview-registry.ts`. The third way out
-   of "two orphaned shells" turned out to be answering the two questions underneath them.
-3. **Land KI-034** so the home hero can be honest. Unchanged, and now the oldest.
-4. Design the phone **conflict** state — the last of rule 6.
-5. ~~Look at KI-046 / tablet~~ — **out of scope, Mitchell 2026-09-12.** No tablet design.
+3. **Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
+   placed. Two orphaned shells is the honest signal that the design asked for something
+   nobody owns.
+4. **Land KI-034** so the home hero can be honest. Unchanged, and now the oldest.
+5. Design the phone **conflict** state — the last of rule 6.
+6. ~~Look at KI-046 / tablet~~ — **out of scope, Mitchell 2026-09-12.** No tablet design.
 
 Build status, for planning: **M9 is the current work**, Phase 0 complete, exit gate 0 of 10
 ticked (smaller than it looks — three boxes are satisfied by shipped code and deliberately

@@ -4,9 +4,31 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-19.** Playbooks learned to hold several days, and the
-Discover header was re-sorted by kind of decision — tabs for place, chips for questions,
-sort on the results sentence (§33). Before that, 2026-09-18: The new-trip transcript was made chat-shaped: two
+Last substantive pass: **2026-09-19, second half — a feature resync against `main`.** Four
+milestones had closed since the design last read the build (M20 ✓, M22 at 18/19, M25 ✓,
+M23 ✓) and three of them had no design surface at all: **API tokens**, **downloading a
+trip as a file**, and **importing one back**. Designing them exposed two mobile gaps and
+one crowded container, both fixed here (§34). Earlier the same day: Playbooks learned to
+hold several days, and the Discover header was re-sorted by kind of decision — tabs for
+place, chips for questions, sort on the results sentence (§33).
+
+### What changed on 2026-09-19, in build terms — the resync (§34)
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| API tokens have a designed surface | §34.1 | Mount `TokensSection` in the new Account **route**; time-remaining not created-at; expired ≠ revoked; rotation stated as two acts; `free`/`plus` see it **locked, not hidden** |
+| Lifetime is a choice, not a number field | §34.1 | 30 / 90 / 365 chips; the 365 ceiling is stated in copy, not enforced silently |
+| Trip-scoped tokens reach the UI | §34.1 · DRIFT **D12** | `TokensSection` posts `tripIds: null` always today. Add **All trips / Chosen trips**; the field and the wrapper check already exist |
+| Download a trip | §34.2 | Keep the plain `<a download>` to `/api/v1/trips/{id}/export`; state that history does not travel; no entitlement anywhere on the path |
+| Delete and Duplicate leave Trip settings | §34.2 · DRIFT **D13** | The sheet currently holds all three. Lifecycle stays on the trip card's popover (project rule 4); only Download is trip-settings work |
+| Import a trip | §34.2 | Home beside New trip, and in the empty state; the refusal is the server's own envelope copy, nothing else on the page changes |
+| The phone gets an account screen | §34.3 | Plan, usage, profile, units and tokens on 390px; a task, so the tab bar steps aside. No new endpoint — it calls what the desktop calls |
+| The phone gets Plans | §34.3 | Plans was a desktop route, so Change plan / the invite gate / the token gate were dead ends on a phone. Three cards, one column, same confirm step |
+| Account settings is a route with tabs | §34.4 · DRIFT **D14** | Replace `AccountSettingsSheet` with `/account` + **Profile · Plan & usage · API tokens**; `PlanSection` and `TokensSection` move unchanged. Plans' back link points at the tab |
+| Settings styling rules | §34.5 | 580px measure, filled cards with a moss header strip, a 170px label column, controls sized to their content — and **a list of like things is a table**, not a stack of cards |
+
+**Inviting people is deliberately still trip scope.** It was raised as part of the same
+crowding and stays in Trip settings beside the share link (project rule 1). Before that, 2026-09-18: The new-trip transcript was made chat-shaped: two
 visibly different sides, the live question inside the thread, and one answer dock at the
 foot of the sheet (§31). It builds on 2026-09-15, when new trip became a scripted
 conversation and the assistant transcript lost its message bubbles (§30), and 2026-09-14,
@@ -170,7 +192,7 @@ what may exist on a page — read `RULES.md` first.
 | Path | What it is |
 |---|---|
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
-| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour |
+| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour. **New this pass: the `/account` route with three tabs, the API-token surface, trip download and import, and the phone's account and Plans screens** |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
 | `SPEC.md` | Written spec for what the design file cannot say out loud. **§30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
@@ -190,6 +212,16 @@ The four notebook components in `design/` are the exception: they are the framew
 `<x-import component-from-global-scope="TravelCollabUI.X">`. Read it as intent: layout,
 spacing, tokens, copy, component choice, interaction behaviour. `TravelCollabUI.*` mounts
 map 1:1 to the real design-system package components.
+
+**To open it:** the design file expects the design-system bundle at
+`_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/` relative to itself
+(the repo's own `ds-bundle/` is the same library). `support.js`, `ios-frame.jsx` and the
+seed JSON in `design/` are its other siblings and are included here.
+
+**Tweak props worth driving while reading it** (they are how the undrawn states are
+reviewed): `surface` (desktop / phone), `plan` + `billingStatus` (the token gate, the
+invite gate, lapsed copy), `dataState` (live / loading / empty / failed) and — new this
+pass — `importOutcome` (lands / refused), which renders the import refusal.
 
 One caveat added this pass: the design file loads the **precompiled** `_ds_bundle.css` with
 no Tailwind JIT, so a few values are inline styles that would be utility classes in the

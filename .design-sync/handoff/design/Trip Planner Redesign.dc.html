@@ -238,7 +238,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <span style="width: 28px; height: 28px; border-radius: 4px; background: var(--color-brand); display: grid; place-items: center; color: var(--color-surface);"><span style="display: flex; align-items: stretch; gap: 3.5px; height: 16px;"><span style="width: 3.5px; background: currentColor;"></span><span style="width: 3.5px; background: currentColor;"></span></span></span>
                   <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Caesura</span>
                 </div>
-                <span style="width: 30px; height: 30px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+                <button onClick="{{ openPhoneAcct }}" aria-label="Account" title="Account" style="width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; padding: 0; cursor: pointer;">
+                  <span style="width: 30px; height: 30px; border-radius: 999px; background: var(--color-moss); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-slate);">SK</span>
+                </button>
               </div>
               <div style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding: 22px 0 6px;">{{ todayLabel }}</div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
@@ -258,6 +260,258 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </span>
                   </x-import>
                 </sc-for>
+                <sc-if value="{{ impErr }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="That file was not imported">{{ impErr }}</x-import>
+                </sc-if>
+                <button onClick="{{ importTrip }}" style="display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 4px; background: none; border: 1px dashed var(--color-border-strong); border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Import a trip file</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- Account on the phone. Plan, usage, preferences and tokens were desktop-only
+               until now, which made the avatar in this header a decoration: the one place
+               you can see what you are paying for could not be reached from the surface
+               most people open. It is a task, so it takes the whole screen and the tab bar
+               steps aside — the same shape as the new-trip conversation. -->
+          <sc-if value="{{ phoneAcctOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--color-paper);">
+              <div style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">Account</span>
+                <button onClick="{{ closePhoneAcct }}" style="min-height: 44px; background: none; border: 0; padding: 0 2px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-brand); cursor: pointer;">Done</button>
+              </div>
+
+              <div role="tablist" aria-label="Account sections" style="flex: 0 0 auto; display: flex; align-items: stretch; gap: 18px; padding: 0 16px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
+                <sc-for list="{{ acctTabs }}" as="t" hint-placeholder-count="3">
+                  <button onClick="{{ t.pick }}" role="tab" aria-selected="{{ t.on }}" style="min-height: 44px; background: none; border: 0; border-bottom: 2px solid {{ t.edge }}; margin-bottom: -1px; padding: 0 1px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: {{ t.weight }}; color: {{ t.ink }};">{{ t.label }}</button>
+                </sc-for>
+              </div>
+
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 18px;">
+
+                <sc-if value="{{ acctTabPlan }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 14px; padding: 14px;">
+                  <div style="display: flex; align-items: center; gap: 9px;">
+                    <span style="font-family: var(--font-next-display); font-size: 17px; font-weight: 600; color: var(--color-ink);">{{ planLabel }}</span>
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ planStateVariant }}">{{ planStateLabel }}</x-import>
+                  </div>
+                  <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ planStateLine }}</span>
+                  <button onClick="{{ planCta }}" style="min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ planCtaLabel }}</button>
+                </div>
+
+                <sc-if value="{{ pastDue }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="{{ dueTitle }}">{{ dueBody }}</x-import>
+                </sc-if>
+
+                <sc-if value="{{ hasMeters }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 14px; padding: 14px;">
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                      <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">Assistant use today</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ usageSynced }}</span>
+                    </div>
+                    <sc-for list="{{ usage }}" as="u" hint-placeholder-count="2">
+                      <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                          <span style="font-size: 13px; color: var(--color-ink);">{{ u.label }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ u.amt }}</span>
+                        </div>
+                        <span style="display: block; height: 6px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
+                          <span style="display: block; height: 6px; border-radius: 3px; background: {{ u.fill }}; width: {{ u.width }};"></span>
+                        </span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                </sc-if>
+
+                <sc-if value="{{ acctTabProfile }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="pa1" label="Your name">
+                    <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" id="pa1" value="{{ acctName }}" onChange="{{ setAcctName }}"></x-import>
+                  </x-import>
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 11px 13px;">
+                    <span style="font-size: 12.5px; color: var(--color-slate);">Signed in as</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">sam@example.com</span>
+                  </div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">Distance</span>
+                    <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,38px" value="{{ units }}" onValueChange="{{ setUnits }}" options="{{ unitOptions }}" aria-label="Distance units"></x-import>
+                  </div>
+                </div>
+                </sc-if>
+
+                <sc-if value="{{ acctTabApi }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 11px;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                    <span></span>
+                    <sc-if value="{{ tokNewBtn }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ openTokForm }}" style="min-height: 44px; padding: 0 14px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">New token</button>
+                    </sc-if>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">A token lets a program you write read and change your trips. It is shown once, and it always expires.</span>
+
+                  <sc-if value="{{ tokLocked }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 12px; padding: 13px;">
+                      <span style="font-size: 13px; line-height: 1.5; color: var(--color-brand-pressed); text-wrap: pretty;">{{ tokGateLine }}</span>
+                      <button onClick="{{ tokSeePlans }}" style="min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">See plans</button>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ tokReveal }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 9px; border: 1px solid var(--color-success-ink); background: var(--color-success-tint); border-radius: 12px; padding: 13px;">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-success-ink);">Copy this now — it is not shown again.</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full font-mono" readOnly="{{ true }}" value="{{ tokSecret }}" aria-label="Your new API token"></x-import>
+                      <div style="display: flex; gap: 8px;">
+                        <button onClick="{{ copyTok }}" style="flex: 1; min-height: 44px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">{{ tokCopyLabel }}</button>
+                        <button onClick="{{ dismissTok }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 16px; background: none; border: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Done</button>
+                      </div>
+                      <span style="font-size: 12px; line-height: 1.5; color: var(--color-success-ink); text-wrap: pretty;">Holding the field selects it, in case copying is refused.</span>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ tokEmpty }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 12.5px; color: var(--color-slate);">No tokens yet.</span>
+                  </sc-if>
+
+                  <sc-for list="{{ tokList }}" as="t" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 12px 13px;">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                        <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ t.name }}</span>
+                        <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ t.variant }}">{{ t.state }}</x-import>
+                      </div>
+                      <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ t.prefix }}</span>
+                      <span style="font-size: 12.5px; color: {{ t.whenInk }};">{{ t.when }}</span>
+                      <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ t.scopeLine }}</span>
+                      <sc-if value="{{ t.live }}" hint-placeholder-val="{{ true }}">
+                        <button onClick="{{ t.revoke }}" style="align-self: flex-start; min-height: 44px; padding: 0 14px; background: none; border: 1px solid var(--color-hairline); border-radius: 10px; font-family: inherit; font-size: 14px; color: var(--color-ink); cursor: pointer;">Revoke</button>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+
+                  <sc-if value="{{ tokFormOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--color-border-strong); border-radius: 12px; padding: 13px;">
+                      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="ptk1" label="What is it for">
+                        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" id="ptk1" placeholder="Calendar sync" value="{{ tokName }}" onChange="{{ setTokName }}"></x-import>
+                      </x-import>
+
+                      <div style="display: flex; flex-direction: column; gap: 7px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">What it may do</span>
+                        <sc-for list="{{ tokScopeRows }}" as="sc" hint-placeholder-count="8">
+                          <button onClick="{{ sc.toggle }}" style="display: flex; align-items: flex-start; gap: 10px; min-height: 44px; text-align: left; background: {{ sc.bg }}; border: 1px solid {{ sc.edge }}; border-radius: 10px; padding: 10px 12px; cursor: pointer; font-family: inherit;">
+                            <span style="flex: 0 0 auto; width: 18px; height: 18px; margin-top: 1px; border-radius: 5px; border: 1px solid {{ sc.edge }}; background: {{ sc.boxBg }}; color: {{ sc.boxInk }}; display: grid; place-items: center; font-size: 11px; line-height: 1;">{{ sc.mark }}</span>
+                            <span style="flex: 1; min-width: 0;">
+                              <span style="display: block; font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ sc.title }}</span>
+                              <span style="display: block; font-size: 12.5px; line-height: 1.5; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">{{ sc.desc }}</span>
+                            </span>
+                          </button>
+                        </sc-for>
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokScopeNote }}</span>
+                      </div>
+
+                      <div style="display: flex; flex-direction: column; gap: 9px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Which trips</span>
+                        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="100%,38px" value="{{ tokTarget }}" onValueChange="{{ setTokTarget }}" options="{{ tokTargetOptions }}" aria-label="Which trips this token reaches"></x-import>
+                        <sc-if value="{{ tokPickOn }}" hint-placeholder-val="{{ false }}">
+                          <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <sc-for list="{{ tokTripRows }}" as="tr" hint-placeholder-count="3">
+                              <button onClick="{{ tr.toggle }}" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-align: left; background: {{ tr.bg }}; border: 1px solid {{ tr.edge }}; border-radius: 10px; padding: 9px 12px; cursor: pointer; font-family: inherit;">
+                                <span style="flex: 0 0 auto; width: 18px; height: 18px; border-radius: 5px; border: 1px solid {{ tr.edge }}; background: {{ tr.boxBg }}; color: {{ tr.boxInk }}; display: grid; place-items: center; font-size: 11px; line-height: 1;">{{ tr.mark }}</span>
+                                <span style="flex: 1; min-width: 0; font-size: 13.5px; color: var(--color-ink);">{{ tr.name }}</span>
+                              </button>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokTargetNote }}</span>
+                      </div>
+
+                      <div style="display: flex; flex-direction: column; gap: 9px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">How long it lives</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+                          <sc-for list="{{ tokLifeChips }}" as="l" hint-placeholder-count="3">
+                            <button onClick="{{ l.pick }}" style="min-height: 44px; font-size: 14px; font-weight: {{ l.weight }}; border-radius: 999px; padding: 0 16px; cursor: pointer; font-family: inherit; background: {{ l.bg }}; border: 1px solid {{ l.edge }}; color: {{ l.ink }};">{{ l.label }}</button>
+                          </sc-for>
+                        </div>
+                        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokLifeNote }}</span>
+                      </div>
+
+                      <div style="display: flex; gap: 8px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+                        <button onClick="{{ createTok }}" disabled="{{ tokCannotCreate }}" style="flex: 1; min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">Create token</button>
+                        <button onClick="{{ closeTokForm }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 16px; background: none; border: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Cancel</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+
+                </sc-if>
+
+                <button onClick="{{ signOut }}" style="min-height: 44px; margin-top: 4px; background: none; border: 1px solid var(--color-hairline); border-radius: 10px; font-family: inherit; font-size: 15px; color: var(--color-ink); cursor: pointer;">Sign out</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- Plans on the phone. Every route into it — the account's Change plan, the
+               invite gate, the token gate — used to land a phone user on a blank screen,
+               because Plans was a desktop route with no phone treatment. -->
+          <sc-if value="{{ isPhonePlans }}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--color-paper);">
+              <div style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 58px 16px 10px; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline);">
+                <button onClick="{{ phonePlansBack }}" style="min-height: 44px; background: none; border: 0; padding: 0 2px; font-family: inherit; font-size: 15px; color: var(--color-brand); cursor: pointer;">‹ Account</button>
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">Plans</span>
+                <span style="width: 56px;"></span>
+              </div>
+
+              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 14px;">
+                <sc-if value="{{ phonePlanList }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ plansHeldLine }}</span>
+                  <sc-for list="{{ planCards }}" as="p" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid {{ p.border }}; border-radius: 14px; padding: 15px;">
+                      <div style="display: flex; align-items: baseline; gap: 8px;">
+                        <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 14px; color: var(--color-ink);">{{ p.price }}</span>
+                        <span style="font-size: 12px; color: var(--color-slate);">{{ p.per }}</span>
+                      </div>
+                      <span style="font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ p.forWho }}</span>
+                      <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <sc-for list="{{ p.bullets }}" as="b" hint-placeholder-count="4">
+                          <span style="display: flex; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--color-ink); text-wrap: pretty;"><span style="color: var(--color-slate);">·</span>{{ b.b }}</span>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{ p.notHeld }}" hint-placeholder-val="{{ true }}">
+                        <button onClick="{{ p.pick }}" style="min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ p.cta }}</button>
+                      </sc-if>
+                      <sc-if value="{{ p.held }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 12.5px; font-weight: 600; color: var(--color-slate);">{{ p.cta }}</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </sc-if>
+
+                <sc-if value="{{ phonePlanCo }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 14px; padding: 15px;">
+                    <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ coTitle }}</span>
+                    <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ coSub }}</span>
+                    <sc-for list="{{ coLines }}" as="l" hint-placeholder-count="3">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-size: 13px; color: var(--color-slate);">{{ l.k }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ l.v }}</span>
+                      </div>
+                    </sc-for>
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-top: 1px solid var(--color-hairline); padding-top: 10px;">
+                      <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ coDueLabel }}</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 16px; color: var(--color-ink);">{{ coDue }}</span>
+                    </div>
+                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ coRenews }}</span>
+                    <button onClick="{{ coPay }}" style="min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ coPayLabel }}</button>
+                    <button onClick="{{ coCancel }}" style="min-height: 44px; background: none; border: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Not now</button>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ phonePlanDone }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-direction: column; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-success-ink); border-radius: 14px; padding: 15px;">
+                    <span style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ coDoneTitle }}</span>
+                    <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ coDoneBody }}</span>
+                    <button onClick="{{ coDoneCta }}" style="min-height: 44px; background: var(--color-brand); border: 0; border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-surface); cursor: pointer;">{{ coDoneCtaLabel }}</button>
+                  </div>
+                </sc-if>
               </div>
             </div>
           </sc-if>
@@ -779,6 +1033,10 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="p5" label="Budget">
                     <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" value="{{ budgetInput }}" onChange="{{ setBudget }}"></x-import>
                   </x-import>
+                  <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--color-hairline); padding-top: 14px;">
+                    <button onClick="{{ downloadTrip }}" style="display: flex; align-items: center; justify-content: center; min-height: 44px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Download as a file</button>
+                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ downloadNote }}</span>
+                  </div>
                 </sc-if>
               </div>
             </div>
@@ -1191,10 +1449,15 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Your trips</x-import>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ importTrip }}">Import a file</x-import>
                 <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Start from a Playbook</x-import>
                 <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
               </div>
             </div>
+
+            <sc-if value="{{ impErr }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="That file was not imported">{{ impErr }}</x-import>
+            </sc-if>
 
             <sc-if value="{{ loadHomeHero }}" hint-placeholder-val="{{ false }}">
               <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,300px" raised="{{ true }}" className="p-0 overflow-hidden">
@@ -1262,7 +1525,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <div style="display: flex; gap: 8px; padding-top: 10px;">
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Start from a Playbook</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ importTrip }}">Import a file</x-import>
                 </div>
+                <div style="font-size: 12.5px; color: var(--color-slate); max-width: 46ch; text-wrap: pretty;">A trip you downloaded from here — or from another account — comes back whole from its file.</div>
               </div>
             </sc-if>
 
@@ -2033,7 +2298,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </sc-if>
                 <sc-if value="{{ showMapRail }}" hint-placeholder-val="{{ true }}">
                 <sc-for list="{{ mapDays }}" as="d" hint-placeholder-count="6">
-                  <button data-mapday="{{ d.i }}" onClick="{{ d.jump }}" style="display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer; border: 0; border-bottom: 1px solid var(--color-hairline); border-left: 3px solid {{ d.edge }}; background: {{ d.bg }}; padding: 11px 14px 12px; transition: background 160ms ease;">
+                  <button data-mapday="{{ d.i }}" onClick="{{ d.jump }}" onMouseEnter="{{ d.hover }}" onMouseLeave="{{ d.unhover }}" style="display: block; width: 100%; text-align: left; font-family: inherit; cursor: pointer; border: 0; border-bottom: 1px solid var(--color-hairline); border-left: 3px solid {{ d.edge }}; background: {{ d.bg }}; padding: 11px 14px 12px; transition: background 160ms ease;">
                     <div style="display: flex; align-items: baseline; gap: 8px;">
                       <span style="font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: {{ d.ink }};">{{ d.label }}</span>
                       <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.date }}</span>
@@ -2107,14 +2372,16 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </sc-if>
 
                 <sc-if value="{{ showMapCanvas }}" hint-placeholder-val="{{ true }}">
-                <div style="position: absolute; left: 300px; bottom: 18px; z-index: 3; width: 256px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.12)); padding: 13px 15px 14px; animation: riseIn 220ms ease both;">
-                  <div style="display: flex; align-items: center; gap: 7px;">
-                    <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ mapFocusSolid }};"></span>
-                    <span style="font-size: 13px; font-weight: 700; color: var(--color-ink);">{{ mapFocusTitle }}</span>
+                <sc-if value="{{ railCardOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; left: 296px; top: {{ railCardTop }}; z-index: 5; width: 256px; pointer-events: none; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; box-shadow: var(--shadow-overlay, 0 8px 28px rgba(0,0,0,0.12)); padding: 13px 15px 14px; animation: riseIn 140ms ease both;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="width: 9px; height: 9px; border-radius: 50%; background: {{ railCardSolid }};"></span>
+                      <span style="font-size: 13px; font-weight: 700; color: var(--color-ink);">{{ railCardTitle }}</span>
+                    </div>
+                    <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); margin-top: 7px;">{{ railCardStat }}</div>
+                    <div style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); margin-top: 8px; text-wrap: pretty;">{{ railCardNote }}</div>
                   </div>
-                  <div style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); margin-top: 7px;">{{ mapFocusStat }}</div>
-                  <div style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); margin-top: 8px; text-wrap: pretty;">{{ mapFocusNote }}</div>
-                </div>
+                </sc-if>
 <div style="position: absolute; right: 18px; bottom: 18px; z-index: 45; display: flex; align-items: center; gap: 14px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 7px 14px; font-size: 11px; color: var(--color-slate);">
                   <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 3px; border-radius: 2px; background: {{ mapFocusSolid }};"></span>On foot</span>
                   <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 3px dotted {{ mapFocusSolid }};"></span>By train or taxi</span>
@@ -2645,6 +2912,271 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </x-import>
               </div>
             </div>
+          </div>
+        </x-import>
+      </sc-if>
+
+      <!-- ACCOUNT — a route, not a sheet (2026-09-19).
+           The sheet had grown to plan, meters, referrals, identity, display and tokens in
+           one scroll, and the next thing added would have gone to the bottom for want of
+           anywhere better. A page with tabs gives each of those a logical home and a place
+           for the next one. Tabs are PLACES (SPEC §33.2): they never count as filters and
+           the underline treatment is the one Playbooks Discover already uses.
+
+           Inviting people is deliberately NOT here. It is trip scope — who can open THIS
+           trip — and it stays in Trip settings beside the share link (project rule 1). -->
+      <sc-if value="{{ isAccountRoute }}" hint-placeholder-val="{{ false }}">
+        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+          <div data-screen-label="Account" style="padding: 22px 0 90px; display: flex; flex-direction: column; gap: 20px; max-width: 640px;">
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,36px" level="{{ 2 }}">Account</x-import>
+              <span style="font-size: 14px; line-height: 1.55; color: var(--color-slate); max-width: 620px; text-wrap: pretty;">Everything true of you across every trip. Anything that belongs to one trip — who is invited, its budget, its dates — lives in that trip.</span>
+            </div>
+
+            <div role="tablist" aria-label="Account sections" style="display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid var(--color-hairline);">
+              <sc-for list="{{ acctTabs }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.pick }}" role="tab" aria-selected="{{ t.on }}" style="min-height: 40px; background: none; border: 0; border-bottom: 2px solid {{ t.edge }}; margin-bottom: -1px; padding: 0 1px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: {{ t.weight }}; color: {{ t.ink }};">{{ t.label }}</button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ acctTabProfile }}" hint-placeholder-val="{{ true }}">
+              <!-- Settings read as a form, not a page of full-bleed inputs: a label column,
+                   a control column, and a measure the eye can track (SPEC §34.5). Controls
+                   are sized to their content — a home airport is three characters wide and
+                   an input the width of the page says otherwise. -->
+              <div style="display: flex; flex-direction: column; gap: 16px; max-width: 580px;">
+
+                <div style="display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;">
+                  <div style="padding: 12px 18px; background: var(--color-moss); border-bottom: 1px solid var(--color-hairline); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">You</div>
+                  <div style="display: flex; flex-direction: column; padding: 4px 18px 8px;">
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--color-hairline);">
+                      <label for="ac1" style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Your name</label>
+                      <span style="display: block; width: 240px; max-width: 100%;"><x-import component-from-global-scope="TravelCollabUI.Input" hint-size="240px,36px" id="ac1" className="w-full" value="{{ acctName }}" onChange="{{ setAcctName }}"></x-import></span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--color-hairline);">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Signed in as</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">sam@example.com</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; ">
+                      <label for="ac2" style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Home airport<span style="display: block; font-size: 12px; line-height: 1.45; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">Where a trip is assumed to start from.</span></label>
+                      <span style="display: block; width: 96px;"><x-import component-from-global-scope="TravelCollabUI.Input" hint-size="96px,36px" id="ac2" className="w-full" value="{{ homeAirport }}" onChange="{{ setHomeAirport }}" placeholder="SFO"></x-import></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;">
+                  <div style="padding: 12px 18px; background: var(--color-moss); border-bottom: 1px solid var(--color-hairline); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Display</div>
+                  <div style="display: flex; flex-direction: column; padding: 4px 18px 8px;">
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--color-hairline);">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Distance<span style="display: block; font-size: 12px; line-height: 1.45; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">{{ unitsNote }}</span></span>
+                      <span style="justify-self: start;">
+                        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ units }}" onValueChange="{{ setUnits }}" options="{{ unitOptions }}" aria-label="Distance units"></x-import>
+                      </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; ">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Home time on hover<span style="display: block; font-size: 12px; line-height: 1.45; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">{{ homeHoverNote }}</span></span>
+                      <span style="justify-self: start;">
+                        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ homeHover }}" onValueChange="{{ setHomeHover }}" options="{{ homeHoverOptions }}" aria-label="Home time on hover"></x-import>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ acctTabPlan }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 16px; max-width: 580px;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px; background: var(--color-surface);">
+              <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ planLabel }}</span>
+                  <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ planStateVariant }}">{{ planStateLabel }}</x-import>
+                </div>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ planStateLine }}</span>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ planCtaVariant }}" size="sm" onClick="{{ planCta }}">{{ planCtaLabel }}</x-import>
+                <sc-if value="{{ hasBilling }}" hint-placeholder-val="{{ true }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ openPortal }}">Payment and invoices</x-import>
+                </sc-if>
+              </div>
+            </div>
+
+            <sc-if value="{{ pastDue }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="{{ dueTitle }}">{{ dueBody }}</x-import>
+            </sc-if>
+
+            <sc-if value="{{ hasMeters }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; flex-direction: column; gap: 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Assistant use today</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ usageSynced }}</span>
+                </div>
+                <sc-for list="{{ usage }}" as="u" hint-placeholder-count="2">
+                  <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                      <span style="font-size: 12.5px; color: var(--color-ink);">{{ u.label }}</span>
+                      <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,18px" size="sm" className="text-slate">{{ u.amt }}</x-import>
+                    </div>
+                    <span style="display: block; height: 6px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
+                      <span style="display: block; height: 6px; border-radius: 3px; background: {{ u.fill }}; width: {{ u.width }};"></span>
+                    </span>
+                    <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">{{ u.note }}</span>
+                  </div>
+                </sc-for>
+                <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); border-top: 1px solid var(--color-hairline); padding-top: 10px; text-wrap: pretty;">{{ ceilingNote }}</span>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ noMeters }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 6px; background: var(--color-surface); border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 13px 14px;">
+                <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Nothing metered on Free</span>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trips, days, stops, costs and saved days are unlimited and always will be. The only thing with a number on it is the assistant, and Free doesn't include it.</span>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ canRefer }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
+                <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Bring someone in, get a month</span>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ referNote }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink); background: var(--color-moss); border-radius: 8px; padding: 7px 10px;">{{ referCode }}</span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ copyRefer }}">{{ referCta }}</x-import>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ acctTabApi }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px;">
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
+              <span style="flex: 1 1 320px; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">A token lets a program you write read and change your trips. Treat one like a password: it is shown once, it always expires, and it can never do more than you can.</span>
+              <sc-if value="{{ tokNewBtn }}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ openTokForm }}">New token</x-import>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ tokLocked }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 10px; padding: 12px 14px;">
+                <span style="flex: 1 1 260px; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--color-brand-pressed); text-wrap: pretty;">{{ tokGateLine }}</span>
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="primary" size="sm" onClick="{{ tokSeePlans }}">See plans</x-import>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ tokReveal }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 9px; border: 1px solid var(--color-success-ink); background: var(--color-success-tint); border-radius: 10px; padding: 13px 14px;">
+                <span style="font-size: 13px; font-weight: 600; color: var(--color-success-ink);">Copy this now — it is not shown again.</span>
+                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" readOnly="{{ true }}" value="{{ tokSecret }}" aria-label="Your new API token" className="font-mono"></x-import>
+                <div style="display: flex; gap: 8px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ copyTok }}">{{ tokCopyLabel }}</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ dismissTok }}">Done</x-import>
+                </div>
+                <span style="font-size: 12px; line-height: 1.5; color: var(--color-success-ink); text-wrap: pretty;">Nothing here stores it. If you lose it, the only repair is a new token.</span>
+              </div>
+            </sc-if>
+
+            <!-- A table, not a stack of cards. Every token carries the same four facts and the
+                 question asked of the list is a comparison — which is dying first, which one
+                 is the wide one — so rows beat cards. The card wrapper is `--color-surface`
+                 with a hairline border and a `--color-moss` header, which is what separates
+                 it from the paper page; the individual rows no longer each draw a box. -->
+            <div style="display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+              <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.6fr) 150px 84px; gap: 12px; align-items: center; padding: 9px 16px; background: var(--color-moss); border-bottom: 1px solid var(--color-hairline); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">
+                <span>Token</span>
+                <span>What it may do</span>
+                <span>Expires</span>
+                <span></span>
+              </div>
+              <sc-if value="{{ tokEmpty }}" hint-placeholder-val="{{ false }}">
+                <span style="padding: 16px; font-size: 12.5px; color: var(--color-slate);">No tokens yet.</span>
+              </sc-if>
+              <sc-for list="{{ tokList }}" as="t" hint-placeholder-count="3">
+                <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.6fr) 150px 84px; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+                  <span style="min-width: 0;">
+                    <span style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap;">
+                      <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ t.name }}</span>
+                      <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ t.variant }}">{{ t.state }}</x-import>
+                    </span>
+                    <span style="display: block; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 3px;">{{ t.prefix }}</span>
+                  </span>
+                  <span style="min-width: 0; font-size: 12px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ t.scopeLine }}</span>
+                  <span style="font-size: 12px; line-height: 1.45; color: {{ t.whenInk }}; text-wrap: pretty;">{{ t.when }}</span>
+                  <span style="justify-self: end;">
+                    <sc-if value="{{ t.live }}" hint-placeholder-val="{{ true }}">
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="secondary" size="sm" onClick="{{ t.revoke }}">Revoke</x-import>
+                    </sc-if>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ tokFormOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--color-border-strong); border-radius: 10px; padding: 14px;">
+                <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,80px" id="tk1" label="What is it for" description="You will read this name in six months and have to know what breaks if you revoke it.">
+                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="tk1" placeholder="Calendar sync" value="{{ tokName }}" onChange="{{ setTokName }}"></x-import>
+                </x-import>
+
+                <div style="display: flex; flex-direction: column; gap: 7px;">
+                  <span style="font-size: 12px; font-weight: 600; color: var(--color-ink);">What it may do</span>
+                  <sc-for list="{{ tokScopeRows }}" as="sc" hint-placeholder-count="8">
+                    <button onClick="{{ sc.toggle }}" style="display: flex; align-items: flex-start; gap: 10px; text-align: left; background: {{ sc.bg }}; border: 1px solid {{ sc.edge }}; border-radius: 9px; padding: 9px 11px; cursor: pointer; font-family: inherit;">
+                      <span style="flex: 0 0 auto; width: 17px; height: 17px; margin-top: 1px; border-radius: 5px; border: 1px solid {{ sc.edge }}; background: {{ sc.boxBg }}; color: {{ sc.boxInk }}; display: grid; place-items: center; font-size: 11px; line-height: 1;">{{ sc.mark }}</span>
+                      <span style="flex: 1; min-width: 0;">
+                        <span style="display: block; font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ sc.title }}</span>
+                        <span style="display: block; font-size: 12px; line-height: 1.5; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">{{ sc.desc }}</span>
+                      </span>
+                    </button>
+                  </sc-for>
+                  <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokScopeNote }}</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--color-ink);">Which trips</span>
+                    <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ tokTarget }}" onValueChange="{{ setTokTarget }}" options="{{ tokTargetOptions }}" aria-label="Which trips this token reaches"></x-import>
+                  </div>
+                  <sc-if value="{{ tokPickOn }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                      <sc-for list="{{ tokTripRows }}" as="tr" hint-placeholder-count="3">
+                        <button onClick="{{ tr.toggle }}" style="display: flex; align-items: center; gap: 10px; text-align: left; background: {{ tr.bg }}; border: 1px solid {{ tr.edge }}; border-radius: 9px; padding: 8px 11px; cursor: pointer; font-family: inherit;">
+                          <span style="flex: 0 0 auto; width: 17px; height: 17px; border-radius: 5px; border: 1px solid {{ tr.edge }}; background: {{ tr.boxBg }}; color: {{ tr.boxInk }}; display: grid; place-items: center; font-size: 11px; line-height: 1;">{{ tr.mark }}</span>
+                          <span style="flex: 1; min-width: 0; font-size: 13px; color: var(--color-ink);">{{ tr.name }}</span>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokTargetNote }}</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <span style="font-size: 12px; font-weight: 600; color: var(--color-ink);">How long it lives</span>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <sc-for list="{{ tokLifeChips }}" as="l" hint-placeholder-count="3">
+                      <button onClick="{{ l.pick }}" style="font-size: 13px; font-weight: {{ l.weight }}; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-family: inherit; background: {{ l.bg }}; border: 1px solid {{ l.edge }}; color: {{ l.ink }};">{{ l.label }}</button>
+                    </sc-for>
+                  </div>
+                  <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ tokLifeNote }}</span>
+                </div>
+
+                <div style="display: flex; gap: 8px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" disabled="{{ tokCannotCreate }}" onClick="{{ createTok }}">Create token</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" size="sm" onClick="{{ closeTokForm }}">Cancel</x-import>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+              </div>
+            </sc-if>
+
           </div>
         </x-import>
       </sc-if>
@@ -3635,111 +4167,19 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         </div>
       </div>
 
+      <div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 16px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Take it with you</span>
+          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ downloadTrip }}">Download as a file</x-import>
+        </div>
+        <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ downloadNote }}</span>
+        <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ downloadHistoryNote }}</span>
+      </div>
+
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
         <span style="font-size: 12px; color: var(--color-slate);">Changes save as you type.</span>
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ closeSettings }}">Done</x-import>
       </div>
-    </div>
-  </x-import>
-
-  <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ acctSheet }}" onOpenChange="{{ setAcctSheet }}" title="Account settings">
-    <div style="display: flex; flex-direction: column; gap: 20px; padding: 4px 4px 2px;">
-
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Plan</span>
-
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px; background: var(--color-surface);">
-          <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ planLabel }}</span>
-              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,20px" variant="{{ planStateVariant }}">{{ planStateLabel }}</x-import>
-            </div>
-            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ planStateLine }}</span>
-          </div>
-          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ planCtaVariant }}" size="sm" onClick="{{ planCta }}">{{ planCtaLabel }}</x-import>
-            <sc-if value="{{ hasBilling }}" hint-placeholder-val="{{ true }}">
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ openPortal }}">Payment and invoices</x-import>
-            </sc-if>
-          </div>
-        </div>
-
-        <sc-if value="{{ pastDue }}" hint-placeholder-val="{{ false }}">
-          <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="{{ dueTitle }}">{{ dueBody }}</x-import>
-        </sc-if>
-
-        <sc-if value="{{ hasMeters }}" hint-placeholder-val="{{ true }}">
-          <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
-            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Assistant use today</span>
-              <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ usageSynced }}</span>
-            </div>
-            <sc-for list="{{ usage }}" as="u" hint-placeholder-count="2">
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
-                  <span style="font-size: 12.5px; color: var(--color-ink);">{{ u.label }}</span>
-                  <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,18px" size="sm" className="text-slate">{{ u.amt }}</x-import>
-                </div>
-                <span style="display: block; height: 6px; border-radius: 3px; background: var(--color-moss); overflow: hidden;">
-                  <span style="display: block; height: 6px; border-radius: 3px; background: {{ u.fill }}; width: {{ u.width }};"></span>
-                </span>
-                <span style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">{{ u.note }}</span>
-              </div>
-            </sc-for>
-            <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); border-top: 1px solid var(--color-hairline); padding-top: 10px; text-wrap: pretty;">{{ ceilingNote }}</span>
-          </div>
-        </sc-if>
-
-        <sc-if value="{{ noMeters }}" hint-placeholder-val="{{ false }}">
-          <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 13px 14px;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Nothing metered on Free</span>
-            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trips, days, stops, costs and saved days are unlimited and always will be. The only thing with a number on it is the assistant, and Free doesn't include it.</span>
-          </div>
-        </sc-if>
-
-        <sc-if value="{{ canRefer }}" hint-placeholder-val="{{ false }}">
-          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 13px 14px;">
-            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Bring someone in, get a month</span>
-              <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ referNote }}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink); background: var(--color-moss); border-radius: 8px; padding: 7px 10px;">{{ referCode }}</span>
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ copyRefer }}">{{ referCta }}</x-import>
-            </div>
-          </div>
-        </sc-if>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--color-hairline); padding-top: 18px;">
-        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="ac1" label="Your name">
-          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="ac1" value="{{ acctName }}" onChange="{{ setAcctName }}"></x-import>
-        </x-import>
-        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
-          <span style="font-size: 12px; color: var(--color-slate);">Signed in as</span>
-          <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">sam@example.com</span>
-        </div>
-        <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="ac2" label="Home airport">
-          <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="ac2" value="{{ homeAirport }}" onChange="{{ setHomeAirport }}" placeholder="SFO"></x-import>
-        </x-import>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--color-hairline); padding-top: 18px;">
-        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Display</span>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Distance</span>
-          </div>
-          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ units }}" onValueChange="{{ setUnits }}" options="{{ unitOptions }}" aria-label="Distance units"></x-import>
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--color-hairline); padding-top: 14px; margin-top: 5px;">
-          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Home time on hover</span>
-          </div>
-          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ homeHover }}" onValueChange="{{ setHomeHover }}" options="{{ homeHoverOptions }}" aria-label="Home time on hover"></x-import>
-        </div>
-      </div>
-
     </div>
   </x-import>
 
@@ -4734,7 +5174,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;look&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ledger&quot;,&quot;paper&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;ledger&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;ledger&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;look&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ledger&quot;,&quot;paper&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;ledger&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;ledger&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -4754,9 +5194,22 @@ class Component extends DCLogic {
     q: '', searching: false, cityHits: null, searchMs: 186, qCities: [], daysLoading: false, dayId: null,
     pbDayNo: 0, pbScope: 'all', fOpen: null, fScore: 'Any rating', fBudget: 'Any budget', fLength: 'Any length', fSort: 'Most added',
     revStars: 0, revNote: '', revBusy: false, myReviews: {}, profileName: null, profileFrom: 'playbooks', saved: { 'pb-naoshima': 1, 'pb-kyoto3': 1 },
-    blOpen: false, ld: {},
+    blOpen: false, ld: {}, railHover: null, railHoverTop: 16,
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
-    acctOpen: false, acctSheet: false, acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
+    acctOpen: false, acctTab: 'profile', acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
+    // M22 — API tokens. Minting is session-only in the build, so this state is
+    // account scope and lives beside the rest of what you hold. `days` is days
+    // remaining rather than a date, because "expires in 12 days" is the only
+    // form of a deadline anyone acts on.
+    phoneAcct: false, impErr: '',
+    tokForm: false, tokName: '', tokScopes: ['trips:read'], tokDays: 90, tokAll: true, tokPick: [],
+    tokReveal: null, tokCopied: false,
+    tokens: [
+      { id: 'tk1', name: 'Calendar sync', prefix: 'tc_7Fq2xR9a', scopes: ['trips:read'], trips: null, days: 47, revoked: false },
+      { id: 'tk2', name: 'Kyoto wall screen', prefix: 'tc_2mA8kP1c', scopes: ['trips:read', 'notebook:read'], trips: ['japan'], days: 3, revoked: false },
+      { id: 'tk3', name: 'Costs → spreadsheet', prefix: 'tc_9Rd4vL6t', scopes: ['trips:read', 'trips:write'], trips: null, days: -12, revoked: false },
+      { id: 'tk4', name: 'Laptop I sold', prefix: 'tc_5Yz1nQ3b', scopes: ['trips:write', 'sharing:write'], trips: null, days: 120, revoked: true }
+    ],
     histOpen: false, histPreview: null, histAt: 0, pendingSave: false,
     focused: false,
     surfaceOv: null, phoneTab: 'plan', mapOffline: false,
@@ -5451,7 +5904,7 @@ class Component extends DCLogic {
   PLAN_VALUE = {
     free: ['Unlimited trips, days and stops', 'Map, costs, saved days, export', 'No assistant', 'Nobody else editing'],
     plus: ['The assistant on your own trips', '100 questions and 800 steps a day', 'It moves stops, clears clashes, fills an empty day', 'Still only you editing'],
-    premium: ['300 questions and 2,400 steps a day', 'Invite anyone to add stops, vote and comment', 'The people you invite never pay', 'You stay the only one who can move dates or delete days']
+    premium: ['300 questions and 2,400 steps a day', 'Invite anyone to add stops, vote and comment', 'The people you invite never pay', 'API tokens, so your own programs can read and change your trips', 'You stay the only one who can move dates or delete days']
   };
   PLAN_FOR = {
     free: 'One trip at a time, planned by hand.',
@@ -5465,6 +5918,8 @@ class Component extends DCLogic {
     { k: 'Assistant steps a day', v: ['—', '800', '2,400'] },
     { k: 'Other people editing', v: ['—', '—', 'Anyone you invite'] },
     { k: 'Votes and comments', v: ['—', '—', 'Yes'] },
+    { k: 'Download a trip as a file', v: ['Yes', 'Yes', 'Yes'] },
+    { k: 'API tokens', v: ['—', '—', 'Yes'] },
     { k: 'A month', v: ['$0', '$8', '$16'] }
   ];
   plansPage(eff, meta, paid, trial) {
@@ -5478,7 +5933,7 @@ class Component extends DCLogic {
     const money = n => '$' + n.toFixed(2);
     return {
       isPlansRoute: s.route === 'plans',
-      plansBack: () => this.setState({ route: s.plansFrom && s.plansFrom !== 'plans' ? s.plansFrom : 'home', acctSheet: true, coPlan: null }),
+      plansBack: () => this.setState({ route: 'account', acctTab: 'plan', coPlan: null }),
       plansHeldLine: paid && !trial
         ? 'You hold ' + meta.label + ' at ' + meta.price + ' a month. It renews Thursday 1 October — changing now is prorated to the day.'
         : trial ? 'You are in the free week of Plus. It ends Thursday 10 September and nothing is charged when it does.'
@@ -5542,7 +5997,20 @@ class Component extends DCLogic {
         : 'Stripe took ' + money(dueToday) + ' and emailed the receipt. Everything below is live right now — no sign-out, no reload.',
       coDoneCta: () => this.setState({ route: s.plansFrom && s.plansFrom !== 'plans' ? s.plansFrom : 'home', coPlan: null }),
       coDoneCtaLabel: 'Back to the trip',
-      coInvoices: () => this.flash('Opens Stripe — card, invoices and cancelling all live there')
+      coInvoices: () => this.flash('Opens Stripe — card, invoices and cancelling all live there'),
+
+      // Plans on the phone. It was a desktop route only, so every CTA that sends
+      // you here — the account's Change plan, the invite gate, the token gate —
+      // landed a phone user on nothing. Same three cards, same confirm step, same
+      // Stripe hand-off; one column and 44px targets.
+      isPhonePlans: s.route === 'plans' && this.surface() === 'phone',
+      phonePlanList: s.route === 'plans' && this.surface() === 'phone' && !co,
+      phonePlanCo: s.route === 'plans' && this.surface() === 'phone' && !!co && s.coStep !== 'done',
+      phonePlanDone: s.route === 'plans' && this.surface() === 'phone' && !!co && s.coStep === 'done',
+      phonePlansBack: () => this.setState({
+        route: s.plansFrom && s.plansFrom !== 'plans' ? s.plansFrom : 'home',
+        coPlan: null, phoneAcct: true
+      })
     };
   }
   // New trip is a scripted conversation, not a model one: these five turns are a fixed
@@ -5740,7 +6208,7 @@ class Component extends DCLogic {
       hasBilling: paid && !trial,
       planCtaLabel: paid && !trial ? 'Change plan' : 'Choose a plan',
       planCtaVariant: paid && !trial ? 'secondary' : 'primary',
-      planCta: () => this.setState({ route: 'plans', plansFrom: s.route, acctSheet: false, setOpen: false, coPlan: null, coStep: 'review' }),
+      planCta: () => this.setState({ route: 'plans', plansFrom: s.route, phoneAcct: false, setOpen: false, coPlan: null, coStep: 'review' }),
       openPortal: () => this.flash('Opens Stripe — card, invoices and cancelling all live there'),
       pastDue: due,
       dueTitle: 'Your card was declined on 31 August',
@@ -5770,7 +6238,7 @@ class Component extends DCLogic {
         ? 'Mei, Priya, Sam and Kenji are still on this trip and can still read it. Going back to Premium puts them back to editing, exactly as they were.'
         : 'Premium is the plan where other people can open your trip and add to it. It is not in the free week, so this is the first time you have met it — everyone you invite can add stops, vote and comment, and you stay the only one who can move dates or delete days.',
       inviteGateCta: lapsed ? 'Sort the plan out' : 'See Premium',
-      openAccountBilling: () => this.setState({ setOpen: false, acctSheet: false, route: 'plans', plansFrom: s.route, coPlan: null, coStep: 'review' }),
+      openAccountBilling: () => this.setState({ setOpen: false, phoneAcct: false, route: 'plans', plansFrom: s.route, coPlan: null, coStep: 'review' }),
       crewCapped: lapsed,
       cappedTitle: 'Everyone here is read-only',
       cappedBody: 'Nobody was removed and nothing was rewritten — while the plan is lapsed, everyone except you is capped at reading. Paying again restores all four to editing with no re-invites.',
@@ -8485,6 +8953,171 @@ class Component extends DCLogic {
       return Math.max(0, Math.min(255, Math.round(g * 255))); }).join(', ') + ')';
   }
 
+  // ── API tokens, download and import (M22 / M25) ───────────────────────────
+  // Three facts the build settled that this surface has to carry rather than
+  // restate: a token is shown ONCE (nothing stores the secret), every token
+  // expires and the ceiling is a year, and `api.tokens` is Premium — while
+  // downloading a trip as a file is free on every plan, because charging for
+  // the exit is the one paywall that makes the rest harder to believe.
+  API_SCOPE_LIST = [
+    { id: 'trips:read', title: 'Read trips', desc: 'Trips, days and stops, costs, history, and the share links that already exist.' },
+    { id: 'trips:write', title: 'Change trips', desc: 'Create, change and delete trips, days and stops; undo, redo and revert.' },
+    { id: 'notebook:read', title: 'Read the Notebook', desc: 'Pages on a trip and the widgets on them.' },
+    { id: 'notebook:write', title: 'Write the Notebook', desc: 'Add and edit pages and widgets on a trip.' },
+    { id: 'library:read', title: 'Read saved days', desc: 'The days you have saved to your own library.' },
+    { id: 'library:write', title: 'Write saved days', desc: 'Save days, edit them, and publish them to Discover.' },
+    { id: 'sharing:write', title: 'Invite and share', desc: 'Invite people, remove them, create and revoke share links. Separate from “change trips” on purpose — a calendar sync should not be able to hand a stranger editing rights.' },
+    { id: 'account:read', title: 'Read your account', desc: 'Who you are and what plan you hold. Never anything about your card.' }
+  ];
+  TOK_LIVES = [30, 90, 365];
+  relDays(n) {
+    if (n <= -2) return Math.abs(n) + ' days ago';
+    if (n === -1) return 'yesterday';
+    if (n === 0) return 'today';
+    if (n === 1) return 'tomorrow';
+    return 'in ' + n + ' days';
+  }
+  tokStateOf(t) { return t.revoked ? 'revoked' : (t.days <= 0 ? 'expired' : 'live'); }
+  tokTitle(id) { const m = this.API_SCOPE_LIST.filter(x => x.id === id)[0]; return m ? m.title : id; }
+  mintTok() {
+    const s = this.state;
+    const r = () => Math.random().toString(36).slice(2, 10);
+    const secret = 'tc_' + r() + r() + r() + r();
+    const tok = {
+      id: 'tk' + Date.now(), name: s.tokName.trim(), prefix: secret.slice(0, 11),
+      scopes: this.API_SCOPE_LIST.map(x => x.id).filter(id => s.tokScopes.indexOf(id) >= 0),
+      trips: s.tokAll ? null : s.tokPick.slice(), days: s.tokDays, revoked: false
+    };
+    this.setState(st => ({
+      tokens: [tok].concat(st.tokens), tokForm: false, tokReveal: secret, tokCopied: false,
+      tokName: '', tokScopes: ['trips:read'], tokDays: 90, tokAll: true, tokPick: []
+    }));
+  }
+  revokeTok(id) {
+    // Guarded at the source in the build, and irreversible by design — so no
+    // undo toast here. Rotation is two acts, not one: mint, then revoke.
+    this.setState(st => ({ tokens: st.tokens.map(t => t.id === id ? Object.assign({}, t, { revoked: true }) : t) }));
+    this.flash('Revoked — it stopped working on that click');
+  }
+  apiTokens() {
+    const s = this.state, P = this.props, t = this.trip();
+    const plan = s.planOv || P.plan || 'premium';
+    const status = s.billOv || P.billingStatus || 'active';
+    const eff = status === 'lapsed' ? 'free' : (status === 'trial' ? 'plus' : plan);
+    const entitled = eff === 'premium';
+    const tokens = s.tokens || [];
+    const tripList = Object.keys(this.TRIPS).map(k => ({ id: k, name: this.TRIPS[k].name }));
+    const slug = (t.name || 'trip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return {
+      tokEntitled: entitled,
+      tokLocked: !entitled,
+      tokGateLine: status === 'lapsed'
+        ? 'Tokens stop working while the plan is lapsed. Nothing was deleted — going back to Premium wakes every token that has not expired.'
+        : 'Writing a program against your trips is part of Premium. Downloading a trip as a file is not — that stays free on every plan.',
+      tokSeePlans: () => this.setState({ phoneAcct: false, route: 'plans', plansFrom: s.route, coPlan: null, coStep: 'review' }),
+      tokEmpty: entitled && tokens.length === 0,
+      tokList: tokens.map(tk => {
+        const st = this.tokStateOf(tk);
+        return {
+          name: tk.name, prefix: tk.prefix + '…', live: st === 'live',
+          state: st === 'live' ? 'Active' : st === 'expired' ? 'Expired' : 'Revoked',
+          variant: st === 'live' ? 'success' : st === 'expired' ? 'warning' : 'neutral',
+          when: st === 'revoked'
+            ? 'Revoked. It stopped working immediately.'
+            : st === 'expired'
+              ? 'Expired ' + this.relDays(tk.days) + '. Create a new one to replace it.'
+              : 'Expires ' + this.relDays(tk.days) + '.',
+          whenInk: st === 'live' && tk.days <= 7 ? 'var(--color-warning-ink)' : 'var(--color-slate)',
+          scopeLine: (tk.scopes.length ? tk.scopes.map(id => this.tokTitle(id)).join(' · ') : 'Nothing — this token can do nothing')
+            + ' · ' + (tk.trips === null ? 'all trips' : tk.trips.length + (tk.trips.length === 1 ? ' trip' : ' trips')),
+          revoke: () => this.revokeTok(tk.id)
+        };
+      }),
+      tokReveal: !!s.tokReveal,
+      tokSecret: s.tokReveal || '',
+      tokCopyLabel: s.tokCopied ? 'Copied' : 'Copy',
+      copyTok: () => { this.setState({ tokCopied: true }); this.flash('Copied. It is not shown again.'); },
+      dismissTok: () => this.setState({ tokReveal: null, tokCopied: false }),
+      tokNewBtn: entitled && !s.tokForm,
+      tokFormOpen: entitled && !!s.tokForm,
+      openTokForm: () => this.setState({ tokForm: true }),
+      closeTokForm: () => this.setState({ tokForm: false }),
+      tokName: s.tokName,
+      setTokName: e => this.setState({ tokName: e.target.value }),
+      tokScopeRows: this.API_SCOPE_LIST.map(x => {
+        const on = s.tokScopes.indexOf(x.id) >= 0;
+        return {
+          title: x.title, desc: x.desc, mark: on ? '✓' : '',
+          edge: on ? 'var(--color-brand)' : 'var(--color-hairline)',
+          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+          boxBg: on ? 'var(--color-brand)' : 'transparent',
+          boxInk: on ? 'var(--color-surface)' : 'transparent',
+          toggle: () => this.setState(st => ({
+            tokScopes: on ? st.tokScopes.filter(i => i !== x.id) : st.tokScopes.concat([x.id])
+          }))
+        };
+      }),
+      tokScopeNote: s.tokScopes.length
+        ? s.tokScopes.length + ' of 8. A token can never do more than you can — remove someone from a trip and their tokens lose it in the same instant.'
+        : 'Pick at least one. A token with nothing ticked can do nothing.',
+      tokTarget: s.tokAll ? 'all' : 'pick',
+      tokTargetOptions: [{ value: 'all', label: 'All trips' }, { value: 'pick', label: 'Chosen trips' }],
+      setTokTarget: v => this.setState({ tokAll: v === 'all' }),
+      tokPickOn: !s.tokAll,
+      tokTripRows: tripList.map(x => {
+        const on = (s.tokPick || []).indexOf(x.id) >= 0;
+        return {
+          name: x.name, mark: on ? '✓' : '',
+          edge: on ? 'var(--color-brand)' : 'var(--color-hairline)',
+          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+          boxBg: on ? 'var(--color-brand)' : 'transparent',
+          boxInk: on ? 'var(--color-surface)' : 'transparent',
+          toggle: () => this.setState(st => ({
+            tokPick: on ? st.tokPick.filter(i => i !== x.id) : (st.tokPick || []).concat([x.id])
+          }))
+        };
+      }),
+      tokTargetNote: s.tokAll
+        ? 'Every trip you can reach, including ones you make later.'
+        : 'Only the trips you tick — and a token limited to trips cannot create a new one, because that would be a widening.',
+      tokLifeChips: this.TOK_LIVES.map(n => {
+        const on = s.tokDays === n;
+        return {
+          label: n === 365 ? 'A year' : n + ' days',
+          bg: on ? 'var(--color-brand)' : 'var(--color-surface)',
+          ink: on ? 'var(--color-surface)' : 'var(--color-ink)',
+          edge: on ? 'var(--color-brand)' : 'var(--color-hairline)',
+          weight: on ? '600' : '400',
+          pick: () => this.setState({ tokDays: n })
+        };
+      }),
+      tokLifeNote: 'Every token expires, and a year is the ceiling. To rotate one: create its replacement, then revoke this one.',
+      tokCannotCreate: !(s.tokName.trim() !== '' && s.tokScopes.length > 0 && (s.tokAll || (s.tokPick || []).length > 0)),
+      createTok: () => this.mintTok(),
+
+      // ── A trip is a file (M25) ──────────────────────────────────────────────
+      // Download is a navigation, not a button that pretends to be one: the
+      // server sets the attachment header, so it is the browser's own download.
+      downloadTrip: () => this.flash('Downloading ' + slug + '.json'),
+      downloadNote: 'One file with every day, stop, cost and note. Import reads it straight back — here, or into another account. Free on every plan.',
+      downloadHistoryNote: 'History does not travel: a re-imported trip starts a fresh undo stack.',
+      importTrip: () => {
+        if ((P.importOutcome || 'lands') === 'refused') {
+          this.setState({ impErr: 'That file is not a trip bundle, so nothing was changed. A file downloaded from here opens as-is.' });
+          return;
+        }
+        this.setState({ impErr: '' });
+        this.flash('Imported “Lisbon, long weekend” — 4 days, 19 stops');
+      },
+      impErr: s.impErr || '',
+      clearImpErr: () => this.setState({ impErr: '' }),
+
+      phoneAcctOpen: !!s.phoneAcct && s.route !== 'plans',
+      openPhoneAcct: () => this.setState({ phoneAcct: true }),
+      closePhoneAcct: () => this.setState({ phoneAcct: false })
+    };
+  }
+
   renderVals() {
     const s = this.state, route = s.route, trip = this.trip();
     // Focus scope: account (many trips) → trip (one trip, whole) → day (one day).
@@ -8558,6 +9191,7 @@ class Component extends DCLogic {
     const ins = this.insertPlan(insPb);
     const mapData = route === 'trip' ? this.mapTrip() : [];
     const mapFocus = mapData[Math.min(s.focus, mapData.length - 1)];
+    const railDay = s.railHover != null ? mapData[s.railHover] : null;
     // the map is an imperative canvas beside the tree — reconcile it after every render
     const snap = { route: route, view: s.view, tripId: s.tripId, focus: s.focus, tags: (s.tagFilter || []).join(',') };
     const prevSnap = this._syncSnap;
@@ -8643,6 +9277,7 @@ class Component extends DCLogic {
     const dayView = this.dayView(s.dayId);
     return {
       ...this.billing(),
+      ...this.apiTokens(),
       ...LF,
       isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks', isDay: route === 'day', isBoard: route === 'board', isProfile: route === 'profile',
 
@@ -8654,9 +9289,31 @@ class Component extends DCLogic {
       }, (s.acctName || 'S').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0].toUpperCase()).join(''))),
       // Account scope (Rule 1): things true of you across every trip. Distance
       // units live here, not in Trip settings — a trip doesn't have a unit, you do.
-      openAccount: () => this.setState({ acctOpen: false, acctSheet: true }),
-      acctSheet: !!s.acctSheet,
-      setAcctSheet: v => this.setState({ acctSheet: v }),
+      //
+      // It is a ROUTE now, not a sheet. Six unrelated things (plan, meters, referrals,
+      // identity, display, tokens) had stacked into one scroll, and anything added next
+      // would have gone to the bottom for want of a better place. Three tabs give each a
+      // home and the next one somewhere obvious to land. Tabs are places, so the tab is
+      // the route's sub-state and nothing here filters.
+      isAccountRoute: route === 'account',
+      openAccount: () => this.setState({ acctOpen: false, route: 'account' }),
+      acctTabs: [
+        { id: 'profile', label: 'Profile' },
+        { id: 'plan', label: 'Plan & usage' },
+        { id: 'api', label: 'API tokens' }
+      ].map(t => {
+        const on = (s.acctTab || 'profile') === t.id;
+        return {
+          label: t.label, on: on,
+          ink: on ? 'var(--color-ink)' : 'var(--color-slate)',
+          edge: on ? 'var(--color-brand)' : 'transparent',
+          weight: on ? '600' : '400',
+          pick: () => this.setState({ acctTab: t.id })
+        };
+      }),
+      acctTabProfile: (s.acctTab || 'profile') === 'profile',
+      acctTabPlan: (s.acctTab || 'profile') === 'plan',
+      acctTabApi: (s.acctTab || 'profile') === 'api',
       acctName: s.acctName, setAcctName: e => this.setState({ acctName: e.target.value }),
       homeAirport: s.homeAirport, setHomeAirport: e => this.setState({ homeAirport: e.target.value }),
       units: s.units,
@@ -9131,9 +9788,26 @@ class Component extends DCLogic {
           bars: m.legs.map(l => ({ grow: Math.max(1, Math.round(l.km * 10)), color: m.ac.solid, h: l.ride ? '3px' : '6px' })),
           flag: on && m.wander > 2.4 && m.totalKm > 4,
           flagText: on && m.longest ? 'This day doubles back — you cross the same ground twice between ' + m.longest.a.title + ' and ' + m.longest.b.title + '.' : '',
-          jump: () => this.railTo(m.i)
+          jump: () => this.railTo(m.i),
+          // The day's detail is a hover card beside the rail, not a panel parked over the
+          // map: it costs no space until you ask a day a question.
+          hover: e => {
+            const el = e.currentTarget, wrap = el.closest('[data-r="mapwrap"]');
+            const top = wrap ? el.getBoundingClientRect().top - wrap.getBoundingClientRect().top : 16;
+            const cap = (wrap ? wrap.clientHeight : 600) - 168;
+            this.setState({ railHover: m.i, railHoverTop: Math.max(16, Math.min(top, Math.max(16, cap))) });
+          },
+          unhover: () => this.setState(st => (st.railHover === m.i ? { railHover: null } : null))
         };
       }),
+      railCardOn: !!railDay,
+      railCardTop: (s.railHoverTop || 16) + 'px',
+      railCardSolid: railDay ? railDay.ac.solid : 'var(--color-brand)',
+      railCardTitle: railDay ? 'Day ' + (railDay.i + 1) + ' · ' + railDay.day[0] : '',
+      railCardStat: railDay ? (railDay.pts.length ? railDay.pts.length + ' stops · ' + this.kmLabel(railDay.totalKm) + ' · ' + this.minLabel(railDay.mins) + ' moving' : 'No stops yet') : '',
+      railCardNote: railDay ? (!railDay.pts.length ? 'Nothing on this day yet. Add a stop and it draws itself here.' : railDay.longest
+        ? 'Longest hop: ' + railDay.longest.a.title + ' → ' + railDay.longest.b.title + ', ' + this.kmLabel(railDay.longest.km) + ' and ' + this.minLabel(railDay.longest.mins) + (railDay.longest.ride ? ' by train or taxi.' : ' on foot.')
+        : 'A single anchor. Nothing to travel between.') : '',
       mapFocusSolid: mapFocus ? mapFocus.ac.solid : 'var(--color-brand)',
       mapFocusTitle: mapFocus ? 'Day ' + (mapFocus.i + 1) + ' · ' + mapFocus.day[0] : '',
       mapFocusStat: mapFocus ? (mapFocus.pts.length ? mapFocus.pts.length + ' stops · ' + this.kmLabel(mapFocus.totalKm) + ' · ' + this.minLabel(mapFocus.mins) + ' moving' : 'No stops yet') : '',
@@ -9246,11 +9920,13 @@ class Component extends DCLogic {
       })).filter(g => g.items.length),
       // Every phone screen is an explicit route — 'playbooks' and 'day' own theirs, so
       // Trips must not fall through to "anything that isn't a trip".
-      phoneTrips: (route === 'home' || route === 'board' || route === 'profile') && !s.ntOpen,
+      phoneTrips: (route === 'home' || route === 'board' || route === 'profile') && !s.ntOpen && !s.phoneAcct,
       // The new-trip conversation owns the whole phone screen: it is a task, not a view,
       // so the tab bar steps aside rather than competing with Cancel.
       phoneNewTrip: (route === 'home' || route === 'board' || route === 'profile') && !!s.ntOpen,
-      phoneTabBar: !s.ntOpen,
+      // Account is a task, not a view — like the new-trip conversation it owns the
+      // whole phone screen and the tab bar steps aside rather than competing with Done.
+      phoneTabBar: !s.ntOpen && !s.phoneAcct && route !== 'plans',
       // Playbooks is account-scope, like Trips — so it is a route, not a view of the
       // open trip. 'plan'/'map'/'notebook' remain views onto the trip.
       phonePb: route === 'playbooks',
@@ -9354,8 +10030,8 @@ class Component extends DCLogic {
       asstOpen: s.asst && s.route !== 'admin', asstClosed: !s.asst && s.route !== 'admin',
       // Plans/checkout is account scope — the assistant has nothing to act on, so it is
       // hidden (state and position kept) rather than unmounted.
-      asstVis: route === 'plans' ? 'hidden' : 'visible',
-      asstPE: route === 'plans' ? 'none' : 'auto',
+      asstVis: route === 'plans' || route === 'account' ? 'hidden' : 'visible',
+      asstPE: route === 'plans' || route === 'account' ? 'none' : 'auto',
       asstX: s.asstDock ? 'auto' : this.asstAt(s.asst).x + 'px',
       asstY: s.asstDock ? 'auto' : this.asstAt(s.asst).y + 'px',
       asstCursor: s.asstDock ? 'default' : (s.asstDragging ? 'grabbing' : 'grab'),

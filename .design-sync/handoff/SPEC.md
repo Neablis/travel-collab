@@ -1691,3 +1691,158 @@ out** onto its own line directly above the content it dims — it is a statement
 list below, not a control in the toolbar.
 
 A build owes: nothing structural. It is a move, and `clearTagFilter` is unchanged.
+
+
+## 34. API tokens, a trip as a file, and the phone gets an account — 2026-09-19
+
+Three features shipped between 2026-09-14 and 2026-09-19 (M20 ✓, M22 at 18/19, M25 ✓) and
+the design had a surface for none of them. This section is that surface. Nothing here
+asks for a new contract field; one of it asks for a control over a field that exists
+(§34.1, *Which trips*).
+
+### 34.1 API tokens live in Account settings
+
+**Not a route, and nothing trip-scoped.** `/api/account/tokens` is session-only in the
+build — a token that could mint tokens could grant itself scopes its owner never approved
+and outlive its own revocation — so managing credentials is a signed-in act, and it
+belongs where the rest of what you hold already lives (project rule 1).
+
+**What the section says before anything else:** *a token lets a program you write read and
+change your trips. Treat one like a password: it is shown once, it always expires, and it
+can never do more than you can.* The third clause is the build's second gate stated in
+plain words — membership is re-checked per call, so removing someone removes their tokens'
+access in the same instant.
+
+**A `free` or `plus` account sees the section locked, not hidden.** Hiding it answers
+"this product has no API", which is false; showing it locked answers "not on this plan",
+which is true and actionable. Copy names the split that will otherwise be discovered in a
+support conversation: **tokens are Premium, downloading a trip is not**.
+
+**The list, and the three obligations mandatory expiry creates:**
+
+1. **Time remaining, never a creation date.** "Expires in 47 days"; under a week reads in
+   `--color-warning-ink`.
+2. **Expired reads differently from revoked.** Both are dead. One is a schedule ("Expired
+   12 days ago. Create a new one to replace it.") and the other is a decision ("Revoked.
+   It stopped working immediately."), and a person scanning the list is reading for exactly
+   that difference.
+3. **Rotation is two acts, not a feature.** The form says it: create the replacement, then
+   revoke this one. There is no Rotate button and there should not be one.
+
+Each row carries name, state badge, the `tc_` prefix in mono, the expiry line, and one
+line of *what it may do · how many trips*. **Revoke is on live tokens only** and has no
+undo — it is irreversible in the build, so a toast that offered one would be a lie.
+
+**The form.** Name (*"you will read this name in six months and have to know what breaks
+if you revoke it"*), the eight scopes as tick rows each carrying the sentence
+`SCOPE_CATALOGUE` already makes mandatory, **Which trips** as a two-way segmented control,
+and a lifetime of **30 days / 90 days / a year** rather than a raw number field — with the
+ceiling stated rather than enforced silently.
+
+**`sharing:write` is shown with its reason**, because it is the one scope whose separation
+is not obvious: a calendar sync should not be able to hand a stranger editing rights.
+
+**Which trips is the one thing the design asks the build for** (DRIFT D12). `trip_ids` is
+real and the wrapper checks it; the UI posts `null` always. Chosen-trips mode states the
+rule that follows from Decision 5 — **a token limited to trips cannot create one**.
+
+**The one-time reveal** is a success-toned panel with the secret in a **selectable field**,
+not a code block: on a phone a field is the only reliable way to select text. Copy can
+fail honestly (no clipboard API, no gesture, http), and the field beside it is the
+fallback that makes saying so acceptable.
+
+### 34.2 A trip is a file
+
+**Download** sits in Trip settings under *Take it with you*: one action, one file, and two
+sentences — what the file holds, and that **history does not travel** (the export is a
+snapshot, so a re-imported trip starts a fresh undo stack). It is a **navigation**, not a
+button that pretends to be one, so it can be opened in a new tab and handled by the
+browser's own download machinery. **Free on every plan, and nothing on the path enforces
+that** — the absence is the feature.
+
+Delete and Duplicate are **not** beside it. They live on the trip card's popover on Home
+(§27), and the build currently has all three in the sheet — DRIFT D13.
+
+**Import** is on Home beside New trip, and again in the empty state, where the sentence
+about what a file is belongs. A refusal is **the server's own words** in a banner, with
+nothing on the page changed; the design component's `importOutcome` prop shows that state
+for review.
+
+### 34.3 The phone gets an account, and Plans
+
+Two gaps the features exposed rather than created.
+
+- **The phone had no account surface.** The avatar in its header was a decoration. Plan,
+  usage, name, home airport, units and now tokens were desktop-only — so on the surface
+  most people open, you could not see what you were paying for. It is now a screen, and
+  because it is a task rather than a view the tab bar steps aside for it (the shape §30
+  established for the new-trip conversation). Done returns you to Trips.
+- **Plans was a desktop route.** Every CTA that points at it — Change plan, the invite
+  gate, and now the token gate — put a phone user on a blank screen. The phone now has the
+  three cards in one column, the same confirm step (§29), and the same Stripe hand-off,
+  with '‹ Account' as the way back.
+- **Download is in the phone's Trip settings and Import is on its trips list.** A file is
+  not a desktop idea.
+
+Every control on these screens is 44px. A build owes no new endpoint for any of it: the
+phone calls exactly what the desktop calls.
+
+
+### 34.4 Account is a page with tabs, not a sheet — 2026-09-19
+
+The account sheet had reached six unrelated things in one scroll — plan, usage meters,
+referrals, identity, display preferences and now tokens — and the next thing added would
+have gone to the bottom for want of anywhere better. **It is a route now**,
+`/account`, with three tabs:
+
+| Tab | What lives there | Why it is one place |
+|---|---|---|
+| **Profile** | Name, the address you signed in with, home airport, distance units, home time on hover | Who you are and how the app reads to you |
+| **Plan & usage** | The plan card, payment and invoices, the assistant meters, the referral code | What you pay and what you have spent |
+| **API tokens** | The token list and the create form (§34.1) | Credentials, which are neither of the above |
+
+**Tabs are places** (§33.2): the tab never counts as a filter, the underline treatment is
+Playbooks Discover's, and the tab is sub-state of the route rather than an independent
+control. **A tab's label is the section's heading** — the old `PLAN` and `API TOKENS`
+rules are gone rather than repeated under the tab that already says it (project rule 4).
+
+**Inviting people is deliberately not here**, though it was raised as part of the same
+crowding. It is trip scope — who can open *this* trip — and it stays in Trip settings
+beside the share link (project rule 1). Moving it would put a trip-scoped act on an
+account page and force a trip picker to exist before it could work.
+
+**Plans keeps its own route** and its back link now returns to Account → *Plan & usage*
+rather than reopening a sheet. The phone account screen carries the same three tabs, and
+Sign out sits below them because it belongs to none.
+
+A build owes: a route, and `TokensSection`/`PlanSection` mounted in it rather than in
+`AccountSettingsSheet`. No contract change.
+
+
+### 34.5 Settings are forms on a measure, and a list of like things is a table — 2026-09-19
+
+Two corrections to §34.4's first cut, both from a walk of the page.
+
+**A settings field is not a full-bleed input.** Every panel on Account sits on a **580px
+measure** inside a card: a `--color-surface` box with a hairline border, a `--color-moss`
+header strip naming the group, and hairline-separated rows in two columns — **a 170px
+label column and a control column**. Controls are sized to their content: a home airport
+is three characters and gets a 96px field, a name gets 240px. A field the width of the
+page tells the reader the value could be that long, which is a lie in almost every case.
+Secondary explanation sits under the label, not beside the control.
+
+**A list of like things is a table, not a stack of cards.** Every token carries the same
+four facts and the question asked of the list is comparative — which one dies first, which
+one is the wide one. So the token list is **one card containing rows**: a moss header
+(Token · What it may do · Expires), hairline row separators, name and state badge and
+`tc_` prefix in the first cell, and Revoke right-aligned. The per-row boxes are gone —
+they were a hairline card on a hairline card on paper, and the nesting is what made them
+hard to separate from the background. The list card keeps `shadow-raised`-weight
+elevation so it reads as one object against the page.
+
+**Every box on the page is `--color-surface` on the paper page — no exceptions.** The
+meters and the referral card were left unfilled in the first cut and read as holes in the
+column beside the filled ones. A box that groups things is a card; a card is white.
+
+The same three rules apply to whatever Account grows next: **group in a filled card, label
+in a column, and if the rows are alike, make it a table.**
