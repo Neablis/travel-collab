@@ -631,8 +631,24 @@ that does not parse imports nothing, and there is no partial state to design.
       Large` is the more precise status; the reason for not using it is
       recorded where the message is built, so the next reader finds the
       argument rather than the discrepancy.
-- [ ] **The full Definition of Done is green, including
+- [x] **The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like`** — not `test:e2e` (CLAUDE.md rule 1).
+
+      **Green, 2026-09-19.** `pnpm check`: 60 test files, **765 passed**, plus
+      typecheck, lint and all six walls (lint, colour, case, sleep, KI
+      filenames, migration journal). `pnpm --filter web test:e2e:ci-like`:
+      **137 passed, 0 failed**, 3.6m — the real lane, which builds and serves
+      production, never `test:e2e`.
+
+      **It took two runs, and the first one is the part worth keeping.** Run
+      one was 136 passed / **1 failed** — `m22-api-tokens`, the token reveal
+      panel "not found", identically on the retry. By this repo's own heuristic
+      that reads as a real defect rather than a timeout, and it was neither:
+      `API_TOKEN_PEPPER` ships blank in `.env.example` and `mintToken` throws by
+      design without it. **Proven rather than argued** — setting the variable
+      locally and re-running turned 1 failed / 2 passed into 2 passed with no
+      code change — then the whole lane was re-run for a clean verdict rather
+      than the single spec being counted. Filed as `KI-2026-09-19-a`.
 - [x] Retro appended at gate close. **Above**, under *Retro — 2026-09-19*.
 
 ## Retro — 2026-09-19
@@ -682,9 +698,11 @@ each one changed the build:
   no user ever holds.
 - **`SetTripDates` with both dates null adds no days** (`decide.ts`). See below.
 
-The first two are the kind of thing that is only ever checked once. They are
-recorded in `docs/plans/2026-09-18-M25-trip-as-a-file.md` and in the route
-files' own headers.
+The first two are the kind of thing that is only ever checked once, so they are
+recorded where they will be read: in the route files' own headers, in
+`docs/STATUS.md`'s standing notes, and here. *(They were also in this
+milestone's kickoff plan, which the gate-close checklist removes once its
+durable content is promoted — this paragraph is that promotion.)*
 
 ### The dateless half was not a one-line change, and this file said so — twice over
 

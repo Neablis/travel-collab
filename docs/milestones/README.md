@@ -202,17 +202,61 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M25 — A trip is a file you can take with you**
-(`M25-a-trip-is-a-file.md`), as of **2026-09-18, by Mitchell's decision** —
-**not** by a gate closing. **M22 is OPEN at 18 of 19 and is paused, not
-finished; M21 is OPEN at 11 of 17 and is paused.** Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+Current milestone: **M23 — A playbook can be more than one day**
+(`M23-multi-day-playbooks.md`), as of **2026-09-19, by M25's gate closing** —
+which is the ordinary way this line moves, and the first time since 2026-09-11
+that it has. **M25's gate closed 2026-09-19**, 14 of 14 boxes. **M22 is OPEN at
+18 of 19 and is paused, not finished; M21 is OPEN at 11 of 17 and is paused.**
+Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
 **Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
 below. The second one also records a cost it first got wrong.
 **This line then moved to M25 on 2026-09-18** — the third time it has moved by
 decision rather than by a gate close, and the note recording it is directly
 below.
+
+### 2026-09-19 — M25's gate closed, and what it leaves the milestones behind it
+
+**14 of 14 boxes**, `pnpm check` green (765 tests) and `test:e2e:ci-like` at
+**137 passed**. Two `v1` endpoints, two UI surfaces, **no migration, no
+contract change, no entitlement and no plan version** — so it walked into none
+of the `premium@v1` pinning problem M22 raised.
+
+**Three boxes were ticked with something named rather than silently**, and the
+retro carries each in full: the free-account walk's *"no upgrade prompt on any
+screen it touches"* cannot be asserted as written (the trip settings sheet also
+hosts M20's correctly-gated *Invite someone*); the oversized-upload refusal is
+**400 rather than 413** because the box says 400 and a gate definition is
+Mitchell's to change; and the OpenAPI box produced a finding it did not ask
+for — see below.
+
+**Three things it leaves live for M23, M24, M13 and M14**, which are the
+milestones that each make a trip carry more:
+
+1. **The round trip is a fixed point, and it is now a tripwire.** A field added
+   to an activity and not to `toBundleStop` fails `fromTrip.test.ts` **in the
+   diff that adds it**. That is the whole reason M25 was placed before those
+   four rather than after them, and it is now real rather than intended.
+2. **A derived reference can be FALSE rather than merely verbose.** M22's
+   strongest property is that `openapi.json` cannot drift from the route
+   declarations — which guarantees the document matches the *declaration*, and
+   says nothing about whether the declaration matches the endpoint. Declared
+   with the whole bundle schema, one endpoint's generated entry was 2,267 lines
+   of recursive notebook AST for a section it never writes. **Check what a new
+   endpoint's declaration publishes, not just that it publishes.**
+3. **The two doors into the content-bundle format stay different.**
+   `content:import` derives ids so a re-import updates its own rows; a user
+   upload mints them so it can never land on somebody else's trip. Collapsing
+   them is a plausible-looking simplification and is the one change that would
+   make an upload dangerous.
+
+**M22 and M21 are unchanged by this and both remain open.** M22's single box
+still needs a Vercel preview with `API_TOKEN_PEPPER` set (`KI-20260916-d`) —
+and M25's own full-suite run found the sibling of that gap locally, filed as
+`KI-2026-09-19-a`: the variable ships blank in `.env.example`, so a fresh
+environment fails M22's e2e spec with a locator error that reads as broken
+token UI. CI is unaffected.
 
 ### 2026-09-18 — Current milestone moves to M25; M22 pauses at 18/19
 

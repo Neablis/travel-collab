@@ -30,17 +30,44 @@ general setup.
 
 ## Where the work is right now
 
-**M25 — A TRIP IS A FILE YOU CAN TAKE WITH YOU — IS THE CURRENT MILESTONE AS OF 2026-09-18**,
-by **Mitchell's decision and not by a gate closing** (*"Start next milestone."*). Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
-**M22 is paused at 18 of 19, not finished**, and its one open box is a preview
-walk blocked on a deployment rather than on code (`KI-20260916-d`) — so it is no
-harder to close after M25 than before. Scope, the three decided questions and a
-14-box gate: `docs/milestones/M25-a-trip-is-a-file.md`; the kickoff plan and the
-decisions this session took on top of it: `docs/plans/2026-09-18-M25-trip-as-a-file.md`.
-**M25 adds no entitlement, publishes no plan version, touches no token path and
-needs no migration** — which is checked rather than assumed, and is why the move
-costs M22 and M21 nothing.
+**M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
+by **M25's gate closing**, which is the ordinary way this line moves. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
+**Nothing of M23 is built.** Its scope and exit gate are in
+`docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
+planning anything. The one-line version: a saved day **generalises** into a
+saved sequence rather than gaining a sibling object type.
+
+**M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
+tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a
+`content-bundle/v1` file and uploads back, through two `v1` endpoints the
+browser calls with its own cookie. **No migration, no contract change, no
+entitlement, no plan version.** The narrative is **not here** —
+`docs/milestones/M25-a-trip-is-a-file.md` carries the gate evidence and the
+retro, including the three boxes ticked with a caveat named.
+
+**Three things M25 leaves live**, which is why they are here rather than in its
+retro:
+
+- **The round trip is a tripwire now, not just a test.** M23, M24, M13 and M14
+  each make a trip carry more; a field added to an activity and not to
+  `toBundleStop` fails `fromTrip.test.ts` **in the diff that adds it**. That is
+  what M25 was placed early to buy, and it is now real.
+- **A derived reference can be FALSE rather than merely verbose.** M22's
+  `openapi.json` cannot drift from the route declarations — which guarantees the
+  doc matches the *declaration*, and says nothing about whether the declaration
+  matches the endpoint. One endpoint's entry was 2,267 lines of recursive
+  notebook AST for a section it never writes. **Check what a new endpoint
+  publishes, not just that it publishes.**
+- **The two doors into the bundle format stay different.** `content:import`
+  DERIVES ids so a re-import updates its own rows; a user upload MINTS them so
+  it can never land on somebody else's trip. Collapsing them is a
+  plausible-looking simplification and is the one change that would make an
+  upload dangerous.
+
+**M22 is still paused at 18 of 19 and M21 at 11 of 17**, both unamended by any
+of this. M22's one open box is a preview walk blocked on a deployment rather
+than on code (`KI-20260916-d`).
 **The tail of that order changed 2026-09-18** — three milestones minted (**M23**
 multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
 moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
@@ -385,41 +412,35 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M25 is the current milestone and it is buildable from its own file** — all
-three of its scoping questions were decided by Mitchell on 2026-09-18, so
-nothing on it waits on anybody. Read `docs/milestones/M25-a-trip-is-a-file.md`,
-then `docs/plans/2026-09-18-M25-trip-as-a-file.md` for the task order.
+**M23 is the current milestone and nothing of it is built.** Read
+`docs/milestones/M23-multi-day-playbooks.md` before planning anything, and note
+what its row in `docs/milestones/README.md` says about why it runs before M13
+and M12.
 
-**Four things to know before touching it**, each of which costs a re-derivation
-if it is missed:
+**One piece of non-milestone work is placed after it and before M13, and it is
+a prerequisite rather than a deliverable**: the activity-field descriptor
+refactor, `KI-20260905-o`. Three milestones each add a field to an activity
+(M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
+**21 non-test files hand-enumerate activity fields with nothing going red when
+one is missed**. It was already scheduled once, on 2026-08-29, and did not
+happen — which is why M13's gate now carries a box for it instead of this file
+carrying a second promise. **M25 changed the arithmetic slightly in its
+favour**: `toBundleStop` is a 22nd site, and the only one with a test that
+fails in the diff that misses it.
 
-1. **A session cookie satisfies every scope on a `v1` route**
-   (`public-api/actor.ts` — *"a session actor satisfies every scope check"*).
-   That is what makes export free in the UI with no second endpoint and no
-   entitlement anywhere on the path: the browser calls the same `v1` route an
-   API caller does. `api.tokens` gates minting and verifying a **token**, not a
-   session, so a `free` account downloading its own trip never meets it.
-2. **A `v1` resource response is returned raw, not enveloped** — only a
-   `collection` gets `{ items, nextCursor }` (`public-api/route.ts:525`). So the
-   export endpoint's body *is* the bundle, byte for byte, and what a person
-   downloads is what `parseBundle` reads back. Wrapping it would have broken the
-   round trip silently.
-3. **`SetTripDates` with both dates null adds no days** (`decide.ts:177`), so a
-   **dateless** bundle cannot build its days through the command the dated path
-   uses. It needs `AddDay` per day instead — which is the real content of M25's
-   *"not a one-line change"* note, and the reason relaxing the schema's `.refine`
-   alone would import a dateless trip as one silently starting today.
-4. **M21 has not moved and is still open at 11/17.** The paragraph that used to
-   be here said *"M21 is open and nothing of it is built"* — which stopped being
-   true on 2026-09-14, when all four of its phases merged, and stayed on this
-   page through two milestone boundaries. Eleven of its seventeen boxes are
-   ticked with evidence; what the gate still wants is above, under *What the
-   gate still wants*. **This is the third time this section has gone stale while
-   the file's length stayed respectable** — it named M17 on the day M17's gate
-   closed, then M9 on the day M20 was already built and merged, then M21 as
-   unbuilt for four days after all four of its phases merged. That is the reason
-   it exists as its own heading rather than as a sentence in the narrative, and
-   the reason to read it with suspicion rather than trust.
+**M22's last gate box is Mitchell's**, and no amount of building closes it: it
+needs a Vercel preview with `API_TOKEN_PEPPER` set (`KI-20260916-d`). Its local
+sibling is `KI-2026-09-19-a`, filed by M25's own full-suite run — the variable
+ships blank in `.env.example`, so a fresh environment fails M22's e2e spec with
+a locator error that reads as broken token UI. CI is unaffected, and the fix is
+a precondition check in `e2e/global.setup.ts` beside the `AI_LIVE` one, **not** a
+default value, for the reason `.env.example` itself gives.
+
+*(This section has gone stale three times — it named M17 on the day M17's gate
+closed, M9 on the day M20 was already built and merged, and M21 as unbuilt for
+four days after all four of its phases merged. Read it with suspicion and check
+it against `docs/milestones/README.md`'s Current milestone line, which is the
+single source of truth.)*
 
 **Two things are waiting rather than blocked, and both are Mitchell's.** Whether to flip
 `ai-live` now that its precondition is met (above, with what it would expose), and whether

@@ -597,11 +597,14 @@ Where the work actually stands right now: `docs/STATUS.md`.
       docs or client work — because `src/app/api/v1/**` is the registry and one
       `route()` wrapper owns everything cross-cutting.)*
 
-- [ ] **M25 A trip is a file you can take with you** ← **current milestone**
-      (2026-09-18, **by Mitchell's decision rather than by a gate closing** —
-      M22 is open at 18/19 and paused, and M21 at 11/17) →
+- [x] **M25 A trip is a file you can take with you** — **DONE, gate closed
+      2026-09-19**, 14 of 14 boxes, three of them ticked with something named
+      rather than silently (the free-account walk's caveat, 400 over 413, and
+      the OpenAPI narrowing the box did not ask for). `pnpm check` green — 765
+      tests — and `test:e2e:ci-like` **137 passed**. Two `v1` endpoints, two UI
+      surfaces, no migration, no contract change, no entitlement, no plan
+      version. Retro and gate evidence:
       `docs/milestones/M25-a-trip-is-a-file.md`
-      *(Kickoff plan: `docs/plans/2026-09-18-M25-trip-as-a-file.md`.)*
       *(**Minted and placed 2026-09-18 by Mitchell**, running immediately after
       M22 — small, and it reuses M22's route wrapper while that machinery is
       fresh. Trip **export and import** as JSON. **The format is
@@ -647,7 +650,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       relaxing the refine alone would make a dateless trip silently
       dated. **Nothing on this milestone is waiting on a decision.**)*
 
-- [ ] **M23 A playbook can be more than one day** →
+- [ ] **M23 A playbook can be more than one day** ← **current milestone**
+      (2026-09-19, by M25's gate closing) →
       `docs/milestones/M23-multi-day-playbooks.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running **before M12** —
       and that placement is the whole point: M12 keys reviews, ratings,
