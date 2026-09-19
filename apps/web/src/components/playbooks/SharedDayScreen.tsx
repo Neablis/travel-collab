@@ -298,28 +298,41 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             />
           ) : (
             <ol className="flex flex-col gap-2" data-testid="stop-list">
-              {day.stops.map((stop, index) => (
-                <Fragment key={index}>
-                  {/* **Where one day ends and the next begins.** Without this the
-                      sequence reads as one flat list of fourteen stops and a
-                      reader cannot tell which day they are looking at — which
-                      makes the day count in the rail a number with nothing to
-                      point at. Rendered whenever this stop opens a day, so the
-                      first day is labelled too; suppressed entirely on a
-                      one-day Playbook, which is unchanged.
-                      A GAP is respected rather than closed: an empty day leaves
-                      no stop to carry its index, so day 2 of a {0, 2} sequence
-                      simply has no stops under it — and the heading numbering
-                      comes from `dayIndex`, never from a running counter, so a
-                      rest day cannot silently renumber the days after it. */}
-                  {day.dayCount > 1 && (index === 0 || day.stops[index - 1]!.dayIndex !== stop.dayIndex) && (
+              {/* **Walked by DAY, not by stop.** Mapping the stops and emitting a
+                  heading whenever `dayIndex` changed labelled every day that
+                  HAD one — and said nothing at all about a day that did not, so
+                  a three-day Playbook with an empty middle rendered "Day 1"
+                  then "Day 3" and left the reader to infer why. That reads as
+                  missing data, when it is the opposite: an empty day is a rest
+                  day somebody deliberately kept (ADR-048 decision 2), and this
+                  is the only surface where the concept was visible without
+                  being named. Walking `dayCount` instead names every day,
+                  including the empty ones and including a TRAILING one, which
+                  no stop could ever have carried.
+                  Numbering is the day's own index, never a running counter, so
+                  a rest day cannot renumber the days after it. */}
+              {(day.dayCount > 1
+                ? Array.from({ length: day.dayCount }, (_, i) => i)
+                : [null]
+              ).map((dayIndex) => (
+                <Fragment key={dayIndex ?? "single"}>
+                  {dayIndex !== null && (
                     <li className="mt-2 first:mt-0">
                       <Text as="span" className="text-xs font-semibold tracking-wide text-slate uppercase">
-                        Day {stop.dayIndex + 1}
+                        Day {dayIndex + 1}
                       </Text>
                     </li>
                   )}
-                <Card as="li" className="flex flex-col gap-1.5 p-3">
+                  {dayIndex !== null && day.stops.every((s) => s.dayIndex !== dayIndex) && (
+                    <li>
+                      <Text variant="secondary" className="text-sm">
+                        Nothing planned — kept as a rest day.
+                      </Text>
+                    </li>
+                  )}
+                  {(dayIndex === null ? day.stops : day.stops.filter((s) => s.dayIndex === dayIndex)).map(
+                    (stop, index) => (
+                <Card as="li" key={index} className="flex flex-col gap-1.5 p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="font-semibold text-ink">{stop.title}</span>
                     {stop.timeWindow !== null && (
@@ -338,6 +351,8 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                     <DataText size="xs">{formatMoney(stop.cost.amountMinor, stop.cost.currency)}</DataText>
                   )}
                 </Card>
+                    ),
+                  )}
                 </Fragment>
               ))}
             </ol>

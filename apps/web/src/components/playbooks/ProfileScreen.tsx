@@ -85,7 +85,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
                 genuinely its consumer rather than a second call. */}
             <Heading level={1}>{feed.data.author.displayName}</Heading>
             <Text variant="secondary" className="mt-1">
-              Every number here is counted from this person&apos;s days, so it says the same thing
+              Every number here is counted from this person&apos;s playbooks, so it says the same thing
               as Discover does.
             </Text>
           </div>

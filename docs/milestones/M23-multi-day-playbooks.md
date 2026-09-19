@@ -213,7 +213,7 @@ Four links. Link 1 is an ADR and gates the rest.
       single-`dayId` body to `POST /api/saved-days` — e2e is not in `pnpm
       check`, so CI caught what the local check could not, which is the whole
       argument for CLAUDE.md rule 1.
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close. Below.
 
 ## 2026-09-19 — link 1 landed: ADR-048, and two of this file's premises corrected
 
@@ -387,6 +387,115 @@ the library dialog, the shared-day route and the insert dialog is owed.
 Also pre-existing and now recorded rather than fixed: the Keep dialog never
 focuses its name field, so *"accept it and press Enter"* has never worked
 (`KI-2026-09-19-d`). Two places asserted it did, including this file.
+
+## Retro — M23, closed 2026-09-19
+
+Eleven boxes, one day, three commits and two browser walks. The engine was
+right almost immediately; everything that went wrong was about **what the
+product said it was doing**, and none of it was visible to `pnpm check`.
+
+### The decision that paid for itself
+
+**A gap in `dayIndex` is an empty day.** This file said a flat list could not
+express a three-day Playbook whose middle day is empty, and that was true only
+under a normalisation nobody had picked yet. Assigning indices by position in
+the *selected* set made the interior rest day representable for free, and left
+exactly one case — the trailing empty day — needing a stored `dayCount`. Had
+that not been noticed, the milestone would have either stored a column it did
+not need or shipped an asymmetry no user could state.
+
+`dayCount` then earned itself a second time, from a direction the ADR had not
+used: Mitchell asked mid-build for a length filter, and **a filter has to be a
+SQL predicate, which only a column can be**. A derived count could only have
+been applied in application code over the truncated candidate window — exactly
+how the budget band's sibling chips came to count a different set from the page
+below them (KI-2026-08-31). The ADR was amended rather than quietly vindicated.
+
+### Three things that were true before anyone built them
+
+- **The read boundary must be MORE tolerant than the write path.** Enforcing
+  `dayIndex` monotonicity at `fromRow` would have dropped rows whose stops were
+  each valid — KI-2026-09-05-l's hazard, recreated deliberately. The refinement
+  lives on `SavedDaySequence`, which only the write path uses, and the two read
+  sites keep the plain array parse. This was the single most mis-implementable
+  line in the milestone and it would have passed every test written against
+  freshly-written rows.
+- **Link 3's third caller already existed.** `AddToTripDialog`'s "Start a new
+  trip" already called `insertSavedDay`. The milestone had budgeted for
+  building it; the work was teaching `insertCommands` to mint N days.
+  `TODO.md:802`'s open question — reuse the fork path or get its own — was
+  answered by code already in the tree.
+- **`fromTrip` emits `playbooks: z.tuple([])`**, so M25's round-trip tripwire
+  does *not* guard `SavedStop`. Worth having checked rather than assumed in
+  either direction: it meant `BundlePlaybook.days` had to be written
+  deliberately, with no failing test to prompt it.
+
+### What actually went wrong, and the pattern under it
+
+Four defects reached a preview. Every one was a **claim that outran the code**:
+
+1. `ToggleChip` used `bg-brand-subtle` and `text-muted`. Neither is a token
+   this app defines. A *selected* day chip rendered transparent — the selected
+   state, which is the control's whole purpose. **The colour wall scans for raw
+   hex, so an undefined token NAME passes it.** Typecheck, lint, 3,099 unit
+   tests and 782 integration tests all went green over it.
+2. `SavedDaysDialog.spanOf()` was a **third** construction of the window fact,
+   stating `7:30 am – 3:30 pm` across three days — the exact falsehood ADR-048
+   decision 4 forbids, on the surface whose button says *Add to trip*. The
+   ADR's own one-implementation reasoning did not save it, because nobody
+   grepped for a third copy. `citiesOfStops` had two known callers and the
+   milestone reasoned carefully about both; `savedDayFacts` had three and the
+   milestone reasoned about two.
+3. **Link 4 was reported complete when it was one surface of four.** The gate
+   box named only the Discover card, and that let the library dialog, the
+   shared-day route and the insert dialog through untouched — `git diff` for
+   `AddToTripDialog` against main was *empty*. A gate box narrower than its own
+   link is a gate box that certifies the wrong thing.
+4. Two documents asserted that the Keep dialog focuses its name field, so
+   "accept it and press Enter" works. It does not, and never has
+   (`KI-2026-09-19-d`). This file made that claim by **repeating the
+   component's comment without testing it** — which is how a false claim
+   survives long enough to be quoted.
+
+And a fifth, about method rather than product: **one of the three string fixes
+silently failed to apply**, because a scripted replacement was written without
+asserting that it matched. It took a *second* walk to catch a one-line
+regression in a fix. The lesson is not "walk twice" — it is that a text
+substitution that cannot fail loudly is a change you have not made. Every
+edit in the final commit asserts, and the three strings now have a test
+(`AddToTripDialog.test.tsx`) that would have caught it in seconds.
+
+### What the two walks were worth
+
+The behavioural gate boxes — two actors, N-day append, one undo, new trip from
+N days, the length filter, the interior rest day — **passed on the first walk
+and never regressed**. Not one of the four defects was a behaviour bug. The
+walks paid for themselves entirely on what the screens *said*, which is the
+half no test in this repo was asked to check.
+
+### Left behind, deliberately
+
+- `KI-2026-09-05-l` is **narrowed, not closed**: the `.default()` rule and
+  F-F05's shared parse helper are real, but there is still no `{ v, stops }`
+  wrapper, so the first non-additive `SavedStop` change still has nowhere to
+  land — and should pay for it.
+- `KI-2026-09-19-c` — `daysShared` counts playbooks, not days. Labels fixed;
+  the field keeps its name rather than widening a PR carrying a migration.
+- `KI-2026-09-19-d` — the Keep dialog's unfocused name field. Pre-existing.
+- **Unwalked:** the four surfaces fixed after the first walk were re-walked and
+  four of five confirmed; the `AddToTripDialog` hint fix and the rest-day line
+  that followed the second walk are covered by tests rather than by a third
+  walk. Said plainly rather than implied.
+- **The colour wall does not catch undefined token names.** That is a gap in a
+  quality gate, found by this milestone and not fixed by it.
+
+### For M12, which runs next
+
+It inherits a `saved_days` row that will not change shape again for this
+reason, which was the whole point of the ordering. It also inherits the lesson
+from defect 3: M12 adds reviews, ratings, reporting and moderation to **several
+surfaces**, and if its gate boxes name one of them each, it will ship the same
+way this milestone nearly did.
 
 ## Deliberately not here
 

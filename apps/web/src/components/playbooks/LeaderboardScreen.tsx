@@ -59,7 +59,7 @@ export function LeaderboardScreen() {
             and gameable order, and a reader has no way to tell which one they
             are looking at unless the page says. */}
         <Text variant="secondary" className="mt-1.5 max-w-2xl">
-          Ranked on days other people actually took into a trip. {RULE}
+          Ranked on playbooks other people actually took into a trip. {RULE}
         </Text>
       </div>
 
@@ -130,7 +130,8 @@ export function LeaderboardScreen() {
           because "0 adds" beside a person who has shared days reads as a
           judgement, and the rule above is what actually explains it. */}
       <Banner variant="info">
-        Sharing a day is not what ranks you here — being taken into somebody else&apos;s trip is.
+        Sharing a playbook is not what ranks you here — being taken into somebody else&apos;s trip
+        is.
       </Banner>
     </div>
   );

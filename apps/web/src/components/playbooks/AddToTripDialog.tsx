@@ -237,7 +237,11 @@ export function AddToTripDialog({
           <FormField
             id={startDateFieldId}
             label="Start date"
-            hint={`Optional. The trip is named “${dayName}”, and this day is day 1.`}
+            hint={
+              dayCount === 1
+                ? `Optional. The trip is named “${dayName}”, and this day is day 1.`
+                : `Optional. The trip is named “${dayName}”, and its ${dayCount} days become days 1–${dayCount}.`
+            }
           >
             <Input
               id={startDateFieldId}

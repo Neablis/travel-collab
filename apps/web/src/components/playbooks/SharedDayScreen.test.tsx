@@ -97,6 +97,65 @@ afterEach(cleanup);
 const renderDay = () =>
   render(<SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />);
 
+// M23 / ADR-048 decision 2. A sequence's days have to be legible on the one
+// screen somebody reads before deciding to take it — and the EMPTY day is the
+// case that decides whether the reader sees intent or a hole in the data.
+describe("a shared day that is a sequence", () => {
+  /** Days 1 and 3 hold stops; day 2 is a deliberate rest day (a GAP in `dayIndex`). */
+  const withRestDay = () =>
+    savedDay({
+      dayCount: 3,
+      stops: [
+        stop({ title: "Fushimi Inari", dayIndex: 0 }),
+        stop({ title: "Tram 28", dayIndex: 2, location: { name: "Tram 28", city: "Lisbon" } }),
+      ],
+    });
+
+  it("heads each day, and numbers an empty one from its own index rather than a running counter", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    const list = await screen.findByTestId("stop-list");
+    // Day 1 → Day 2 → Day 3. A running counter over the days that HAVE stops
+    // would render "Day 1, Day 3" and quietly renumber everything after a rest
+    // day the moment one appeared earlier in the sequence.
+    expect(within(list).getByText("Day 1")).toBeTruthy();
+    expect(within(list).getByText("Day 2")).toBeTruthy();
+    expect(within(list).getByText("Day 3")).toBeTruthy();
+  });
+
+  // The whole point: an empty day is something somebody KEPT, not something
+  // missing. Before this it rendered as nothing at all between two headings.
+  it("names the empty day as a rest day instead of leaving a hole", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    const list = await screen.findByTestId("stop-list");
+    expect(within(list).getByText("Nothing planned — kept as a rest day.")).toBeTruthy();
+  });
+
+  // A sequence has no single clock window, so the rail must not claim one — and
+  // must not reuse the "this day has no times" copy either, which would be
+  // false on a Playbook whose every stop shows a time (ADR-048 decision 4).
+  it("says the window spans several days rather than that no times are set", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    const facts = await screen.findByTestId("day-facts");
+    expect(within(facts).getByText("Spans several days")).toBeTruthy();
+    expect(within(facts).queryByText("No times set")).toBeNull();
+    expect(within(facts).getByText("Days")).toBeTruthy();
+  });
+
+  // The one-day case is the ordinary one and must be untouched: no headings, no
+  // rest-day line, and the real clock range back.
+  it("leaves a one-day Playbook with no day headings at all", async () => {
+    renderDay();
+    const list = await screen.findByTestId("stop-list");
+    expect(within(list).queryByText("Day 1")).toBeNull();
+    const facts = await screen.findByTestId("day-facts");
+    expect(within(facts).queryByText("Days")).toBeNull();
+    expect(within(facts).queryByText("Spans several days")).toBeNull();
+  });
+});
+
 describe("a shared day", () => {
   it("lists every stop with its notes and its city chip", async () => {
     renderDay();
