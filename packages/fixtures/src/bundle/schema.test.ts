@@ -45,12 +45,17 @@ describe("parseBundle", () => {
     expect(parsed.playbooks.map((p) => p.origin)).toEqual(["ai", "human"]);
   });
 
-  it("refuses a trip that gives both date forms, or neither", () => {
+  // Was "or neither" until M25. A trip with no dates set is an ordinary shipped
+  // state (`TripDetail.startDate` is nullable), so a format that could not
+  // express one could not export one. Both anchors together is still a
+  // contradiction and still refused.
+  it("refuses a trip that gives both date forms, and accepts one or neither", () => {
     const days = [{ label: "One", stops: [stop()] }];
     const trip = (over: Record<string, unknown>) => ({ key: "t", name: "T", days, ...over });
     expect(() => bundle({ trips: [trip({ startsInDays: 3, startDate: "2027-01-01" })] })).toThrow();
-    expect(() => bundle({ trips: [trip({})] })).toThrow();
     expect(() => bundle({ trips: [trip({ startsInDays: 3 })] })).not.toThrow();
+    expect(() => bundle({ trips: [trip({ startDate: "2027-01-01" })] })).not.toThrow();
+    expect(() => bundle({ trips: [trip({})] })).not.toThrow();
   });
 
   // The format composes the contracts' schemas rather than restating them, so
@@ -128,6 +133,63 @@ describe("bundleTripCommandGroups", () => {
     expect(adds.filter((c) => "dayId" in c && c.dayId !== undefined)).toHaveLength(3);
     expect(adds.at(-1)).toMatchObject({ title: "Parked" });
     expect("dayId" in adds.at(-1)!).toBe(false);
+  });
+
+  // **The dateless half of M25 question 2, and the defect it exists to catch is
+  // silent.** Relaxing the schema's `.refine` to allow a trip with neither
+  // anchor was not enough on its own: `tripStartDate` resolved a missing anchor
+  // to `addDays(today, 0)`, so a dateless bundle imported as a trip DATED to
+  // the day it was uploaded. Nothing would have said so — the trip simply had
+  // dates it never had, which is the same class as `budgetPerPerson` asserting
+  // a per-person meaning it did not have.
+  //
+  // Seen red before it was fixed, and the failure was exactly that: the setup
+  // group held a `SetTripDates` with `startDate: "2026-09-06"`.
+  describe("a trip with NEITHER anchor", () => {
+    const dateless = { key: "no-dates", name: "No dates", days: trip.days, backlog: trip.backlog };
+
+    it("never acquires a date, today's least of all", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      const dated = groups.flat().filter((c) => c.type === "SetTripDates" || c.type === "SetTripStartDate");
+      expect(dated).toEqual([]);
+      expect(JSON.stringify(groups)).not.toContain(TODAY);
+    });
+
+    // `SetTripDates` with both dates null emits no `DayAdded` at all
+    // (`decide.ts`'s day-count reconcile is guarded on both being non-null), so
+    // the dateless path cannot build its days through the command the dated
+    // path uses. It needs `AddDay` per day — which is the part of this change
+    // that is genuinely a second shape rather than a loosened condition.
+    it("builds its days with AddDay, one per day, in written order", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      expect(groups.map((g) => g.map((c) => c.type))).toEqual([
+        ["AddDay", "AddDay"],
+        ["AddActivity", "AddActivity"],
+        ["AddActivity"],
+        ["AddActivity"],
+      ]);
+      const dayIds = groups[0]!.map((c) => (c as { dayId: string }).dayId);
+      expect(new Set(dayIds).size).toBe(2);
+      // Each day's stops name that day, so "days in order" survives the import.
+      expect(groups[1]!.map((c) => (c as { dayId?: string }).dayId)).toEqual([dayIds[0], dayIds[0]]);
+      expect(groups[2]!.map((c) => (c as { dayId?: string }).dayId)).toEqual([dayIds[1]]);
+    });
+
+    it("still puts the backlog on no day", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      const parked = groups.at(-1)![0]!;
+      expect(parked).toMatchObject({ type: "AddActivity", title: "Parked" });
+      expect("dayId" in parked).toBe(false);
+    });
   });
 
   it("addresses the trip the bundle names unless a caller supplies an id", () => {

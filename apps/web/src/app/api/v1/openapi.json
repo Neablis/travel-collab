@@ -5935,6 +5935,798 @@
         }
       }
     },
+    "/v1/trips/{tripId}/export": {
+      "get": {
+        "summary": "GET /v1/trips/{tripId}/export",
+        "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
+        "security": [
+          {
+            "bearerAuth": [
+              "trips:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tripId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Names the download. The filename is the trip's name, slugified.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "$schema": {
+                      "type": "string",
+                      "enum": [
+                        "travel-collab/content-bundle/v1"
+                      ]
+                    },
+                    "bundle": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100,
+                          "pattern": "^[a-z0-9-]+$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 1000
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": [
+                            "human",
+                            "ai"
+                          ]
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "default": []
+                        },
+                        "generatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "origin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "trips": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100,
+                            "pattern": "^[a-z0-9-]+$"
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "summary": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "currency": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{3}$"
+                          },
+                          "budget": {
+                            "type": "object",
+                            "properties": {
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "currency": {
+                                "type": "string",
+                                "pattern": "^[A-Z]{3}$"
+                              }
+                            },
+                            "required": [
+                              "amountMinor",
+                              "currency"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "startsInDays": {
+                            "type": "integer"
+                          },
+                          "startDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "days": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "stops": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 200
+                                      },
+                                      "timeWindow": {
+                                        "type": "object",
+                                        "properties": {
+                                          "start": {
+                                            "type": "string",
+                                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                          },
+                                          "end": {
+                                            "type": "string",
+                                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                          }
+                                        },
+                                        "required": [
+                                          "start",
+                                          "end"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "location": {
+                                        "type": "object",
+                                        "properties": {
+                                          "name": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "lat": {
+                                            "type": "number",
+                                            "minimum": -90,
+                                            "maximum": 90,
+                                            "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
+                                          },
+                                          "lng": {
+                                            "type": "number",
+                                            "minimum": -180,
+                                            "maximum": 180,
+                                            "description": "Send with lat, or omit both."
+                                          },
+                                          "countryCode": {
+                                            "type": "string",
+                                            "pattern": "^[A-Z]{2}$"
+                                          },
+                                          "city": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "area": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "precision": {
+                                            "type": "string",
+                                            "enum": [
+                                              "venue",
+                                              "area",
+                                              "city"
+                                            ]
+                                          },
+                                          "address": {
+                                            "type": "object",
+                                            "properties": {
+                                              "countryCode": {
+                                                "type": "string",
+                                                "pattern": "^[A-Z]{2}$",
+                                                "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                              },
+                                              "lines": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "string",
+                                                  "minLength": 1,
+                                                  "maxLength": 200
+                                                },
+                                                "minItems": 1,
+                                                "maxItems": 4,
+                                                "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                              },
+                                              "dependentLocality": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200,
+                                                "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                              },
+                                              "locality": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200,
+                                                "description": "City, town or post town."
+                                              },
+                                              "administrativeArea": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 200,
+                                                "description": "State, province, prefecture or region."
+                                              },
+                                              "postalCode": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 20,
+                                                "description": "A string: keeps leading zeros and letters."
+                                              }
+                                            },
+                                            "required": [
+                                              "countryCode",
+                                              "lines"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "name"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      "notes": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                      },
+                                      "anchors": {
+                                        "type": "array",
+                                        "items": {
+                                          "anyOf": [
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "dayOfWeek"
+                                                  ]
+                                                },
+                                                "days": {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                      "mon",
+                                                      "tue",
+                                                      "wed",
+                                                      "thu",
+                                                      "fri",
+                                                      "sat",
+                                                      "sun"
+                                                    ]
+                                                  },
+                                                  "minItems": 1
+                                                }
+                                              },
+                                              "required": [
+                                                "kind",
+                                                "days"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "dateRange"
+                                                  ]
+                                                },
+                                                "from": {
+                                                  "type": "string",
+                                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                                },
+                                                "to": {
+                                                  "type": "string",
+                                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                                }
+                                              },
+                                              "required": [
+                                                "kind",
+                                                "from",
+                                                "to"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "timeOfDay"
+                                                  ]
+                                                },
+                                                "window": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "start": {
+                                                      "type": "string",
+                                                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                                    },
+                                                    "end": {
+                                                      "type": "string",
+                                                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "start",
+                                                    "end"
+                                                  ],
+                                                  "additionalProperties": false
+                                                }
+                                              },
+                                              "required": [
+                                                "kind",
+                                                "window"
+                                              ],
+                                              "additionalProperties": false
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "publicHoliday"
+                                                  ]
+                                                },
+                                                "country": {
+                                                  "type": "string",
+                                                  "pattern": "^[A-Z]{2}$"
+                                                }
+                                              },
+                                              "required": [
+                                                "kind",
+                                                "country"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "booked",
+                                          "hold",
+                                          "idea",
+                                          "transit",
+                                          "planned"
+                                        ]
+                                      },
+                                      "tags": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "enum": [
+                                            "meal",
+                                            "lodging",
+                                            "ticketed",
+                                            "outdoors"
+                                          ]
+                                        }
+                                      },
+                                      "cost": {
+                                        "type": "object",
+                                        "properties": {
+                                          "amountMinor": {
+                                            "type": "integer",
+                                            "minimum": 0
+                                          },
+                                          "currency": {
+                                            "type": "string",
+                                            "pattern": "^[A-Z]{3}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "amountMinor",
+                                          "currency"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "required": [
+                                      "title"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "stops"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "backlog": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "timeWindow": {
+                                  "type": "object",
+                                  "properties": {
+                                    "start": {
+                                      "type": "string",
+                                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                    },
+                                    "end": {
+                                      "type": "string",
+                                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                    }
+                                  },
+                                  "required": [
+                                    "start",
+                                    "end"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "location": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "lat": {
+                                      "type": "number",
+                                      "minimum": -90,
+                                      "maximum": 90,
+                                      "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
+                                    },
+                                    "lng": {
+                                      "type": "number",
+                                      "minimum": -180,
+                                      "maximum": 180,
+                                      "description": "Send with lat, or omit both."
+                                    },
+                                    "countryCode": {
+                                      "type": "string",
+                                      "pattern": "^[A-Z]{2}$"
+                                    },
+                                    "city": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "area": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 200
+                                    },
+                                    "precision": {
+                                      "type": "string",
+                                      "enum": [
+                                        "venue",
+                                        "area",
+                                        "city"
+                                      ]
+                                    },
+                                    "address": {
+                                      "type": "object",
+                                      "properties": {
+                                        "countryCode": {
+                                          "type": "string",
+                                          "pattern": "^[A-Z]{2}$",
+                                          "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                                        },
+                                        "lines": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 200
+                                          },
+                                          "minItems": 1,
+                                          "maxItems": 4,
+                                          "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                                        },
+                                        "dependentLocality": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "District, neighbourhood or suburb when it is part of the postal address."
+                                        },
+                                        "locality": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "City, town or post town."
+                                        },
+                                        "administrativeArea": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 200,
+                                          "description": "State, province, prefecture or region."
+                                        },
+                                        "postalCode": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 20,
+                                          "description": "A string: keeps leading zeros and letters."
+                                        }
+                                      },
+                                      "required": [
+                                        "countryCode",
+                                        "lines"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": [
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "notes": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                },
+                                "anchors": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dayOfWeek"
+                                            ]
+                                          },
+                                          "days": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string",
+                                              "enum": [
+                                                "mon",
+                                                "tue",
+                                                "wed",
+                                                "thu",
+                                                "fri",
+                                                "sat",
+                                                "sun"
+                                              ]
+                                            },
+                                            "minItems": 1
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "days"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "dateRange"
+                                            ]
+                                          },
+                                          "from": {
+                                            "type": "string",
+                                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                          },
+                                          "to": {
+                                            "type": "string",
+                                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "from",
+                                          "to"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "timeOfDay"
+                                            ]
+                                          },
+                                          "window": {
+                                            "type": "object",
+                                            "properties": {
+                                              "start": {
+                                                "type": "string",
+                                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                              },
+                                              "end": {
+                                                "type": "string",
+                                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                              }
+                                            },
+                                            "required": [
+                                              "start",
+                                              "end"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "window"
+                                        ],
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                              "publicHoliday"
+                                            ]
+                                          },
+                                          "country": {
+                                            "type": "string",
+                                            "pattern": "^[A-Z]{2}$"
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "country"
+                                        ],
+                                        "additionalProperties": false
+                                      }
+                                    ]
+                                  }
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "booked",
+                                    "hold",
+                                    "idea",
+                                    "transit",
+                                    "planned"
+                                  ]
+                                },
+                                "tags": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "meal",
+                                      "lodging",
+                                      "ticketed",
+                                      "outdoors"
+                                    ]
+                                  }
+                                },
+                                "cost": {
+                                  "type": "object",
+                                  "properties": {
+                                    "amountMinor": {
+                                      "type": "integer",
+                                      "minimum": 0
+                                    },
+                                    "currency": {
+                                      "type": "string",
+                                      "pattern": "^[A-Z]{3}$"
+                                    }
+                                  },
+                                  "required": [
+                                    "amountMinor",
+                                    "currency"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "title"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "default": []
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "name",
+                          "days"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "minItems": 1,
+                      "maxItems": 1
+                    },
+                    "playbooks": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 0,
+                      "items": [],
+                      "default": []
+                    },
+                    "notebooks": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 0,
+                      "items": [],
+                      "default": []
+                    },
+                    "activities": {
+                      "type": "array",
+                      "minItems": 0,
+                      "maxItems": 0,
+                      "items": [],
+                      "default": []
+                    }
+                  },
+                  "required": [
+                    "$schema",
+                    "bundle",
+                    "trips"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
     "/v1/trips/{tripId}/geocode": {
       "get": {
         "summary": "GET /v1/trips/{tripId}/geocode",

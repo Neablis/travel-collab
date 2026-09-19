@@ -36,7 +36,9 @@ import {
 // `startDate`, `isoDateInDays` in the reset route): a demo trip with a fixed
 // start date is an expired trip three months later, and the homepage hero has
 // nothing upcoming to show. An absolute `startDate` is available for content
-// that is genuinely about a fixed date; exactly one of the two.
+// that is genuinely about a fixed date, and a trip may give NEITHER — which
+// means it is dateless and its days are addressed by position (M25). At most
+// one of the two; the refine on `BundleTrip` carries what changed and why.
 
 // ---------------------------------------------------------------------------
 // A stop
@@ -100,8 +102,32 @@ export const BundleTrip = z
     /** Parked ideas — no day, no clock, no price. `AddActivity`'s documented "omitted = backlog". */
     backlog: z.array(BundleStop).default([]),
   })
-  .refine((t) => (t.startsInDays === undefined) !== (t.startDate === undefined), {
-    message: "give exactly one of startsInDays or startDate",
+  // **At most one anchor, and NEITHER is a legitimate trip** (M25 question 2).
+  //
+  // It used to be *exactly* one, which meant a shipped, ordinary state could
+  // not be expressed as a bundle at all: `TripDetail.startDate` is nullable and
+  // a trip with no dates set is something the product creates on purpose. A
+  // format that cannot say "this trip has no dates" cannot export one.
+  //
+  // **Neither anchor means the days are addressed by POSITION** — day 1, day 2,
+  // not January 15th. Mitchell, 2026-09-18: *"The collection of days bundle can
+  // exist, we just have offsets, day 1, not January 15th."* The format was
+  // already shaped for it: `BundleDay` carries no date field of any kind, so
+  // the trip anchor is the only date-bearing thing in the document and removing
+  // it leaves a structure that is already complete — which is what a playbook
+  // has been since ADR-041.
+  //
+  // **Purely widening**: all four bundles under `content/` give `startsInDays`,
+  // so nothing that already exists becomes invalid, and `lint.ts` states no
+  // rule about either field.
+  //
+  // **This relaxation is NOT sufficient on its own**, and the other half lives
+  // in `toCommands.ts`: `tripStartDate`'s old `?? 0` resolved a missing anchor
+  // to *starting today*, so a dateless bundle would have imported as a trip
+  // silently dated to the day it was uploaded. Loosening this line alone would
+  // have turned a refusal into a wrong answer.
+  .refine((t) => !(t.startsInDays !== undefined && t.startDate !== undefined), {
+    message: "give at most one of startsInDays or startDate",
   });
 export type BundleTrip = z.infer<typeof BundleTrip>;
 
