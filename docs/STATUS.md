@@ -40,6 +40,33 @@ Scope, the two waves and the seven still-open questions:
 in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
+**M26 PROGRESS AS OF 2026-09-19: links 0, 1, 2 and 3 are done; link 4 is half
+done.** Wave 1 has ten links and six remain (4's rendering, then 5–10); Wave 2
+has not started. **Nothing in what has landed has been walked in a browser** —
+every `[walk]` box in the gate is still open, and the e2e and integration lanes
+have not been run on this branch. That is the honest state: the unit suite is
+green at 3193 tests across 229 files, and a green unit suite is not a walked
+screen.
+
+- **Link 1** — `/account` is a route with three tabs (`?tab=`), Profile · Plan &
+  usage · API tokens. `AccountSettingsSheet` is deleted. Tokens gained trip
+  scope (DRIFT D12 — the gap was one hardcoded `null`), a lifetime of three
+  choices, and a gate that names the lapsed case. `KI-2026-09-17-a` resolved.
+- **Link 2** — Discover is re-sorted by kind of decision: scope is underlined
+  tabs, filters are chips from one `FILTER_DEFS` list, sort rides a results
+  sentence that did not exist. Season is cut as a filter (the concept stays —
+  `content:verify` still prints occupancy). §33.3's tag-focus move rides with it.
+- **Link 3** — a Playbook's days are a scope: `All days · Day 1 · Day 2`, merged
+  rather than concatenated, continuous numbering, per-day dividers, and a CTA
+  that says how many days it moves.
+- **Link 4** — geometry only. The map is NOT built; see the milestone file for
+  exactly what remains and why it needs a browser.
+
+**Two useful things it produced beyond the links themselves:** `ui/underline-tabs.tsx`
+and `ui/settings-card.tsx` are new primitives the later links consume, and the
+token wall found two already-shipped defects on its first run (`bg-canvas` on
+the shared-trip screen, `ring-primary` on the widget ring).
+
 **M26 LINK 0 — THE PREFLIGHT — IS DONE (2026-09-19).** It was the one part of
 the milestone that had to run before any screen work, and it has. What a later
 session inherits from it:
