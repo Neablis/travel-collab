@@ -1,0 +1,10 @@
+### KI-2026-09-19-c — `daysShared` counts playbooks, not days, and the name is what three surfaces rendered
+
+- **Severity:** correctness of a rendered number's MEANING (no wrong arithmetic; the count is right for what it counts, and the word beside it was wrong)
+- **Area:** `apps/web/src/lib/playbooks.ts` (`PublicAuthor.daysShared`), `apps/web/src/server/playbooks.ts` (`publicAuthor`, fed by `publishedDayCount`), and its three renderers — `LeaderboardScreen.tsx`, `ProfileScreen.tsx`, `SharedDayScreen.tsx`
+- **Symptom:** the field counts published `saved_days` ROWS. Until M23 a Playbook was exactly one day, so "days shared" and "playbooks shared" were the same number and the name was honest. M23 made a Playbook a SEQUENCE, and the two came apart: a three-day Playbook adds **one**. Walking the preview on PR #192 showed an author byline reading *"1 day shared"* directly beneath a Playbook the same page described as three days long.
+- **What was fixed in #192:** the user-visible LABELS only — "playbook(s) shared", "Playbooks shared", "…newest of N playbooks". The rendered word now matches the computation.
+- **What is still open, and why it was left:** the FIELD is still called `daysShared`, in the response shape, the server derivation and three components. Renaming it is mechanical but touches a wire shape plus its tests, and M23's PR already carried a migration, a contract change and four surfaces; widening it further was the worse trade. The next change that touches `PublicAuthor` should rename it (`playbooksShared`), along with `publishedDayCount`.
+- **Why this is worth an entry rather than a shrug:** it is the `budgetPerPerson` defect class — a name asserting a semantic the computation does not have (`savedDayFacts.ts` carries that story). That one was caught by Mitchell reading the screen, and so was this one. A count whose noun is decided in three components is a count that will drift again.
+- **Cross-reference:** ADR-048 (a Playbook is a sequence), `docs/milestones/M23-multi-day-playbooks.md` link 4.
+- **First noted:** 2026-09-19, walking PR #192's preview.

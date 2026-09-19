@@ -3,6 +3,7 @@ import {
   ActivityView,
   CreateSavedDayInput,
   SavedDay,
+  SavedDaySequence,
   SavedDayVisibility,
   SavedStop,
 } from "../src";
@@ -19,6 +20,7 @@ const stop = {
   kind: "planned",
   tags: [],
   cost: null,
+  dayIndex: 0,
 };
 
 const savedDay = {
@@ -26,6 +28,7 @@ const savedDay = {
   ownerId: "dev-alice",
   name: "A day in Nakameguro",
   stops: [stop],
+  dayCount: 1,
   cities: ["Kyoto"],
   visibility: "private",
   authorKind: "human",
@@ -49,10 +52,53 @@ describe("SavedStop", () => {
     expect(Object.keys(parsed)).not.toContain("activityId");
   });
 
-  // Everything a stop needs to be a plan again, and nothing more.
-  it("carries the same planning fields an ActivityView does", () => {
-    const viewKeys = Object.keys(ActivityView.shape).filter((k) => k !== "activityId").sort();
-    expect(Object.keys(SavedStop.shape).sort()).toEqual(viewKeys);
+  // Everything a stop needs to be a plan again, and nothing more — plus the one
+  // field that is about the SEQUENCE rather than about the stop.
+  //
+  // **`dayIndex` is the deliberate exception, and it is the only one.** Before
+  // M23 this asserted `SavedStop === ActivityView - activityId` exactly, and
+  // that was the right assertion while a Playbook was one day: everything a
+  // saved stop knew, an activity knew. A sequence needs each stop to say which
+  // of its days it is on, and a trip activity has no equivalent — its day is
+  // `day.activityIds`, a relationship the trip owns. Listing the exception by
+  // name keeps the original property: a stop gains nothing else quietly.
+  it("carries the same planning fields an ActivityView does, plus dayIndex", () => {
+    const viewKeys = Object.keys(ActivityView.shape).filter((k) => k !== "activityId");
+    expect(Object.keys(SavedStop.shape).sort()).toEqual([...viewKeys, "dayIndex"].sort());
+  });
+
+  // The whole additive property (ADR-048 decision 1, KI-20260905-l): a stop
+  // stored before M23 parses, on day one, which is what it always meant.
+  it("defaults dayIndex to 0, so a stop written before M23 reads as day one", () => {
+    const { dayIndex: _omitted, ...beforeM23 } = stop;
+    expect(SavedStop.parse(beforeM23).dayIndex).toBe(0);
+  });
+
+  it("refuses a dayIndex that is negative or fractional", () => {
+    expect(SavedStop.safeParse({ ...stop, dayIndex: -1 }).success).toBe(false);
+    expect(SavedStop.safeParse({ ...stop, dayIndex: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("SavedDaySequence", () => {
+  // ADR-048 decision 3 — the WRITE path's invariant, and it lives on its own
+  // schema precisely so the two read boundaries (which share
+  // `SavedStop.array()`) do not inherit it and start dropping rows.
+  it("accepts a non-decreasing dayIndex", () => {
+    const ok = [stop, { ...stop, dayIndex: 0 }, { ...stop, dayIndex: 2 }];
+    expect(SavedDaySequence.safeParse(ok).success).toBe(true);
+  });
+
+  it("refuses a dayIndex that goes backwards", () => {
+    const bad = [{ ...stop, dayIndex: 1 }, { ...stop, dayIndex: 0 }];
+    expect(SavedDaySequence.safeParse(bad).success).toBe(false);
+  });
+
+  // The seam that must not move. A refinement on the shared array would reach
+  // `fromRow` and `toDiscoverDay` and empty a library over an ordering.
+  it("leaves the plain SavedStop array tolerant, which is what the read sites use", () => {
+    const bad = [{ ...stop, dayIndex: 1 }, { ...stop, dayIndex: 0 }];
+    expect(SavedStop.array().safeParse(bad).success).toBe(true);
   });
 });
 
@@ -144,17 +190,32 @@ describe("CreateSavedDayInput", () => {
   // The client names a day and points at it; the SERVER reads the stops.
   // Letting a client post plan content would make this an unvalidated write
   // path into a person's library.
-  it("takes a name and a pointer, never the stops", () => {
-    expect(Object.keys(CreateSavedDayInput.shape).sort()).toEqual(["dayId", "name", "tripId"]);
-    const parsed = CreateSavedDayInput.parse({ name: "A day", tripId, dayId, stops: [stop] });
+  it("takes a name and pointers, never the stops", () => {
+    expect(Object.keys(CreateSavedDayInput.shape).sort()).toEqual(["dayIds", "name", "tripId"]);
+    const parsed = CreateSavedDayInput.parse({ name: "A day", tripId, dayIds: [dayId], stops: [stop] });
     expect(Object.keys(parsed)).not.toContain("stops");
   });
 
+  // M23 link 2's constraint: one day stays the ordinary case, so the
+  // single-day call must not get HARDER. A one-element array is not harder —
+  // and there is deliberately no second shape (`dayId | dayIds`) for a caller
+  // to branch on forever.
+  it("takes a one-element list for the ordinary single-day keep", () => {
+    expect(CreateSavedDayInput.parse({ name: "A day", tripId, dayIds: [dayId] }).dayIds).toEqual([dayId]);
+  });
+
+  it("rejects an empty selection, and one longer than a trip may be", () => {
+    expect(CreateSavedDayInput.safeParse({ name: "A day", tripId, dayIds: [] }).success).toBe(false);
+    const tooMany = Array.from({ length: 367 }, () => dayId);
+    expect(CreateSavedDayInput.safeParse({ name: "A day", tripId, dayIds: tooMany }).success).toBe(false);
+  });
+
   it("rejects a blank name", () => {
-    expect(CreateSavedDayInput.safeParse({ name: "", tripId, dayId }).success).toBe(false);
+    expect(CreateSavedDayInput.safeParse({ name: "", tripId, dayIds: [dayId] }).success).toBe(false);
   });
 
   it("rejects ids that are not uuids", () => {
-    expect(CreateSavedDayInput.safeParse({ name: "A day", tripId: "x", dayId }).success).toBe(false);
+    expect(CreateSavedDayInput.safeParse({ name: "A day", tripId: "x", dayIds: [dayId] }).success).toBe(false);
+    expect(CreateSavedDayInput.safeParse({ name: "A day", tripId, dayIds: ["x"] }).success).toBe(false);
   });
 });

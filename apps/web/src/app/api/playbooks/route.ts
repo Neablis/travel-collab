@@ -1,6 +1,7 @@
 import { auth } from "@/server/auth";
 import {
   BudgetBand,
+  LengthBand,
   DiscoverResponse,
   DiscoverScope,
   DiscoverSort,
@@ -52,6 +53,10 @@ export async function GET(request: Request) {
     scope: DiscoverScope.catch("everyone").parse(params.get("scope")),
     sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
     budget: BudgetBand.catch("any").parse(params.get("budget")),
+    // `.catch("any")` for the reason every parameter here falls back rather
+    // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
+    // of breaking the page.
+    length: LengthBand.catch("any").parse(params.get("length")),
     season,
     readerId: session.user.id,
   });

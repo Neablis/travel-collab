@@ -1,0 +1,36 @@
+{
+  "name": "fabricated-cost",
+  "about": "The 2026-08-02 Rochester dogfood run wrote `amountMinor: 0` on all nine activities it planned, which the board renders as FREE where the truth was 'nobody knows yet'. `withoutFabricatedCost` is what stops it; this replays the model doing it anyway, which is the only way to see that the guard is on the shipped path rather than in a unit test beside it.",
+  "source": { "kind": "synthetic", "from": "the 2026-08-02 dogfood run (KI-15's verbatim prompt)" },
+  "question": "add a cheap lunch stop to day 1",
+  "scope": { "kind": "trip" },
+  "classification": { "intent": "edit", "certainty": "sure" },
+  "steps": [
+    {
+      "content": [{ "type": "tool-call", "toolCallId": "c1", "toolName": "read_trip", "input": "{}" }],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [
+        {
+          "type": "tool-call",
+          "toolCallId": "c2",
+          "toolName": "AddActivity",
+          "input": "{\"title\":\"Lunch\",\"dayRef\":\"day 1\",\"cost\":{\"amountMinor\":0,\"currency\":\"USD\"}}"
+        }
+      ],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [{ "type": "text", "text": "I've drafted a lunch stop for day 1." }],
+      "finishReason": "stop"
+    }
+  ],
+  "expect": {
+    "steps": 3,
+    "toolCalls": ["read_trip", "AddActivity"],
+    "droppedCalls": 0,
+    "proposalChanges": 1,
+    "answered": true
+  }
+}

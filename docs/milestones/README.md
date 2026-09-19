@@ -76,6 +76,10 @@ for collaboration later landing on a product people already want to join.
 | M20 | An account knows what it may do | **Done, gate closed 2026-09-14** — 32 of 32 live boxes, built as #174 and #175, migrations 0019/0020 dispatched to production the same day, the console walked on production and the account surfaces on a preview; retro and gate evidence in the milestone file. **Scoped and placed 2026-09-01 — ran after M9's Phase 0, before M21.** The **first commercial milestone**: nothing in the repo had ever described a paid tier, a plan, a price or a payment. Mostly a wiring job on a seam built for it and stubbed since M16 — `modelSelection.ts:88` declares `AiEntitlementCheck`, `:89` stubs it `EVERYONE_IS_ENTITLED`, and `:47` says *"the day a pro-tier check exists it lands inside `isEntitled` below, not as a signature change"*; ADR-019 is explicit that entitlement is **not** a flag. Nine links, the ninth added 2026-09-01 when Mitchell asked for the financial metrics: **an `ai_usage` cost ledger** storing tokens and models rather than dollars, because prices move (DeepSeek's changed mid-scoping) and because `Money`'s integer minor units round a $0.0006 request to **zero cents** — the KI-1/KI-14/`budgetPerPerson` defect class on its third recurrence. It moved out of M21 deliberately: M21 has to choose prices and M20's link 5 has to choose per-tier ceilings, and both are guesses without it, while the ledger itself needs no Stripe. It carries the `/ask` step-metering fix with it. Its four rules: **a plan is a set, not a rank** (Mitchell: tiers are *"not necessarily subsets"*, so copying `accessPolicy.ts:11`'s `RANK` is the obvious move and the wrong one); **trials, referral rewards and admin boosts are one time-bounded grant with three `source` values**, not three features; entitlements **resolve per request from the database**, never from the JWT (a downgrade must bite before a token refreshes); and — added 2026-09-01 on Mitchell's requirement that prices stay tweakable *"especially in the early days"* while purchases are honoured — **a plan's contents are versioned data, not code, and a purchase pins a version**. `plan_versions` is immutable and append-only, so changing a price or a term **publishes a new version** and what someone already bought is untouched until an explicit admin *migrate to version N*; the contracts package keeps the entitlement vocabulary, the rows own the offers. That is also what makes pricing changeable **without a deploy**. Free keeps trip planning entire; AI and inviting collaborators are paid. **It takes no money** — Stripe is M21, and the admin grant UI is what makes this provable without it. Plans are `free`, `plus` and `premium`, and **defined by enumeration, never by extension** — Mitchell, 2026-09-01: *"to an end user it should look like a nested ladder, but for architecting guidance it should look like split access, where they can own different things that aren't inherited from the previous tier"*, so the three happen to nest and nothing in code may know it; the ladder is presentation only. Four decisions by Mitchell the same day: on lapse granted memberships **cap at `viewer` on read**, never written to `trip_memberships`, so resubscribing restores everyone with zero writes; every account existing at migration time gets a **permanent `founder` grant**; the **trial grants `plus` at signup**, so collaboration is never trialled; and a **referral earns one month of the tier the referrer already holds**, which means a free account earns nothing and most of the abuse surface disappears with it. Needs a migration and an ADR adding an **Entitlements** module to `AGENTS.md`'s map — **that ADR is written and accepted: ADR-045**, and the map row landed with it. **Reordered 2026-09-13 on Mitchell's call: this is the CURRENT milestone**, running ahead of M9's remaining work; M20's own *"M9, and it must be closed"* prerequisite is superseded, with the cost accepted on the record in the 2026-09-13 note below. Kickoff plan: `docs/plans/2026-09-13-M20-M21-commercial.md`: `M20-account-tiers-and-entitlements.md` |
 | M21 | An account can pay for itself | **Scoped and placed 2026-09-01, immediately after M20.** Stripe checkout, the webhook that is the **sole writer** of subscription state, the customer portal, and failed-payment handling. **Adds no entitlement and no gate** — if its diff touches `modelSelection.ts`, `quota.ts` or `members.ts`, the split has failed. Separate from M20 for three reasons: M20 is provable end to end with no external service and this is not; a hand-grant path is permanent infrastructure (comping, trials, disputes) rather than scaffolding; and the blast radius here is money, where a webhook mistake charges someone twice or grants access nobody paid for, silently. Signature verification, idempotency under Stripe's retries, and out-of-order tolerance are each a gate box, as is *no card number ever reaches this application*. Cancelling lapses through **M20's resolver** — no second downgrade path to keep in sync. **Link 6 is the revenue half of the unit economics**, against M20's cost ledger: MRR, ARPU reported twice and labelled (all accounts vs paying accounts, which diverge badly once founder/referral/trial grants exist), trailing-30-day margin per account, and an *accounts that cost more than they pay* list **segmented by grant source** — a comped account is underwater by construction, and unsegmented those swamp the list and make the metric worthless. **Mitchell owes one decision before it opens: the plans and their prices** — M20 names plans without pricing them — **decided 2026-09-13: `free` $0, `plus` $9/month, `premium` $19/month**, so this milestone's one owed decision is closed before it opens. **Reordered 2026-09-13 on Mitchell's call: it runs immediately after M20 and ahead of M9's remaining work**, both placed by the note below: `M21-subscriptions-and-billing.md` |
 | M15 | Front door | **Gate closed 2026-08-26, PR #56.** Approved 2026-08-23 (ADR-021); ADR-022 (2026-08-25) placed it after M16, but it in fact **ran ahead of both M10's Phase 9 gate and M16** — decided by Mitchell 2026-08-26, superseding ADR-021/ADR-022's stated ordering (see the reorder note below). The unauthenticated surface the product had never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, and the header account menu (already shipped in M10 Phase 8b). The designed first-run screen was dropped — `NewTripWizard`'s "Create empty" already creates a trip from a name alone. Scope, exit gate and retro: `M15-front-door.md` |
+| M22 | An account can build on the API | **Placed 2026-09-16 by Mitchell — runs after M21, before M12**, and it is the **current milestone**. A public REST API and account-generated API tokens, scoped to the account or to named trips, with create and revoke. All five phases landed 2026-09-16 and **18 of 19 exit-gate boxes are ticked**; the one open box needs a browser walk on a Vercel preview, and what blocks it is **`ADMIN_USER_IDS`** (`KI-2026-09-16-d`): it is injected at build, so no account reachable from a browser can be granted `api.tokens` there. *(This row said `API_TOKEN_PEPPER` until 2026-09-19. That was wrong — see the 2026-09-19 note below.)* Three boundaries fixed at placement: **user accounts only, no admin surface, no AI surface** — so a token can never spend model budget. Its entitlement is `api.tokens` on **`premium@v2`**, which raises the pinning problem a `premium@v1` subscriber cannot escape without an admin grant. The design's claim to test at the gate: adding endpoint N+1 costs a declaration and nothing else. *(**This row was missing until 2026-09-18** — M22 was recorded in `TODO.md`, in Current milestone below and in its own file, and not in this table. That is the same defect this file already records against M17 and M19, on its third occurrence.)*: `M22-public-api-and-tokens.md` |
+| M25 | A trip is a file you can take with you | **Minted and placed 2026-09-18 by Mitchell — runs immediately after M22**, because it is small and reuses M22's route wrapper while that machinery is fresh. Trip **export and import** as JSON. **The format is `travel-collab/content-bundle/v1` and no third format is created**: the bundle already has a schema, a CI-enforced linter, pure converters and a real importer, so `export → import → compare` is a gate box a test can hold, and it is the shape a person can hand-author — which is what *"similar to the api"* was asking for. A dedicated export format would be a **third vocabulary over the same data**, the drift invariant 5 exists to stop. **An export is a snapshot, never the event log**: the log is `tripId`-bound and re-importing it would violate ADR-028's id-remap rule, the hazard `cloneTrip` exists to handle, so an exported trip loses its history. **Export is free** (Mitchell, 2026-09-18) — *"free keeps trip planning entire"* is M20's line and portability is a trust property, so it needs **no new entitlement, hence no new plan version**, and does not walk into M22's `premium@v1` pinning problem. Import is the larger half: a user upload must **mint fresh ids**, where the content script derives them from keys so a re-import updates rows instead. **Three scoping questions were decided 2026-09-18.** **What it carries: days and activities, nothing else** — no budget, no members, invites or share links, no notebook pages, no lineage or trip status. That is a scope line, not a gap, and it buys a property worth naming: an export cannot carry a copy of a membership list out of the system. It also means an export is a copy of the plan and **not a backup**. **Linting: the schema validates an upload and the content rules do not run on it** — `lint.ts` states rules for authored library content headed for Discover, and three are errors a real trip trips routinely (an empty trip, stops out of clock order after an ordinary board reorder, a backlog item with a time window), so running it would reject real trips on day one. No subset and no second rule set; revisit if a real problem emerges. **Dates: a dated trip exports its real `startDate`, never `startsInDays`**, and a **dateless** trip carries neither anchor — *"we just have offsets, day 1, not January 15th"*. `BundleDay` already has no date field, so the trip anchor relaxes from *exactly one* to *at most one*. The export is a copy of **your** trip rather than a re-usable shape, so a stale export importing as a *past* trip is the correct answer, not a defect to design around. The dateless half is not a one-liner: `tripStartDate`'s `?? 0` currently resolves a missing anchor to *starting today*, so relaxing the refine alone would make a dateless trip silently dated. **Nothing on this milestone is waiting on a decision** — see `M25-a-trip-is-a-file.md` |
+| M23 | A playbook can be more than one day | **Minted and placed 2026-09-18 by Mitchell — runs BEFORE M12**, and the placement is the substance: M12 keys reviews, ratings, reporting and moderation to a `saved_days` row, and this changes that row's shape, so running it after means M12's work is revisited. **A saved day generalises into a saved sequence — the same object, not a new one.** The rejected alternative was a separate "collection" over saved-day rows: rejected because a second publishable object either doubles M12's trust-and-safety surface or ships a library with two classes of content having different moderation properties. **The shape is a flat `stops[]` with a per-stop day indicator, not `days: SavedStop[][]`** — Mitchell's call, on migration grounds: existing rows read as "everything on day 1" when the indicator defaults, so the strict `SavedStop.array()` parse at the read boundary keeps working with no versioned read, which a nested array would have forced. **That property has a precondition the scoping found**: the strict parse exists at **two** sites (`savedDays.ts`'s `fromRow` and `playbooks.ts`'s `toDiscoverDay`) and `SavedStop` carries **no `.default()` on any field**, so the additive claim holds only if the indicator lands defaulted at both. **One insert primitive, three callers** — add to an existing trip, start a trip from one day, start a trip from N days, wrapped in M6's atomic command group — which absorbs `TODO.md`'s *"Start a new trip from a saved day"* candidate and answers its open question (one shared primitive, not a second copy of fork): `M23-multi-day-playbooks.md` |
+| M24 | A leg knows where it goes and by what | **Minted and placed 2026-09-18 by Mitchell — runs after M12, before M14.** A travel stop gets a **transport mode** and a **second location**, and the map draws a real leg instead of inferring one from its neighbours. `MapLegend.tsx:9` has said the gap out loud since it shipped: *"We model no transport mode"*. **Mode carries its own field and does not inherit from `kind`** — `kind: "transit"` says THAT a stop is travel, `mode` says by what, and they cannot disagree because a mode is legal only on a transit stop, enforced by a `superRefine` rather than by convention. That answers the question `TODO.md`'s *"Transport mode per leg"* has carried since 2026-09-01; M19 link 1 may still answer differently for costs, with a stated reason. **`location` keeps meaning the origin** and an optional `endLocation` joins it, so no existing reader changes meaning; modelling travel as an **edge between** two stops is rejected, because the whole app is "a day is an ordered list of activities" and an edge is not in that list. **Its prerequisite is not its own deliverable**: the activity-field descriptor refactor (`KI-20260905-o` — 21 non-test files hand-enumerate activity fields and nothing goes red when one is missed) runs **once, before M13**, shared with M13 link 5 and M19 link 1: `M24-travel-legs.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -198,13 +202,120 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M22 — An account can build on the API**
-(`M22-public-api-and-tokens.md`), as of **2026-09-16, by Mitchell's decision**
-— **not** by a gate closing. **M21 is OPEN at 11 of 17 and is paused, not
-finished.** Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
+Current milestone: **M23 — A playbook can be more than one day**
+(`M23-multi-day-playbooks.md`), as of **2026-09-19, by M25's gate closing** —
+which is the ordinary way this line moves, and the first time since 2026-09-11
+that it has. **M25's gate closed 2026-09-19**, 14 of 14 boxes. **M22 is OPEN at
+18 of 19 and is paused, not finished; M21 is OPEN at 11 of 17 and is paused.**
+Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
+**Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
 below. The second one also records a cost it first got wrong.
+**This line then moved to M25 on 2026-09-18** — the third time it has moved by
+decision rather than by a gate close, and the note recording it is directly
+below.
+
+### 2026-09-19 — M25's gate closed, and what it leaves the milestones behind it
+
+**14 of 14 boxes**, `pnpm check` green (765 tests) and `test:e2e:ci-like` at
+**137 passed**. Two `v1` endpoints, two UI surfaces, **no migration, no
+contract change, no entitlement and no plan version** — so it walked into none
+of the `premium@v1` pinning problem M22 raised.
+
+**Three boxes were ticked with something named rather than silently**, and the
+retro carries each in full: the free-account walk's *"no upgrade prompt on any
+screen it touches"* cannot be asserted as written (the trip settings sheet also
+hosts M20's correctly-gated *Invite someone*); the oversized-upload refusal is
+**400 rather than 413** because the box says 400 and a gate definition is
+Mitchell's to change; and the OpenAPI box produced a finding it did not ask
+for — see below.
+
+**Three things it leaves live for M23, M24, M13 and M14**, which are the
+milestones that each make a trip carry more:
+
+1. **The round trip is a fixed point, and it is now a tripwire.** A field added
+   to an activity and not to `toBundleStop` fails `fromTrip.test.ts` **in the
+   diff that adds it**. That is the whole reason M25 was placed before those
+   four rather than after them, and it is now real rather than intended.
+2. **A derived reference can be FALSE rather than merely verbose.** M22's
+   strongest property is that `openapi.json` cannot drift from the route
+   declarations — which guarantees the document matches the *declaration*, and
+   says nothing about whether the declaration matches the endpoint. Declared
+   with the whole bundle schema, one endpoint's generated entry was 2,267 lines
+   of recursive notebook AST for a section it never writes. **Check what a new
+   endpoint's declaration publishes, not just that it publishes.**
+3. **The two doors into the content-bundle format stay different.**
+   `content:import` derives ids so a re-import updates its own rows; a user
+   upload mints them so it can never land on somebody else's trip. Collapsing
+   them is a plausible-looking simplification and is the one change that would
+   make an upload dangerous.
+
+**M22 and M21 are unchanged by this and both remain open.**
+
+**And a correction that is worth more than the milestone note around it.** Three
+places in these docs — this file's M22 row, `TODO.md`, and notes added on
+2026-09-18 — said M22's open box *"needs a Vercel preview with
+`API_TOKEN_PEPPER` set"*. **That is wrong twice over**, and Mitchell said so on
+2026-09-19:
+
+- **`API_TOKEN_PEPPER` is set on every Vercel target** — preview, development
+  and production, all three as `sensitive`. Checked, not assumed.
+- **`KI-2026-09-16-d` never mentioned that variable.** What it names is
+  **`ADMIN_USER_IDS`**, which is injected at *build* time and which
+  `playwright.config.ts` supplies only to the local e2e server — so
+  `POST /api/admin/grants` answers 404 on a preview and no account reachable
+  from a browser can hold `api.tokens` there.
+
+**`ADMIN_USER_IDS` is bound to preview and production — and it was created
+2026-09-14, two days BEFORE the walk that got the 404.** So that entry's fix
+sketch ("set it in Preview and redeploy") describes a state which already held
+when the entry was filed, and is probably wrong. The likely cause is the
+variable's **value** rather than its absence — it takes `users.id` verbatim and
+fails closed, and a dev-login operator's id is `dev-<username>`. **That is a
+hypothesis**: the value is stored encrypted and was not read. The next step is a
+read, not a write; the entry carries it. `KI-2026-09-16-d` stays open.
+
+**Why this is recorded at a gate close rather than quietly fixed.** A wrong
+variable name in three status files is exactly the drift this file's own
+checklist exists to catch, and it survived because each copy was read as
+confirmation of the others. The KI was the only document with the fact in it,
+and it was the one document nobody re-read.
+
+### 2026-09-18 — Current milestone moves to M25; M22 pauses at 18/19
+
+**Mitchell's decision, 2026-09-18** — *"Start next milestone."* Taken with the
+order above already settled the same day, so the decision is *which* milestone
+is current, not what runs next: M25 is the next milestone in it.
+
+**M22 is paused, not abandoned.** Its file, scope and nineteen gate boxes stand
+untouched; one is open. Nothing here ticks, unticks or amends a box — only
+Mitchell amends a gate definition, and he has not.
+
+**What is open on M22, and why pausing is not a choice to pay for it later.**
+The one box is the reachability walk — *a person mints, copies and revokes a
+token by clicking, and sees time remaining on each*. Its CI lane is green and
+one of its three preview clauses is met; the other two need an account that can
+hold `api.tokens` **on a preview**, which is a **deployment** question rather
+than a code one (`KI-20260916-d`). No amount of building closes it, and it is
+no harder to close after M25 than before. *(This paragraph named
+`API_TOKEN_PEPPER` when it was written on 2026-09-18. That was wrong — the
+blocker is `ADMIN_USER_IDS`; see the 2026-09-19 note above.)*
+
+**What it costs M25's predecessor, checked rather than assumed.** M25 adds **no
+entitlement** (so no plan version, so no `premium@v3` and no second pinned
+cohort — M25's own gate box asserts this with a test), touches **no token
+path**, and writes **no migration**. So it cannot move M22's open box in either
+direction. The one thing M25 *does* to M22 is measure it: M25 link 1 is the
+second independent test of M22's headline claim that endpoint N+1 costs a
+declaration and nothing else, this time on an endpoint with a body to build
+rather than an array to slice.
+
+**The preflight this kickoff owes, run and recorded.** `TODO.md`'s live-order
+line had gone stale — it still named the pre-2026-09-18 order two days after
+that order changed — and is corrected in the same commit as this note. No other
+flag was unflipped: M22's gate has not passed, so its gate-close checklist is
+not yet owed.
 
 **M21 opens with one thing M20 left standing on purpose**: the operator console
 has no revenue half. The four-number strip and the per-tier MRR and
@@ -220,6 +331,78 @@ scope and exit gate stand. **M9's gate was the previous `Current milestone`
 value** (set 2026-09-11 when M17's gate closed) and it did **not** close; this
 line moved by decision, which is the one way it may move other than a gate
 close.
+
+### 2026-09-18 — three milestones minted, M13 moved ahead of M12, two prerequisites placed
+
+**Mitchell brought five feature ideas and one tooling idea to a design conversation
+and placed all of them the same day.** Nothing here was built; this note records
+what was decided so the next session does not re-derive it. Two of the five were
+already scoped elsewhere and did not need a milestone.
+
+**Minted: M23, M24 and M25**, each with a file, a scope and an exit gate before
+any commit — the standing task this file requires. Their rows are in the Phase 3
+table above and carry the decisions in full; the one-line versions:
+
+- **M23 — a playbook can be more than one day.** A saved day *generalises* into a
+  saved sequence rather than gaining a sibling object type.
+- **M24 — a leg knows where it goes and by what.** Transport mode and a second
+  location on a travel stop.
+- **M25 — a trip is a file you can take with you.** Export and import, emitting
+  the content-bundle format rather than a third vocabulary. Export is free.
+
+**M13 moves ahead of M12.** M13's own file already said it sat after M12
+*"because M12 is smaller and finishes a surface that is already live, **not**
+because of a dependency"* — so the move costs nothing and buys three things: link
+3's re-prediction reducer closes **KI-5, KI-90 and KI-77**, which are
+single-player data-loss defects live in the app today and not realtime work at
+all; link 5 lands *who a stop is for*, which **M19 link 3 and M14's two cut
+person widgets both wait on**; and the transport ADR stops blocking. **M23 still
+runs before both**, for the reason in its row.
+
+**Realtime was the one requested feature that needed nothing**: it is M13 links 1
+and 2, already scoped. One correction was made in the conversation and is worth
+keeping — *"websockets"* is not a decided transport. M13 link 1 is explicitly
+*"Server-Sent Events, WebSockets, or polling with a cursor — decided against this
+project's actual constraints"*, and on Vercel's serverless runtime a long-lived
+WebSocket needs a service this project does not run. The ADR decides; the word in
+the request does not.
+
+**Two pieces of non-milestone work are placed inside the order, and both are
+prerequisites rather than deliverables:**
+
+1. **The activity-field descriptor refactor — `KI-20260905-o` — runs once, before
+   M13.** Three milestones each add a field to an activity (M13 link 5's `who`,
+   M24's `mode` and `endLocation`, M19 link 1's cost kind), and today **21
+   non-test files hand-enumerate activity fields with nothing going red when one
+   is missed**. The class has already bitten three times (KI-1, KI-54, and M18's
+   editor sheet dropping `kind`/`tags`). Paid once, the three milestones are
+   cheap; paid three times, it is three chances to miss a site. **It was already
+   scheduled once** — 2026-08-29, as *"one overnight batch"*, in the placement
+   note further down this file — **and it did not happen**, which is why M13's
+   gate now carries a box for it instead of this file carrying a second promise.
+2. **An architecture map that is generated, drift-checked and annotated at gate
+   close.** Designed 2026-09-18 and approved in principle;
+   `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` holds it,
+   and `TODO.md`'s Candidate ideas carries the summary. It is repo automation in
+   the sense of `AGENTS.md`'s *Repo automation* section, not roadmap work, which
+   is why it has no milestone number. **It proposes a sixth step for the
+   gate-close checklist at the top of this file** — the annotation layer is
+   written at gate close, with the milestone's context live, rather than
+   reconstructed cold later. That proposal is not adopted here; adopting it is a
+   decision, and the checklist has already grown once for exactly this reason.
+
+**Two asks resolved into existing milestones without a new one, and that is
+recorded rather than assumed:**
+
+- **More widgets and better widget filtering are M14** — items H, E, B, G and
+  link 3. *Saving a notebook as a template for a future trip* was **not** in M14
+  or anywhere else (link 7 seeds templates; nothing lets a person keep their
+  own), so it is **M14's new link 10**, built on ADR-029's saved-day shape rather
+  than a second personal-library pattern. M14's file carries both.
+- **Starting a trip from a saved day** and **transport mode per leg** were
+  unscheduled candidates in `TODO.md` with an open design question each. Both
+  questions are answered in the milestones that absorbed them, and both entries
+  are annotated in place and deleted at those gates.
 
 ### 2026-09-16 — reordered: M22 runs AHEAD of M21, which pauses at 11/17
 

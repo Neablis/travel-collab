@@ -16,6 +16,26 @@ real CRUD paths — never a direct projection write.
   `content.test.ts` and printed by `pnpm content:verify`
 - **Decision record:** ADR-041
 
+**Since M25 the format also has a WRITER, and a second door.** `tripToBundle`
+(`packages/fixtures/src/bundle/fromTrip.ts`) turns a `TripDetail` back into a
+bundle, and `GET /api/v1/trips/{tripId}/export` / `POST /api/v1/trips/import`
+let a person take a trip out of the product and put one back. Three things about
+that door matter to anybody authoring content here:
+
+- **It is a different door from this one and stays different.** The user upload
+  **mints** ids, where `content:import` **derives** them from keys so a re-import
+  updates the rows it wrote before. Authored library content wants the second;
+  an upload must have the first, or one person's file could land on top of
+  another person's trip.
+- **The content rules do not run on an upload.** `lint.ts` states rules for
+  library content headed for Discover, and three of them are errors an ordinary
+  trip trips by ordinary use. Running them on uploads would reject real trips on
+  day one (M25, question 3). They still run here, on everything in `content/`.
+- **A bundle trip may now give NEITHER date anchor**, which means it is dateless
+  and its days are addressed by position. The refine relaxed from *exactly one*
+  to *at most one*; every bundle under `content/` gives `startsInDays` and is
+  unaffected. See *A trip* below.
+
 ## Why a format at all
 
 Three surfaces already seed content and each did it differently: `db-seed.ts`
@@ -107,10 +127,19 @@ describe a stop the command API would refuse.
 }
 ```
 
-`startsInDays` is days from *today*, and it is the form to use: a demo trip with
-a fixed start date is an expired trip three months later and the homepage hero
-has nothing upcoming to show. `startDate` exists for content genuinely about a
-fixed date; give exactly one of the two.
+`startsInDays` is days from *today*, and it is the form to use for anything you
+author here: a demo trip with a fixed start date is an expired trip three months
+later and the homepage hero has nothing upcoming to show. `startDate` exists for
+content genuinely about a fixed date.
+
+**Give at most one of the two, and giving NEITHER is legal** — it means the trip
+is **dateless** and its days are addressed by position, day 1 and day 2, rather
+than by calendar date. `days[]` carries no date field of any kind, so dropping
+the anchor leaves a structure that is already complete; it is what a playbook has
+been since ADR-041. *(This relaxed from "exactly one" in M25: a trip with no
+dates set is an ordinary shipped state, and a format that could not express one
+could not export one. All four bundles under `content/` give `startsInDays` and
+were unaffected.)*
 
 `days[].label` is for the human reading the file — Trip Planning has no day
 title, so nothing stores it. It is still required in practice: a 14-day

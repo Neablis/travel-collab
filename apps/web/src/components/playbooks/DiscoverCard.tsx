@@ -93,7 +93,19 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       )}
 
       <DataText size="xs" className="block">
+        {/* **The day count leads** (M23 link 4's gate box). It is the number
+            that changes whether somebody opens this at all, and it is the
+            number "Add to trip" is about to act on — the rule being that a
+            surface states the count it is acting on BEFORE it acts.
+            Suppressed at one day, which is still the ordinary case: "1 day ·
+            4 stops" on every card would be noise that teaches a reader to
+            stop reading the line. */}
+        {day.dayCount > 1 && `${day.dayCount} days · `}
         {day.stopCount} stop{day.stopCount === 1 ? "" : "s"}
+        {/* Null above one day, and that is `savedDayFacts` refusing to state
+            a clock range across three midnights as if it were one day's
+            (ADR-048 decision 4) — so nothing renders here rather than
+            something false. */}
         {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end)}`}
         {/* No trailing "each": this is the day's TOTAL. The card read
             "$27.00 each" for a number `savedDayFacts` produces by adding up

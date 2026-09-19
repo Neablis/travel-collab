@@ -204,7 +204,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchPreferences: () => fetchPreferences(),
   updatePreferences: () => updatePreferences({ distanceUnit: "mi" }),
   fetchSavedDays: () => fetchSavedDays(),
-  createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
+  createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayIds: [UUID] }),
   deleteSavedDay: () => deleteSavedDay(UUID),
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
   fetchSavedDay: () => fetchSavedDay(UUID),
@@ -230,6 +230,74 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
 // Pure URL builders — they touch no network, so totality is not a claim about
 // them. Anything else exported as a function has to be in the table above.
 const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink", "askEventFromFrame"]);
+
+// **The screen→client seam was covered; the client→URL seam was not.**
+// `DiscoverScreen.test.tsx` mocks `searchPlaybooks` outright, so it proves the
+// screen passes `length` along and can say nothing about whether the request
+// carries it. Deleting the `params.set("length", …)` line left every test in
+// the suite green — found while proving those screen tests could fail, not by
+// review. These are the filters Discover is built out of, so the query string
+// is worth one assertion of its own.
+describe("searchPlaybooks puts its filters on the wire", () => {
+  it("sends every filter it was given, repeating city rather than joining", async () => {
+    let seen: URL | null = null;
+    server.use(
+      http.get("*/api/playbooks", ({ request }) => {
+        seen = new URL(request.url);
+        return HttpResponse.json({
+          days: [],
+          siblings: [],
+          budgetCurrency: null,
+          truncated: false,
+          sharedDayCount: 0,
+        });
+      }),
+    );
+
+    // Two cities, because a city name may contain a comma and joining on one
+    // would invent a city called " Japan".
+    const result = await searchPlaybooks({
+      cities: ["Kyoto", "Osaka, Japan"],
+      scope: "everyone",
+      sort: "newest",
+      budget: "under200",
+      length: "two-three",
+      season: "fall",
+    });
+    expect(result.ok).toBe(true);
+    expect(seen).not.toBeNull();
+    expect(seen!.searchParams.getAll("city")).toEqual(["Kyoto", "Osaka, Japan"]);
+    expect(seen!.searchParams.get("scope")).toBe("everyone");
+    expect(seen!.searchParams.get("sort")).toBe("newest");
+    expect(seen!.searchParams.get("budget")).toBe("under200");
+    expect(seen!.searchParams.get("length")).toBe("two-three");
+    expect(seen!.searchParams.get("season")).toBe("fall");
+  });
+
+  // An omitted filter is absent rather than sent as a word the route would
+  // have to interpret — `?length=` or `?length=undefined` are both worse than
+  // no parameter, and the route's `.catch("any")` should never be load-bearing.
+  it("omits a filter it was not given", async () => {
+    let seen: URL | null = null;
+    server.use(
+      http.get("*/api/playbooks", ({ request }) => {
+        seen = new URL(request.url);
+        return HttpResponse.json({
+          days: [],
+          siblings: [],
+          budgetCurrency: null,
+          truncated: false,
+          sharedDayCount: 0,
+        });
+      }),
+    );
+
+    await searchPlaybooks({ cities: ["Kyoto"] });
+    expect(seen!.searchParams.has("length")).toBe(false);
+    expect(seen!.searchParams.has("budget")).toBe(false);
+    expect(seen!.searchParams.has("season")).toBe(false);
+  });
+});
 
 describe("apiClient totality — no helper ever rejects", () => {
   // The witness for the suite below: it asserts nothing about behaviour, only

@@ -47,11 +47,41 @@ export type Anchor = z.infer<typeof Anchor>;
 export const LocationPrecision = z.enum(["venue", "area", "city"]);
 export type LocationPrecision = z.infer<typeof LocationPrecision>;
 
+// **A postal address, structured the way the world actually writes them** —
+// the model CLDR, libaddressinput and google.type.PostalAddress share, cut to
+// what a travel stop needs. Never one free-text string, and never
+// `street` + `houseNumber`: "Hauptstraße 5" puts the number after the street,
+// and a Japanese address has block numbers and often no street name at all.
+// `lines` holds the street-level part in the country's own order.
+//
+// **Caller-authored, never vendor-built.** Nominatim-family geocoders return
+// address components with no per-country ordering, so assembling `lines` from
+// them would mean shipping a formatter for each country. An address is stored
+// exactly as its author wrote it; geocoding only ADDS coordinates to it.
+//
+// Optional on Location and on every field but `countryCode`/`lines`, because
+// `trip_details.doc` is raw jsonb parsed on read (see location-address.test.ts).
+// Deliberately absent, addable later without changing existing fields:
+// sortingCode (FR CEDEX), languageCode/script, recipient, organisation.
+export const PostalAddress = z.object({
+  countryCode: z.string().regex(/^[A-Z]{2}$/).describe("ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."),
+  lines: z
+    .array(z.string().trim().min(1).max(200))
+    .min(1)
+    .max(4)
+    .describe("Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."),
+  dependentLocality: z.string().trim().min(1).max(200).optional().describe("District, neighbourhood or suburb when it is part of the postal address."),
+  locality: z.string().trim().min(1).max(200).optional().describe("City, town or post town."),
+  administrativeArea: z.string().trim().min(1).max(200).optional().describe("State, province, prefecture or region."),
+  postalCode: z.string().trim().min(1).max(20).optional().describe("A string: keeps leading zeros and letters."),
+});
+export type PostalAddress = z.infer<typeof PostalAddress>;
+
 export const Location = z
   .object({
     name: z.string().min(1).max(200),
-    lat: z.number().min(-90).max(90).optional(),
-    lng: z.number().min(-180).max(180).optional(),
+    lat: z.number().min(-90).max(90).optional().describe("Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."),
+    lng: z.number().min(-180).max(180).optional().describe("Send with lat, or omit both."),
     countryCode: z.string().regex(/^[A-Z]{2}$/).optional(), // populated by the geocoder (ADR-007)
     // Populated by the geocoder from its structured address data (city, or
     // the nearest equivalent — town/village/hamlet), distinct from `name`
@@ -112,6 +142,12 @@ export const Location = z
     // a real gap and a deliberate omission: naming it is a product decision
     // about what the map should claim, not a shape this PR can settle.
     precision: LocationPrecision.optional(),
+    // A structured postal address (see PostalAddress). Independent of
+    // `city`/`area`, which are the geocoder's display/grouping fields: a post
+    // town and the city a stop groups under legitimately differ. Only
+    // `countryCode` is checked against it (refine below), because two country
+    // fields that can disagree is a bug generator (activity.ts, ActivityTag).
+    address: PostalAddress.optional(),
   })
   .refine((l) => (l.lat === undefined) === (l.lng === undefined), {
     message: "lat and lng must be provided together",
@@ -129,6 +165,10 @@ export const Location = z
   .refine((l) => l.precision === undefined || l.lat !== undefined, {
     message: "precision requires coordinates",
     path: ["precision"],
+  })
+  .refine((l) => l.address === undefined || l.countryCode === undefined || l.countryCode === l.address.countryCode, {
+    message: "countryCode must match address.countryCode",
+    path: ["address", "countryCode"],
   });
 export type Location = z.infer<typeof Location>;
 

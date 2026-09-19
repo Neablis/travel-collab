@@ -1,0 +1,26 @@
+-- `saved_days.day_count` — how many days a playbook spans (M23, ADR-048).
+--
+-- A playbook was exactly one day until M23; it is now a SEQUENCE, and an
+-- existing row is a sequence of length one. DEFAULT 1 NOT NULL says precisely
+-- that, so this lands on every existing row with no backfill, no rewrite and no
+-- data migration to get wrong — adding a NOT NULL column with a non-volatile
+-- default is metadata-only in modern Postgres.
+--
+-- Its own column rather than `max(stops[].dayIndex) + 1`, for three reasons in
+-- `SavedDay.dayCount` (packages/contracts/src/saved.ts). The one this migration
+-- exists to serve is the third: Discover filters by length ("1 / 2-3 / 4-6 / 7+
+-- days"), and only a COLUMN can be a real predicate. `stops` is jsonb precisely
+-- so it is never queried into (ADR-029), so a derived length could only be
+-- applied in application code over the truncated candidate window — which is
+-- how the budget band's sibling chips came to count a different set from the
+-- page below them (KI-2026-08-31).
+--
+-- No CHECK constraint on `day_count >= max(dayIndex) + 1`. The stops impose a
+-- FLOOR, and the read boundary repairs upward to it (`parseSavedDayColumns`)
+-- rather than refusing the row: dropping a row whose stops are each valid, over
+-- an arithmetic disagreement, is how a library empties itself (KI-20260905-l).
+ALTER TABLE "saved_days" ADD COLUMN "day_count" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+-- Discover runs a range predicate on this column on every query, beside the
+-- city containment. It ships with the column for `saved_days_cities`' reason:
+-- the access pattern is known the day the column is designed.
+CREATE INDEX "saved_days_day_count" ON "saved_days" USING btree ("day_count");

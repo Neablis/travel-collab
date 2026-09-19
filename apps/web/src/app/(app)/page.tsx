@@ -17,6 +17,10 @@ import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
+import { ImportTripButton } from "@/components/home/ImportTripButton";
+
+/** The inline first-run composer, so the page head's "New trip" can focus it. */
+const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
 import { ShareButton } from "@/components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
@@ -80,7 +84,7 @@ export default function Home() {
   // request is in flight creates an extra trip nobody asked for (CodeRabbit,
   // pull request 104): the wizard's own `createTrip` has no idea a copy is already
   // headed for this same list. Both launchers into the wizard — the page-head
-  // "New trip" button and `FirstTripStart`'s "Name your trip" — are disabled
+  // "New trip" button and the first-run conversation's own "Create empty" — are disabled
   // below for the same reason.
   const [cloningDemo, setCloningDemo] = useState(false);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
@@ -108,6 +112,45 @@ export default function Home() {
   // and hooks cannot read a value declared below them.
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
+
+  // **One composer, and an open sheet wins it.**
+  //
+  // "New trip" is pressable while `trips` is still null, so the sheet can be
+  // open when the list lands empty and the first-run screen appears under it.
+  // Two earlier shapes were tried here and both were wrong. Rendering both was
+  // the original defect — two fields with one accessible name. Closing the
+  // sheet when `hasNoTrips` flipped (the guard CodeRabbit's round 2 produced)
+  // fixed that and introduced a worse one: it threw away whatever the reader
+  // had already typed INTO the sheet, leaving a permanently disabled "Create
+  // empty" over an empty inline field. `createEmptyTripViaWizard` hung on
+  // exactly that for its full 30s timeout (e2e, 2026-09-18).
+  //
+  // So the sheet opens whenever it is asked to, and `FirstTripStart` yields
+  // its conversation while it is open (`showConversation`). Nothing latches,
+  // because nothing is ever requested-but-hidden — which also retires the
+  // resurfacing case that guard existed for: a reader cannot create a first
+  // trip inline while the sheet is up, so there is no moment for it to
+  // reappear over.
+
+  /**
+   * **"New trip" opens the sheet — unless the conversation is already on the
+   * page**, which it is on a Home with no trips, where `FirstTripStart` renders
+   * it inline. Opening the sheet there would put a second composer with the
+   * same accessible name on one screen: ambiguous to a screen reader, and a
+   * strict-mode violation for any test that addresses the field by its label.
+   * So here the button moves the cursor into the conversation that exists.
+   */
+  function startNewTrip() {
+    if (!hasNoTrips) {
+      setNewTripOpen(true);
+      return;
+    }
+    // `focus()` only — **`scrollIntoView` is banned repo-wide** (SPEC §30.6,
+    // KI-2026-09-13-a): it scrolls every scrollable ancestor, which is the bug
+    // `usePinToBottom` exists to avoid on this very flow. Focusing a form
+    // control brings it into view natively, so the ban costs nothing here.
+    document.getElementById(FIRST_TRIP_COMPOSER_ID)?.focus();
+  }
 
   // Every render branch below is gated on `trips !== null`, so "the read
   // failed" and "the read has not finished" are the same state to them —
@@ -364,15 +407,32 @@ export default function Home() {
                 them. Your own days are the `Yours` scope on Discover, which is
                 where §15 puts them (a filter on that page, never a second
                 page). */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
                 Start from a Playbook
               </Link>
+              {/* **Import sits beside the other two ways a trip starts** (M25
+                  link 2). A file is a third origin for a trip, not a setting,
+                  so it belongs where "New trip" and "Start from a Playbook"
+                  already are rather than behind a menu.
+
+                  **Not on the first-run screen, where `FirstTripStart` carries
+                  it instead.** Three controls is one more than this row was
+                  built for: at 375px it wrapped onto an extra line and pushed
+                  that card's composer out of the viewport, which
+                  `responsive.spec.ts:917` asserts against. It failed in CI and
+                  passed locally in both lanes — the assertion sits close enough
+                  to the fold that rendering decides it — so the fix is to give
+                  the row back its height rather than to trust the margin.
+
+                  `hasNoTrips` is what makes this exactly one control on either
+                  screen rather than two on one. */}
+              {!hasNoTrips && <ImportTripButton disabled={cloningDemo} />}
               <Button
                 type="button"
                 variant="primary"
                 disabled={cloningDemo}
-                onClick={() => setNewTripOpen(true)}
+                onClick={startNewTrip}
               >
                 New trip
               </Button>
@@ -415,16 +475,19 @@ export default function Home() {
         )}
 
         <NewTripWizard
+          // Open whenever it is asked for — see the note by `hasNoTrips`
+          // above. The inline conversation is what yields, because it is not
+          // the surface the reader is typing into.
           open={newTripOpen}
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
-          // Full screen and first-run framing only when there is nothing
-          // behind the sheet to keep context with — Mitchell, 2026-09-01:
-          // "The 'New trip' side bar should be a full screen experience when
-          // you have no trips". The same person's fourth trip gets the rail.
-          size={hasNoTrips ? "full" : "rail"}
-          firstRun={hasNoTrips}
+          // Always the rail. The full-screen, first-run-framed variant this
+          // used to pass was already unreachable: `open` above is gated on
+          // `!hasNoTrips`, so by the time the sheet can render, both of those
+          // ternaries have resolved to the ordinary branch. First run is the
+          // inline conversation now (SPEC §32.1), not a sheet at all.
+          size="rail"
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "Create empty" is
@@ -472,7 +535,33 @@ export default function Home() {
                suite is a function of which spec ran first. A first run that is
                one obvious click away is worth more than one that is sometimes
                a trap. */
-            <FirstTripStart onStart={() => setNewTripOpen(true)} disabled={cloningDemo} />
+            <FirstTripStart
+              createTrip={createTripApi}
+              dispatch={sendTripCommand}
+              composerId={FIRST_TRIP_COMPOSER_ID}
+              disabled={cloningDemo}
+              showConversation={!newTripOpen}
+              // **SPEC §32.1's `ntLand()` is already satisfied here, and
+              // widening it would break nine e2e specs.** §32.1 says finishing
+              // a first run has to land you in an app, and names the two exits
+              // that do it: *Create with this* and *Open the trip*. Both pass
+              // `navigate: true`, so both already push. `Create empty` is not
+              // one of them — it is this build's own escape hatch from the old
+              // single-field dialog, and making IT navigate is the precise
+              // regression CI caught on PR #32: `createEmptyTripViaWizard`
+              // reaches this component on an empty list and then asserts the
+              // new trip's link on THIS page. The prototype needs `ntLand`
+              // because its first-run screen has no app behind it; ours
+              // re-renders Home with the new trip's card on it, which is an
+              // app, and is not "staring at nothing".
+              onDone={(tripId, navigate) => {
+                if (tripId !== null && navigate) {
+                  router.push(`/trips/${tripId}`);
+                } else {
+                  void load();
+                }
+              }}
+            />
           ) : (
             <>
               {visibleTrips.length > 0 && (

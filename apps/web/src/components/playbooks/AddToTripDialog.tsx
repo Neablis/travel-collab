@@ -64,12 +64,24 @@ export function AddToTripDialog({
   onOpenChange,
   savedDayId,
   dayName,
+  dayCount,
   onConflict,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   savedDayId: string;
   dayName: string;
+  /**
+   * How many days this Playbook will append (M23 link 4).
+   *
+   * **The rule this exists for: a surface states the count it is acting on
+   * BEFORE it acts.** This dialog is the surface that actually performs the
+   * append, so it is the sharpest instance of it — "add to trip" quietly
+   * appending three days when somebody expected one is the exact failure link 4
+   * was written to prevent, and every word below was singular until a walk of
+   * the preview caught it.
+   */
+  dayCount: number;
   /** Raised when the day itself has gone — the page above says so, not a modal. */
   onConflict: () => void;
 }) {
@@ -195,7 +207,15 @@ export function AddToTripDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={`Add “${dayName}” to a trip`}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        dayCount === 1
+          ? `Add “${dayName}” to a trip`
+          : `Add “${dayName}” (${dayCount} days) to a trip`
+      }
+    >
       <div className="flex flex-col gap-3.5">
         <FormField id={tripFieldId} label="Which trip">
           <NativeSelect
@@ -217,7 +237,11 @@ export function AddToTripDialog({
           <FormField
             id={startDateFieldId}
             label="Start date"
-            hint={`Optional. The trip is named “${dayName}”, and this day is day 1.`}
+            hint={
+              dayCount === 1
+                ? `Optional. The trip is named “${dayName}”, and this day is day 1.`
+                : `Optional. The trip is named “${dayName}”, and its ${dayCount} days become days 1–${dayCount}.`
+            }
           >
             <Input
               id={startDateFieldId}
@@ -229,8 +253,10 @@ export function AddToTripDialog({
         )}
 
         <Text variant="secondary">
-          The day is appended at the end, keeping its order and gaps. It is one history entry, so
-          one undo takes the whole thing back out.
+          {dayCount === 1
+            ? "The day is appended at the end, keeping its order and gaps."
+            : `All ${dayCount} days are appended at the end, in order, keeping each day's own order and gaps.`}{" "}
+          It is one history entry, so one undo takes the whole thing back out.
         </Text>
 
         {error !== null && (

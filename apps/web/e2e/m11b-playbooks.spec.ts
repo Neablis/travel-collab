@@ -108,7 +108,7 @@ async function tripWithCities(
 
 /** Keeps a day into the library. The pennant flow itself is m11-saved-days'. */
 async function keepDay(page: Page, tripId: string, dayId: string, name: string): Promise<string> {
-  const res = await page.request.post("/api/saved-days", { data: { name, tripId, dayId } });
+  const res = await page.request.post("/api/saved-days", { data: { name, tripId, dayIds: [dayId] } });
   expect(res.ok(), `keep -> ${res.status()}`).toBe(true);
   return ((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId;
 }

@@ -41,13 +41,15 @@ import {
   enrichCommandLocations,
   hasCityLevelLocations,
   hasUnverifiedLocations,
+  type GeocodeCharge,
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
+import { consumeQuota, geocodeQuota } from "@/server/quota";
 import { tripRegionOf } from "@/server/ai/geocodeRegion";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/ai/idFields";
 import type { AskDroppedCall } from "@/server/ai/askAnalytics";
-import type { CollectedInsert } from "@/server/assistant/deps";
+import type { CollectedInsert, PlaceCache, PlaceCandidate } from "@/server/assistant/deps";
 
 export type { RawToolIntent } from "@/server/ai/batchResolver";
 export type { CollectedInsert } from "@/server/assistant/deps";
@@ -206,6 +208,126 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
 }
 
 /**
+ * **The citation half of grounding, resolved — this is where M9's title
+ * happens** (KI-81, and KI-15's architectural half).
+ *
+ * A write intent carrying `placeRef: N` is citing the Nth candidate the turn's
+ * own `search_places` calls returned. This replaces its `location` with that
+ * candidate's name and coordinates and DROPS the ref, so:
+ *
+ *   * **the card a human approves names the place the server found**, not the
+ *     place the model typed — the same rule `insert_playbook_day` follows for
+ *     a saved day's name;
+ *   * **`placeRef` never leaves the server.** It is transport between the model
+ *     and this function, resolved before anything is serialised, so the apply
+ *     door needs no new trust (it also never reaches the stored event:
+ *     `contracts/test/m9-place-ref.test.ts` pins that from the other end);
+ *   * **a cited stop arrives at enrichment already located**, so the blind
+ *     post-hoc geocoder does not touch it. That is the demotion KI-15 asks for:
+ *     enrichment becomes a fallback for locations nobody searched for.
+ *
+ * **It runs over the raw INTENTS, before `resolveBatch`, and that is not a
+ * style choice — the first spelling of it ran after, and a test caught it.**
+ * `UpdateActivity { activityRef, placeRef }` is a perfectly good thing for a
+ * model to emit ("point that stop at the place I just found"), and to the
+ * domain it is an update with no changed field: `decideTripCommand` rejects it
+ * `no-op` and `buildProposal` returns null for a turn whose only write it was.
+ * `placeRef` is not a domain field — it is stripped from the stored payload by
+ * construction — so the citation has to BECOME a location before the domain is
+ * asked whether anything changed.
+ *
+ * **An unresolvable ref does not fabricate, and does not silently vanish.** A
+ * number past the end of the cache, or any number at all on a turn that never
+ * searched, drops the citation, keeps whatever free-text location the intent
+ * already had — so the stop is still made — and returns a sentence for the
+ * proposal's `skipped` list, where the user reads it. A refusal somebody can
+ * see beats a coordinate nobody checked.
+ *
+ * **It also strips a `precision` the model claimed for its own coordinates**,
+ * which closes the gap `contracts/src/activity.ts` names in its own comment:
+ *
+ * > *NOT a fourth tier for the assistant's own unverified guess, which today
+ * > reaches the map indistinguishable from a vendor-verified venue. That is a
+ * > real gap and a deliberate omission.*
+ *
+ * Grounding is what makes it stop being deliberate, because grounding needs the
+ * field to MEAN something: `enrichCommandLocations` now skips a location that
+ * already carries `precision` and coordinates — a place the server itself
+ * resolved — so a model that could write `precision: "venue"` beside a guessed
+ * lat/lng could skip the one check that would have caught it. Stripped BEFORE
+ * the citation is resolved, so a cited stop keeps the server's answer.
+ *
+ * `cache` is nullable because not every caller has one: a turn on a surface
+ * that grants no `places` domain has nothing to resolve against, and passing
+ * null there is honest where passing an empty cache would read as "searched and
+ * found nothing".
+ */
+export function groundCitedPlaces(
+  intents: readonly RawToolIntent[],
+  cache: PlaceCache | null,
+): { intents: RawToolIntent[]; unresolved: string[] } {
+  const unresolved: string[] = [];
+  const grounded = intents.map((intent) => {
+    if (intent.type !== "AddActivity" && intent.type !== "UpdateActivity") return intent;
+    const args: Record<string, unknown> = { ...intent.args };
+    const claimed = args.location;
+    if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
+      const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
+      delete cleaned.precision;
+      args.location = cleaned;
+    }
+    const cited = args.placeRef;
+    if (cited === undefined) return { ...intent, args };
+    // The key is REMOVED rather than set to undefined, for the reason
+    // `withoutFabricatedCost` gives: an object is not a JSON payload, and
+    // `"placeRef" in args` is the only thing distinguishing a dropped citation
+    // from one that was never made.
+    delete args.placeRef;
+    const candidate = typeof cited === "number" ? (cache?.get(cited) ?? null) : null;
+    if (candidate === null) {
+      unresolved.push(`${describeCitingIntent(intent)} cited place ${String(cited)}, which was not one of this turn's search results — its location is not confirmed.`);
+      return { ...intent, args };
+    }
+    return { ...intent, args: { ...args, location: locationFromCandidate(candidate) } };
+  });
+  return { intents: grounded, unresolved };
+}
+
+/**
+ * How the `skipped` sentence names the stop whose citation was dropped.
+ *
+ * The model's own words for it — a title on an add, the ref it used on an
+ * update — because the resolved id does not exist yet at this point and would
+ * mean nothing to the reader if it did.
+ */
+function describeCitingIntent(intent: RawToolIntent): string {
+  const args = intent.args as Record<string, unknown>;
+  const named = intent.type === "AddActivity" ? args.title : args.activityRef;
+  return typeof named === "string" && named.length > 0 ? `“${named}”` : "A stop";
+}
+
+/**
+ * One cited candidate as the `Location` that will be stored.
+ *
+ * `precision: "venue"` on the same argument `resolveOne` already makes for the
+ * enrichment path — *"the vendor answered a VENUE query with a place, so that
+ * is what its coordinate describes"* — and `search_places` sends the same
+ * `/v1/search` query for the same kind of thing. One concept, one answer, and
+ * not a second tier invented for this path.
+ */
+function locationFromCandidate(candidate: PlaceCandidate) {
+  return {
+    name: candidate.name,
+    lat: candidate.lat,
+    lng: candidate.lng,
+    precision: "venue" as const,
+    ...(candidate.countryCode === undefined ? {} : { countryCode: candidate.countryCode }),
+    ...(candidate.city === undefined ? {} : { city: candidate.city }),
+    ...(candidate.area === undefined ? {} : { area: candidate.area }),
+  };
+}
+
+/**
  * Resolve what the turn collected into a reviewable proposal. Writes nothing.
  *
  * `resolveBatch` is used exactly as the command endpoint uses it — same
@@ -236,11 +358,21 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
 export function buildProposal(
   intents: RawToolIntent[],
   detail: TripDetail,
-  opts: { tripId: string; actorId: string; mintId?: () => string; proposalId?: string },
+  opts: {
+    tripId: string;
+    actorId: string;
+    mintId?: () => string;
+    proposalId?: string;
+    /** This turn's numbered search results, for `placeRef` to resolve against. */
+    placeCache?: PlaceCache;
+  },
   inserts: readonly CollectedInsert[] = [],
 ): AssistantProposal | null {
   if (intents.length === 0 && inserts.length === 0) return null;
-  const { commands, errors } = resolveBatch(intents, detail, {
+  // **Grounding first, on the intents, before the domain is consulted** — see
+  // `groundCitedPlaces` for why after does not work.
+  const { intents: cited, unresolved } = groundCitedPlaces(intents, opts.placeCache ?? null);
+  const { commands, errors } = resolveBatch(cited, detail, {
     tripId: opts.tripId,
     actorId: opts.actorId,
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
@@ -260,7 +392,10 @@ export function buildProposal(
     // `stopCount` is dropped on the way out: it was for the sentence above, and
     // the apply door reads the row rather than anything on this list.
     inserts: inserts.map(({ savedDayId, name }) => ({ savedDayId, name })),
-    skipped: errors.filter((e) => e.code !== "no-op").map((e) => e.message),
+    // A dropped citation lands here beside a dropped command, because they are
+    // the same kind of fact to the person reading the card: something the
+    // assistant asked for that the server would not do on its word alone.
+    skipped: [...errors.filter((e) => e.code !== "no-op").map((e) => e.message), ...unresolved],
   };
 }
 
@@ -285,9 +420,16 @@ export function buildProposal(
 export function droppedWriteCalls(
   intents: RawToolIntent[],
   detail: TripDetail,
-  opts: { tripId: string; actorId: string },
+  opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
 ): AskDroppedCall[] {
-  const { errors } = resolveBatch(intents, detail, opts);
+  // **The same grounding pass `buildProposal` runs, and for the same reason it
+  // runs there: without it the two disagree.** A `placeRef`-only
+  // `UpdateActivity` is a domain `no-op` until the citation becomes a location,
+  // so an ungrounded dry run here would record a dropped call for a change the
+  // user was in fact shown and did in fact approve. This function's whole
+  // contract is that it is the same dry run.
+  const { intents: cited } = groundCitedPlaces(intents, opts.placeCache ?? null);
+  const { errors } = resolveBatch(cited, detail, opts);
   return errors
     .filter((e) => e.code !== "no-op")
     .map((e) => ({
@@ -409,6 +551,24 @@ function enrichmentNotices(report: LocationEnrichmentReport, committed: boolean)
   ];
 }
 
+/**
+ * One lookup's worth of the approver's daily geocode allowance — **KI-93's
+ * second door**.
+ *
+ * `geocodeQuota()`'s per-user 300 and global 4,000 exist to keep
+ * `LOCATIONIQ_API_KEY` inside LocationIQ's 5,000/day free tier, and until now
+ * they bounded `/api/geocode` alone — the endpoint a person drives one button
+ * press at a time — while this path, which can emit fifteen lookups per
+ * approval, consulted nothing.
+ *
+ * Charged against the ACTOR, who is the person who clicked Approve. That is the
+ * same identity `/api/geocode` charges and the same one the batch is attributed
+ * to, so one person's day is one number wherever they spend it.
+ */
+async function chargeGeocodeQuota(userId: string): Promise<boolean> {
+  return (await consumeQuota(geocodeQuota(), userId)).allowed;
+}
+
 export async function commitProposal(
   tripId: string,
   commands: BatchableCommand[],
@@ -416,6 +576,10 @@ export async function commitProposal(
   detail: TripDetail,
   geocoder?: Geocoder,
   inserts: readonly { savedDayId: string }[] = [],
+  // Defaulted from `actorId` rather than closed over a module singleton, so the
+  // one call site that matters — the apply route — cannot accidentally meter
+  // the wrong person, and a test can drive the ceiling without a database.
+  charge: GeocodeCharge = () => chargeGeocodeQuota(actorId),
 ): Promise<{ ok: true; value: ProposalCommitResult } | { ok: false; error: { code: string; message: string } }> {
   const days: SavedDay[] = [];
   for (const { savedDayId } of inserts) {
@@ -430,6 +594,8 @@ export async function commitProposal(
     commands,
     () => geocoder ?? getGeocoder(),
     tripRegionOf(detail),
+    undefined,
+    charge,
   );
 
   // `insertCommands` — the SAME exported function the manual "Add to a trip"

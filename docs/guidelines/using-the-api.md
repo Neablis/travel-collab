@@ -4,9 +4,14 @@ The public REST API is everything under `/api/v1/**`. This page is for two
 audiences: somebody writing a program against it, and somebody in this repo
 adding an endpoint to it.
 
-Everything here is M22. The design and the reasoning behind each decision are in
+The surface is M22's. The design and the reasoning behind each decision are in
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`; the scope
 and the exit gate are in `docs/milestones/M22-public-api-and-tokens.md`.
+
+**One section is not M22's**: *Taking a trip out, and putting one back* is
+**M25** (`docs/milestones/M25-a-trip-is-a-file.md`), and its two endpoints were
+built to measure M22's own claim that adding endpoint N+1 costs a declaration
+and nothing else.
 
 ## For a caller
 
@@ -130,6 +135,118 @@ response carries `items` and `nextCursor`; `nextCursor: null` is the end.
 **The cursor is opaque — do not parse it.** A limit outside the range is refused
 rather than clamped, so you cannot silently page forever against a number the
 server quietly changed.
+
+### Putting a stop on the map
+
+A stop's `location` can carry coordinates, a postal address, or just a name.
+The map draws coordinates only, so on `POST`/`PATCH …/activities` the server
+fills them in when you leave them out, in this order:
+
+1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither.
+2. **`address`** — geocoded as a structured address.
+3. **`name`** — geocoded as free text, preferring places near the trip's other stops
+   (and inside `countryCode`, if you set it).
+
+If the lookup finds nothing, the stop is **still created**, without coordinates.
+Every write whose body had a `location` answers with a `Geocode-Outcome` header:
+`provided`, `address`, `name`, `no-match`, `quota-exhausted` or `unavailable`.
+Lookups count against your account's daily geocoding allowance.
+
+```json
+{
+  "title": "Dinner",
+  "location": {
+    "name": "Zum Roten Ochsen",
+    "address": {
+      "countryCode": "DE",
+      "lines": ["Hauptstraße 217"],
+      "locality": "Heidelberg",
+      "postalCode": "69117"
+    }
+  }
+}
+```
+
+**Addresses are structured, not one string.** `lines` is the street-level
+part in the country's own order (`["221B Baker Street"]`, `["Hauptstraße 5"]`,
+`["1-2-3 Nishi-Azabu"]`); `countryCode` (ISO alpha-2) is required; `locality`,
+`dependentLocality`, `administrativeArea` and `postalCode` (a string) are
+optional. The address is stored exactly as you send it — we never assemble one
+from a geocoder's answer, because those come back as components with no
+per-country ordering. Geocoding only ever *adds* coordinates to what you wrote.
+
+If you send `countryCode` on the location as well, it must match the address's.
+Two country fields that can disagree is a bug generator, so the write is
+refused rather than one of them silently winning.
+
+**To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
+(optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
+`location`: send one back as-is and the write costs no second lookup. Needs
+`trips:write` — a lookup spends the operator's geocoding allowance, so a
+read-only token cannot make one. A spent allowance answers `429` with
+`Retry-After`; a geocoder that is down answers `503`.
+
+### Taking a trip out, and putting one back
+
+Two endpoints, added by **M25**. Both speak `travel-collab/content-bundle/v1` —
+the format `content/` is authored in — rather than a third vocabulary, so a file
+you download is a file you can hand-edit and re-upload, and the schema behind it
+already has a CI test over every checked-in example.
+
+```bash
+curl -H "Authorization: Bearer $TC_TOKEN" \
+  https://…/api/v1/trips/$TRIP/export > kyoto.json
+
+curl -X POST -H "Authorization: Bearer $TC_TOKEN" \
+  -H "content-type: application/json" \
+  --data-binary @kyoto.json https://…/api/v1/trips/import
+```
+
+| | Scope | Role | Notes |
+|---|---|---|---|
+| `GET /v1/trips/{tripId}/export` | `trips:read` | `viewer` | The response body **is** the file. A viewer may export, because a viewer may already clone (ADR-028 decision 3). |
+| `POST /v1/trips/import` | `trips:write` | — | Creates a trip, so a **trip-scoped token is refused**, exactly as `POST /v1/trips` refuses one. Answers the created `TripDetail`. |
+
+**Six things worth knowing before you write against them:**
+
+1. **An export carries days and activities. Nothing else.** No budget, no
+   currency, no members, invites or share links, no notebook pages, no lineage
+   or trip status. A stop's own `cost` **is** carried — it is a field of an
+   activity, and `Money` names its own currency. So is the backlog. This is a
+   scope line taken deliberately (Mitchell, 2026-09-18), not a gap; one thing it
+   buys is that **an export cannot carry a membership list out of the system**.
+2. **An export is a snapshot, not a backup and not the event log.** A
+   re-imported trip starts a fresh stream — no undo, no redo, no history.
+3. **An import MINTS ids.** The same file uploaded twice gives you **two**
+   trips. There is no upsert and no way to address an existing trip with a
+   file, deliberately.
+4. **Ownership comes from your credential, never from the file.** Anything a
+   bundle says about who owns what is discarded.
+5. **One trip per file.** Zero or two is a 400 saying which. `playbooks`,
+   `notebooks` and the loose `activities` wishlist are read past rather than
+   refused, so a file carrying them still imports its trip.
+6. **Ceilings, refused and never truncated**: 2,000,000 bytes, 1,000 stops and
+   366 days, each named in its own 400.
+
+**Dates.** A dated trip exports its real `startDate` and re-imports onto it —
+**including one in the past**, which is the intended answer rather than a
+defect: this is a copy of *your* trip, not a re-usable shape, so a stale export
+imports as a stale trip. A trip with no dates exports with **neither** anchor
+and imports as dateless, its days addressed by position. Export never emits
+`startsInDays`; that form is how authored library content keeps itself upcoming.
+
+**Validation is the schema's, not the content linter's.** `lint.ts` states rules
+for library content headed for Discover, and three of them are errors an
+ordinary trip trips routinely — an empty trip, stops out of clock order after
+you reorder a board, a backlog item carrying a time window. None of those stops
+an upload. A file that does not parse imports **nothing**; there is no partial
+import.
+
+**Export is free; the API is not.** Downloading a trip from the app needs no
+plan. Calling these endpoints needs a token, and a token needs `api.tokens`,
+which is `premium@v2` — so `GET /v1/trips/{tripId}/export` answers 402 for an
+account that cannot hold one. That is *the API* being gated, exactly as it is
+for `GET /v1/trips`; the free path is the UI one.
 
 ### What is not here, and will not be
 

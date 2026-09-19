@@ -9,6 +9,7 @@ import {
   type AskWireMessage,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
+import { clearAskThread, loadAskThread, saveAskThread } from "@/lib/askThreadStore";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -76,17 +77,48 @@ export interface AskThread {
   patchTurn: (turnId: string, fn: (turn: AssistantTurn) => AssistantTurn) => void;
 }
 
+/**
+ * The highest turn number in a restored thread.
+ *
+ * Ids are `u3`/`a4` — a prefix and the shared counter — so a restored
+ * conversation ends at some number this session's counter has to start past.
+ * Anything unparseable contributes 0, which is the safe direction: it can only
+ * make the counter start lower, and the `Math.max` against the live counter is
+ * what stops that mattering.
+ */
+function highestTurnSeq(thread: readonly AssistantTurn[]): number {
+  return thread.reduce((highest, turn) => {
+    const parsed = Number.parseInt(turn.id.slice(1), 10);
+    return Number.isFinite(parsed) && parsed > highest ? parsed : highest;
+  }, 0);
+}
+
 export function useAskThread({
   tripId,
   scope,
   onEvent,
   errorMessage,
+  persistAs,
 }: {
   tripId: string;
   scope: AskScope;
   onEvent?: AskEventHandler;
   /** How this surface words a transport failure. */
   errorMessage: (error: ApiError) => string;
+  /**
+   * **Where to keep this conversation across a reload** (M9 design §6), or
+   * undefined to keep it only as long as the surface is mounted.
+   *
+   * Opt-in and NAMED BY THE CALLER, because "which conversation is this?" is a
+   * question only the surface can answer. Three surfaces mount this hook and
+   * two of them share a `tripId` — a key derived from the hook's own arguments
+   * would make the board and a notebook page the same thread, which is exactly
+   * the collision a caller-supplied name cannot have by accident.
+   *
+   * Opt-in rather than on-by-default so a surface that has not thought about
+   * what a restored transcript means on it gets the behaviour it has today.
+   */
+  persistAs?: string;
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
@@ -112,6 +144,8 @@ export function useAskThread({
   // nobody wants, and navigating away mid-answer leaves the read running and
   // its setState firing into a tree that is gone.
   const abort = useRef<AbortController | null>(null);
+  /** The key `thread` is known to belong to; see the save effect below. */
+  const savedKey = useRef<string | undefined>(undefined);
   // Runs on unmount only, so it must not be keyed on anything that changes.
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -123,10 +157,92 @@ export function useAskThread({
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
 
+  // **Rehydrated in an effect, not in `useState`'s initialiser.** The
+  // initialiser runs during the server render too, where `window` does not
+  // exist — and even guarded, it would make the first client render disagree
+  // with the server's HTML, which is a hydration mismatch rather than a missing
+  // thread. So the surface mounts empty and the conversation arrives one paint
+  // later, which is invisible and correct.
+  //
+  // Keyed on `persistAs`: the name IS the conversation's identity, so a surface
+  // that switches conversations replaces the thread rather than keeping the
+  // old one. Replacing unconditionally — including with an empty thread — is
+  // what makes that one rule instead of two.
+  useEffect(() => {
+    if (persistAs === undefined) return;
+    // **A request in flight belongs to the conversation being left.** Its
+    // deltas would otherwise keep arriving after the new one is loaded, and
+    // `patchAnswer` patches BY ID — a restored `a3` under the new key is a
+    // legitimate target for the old turn's `a3`. Clearing the ref is what
+    // makes the identity guard in `runAsk` reject them; aborting stops the
+    // work as well as the writes. (CodeRabbit, PR #188.)
+    abort.current?.abort();
+    abort.current = null;
+    // **Everything transient belongs to the conversation being left**
+    // (CodeRabbit, PR #188). Aborting stops the request; it does not clear what
+    // the request already put on screen. Without this, switching trips carried
+    // the previous trip's error banner, its "simulated" notice and its restored
+    // draft into a conversation that never produced them — and a status still
+    // reading "loading" would leave the composer disabled for a request that
+    // was cancelled.
+    setStatus("idle");
+    setAskError(null);
+    setAskErrorCode(null);
+    setSimulated(false);
+    setRestoredDraft(null);
+    const stored = loadAskThread(persistAs);
+    setThread(stored);
+    // The stored ids have to stay unique against the ones this session mints.
+    // `nextTurnId` counts from zero, so a restored `u3` and a new `u3` would
+    // collide — and `patchAnswer` patches BY ID. Starting the counter past
+    // anything restored is what keeps that impossible.
+    turnSeq.current = Math.max(turnSeq.current, highestTurnSeq(stored));
+  }, [persistAs]);
+
   const nextTurnId = (prefix: string) => {
     turnSeq.current += 1;
     return `${prefix}${turnSeq.current}`;
   };
+
+  // **Written whenever the thread changes, including mid-stream.**
+  //
+  // A `status === "loading"` guard was written here first, to save once per
+  // TURN rather than once per delta — and then deleted, because no test in this
+  // lane can falsify it: `act` batches, so four deltas are one render and one
+  // write either way. A claim a test cannot make is a comment with a timer on
+  // it (CLAUDE.md rule 3), so what is left is the behaviour that can be
+  // asserted. The cost it was guarding is a `JSON.stringify` of at most 40
+  // turns; the thing it was giving up is a transcript that survives a reload
+  // taken mid-answer, which `storable` settles on the way in exactly as
+  // `runAsk` settles a partial failure.
+  //
+  // **It never REMOVES, and that is what makes the restore above safe.**
+  // Effects run in declaration order after a commit, so on first mount the
+  // restore schedules its state update and this one then runs against the
+  // render's thread, which is still empty. A save that treated empty as "forget
+  // this" would delete the stored conversation on the way to showing it — and a
+  // tab closed inside that window would lose the thread it was about to show.
+  // `saveAskThread` returns on an empty thread for exactly this reason; the
+  // first spelling had the removal there and a latch here trying to outrun it,
+  // which a mutation test would not let stand.
+  useEffect(() => {
+    if (persistAs === undefined) return;
+    // **The transition render is skipped, and that is the whole fix**
+    // (CodeRabbit, PR #188). Effects run in declaration order, so on the
+    // render where `persistAs` goes A -> B the restore above has only
+    // SCHEDULED its `setThread`: `thread` here is still A's. Writing it
+    // stored A's conversation under B's name — and because `saveAskThread`
+    // returns early on an empty thread rather than removing, the next save
+    // could not undo it. Opening B then showed A's conversation.
+    //
+    // A ref rather than state: it has to be readable in the same commit the
+    // key changed in, which is exactly what state cannot do.
+    if (savedKey.current !== persistAs) {
+      savedKey.current = persistAs;
+      return;
+    }
+    saveAskThread(persistAs, thread);
+  }, [persistAs, thread]);
 
   const runAsk = async (text: string) => {
     const userTurn: AssistantTurn = { id: nextTurnId("u"), role: "user", text };
@@ -252,6 +368,11 @@ export function useAskThread({
   const startNewConversation = () => {
     abort.current?.abort();
     abort.current = null;
+    // **Forgotten, not just emptied**, and this is the only thing that forgets:
+    // the save effect never removes (see its own note), so without this line a
+    // "New conversation" would clear the screen and leave the old thread in
+    // storage to come back on the next reload.
+    if (persistAs !== undefined) clearAskThread(persistAs);
     setThread([]);
     setStatus("idle");
     setAskError(null);

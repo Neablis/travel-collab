@@ -2,6 +2,51 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**EXECUTED 2026-09-16**, all seven tasks, on `claude/m9-ui-transcript-and-new-trip`.
+
+## What this slice does NOT claim
+
+The half worth writing down, because the sheet now *looks* finished:
+
+- **`pace` and `feel` are collected and stored nowhere.** No field models either,
+  and nothing consumes them until the theme pass (item 3) and the fork (item 7)
+  land. The closing line says so out loud — that is **D-C**, and it is why the
+  design's own `made` copy was not shipped.
+- **There is no draft, and no model call.** `wizard-assistant-draft` is still a
+  `<Preview>` shell for exactly that reason. The four turns collect the answers a
+  generation would need; nothing generates.
+- **Nobody has walked it in a browser.** This container has no interactive
+  browser. The walk in *Verification* below is real and unperformed — dispatch
+  `phase-verifier` against the PR's Vercel preview before any gate box moves.
+
+## Five corrections the build made to this document
+
+Recorded rather than silently absorbed, in the order they were hit:
+
+1. **Task 4's two instructions contradicted each other.** It deletes the budget
+   and currency fields, and it says the four retry tests "keep passing with only
+   their setup changed" — but those tests stage a budget *through those fields*,
+   so no setup reaches the latch once the form is gone. Mitchell's call: extract
+   the sequence. It is `newTripSubmit.ts`, fourteen tests where there were four.
+2. **Task 2's hook test is `.test.tsx`, not `.test.ts`.** `renderHook` mounts
+   React and needs a document, and `vitest.unit.config.ts` splits node from jsdom
+   by extension. The `JSDOM_TS_FILES` escape hatch is for files needing a
+   document *without* rendering React, which is not this.
+3. **Fourteen inlined call sites, not fifteen.** The fifteenth
+   (`responsive.spec.ts:894`) only asserts the field is visible — a spec about
+   the sheet rather than a user of it — so it changed with the sheet in Task 4.
+   A sixteenth was found later by the full suite: `m15-front-door` wrote the
+   locator as `/trip name/i`, which six exact-string greps all missed.
+4. **Task 6 did not need rewriting after D-B.** An earlier note here claimed it
+   did. Step 3 spells out both branches and already carries the one D-B chose —
+   and its Step 4 correctly predicted that removing `wizard-longer-chip` breaks
+   `preview.test.tsx`'s typecheck, which a rewrite would have lost.
+5. **No end-date input, against Task 4's "an end date, with a Use these
+   button".** `lib/dates` has `addDaysIso` and no day-difference helper, and
+   `SetTripDates` is computed from `arrive + days`. A second source of trip
+   length is the drift that makes 4 mean five days on one screen and four on
+   another. Arrive plus a length chip; the confirmation line is tested.
+
 **Goal:** Replace `NewTripWizard`'s four-step stepper with the scripted four-turn conversation the design asks for — `where` · `when` · `pace` · `feel` — inside the same sheet, with both exits live throughout, and close `KI-2026-09-12-e` while that file is open. A person can walk the whole thing on a preview and come out holding a real trip.
 
 **Architecture:** The questions are a **fixed local script**, not a conversation with a model. `SPEC.md` §30.2 is the load-bearing sentence of this whole design: *"The questions, their order, their chips and the commit behaviour are all local; the first model call happens after the [last] answer, once."* A build that makes the questions themselves conversational turns every abandoned New-trip sheet into billed turns. So the script is a pure data module with a pure reducer over it, and the React layer renders that reducer's output into the shared `components/assistant/Transcript.tsx` — the flow becomes a **third consumer** of that component rather than a fourth implementation of a transcript. The trip-creating half is unchanged: `createTrip({ name })` then `SetTripDates`, exactly the sequence `submit()` runs today, with the latch that KI-2026-09-12-e is about.
@@ -67,6 +112,15 @@ State these in the PR body too; each is a real capability a reviewer will look f
 
 ## Decisions Mitchell owes before this is executed
 
+**ANSWERED 2026-09-16, all four, in one sitting before the first build commit.** Each
+answer is recorded under its own heading below.
+
+Two of them — D-B and D-D — needed the plan's conditional branches rather than its
+default, and **Task 6 already carries both**, which a first version of this preamble got
+wrong by claiming the task had to be rewritten. It does not; it has to be read. D-B also
+reverses a decision recorded in source, so `NewTripWizard.tsx` carries the reversal as
+well as this file, in the commit that moves the code.
+
 Three things the design does not settle. **Flagged, not invented.** Each one has a concrete consequence named, so the answer is a sentence rather than a design session.
 
 ### D-A. "Recent and nearby" has no data source
@@ -80,6 +134,11 @@ Design §10.7, and `DRIFT.md`'s own line 299: *"drop the two `unplaced` wizard s
 
 Task 6 is written against the first answer and says what to change for the second.
 
+> **ANSWERED 2026-09-16 — the label drops.** The chips become plain suggestions with no
+> label. `wizard-destination-chips` **leaves** `preview-registry.ts` in Task 6, because
+> once the unsupported claim is gone there is nothing unbuilt left to mark. Storing
+> destinations stays D6/KI-34's neighbourhood and is not pulled into M9.
+
 ### D-B. `Longer` acquired a day count
 
 `NT_NIGHTS` in the design file maps `Longer → 21`. `NewTripWizard.tsx:26-30` records the opposite decision in a comment: *"`Longer` has no day count the design implies (Mitchell, 2026-08-23 decision) — it ships as an inert Preview badge."* **The design reverses a recorded decision without recording that it did.** Confirm which holds:
@@ -87,7 +146,30 @@ Task 6 is written against the first answer and says what to change for the secon
 - **21 confirmed** → `Longer` becomes a fifth real length chip and `wizard-longer-chip` leaves the registry.
 - **2026-08-23 holds** → `Longer` either drops from the chip row entirely (the composer already accepts "three weeks" as prose) or stays an inert `<Preview>` badge, and the registry entry stays.
 
-Task 6 is written against the second answer, because it is the one currently recorded in the code.
+> **ANSWERED 2026-09-16 — 21 nights is confirmed, and this REVERSES the 2026-08-23
+> decision.** `Longer` becomes a fifth real length chip mapping to 21 nights, and
+> `wizard-longer-chip` **leaves** `preview-registry.ts`.
+>
+> **Correction to this note as first written.** It said Task 6 "was written against the
+> other answer and is now wrong as drafted". That is false, and reading Task 6 rather
+> than remembering it is what showed so: Step 3 spells out **both** branches, and the one
+> this answer selects — *"Longer becomes a fifth length chip and the entry is removed"* —
+> is already written there. Task 6 needs following, not rewriting.
+>
+> Its Step 4 also names the trap the removal creates, which this note would have lost:
+> `preview.test.tsx:74-80` uses `wizard-longer-chip` as a **fixture id**, so dropping the
+> entry narrows `PreviewId` and breaks the typecheck of a file with nothing to do with
+> the wizard.
+>
+> **The reversal has to reach the source comment, and only when the code moves with it.**
+> `NewTripWizard.tsx:25-30` states the 2026-08-23 decision as live fact, so a reader who
+> never finds this file believes it. Task 6 rewrites that comment **in the same commit
+> that adds the fifth chip** — writing the new decision above code still implementing the
+> old one is the comment-contradicts-code defect that cost #184 two findings.
+>
+> The design file reversed this decision *without* recording that it did, which is the
+> entire reason D-B existed. Repeating that in the other direction would be worse, not
+> symmetrical.
 
 ### D-C. What the closing turn is allowed to say
 
@@ -98,6 +180,12 @@ Proposed closing copy, which is true of what this slice actually creates:
 > *"{name} is created, {N} days from {start}. The days are empty and yours to fill — what you said about pace and what the trip is about is not built in yet."*
 
 …with the dates clause omitted when no dates were supplied. Confirm, or supply different words. **Do not ship the design's `made` copy as written.**
+
+> **ANSWERED 2026-09-16 — use the proposed copy.** Task 4 ships exactly the sentence
+> above, dates clause omitted when no dates were supplied. The design's `made` copy is
+> not shipped, and Task 7 records why: `pace` and `feel` are collected and stored
+> nowhere, so a closing turn claiming the trip was built around them would be a
+> fabricated note in a repo that keeps a registry to mark exactly those.
 
 ---
 
@@ -583,6 +671,10 @@ The defect, in the KI's own words: the wizard's retry is safe against a *rejecte
 3. **Half the wiring exists.** `POST /api/trips/:id/commands` already returns `{ error, code }` and `sendTripCommand` already surfaces `code` on the `ApiError` (`apiClient.ts:172-176`, `:38`). **`POST /api/trips` returns only `{ error }`**, and `createTrip` drops the code. That asymmetry is the whole gap on the create half.
 
 **This is D-D, and Mitchell owes it** — the KI says the choice between an idempotency key and a read-back reconcile is his. The recommendation below is the key, because the read-back costs a round trip on every retry and needs a list-and-match heuristic on a name that is not unique. **Confirm before executing this task.** Tasks 1–4 and 6–7 do not depend on it.
+
+> **ANSWERED 2026-09-16 — the idempotency key.** The client mints the `tripId` and sends
+> it; `CreateTripBody` accepts it as an optional uuid. Read-back is not taken, for the
+> reason above. This task is **in** this slice rather than deferred.
 
 **Files:**
 - Modify: `apps/web/src/app/api/trips/route.ts` (`CreateTripBody` at `:34`, the POST handler at `:36-54`)

@@ -167,7 +167,7 @@ test.describe("responsive (narrow viewport)", () => {
       },
     });
     const kept = await page.request.post("/api/saved-days", {
-      data: { name: `Responsive day ${Date.now()}`, tripId, dayId },
+      data: { name: `Responsive day ${Date.now()}`, tripId, dayIds: [dayId] },
     });
     expect(kept.ok()).toBe(true);
 
@@ -846,10 +846,75 @@ test.describe("responsive (narrow viewport, signed out)", () => {
 // M11a's invite gate admits only with the super code `signInAsDevUser`
 // already presents — see that helper's own comment for why dev login goes
 // through the gate rather than around it.
+test.describe("responsive (new trip sheet, short viewport)", () => {
+  // **The sheet has to BE a chat box, not contain one.** Mitchell, on the
+  // 5c27d37 preview: *"This is still wrong, the input and decisions are at
+  // bototm, and the chat at top, this should look like a chat box"* — anchored
+  // to the composer inside the dialog.
+  //
+  // `Sheet` puts its children in a `flex-1 overflow-y-auto` scrollport, which
+  // is a block, so it sizes them to content. `NewTripConversation`'s `flex-1`
+  // transcript therefore had nothing to fill: the thread grew the sheet, took
+  // the dock down with it, and the composer left the fold as the conversation
+  // got longer. §31.3's "original sin", one level up from where it was fixed.
+  //
+  // This is a layout defect, so it is asserted where layout exists. The
+  // invariant §31.3 states is "the transcript scrolls and the dock does not",
+  // and its observable form is that **the sheet's own scrollport never has
+  // anything to scroll** — the conversation is exactly its height. A short
+  // viewport is what makes the broken version overflow deterministically.
+  test("the thread scrolls inside the sheet, and the composer stays docked", async ({ page }) => {
+    await page.setViewportSize({ width: 420, height: 620 });
+    // A trip has to exist, or Home renders the conversation inline instead of
+    // in a sheet — that path is bounded by `h-a-thread` and never had this bug.
+    await page.request.post("/api/trips", { data: { name: e2eTripName("Dock") } });
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "New trip" }).click();
+    const sheet = page.getByRole("dialog", { name: "New trip" });
+    await expect(sheet).toBeVisible();
+
+    const scrollport = sheet.getByTestId("sheet-scrollport");
+    const thread = sheet.getByRole("log", { name: "Conversation" });
+
+    // Answer the long path — the six-turn one, with the day picker in it — so
+    // the thread is as tall as this flow ever gets.
+    await sheet.getByLabel("Where are you going?").fill("Lisbon");
+    await sheet.getByRole("button", { name: "Send" }).click();
+    await sheet.getByRole("button", { name: "Yes" }).click();
+    // `exact`, because Playwright's `getByLabel` is a substring match and the
+    // composer on this very turn is labelled "When do you arrive?".
+    await sheet.getByLabel("Arrive", { exact: true }).fill("2026-10-03");
+    await sheet.getByRole("button", { name: "Use this date" }).click();
+    await sheet.getByRole("button", { name: "A week" }).click();
+    await sheet.getByRole("button", { name: "Slow" }).click();
+    await expect(thread).toContainText("What is the trip about?");
+
+    // The composer is gone on the multi-pick turn, so the control checked here
+    // is the one that ends the flow — still the last thing, still on screen.
+    const commit = sheet.getByRole("button", { name: "Nothing in particular" });
+    await expect(commit).toBeVisible();
+    await expect(commit).toBeInViewport();
+
+    // **The sheet does not scroll.** With the bug this overflows by the height
+    // of everything the thread added.
+    const outer = await scrollport.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(outer.scroll, "the sheet scrollport is scrolling — the thread is growing the sheet").toBeLessThanOrEqual(outer.client + 1);
+
+    // …because the thread is the thing that scrolls instead.
+    const inner = await thread.evaluate((el) => {
+      const port = el.closest("[class*='overflow-y-auto']");
+      return port === null ? null : { scroll: port.scrollHeight, client: port.clientHeight };
+    });
+    expect(inner, "the transcript has no scrollport of its own").not.toBeNull();
+    expect(inner!.scroll, "the transcript is not the thing that scrolls").toBeGreaterThan(inner!.client);
+  });
+});
+
 test.describe("responsive (narrow viewport, first trip)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("all four steps and all three actions stay visible and operable below sm", async ({ page }) => {
+  test("the conversation and both other routes stay visible and operable below sm", async ({ page }) => {
     // Set before signing in, matching this file's own pattern for a
     // breakpoint below the narrow project's own 1100px — 375px is a real
     // phone width already used elsewhere in this file (the hero-art and
@@ -861,14 +926,18 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     const card = page.getByTestId("first-trip-start");
     await expect(card).toBeVisible();
 
-    // Four steps, every one of them actually on screen — not just present in
-    // the DOM, which a `grid-cols-2` collapse that clipped rather than
-    // reflowed would still satisfy.
-    const steps = page.getByTestId("first-trip-steps").getByRole("listitem");
-    await expect(steps).toHaveCount(4);
-    for (const step of await steps.all()) {
-      await expect(step).toBeInViewport();
-    }
+    // **The four steps were a numbered list DESCRIBING the questions; the
+    // conversation itself is here now** (SPEC §31, 2026-09-18). What this
+    // width has to prove is the same thing it always did — that the first-run
+    // screen reflows rather than clips — so it is asserted against the parts
+    // that exist: the thread, and the field that answers it, both actually on
+    // screen rather than merely in the DOM.
+    const thread = card.getByRole("log", { name: "Conversation" });
+    await expect(thread).toBeVisible();
+    await expect(thread).toContainText("Where are you going?");
+    const composer = card.getByLabel("Where are you going?");
+    await expect(composer).toBeVisible();
+    await expect(composer).toBeInViewport();
 
     // The three actions, scoped to the card: `FirstTripStart`'s own file
     // header says the library link used to live at the page head too (M11b),
@@ -876,21 +945,42 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     // from a Playbook" })` here resolves two elements and trips Playwright's
     // strict mode. The two links are checked for their real destination
     // rather than clicked — clicking either would navigate away from this
-    // screen, which is what "Name your trip" is checked by doing below
-    // instead.
-    const nameButton = card.getByRole("button", { name: "Name your trip" });
+    // screen, which is what the composer is checked by doing below instead.
+    const createEmpty = card.getByRole("button", { name: "Create empty" });
     const playbookLink = card.getByRole("link", { name: "Start from a Playbook" });
     const demoLink = card.getByRole("link", { name: "Look around an example trip" });
-    await expect(nameButton).toBeVisible();
-    await expect(nameButton).toBeEnabled();
+    await expect(createEmpty).toBeVisible();
     await expect(playbookLink).toBeVisible();
     await expect(playbookLink).toHaveAttribute("href", "/playbooks");
     await expect(demoLink).toBeVisible();
     await expect(demoLink).toHaveAttribute("href", "/demo");
 
-    // Operable, not just visible: the click has to actually reach the
-    // button and open the wizard at this width.
-    await nameButton.click();
-    await expect(page.getByLabel("Trip name")).toBeVisible();
+    // Operable, not just visible. Typing an answer at this width has to reach
+    // the field and commit — the exit only becomes usable once there is a name,
+    // which is also what proves the conversation is live rather than painted.
+    await expect(createEmpty).toBeDisabled();
+    await composer.fill("Reykjavik");
+    await expect(createEmpty).toBeEnabled();
+
+    // **44px targets at phone width** — SPEC §32.2 draws the new-trip dock with
+    // phone-sized controls, and §13.1 is the standing rule they answer to:
+    // "44px targets, always". Measured, not read off a class: the class is one
+    // way to get there, the rendered height is the thing §13.1 actually asks
+    // for, and `toHaveClass` is banned in this suite for exactly that reason.
+    for (const [label, control] of [
+      ["the answer field", composer],
+      ["Create empty", createEmpty],
+      ["a destination chip", card.getByRole("button", { name: "Lisbon" })],
+      // The two exits belong in this loop as much as the dock does
+      // (CodeRabbit, PR #188). They are `size: "sm"`, which is 28px, and
+      // measuring only the controls the dock happened to own made §13.1 hold
+      // for those and not for the ones beside them.
+      ["the Playbook exit", playbookLink],
+      ["the example-trip exit", demoLink],
+    ] as const) {
+      const box = await control.boundingBox();
+      expect(box, `${label} has no box`).not.toBeNull();
+      expect(box!.height, `${label} is under the 44px touch floor`).toBeGreaterThanOrEqual(44);
+    }
   });
 });

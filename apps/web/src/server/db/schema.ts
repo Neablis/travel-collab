@@ -433,6 +433,32 @@ export const savedDays = pgTable(
     // written before the contract moved is dropped-and-logged rather than
     // trusted (KI-71). Do not add a caller that reads `row.stops` directly.
     stops: jsonb("stops").$type<SavedStop[]>().notNull(),
+    // **How many days this sequence spans** (M23, ADR-048 decision 2).
+    //
+    // `1` by default, and the default is the whole migration: every row written
+    // before M23 is a one-day playbook, which is exactly what it has always
+    // been. NOT NULL DEFAULT 1 is metadata-only in modern Postgres, so this
+    // lands on the existing rows with no rewrite and no backfill step.
+    //
+    // **Its own column rather than `max(stops[].dayIndex) + 1`, and Discover is
+    // the reason that settles it.** The length filter ("1 / 2-3 / 4-6 / 7+
+    // days", Mitchell 2026-09-19) is a real SQL predicate here, alongside
+    // `cities` and the season months. Derived, it could only be applied in
+    // application code over the truncated 200-row candidate window — which is
+    // exactly how the budget band's sibling chips came to count a different set
+    // from the page below them (KI-2026-08-31). The other two reasons are in
+    // `SavedDay.dayCount` in packages/contracts: a gap in `dayIndex` covers an
+    // interior empty day but nothing covers a TRAILING one, and an insert
+    // promises this number ("a 3 day bundle becomes days 6, 7, 8") before it
+    // acts.
+    //
+    // **The stops impose a floor, not the value.** `day_count >=
+    // max(dayIndex) + 1` is repaired UPWARD at the read boundary
+    // (`parseSavedDayColumns`) rather than enforced here: a CHECK constraint
+    // would reject a write the application can simply fix, and dropping or
+    // refusing a row over an arithmetic disagreement is how a library empties
+    // itself (KI-20260905-l).
+    dayCount: integer("day_count").notNull().default(1),
     // The cities this day touches, derived from `stops` at SAVE time by
     // `citiesOfStops` (@tc/domain) — a snapshot, exactly like
     // `source_trip_name` below (M11b link 1).
@@ -551,6 +577,12 @@ export const savedDays = pgTable(
     // reason to exist, and adding the index later means a second migration
     // for a table whose access pattern was known when it was designed.
     index("saved_days_cities").using("gin", t.cities),
+    // Discover's length filter is a range predicate on this column, run on
+    // every Discover query alongside the city containment above. It ships with
+    // the column for the same reason `saved_days_cities` did: the access
+    // pattern is known the day the column is designed, and adding it later is a
+    // second migration for a table that already knew.
+    index("saved_days_day_count").on(t.dayCount),
   ],
 );
 

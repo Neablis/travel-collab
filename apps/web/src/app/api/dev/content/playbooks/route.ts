@@ -102,6 +102,11 @@ export async function POST(request: Request) {
           ownerId: day.ownerId,
           name: day.name,
           stops: day.stops,
+          // Carried from the bundle's authored `days:` length, not left to the
+          // stops' own floor: a playbook whose LAST authored day declares no
+          // stops leaves no index behind, and only the declaration knows it was
+          // there (M23, ADR-048 decision 2).
+          dayCount: day.dayCount,
           visibility: day.visibility,
           authorKind: day.authorKind,
           sourceTripId: day.sourceTripId,

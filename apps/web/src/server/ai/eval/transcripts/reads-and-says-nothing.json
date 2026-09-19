@@ -1,0 +1,36 @@
+{
+  "name": "reads-and-says-nothing",
+  "about": "The model reads four tools, narrates what it would do, and emits no write call at all. Observed live on 2026-09-11 and the reason `defineTool.taskClasses` exists — it is the documented failure mode at the top of the 10-30 tool band. The shape assertion here is `proposalChanges: 0` with `toolCalls` non-empty, which is precisely the signature KI-11 says to read the per-turn record for.",
+  "source": { "kind": "synthetic", "from": "the 2026-09-11 live planning turn (defineTool's taskClasses note)" },
+  "question": "plan me a six day trip to Kyoto",
+  "scope": { "kind": "trip" },
+  "classification": { "intent": "plan", "certainty": "sure" },
+  "steps": [
+    {
+      "content": [{ "type": "tool-call", "toolCallId": "c1", "toolName": "read_trip", "input": "{}" }],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [
+        { "type": "tool-call", "toolCallId": "c2", "toolName": "read_day", "input": "{\"days\":[1,2,3]}" },
+        { "type": "tool-call", "toolCallId": "c3", "toolName": "find_free_time", "input": "{}" }
+      ],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "I would add three stops to day 1 and spread the rest across days 2 and 3. Shall I?"
+        }
+      ],
+      "finishReason": "stop"
+    }
+  ],
+  "expect": {
+    "steps": 3,
+    "toolCalls": ["read_trip", "read_day", "find_free_time"],
+    "proposalChanges": 0,
+    "answered": true
+  }
+}

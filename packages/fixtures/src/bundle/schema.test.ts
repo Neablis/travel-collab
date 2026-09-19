@@ -45,12 +45,17 @@ describe("parseBundle", () => {
     expect(parsed.playbooks.map((p) => p.origin)).toEqual(["ai", "human"]);
   });
 
-  it("refuses a trip that gives both date forms, or neither", () => {
+  // Was "or neither" until M25. A trip with no dates set is an ordinary shipped
+  // state (`TripDetail.startDate` is nullable), so a format that could not
+  // express one could not export one. Both anchors together is still a
+  // contradiction and still refused.
+  it("refuses a trip that gives both date forms, and accepts one or neither", () => {
     const days = [{ label: "One", stops: [stop()] }];
     const trip = (over: Record<string, unknown>) => ({ key: "t", name: "T", days, ...over });
     expect(() => bundle({ trips: [trip({ startsInDays: 3, startDate: "2027-01-01" })] })).toThrow();
-    expect(() => bundle({ trips: [trip({})] })).toThrow();
     expect(() => bundle({ trips: [trip({ startsInDays: 3 })] })).not.toThrow();
+    expect(() => bundle({ trips: [trip({ startDate: "2027-01-01" })] })).not.toThrow();
+    expect(() => bundle({ trips: [trip({})] })).not.toThrow();
   });
 
   // The format composes the contracts' schemas rather than restating them, so
@@ -130,6 +135,63 @@ describe("bundleTripCommandGroups", () => {
     expect("dayId" in adds.at(-1)!).toBe(false);
   });
 
+  // **The dateless half of M25 question 2, and the defect it exists to catch is
+  // silent.** Relaxing the schema's `.refine` to allow a trip with neither
+  // anchor was not enough on its own: `tripStartDate` resolved a missing anchor
+  // to `addDays(today, 0)`, so a dateless bundle imported as a trip DATED to
+  // the day it was uploaded. Nothing would have said so — the trip simply had
+  // dates it never had, which is the same class as `budgetPerPerson` asserting
+  // a per-person meaning it did not have.
+  //
+  // Seen red before it was fixed, and the failure was exactly that: the setup
+  // group held a `SetTripDates` with `startDate: "2026-09-06"`.
+  describe("a trip with NEITHER anchor", () => {
+    const dateless = { key: "no-dates", name: "No dates", days: trip.days, backlog: trip.backlog };
+
+    it("never acquires a date, today's least of all", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      const dated = groups.flat().filter((c) => c.type === "SetTripDates" || c.type === "SetTripStartDate");
+      expect(dated).toEqual([]);
+      expect(JSON.stringify(groups)).not.toContain(TODAY);
+    });
+
+    // `SetTripDates` with both dates null emits no `DayAdded` at all
+    // (`decide.ts`'s day-count reconcile is guarded on both being non-null), so
+    // the dateless path cannot build its days through the command the dated
+    // path uses. It needs `AddDay` per day — which is the part of this change
+    // that is genuinely a second shape rather than a loosened condition.
+    it("builds its days with AddDay, one per day, in written order", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      expect(groups.map((g) => g.map((c) => c.type))).toEqual([
+        ["AddDay", "AddDay"],
+        ["AddActivity", "AddActivity"],
+        ["AddActivity"],
+        ["AddActivity"],
+      ]);
+      const dayIds = groups[0]!.map((c) => (c as { dayId: string }).dayId);
+      expect(new Set(dayIds).size).toBe(2);
+      // Each day's stops name that day, so "days in order" survives the import.
+      expect(groups[1]!.map((c) => (c as { dayId?: string }).dayId)).toEqual([dayIds[0], dayIds[0]]);
+      expect(groups[2]!.map((c) => (c as { dayId?: string }).dayId)).toEqual([dayIds[1]]);
+    });
+
+    it("still puts the backlog on no day", () => {
+      const groups = bundleTripCommandGroups("test", bundle({ trips: [dateless] }).trips[0]!, {
+        today: TODAY,
+        mintId: mintId(),
+      });
+      const parked = groups.at(-1)![0]!;
+      expect(parked).toMatchObject({ type: "AddActivity", title: "Parked" });
+      expect("dayId" in parked).toBe(false);
+    });
+  });
+
   it("addresses the trip the bundle names unless a caller supplies an id", () => {
     const parsed = bundle({ trips: [trip] }).trips[0]!;
     const derived = bundleTripCommandGroups("test", parsed, { today: TODAY, mintId: mintId() });
@@ -187,8 +249,57 @@ describe("resolvePlaybook", () => {
       kind: "planned",
       tags: [],
       cost: null,
+      // A `stops:` playbook is one day, so every stop is on day zero (M23).
+      // `days:` is the multi-day form and stamps this from the day's position.
+      dayIndex: 0,
     });
     expect(toSavedStop({ title: "Bare" }).kind).toBe("planned");
+  });
+
+  // M23 / ADR-048. A bundle AUTHORS a multi-day playbook as `days:` —
+  // `BundleDay`, the same shape a bundle trip already uses — because a content
+  // file exists to be reviewed by a person, and forty stops each carrying
+  // `dayIndex: 2` is not reviewable. The STORED form is flat and indexed. The
+  // two have opposite constraints and nothing parses old bundle bytes out of a
+  // database, so they are allowed to differ.
+  it("flattens an authored `days:` playbook into one indexed sequence", () => {
+    const multi = {
+      ...playbook,
+      key: "three-days",
+      stops: undefined,
+      days: [
+        { label: "Arrival", stops: [{ title: "Land" }, { title: "Ramen" }] },
+        { label: "The long one", stops: [{ title: "Fushimi Inari" }] },
+      ],
+    };
+    const row = resolvePlaybook("test", bundle({ playbooks: [multi] }).playbooks[0]!, "ai");
+    expect(row.stops.map((s) => [s.dayIndex, s.title])).toEqual([
+      [0, "Land"],
+      [0, "Ramen"],
+      [1, "Fushimi Inari"],
+    ]);
+    expect(row.dayCount).toBe(2);
+  });
+
+  // The trailing rest day a flat list cannot hold: no stop carries the index,
+  // so only the authored `days.length` knows it was declared.
+  it("counts an authored day that declares no stops", () => {
+    const withRestDay = {
+      ...playbook,
+      key: "rest-at-the-end",
+      stops: undefined,
+      days: [{ stops: [{ title: "Land" }] }, { stops: [] }],
+    };
+    const row = resolvePlaybook("test", bundle({ playbooks: [withRestDay] }).playbooks[0]!, "ai");
+    expect(row.stops.map((s) => s.dayIndex)).toEqual([0]);
+    expect(row.dayCount).toBe(2);
+  });
+
+  // Exactly one of the two, enforced by the schema rather than by a convention
+  // a content author has to remember.
+  it("refuses a playbook that declares both stops and days, or neither", () => {
+    expect(() => bundle({ playbooks: [{ ...playbook, days: [{ stops: [{ title: "x" }] }] }] })).toThrow();
+    expect(() => bundle({ playbooks: [{ ...playbook, stops: undefined }] })).toThrow();
   });
 
   it("takes the bundle's authorKind when the playbook does not name one", () => {

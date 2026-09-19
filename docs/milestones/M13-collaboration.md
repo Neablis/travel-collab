@@ -17,6 +17,30 @@
 **It needs an ADR before it opens** — the realtime transport. And it will need a
 migration for per-stop attribution.
 
+**Moved ahead of M12, 2026-09-18, by Mitchell.** This file already said it sat
+after M12 *"because M12 is smaller and finishes a surface that is already live,
+not because of a dependency"* — so the move costs nothing and buys three things:
+link 3 closes **KI-5, KI-90 and KI-77**, which are single-player data-loss
+defects live in the app today rather than realtime work; link 5 lands the
+attribution field **M19 link 3 and M14's two cut person widgets both wait on**;
+and the transport ADR stops blocking. **M23 runs before it** — see
+`docs/milestones/README.md`'s 2026-09-18 note.
+
+**One correction from the conversation that placed it: *"websockets"* is not a
+decided transport.** Link 1 is explicitly SSE *or* WebSockets *or* polling with a
+cursor, decided against this project's constraints — and on Vercel's serverless
+runtime a long-lived WebSocket needs a service this project does not run. The ADR
+decides it; the word in the request does not.
+
+**It acquired a prerequisite it does not own, 2026-09-18: the activity-field
+descriptor refactor (`KI-20260905-o`), which runs once before this milestone and
+is shared with M24 and M19 link 1.** Link 5 adds a field to an activity, and
+**21 non-test files hand-enumerate activity fields today** with nothing going red
+when one is missed — a class that has already bitten three times (KI-1, KI-54,
+M18's editor sheet dropping `kind`/`tags`). It was scheduled once already, on
+2026-08-29 as *"one overnight batch"*, and did not happen. It is a gate box here
+rather than a promise elsewhere, for that reason.
+
 ## Why this exists
 
 Two people can already be on a trip. M11 shipped memberships, roles, invites and
@@ -99,6 +123,14 @@ Five links. Link 1 is an ADR and gates the rest.
 - [ ] A stop records who it is for, set through the UI and read back off the
       API; `add-stop-who` and `rack-provenance` are wired up or deleted, and no
       M13-tagged entry remains in `preview-registry.ts`.
+- [ ] **`KI-20260905-o` is resolved before link 5 adds its field** — the
+      activity-field descriptor refactor has landed, the entry is moved to
+      `resolved/` with its proof line, and adding an activity field now fails
+      the typecheck at every site that must move rather than compiling green.
+      *(Added 2026-09-18. It is a box here because it is shared with M24 and
+      M19 link 1 and was already scheduled once, on 2026-08-29, without being
+      done. If Mitchell decides it runs as its own piece of work instead, this
+      box is satisfied by that landing — not by this milestone doing it twice.)*
 - [ ] **The attribution migration is written, applied locally, and its
       production dispatch is called out in the PR body.**
 - [ ] The full Definition of Done is green, including

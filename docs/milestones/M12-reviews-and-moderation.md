@@ -6,6 +6,24 @@ now — it was a row in `docs/milestones/README.md`'s table and nothing else,
 against that file's own rule that each milestone gets a file "with an exit
 checklist before work on it begins."
 
+**Two milestones moved in front of it, 2026-09-18, and one of them changes the
+row this milestone is about.** Order from here:
+`… → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+
+- **M23 runs first, and that is deliberate.** It generalises a saved day into a
+  saved *sequence* — a flat `stops[]` with a per-stop day indicator — so the
+  `saved_days` row this milestone keys reviews, ratings, reporting and
+  moderation to **changes shape before those are built**. Running M12 first
+  would mean revisiting them. Read `M23-multi-day-playbooks.md` before scoping
+  anything here, and note the question it hands forward: **what a review is
+  attached to once a playbook can be three days** — the sequence, or a day
+  inside it. M23 does not answer that; this milestone does, and it is the first
+  thing to settle.
+- **M13 also moved ahead**, for reasons that have nothing to do with this
+  milestone — see `docs/milestones/README.md`'s 2026-09-18 note. It changes
+  nothing here except the order.
+- **Nothing about this milestone's scope, links or gate is amended by either.**
+
 **Retitled from "Community" 2026-09-01.** The public gallery and discovery that
 name promised **shipped in M11b**. What is left is the half Mitchell drew the
 scope line around on 2026-08-30: *"M11b takes everything in §15 except reviews;

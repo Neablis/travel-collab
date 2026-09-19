@@ -30,11 +30,112 @@ general setup.
 
 ## Where the work is right now
 
-**M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
-**Mitchell's decision and not by a gate closing**. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M12 → M13 → M14 → M19`.
-Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+**M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
+by **M25's gate closing**, which is the ordinary way this line moves. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
+**M23's GATE CLOSED 2026-09-19 — 11 of 11.** Links 2, 3 and 4 are built,
+`test:e2e:ci-like` is green at 137, and the two-actor multi-day walk passed on
+PR #192's preview. Its scope and exit gate are in
+`docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
+planning anything. The one-line version: a saved day **generalises** into a
+saved sequence rather than gaining a sibling object type.
+
+**The shape is decided: ADR-048, accepted 2026-09-19.** Flat `stops[]`, each
+stop carrying a 0-based `dayIndex` with a `.default(0)`; a **gap** in the index
+is an empty day; `dayCount` is **stored** for the trailing-empty case a gap
+cannot reach; the write path enforces monotonicity and the read boundary
+**stably sorts and repairs** rather than dropping the row; the adds ledger keys
+on the sequence and needs no migration. **Two of those go against a premise
+stated in the milestone file** and are marked ✳ there and in the ADR — the
+milestone's 2026-09-19 note is the short version, and Mitchell overrules either
+in the ADR if he wants the original reading.
+
+**What is left: the retro — and a second walk that is owed but is not a gate
+box.** The preview walk on 2026-09-19 passed every behavioural box and then
+found **five defects in the surfaces around them**, one of them shipped by the
+branch itself: `ToggleChip` used `bg-brand-subtle` and `text-muted`, **neither
+of which is a token this app defines**, so a selected day chip rendered with a
+transparent background. **The colour wall scans for raw hex, so an undefined
+token NAME passes it** — worth knowing beyond this fix. The other four were
+surfaces still speaking in the singular: a third copy of the window fact in
+`SavedDaysDialog` stating a false clock range across three days, the shared-day
+route saying nothing about days at all, and `AddToTripDialog` — the surface
+that actually performs the append — never naming N. All five are fixed; **the
+fixes themselves are unwalked**, and that second pass is owed before the gate
+closes.
+
+**The lesson worth carrying past M23:** link 4 was claimed complete when it was
+one surface of four. Behaviour was right everywhere; the gate box named only
+the Discover card, and that let three unbuilt surfaces through. `pnpm check` is green locally (3,096 unit + 782 integration), with one
+caveat worth repeating rather than burying: **the integration lane needs
+`API_TOKEN_PEPPER` set in the shell.** `apps/web/.env.local` ships it EMPTY and
+vitest's `??=` does not override an empty string, so a fresh container fails ~91
+token tests that have nothing to do with the change under test — that is
+`KI-2026-09-19-a`, and it cost a full baseline run to confirm rather than assume.
+
+**The migration is NOT applied by merging.** `0024_saved_day_day_count.sql`
+needs `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+An undispatched migration is schema drift. Three things the ADR found that the
+milestone file does not list: `citiesOfStops` currently sorts timed stops across
+the *whole* array, so a sequence's stored `cities` order interleaves its days;
+`savedDayFacts.window` over a sequence is read by `dayLength` as a single
+13-hour day and labelled "Long", which is false rather than imprecise; and
+`BundlePlaybook.stops` is a third writer of this shape that the M25 round-trip
+tripwire does **not** catch, because `fromTrip` emits no playbooks.
+
+**M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
+tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a
+`content-bundle/v1` file and uploads back, through two `v1` endpoints the
+browser calls with its own cookie. **No migration, no contract change, no
+entitlement, no plan version.** The narrative is **not here** —
+`docs/milestones/M25-a-trip-is-a-file.md` carries the gate evidence and the
+retro, including the three boxes ticked with a caveat named.
+
+**Three things M25 leaves live**, which is why they are here rather than in its
+retro:
+
+- **The round trip is a tripwire now, not just a test.** M23, M24, M13 and M14
+  each make a trip carry more; a field added to an activity and not to
+  `toBundleStop` fails `fromTrip.test.ts` **in the diff that adds it**. That is
+  what M25 was placed early to buy, and it is now real.
+- **A derived reference can be FALSE rather than merely verbose.** M22's
+  `openapi.json` cannot drift from the route declarations — which guarantees the
+  doc matches the *declaration*, and says nothing about whether the declaration
+  matches the endpoint. One endpoint's entry was 2,267 lines of recursive
+  notebook AST for a section it never writes. **Check what a new endpoint
+  publishes, not just that it publishes.**
+- **The two doors into the bundle format stay different.** `content:import`
+  DERIVES ids so a re-import updates its own rows; a user upload MINTS them so
+  it can never land on somebody else's trip. Collapsing them is a
+  plausible-looking simplification and is the one change that would make an
+  upload dangerous.
+
+**M22 is still paused at 18 of 19 and M21 at 11 of 17**, both unamended by any
+of this. M22's one open box is a preview walk blocked on a deployment rather
+than on code (`KI-20260916-d`).
+**The tail of that order changed 2026-09-18** — three milestones minted (**M23**
+multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
+moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
+**not here**: `docs/milestones/README.md`'s *2026-09-18* note carries it, the
+Phase 3 table carries each milestone's decisions, and each new file carries its
+own scope and exit gate. Two things placed the same day are **not** milestones
+and are easy to lose for that reason: the activity-field descriptor refactor
+(`KI-20260905-o`) runs **once, before M13**, and is a gate box there; and a
+generated, drift-checked architecture map is designed in
+`docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
+in principle.
+Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-20260916-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
+
+**Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
+`c42be58`): a v1 caller can give a stop coordinates, a structured postal address, or just a
+name, and the stop gets a pin — `Location.address` (the CLDR / libaddressinput model),
+resolution on the stop writes reported through a `Geocode-Outcome` header, and
+`GET /v1/trips/{tripId}/geocode` for looking coordinates up first. No new scope and no
+migration, so nothing was owed after the merge. How to call it:
+`docs/guidelines/using-the-api.md` → *Putting a stop on the map*; the decisions and task
+breakdown: `docs/plans/2026-09-18-api-locations-address-geocode.md`.
+**Not gate work** — M22's 19 boxes are unchanged by it.
 
 **M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box
 stand unamended, and the six open ones are still owed. Its state is recorded below rather
@@ -155,8 +256,63 @@ could, and the two boxes ticked with a caveat named are the retro in
 - **`ai_usage` is best-effort on the abort and error paths** — `KI-2026-09-14-b`. The ledger
   M21 prices against is complete for every turn that finishes and eventual for the rest.
 
-**M9 is paused, not cancelled**, and keeps its place immediately after M21. Its Phase 0 is
-below, unchanged, because it is what M9's three real pieces of work are still built on.
+**M9 IS NO LONGER PAUSED, AND MOST OF ITS REMAINING BUILD LANDED 2026-09-16** on
+`claude/dreamy-meitner-4o27ml`, under `docs/plans/2026-09-16-M9-remainder.md` — which is
+also where the four build-order items it deliberately did NOT touch are listed (the
+theme pass, the draft trip, the paid fork; the transcript rebuild has since landed). It
+keeps its place after M21 for the *gate*, which is what is left of it.
+
+**IT WAS REVERTED AND RELANDED, AND THE HISTORY MATTERS MORE THAN THE DATES.** Both halves
+(#184's server side, #186's UI) were merged, then reverted wholesale in `17ecd52` at
+Mitchell's request — *"there was some bad ui problems, but i was struggling to get code
+rabbit to review"*. Reverting content does **not** un-merge commits, so neither branch could
+serve as a PR head again: git treats them as already merged and a PR from either shows an
+empty or half diff. The work came back as fresh commits in **#188**, whose diff and merge
+therefore agree, and that is what `90deaaa` squashed onto main on 2026-09-18. Two design
+passes and three review rounds landed on it there:
+
+- **`SPEC.md` §31** — the new-trip sheet reads as a conversation (two sides, the live
+  question as the last message, one answer dock), and the empty Home renders that
+  conversation instead of a numbered list describing it.
+- **`SPEC.md` §32** — the dates turn split in two ("do you have a start date", then an
+  optional day picker, then a length), so **the question list is derived and nothing states
+  its length, including the copy**. A trip is a start date plus a length on this surface now,
+  as it already was everywhere else.
+- **Three CodeRabbit rounds, eighteen findings**, every one verified against the code before
+  being believed; two push-backs accepted and filed as `KI-2026-09-17-b`/`-c`.
+- **The preview found two defects no test layer could**, on Mitchell's own walk: the sheet
+  *contained* a chat box rather than being one (`Sheet`'s scrollport is a block, so the
+  conversation's `flex-1` transcript had nothing to fill and the composer scrolled off the
+  fold), and the sheet was being closed under a reader who was typing into it. That is the
+  argument for the walk, made by the walk.
+
+`docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` §3a–§3f carries all of it.
+**No gate box moved**, which is the point of the next paragraph.
+
+**Grounding** (`search_places` → `placeRef`, resolved server-side), **KI-93** (every door
+into the vendor key charges the geocode quota), **KI-12**, **escalation + `certainty`**,
+**conversation durability** (`localStorage`, no table) and **the replay harness**.
+Resolved with them: **KI-81, KI-11, KI-2026-09-12-a**; KI-15 narrowed to its enrichment
+residual. The milestone file's exit gate carries what each one did and did not close.
+
+**Four things to know before touching it.**
+
+1. **What is left of the gate is what a build cannot supply**: a live model call, the
+   Rochester re-run that rests on one, and the browser walks. The replay lane is evidence
+   about the code AROUND the model and is **not** the live-call box — its own header says
+   so, and the five transcripts that ship declare `source: synthetic`.
+2. **The harness found a defect on its first run** — `KI-2026-09-16-a`: a tool call whose
+   arguments were truncated ends the WHOLE turn, losing the reads it had already paid for.
+   Exactly the class KI-11 said CI could not see.
+3. **`Location.precision` is server-written by construction now.** A model's claim is
+   stripped before the server's is written, and `enrichCommandLocations` SKIPS a location
+   that already carries it — so the field is load-bearing rather than descriptive, and
+   that is what closes the gap `contracts/src/activity.ts` names in its own comment.
+4. **A `withheld` turn is no longer a dead end.** It holds `request_change_tools` and
+   re-enters with the write set via `prepareStep`. Every escalation is a labelled
+   classifier miss on the `ai.ask` line, which is the eval corpus written by real use.
+
+Phase 0 is below, unchanged, because it is what all of the above is built on.
 
 **M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
 P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and
@@ -301,13 +457,51 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M21 is open and nothing of it is built.** Read
-`docs/milestones/M21-subscriptions-and-billing.md` before planning anything: seven links, the
-prices already decided (`free` $0, `plus` $9, `premium` $19) and living in that file alone,
-and a gate whose hard parts are signature verification, idempotency under Stripe's retries,
-out-of-order tolerance, and *no card number ever reaches this application*. **It adds no
-entitlement and no gate** — a diff touching `modelSelection.ts`, `quota.ts` or `members.ts`
-means the split from M20 failed.
+**M23 is the current milestone and nothing of it is built.** Read
+`docs/milestones/M23-multi-day-playbooks.md` before planning anything, and note
+what its row in `docs/milestones/README.md` says about why it runs before M13
+and M12.
+
+**One piece of non-milestone work is placed after it and before M13, and it is
+a prerequisite rather than a deliverable**: the activity-field descriptor
+refactor, `KI-20260905-o`. Three milestones each add a field to an activity
+(M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
+**21 non-test files hand-enumerate activity fields with nothing going red when
+one is missed**. It was already scheduled once, on 2026-08-29, and did not
+happen — which is why M13's gate now carries a box for it instead of this file
+carrying a second promise. **M25 changed the arithmetic slightly in its
+favour**: `toBundleStop` is a 22nd site, and the only one with a test that
+fails in the diff that misses it.
+
+**M22's last gate box is Mitchell's**, and no amount of building closes it: it
+needs an account that can hold `api.tokens` **on a preview**, which
+`KI-20260916-d` says is blocked by **`ADMIN_USER_IDS`** — injected at build, and
+supplied by `playwright.config.ts` only to the local e2e server, so
+`POST /api/admin/grants` answers 404 on a preview.
+
+**That variable is bound to preview and production, and was created 2026-09-14
+— two days BEFORE the walk that got the 404.** So the entry's fix sketch ("set
+it in Preview and redeploy") describes a state that already held, and the cause
+is more likely its **value**: `ADMIN_USER_IDS` takes `users.id` verbatim and
+fails closed, and a dev-login operator's id is `dev-<username>`, not a Google
+one. **Hypothesis, not finding** — the value is encrypted and was not read.
+**The next step is a read**: check whether Preview's value contains the `dev-`
+id `e2e/adminBootstrap.ts` grants through.
+
+**Do not repeat the mistake this paragraph used to make.** Until 2026-09-19 this
+line, `TODO.md` and two other places all said the blocker was
+`API_TOKEN_PEPPER`. It is not, and never was: that variable is set on **all
+three** Vercel targets, and `KI-20260916-d` does not mention it. The wrong name
+survived in three status files because each copy read as confirmation of the
+others, while the KI — the one document with the fact in it — went unread. When
+these files and a known-issue entry disagree, **the entry is the one that was
+written by somebody looking at the failure.**
+
+*(This section has gone stale three times — it named M17 on the day M17's gate
+closed, M9 on the day M20 was already built and merged, and M21 as unbuilt for
+four days after all four of its phases merged. Read it with suspicion and check
+it against `docs/milestones/README.md`'s Current milestone line, which is the
+single source of truth.)*
 
 **Two things are waiting rather than blocked, and both are Mitchell's.** Whether to flip
 `ai-live` now that its precondition is met (above, with what it would expose), and whether
@@ -315,24 +509,17 @@ the three open questions M9 Phase 0 raised get answered before M21 prices anythi
 second of them, *which quota window a sold ceiling binds*, is the one M21 pays for if it is
 left: it is implemented per-day and stated in no contract.
 
-*(This section named M9 as the current work until 2026-09-14, on the day M20 was already
-built and merged — the second time this file's most-read section went stale while its length
-stayed respectable. The section above is where the work is; this one is what happens next.)*
+**M9's three real pieces of work are BUILT, and what is left of it is its gate.** Grounding,
+conversation durability and the eval/replay harness all landed 2026-09-16 and relanded as
+#188 — the section above carries it. What the gate still wants is what a build cannot
+supply: a live model call, the Rochester re-run resting on one, and the browser walks. *(An
+earlier version of this paragraph said "M9 stays paused behind M21" and listed all three as
+unchanged. It had been wrong for two days.)*
 
-**M9 stays paused behind M21**, and its three real pieces of work are unchanged, per the
-2026-09-01 audit (`docs/reviews/2026-09-01-milestone-audit.md`):
-
-- **Grounding** — a `SearchPlaces` read tool, with `AddActivity`/`UpdateActivity` citing a
-  `placeRef: N` against that turn's search cache instead of a free-text `location`. This is
-  what makes the model *structurally incapable* of naming a place it did not search for, and
-  it is the reason `ai-live` is still dark. Closes KI-81/KI-15.
-- **Conversation durability** — no conversation table exists, so a reload loses the thread.
-- **An eval/replay harness** — KI-11, inherited from M16's gate.
-
-**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks starting
-the above, and the second is the one that costs if it is left: whether the usage row carries a
+**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks anything
+current, and the second is the one that costs if it is left: whether the usage row carries a
 `planVersionRef`; **which quota window a *sold* ceiling binds** (implemented per-day, stated
-nowhere — M20 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
+nowhere — M21 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
 env var.
 
 ## Landed in the last week

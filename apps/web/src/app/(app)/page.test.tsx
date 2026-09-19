@@ -71,8 +71,15 @@ describe("Home trip actions", () => {
     // a modal whose own copy said the action was undoable.
     await userEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
 
-    const toast = await screen.findByRole("status");
-    expect(toast.textContent).toMatch(/deleted "japan"/i);
+    // **Scoped, because deleting the last trip empties the list** — which
+    // renders the first-run conversation (SPEC §31), and a transcript carries
+    // its own `role="status"` announcer. Two status regions on one page is
+    // correct here; addressing the toast by its text is what makes the
+    // assertion say which one it means.
+    const toast = (await screen.findAllByRole("status")).find((node) =>
+      /deleted "japan"/i.test(node.textContent ?? ""),
+    )!;
+    expect(toast).toBeTruthy();
 
     await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -184,7 +191,7 @@ describe("Home trip actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Iceland");
+    await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Iceland");
     await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
 
     const alert = await screen.findByRole("alert");
@@ -221,10 +228,11 @@ describe("Home trip actions", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
-    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
-    const dialog = await screen.findByRole("dialog", { name: /new trip/i });
-    await userEvent.type(within(dialog).getByLabelText("Trip name"), "Reykjavik");
-    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
+    // The list loads empty, so the conversation is inline rather than in a
+    // sheet (SPEC §31) — same flow, same "Create empty", one fewer click.
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await userEvent.type(within(firstRun).getByLabelText("Where are you going?"), "Reykjavik");
+    await userEvent.click(within(firstRun).getByRole("button", { name: /^create empty$/i }));
 
     expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
@@ -486,6 +494,32 @@ describe("Home page head", () => {
     await screen.findByText(/A name is enough to start/i);
     expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
   });
+
+  // **Import a file is on exactly one of these two screens at a time** (M25).
+  //
+  // It began in the page head on both. On a 375px viewport that made the head's
+  // action row wrap onto an extra line and pushed the first-run card's composer
+  // out of the viewport — which `responsive.spec.ts:917` asserts against, and
+  // which failed in CI while passing locally in both lanes, because that
+  // assertion sits close enough to the fold that rendering decides it.
+  //
+  // Asserted here rather than left to the e2e lane because "two of them" and
+  // "none of them" are both one edit away, and neither would fail the browser
+  // walk: the walk finds the control by name, and would find either copy.
+  it("puts Import a file in the page head only once there are trips", async () => {
+    renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: "All trips" });
+    expect(screen.getAllByRole("button", { name: "Import a file" })).toHaveLength(1);
+    expect(screen.queryByTestId("first-trip-start")).toBeNull();
+  });
+
+  it("puts it on the first-run card instead when there are none, and only there", async () => {
+    renderHome([]);
+    const firstRun = await screen.findByTestId("first-trip-start");
+    const all = screen.getAllByRole("button", { name: "Import a file" });
+    expect(all).toHaveLength(1);
+    expect(firstRun.contains(all[0]!)).toBe(true);
+  });
 });
 
 describe("Home first-run experience", () => {
@@ -500,27 +534,55 @@ describe("Home first-run experience", () => {
   });
 
   // The first-run screen promises "a name is enough to start", so it has to
-  // offer somewhere to start. Before this, the only way forward was the
-  // page-head "New trip" button — identical in label and position to what a
-  // user with twelve trips sees, i.e. no first-run affordance at all. This
-  // asserts the CTA is *in the first-run screen* (scoped to it, so the
-  // page-head button can't satisfy the test by accident) and that it opens the
-  // same NewTripWizard rather than introducing a second create path (M15
-  // decision 3).
-  it("offers a way to start from inside the first-run screen", async () => {
+  // offer somewhere to start. It used to do that with a "Name your trip"
+  // button beside a numbered list of the four questions; **the conversation
+  // itself is on the screen now** (SPEC §31, 2026-09-18), so the first thing a
+  // new account sees is the first question, already answerable. Scoped to the
+  // first-run card, so the page head cannot satisfy this by accident.
+  it("puts the conversation itself in the first-run screen, already answerable", async () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    const start = within(firstRun).getByRole("button", { name: "Name your trip" });
+    // The first question, and the field that answers it — no click-through.
+    expect(within(firstRun).getByRole("log", { name: "Conversation" }).textContent).toContain(
+      "Where are you going?",
+    );
+    expect(within(firstRun).getByLabelText("Where are you going?")).toBeTruthy();
+    // And the opening line, which states the no-generation contract (§31.2).
+    expect(within(firstRun).getByRole("log").textContent).toContain(
+      "Nothing is generated until the last answer lands",
+    );
+  });
 
-    await userEvent.click(start);
+  // **One conversation on the screen, not two.** The page head's "New trip"
+  // opens the sheet everywhere else; here the conversation is already inline,
+  // so opening it would put two composers with the same accessible name on one
+  // page — ambiguous to a screen reader, and a strict-mode violation for any
+  // test addressing the field by its label. The button focuses the one that
+  // exists instead.
+  it("focuses the inline conversation rather than opening a second one", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
 
-    // Step 1 of the existing wizard — the same surface the page-head "New
-    // trip" button opens, not a parallel one-field screen.
-    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+    render(<Home />);
+    await screen.findByTestId("first-trip-start");
+
+    await userEvent.click(screen.getByRole("button", { name: "New trip" }));
+
+    // Exactly one composer, and no sheet behind it.
+    const composers = screen.getAllByLabelText("Where are you going?");
+    expect(composers).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull();
+
+    // And the button really moved the cursor there: typing with no further
+    // click lands in that field. Asserted through behaviour rather than
+    // `document.activeElement`, which the testing-library rule forbids — and
+    // which would pass on a field that is focused but not typeable.
+    await userEvent.keyboard("Lisbon");
+    expect((composers[0] as HTMLInputElement).value).toBe("Lisbon");
   });
 
   // "Building a trip from total scratch is a rough experience" (Mitchell,
@@ -542,23 +604,90 @@ describe("Home first-run experience", () => {
     ).toHaveProperty("href", expect.stringContaining("/demo"));
   });
 
-  // The wizard opens full screen on a first run and as the ordinary rail
-  // afterwards (Mitchell: "The 'New trip' side bar should be a full screen
-  // experience when you have no trips"). Asserted through the wizard's own
-  // first-run framing rather than a class name — the title is what a person
-  // actually sees change, and a class assertion would pass on a sheet that
-  // never opened.
-  it("opens the wizard with first-run framing when there are no trips", async () => {
+  // **The sheet a reader is typing into is not the one to take away.**
+  //
+  // Three shapes have stood here. Rendering the sheet beside the inline
+  // conversation was the original defect — two fields with one accessible
+  // name. CodeRabbit's round 2 produced `open={newTripOpen && !hasNoTrips}`
+  // plus an effect that cleared the request, which fixed that and broke
+  // something worse: a reader who pressed "New trip" while the list was still
+  // loading, and typed, lost every keystroke the instant the empty list
+  // resolved — the sheet vanished and an empty inline field took its place,
+  // with "Create empty" disabled and no way to enable it. That is what hung
+  // `createEmptyTripViaWizard` for its full 30s timeout (e2e, 2026-09-18).
+  //
+  // The sheet wins now and `FirstTripStart` yields its conversation. Both
+  // halves of the original concern still hold, and both are asserted here.
+  it("keeps the sheet and what was typed into it when the list lands empty", async () => {
+    const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
+    let resolveList!: (response: Response) => void;
+    const listPending = new Promise<Response>((resolve) => {
+      resolveList = resolve;
+    });
+    let listCallCount = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips") && init?.method === "POST") {
+        return jsonResponse({ tripId: newTripId }, 201);
+      }
+      if (url.endsWith("/api/trips")) {
+        listCallCount += 1;
+        // Held open on the first call so the click below lands while `trips`
+        // is still null — the one window where the page-head button opens the
+        // sheet rather than focusing the inline field.
+        if (listCallCount === 1) return listPending;
+        return jsonResponse({ trips: [tripSummaryFixture({ tripId: newTripId, name: "Osaka" })] });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+    await userEvent.click(await screen.findByRole("button", { name: /^new trip$/i }));
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
+
+    // Typing starts before the list has resolved, which is the whole point.
+    await userEvent.type(within(sheet).getByLabelText("Where are you going?"), "Osaka");
+
+    resolveList(jsonResponse({ trips: [] }));
+    await screen.findByTestId("first-trip-start");
+
+    // The sheet is still here, and so is what was typed into it.
+    expect(screen.getByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getByLabelText("Where are you going?")).toHaveProperty("value", "Osaka");
+    // Exactly one composer: the first-run screen yielded its conversation
+    // rather than putting a second field with the same name on the page.
+    expect(screen.getAllByLabelText("Where are you going?")).toHaveLength(1);
+    expect(screen.queryByTestId("first-trip-conversation")).toBeNull();
+
+    // And it still works: the typed name reaches the create.
+    await userEvent.click(within(sheet).getByRole("button", { name: /^create empty$/i }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/trips"),
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    const body = JSON.parse(
+      String(fetchMock.mock.calls.find((c) => c[1]?.method === "POST")?.[1]?.body),
+    ) as { name: string };
+    expect(body.name).toBe("Osaka");
+  });
+
+  // Mitchell, 2026-09-01: *"The 'New trip' side bar should be a full screen
+  // experience when you have no trips"*. That is now satisfied more directly
+  // than by a full-screen sheet — the conversation is the page. What has to
+  // stay true is that the two routes which are not "start from nothing" are
+  // still offered here, since this is the screen where a person has no trip.
+  it("keeps the other two routes beside the conversation on a first run", async () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
-    await userEvent.click(
-      within(await screen.findByTestId("first-trip-start")).getByRole("button", {
-        name: "Name your trip",
-      }),
-    );
-    expect(await screen.findByText(/Take a day somebody has already planned/)).toBeTruthy();
+    const firstRun = await screen.findByTestId("first-trip-start");
+    expect(within(firstRun).getByTestId("first-trip-conversation")).toBeTruthy();
+    expect(within(firstRun).getByRole("link", { name: "Start from a Playbook" })).toBeTruthy();
+    expect(within(firstRun).getByRole("link", { name: "Look around an example trip" })).toBeTruthy();
   });
 
   // This is the evidence for a milestone exit-gate requirement (M15 decision
@@ -596,18 +725,31 @@ describe("Home first-run experience", () => {
 
     render(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
-    await userEvent.type(screen.getByLabelText(/trip name/i), "Japan");
+    await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
 
-    // Step 1 of 4 — "Create empty" is enabled by the name alone, which is why
+    // The first turn — "Create empty" is enabled by the name alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
     await userEvent.click(screen.getByRole("button", { name: "Create empty" }));
 
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/trips"),
-        expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Japan" }) }),
-      ),
-    );
+    // **The body now carries a client-minted `tripId`** (KI-2026-09-12-e), so
+    // this can no longer be an exact `JSON.stringify` match. It is the only
+    // test that exercises the real wire format end to end — `createTrip` and
+    // `fetch` are both real here — which makes it the right place to pin that
+    // the id actually reaches the request rather than stopping at the module
+    // boundary.
+    // The POST, not call zero: the page loads its trip list first, and that GET
+    // has no `init` at all — reading `.method` off it is a TypeError, not a
+    // failed assertion.
+    const createCall = () =>
+      (fetchMock.mock.calls as [string, RequestInit | undefined][]).find(
+        ([url, init]) => url.includes("/api/trips") && init?.method === "POST",
+      );
+    await waitFor(() => expect(createCall()).toBeDefined());
+    const init = createCall()![1]!;
+    expect(JSON.parse(String(init.body)) as { name: string; tripId: string }).toEqual({
+      name: "Japan",
+      tripId: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
+    });
 
     // Post-create state: the first-run empty state is gone, the new trip's
     // own card is showing in its place, and "Create empty" never navigates
@@ -722,7 +864,7 @@ describe("Home finishing a demo clone", () => {
   // no idea a copy is already headed for this same list. Holds the duplicate
   // response open (rather than letting `stubEmptyListAndDuplicate` resolve it
   // immediately) so there's a real window to observe both launchers — the
-  // page-head "New trip" button and `FirstTripStart`'s "Name your trip",
+  // page-head "New trip" button and the first-run conversation's "Create empty",
   // which is what's on screen because an empty trip list is what "no trips
   // yet" and "the clone hasn't resolved yet" both look like — disabled.
   it("disables both wizard launchers while the demo copy is in flight", async () => {
@@ -742,13 +884,16 @@ describe("Home finishing a demo clone", () => {
     render(<Home />);
 
     const headButton = await screen.findByRole("button", { name: "New trip" });
-    const firstRunButton = within(await screen.findByTestId("first-trip-start")).getByRole(
-      "button",
-      { name: "Name your trip" },
-    );
+    // **The first-run launcher is the conversation's own exit now** (SPEC §31):
+    // the screen no longer carries a "Name your trip" button, it carries the
+    // conversation, and "Create empty" is the control that writes. That is what
+    // must not race the in-flight duplicate.
+    const createEmpty = within(await screen.findByTestId("first-trip-start")).getByRole("button", {
+      name: "Create empty",
+    });
     await waitFor(() => {
       expect((headButton as HTMLButtonElement).disabled).toBe(true);
-      expect((firstRunButton as HTMLButtonElement).disabled).toBe(true);
+      expect((createEmpty as HTMLButtonElement).disabled).toBe(true);
     });
 
     // Let the pending request settle so the test doesn't leave a dangling
@@ -790,13 +935,22 @@ describe("Home finishing a demo clone", () => {
     // screen, and it's what a person who clicks before the list has loaded
     // actually has available.
     await userEvent.click(screen.getByRole("button", { name: "New trip" }));
-    expect(await screen.findByLabelText(/trip name/i)).toBeTruthy();
+    expect(await screen.findByLabelText("Where are you going?")).toBeTruthy();
 
     // Now let the list resolve empty: `takeDemoClone`'s effect fires, closing
     // the wizard out from under whatever was being typed into it.
     resolveList(jsonResponse({ trips: [] }));
 
-    await waitFor(() => expect(screen.queryByLabelText(/trip name/i)).toBeNull());
+    // **The SHEET closes** — that is what "out from under whatever was being
+    // typed" means, and it is still true. What is new (SPEC §31) is that an
+    // empty list renders the conversation inline, so a composer remains on the
+    // page. It is a fresh one: the abandoned draft did not survive into it,
+    // which is the property this test is really about.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull());
+    const inline = within(await screen.findByTestId("first-trip-start")).getByLabelText(
+      "Where are you going?",
+    );
+    expect((inline as HTMLInputElement).value).toBe("");
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
   });
 });

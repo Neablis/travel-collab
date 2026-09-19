@@ -13,6 +13,7 @@ import {
   classifyAskIntent,
   isAskIntentCall,
   isBareAgreement,
+  type AskCertainty,
   type AskTaskClass,
 } from "@/server/ai/askIntent";
 
@@ -67,11 +68,14 @@ function modelSaying(text: string, finishReason = "stop") {
  * Built through `askIntentVerdictText` on purpose: that is the same function
  * `simulatedModel` emits through, so every green assertion below is also a
  * round-trip of the wire shape the flag-off path — the only path any Vercel
- * environment runs — produces. If an SDK upgrade moved `Output.choice` off
- * `{ result }`, this file goes red rather than the deployment going quiet.
+ * environment runs — produces. If an SDK upgrade moved the output helper off
+ * the shape this file expects, it goes red rather than the deployment going
+ * quiet. (It already paid for itself once: `certainty` moved the verdict from
+ * `Output.choice`'s `{ result }` to an object, and the only edits needed here
+ * were the two literals below.)
  */
-function modelReturning(taskClass: AskTaskClass) {
-  return modelSaying(askIntentVerdictText(taskClass));
+function modelReturning(taskClass: AskTaskClass, certainty: AskCertainty = "sure") {
+  return modelSaying(askIntentVerdictText(taskClass, certainty));
 }
 
 function modelThatThrows(err: unknown) {
@@ -93,7 +97,8 @@ describe("classifyAskIntent", () => {
     expect(result).toMatchObject({ intent: "question", failedOpen: false });
     // The RAW structured verdict, not the parsed enum — `intent` already
     // carries that, and this field's job is to stay useful when they disagree.
-    expect(result.verdict).toBe('{"result":"question"}');
+    expect(result.verdict).toBe('{"intent":"question","certainty":"sure"}');
+    expect(result.certainty).toBe("sure");
   });
 
   it("keeps the write half on an unambiguous change request", async () => {
@@ -144,9 +149,19 @@ describe("classifyAskIntent", () => {
     // Valid JSON, wrong value. The schema is what rejects it now; nothing
     // downstream normalises or guesses.
     it("when the model returns a value the schema does not allow", async () => {
-      const result = await classifyAskIntent(modelSaying('{"result":"maybe"}').model, "hmm");
+      const result = await classifyAskIntent(modelSaying('{"intent":"maybe","certainty":"sure"}').model, "hmm");
       expect(result).toMatchObject({ intent: "write", failedOpen: true });
       expect(result.verdict).toContain("maybe");
+    });
+
+    // **The second field fails open exactly like the first.** A model that
+    // answers the class and skips `certainty` is the shape `Output.object`
+    // rejects, so it lands in the same branch as a missing `intent` — which is
+    // what keeps `FAIL_OPEN_CERTAINTY` a statement about parsing rather than a
+    // default somebody has to remember to apply.
+    it("when the model gives a class but no certainty", async () => {
+      const result = await classifyAskIntent(modelSaying('{"intent":"question"}').model, "hmm");
+      expect(result).toMatchObject({ intent: "write", taskClass: "plan", certainty: "unsure", failedOpen: true });
     });
 
     it("when the model answers with nothing at all", async () => {
@@ -327,3 +342,47 @@ function stepClock(): () => number {
   let t = 0;
   return () => (t += 10);
 }
+
+// **`certainty` — the widened band** (M9 design §1a).
+//
+// Two things were the same value before it existed: "confidently a question"
+// and "unsure, defaulting to plan". The old instruction forced the second into
+// `plan`, which took the strongest model and the full tool set for a turn the
+// classifier had merely hesitated over — and threw away what it actually
+// thought, so the guess rate was structurally unobservable.
+describe("certainty", () => {
+  it("keeps the class the classifier chose, and still hands over the write tools", async () => {
+    const { model } = modelReturning("question", "unsure");
+    const result = await classifyAskIntent(model, "what about day three");
+    // The class is what it said — not rounded up to `plan` to buy the tools.
+    expect(result.taskClass).toBe("question");
+    expect(result.certainty).toBe("unsure");
+    // ...and the effect axis resolves upward anyway, which is rule 1 said on
+    // the axis it is about: a change request wrongly denied write tools cannot
+    // act at all, and "probably a question" is not a good enough reason to risk
+    // that.
+    expect(result.intent).toBe("write");
+    expect(result.failedOpen).toBe(false);
+  });
+
+  it("withholds only on a question the classifier was sure about", async () => {
+    const sure = await classifyAskIntent(modelReturning("question", "sure").model, "how is the trip looking?");
+    expect(sure.intent).toBe("question");
+  });
+
+  // The rule's own comment says it is deliberately not a parser: "Yes go ahead"
+  // can be agreeing to a single stop or to a six-day itinerary. That admission
+  // used to be expressible only as `plan` with nothing flagged.
+  it("calls a bare agreement unsure, because the rule says it cannot tell", async () => {
+    const result = await classifyAskIntent(modelReturning("question").model, "yes go ahead");
+    expect(result).toMatchObject({ source: "affirmation", taskClass: "plan", certainty: "unsure", intent: "write" });
+  });
+
+  // The instruction is re-sent on every turn, so the band had to replace the
+  // old tie-break line rather than sit beside it — keeping both would count the
+  // bias twice AND spend the budget the whole call exists to protect.
+  it("replaced the old tie-break line rather than adding to it", () => {
+    expect(ASK_INTENT_INSTRUCTION).not.toContain('If you are unsure, use "plan"');
+    expect(ASK_INTENT_INSTRUCTION).toContain("unsure");
+  });
+});

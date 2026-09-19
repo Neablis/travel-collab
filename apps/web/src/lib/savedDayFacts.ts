@@ -18,12 +18,22 @@ import { toMinutes } from "@/lib/time";
 export type SavedDayFacts = {
   stopCount: number;
   /**
-   * First start to last end, in the day's stored order.
+   * First start to last end, in the day's stored order — **for a ONE-day
+   * sequence. Null for any longer one** (M23, ADR-048 decision 4).
    *
    * `stops` are stored in the order the day ran (`stopsForDay` walks
    * `day.activityIds`), so the first and last TIMED stops bound the day. Stops
    * with no time are skipped rather than treated as 00:00, which would make an
    * unplaced stop silently widen every window it appears in.
+   *
+   * **A sequence has no window, and the old answer was FALSE rather than
+   * merely imprecise.** Over a three-day Playbook, first-start-to-last-end is
+   * day 1's 09:00 to day 3's 22:00 — which `dayLength` below then buckets as a
+   * thirteen-hour span and labels "Long", a claim about a single day's clock
+   * that no day in the sequence makes. Null is the honest answer, and it is the
+   * one this type already documents for a day whose stops carry no times: the
+   * surface says nothing rather than something untrue, and the card states the
+   * DAY COUNT in that space instead.
    */
   window: TimeWindow | null;
   /**
@@ -60,7 +70,7 @@ export type SavedDayFacts = {
   unpricedStops: number;
 };
 
-export function savedDayFacts(stops: readonly SavedStop[]): SavedDayFacts {
+export function savedDayFacts(stops: readonly SavedStop[], dayCount = 1): SavedDayFacts {
   const timed = stops.map((s) => s.timeWindow).filter((w): w is TimeWindow => w !== null);
   const first = timed[0];
   const last = timed[timed.length - 1];
@@ -79,7 +89,13 @@ export function savedDayFacts(stops: readonly SavedStop[]): SavedDayFacts {
 
   return {
     stopCount: stops.length,
-    window: first !== undefined && last !== undefined ? { start: first.start, end: last.end } : null,
+    // See `window` above: a sequence of more than one day has none. Defaulted
+    // to 1 so every existing caller — and every one-day Playbook, which is
+    // still the ordinary case — is completely unchanged.
+    window:
+      dayCount === 1 && first !== undefined && last !== undefined
+        ? { start: first.start, end: last.end }
+        : null,
     totalCost: priced === 0 || mixed || currency === null ? null : { amountMinor, currency },
     unpricedStops: stops.length - priced,
   };

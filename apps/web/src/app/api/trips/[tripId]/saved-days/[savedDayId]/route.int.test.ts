@@ -81,7 +81,7 @@ async function publishedDay(): Promise<string> {
   const saved = await SAVE(
     new Request("http://test/x", {
       method: "POST",
-      body: JSON.stringify({ name: "Kyoto, on foot", tripId, dayId }),
+      body: JSON.stringify({ name: "Kyoto, on foot", tripId, dayIds: [dayId] }),
     }),
   );
   expect(saved.status).toBe(201);

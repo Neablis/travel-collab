@@ -40,7 +40,45 @@ export function stopsForDay(detail: TripDetail, dayId: string): SavedStop[] | nu
         kind: activity.kind,
         tags: activity.tags,
         cost: activity.cost,
+        // Day ZERO: `stopsForDay` answers about ONE day, so the fragment it
+        // returns is a sequence of length one. `stopsForDays` below re-stamps
+        // this from the day's position in the selection — the index belongs to
+        // the sequence being built, never to the day it was read from.
+        dayIndex: 0,
       },
     ];
   });
+}
+
+/**
+ * The stops of SEVERAL days of a trip, as one ordered sequence (M23 link 2).
+ *
+ * **`dayIndex` is the day's position in `dayIds`, not its position in the
+ * trip.** Keeping trip days 1, 3 and 5 produces a three-day playbook indexed
+ * {0, 1, 2}, not a five-day one with holes: a playbook is a new sequence, and a
+ * fragment that carried its source trip's numbering would only fit where it
+ * came from — the same reason ADR-029 drops the day's calendar date.
+ *
+ * **A selected day with no stops contributes no stops, and that IS its
+ * representation.** The index it would have carried is simply absent, leaving a
+ * GAP — and a gap in `dayIndex` is an empty day (ADR-048 decision 2). Keeping
+ * days [A, B, C] with B empty yields indices {0, 2}, which is a three-day
+ * sequence whose middle day is deliberately empty. Nothing compacts that gap,
+ * here or at any read boundary; compacting it would silently deliver a two-day
+ * playbook to somebody who kept three.
+ *
+ * Returns null when ANY requested day is not in this trip — the same answer
+ * `stopsForDay` gives for one, and for the same reason: a caller asking about a
+ * day that does not exist is a different situation from a day with no stops,
+ * and partially honouring a multi-day request would save a playbook quietly
+ * missing a day.
+ */
+export function stopsForDays(detail: TripDetail, dayIds: readonly string[]): SavedStop[] | null {
+  const sequence: SavedStop[] = [];
+  for (const [dayIndex, dayId] of dayIds.entries()) {
+    const stops = stopsForDay(detail, dayId);
+    if (stops === null) return null;
+    for (const stop of stops) sequence.push({ ...stop, dayIndex });
+  }
+  return sequence;
 }

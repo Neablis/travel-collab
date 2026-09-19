@@ -110,6 +110,7 @@ function savedStop(
   title: string,
   timeWindow: { start: string; end: string } | null,
   location: { city?: string } | null = null,
+  dayIndex = 0,
 ): SavedStop {
   return {
     title,
@@ -120,6 +121,7 @@ function savedStop(
     kind: "planned",
     tags: [],
     cost: null,
+    dayIndex,
   };
 }
 

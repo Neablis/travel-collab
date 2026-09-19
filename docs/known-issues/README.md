@@ -7,6 +7,29 @@ fixing PR) when it's resolved. This is not the roadmap (`TODO.md`) and not a bug
 tracker — it's the standing record of things we know about and have chosen not
 to fix yet, with enough detail to act without re-deriving.
 
+**A status file POINTS here; it does not restate what is here.** `TODO.md`,
+`docs/STATUS.md` and `docs/milestones/README.md` cite entries constantly, and
+the moment one of them paraphrases an entry's subject there are two copies of a
+fact and only one of them was written by somebody looking at the failure.
+
+**Measured, 2026-09-19.** All three said M22's open gate box was blocked on
+`API_TOKEN_PEPPER`, each citing `KI-2026-09-16-d` — an entry about
+`ADMIN_USER_IDS` that has never mentioned the pepper, which was in fact set in
+every environment the whole time. The wrong name survived three days and was
+then copied into two MORE places by a session that read all three files and
+never opened the entry they cited, **because three documents agreeing looks
+exactly like corroboration**. Every plan made from those files was planning
+around a blocker that did not exist.
+
+`scripts/check-ki-citations.mjs` now fails `pnpm lint` when a watched file
+cites an entry and names a `CONSTANT_CASE` identifier absent from that entry's
+**Area:** field. It reads `Area:` rather than the whole entry on purpose: the
+correction for the incident above put the wrong variable's name *into* the
+entry, and a body-text match would then pass the very association the entry
+exists to deny. **When a status file and an entry disagree, the entry wins** —
+and if the entry is the one that is stale, fix it in the same commit rather
+than teaching the copy to agree with it.
+
 Severity: **correctness** (wrong behavior / failing invariant) ·
 **reliability** (flaky / intermittent) · **cosmetic** (visual / copy) ·
 **cleanup** (refactor / DRY, no user impact).

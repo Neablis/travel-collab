@@ -28,6 +28,13 @@ write mid-build. Routed here by the 2026-08-23 design sync, which also gave this
 milestone the **whole Notebook redesign** (`SPEC.md` §7) — since replaced for the
 builder half by §18.
 
+**Widened 2026-09-18 by one link, and clarified by one section.** Mitchell asked for
+*"more widgets, better widget filtering, saving notebook templates for future trips"*. The
+first two were already in scope and are mapped to the items that hold them in *What "more
+widgets, better filtering" resolved to*; the third was **not here and is not anywhere** —
+link 7 seeds templates, and nothing lets a person keep their own notebook for reuse. That is
+**link 10**, and it is named as this milestone's natural carve-out if it splits.
+
 ## Why this exists
 
 M7 shipped the Notebook as a substrate and M8 pulled it back to plain notes. The
@@ -126,6 +133,50 @@ Mitchell's framing, 2026-09-03:
    800ms cadence for durability while history commits **one event per settled edit
    session**. The `pages` table becomes a projection rather than the authority — that is
    the real work in this link.
+
+10. **A notebook can be saved as a template for a future trip.** *(**Added 2026-09-18** on
+    Mitchell's ask — *"saving notebook templates for future trips"*. It is the one part of
+    that ask this milestone did not already hold, checked against the tree before it was
+    written down: link 7 instantiates **seeded** templates from `templates.ts` and a content
+    bundle's `notebooks[]`, and **nothing anywhere lets a person keep their own notebook for
+    reuse.**)*
+    **Its shape is already decided elsewhere and is to be reused rather than invented.**
+    Saved days are this same object class one level down — *saved days are to trips what
+    saved notebooks are to notebooks* — so **ADR-029**'s answers carry over unchanged:
+    personal, ordinary CRUD in its own module, **not** event-sourced, private by default,
+    publishable later rather than now. Minting a second "personal library" pattern beside
+    the first is the drift `AGENTS.md` invariant 5 exists to stop.
+    **One thing it must decide that a saved day did not have to.** ADR-036 puts notebook
+    content in an append-only per-page log, so *save as template* means snapshotting a
+    document **version** into a CRUD row — which is the relationship **ADR-040** already
+    worked out for a kept day (*"a snapshot with provenance"*). It therefore lands **after
+    link 9**, not beside it, and it inherits ADR-038's versioned AST: a template snapshotted
+    at document version N must still instantiate once the AST has moved.
+    **This is the natural carve-out if M14 splits**, which this file already leaves open.
+
+### What "more widgets, better filtering" resolved to — 2026-09-18
+
+Mitchell asked for *"more widgets, better widget filtering, saving notebook templates for
+future trips"*. Two of the three were already here and one was not; this is which, so the
+next session does not re-derive it.
+
+- **More widgets** is **item H** (~14 more, six of them needing `kind: "repeat"`), standing
+  on **item B** (ADR-037 — a widget is a module, which deletes `MacroView`'s
+  `switch (name)`) and **item E** (the attribute manifest).
+- **"Better filtering" is two things, and Mitchell confirmed he meant both.**
+  1. **A dynamic widget that can grab arbitrary fields.** This is *stronger* than item E as
+     written. E gives a developer a widget free when they add an attribute; this is **one
+     widget whose input is a field selector over the manifest**, so the *reader* picks the
+     field rather than the developer. Recorded as a difference because building E to its
+     current wording and then discovering it does not cover this is the expensive order.
+  2. **Finding a widget in the UI is hard today.** That is **item G** (sidebar,
+     drag-and-drop, slash menu) with **link 5**'s two-step Sheet and its search.
+- **A trap to fix *with* this work, not after it.**
+  `docs/known-issues/open/KI-20260905-h-widget-and-ast-exhaustiveness-holes.md` records that
+  a new filter dimension today is accepted, stored, rendered as a control and **silently
+  ignored** — `select.ts:106-108`'s own comment calls *"a control that says narrowed while
+  the widget renders wide"* the worst of the three available answers. More filtering built
+  on that seam multiplies the defect rather than adding a feature.
 
 ### Rescoped a second time, 2026-09-03 (evening) — and it no longer fits in one milestone
 
@@ -560,6 +611,20 @@ milestone opens:**
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
+- [ ] **A notebook is saved as a template from one trip and instantiated into a
+      different trip**, walked in a real browser — and the template row is CRUD,
+      not an event stream, which a test asserts by sweeping for a second writer
+      the way `soleWriter.test.ts` does for subscriptions. *(Link 10, added
+      2026-09-18.)*
+- [ ] **A template snapshotted at one document version still instantiates after
+      the AST has moved** — ADR-038's versioning is exercised by link 10 rather
+      than assumed by it, with a test that pins an older version and renders it.
+- [ ] **Adding a filter dimension cannot be silently ignored.** The
+      `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
+      control and dropped by `narrow` — fails before the change and passes after,
+      and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
+      with the filtering work; a control that says narrowed while the widget
+      renders wide is the defect, not the feature.)*
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.

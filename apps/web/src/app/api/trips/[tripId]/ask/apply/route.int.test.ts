@@ -98,7 +98,7 @@ async function publishedDay(ownerId: string, name = "A day in Kyoto"): Promise<s
       ownerId,
     );
   }
-  const saved = await saveDay({ name, dayId }, (await getTripDetail(tripId))!, ownerId);
+  const saved = await saveDay({ name, dayIds: [dayId] }, (await getTripDetail(tripId))!, ownerId);
   if (!saved.ok) throw new Error(`could not save the day: ${saved.error.message}`);
   const published = await setSavedDayVisibility(saved.value.savedDayId, ownerId, "public");
   if (published === null) throw new Error("could not publish the day");

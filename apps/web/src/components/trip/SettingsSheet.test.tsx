@@ -359,6 +359,19 @@ describe("SettingsSheet role gating", () => {
     expect(screen.getByRole("button", { name: "Duplicate trip" })).toBeTruthy();
   });
 
+  // **M25 link 2.** The download is a link to the same `v1` endpoint an API
+  // caller uses, and a viewer gets it for the same reason they get Duplicate:
+  // a copy takes nothing from the source (ADR-028 decision 3).
+  it("offers the download to every role, pointed at the v1 export endpoint", () => {
+    for (const myRole of ["owner", "editor", "viewer"] as const) {
+      cleanup();
+      renderSheet(vi.fn(), { myRole });
+      const link = screen.getByRole("link", { name: "Download as a file" });
+      expect(link.getAttribute("href")).toBe(`/api/v1/trips/${tripId}/export`);
+      expect(link.hasAttribute("download")).toBe(true);
+    }
+  });
+
   it("disables the rename field for a viewer, and leaves it live for an editor", () => {
     renderSheet(vi.fn(), { myRole: "viewer" });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);

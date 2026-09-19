@@ -11,6 +11,7 @@
 // the same reason every other module here refuses the clock (invariant 4).
 
 import type { ContentBundleV1, BundlePlaybook, BundleStop, BundleTrip } from "./schema.ts";
+import { playbookStops } from "./schema.ts";
 
 export type Severity = "error" | "warning";
 
@@ -77,15 +78,26 @@ export function seasonOf(iso: string): Season | null {
   return "autumn";
 }
 
-function lintStops(where: string, stops: BundleStop[], what: string): Finding[] {
+/**
+ * Chronology, over the stops of ONE day.
+ *
+ * `AddActivity` appends to the end of a day, and the board's Day-columns lens
+ * and the calendar render `day.activityIds` VERBATIM — so written order IS the
+ * order a person sees, and a day written out of order reads 9pm-first on two
+ * real surfaces. (That was a live defect once:
+ * docs/design-feedback/2026-08-26-design-sync-ui-audit.md A1.)
+ *
+ * **Its own function, and the scope in its name, because a multi-day playbook
+ * made the scope matter.** A trip has always been linted one `BundleDay` at a
+ * time (`lintDay`), so the comparison never spanned a midnight. When M23 gave
+ * playbooks a `days:` form, the playbook path flattened every day into one list
+ * before checking order — and an ordinary second morning after an ordinary
+ * first evening became "written out of order", so the linter refused a
+ * perfectly good playbook. Found by CodeRabbit on PR #192. The clock resets at
+ * each day boundary because a day boundary is exactly what it resets at.
+ */
+function lintChronology(where: string, stops: BundleStop[]): Finding[] {
   const findings: Finding[] = [];
-  if (stops.length === 0) return [err(where, `${what} has no stops`)];
-
-  // Chronology. `AddActivity` appends to the end of a day, and the board's
-  // Day-columns lens and the calendar render `day.activityIds` VERBATIM — so
-  // written order IS the order a person sees, and a day written out of order
-  // reads 9pm-first on two real surfaces. (That was a live defect once:
-  // docs/design-feedback/2026-08-26-design-sync-ui-audit.md A1.)
   let previousEnd: string | null = null;
   let previousTitle = "";
   for (const stop of stops) {
@@ -101,6 +113,27 @@ function lintStops(where: string, stops: BundleStop[], what: string): Finding[] 
     previousEnd = stop.timeWindow.end;
     previousTitle = stop.title;
   }
+  return findings;
+}
+
+/**
+ * Everything a set of stops has to satisfy.
+ *
+ * `chronology` is an option rather than always-on because the caller is the
+ * only one that knows whether these stops are one day or several — see
+ * `lintChronology`. The whole-playbook checks below (emptiness, missing
+ * cities, mixed currency) are genuinely about the WHOLE set either way, so they
+ * stay here and are run once over the flattened stops.
+ */
+function lintStops(
+  where: string,
+  stops: BundleStop[],
+  what: string,
+  { chronology = true }: { chronology?: boolean } = {},
+): Finding[] {
+  const findings: Finding[] = [];
+  if (stops.length === 0) return [err(where, `${what} has no stops`)];
+  if (chronology) findings.push(...lintChronology(where, stops));
 
   // A stop with no city is a stop `citiesOfStops` cannot see, so a playbook
   // made of them is a playbook Discover's city search — the primary way anybody
@@ -130,7 +163,19 @@ function lintStops(where: string, stops: BundleStop[], what: string): Finding[] 
 
 function lintPlaybook(bundleId: string, playbook: BundlePlaybook, today: string): Finding[] {
   const where = `${bundleId}/${playbook.key}`;
-  const findings = lintStops(where, playbook.stops, "playbook");
+  // **Chronology per AUTHORED day; everything else over the whole playbook.**
+  // A `days:` playbook's clock restarts at each day, exactly as a trip's does
+  // (`lintDay` below has always called this one day at a time). A `stops:`
+  // playbook is one day, so it keeps the single flat check it always had.
+  const findings =
+    playbook.days === undefined
+      ? lintStops(where, playbookStops(playbook), "playbook")
+      : [
+          ...lintStops(where, playbookStops(playbook), "playbook", { chronology: false }),
+          ...playbook.days.flatMap((day, index) =>
+            lintChronology(`${where} · day ${index + 1}`, day.stops),
+          ),
+        ];
 
   if (playbook.keptOn !== undefined) {
     const at = new Date(playbook.keptOn);
@@ -160,7 +205,7 @@ function lintPlaybook(bundleId: string, playbook: BundlePlaybook, today: string)
     findings.push(err(where, "two adds name the same tripId — the ledger's primary key would collapse them"));
   }
 
-  const { total } = totalMinor(playbook.stops);
+  const { total } = totalMinor(playbookStops(playbook));
   if (playbook.visibility === "public" && total === 0) {
     // A published day with nothing priced shows "—" and is invisible to the
     // budget filter — the starter library's own first bullet.
@@ -284,7 +329,7 @@ export function summarise(bundles: ContentBundleV1[]): ContentSummary {
       const kind = playbook.origin ?? bundle.bundle.origin;
       summary.authorKinds[kind] = (summary.authorKinds[kind] ?? 0) + 1;
       summary.owners[playbook.ownerId] = (summary.owners[playbook.ownerId] ?? 0) + 1;
-      for (const stop of playbook.stops) {
+      for (const stop of playbookStops(playbook)) {
         summary.stops++;
         if (stop.location?.city) cities.add(stop.location.city);
       }
@@ -297,7 +342,7 @@ export function summarise(bundles: ContentBundleV1[]): ContentSummary {
         const season = seasonOf(playbook.keptOn);
         if (season) summary.seasons[season]++;
       }
-      const { total } = totalMinor(playbook.stops);
+      const { total } = totalMinor(playbookStops(playbook));
       if (total > 0) summary.bands[bandOf(total)]++;
     }
   }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { SavedStop } from "@tc/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 
@@ -132,7 +133,7 @@ describe("saveDay's new columns", () => {
   it("stores the cities the domain's rule derives, in time order", async () => {
     const { tripId, dayId } = await tripWithCities();
     const detail = await getTripDetail(tripId);
-    const saved = await saveDay({ name: "A Kansai day", dayId }, detail!, OWNER);
+    const saved = await saveDay({ name: "A Kansai day", dayIds: [dayId] }, detail!, OWNER);
 
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
@@ -148,7 +149,7 @@ describe("saveDay's new columns", () => {
   it("saves a day private, with nobody having added it", async () => {
     const { tripId, dayId } = await tripWithCities();
     const detail = await getTripDetail(tripId);
-    const saved = await saveDay({ name: "A Kansai day", dayId }, detail!, OWNER);
+    const saved = await saveDay({ name: "A Kansai day", dayIds: [dayId] }, detail!, OWNER);
 
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
@@ -190,7 +191,12 @@ describe("the 0012 cities backfill", () => {
           tags: [],
           cost: null,
         },
-      ],
+        // Deliberately WITHOUT `dayIndex` — these are the bytes 0011 wrote, and
+        // `$type<SavedStop[]>()` describes what the write path intends today,
+        // never what an old row holds. The cast is the honest spelling of
+        // "this is the pre-M23 shape"; `SavedStop.dayIndex` defaults to 0, so
+        // the read boundary turns it back into a one-day sequence.
+      ] as unknown as SavedStop[],
       cities: [],
       sourceTripId: randomUUID(),
       sourceTripName: "Kansai",
@@ -296,7 +302,7 @@ describe("a saved day whose stored visibility is not a visibility", () => {
   it("is dropped on read rather than handed out as a typed value", async () => {
     const { tripId, dayId } = await tripWithCities();
     const detail = await getTripDetail(tripId);
-    const saved = await saveDay({ name: "A Kansai day", dayId }, detail!, OWNER);
+    const saved = await saveDay({ name: "A Kansai day", dayIds: [dayId] }, detail!, OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
     const id = saved.value.savedDayId;

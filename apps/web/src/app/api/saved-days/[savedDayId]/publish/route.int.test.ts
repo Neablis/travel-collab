@@ -41,7 +41,7 @@ async function saveOwnDay(name = "A day"): Promise<string> {
     currentUserId,
   );
   const res = await SAVE(
-    new Request("http://test/x", { method: "POST", body: JSON.stringify({ name, tripId, dayId }) }),
+    new Request("http://test/x", { method: "POST", body: JSON.stringify({ name, tripId, dayIds: [dayId] }) }),
   );
   expect(res.status).toBe(201);
   return ((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId;

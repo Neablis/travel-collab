@@ -86,6 +86,56 @@ export function citiesOfStops(stops: readonly (CityBearingStop | undefined)[]): 
   return ordered;
 }
 
+/**
+ * The rule over a saved SEQUENCE — several days as one flat, day-indexed array
+ * (M23, ADR-048 decision 4).
+ *
+ * **This exists because `citiesOfStops` is wrong for a sequence, and wrong
+ * quietly.** Decision 1 above makes it sort timed stops into TIME order across
+ * everything it is handed — which is exactly right for one day and produces
+ * nonsense for three: a 08:00 stop on day 3 sorts ahead of a 14:00 stop on day
+ * 1, so the stored `cities` snapshot comes out in an order the sequence never
+ * runs in. Before M23 no caller could hit it, because every caller had one
+ * day's stops.
+ *
+ * So the fix FOLDS the one rule rather than adding a second: group by
+ * `dayIndex`, apply `citiesOfStops` within each day, concatenate in day order,
+ * and collapse duplicates to their first occurrence across the whole sequence.
+ * That is the same relationship `citiesOfDay` below already has to
+ * `citiesOfStops`, and it is the standing argument in this repo against a
+ * second implementation — a profile's cities and Discover's must not be able to
+ * disagree.
+ *
+ * A one-day sequence is byte-identical to `citiesOfStops` over the same stops,
+ * which is what makes this safe to adopt everywhere rather than behind a
+ * length check.
+ *
+ * Duplicates collapse ACROSS days, not within them: a three-day loop that
+ * returns to Kyoto on day 3 reports Kyoto once, in the position day 1 put it.
+ * "How many cities does this sequence touch" stays a length.
+ */
+export function citiesOfSequence(
+  stops: readonly (CityBearingStop & { dayIndex?: number | undefined })[],
+): string[] {
+  const byDay = new Map<number, (CityBearingStop & { dayIndex?: number | undefined })[]>();
+  for (const stop of stops) {
+    const day = stop.dayIndex ?? 0;
+    const bucket = byDay.get(day);
+    if (bucket === undefined) byDay.set(day, [stop]);
+    else bucket.push(stop);
+  }
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const day of [...byDay.keys()].sort((a, b) => a - b)) {
+    for (const city of citiesOfStops(byDay.get(day)!)) {
+      if (seen.has(city)) continue;
+      seen.add(city);
+      ordered.push(city);
+    }
+  }
+  return ordered;
+}
+
 /** The rule over one day of a trip. A day index past the end reports `[]`. */
 export function citiesOfDay(detail: TripDetail, dayIndex: number): string[] {
   const day = detail.days[dayIndex];

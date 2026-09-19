@@ -13,7 +13,12 @@ pair ahead of M9's remainder on 2026-09-13 — *"start the milestone that create
 the stripe work and ability to pay for the app."* **M20 closed 2026-09-14**, so
 the second half of that sentence is what M21 now is. **M9 is paused, not cancelled**: its Phase 0 completed
 2026-09-11 and ticked no gate box by design, and it keeps its place immediately
-after M21. The note, the three costs accepted with it, and the prices decided
+after M21. **Most of its remaining BUILD landed 2026-09-16 anyway** — grounding,
+KI-93, KI-12, escalation and `certainty`, conversation durability and the replay
+harness, under `docs/plans/2026-09-16-M9-remainder.md`. That does not move the
+marker: what is left of M9 is its GATE, and every unticked box needs a live
+model call or a browser walk rather than more code. `docs/STATUS.md` has the
+four things to know before touching it. The note, the three costs accepted with it, and the prices decided
 the same day are in `docs/milestones/README.md` under **2026-09-13**. The
 history below is kept because it is the argument, not the live instruction —
 per the order set on 2026-08-29 when Mitchell placed two of the three
@@ -49,6 +54,24 @@ Phase 1 publishes `premium@v2`, or M21's second gate box cannot be closed for
 `premium@v1`. Both notes: `docs/milestones/README.md`, 2026-09-16. M19 stays last regardless: its link 3
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
+
+**Widened and reordered 2026-09-18 — three milestones minted (M23, M24, M25) and
+M13 moved ahead of M12**, by Mitchell in a design conversation. The live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+The reasoning is **not here** — `docs/milestones/README.md`'s *2026-09-18* note
+carries it, and each new milestone file carries its own scope and exit gate.
+*(This paragraph's absence was the drift `pnpm state` flagged on 2026-09-18: the
+line above it had been the live order for two days after it stopped being one.)*
+
+**Current milestone moved to M25 on 2026-09-18, by Mitchell's decision and not
+by a gate closing** — *"Start next milestone."* **M22 is paused at 18 of 19, not
+finished**, and its file, scope and every box stand unamended; the open one is a
+browser walk that is blocked on a deployment rather than on code
+(`KI-20260916-d`) — see that entry for what actually blocks it. Nothing about the move
+ticks, unticks or amends a box. **It costs M22 nothing**: M25 adds no entitlement,
+publishes no plan version and touches no token path, so the open walk is exactly
+as walkable after this milestone as before it. The precedent for the shape is
+the 2026-09-16 reorder in `docs/milestones/README.md`.
 
 **M12, M13 and M14 were scoped the same day**, each getting the file and exit
 checklist `docs/milestones/README.md` requires "before work on it begins" and
@@ -538,9 +561,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       an existing subscriber onto a newer version. What you bought is what you
       get, now with no mechanism to change it.)*
 
-- [ ] **M22 An account can build on the API** ← **current milestone**
-      (2026-09-16, **by Mitchell's decision rather than by a gate closing** —
-      M21 is open at 11/17 and paused) →
+- [ ] **M22 An account can build on the API** — **OPEN, PAUSED AT 18/19**
+      (was the current milestone from 2026-09-16, **by Mitchell's decision
+      rather than by a gate closing** — M21 is open at 11/17 and paused;
+      **paused in turn 2026-09-18 when M25 became current**, its one open box
+      being a preview walk blocked on a deployment, `KI-20260916-d`) →
       `docs/milestones/M22-public-api-and-tokens.md`
       *(**Placed 2026-09-16 by Mitchell — runs after M21, before M12.**
       *"Im fine making it after M21."* A public REST API and account-generated
@@ -550,7 +575,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       file back (the shape of the planning-write surface) was answered the same
       day as thirteen REST endpoints, and the last flagged item closed with
       *"Just do v2 then"*, so `api.tokens` ships on **`premium@v2`**. The
-      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, which needs a PR and `API_TOKEN_PEPPER` set there.
+      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, and `KI-20260916-d` is what blocks it: **`ADMIN_USER_IDS`**, so no account reachable from a browser can hold `api.tokens` there. *(This line said `API_TOKEN_PEPPER` until 2026-09-19 and was wrong in a way that cost a session: that variable is set on all three Vercel targets, and the KI it cited never mentioned it.)*
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.
@@ -571,6 +596,117 @@ Where the work actually stands right now: `docs/STATUS.md`.
       declaration and nothing else — no auth, validation, error, pagination,
       docs or client work — because `src/app/api/v1/**` is the registry and one
       `route()` wrapper owns everything cross-cutting.)*
+
+- [x] **M25 A trip is a file you can take with you** — **DONE, gate closed
+      2026-09-19**, 14 of 14 boxes, three of them ticked with something named
+      rather than silently (the free-account walk's caveat, 400 over 413, and
+      the OpenAPI narrowing the box did not ask for). `pnpm check` green — 765
+      tests — and `test:e2e:ci-like` **137 passed**. Two `v1` endpoints, two UI
+      surfaces, no migration, no contract change, no entitlement, no plan
+      version. Retro and gate evidence:
+      `docs/milestones/M25-a-trip-is-a-file.md`
+      *(**Minted and placed 2026-09-18 by Mitchell**, running immediately after
+      M22 — small, and it reuses M22's route wrapper while that machinery is
+      fresh. Trip **export and import** as JSON. **The format is
+      `travel-collab/content-bundle/v1` and a third format is not created**:
+      the bundle already has a schema, a CI-enforced linter, pure converters
+      and a real importer, so round-trip is a gate box a test can hold, and it
+      is the shape a person can hand-author — which is what *"similar to the
+      api"* was asking for. A dedicated export format would be a **third
+      vocabulary over the same data**, which is the drift invariant 5 exists to
+      stop. **An export is a SNAPSHOT, never the event log** — the log is
+      `tripId`-bound and re-importing it would violate ADR-028's id-remap rule,
+      the same hazard `cloneTrip` exists to handle, so an exported trip loses
+      its history. **Export is FREE** (Mitchell, 2026-09-18): *"free keeps trip
+      planning entire"* is the M20 row in `docs/milestones/README.md`, and
+      portability is a trust property, so it needs **no new entitlement**,
+      hence no new plan version, hence it does
+      not walk into the `premium@v1` pinning problem M22 raised. Import is the
+      larger half — a user upload must **mint fresh ids**, where the content
+      script derives them from keys so a re-import updates rows instead.
+      **Three scoping questions were decided 2026-09-18.** **What it
+      carries: days and activities, nothing else** — no budget, no
+      members, invites or share links, no notebook pages, no lineage or
+      trip status. That is a scope line, not a gap, and it buys a
+      property worth naming: an export cannot carry a copy of a
+      membership list out of the system. It also means an export is a
+      copy of the plan and **not a backup**. **Linting: the schema
+      validates an upload and the content rules do not run on it** —
+      `lint.ts` states rules for authored library content headed for
+      Discover, and three are errors a real trip trips routinely (an
+      empty trip, stops out of clock order after an ordinary board
+      reorder, a backlog item with a time window), so running it would
+      reject real trips on day one. No subset and no second rule set;
+      revisit if a real problem emerges. **Dates: a dated trip exports
+      its real `startDate`, never `startsInDays`**, and a **dateless**
+      trip carries neither anchor —
+      *"we just have offsets, day 1, not January 15th"*. `BundleDay`
+      already has no date field, so the trip anchor relaxes from
+      *exactly one* to *at most one*. The export is a copy of **your**
+      trip rather than a re-usable shape, so a stale export importing as
+      a *past* trip is the correct answer, not a defect to design
+      around. The dateless half is not a one-liner: `tripStartDate`'s
+      `?? 0` currently resolves a missing anchor to *starting today*, so
+      relaxing the refine alone would make a dateless trip silently
+      dated. **Nothing on this milestone is waiting on a decision.**)*
+
+- [ ] **M23 A playbook can be more than one day** ← **current milestone**
+      (2026-09-19, by M25's gate closing) →
+      `docs/milestones/M23-multi-day-playbooks.md`
+      *(**Minted and placed 2026-09-18 by Mitchell**, running **before M12** —
+      and that placement is the whole point: M12 keys reviews, ratings,
+      reporting and moderation to a `saved_days` row, and this changes that
+      row's shape. After M12 means M12's work is revisited.
+      **A saved day GENERALISES into a saved sequence; it is the same object,
+      not a new one.** The rejected alternative was a separate "collection"
+      object over saved-day rows — rejected because a second publishable object
+      either doubles M12's trust-and-safety surface or ships a library with two
+      classes of content having different moderation properties.
+      **The shape is a flat `stops[]` with a per-stop day indicator, not
+      `days: SavedStop[][]`** — Mitchell's call, and his reason is migration:
+      existing rows read as "everything on day 1" when the indicator defaults,
+      so the strict `SavedStop.array()` parse at the read boundary keeps working
+      with no versioned read. **That property has a precondition the scoping
+      found**: the strict parse exists at **two** sites (`savedDays.ts`'s
+      `fromRow` and `playbooks.ts`'s `toDiscoverDay`) and `SavedStop` carries
+      **no `.default()` on any field** — so the additive claim holds only if the
+      indicator lands defaulted, at both sites. See `KI-2026-09-05-l`.
+      **One insert primitive, three callers** — add to an existing trip, start a
+      new trip from one day, start a new trip from N days — wrapped in M6's
+      atomic command group. That **absorbed and answered** the unscheduled
+      candidate *"Start a new trip from a saved day"*, whose open question was
+      whether it reuses the fork path or gets its own: **it reuses it**, and the
+      entry was deleted on 2026-09-19 when link 3 landed. Found while building
+      it: the third caller already EXISTED — `AddToTripDialog`'s "Start a new
+      trip" creates the trip and then calls `insertSavedDay`, so the shared
+      primitive was already shared and only needed to learn N days.
+      `insertCommands.contract.test.ts` now fails if a second construction
+      appears.)*
+
+- [ ] **M24 A leg knows where it goes and by what** →
+      `docs/milestones/M24-travel-legs.md`
+      *(**Minted and placed 2026-09-18 by Mitchell**, running after M12 and
+      before M14. A travel stop gets a **transport mode** and a **second
+      location**, and the map draws a real leg instead of inferring one.
+      **Mode carries its own field and does not inherit from `kind`**: `kind:
+      "transit"` says THAT a stop is travel, `mode` says by what, and they
+      cannot disagree because a mode is legal only on a transit stop, enforced
+      by the schema rather than by convention. That **answers the question the
+      candidate entry below has carried since 2026-09-01** (*"inherit, or carry
+      its own"*), which that entry says is *"worth deciding once for both"*
+      alongside M19 link 1's identical question about costs.
+      **`location` keeps meaning the origin** and an optional `endLocation` is
+      added beside it — no existing reader changes meaning. The rejected
+      alternative was modelling travel as an **edge between** two stops rather
+      than as a stop: rejected because the whole app is "a day is an ordered
+      list of activities", and an edge is not in that list.
+      **It has a prerequisite that is not its own deliverable**: the activity-field
+      descriptor refactor, `KI-20260905-o` — 21 non-test files hand-enumerate
+      activity fields and nothing goes red when one is missed. **It runs once,
+      before M13**, and is shared with M13 link 5 (`who`) and M19 link 1 (cost
+      kind). It was already scheduled once, on 2026-08-29, as *"one overnight
+      batch"* and did not happen; M13's gate now carries a box for it so it is
+      enforced rather than remembered.)*
 
 - [ ] **M19 A cost knows who and what it is for** →
       `docs/milestones/M19-cost-model.md`
@@ -593,6 +729,41 @@ Where the work actually stands right now: `docs/STATUS.md`.
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.
+
+- **An architecture map that is generated, drift-checked, and annotated at gate
+  close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
+  Mitchell's ask: a skill that reviews the codebase and keeps an up-to-date
+  diagram of the code and its models, audits it for drift, and updates it — so
+  that reviewing a new feature means reading the diagram rather than re-reading
+  the whole codebase, keeping structure consistent and duplication visible.
+  **Repo automation in the sense of `AGENTS.md`'s "Repo automation" section, not
+  a milestone** — which is why it is here rather than in the list above.
+  Three things were settled in the conversation that designed it:
+  - **Two layers.** A mechanical layer **generated from source and drift-checked
+    in CI** (the `content:verify` / `seed:verify` / lint-wall precedent), and an
+    annotation layer **written by a person or agent**. The split is the one
+    `pnpm state` and `/roadmap` already use, and the reason is this repo's own
+    history: `STATUS.md` records that a drifted first-read file is worse than
+    none, and that **the stale section was the defect, length only the symptom**.
+  - **The annotation layer is written at GATE CLOSE, not from scratch** —
+    Mitchell's argument, and it is right: describing a part of the system is far
+    cheaper at the end of the milestone that built it, with the context live,
+    than reconstructed cold later. Its home is the **gate-close checklist** in
+    `docs/milestones/README.md`, which has already grown once for exactly this
+    reason (step 5, STATUS.md, was missing and cost two gates).
+  - **Known issues bind to diagram nodes, and the binding is DERIVED.** KI
+    entries already carry an `- **Area:**` line of real paths; map path → node
+    from those rather than adding a field, so none of the ~68 open entries needs
+    editing and there is nothing new to keep in sync. The payoff: an agent about
+    to change an area can ask what is already known-broken there, which makes
+    `CLAUDE.md` rule 2 structural rather than remembered.
+  **One thing it will not do, stated so it is not expected**: a diagram does not
+  enforce DRY, it makes duplication *visible*. `KI-20260905-o`'s 21 files
+  hand-enumerating activity fields would render beautifully and still compile
+  green. What enforces DRY here is executable — the lint wall, the contracts
+  protocol, `soleWriter.test.ts`, `planVersions.noExtension.test.ts`.
+  **Approved in principle 2026-09-18; the spec is for approval and mints
+  nothing.** Proposed to run before M23.
 
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
@@ -799,19 +970,14 @@ Captured so they aren't lost; not committed to a milestone yet.
   mode, which is the argument for doing it properly once. Vercel toolbar thread
   `ULm7F9Ys7Cyx`.
 
-- **Start a new trip from a saved day (raised by Mitchell on the PR 141
-  preview, 2026-09-04).** On the playbooks day page: *"There should also be a
-  option to create a new trip, and initialize it with this day as the first
-  day."* An addition to a **shipped** surface — M11b's gate closed 2026-08-31 —
-  so it has no owner, the same position as the shared-day map below.
-
-  Not free, and the cost is one question: initialising a trip with a saved day
-  means replaying that day's stops as `AddActivity` commands against a fresh
-  trip, which is close to what **fork** already does. So the real decision is
-  whether it reuses the fork path or gets its own, and that is worth settling
-  before anyone writes it — two implementations of "materialise stops into a new
-  trip" is exactly the shape of duplication `citiesOfDay` and `rollupCosts` exist
-  to prevent elsewhere. Vercel toolbar thread `pkAYS2-v8FTr`.
+- **PLACED 2026-09-18 — this is M23 link 3, and its open question is answered.**
+  *Scheduled into `docs/milestones/M23-multi-day-playbooks.md` as one insert
+  primitive with three callers (add to an existing trip, start a trip from one
+  day, start a trip from N days). The question below — reuse the fork path or
+  write a second one — is answered: one shared primitive, because two
+  implementations of "materialise stops into a new trip" is the duplication
+  `citiesOfDay` and `rollupCosts` exist to prevent. M23's gate deletes this
+  entry at close; it stays until then so the reasoning is not lost.*
 
 - **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
   section plus a `#pricing` nav anchor on M15's existing landing route — three
@@ -889,6 +1055,15 @@ Captured so they aren't lost; not committed to a milestone yet.
   Deliberately not done in PR #89 — that PR closed M18's gate, and removing a
   control from a different surface would have made the gate evidence harder to
   read.
+
+- **PLACED 2026-09-18 — this is M24, and its open question is answered.**
+  *Scheduled as `docs/milestones/M24-travel-legs.md`. The question below —
+  does a mode inherit from `kind` or carry its own field — is answered: it
+  carries its own, legal only when `kind === "transit"` and enforced by the
+  schema, so the two cannot disagree. The entry's own note that this is "worth
+  deciding once for both" still holds for M19 link 1, which may answer
+  differently for costs only with a stated reason. M24's gate deletes this
+  entry at close.*
 
 - **Transport mode per leg — the map legend's modes (2026-09-01, out of the
   milestone audit).** `map-legend-modes` in `preview-registry.ts` was tagged

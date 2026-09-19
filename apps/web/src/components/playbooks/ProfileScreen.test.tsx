@@ -18,6 +18,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     cities: ["Kyoto"],
     matchedCities: [],
     stopCount: 4,
+    dayCount: 1,
     window: { start: "07:30", end: "18:30" },
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
@@ -61,7 +62,7 @@ describe("a public profile", () => {
   it("shows numbers that agree with the days it lists", async () => {
     renderProfile();
     await screen.findByTestId("profile-numbers");
-    expect(screen.getByTestId("profile-number-days-shared").textContent).toBe("2Days shared");
+    expect(screen.getByTestId("profile-number-playbooks-shared").textContent).toBe("2Playbooks shared");
     expect(screen.getByTestId("profile-number-added-to-trips").textContent).toBe("3Added to trips");
 
     const cards = within(screen.getByTestId("profile-days")).getAllByTestId("discover-card");
@@ -91,7 +92,7 @@ describe("a public profile", () => {
     );
     renderProfile();
     expect((await screen.findByTestId("profile-day-page")).textContent).toBe(
-      "Showing the 2 newest of 30 days shared.",
+      "Showing the 2 newest of 30 playbooks shared.",
     );
   });
 

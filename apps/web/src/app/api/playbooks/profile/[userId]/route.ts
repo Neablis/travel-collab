@@ -47,6 +47,9 @@ export async function GET(
       publishedOnly: true,
       sort: "newest",
       budget: "any",
+      // A profile shows everything somebody published; narrowing it by length
+      // is a Discover control, not a property of a profile.
+      length: "any",
       season: null,
       readerId: session.user.id,
     }),
