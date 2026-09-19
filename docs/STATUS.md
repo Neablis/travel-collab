@@ -33,7 +33,7 @@ general setup.
 **M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
 by **M25's gate closing**, which is the ordinary way this line moves. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**M23 is at 10 of 11 — only the retro is left.** Links 2, 3 and 4 are built,
+**M23's GATE CLOSED 2026-09-19 — 11 of 11.** Links 2, 3 and 4 are built,
 `test:e2e:ci-like` is green at 137, and the two-actor multi-day walk passed on
 PR #192's preview. Its scope and exit gate are in
 `docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
