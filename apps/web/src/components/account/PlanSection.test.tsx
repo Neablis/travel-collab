@@ -48,6 +48,7 @@ const CATALOGUE: AccountPlanView["catalogue"] = [
 const FREE: AccountPlanView = {
   planVersionRef: "free@v1",
   conferredVersionRef: "free@v1",
+  grantedVersionRefs: [],
   entitlements: [],
   questions: { used: 0, limit: 0 },
   steps: { used: 0, limit: 0 },
@@ -337,5 +338,62 @@ describe("the meters", () => {
     await screen.findByTestId("plan-section");
     expect(text("meter-questions")).toContain("3 / 200");
     expect(text("meter-steps")).toContain("40 / 1600");
+  });
+});
+
+// **The tier an account can actually use is not always the one it bought.**
+// Mitchell's own founding account, 2026-09-19: `users.plan_id` said `plus@v1`,
+// two permanent `premium` grants sat active on it, and the sheet never once
+// printed the word `premium` — so the screen disagreed with what the assistant
+// and the collaborator cap were actually letting through. `entitlements` was
+// already the union; what was missing was a TIER a person recognises.
+describe("a grant above the held plan", () => {
+  const comped = (): AccountPlanView => ({
+    ...FREE,
+    planVersionRef: "plus@v1",
+    conferredVersionRef: "plus@v1",
+    // What the operator console writes for a comp: a grant pinned to its own
+    // version, which outlives the plan the account pays for.
+    grantedVersionRefs: ["premium@v1", "premium@v2"],
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
+    catalogue: CATALOGUE.map((choice) => ({ ...choice, held: choice.planId === "plus" })),
+  });
+
+  it("shows the granted tier, not the bought one", async () => {
+    serve(comped());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    // The newest granted version of the most capable granted plan.
+    expect(text("plan-effective")).toContain("premium");
+    expect(text("plan-effective")).toContain("2");
+  });
+
+  // Both facts, because the billing copy below the card is about the
+  // SUBSCRIPTION: an account reading only "premium" would have no way to
+  // understand a renewal notice naming `plus`.
+  it("still names the plan that was actually bought", async () => {
+    serve(comped());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-held")).toContain("plus");
+  });
+
+  // The guard against the reverse failure: with no grant, the label is the held
+  // plan and nothing invents a tier.
+  it("leaves an ungranted account on its own plan", async () => {
+    serve(subscribed());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-effective")).toContain("premium");
+    expect(text("plan-held")).toContain("premium");
+  });
+
+  // A plan the chooser does not offer (`studio` ships disabled) must never
+  // become the label — there is no page that could explain it.
+  it("ignores a grant for a plan the catalogue does not offer", async () => {
+    serve({ ...comped(), grantedVersionRefs: ["studio@v1"] });
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-effective")).toContain("plus");
   });
 });

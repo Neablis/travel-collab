@@ -7,7 +7,7 @@ import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import type { AccountPlanView } from "@/lib/accountPlan";
+import { effectiveTierRef, type AccountPlanView } from "@/lib/accountPlan";
 import {
   PLAN_STATE_BADGE,
   PLAN_STATE_LABEL,
@@ -149,6 +149,17 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
   if (plan === null) return null;
 
   const [planId, version] = plan.planVersionRef.split("@");
+  // **The tier this account can actually use, which is not always the one it
+  // bought.** Mitchell, 2026-09-19: a founding account read `plus v1` while two
+  // permanent `premium` grants sat active on it, so this screen never once said
+  // the word for what the account could do. `entitlements` below was already
+  // right — it is the union — but a list of capability strings is not a tier a
+  // person recognises, and both tier fields on the wire are about the
+  // subscription. See `effectiveTierRef` for why choosing between them happens
+  // here, in rendering, and nowhere upstream.
+  const effectiveRef = effectiveTierRef(plan);
+  const [effectivePlanId, effectiveVersion] = effectiveRef.split("@");
+  const grantedAbove = effectiveRef !== plan.conferredVersionRef;
   const { billing } = plan;
   // **What a lapse would take from other people — asked of the SERVER, which
   // is the only place that can answer it** (CodeRabbit, PR #177).
@@ -188,13 +199,18 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
 
       <div className="flex flex-col gap-1.5 rounded-lg border border-hairline p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Text as="span" className="text-sm font-semibold text-ink" data-testid="plan-held">
-            {planId} {version}
+          <Text as="span" className="text-sm font-semibold text-ink" data-testid="plan-effective">
+            {effectivePlanId} {effectiveVersion}
           </Text>
           <Badge variant={PLAN_STATE_BADGE[billing.state]} data-testid="plan-state">
             {PLAN_STATE_LABEL[billing.state]}
           </Badge>
         </div>
+        <Text variant="secondary" className="text-xs" data-testid="plan-held">
+          {grantedAbove
+            ? `You bought ${planId} ${version}; a grant on this account confers ${effectivePlanId} ${effectiveVersion}.`
+            : `Your plan is ${planId} ${version}.`}
+        </Text>
         <Text variant="secondary" className="text-xs">
           {plan.entitlements.length === 0
             ? "Planning only — the assistant and collaborators are not on this plan."

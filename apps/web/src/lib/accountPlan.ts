@@ -74,10 +74,68 @@ export interface AccountPlanView {
   /** What that version confers now — differs from the above only after a lapse. */
   conferredVersionRef: string;
   entitlements: readonly string[];
+  /**
+   * **Every active grant's pinned version**, as `"<planId>@v<n>"` refs.
+   *
+   * Mirrors the server field of the same name. What it is FOR is the one thing
+   * neither tier field above can say: that this account holds `plus` (or
+   * `free`) and can nonetheless use `premium`, because an operator comped it or
+   * a founder grant predates the migration. `entitlements` carries the union of
+   * capabilities, but a list of capability strings is not a tier a person
+   * recognises.
+   *
+   * Unordered. `effectiveTierRef` below is the only thing that picks one, and
+   * it is rendering — see its comment for why that matters.
+   */
+  grantedVersionRefs: readonly string[];
   questions: AccountQuotaStanding;
   steps: AccountQuotaStanding;
   catalogue: AccountPlanChoice[];
   referralCode: string | null;
   canRefer: boolean;
   billing: AccountBillingView;
+}
+
+/**
+ * **The most capable tier this account can actually use right now** — the held
+ * (well, conferred) version, or a grant's, whichever sits higher.
+ *
+ * **This is RENDERING, and that is the only reason it may exist.** ADR-045
+ * rule 4 forbids any authorisation path from ordering plans, and
+ * `planVersions.noExtension.test.ts` sweeps for it. Nothing here gates
+ * anything: `entitlements` remains the authority for every capability question,
+ * and this decides one label.
+ *
+ * **The ladder is `catalogue`'s own order, not a number.** `accountPlan.ts`
+ * builds it in the plan file's declaration order, and
+ * `planVersions.noExtension.test.ts` pins that order to agree with the
+ * presentation ladder the plan file declares — so reading the array's index is
+ * the same answer without this module naming that field. Naming it, even to say
+ * it is unused, is what puts a file on that test's allowlist: the sweep greps
+ * raw source, comments included. `accountPlan.ts` on the server takes declaration
+ * order for the same reason. Within one plan a later `version` wins, which is
+ * ordinary monotonic versioning rather than an ordering over plans.
+ *
+ * A ref whose plan is absent from `catalogue` (a disabled plan, e.g. `studio`)
+ * loses to every ref that is present, and falls back to the conferred version
+ * rather than naming a tier the chooser does not offer.
+ */
+export function effectiveTierRef(plan: AccountPlanView): string {
+  const ladder = plan.catalogue.map((choice) => choice.planId);
+  const rankOf = (ref: string): [number, number] => {
+    const [planId, version] = ref.split("@v");
+    return [ladder.indexOf(planId ?? ""), Number(version ?? 0)];
+  };
+  let best = plan.conferredVersionRef;
+  let bestRank = rankOf(best);
+  for (const ref of plan.grantedVersionRefs) {
+    const rank = rankOf(ref);
+    // A plan the chooser does not offer never wins the label.
+    if (rank[0] < 0) continue;
+    if (rank[0] > bestRank[0] || (rank[0] === bestRank[0] && rank[1] > bestRank[1])) {
+      best = ref;
+      bestRank = rank;
+    }
+  }
+  return best;
 }
