@@ -228,7 +228,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
     { title: `Nishiki market ${city}`, city },
   ]);
   const kept = await page.request.post("/api/saved-days", {
-    data: { name: dayName, tripId: source.tripId, dayId: source.dayId },
+    data: { name: dayName, tripId: source.tripId, dayIds: [source.dayId] },
   });
   expect(kept.ok(), `keep -> ${kept.status()}`).toBe(true);
   const { savedDay } = (await kept.json()) as { savedDay: { savedDayId: string } };

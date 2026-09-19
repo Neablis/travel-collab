@@ -167,7 +167,7 @@ test.describe("responsive (narrow viewport)", () => {
       },
     });
     const kept = await page.request.post("/api/saved-days", {
-      data: { name: `Responsive day ${Date.now()}`, tripId, dayId },
+      data: { name: `Responsive day ${Date.now()}`, tripId, dayIds: [dayId] },
     });
     expect(kept.ok()).toBe(true);
 

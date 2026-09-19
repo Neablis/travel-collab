@@ -193,8 +193,13 @@ Four links. Link 1 is an ADR and gates the rest.
       **every** day of the sequence, and the adds ledger counts a multi-day add
       per the ADR's key decision, with `saved_days.adds` unable to drift from
       `count(*)` over the ledger.
-- [ ] The full Definition of Done is green, including
-      `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
+- [x] The full Definition of Done is green, including
+      `pnpm --filter web test:e2e:ci-like` — not `test:e2e`. **137 passed**,
+      matching M25's baseline; `pnpm check` green (3,096 unit + 782
+      integration). The lane found three e2e specs still posting the old
+      single-`dayId` body to `POST /api/saved-days` — e2e is not in `pnpm
+      check`, so CI caught what the local check could not, which is the whole
+      argument for CLAUDE.md rule 1.
 - [ ] Retro appended at gate close.
 
 ## 2026-09-19 — link 1 landed: ADR-048, and two of this file's premises corrected
@@ -250,8 +255,16 @@ writer of this shape — the **M25 round-trip tripwire does not catch it**, beca
 
 ## 2026-09-19 — links 2, 3 and most of 4 landed
 
-**Gate: 7 of 11.** What is left is the two-actor browser walk, the Discover
-`cities`/ledger box's own walk, the full `test:e2e:ci-like` lane, and the retro.
+**Gate: 8 of 11.** What is left is the two-actor browser walk, the Discover
+`cities`/ledger box's own walk, and the retro.
+
+**The e2e lane went red on the first CI run and is green now.** Three specs
+(`m11b-playbooks`, `m10-simulated-ai`, `responsive`) seed a Playbook by posting
+`{ name, tripId, dayId }` straight at `POST /api/saved-days`, and link 2 changed
+that body to `dayIds`. **`pnpm check` cannot see this** — e2e is not in it — so
+a green local check was not a green CI, exactly as that script's own skip
+message warns. Reproduced locally with `test:e2e:ci-like` (the same 5 failed /
+132 passed CI reported), fixed, and re-run to 137 passed.
 
 **The shape, as built.** Flat `stops[]`, each stop carrying a 0-based
 `dayIndex` defaulted to 0; `saved_days.day_count` (migration
