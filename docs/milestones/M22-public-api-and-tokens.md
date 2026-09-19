@@ -1,6 +1,16 @@
 # M22 — An account can build on the API
 
-**Status:** **CURRENT MILESTONE as of 2026-09-16, and building.** Placed that
+**Status:** **DONE — gate closed 2026-09-19, 19 of 19.** The last box — the
+preview walk of mint, copy, revoke, time remaining and the `free` upgrade
+prompt — was ticked that day **on Mitchell's attestation** that he walked it and
+it worked, on his instruction to close the gate on that basis; no agent walked
+those clauses. Retro at the bottom.
+
+*(Was the current milestone from 2026-09-16, then **OPEN and PAUSED at 18 of 19
+2026-09-18 → 2026-09-19** when M25 became current. The paragraph below is the
+status as written at placement.)*
+
+**Was CURRENT MILESTONE as of 2026-09-16, and building.** Placed that
 morning on Mitchell's call (*"Im fine making it after M21"*), scoped the same
 day, then **moved ahead of M21 by his explicit decision** — offered the choice
 between closing M21 first and reordering, with the cost stated, he chose the
@@ -298,7 +308,7 @@ missing.
 - [x] **No entitlement is cached on a token row and none is read from a JWT.** A
       downgrade bites on the next request, not on the next token. A test fails
       if `api_tokens` ever gains an entitlement column.
-- [ ] **A person mints, copies and revokes a token by clicking**, sees time
+- [x] **A person mints, copies and revokes a token by clicking**, sees time
       remaining on each, and a `free` account sees an upgrade prompt where the
       section would be — walked in a browser on the preview, and in
       `pnpm --filter web test:e2e:ci-like`.
@@ -334,6 +344,12 @@ missing.
       vars are injected at build time, so setting it alone changes nothing.
       `dev-m20operator` is the natural value, since the e2e suite already uses
       it. `KI-2026-09-16-d` records the general problem.
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
+      The CI-lane half was already green; the attestation covers the two
+      preview clauses the 2026-09-16 table marks *not walked*.
 - [x] **The reference docs cannot drift from the implementation.** Changing a
       route's declared response schema changes `/api/v1/openapi.json` in the
       same diff, because it is derived from the declaration at build time and
@@ -764,3 +780,31 @@ contracts caught every one: a page with no `content`, a `PageContext.kind` of
 `"trip"` (the field is the literal `"overview"` or absent), and a `CreateTrip`
 missing a defaulted field. That is the validation working at the boundary it was
 put there for.
+
+## Retro — 2026-09-19
+
+**Eighteen of nineteen boxes were ticked with evidence on 2026-09-16; the
+nineteenth closed on 2026-09-19 on Mitchell's attestation.** He stated he walked
+mint, copy and revoke, the time-remaining display and the `free` upgrade prompt
+himself, that they worked, and instructed that the gate close on that basis. No
+agent walked those two clauses, and no screenshot or network log from that walk
+is recorded here. The agent walk of 2026-09-16 (the table under the box) stands
+as the only recorded observation, and it met one clause of three.
+
+**Why the recorded walk stopped short.** Entitling an account on a preview needs
+an operator grant, and the preview's operator allow-list did not include a
+dev-login id, so the grant answered 404 and no browser-reachable account could
+hold `api.tokens` there (`KI-20260916-d`). That entry is **not** resolved by this
+close — it describes the general problem, and the next tier-gated box on a
+preview will meet it again.
+
+**A misattributed blocker cost more than the blocker.** For three days the
+status files named the wrong environment variable as the cause, each copy
+corroborating the others while the KI they cited said something else. The
+correction and the lint that now guards it are recorded in
+`docs/known-issues/README.md`; the lesson belongs here because it is this
+milestone's: when a status file and a KI disagree, read the KI.
+
+**The headline claim held.** Endpoint N+1 costs a declaration and nothing else
+— measured in Phase 4 here, and measured again independently by M25, which
+added two `v1` endpoints on this machinery.

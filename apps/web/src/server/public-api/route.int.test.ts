@@ -45,6 +45,25 @@ vi.mock("@/server/access/trip-access", async (importOriginal) => {
   };
 });
 
+// The same one-shot shape for the credential step. `resolveActor` is the FIRST
+// thing every request touches and the first thing that reads the database, so a
+// throw there is the widest hole the envelope can have.
+let credentialThrows: Error | null = null;
+vi.mock("@/server/public-api/actor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/public-api/actor")>();
+  return {
+    ...actual,
+    resolveActor: (...args: Parameters<typeof actual.resolveActor>) => {
+      if (credentialThrows !== null) {
+        const failure = credentialThrows;
+        credentialThrows = null;
+        return Promise.reject(failure);
+      }
+      return actual.resolveActor(...args);
+    },
+  };
+});
+
 const { db } = await import("@/server/db/client");
 const { tripDetails } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
@@ -417,6 +436,26 @@ describe("the answers a caller cannot fix, and the ones they can", () => {
     expect(body.error.code).toBe("server-error");
     // Never the driver's words — a caller does not get to read our stack.
     expect(JSON.stringify(body)).not.toContain("connection terminated");
+  });
+
+  // **The step above that one, and the hole it left was wider.** Every request
+  // passes the credential check, trip-scoped or not, so an unreachable
+  // `api_tokens` took the envelope off the whole API rather than off one route.
+  // Observed on production with `0023_api_tokens` unapplied: no token answered
+  // `401` in the envelope, a well-formed bearer answered a bare `500` with an
+  // empty body. A refusal is NOT this case — `resolveActor` returns those — so
+  // anything it throws is infrastructure and belongs in `server-error`.
+  it("answers a failing credential lookup with the error envelope, not a crash", async () => {
+    credentialThrows = new Error('relation "api_tokens" does not exist');
+    const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", "irrelevant-the-lookup-throws"), NO_PARAMS);
+    expect(credentialThrows, "the credential step should have consumed the failure").toBeNull();
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const body = await res.json();
+    expect(body.error.code).toBe("server-error");
+    // The driver named our table; the caller does not get to read it.
+    expect(JSON.stringify(body)).not.toContain("api_tokens");
   });
 
   // **A trip this server cannot parse is a 500 IN THE ENVELOPE.** `getTripDetail`
