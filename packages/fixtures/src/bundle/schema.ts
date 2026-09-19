@@ -254,6 +254,36 @@ export const ContentBundleV1 = z.object({
 export type ContentBundleV1 = z.infer<typeof ContentBundleV1>;
 
 /**
+ * **What a USER UPLOAD is read as** (M25 link 3) — the same document, narrowed
+ * to the sections an upload actually writes.
+ *
+ * **Not a second format.** Same `$schema` literal, same `BundleMeta`, same
+ * `BundleTrip`. A file that satisfies `ContentBundleV1` satisfies this, and the
+ * ignored sections are simply not carried through — zod strips an unknown key
+ * rather than refusing it, so a bundle with playbooks and notebooks still
+ * imports its trip.
+ *
+ * **It exists because the published reference must not promise what the
+ * endpoint does not do.** Declared as the full `ContentBundleV1`, the import
+ * endpoint's generated `requestBody` was 26 KB, most of it the recursive
+ * `PageDoc` AST under `notebooks` — telling an integrator they may send
+ * notebook documents to an endpoint that discards them without a word. Exactly
+ * the same objection as `TripExportBundle`'s, on the other side of the wire.
+ *
+ * **What is NOT given up by narrowing.** The correctness boundary an upload
+ * needs is over the trip it writes, and `BundleTrip` here is the same schema
+ * `parseBundle` applies — so a malformed stop, an impossible time window or a
+ * fractional cost is still a 400 naming the path that is wrong. The sections
+ * this drops are ones nothing reads.
+ */
+export const TripImportBundle = z.object({
+  $schema: z.literal("travel-collab/content-bundle/v1"),
+  bundle: BundleMeta,
+  trips: z.array(BundleTrip).default([]),
+});
+export type TripImportBundle = z.infer<typeof TripImportBundle>;
+
+/**
  * Validates raw JSON against `content-bundle/v1` and resolves the two things
  * the file is allowed to leave implicit: a playbook's `origin` (inherited from
  * the bundle) and nothing else.

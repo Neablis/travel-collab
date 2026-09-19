@@ -63,6 +63,21 @@ interface BaseDef {
   readonly query?: z.ZodTypeAny;
   readonly body?: z.ZodTypeAny;
   /**
+   * A ceiling on the request body, in bytes. Refused as a 400 **naming the
+   * limit**, never clamped or truncated — the same rule `?limit=` follows, and
+   * for the same reason: a caller who sent 8 MB and silently got the first 2
+   * has a trip missing its last four days and nothing to read about why.
+   *
+   * **Here rather than in a handler**, because the wrapper owns body reading
+   * and a handler never sees the `Request`. Doing it in a handler would mean a
+   * second read of a body that has already been consumed, and a second error
+   * shape on a surface whose whole claim is one envelope.
+   *
+   * Only endpoints that take a file-shaped body set it. A JSON patch with five
+   * fields has no use for one.
+   */
+  readonly maxBodyBytes?: number;
+  /**
    * The success status, when the default is wrong.
    *
    * `GET`/`PATCH`/`DELETE` answer 200 and `POST` answers 201, because a POST
@@ -270,6 +285,32 @@ function fail(
   );
 }
 
+/**
+ * The refusal for a body over `maxBodyBytes`, **naming the limit**.
+ *
+ * **400 and not 413, deliberately.** `413 Payload Too Large` is the more
+ * precise status and M25's exit gate says 400 — *"refused with the limit named,
+ * as a 400 and not a truncation, a timeout or a 500"* — and a gate definition
+ * changes only by Mitchell's explicit decision, not by a build preferring a
+ * different number. The `details`-free message is what a caller acts on either
+ * way. Recorded here so the next reader finds the reason rather than the
+ * discrepancy.
+ */
+function tooLarge(max: number): string {
+  return `That file is too large. The limit is ${max.toLocaleString("en-US")} bytes.`;
+}
+
+/**
+ * The byte length of a string as it arrived, not its character count.
+ *
+ * `"京".length` is 1 and it costs 3 bytes on the wire. A limit measured in
+ * characters would let a bundle of CJK stop titles through at three times the
+ * size it was meant to allow.
+ */
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
 /** 401s carry `WWW-Authenticate`, because a bearer scheme that does not is guessing. */
 const BEARER_CHALLENGE = { "WWW-Authenticate": "Bearer" };
 
@@ -391,7 +432,30 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
 
     let body: unknown;
     if (def.body !== undefined) {
-      const raw = await request.json().catch(() => undefined);
+      // **Measured, not trusted.** `Content-Length` is a claim a client makes
+      // and can be absent entirely on a chunked upload, so it is worth an early
+      // refusal and is never the answer on its own. The text below is what
+      // actually arrived.
+      const max = def.maxBodyBytes;
+      if (max !== undefined) {
+        const claimed = Number(request.headers.get("content-length"));
+        if (Number.isFinite(claimed) && claimed > max) {
+          return fail("invalid-request", tooLarge(max), 400);
+        }
+      }
+      // `text()` rather than `json()` so the size can be measured before it is
+      // parsed. `JSON.parse` on a string this process already holds costs the
+      // same as letting `json()` do it.
+      const text = await request.text().catch(() => undefined);
+      if (max !== undefined && text !== undefined && byteLength(text) > max) {
+        return fail("invalid-request", tooLarge(max), 400);
+      }
+      let raw: unknown;
+      try {
+        raw = text === undefined ? undefined : JSON.parse(text);
+      } catch {
+        raw = undefined;
+      }
       const parsed = def.body.safeParse(raw);
       if (!parsed.success) {
         return fail("invalid-request", "The request body is not valid.", 400, {
