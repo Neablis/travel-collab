@@ -17,6 +17,7 @@ import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
+import { ImportTripButton } from "@/components/home/ImportTripButton";
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
@@ -406,10 +407,17 @@ export default function Home() {
                 them. Your own days are the `Yours` scope on Discover, which is
                 where §15 puts them (a filter on that page, never a second
                 page). */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
                 Start from a Playbook
               </Link>
+              {/* **Import sits beside the other two ways a trip starts** (M25
+                  link 2). A file is a third origin for a trip, not a setting,
+                  so it belongs where "New trip" and "Start from a Playbook"
+                  already are rather than behind a menu. `flex-wrap` because
+                  three controls is one more than this row was built for and a
+                  390px screen has to put them somewhere. */}
+              <ImportTripButton disabled={cloningDemo} />
               <Button
                 type="button"
                 variant="primary"
