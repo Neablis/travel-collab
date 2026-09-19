@@ -125,6 +125,33 @@ test("ignores single-segment capitals, which are prose in these files", () => {
   assert.equal(status, 0);
 });
 
+// **A substring is not a match** (CodeRabbit, PR #191). `area.includes(id)` let
+// an Area naming `LEGACY_ADMIN_USER_IDS` satisfy a claim about
+// `ADMIN_USER_IDS` — a false CLEAN report, which for an audit script is the one
+// failure mode that matters, since nobody goes looking after a green line.
+test("does not let a longer identifier in the Area satisfy a shorter claim", () => {
+  const legacy = PREVIEW_ENTRY.replace("`ADMIN_USER_IDS`", "`LEGACY_ADMIN_USER_IDS`");
+  const { status, stderr } = runWall({
+    "docs/known-issues/open/KI-20260916-d-a-tier-gated-box.md": legacy,
+    "TODO.md": "Blocked on `ADMIN_USER_IDS` (`KI-2026-09-16-d`).\n",
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /ADMIN_USER_IDS/);
+});
+
+// **A missing Area is a violation, not a skip** (CodeRabbit, PR #191). Skipping
+// it meant a citation to an entry with no `Area:` could carry any claim at all
+// and still exit 0 — a hole shaped exactly like the bug this wall exists for.
+test("refuses a citation to an entry with no parseable Area field", () => {
+  const noArea = "### KI-2026-09-16-d — something\n\n- **Severity:** process\n";
+  const { status, stderr } = runWall({
+    "docs/known-issues/open/KI-20260916-d-a-tier-gated-box.md": noArea,
+    "TODO.md": "Blocked on `ANYTHING_AT_ALL` (`KI-2026-09-16-d`).\n",
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /no parseable Area field/);
+});
+
 // A wall that checks nothing passes silently — the failure mode this repo has
 // already paid for twice (a probe asserting zero times, and the lint wall's own
 // five empty rows).

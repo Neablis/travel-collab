@@ -37,6 +37,8 @@ import { basename, join } from "node:path";
 //     missing secret" cites nothing checkable.
 //   - A wrong claim in a file that is not watched. The list below is the
 //     incident's own three files; widening it is cheap and deliberate.
+//   - A claim about something that is not spelled `CONSTANT_CASE`. A file name,
+//     a route, a person — none of those are checked.
 //   - Whether the ENTRY is right. This wall keeps the copies honest to the
 //     source; it has no opinion about the source. `KI-2026-09-16-d`'s own fix
 //     sketch turned out to be wrong on the same day, and nothing mechanical
@@ -98,7 +100,6 @@ for (const sub of SUBDIRS) {
 
 const violations = [];
 let pairs = 0;
-let skippedNoArea = 0;
 
 for (const file of WATCHED) {
   let source;
@@ -121,13 +122,26 @@ for (const file of WATCHED) {
       const path = entries.get(key);
       if (path === undefined) continue; // Unknown id: not this wall's complaint.
       const area = areaOf(readFileSync(path, "utf8"));
+      // **A missing `Area:` is a violation, not a skip** (CodeRabbit, PR #191).
+      // The register's format requires the field; skipping it silently meant a
+      // watched sentence could cite an entry with no `Area:` and name any
+      // identifier at all, and this wall would still exit 0 — a hole shaped
+      // exactly like the bug it was built to catch.
       if (area === null) {
-        skippedNoArea += 1;
+        violations.push(
+          `${file}: cites ${citation}, but ${basename(path)} has no parseable Area field, so ` +
+            "there is nothing to check the claim against.",
+        );
         continue;
       }
+      // **Whole identifiers, not substrings** (CodeRabbit, PR #191). `includes`
+      // let an Area naming `LEGACY_ADMIN_USER_IDS` satisfy a claim about
+      // `ADMIN_USER_IDS` — a false clean report, which for an audit script is
+      // the only failure mode that matters.
+      const inArea = new Set(area.match(IDENTIFIER) ?? []);
       for (const identifier of named) {
         pairs += 1;
-        if (!area.includes(identifier)) {
+        if (!inArea.has(identifier)) {
           violations.push(
             `${file}: cites ${citation} while naming \`${identifier}\`, which is absent from ` +
               `${basename(path)}'s Area field.\n    ${sentence.trim().slice(0, 160)}`,
@@ -164,6 +178,5 @@ if (entries.size < 50) {
 }
 
 console.log(
-  `ki citation wall OK (${pairs} identifier/citation pair(s) checked against ${entries.size} entries` +
-    `${skippedNoArea > 0 ? `, ${skippedNoArea} skipped for having no Area field` : ""})`,
+  `ki citation wall OK (${pairs} identifier/citation pair(s) checked against ${entries.size} entries)`,
 );

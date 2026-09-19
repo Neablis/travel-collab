@@ -6064,7 +6064,9 @@
                             "additionalProperties": false
                           },
                           "startsInDays": {
-                            "type": "integer"
+                            "type": "integer",
+                            "minimum": -36500,
+                            "maximum": 36500
                           },
                           "startDate": {
                             "type": "string",
@@ -14856,7 +14858,9 @@
                           "additionalProperties": false
                         },
                         "startsInDays": {
-                          "type": "integer"
+                          "type": "integer",
+                          "minimum": -36500,
+                          "maximum": 36500
                         },
                         "startDate": {
                           "type": "string",

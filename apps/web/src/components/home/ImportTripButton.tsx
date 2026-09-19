@@ -27,7 +27,16 @@ import { Text } from "@/components/ui/text";
 /** Anything the server said, or anything that stopped us reaching it. */
 type Failure = { message: string };
 
-export function ImportTripButton({ disabled = false }: { disabled?: boolean }) {
+export function ImportTripButton({
+  disabled = false,
+  size,
+  className,
+}: {
+  disabled?: boolean;
+  /** `sm` on the first-run card, where it sits beside the other routes in. */
+  size?: "sm" | "md";
+  className?: string;
+}) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -71,6 +80,8 @@ export function ImportTripButton({ disabled = false }: { disabled?: boolean }) {
       <Button
         type="button"
         variant="secondary"
+        {...(size ? { size } : {})}
+        {...(className ? { className } : {})}
         disabled={disabled || busy}
         onClick={() => input.current?.click()}
       >

@@ -95,8 +95,17 @@ export const BundleTrip = z
     /** ISO-4217. Omitted = the domain's own default (USD). */
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
     budget: Money.optional(),
-    /** Days from *today*. See the header: a seeded trip has to stay upcoming. */
-    startsInDays: z.number().int().optional(),
+    /**
+     * Days from *today*. See the header: a seeded trip has to stay upcoming.
+     *
+     * **Bounded, because the arithmetic downstream is not total.**
+     * `addDays` builds a `Date` and calls `toISOString()`, which THROWS on the
+     * out-of-range date a large enough offset produces — and the import route
+     * turns a throw into a 500 rather than the 400 a caller could act on.
+     * ±100 years refuses nothing anyone would write and keeps the conversion
+     * inside the range `Date` can represent. (CodeRabbit, PR #191.)
+     */
+    startsInDays: z.number().int().min(-36_500).max(36_500).optional(),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     days: z.array(BundleDay),
     /** Parked ideas — no day, no clock, no price. `AddActivity`'s documented "omitted = backlog". */

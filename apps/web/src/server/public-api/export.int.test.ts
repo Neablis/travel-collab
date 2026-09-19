@@ -23,7 +23,7 @@ import { mintToken } from "@/server/api-tokens";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
-const { POST: CREATE_TRIP } = await import("@/app/api/v1/trips/route");
+const { POST: CREATE_TRIP, GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
 const { POST: ADD_DAY } = await import("@/app/api/v1/trips/[tripId]/days/route");
 const { POST: ADD_STOP } = await import("@/app/api/v1/trips/[tripId]/activities/route");
@@ -225,11 +225,25 @@ describe("POST /v1/trips/import", () => {
     expect((await GET_TRIP(req(authorSecret), P({ tripId: detail.tripId }))).status).toBe(403);
   });
 
+  /** Every trip this credential can currently see. */
+  async function tripIdsOf(secret: string): Promise<string[]> {
+    const list = await LIST_TRIPS(req(secret), NO_PARAMS);
+    expect(list.status).toBe(200);
+    return ((await list.json()).items as { tripId: string }[]).map((t) => t.tripId).sort();
+  }
+
   // A malformed file writes nothing — there is no partial state to design,
   // because the refusal happens before the first command.
+  //
+  // **"Writes nothing" is asserted, not asserted-about.** The first version of
+  // this test checked only the 400, so a regression that created a trip and
+  // *then* answered 400 would have passed it while the sentence in its own name
+  // became false (CodeRabbit, PR #191). The trip collection either side of the
+  // call is what makes the claim mean something.
   it("refuses a malformed bundle with a readable error and writes nothing", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const tripsBefore = await tripIdsOf(secret);
 
     const before = await IMPORT(
       req(
@@ -255,6 +269,43 @@ describe("POST /v1/trips/import", () => {
     expect(error.code).toBe("invalid-request");
     // Zod's own issue list, naming the path. No error handling written by hand.
     expect(JSON.stringify(error.details)).toContain("timeWindow");
+    expect(await tripIdsOf(secret)).toEqual(tripsBefore);
+  });
+
+  // **Nothing that can THROW runs after the first write.** `addDays` calls
+  // `toISOString()`, which throws on an out-of-range date — and while the
+  // commands were built after `CreateTrip`, that throw left an empty trip the
+  // uploader never asked for, with the refusal branch not yet in scope
+  // (CodeRabbit, PR #191). Two things fix it and this asserts both: the schema
+  // bounds `startsInDays`, so the reachable version is a 400; and the commands
+  // are built first, so any remaining throw happens before anything is written.
+  it("refuses an absurd startsInDays as a 400, and writes no trip", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const tripsBefore = await tripIdsOf(secret);
+
+    const refused = await IMPORT(
+      req(
+        secret,
+        {
+          $schema: "travel-collab/content-bundle/v1",
+          bundle: { id: "far", name: "Far", origin: "human" },
+          trips: [
+            {
+              key: "far",
+              name: "Far future",
+              startsInDays: Number.MAX_SAFE_INTEGER,
+              days: [{ stops: [{ title: "A stop" }] }],
+            },
+          ],
+        },
+        "POST",
+      ),
+      NO_PARAMS,
+    );
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error.code).toBe("invalid-request");
+    expect(await tripIdsOf(secret)).toEqual(tripsBefore);
   });
 
   it("refuses a file that is not one trip, saying which it is", async () => {
@@ -315,6 +366,42 @@ describe("POST /v1/trips/import", () => {
     const oversized = await IMPORT(req(secret, fat, "POST"), NO_PARAMS);
     expect(oversized.status).toBe(400);
     expect((await oversized.json()).error.message).toContain("2,000,000 bytes");
+  });
+
+  // **The ceiling holds with no `Content-Length` to read**, which is the case
+  // the header check cannot catch and the one a chunked upload actually
+  // presents. The test above sends a string body, so the runtime sets a length
+  // and the cheap early-out fires; this sends a stream, so the only thing that
+  // can refuse it is the count kept while reading (CodeRabbit, PR #191).
+  it("refuses an oversized chunked body, which carries no content-length", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const tripsBefore = await tripIdsOf(secret);
+
+    const chunk = new TextEncoder().encode("x".repeat(100_000));
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        // Comfortably past the 2,000,000-byte ceiling if it is ever all read.
+        if (sent >= 3_000_000) return controller.close();
+        sent += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+
+    const request = new Request("http://localhost/x", {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body,
+      // Node requires this to send a stream body at all.
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    expect(request.headers.get("content-length")).toBeNull();
+
+    const refused = await IMPORT(request, NO_PARAMS);
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error.message).toContain("2,000,000 bytes");
+    expect(await tripIdsOf(secret)).toEqual(tripsBefore);
   });
 
   // Creating a NEW trip from a credential confined to named trips is a

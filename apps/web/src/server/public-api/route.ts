@@ -300,15 +300,43 @@ function tooLarge(max: number): string {
   return `That file is too large. The limit is ${max.toLocaleString("en-US")} bytes.`;
 }
 
+/** What `readCapped` returns instead of a body when the ceiling is passed. */
+const TOO_LARGE = Symbol("body over maxBodyBytes");
+
 /**
- * The byte length of a string as it arrived, not its character count.
+ * The request body as text, refusing as soon as it passes `max` bytes.
  *
- * `"京".length` is 1 and it costs 3 bytes on the wire. A limit measured in
- * characters would let a bundle of CJK stop titles through at three times the
- * size it was meant to allow.
+ * **Counted while reading and cancelled on the way past**, rather than measured
+ * after the fact: a body already known to be over the ceiling should not be
+ * held in full first. `Content-Length` is checked before this (it is a cheap
+ * early out) and is never trusted as the answer — it is a claim, and a chunked
+ * upload may not send one at all.
+ *
+ * Decoded with a streaming `TextDecoder`, because a multi-byte character can
+ * straddle two chunks and decoding each chunk alone would corrupt it.
  */
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).length;
+async function readCapped(request: Request, max: number): Promise<string | undefined | typeof TOO_LARGE> {
+  const stream = request.body;
+  if (stream === null) return undefined;
+  const reader = stream.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let seen = 0;
+  let out = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      seen += value.byteLength;
+      if (seen > max) {
+        await reader.cancel().catch(() => undefined);
+        return TOO_LARGE;
+      }
+      out += decoder.decode(value, { stream: true });
+    }
+  } catch {
+    return undefined;
+  }
+  return out + decoder.decode();
 }
 
 /** 401s carry `WWW-Authenticate`, because a bearer scheme that does not is guessing. */
@@ -444,12 +472,20 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
         }
       }
       // `text()` rather than `json()` so the size can be measured before it is
-      // parsed. `JSON.parse` on a string this process already holds costs the
-      // same as letting `json()` do it.
-      const text = await request.text().catch(() => undefined);
-      if (max !== undefined && text !== undefined && byteLength(text) > max) {
-        return fail("invalid-request", tooLarge(max), 400);
-      }
+      // parsed — and, when a ceiling is declared, read in chunks so the measure
+      // happens BEFORE the whole body is held rather than after.
+      //
+      // **The first version buffered and then measured** (CodeRabbit, PR #191).
+      // Vercel refuses a payload over 4.5 MB before a function sees it, so the
+      // allocation was always bounded and this was never unbounded-memory — but
+      // an endpoint declaring a 2 MB ceiling still read every byte of a 4 MB
+      // body before saying no, which is work done on behalf of a request
+      // already known to be refused.
+      const text =
+        max === undefined
+          ? await request.text().catch(() => undefined)
+          : await readCapped(request, max);
+      if (text === TOO_LARGE) return fail("invalid-request", tooLarge(max!), 400);
       let raw: unknown;
       try {
         raw = text === undefined ? undefined : JSON.parse(text);

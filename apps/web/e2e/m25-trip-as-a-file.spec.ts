@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
+import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
 
 // **M25's exit gate, walked** — *"A trip is a file you can take with you."*
@@ -22,10 +23,22 @@ import { e2eTripName } from "./tripNames";
 //   3. **Reachability**: this is done by clicking, which is the Definition of
 //      Done's rule for every milestone.
 //
-// **A fresh account per test.** M25 turns on what an account holds, and
-// `auth.setup.ts`'s shared alice has existed for many runs — mirroring
-// `m20-entitlements.spec.ts`, which mints newcomers for the same reason. A
-// newcomer here is on `free`, which is exactly the account the gate asks about.
+// **A fresh account per test, AND its signup trial revoked.** M25 turns on what
+// an account holds, and `auth.setup.ts`'s shared alice has existed for many
+// runs — so this mints newcomers, mirroring `m20-entitlements.spec.ts`.
+//
+// **A newcomer is NOT on `free`, and this spec claimed it was.** `recordSignIn`
+// calls `offerTrial` for every genuinely new account, which issues a seven-day
+// **`plus`** grant (`entitlements/grants.ts`). So the first version of this file
+// walked a trialling account while asserting the free case, and the gate box it
+// evidences says *"a `free`-plan account"*. Caught by CodeRabbit on PR #191.
+//
+// M20 had already hit this and solved it: revoke the trial through the
+// console's own path, so what is walked is a genuinely unentitled account
+// rather than one that was never offered anything. `revokeTrial` below is that
+// pattern, and it ASSERTS the trial was there — if signup ever stops issuing
+// one, this test should say so rather than quietly start passing for a new
+// reason.
 //
 // Each test drives a full sign-in, so `test.slow()` — a budget failure is fixed
 // with the budget, not with a retry.
@@ -46,6 +59,43 @@ async function signInAs(page: Page, username: string): Promise<void> {
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+}
+
+/** A second context, signed in as the configured operator. */
+async function openOperator(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  await signInAs(page, E2E_ADMIN_USERNAME);
+  return page;
+}
+
+/**
+ * Take the signup trial away, so the account under test is really on `free`.
+ *
+ * Through `DELETE /api/admin/grants` — the console's own revoke path, the same
+ * one M20's refusal test uses — rather than a test-only door, because an
+ * account whose entitlements were arranged by a back channel is not the account
+ * a person would have.
+ */
+async function revokeTrial(browser: Browser, username: string): Promise<void> {
+  const operator = await openOperator(browser);
+  try {
+    const overview = await operator.request.get("/api/admin/overview");
+    expect(overview.ok(), await overview.text()).toBe(true);
+    const { overview: data } = (await overview.json()) as {
+      overview: { accounts: { userId: string; grants: { id: string; source: string }[] }[] };
+    };
+    const grants = data.accounts.find((a) => a.userId === `dev-${username}`)?.grants ?? [];
+    const trial = grants.find((g) => g.source === "trial");
+    expect(trial, "a new account carries a signup trial").toBeDefined();
+
+    const revoked = await operator.request.delete("/api/admin/grants", {
+      data: { grantId: trial!.id },
+    });
+    expect(revoked.ok(), await revoked.text()).toBe(true);
+  } finally {
+    await operator.context().close();
+  }
 }
 
 async function createTrip(page: Page, name: string): Promise<string> {
@@ -78,8 +128,14 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test.describe("M25 — a trip is a file you can take with you", () => {
   test.slow();
 
-  test("a free account downloads a trip and imports it back, by clicking", async ({ page }) => {
-    await signInAs(page, newcomer("m25free"));
+  test("a free account downloads a trip and imports it back, by clicking", async ({
+    page,
+    browser,
+  }) => {
+    const who = newcomer("m25free");
+    await signInAs(page, who);
+    // Genuinely `free`, not trialling `plus` — see this file's header.
+    await revokeTrial(browser, who);
     const name = e2eTripName("M25 round trip");
     const tripId = await createTrip(page, name);
     await planADay(page, tripId, "Fushimi Inari");

@@ -414,10 +414,20 @@ export default function Home() {
               {/* **Import sits beside the other two ways a trip starts** (M25
                   link 2). A file is a third origin for a trip, not a setting,
                   so it belongs where "New trip" and "Start from a Playbook"
-                  already are rather than behind a menu. `flex-wrap` because
-                  three controls is one more than this row was built for and a
-                  390px screen has to put them somewhere. */}
-              <ImportTripButton disabled={cloningDemo} />
+                  already are rather than behind a menu.
+
+                  **Not on the first-run screen, where `FirstTripStart` carries
+                  it instead.** Three controls is one more than this row was
+                  built for: at 375px it wrapped onto an extra line and pushed
+                  that card's composer out of the viewport, which
+                  `responsive.spec.ts:917` asserts against. It failed in CI and
+                  passed locally in both lanes — the assertion sits close enough
+                  to the fold that rendering decides it — so the fix is to give
+                  the row back its height rather than to trust the margin.
+
+                  `hasNoTrips` is what makes this exactly one control on either
+                  screen rather than two on one. */}
+              {!hasNoTrips && <ImportTripButton disabled={cloningDemo} />}
               <Button
                 type="button"
                 variant="primary"

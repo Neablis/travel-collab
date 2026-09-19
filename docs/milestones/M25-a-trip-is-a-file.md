@@ -527,8 +527,22 @@ that does not parse imports nothing, and there is no partial state to design.
       entitlement anywhere on that path, and no upgrade prompt on any screen it
       touches.
 
-      **Green, with one caveat named.** `apps/web/e2e/m25-trip-as-a-file.spec.ts`
-      — a freshly signed-up (therefore `free`) account downloads by clicking,
+      **Green, with one caveat named — and one correction.**
+
+      **The correction: "freshly signed up" is NOT "free", and the first
+      version of this box was ticked as though it were.** `recordSignIn` calls
+      `offerTrial` for every genuinely new account, which issues a seven-day
+      **`plus`** grant — so the walk proved the round trip for a *trialling*
+      account and said `free`. Found by CodeRabbit on PR #191. The spec now
+      revokes that trial through the console's own `DELETE /api/admin/grants`,
+      which is the pattern `m20-entitlements.spec.ts` already used for exactly
+      this reason, and asserts the trial was there before revoking it — so if
+      signup ever stops issuing one, the test says so rather than quietly
+      passing for a new reason.
+
+      `apps/web/e2e/m25-trip-as-a-file.spec.ts`
+      — a signed-up account with its trial revoked, therefore genuinely `free`,
+      downloads by clicking,
       the spec reads the bytes that actually land on disk, uploads those same
       bytes through a real file chooser, and lands on a **different** trip from
       the one it came from. Reading the downloaded stream rather than the

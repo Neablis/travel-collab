@@ -156,14 +156,23 @@ export const { POST } = route({
       const trip = theTrip(bundle);
 
       const tripId = randomUUID();
-      const created = orThrow(await runCommand(actor, { type: "CreateTrip", tripId, name: trip.name }));
 
+      // **Every command is built BEFORE the first write.** `bundleTripCommandGroups`
+      // is pure, so nothing forces it to run after `CreateTrip` — and running it
+      // after was a real defect: it calls `addDays`, whose `toISOString()` throws
+      // on an out-of-range date, and a throw here would have happened with the
+      // trip already committed and the cleanup below not yet in scope. Built
+      // first, that same failure is a 500 with nothing written.
+      // (CodeRabbit, PR #191. `startsInDays` is also bounded at the schema now,
+      // which makes the reachable version of it a 400 instead.)
       const commands = bundleTripCommandGroups(bundle.bundle.id, trip, {
         today: new Date().toISOString().slice(0, 10),
         // **The whole of "an upload can never overwrite a trip".** Supplied,
         // so `tripIdFor` is never consulted and every other id is minted.
         tripId,
       }).flat();
+
+      const created = orThrow(await runCommand(actor, { type: "CreateTrip", tripId, name: trip.name }));
 
       // An empty trip is a real thing to export and therefore a real thing to
       // import, and `runBatch` refuses an empty command list as "this patch
@@ -178,18 +187,38 @@ export const { POST } = route({
       // and atomicity is not a preference here but a gate requirement: any
       // rejection inside a batch appends nothing, so a refusal cannot leave a
       // half-written trip.
-      const outcome = await runBatch(actor, commands);
+      // **The one window this endpoint has, and it is a REFUSAL and a THROW.**
+      // `CreateTrip` is not a `BatchableCommand`, so it cannot ride in the batch
+      // and the import is unavoidably two writes. If the second does not land,
+      // the first has committed, and the uploader is left with an empty trip
+      // they did not ask for and did not name.
+      //
+      // The first version of this handled only the refusal. A *thrown* error —
+      // a dropped connection, a pool timeout — rolled the batch's own
+      // transaction back and skipped the cleanup entirely, leaving exactly the
+      // husk the refusal branch existed to prevent (CodeRabbit, PR #191). The
+      // `catch` is what makes the two paths one.
+      //
+      // The soft delete is the command path's own inverse (`RestoreTrip`
+      // exists), so this uses the domain rather than reaching past it, and it is
+      // best-effort on purpose: the caller's error is the import's failure, not
+      // whatever went wrong cleaning up after it.
+      //
+      // **What this still is not: one transaction.** A genuine create-and-apply
+      // would need `CreateTrip` to become batchable — it is deliberately not,
+      // since a trip's genesis mints its id and its owner — or a new operation
+      // on the shared command pipeline, which is a change to a seam every write
+      // in the app goes through, for one endpoint. Filed as `KI-2026-09-19-b`
+      // rather than done here, with the residue named: cleanup itself failing
+      // leaves an empty trip the uploader can delete.
+      let outcome;
+      try {
+        outcome = await runBatch(actor, commands);
+      } catch (error) {
+        await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
+        throw error;
+      }
       if (!outcome.ok) {
-        // **The one window this endpoint has, closed rather than documented.**
-        // `CreateTrip` is not a `BatchableCommand`, so it cannot ride in the
-        // batch above and the import is unavoidably two writes. If the second
-        // fails, the first has committed, and the uploader would be left with
-        // an empty trip they did not ask for and did not name. The soft delete
-        // is the command path's own inverse (`RestoreTrip` exists), so this
-        // uses the domain rather than reaching past it.
-        //
-        // Best-effort on purpose: the caller's error is the batch's refusal,
-        // not whatever went wrong cleaning up after it.
         await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
         throw new PublicApiError(outcome.status, outcome.message);
       }

@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 import { NewTripConversation, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
+import { ImportTripButton } from "./ImportTripButton";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
 // feedback that turned out to be the same one (Mitchell, 2026-09-01):
@@ -142,6 +143,22 @@ export function FirstTripStart({
         >
           Look around an example trip
         </Link>
+        {/* **The fourth route in, and the one that costs the least of all**
+            (M25): a person arriving with a trip already planned somewhere else
+            uploads the file and is done.
+
+            **It lives here rather than in the page head on this screen, and
+            that is a fix rather than a preference.** It was in the head, which
+            on a 375px viewport wrapped the head's action row onto an extra line
+            and pushed this card's composer out of the viewport —
+            `responsive.spec.ts:917` caught it, in CI and not locally, because
+            the assertion sits close enough to the fold that rendering
+            differences decide it. Below the composer rather than above it, it
+            costs that assertion nothing.
+
+            One control, never two: the page head renders it only when there
+            ARE trips, which is exactly when this card is not on screen. */}
+        <ImportTripButton disabled={disabled} size="sm" className={TOUCH} />
       </div>
     </Card>
   );
