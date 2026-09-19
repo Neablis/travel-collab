@@ -63,9 +63,25 @@ export function tripIdFor(bundleId_: string, tripKey: string): string {
   return bundleId(`trip:${bundleId_}`, tripKey);
 }
 
-/** The trip's first day, resolved from whichever of the two date forms it carries. */
-export function tripStartDate(trip: BundleTrip, today: string): string {
-  return trip.startDate ?? addDays(today, trip.startsInDays ?? 0);
+/**
+ * The trip's first day, resolved from whichever of the two date forms it
+ * carries — or `undefined` when it carries **neither**, which is a dateless
+ * trip and not a missing value.
+ *
+ * **It used to default, and the default was silent** (M25 question 2). The old
+ * body was `trip.startDate ?? addDays(today, trip.startsInDays ?? 0)`, whose
+ * `?? 0` resolved "no anchor at all" to *starting today*. While the schema
+ * demanded exactly one anchor that branch was unreachable; the moment M25
+ * relaxed it to *at most one*, a dateless bundle would have imported as a trip
+ * dated to the day somebody uploaded it, with nothing anywhere saying so.
+ *
+ * Returning `undefined` is what makes the caller decide, and
+ * `bundleTripCommandGroups` below is where that decision is written down.
+ */
+export function tripStartDate(trip: BundleTrip, today: string): string | undefined {
+  if (trip.startDate !== undefined) return trip.startDate;
+  if (trip.startsInDays !== undefined) return addDays(today, trip.startsInDays);
+  return undefined;
 }
 
 /**
@@ -99,15 +115,29 @@ export function bundleTripCommandGroups(
   const startDate = tripStartDate(trip, today);
   const dayIds = trip.days.map(() => mintId());
 
-  const setup: TripCommand[] = [
-    {
-      type: "SetTripDates",
-      tripId,
-      startDate,
-      endDate: addDays(startDate, Math.max(trip.days.length - 1, 0)),
-      newDayIds: dayIds,
-    },
-  ];
+  // **A dateless trip builds its days a different way, and it has to.**
+  //
+  // `SetTripDates` reconciles the day COUNT to the date range, and `decide.ts`
+  // guards that whole reconcile on `startDate !== null && endDate !== null` —
+  // so a `SetTripDates` with both dates null emits no `DayAdded` at all. The
+  // days of a dateless trip would simply not exist.
+  //
+  // `AddDay` per day is the other shape, and it is the one the board itself
+  // uses when somebody adds a day to an undated trip. The days come out in
+  // written order because `DayAdded` appends, exactly as the stops within a day
+  // rely on `ActivityAdded` appending.
+  const setup: TripCommand[] =
+    startDate === undefined
+      ? dayIds.map((dayId) => ({ type: "AddDay", tripId, dayId }))
+      : [
+          {
+            type: "SetTripDates",
+            tripId,
+            startDate,
+            endDate: addDays(startDate, Math.max(trip.days.length - 1, 0)),
+            newDayIds: dayIds,
+          },
+        ];
   // Currency BEFORE budget: `SetTripBudget` carries its own currency and the
   // domain refuses a same-value `SetTripCurrency` as a no-op, so a USD trip
   // must not send one at all. Only a trip that says something other than the

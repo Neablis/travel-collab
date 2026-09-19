@@ -4,9 +4,14 @@ The public REST API is everything under `/api/v1/**`. This page is for two
 audiences: somebody writing a program against it, and somebody in this repo
 adding an endpoint to it.
 
-Everything here is M22. The design and the reasoning behind each decision are in
+The surface is M22's. The design and the reasoning behind each decision are in
 `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`; the scope
 and the exit gate are in `docs/milestones/M22-public-api-and-tokens.md`.
+
+**One section is not M22's**: *Taking a trip out, and putting one back* is
+**M25** (`docs/milestones/M25-a-trip-is-a-file.md`), and its two endpoints were
+built to measure M22's own claim that adding endpoint N+1 costs a declaration
+and nothing else.
 
 ## For a caller
 
@@ -180,6 +185,68 @@ refused rather than one of them silently winning.
 `trips:write` — a lookup spends the operator's geocoding allowance, so a
 read-only token cannot make one. A spent allowance answers `429` with
 `Retry-After`; a geocoder that is down answers `503`.
+
+### Taking a trip out, and putting one back
+
+Two endpoints, added by **M25**. Both speak `travel-collab/content-bundle/v1` —
+the format `content/` is authored in — rather than a third vocabulary, so a file
+you download is a file you can hand-edit and re-upload, and the schema behind it
+already has a CI test over every checked-in example.
+
+```bash
+curl -H "Authorization: Bearer $TC_TOKEN" \
+  https://…/api/v1/trips/$TRIP/export > kyoto.json
+
+curl -X POST -H "Authorization: Bearer $TC_TOKEN" \
+  -H "content-type: application/json" \
+  --data-binary @kyoto.json https://…/api/v1/trips/import
+```
+
+| | Scope | Role | Notes |
+|---|---|---|---|
+| `GET /v1/trips/{tripId}/export` | `trips:read` | `viewer` | The response body **is** the file. A viewer may export, because a viewer may already clone (ADR-028 decision 3). |
+| `POST /v1/trips/import` | `trips:write` | — | Creates a trip, so a **trip-scoped token is refused**, exactly as `POST /v1/trips` refuses one. Answers the created `TripDetail`. |
+
+**Six things worth knowing before you write against them:**
+
+1. **An export carries days and activities. Nothing else.** No budget, no
+   currency, no members, invites or share links, no notebook pages, no lineage
+   or trip status. A stop's own `cost` **is** carried — it is a field of an
+   activity, and `Money` names its own currency. So is the backlog. This is a
+   scope line taken deliberately (Mitchell, 2026-09-18), not a gap; one thing it
+   buys is that **an export cannot carry a membership list out of the system**.
+2. **An export is a snapshot, not a backup and not the event log.** A
+   re-imported trip starts a fresh stream — no undo, no redo, no history.
+3. **An import MINTS ids.** The same file uploaded twice gives you **two**
+   trips. There is no upsert and no way to address an existing trip with a
+   file, deliberately.
+4. **Ownership comes from your credential, never from the file.** Anything a
+   bundle says about who owns what is discarded.
+5. **One trip per file.** Zero or two is a 400 saying which. `playbooks`,
+   `notebooks` and the loose `activities` wishlist are read past rather than
+   refused, so a file carrying them still imports its trip.
+6. **Ceilings, refused and never truncated**: 2,000,000 bytes, 1,000 stops and
+   366 days, each named in its own 400.
+
+**Dates.** A dated trip exports its real `startDate` and re-imports onto it —
+**including one in the past**, which is the intended answer rather than a
+defect: this is a copy of *your* trip, not a re-usable shape, so a stale export
+imports as a stale trip. A trip with no dates exports with **neither** anchor
+and imports as dateless, its days addressed by position. Export never emits
+`startsInDays`; that form is how authored library content keeps itself upcoming.
+
+**Validation is the schema's, not the content linter's.** `lint.ts` states rules
+for library content headed for Discover, and three of them are errors an
+ordinary trip trips routinely — an empty trip, stops out of clock order after
+you reorder a board, a backlog item carrying a time window. None of those stops
+an upload. A file that does not parse imports **nothing**; there is no partial
+import.
+
+**Export is free; the API is not.** Downloading a trip from the app needs no
+plan. Calling these endpoints needs a token, and a token needs `api.tokens`,
+which is `premium@v2` — so `GET /v1/trips/{tripId}/export` answers 402 for an
+account that cannot hold one. That is *the API* being gated, exactly as it is
+for `GET /v1/trips`; the free path is the UI one.
 
 ### What is not here, and will not be
 

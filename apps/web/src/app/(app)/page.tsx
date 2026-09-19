@@ -17,6 +17,7 @@ import { NextTripHero } from "@/components/home/NextTripHero";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
+import { ImportTripButton } from "@/components/home/ImportTripButton";
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
@@ -406,10 +407,27 @@ export default function Home() {
                 them. Your own days are the `Yours` scope on Discover, which is
                 where §15 puts them (a filter on that page, never a second
                 page). */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
                 Start from a Playbook
               </Link>
+              {/* **Import sits beside the other two ways a trip starts** (M25
+                  link 2). A file is a third origin for a trip, not a setting,
+                  so it belongs where "New trip" and "Start from a Playbook"
+                  already are rather than behind a menu.
+
+                  **Not on the first-run screen, where `FirstTripStart` carries
+                  it instead.** Three controls is one more than this row was
+                  built for: at 375px it wrapped onto an extra line and pushed
+                  that card's composer out of the viewport, which
+                  `responsive.spec.ts:917` asserts against. It failed in CI and
+                  passed locally in both lanes — the assertion sits close enough
+                  to the fold that rendering decides it — so the fix is to give
+                  the row back its height rather than to trust the margin.
+
+                  `hasNoTrips` is what makes this exactly one control on either
+                  screen rather than two on one. */}
+              {!hasNoTrips && <ImportTripButton disabled={cloningDemo} />}
               <Button
                 type="button"
                 variant="primary"

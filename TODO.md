@@ -55,6 +55,24 @@ Phase 1 publishes `premium@v2`, or M21's second gate box cannot be closed for
 overlaps M13's `add-stop-who`. Note the list below is in file order, not
 execution order — read the `← current milestone` marker, per the rule above.
 
+**Widened and reordered 2026-09-18 — three milestones minted (M23, M24, M25) and
+M13 moved ahead of M12**, by Mitchell in a design conversation. The live order is
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+The reasoning is **not here** — `docs/milestones/README.md`'s *2026-09-18* note
+carries it, and each new milestone file carries its own scope and exit gate.
+*(This paragraph's absence was the drift `pnpm state` flagged on 2026-09-18: the
+line above it had been the live order for two days after it stopped being one.)*
+
+**Current milestone moved to M25 on 2026-09-18, by Mitchell's decision and not
+by a gate closing** — *"Start next milestone."* **M22 is paused at 18 of 19, not
+finished**, and its file, scope and every box stand unamended; the open one is a
+browser walk that is blocked on a deployment rather than on code
+(`KI-20260916-d`) — see that entry for what actually blocks it. Nothing about the move
+ticks, unticks or amends a box. **It costs M22 nothing**: M25 adds no entitlement,
+publishes no plan version and touches no token path, so the open walk is exactly
+as walkable after this milestone as before it. The precedent for the shape is
+the 2026-09-16 reorder in `docs/milestones/README.md`.
+
 **M12, M13 and M14 were scoped the same day**, each getting the file and exit
 checklist `docs/milestones/README.md` requires "before work on it begins" and
 none of them had. Every milestone in the order now has a written gate except
@@ -543,9 +561,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       an existing subscriber onto a newer version. What you bought is what you
       get, now with no mechanism to change it.)*
 
-- [ ] **M22 An account can build on the API** ← **current milestone**
-      (2026-09-16, **by Mitchell's decision rather than by a gate closing** —
-      M21 is open at 11/17 and paused) →
+- [ ] **M22 An account can build on the API** — **OPEN, PAUSED AT 18/19**
+      (was the current milestone from 2026-09-16, **by Mitchell's decision
+      rather than by a gate closing** — M21 is open at 11/17 and paused;
+      **paused in turn 2026-09-18 when M25 became current**, its one open box
+      being a preview walk blocked on a deployment, `KI-20260916-d`) →
       `docs/milestones/M22-public-api-and-tokens.md`
       *(**Placed 2026-09-16 by Mitchell — runs after M21, before M12.**
       *"Im fine making it after M21."* A public REST API and account-generated
@@ -555,7 +575,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       file back (the shape of the planning-write surface) was answered the same
       day as thirteen REST endpoints, and the last flagged item closed with
       *"Just do v2 then"*, so `api.tokens` ships on **`premium@v2`**. The
-      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, which needs a PR and `API_TOKEN_PEPPER` set there.
+      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, and `KI-20260916-d` is what blocks it: **`ADMIN_USER_IDS`**, so no account reachable from a browser can hold `api.tokens` there. *(This line said `API_TOKEN_PEPPER` until 2026-09-19 and was wrong in a way that cost a session: that variable is set on all three Vercel targets, and the KI it cited never mentioned it.)*
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.
@@ -577,7 +597,13 @@ Where the work actually stands right now: `docs/STATUS.md`.
       docs or client work — because `src/app/api/v1/**` is the registry and one
       `route()` wrapper owns everything cross-cutting.)*
 
-- [ ] **M25 A trip is a file you can take with you** →
+- [x] **M25 A trip is a file you can take with you** — **DONE, gate closed
+      2026-09-19**, 14 of 14 boxes, three of them ticked with something named
+      rather than silently (the free-account walk's caveat, 400 over 413, and
+      the OpenAPI narrowing the box did not ask for). `pnpm check` green — 765
+      tests — and `test:e2e:ci-like` **137 passed**. Two `v1` endpoints, two UI
+      surfaces, no migration, no contract change, no entitlement, no plan
+      version. Retro and gate evidence:
       `docs/milestones/M25-a-trip-is-a-file.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running immediately after
       M22 — small, and it reuses M22's route wrapper while that machinery is
@@ -624,7 +650,8 @@ Where the work actually stands right now: `docs/STATUS.md`.
       relaxing the refine alone would make a dateless trip silently
       dated. **Nothing on this milestone is waiting on a decision.**)*
 
-- [ ] **M23 A playbook can be more than one day** →
+- [ ] **M23 A playbook can be more than one day** ← **current milestone**
+      (2026-09-19, by M25's gate closing) →
       `docs/milestones/M23-multi-day-playbooks.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running **before M12** —
       and that placement is the whole point: M12 keys reviews, ratings,

@@ -494,6 +494,32 @@ describe("Home page head", () => {
     await screen.findByText(/A name is enough to start/i);
     expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
   });
+
+  // **Import a file is on exactly one of these two screens at a time** (M25).
+  //
+  // It began in the page head on both. On a 375px viewport that made the head's
+  // action row wrap onto an extra line and pushed the first-run card's composer
+  // out of the viewport — which `responsive.spec.ts:917` asserts against, and
+  // which failed in CI while passing locally in both lanes, because that
+  // assertion sits close enough to the fold that rendering decides it.
+  //
+  // Asserted here rather than left to the e2e lane because "two of them" and
+  // "none of them" are both one edit away, and neither would fail the browser
+  // walk: the walk finds the control by name, and would find either copy.
+  it("puts Import a file in the page head only once there are trips", async () => {
+    renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: "All trips" });
+    expect(screen.getAllByRole("button", { name: "Import a file" })).toHaveLength(1);
+    expect(screen.queryByTestId("first-trip-start")).toBeNull();
+  });
+
+  it("puts it on the first-run card instead when there are none, and only there", async () => {
+    renderHome([]);
+    const firstRun = await screen.findByTestId("first-trip-start");
+    const all = screen.getAllByRole("button", { name: "Import a file" });
+    expect(all).toHaveLength(1);
+    expect(firstRun.contains(all[0]!)).toBe(true);
+  });
 });
 
 describe("Home first-run experience", () => {

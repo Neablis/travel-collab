@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -460,6 +460,32 @@ export function SettingsSheet({
         )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
+          {/* **A plain anchor, which is the whole of link 2** (M25).
+              `GET /api/v1/trips/{tripId}/export` is the same endpoint an API
+              caller uses, and a session cookie satisfies every scope on a `v1`
+              route (`public-api/actor.ts`) — so the browser needs no token, no
+              `apiClient` helper, no MSW handler and no second route. The server
+              sets `Content-Disposition: attachment`, so the navigation is a
+              download rather than a page.
+
+              **Free to every plan, and there is nothing here enforcing that.**
+              The absence IS the feature: no entitlement check exists anywhere
+              on this path, because `api.tokens` gates minting and verifying a
+              TOKEN, not a session. A `free` account meets no paywall between
+              this control and the file.
+
+              Not a `Button` because it is a navigation, and a `<button>` that
+              navigates is a control a reader cannot open in a new tab, copy the
+              address of, or reach with their browser's own download handling.
+              `buttonVariants` is how the rest of this app styles exactly that
+              (`OverviewLens`, `TokensSection`). */}
+          <a
+            href={`/api/v1/trips/${tripId}/export`}
+            download
+            className={buttonVariants({ variant: "secondary" }) + " no-underline"}
+          >
+            Download as a file
+          </a>
           <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>
             Duplicate trip
           </Button>

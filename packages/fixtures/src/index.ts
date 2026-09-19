@@ -97,8 +97,17 @@ export {
   BundleTrip,
   ContentBundleV1,
   parseBundle,
+  TripImportBundle,
 } from "./bundle/schema.ts";
 export { bundleId } from "./bundle/ids.ts";
+// The writer the format never had (M25 link 1) — the other end of `toCommands`.
+export {
+  bundleKeyFor,
+  toBundleStop,
+  TripExportBundle,
+  tripToBundle,
+  type TripToBundleOptions,
+} from "./bundle/fromTrip.ts";
 export {
   addDays as addCalendarDays,
   bundleActivityCommands,

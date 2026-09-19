@@ -30,9 +30,44 @@ general setup.
 
 ## Where the work is right now
 
-**M22 — AN ACCOUNT CAN BUILD ON THE API — IS THE CURRENT MILESTONE AS OF 2026-09-16**, by
-**Mitchell's decision and not by a gate closing**. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+**M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
+by **M25's gate closing**, which is the ordinary way this line moves. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
+**Nothing of M23 is built.** Its scope and exit gate are in
+`docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
+planning anything. The one-line version: a saved day **generalises** into a
+saved sequence rather than gaining a sibling object type.
+
+**M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
+tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a
+`content-bundle/v1` file and uploads back, through two `v1` endpoints the
+browser calls with its own cookie. **No migration, no contract change, no
+entitlement, no plan version.** The narrative is **not here** —
+`docs/milestones/M25-a-trip-is-a-file.md` carries the gate evidence and the
+retro, including the three boxes ticked with a caveat named.
+
+**Three things M25 leaves live**, which is why they are here rather than in its
+retro:
+
+- **The round trip is a tripwire now, not just a test.** M23, M24, M13 and M14
+  each make a trip carry more; a field added to an activity and not to
+  `toBundleStop` fails `fromTrip.test.ts` **in the diff that adds it**. That is
+  what M25 was placed early to buy, and it is now real.
+- **A derived reference can be FALSE rather than merely verbose.** M22's
+  `openapi.json` cannot drift from the route declarations — which guarantees the
+  doc matches the *declaration*, and says nothing about whether the declaration
+  matches the endpoint. One endpoint's entry was 2,267 lines of recursive
+  notebook AST for a section it never writes. **Check what a new endpoint
+  publishes, not just that it publishes.**
+- **The two doors into the bundle format stay different.** `content:import`
+  DERIVES ids so a re-import updates its own rows; a user upload MINTS them so
+  it can never land on somebody else's trip. Collapsing them is a
+  plausible-looking simplification and is the one change that would make an
+  upload dangerous.
+
+**M22 is still paused at 18 of 19 and M21 at 11 of 17**, both unamended by any
+of this. M22's one open box is a preview walk blocked on a deployment rather
+than on code (`KI-20260916-d`).
 **The tail of that order changed 2026-09-18** — three milestones minted (**M23**
 multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
 moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
@@ -44,7 +79,7 @@ and are easy to lose for that reason: the activity-field descriptor refactor
 generated, drift-checked architecture map is designed in
 `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
 in principle.
-Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-2026-09-16-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-20260916-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
 **Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
@@ -377,13 +412,51 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M21 is open and nothing of it is built.** Read
-`docs/milestones/M21-subscriptions-and-billing.md` before planning anything: seven links, the
-prices already decided (`free` $0, `plus` $9, `premium` $19) and living in that file alone,
-and a gate whose hard parts are signature verification, idempotency under Stripe's retries,
-out-of-order tolerance, and *no card number ever reaches this application*. **It adds no
-entitlement and no gate** — a diff touching `modelSelection.ts`, `quota.ts` or `members.ts`
-means the split from M20 failed.
+**M23 is the current milestone and nothing of it is built.** Read
+`docs/milestones/M23-multi-day-playbooks.md` before planning anything, and note
+what its row in `docs/milestones/README.md` says about why it runs before M13
+and M12.
+
+**One piece of non-milestone work is placed after it and before M13, and it is
+a prerequisite rather than a deliverable**: the activity-field descriptor
+refactor, `KI-20260905-o`. Three milestones each add a field to an activity
+(M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
+**21 non-test files hand-enumerate activity fields with nothing going red when
+one is missed**. It was already scheduled once, on 2026-08-29, and did not
+happen — which is why M13's gate now carries a box for it instead of this file
+carrying a second promise. **M25 changed the arithmetic slightly in its
+favour**: `toBundleStop` is a 22nd site, and the only one with a test that
+fails in the diff that misses it.
+
+**M22's last gate box is Mitchell's**, and no amount of building closes it: it
+needs an account that can hold `api.tokens` **on a preview**, which
+`KI-20260916-d` says is blocked by **`ADMIN_USER_IDS`** — injected at build, and
+supplied by `playwright.config.ts` only to the local e2e server, so
+`POST /api/admin/grants` answers 404 on a preview.
+
+**That variable is bound to preview and production, and was created 2026-09-14
+— two days BEFORE the walk that got the 404.** So the entry's fix sketch ("set
+it in Preview and redeploy") describes a state that already held, and the cause
+is more likely its **value**: `ADMIN_USER_IDS` takes `users.id` verbatim and
+fails closed, and a dev-login operator's id is `dev-<username>`, not a Google
+one. **Hypothesis, not finding** — the value is encrypted and was not read.
+**The next step is a read**: check whether Preview's value contains the `dev-`
+id `e2e/adminBootstrap.ts` grants through.
+
+**Do not repeat the mistake this paragraph used to make.** Until 2026-09-19 this
+line, `TODO.md` and two other places all said the blocker was
+`API_TOKEN_PEPPER`. It is not, and never was: that variable is set on **all
+three** Vercel targets, and `KI-20260916-d` does not mention it. The wrong name
+survived in three status files because each copy read as confirmation of the
+others, while the KI — the one document with the fact in it — went unread. When
+these files and a known-issue entry disagree, **the entry is the one that was
+written by somebody looking at the failure.**
+
+*(This section has gone stale three times — it named M17 on the day M17's gate
+closed, M9 on the day M20 was already built and merged, and M21 as unbuilt for
+four days after all four of its phases merged. Read it with suspicion and check
+it against `docs/milestones/README.md`'s Current milestone line, which is the
+single source of truth.)*
 
 **Two things are waiting rather than blocked, and both are Mitchell's.** Whether to flip
 `ai-live` now that its precondition is met (above, with what it would expose), and whether
@@ -391,24 +464,17 @@ the three open questions M9 Phase 0 raised get answered before M21 prices anythi
 second of them, *which quota window a sold ceiling binds*, is the one M21 pays for if it is
 left: it is implemented per-day and stated in no contract.
 
-*(This section named M9 as the current work until 2026-09-14, on the day M20 was already
-built and merged — the second time this file's most-read section went stale while its length
-stayed respectable. The section above is where the work is; this one is what happens next.)*
+**M9's three real pieces of work are BUILT, and what is left of it is its gate.** Grounding,
+conversation durability and the eval/replay harness all landed 2026-09-16 and relanded as
+#188 — the section above carries it. What the gate still wants is what a build cannot
+supply: a live model call, the Rochester re-run resting on one, and the browser walks. *(An
+earlier version of this paragraph said "M9 stays paused behind M21" and listed all three as
+unchanged. It had been wrong for two days.)*
 
-**M9 stays paused behind M21**, and its three real pieces of work are unchanged, per the
-2026-09-01 audit (`docs/reviews/2026-09-01-milestone-audit.md`):
-
-- **Grounding** — a `SearchPlaces` read tool, with `AddActivity`/`UpdateActivity` citing a
-  `placeRef: N` against that turn's search cache instead of a free-text `location`. This is
-  what makes the model *structurally incapable* of naming a place it did not search for, and
-  it is the reason `ai-live` is still dark. Closes KI-81/KI-15.
-- **Conversation durability** — no conversation table exists, so a reload loses the thread.
-- **An eval/replay harness** — KI-11, inherited from M16's gate.
-
-**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks starting
-the above, and the second is the one that costs if it is left: whether the usage row carries a
+**Phase 0 raised three questions that are Mitchell's, not a build's.** None blocks anything
+current, and the second is the one that costs if it is left: whether the usage row carries a
 `planVersionRef`; **which quota window a *sold* ceiling binds** (implemented per-day, stated
-nowhere — M20 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
+nowhere — M21 pays for this if it is not settled); whether the tier map is a Vercel Flag or an
 env var.
 
 ## Landed in the last week
