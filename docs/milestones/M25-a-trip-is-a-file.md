@@ -412,7 +412,7 @@ that does not parse imports nothing, and there is no partial state to design.
 
 ## Exit gate
 
-- [ ] **A trip exported and re-imported produces an equivalent trip**, proven by
+- [x] **A trip exported and re-imported produces an equivalent trip**, proven by
       a test that **compares** the two structurally with the id remap applied —
       not by a person reading the JSON and not by a screenshot. Days in order,
       stops in order, and every `BundleStop` field (`title`, `timeWindow`,
@@ -422,14 +422,27 @@ that does not parse imports nothing, and there is no partial state to design.
       budget, no members and no notebook pages, and a test asserting otherwise
       is testing a scope this milestone does not have. This is the milestone's
       thesis and the box every later field addition has to keep green.
-- [ ] **A DATED trip round-trips with its real date**, and the bundle carries
+
+      **Green.** `packages/fixtures/src/bundle/fromTrip.test.ts` — the trip is
+      built through the real command path (`decideTripCommand` + `evolveTrip` +
+      `tripDetailFromState`), exported, imported and exported again. The
+      assertion is a **fixed point**: what a person downloads, re-uploads and
+      downloads again is the file they started with. Two normalisations are
+      asserted rather than hidden — an omitted `kind` comes back as the
+      explicit `"planned"` the format says it means, and a hand-authored
+      `BundleDay.label` does not survive, because Trip Planning has nowhere to
+      keep one. Seen red by deleting `notes` from the converter.
+- [x] **A DATED trip round-trips with its real date**, and the bundle carries
       `startDate` rather than `startsInDays` — a trip starting on a fixed day
       exports that day, re-imports onto it, and **an export that has been
       sitting around imports as a past trip rather than being shifted forward**.
       A test that asserts an imported trip starts in the future is asserting the
       losing side of this decision and is the finding, not the fix. *(Decided
       2026-09-18; see question 2.)*
-- [ ] **A DATELESS trip round-trips as dateless, and does not quietly acquire
+
+      **Green.** Same file. A 2019 start date imports onto 2019 and its day 1
+      carries that date; the export emits `startDate` and never `startsInDays`.
+- [x] **A DATELESS trip round-trips as dateless, and does not quietly acquire
       today's date.** A trip whose `startDate` is `null` exports a bundle with
       **neither** `startsInDays` nor `startDate`; re-imported, it is still
       dateless, and its days are still in order. A test that pins this **must be
@@ -438,45 +451,186 @@ that does not parse imports nothing, and there is no partial state to design.
       today* — the defect this box exists to catch is silent, so a test that
       passes before the change proves nothing. *(Decided 2026-09-18; see open
       question 2.)*
-- [ ] **An upload MINTS fresh ids and can never overwrite an existing trip.**
+
+      **Green, and seen red first exactly as this box requires.** The failure
+      text was `startDate: "2026-09-06"` — the `TODAY` the test passes in, i.e.
+      the defect this box describes, reproduced. `packages/fixtures/src/bundle/schema.test.ts`
+      → *a trip with NEITHER anchor*.
+
+      **The fix was larger than this box's own note budgets, and the extra part
+      is worth knowing.** Relaxing the `.refine` and un-defaulting
+      `tripStartDate` are both necessary and together still not sufficient:
+      `SetTripDates` with both dates null emits **no `DayAdded` at all**
+      (`decide.ts` guards the whole day-count reconcile on both being
+      non-null), so a dateless trip's days would simply not have existed.
+      `bundleTripCommandGroups` grows a second shape for it — `AddDay` per day,
+      which is what the board itself does on an undated trip.
+- [x] **An upload MINTS fresh ids and can never overwrite an existing trip.**
       The same file uploaded twice produces **two** trips. A file whose content
       would derive onto an existing row through `bundleId`
       (`packages/fixtures/src/bundle/ids.ts:39`) still produces a new trip.
       Demonstrated by uploading a file exported from another account and
       watching the original trip go untouched.
-- [ ] **A malformed bundle is refused at upload with a readable error**, as a
+
+      **Green.** `apps/web/src/server/public-api/export.int.test.ts`, against
+      real Postgres: the same file uploaded twice produces two trips with
+      different trip, day and activity ids, and the trip it was exported from
+      is untouched. Seen red by making the ids derived the way the content
+      script does — two imports then shared a day id.
+- [x] **A malformed bundle is refused at upload with a readable error**, as a
       400 naming what is wrong, with **nothing written** — the schema's
       all-or-nothing answer, not a partial import. *(`parseBundle` only: the
       content lint rules do not run on uploads — decided 2026-09-18, open
       question 3.)*
-- [ ] **A real trip that the CONTENT rules would reject still round-trips** —
+
+      **Green.** Same file. A stop whose time window ends before it starts is a
+      400 whose `details` carry zod's own issue list naming `timeWindow`, and
+      the refusal happens in the wrapper before the first command — so there is
+      no partial state to design. No error handling is written by hand.
+- [x] **A real trip that the CONTENT rules would reject still round-trips** —
       an empty trip, a day whose stops are out of clock order, and a backlog
       item carrying a time window each export and re-import cleanly. This is the
       box that fails if somebody later wires `lint.ts` into the upload path.
-- [ ] **The OpenAPI document at `GET /api/v1/openapi` describes the export
+
+      **Green.** `fromTrip.test.ts` round-trips an empty trip, a day whose
+      stops are out of clock order, and a backlog item carrying a time window —
+      all three `lint.ts` errors, all three things ordinary use produces.
+- [x] **The OpenAPI document at `GET /api/v1/openapi` describes the export
       endpoint with no hand-editing** — its scope, its role, its response — and
       `pnpm --filter web openapi:generate` is the only thing that touched the
       file. M22's generated-from-declarations property, re-measured on an
       endpoint it did not design.
-- [ ] **A `free`-plan account exports a trip and re-imports it, walked** — no
+
+      **Green, and measured.** `pnpm --filter web openapi:generate` is the only
+      thing that touched the file, and `openapi.test.ts` regenerates and
+      compares, so a schema changed without regenerating fails CI in the same
+      diff. Checked structurally rather than by eye: the document gained
+      **exactly two paths** (`/v1/trips/{tripId}/export`, `/v1/trips/import`)
+      and **no existing path changed** — the large line count in the diff is
+      key-ordering churn from inserting two sorted keys into one JSON file.
+
+      **One thing this box produced that it did not ask for.** Declared with
+      the full `ContentBundleV1` as its response, the export endpoint's
+      generated entry was **2,267 lines**, almost all of it the recursive
+      `PageDoc` AST under `notebooks` — a section an export never writes. An
+      integrator reading it would have concluded that an export can return
+      notebook documents. The response is `TripExportBundle` now (that same
+      schema with three sections pinned empty — not a third format: same
+      `$schema`, same `BundleTrip`, read back by `parseBundle` unchanged), and
+      the entry is 792. The import body is `TripImportBundle` for the same
+      reason, 26 KB → 9 KB. **The published reference has to be true, and
+      "verbose" was the wrong word for what it was.** It also turned this
+      milestone's *"no export of anything but a trip"* into a runtime
+      assertion, since `route()` validates every response against its
+      declaration.
+- [x] **A `free`-plan account exports a trip and re-imports it, walked** — no
       entitlement anywhere on that path, and no upgrade prompt on any screen it
       touches.
-- [ ] **No new entitlement and no new plan version exist.**
+
+      **Green, with one caveat named.** `apps/web/e2e/m25-trip-as-a-file.spec.ts`
+      — a freshly signed-up (therefore `free`) account downloads by clicking,
+      the spec reads the bytes that actually land on disk, uploads those same
+      bytes through a real file chooser, and lands on a **different** trip from
+      the one it came from. Reading the downloaded stream rather than the
+      response body is the point: a `Content-Disposition` mistake or a
+      client-side re-wrap would pass every other layer and hand somebody a file
+      the importer refuses.
+
+      **The caveat, stated rather than quietly dropped: *"no upgrade prompt on
+      any screen it touches"* cannot be asserted as written.** The trip
+      settings sheet, where the download lives, also hosts *Invite someone* —
+      which M20 gates on `trip.collaborators` and M21 renders as a disabled
+      form under a CTA to `plans`. That prompt predates M25, is about a
+      different feature, and is correct. A blanket `toHaveCount(0)` failed on
+      the first run, and making it pass would have meant moving the download to
+      another screen to satisfy a test. The spec asserts the specific and
+      stronger thing instead: the **only** upgrade prompt on that screen is the
+      collaborators gate, it names inviting rather than exporting, and the
+      download beside it is live.
+- [x] **No new entitlement and no new plan version exist.**
       `packages/contracts/src/entitlement.ts` is unchanged, no plan version is
       published, and `premium@v1` and `premium@v2` are both byte-identical after
       this milestone. A test fails if an export path ever calls `accountCan`.
-- [ ] **Endpoint N+1 still costs a declaration**, measured on the export
+
+      **Green.** `packages/contracts` is **untouched on this branch** — the
+      diff against the base is empty — so `Entitlement` is unchanged, no plan
+      version is published, and `premium@v1`/`premium@v2` are byte-identical.
+      `apps/web/src/server/public-api/export.free.test.ts` is the standing
+      guard: it sweeps the four files a trip travels through for `accountCan`,
+      `resolveEntitlements`, `not-entitled` and `api.tokens`, and pins
+      `ENTITLEMENTS`' membership. Seen red by putting an `accountCan` call in
+      the export route.
+
+      **This box guards an ABSENCE, which is why it needed a test of its own.**
+      Nothing on the export path checks an entitlement, so nothing on that path
+      would go red when somebody adds one: a diff gating export behind
+      `premium` would otherwise pass every test in this repo.
+- [x] **Endpoint N+1 still costs a declaration**, measured on the export
       endpoint and reported as a diff: one route file under `v1/`, plus one pure
       converter in `packages/fixtures/src/bundle/`. **No auth, no scope
       plumbing, no error handling, no OpenAPI entry written by hand**, and no
       new scope added to `API_SCOPES` — `trips:read` already says this. Any
       exception beyond the two M22 named in advance is the finding, and this box
       does not tick.
-- [ ] **Ownership comes from the session, never from the file.** A bundle whose
+
+      **Green, and this is M22's claim under its second and harder test.** M22
+      measured it on `GET /v1/trips/{tripId}/members` — 18 lines slicing an
+      array already on the context. This endpoint has a body to **build**,
+      which is where the claim might not hold.
+
+      The diff, reported rather than asserted:
+
+      | What | Lines |
+      |---|---|
+      | `apps/web/src/app/api/v1/trips/[tripId]/export/route.ts` | 61, of which **21 are code** — the declaration, plus one `Content-Disposition` header |
+      | `packages/fixtures/src/bundle/fromTrip.ts` | the pure converter, beside `toCommands.ts`, exactly as this milestone said it should be |
+      | `apps/web/src/app/api/v1/openapi.json` | regenerated by `openapi:generate`; two paths added, none changed |
+
+      **No auth, no scope plumbing, no validation, no error handling, no
+      pagination, no rate limiting, no OpenAPI entry, no client and no MSW
+      handler were written by hand, and no scope was added to `API_SCOPES`** —
+      `trips:read` already said this, and `packages/contracts` has an empty
+      diff on this branch. The route file did not grow a second
+      responsibility, which is what this box exists to catch.
+
+      **One thing did cost more, and it belongs to the IMPORT endpoint rather
+      than to this box.** `maxBodyBytes` was added to the `route()` wrapper,
+      because the wrapper owns body reading and a handler never sees the
+      `Request`. Measuring the N+1 claim on the easier of the two endpoints and
+      not saying so would not have been honest, so: the export endpoint added
+      nothing to the wrapper; the import endpoint added one declaration field
+      to it.
+- [x] **Ownership comes from the session, never from the file.** A bundle whose
       `ownerId` names another account imports as the uploader's, and a test
       fails if any uploaded field reaches an owner column.
-- [ ] **An oversized upload is refused with the limit named**, as a 400 and not
+
+      **Green.** `export.int.test.ts` uploads a file naming another account in
+      **both** places the format could — `bundle.ownerId` and a playbook's
+      `ownerId` — and the uploader owns the result; the named author cannot
+      reach it. It is a property of the shape rather than a scrub step: the
+      only `ownerId` the format has belongs to a playbook, and this endpoint
+      writes no playbook at all.
+- [x] **An oversized upload is refused with the limit named**, as a 400 and not
       a truncation, a timeout or a 500.
+
+      **Green, three ways.** Too many stops (1,000), too many days (366) and
+      past the byte ceiling (2,000,000) each answer 400 with the limit in the
+      message. The byte ceiling is **measured, not claimed** — `Content-Length`
+      is a client's assertion and can be absent on a chunked upload — and
+      measured in bytes rather than characters, because `"京".length` is 1 and
+      costs 3 on the wire.
+
+      **The counts matter more than the bytes**, which is why there are two:
+      one stop is one `AddActivity` is one event, and 2 MB of `{"stops":[]}`
+      would be 140,000 empty days. Both numbers are measured against real
+      content rather than guessed — the largest authored trip under `content/`
+      is 10 days and 66 stops in 55 KB.
+
+      **400 rather than 413, deliberately**, because this box says 400 and a
+      gate definition changes only by Mitchell's decision. `413 Payload Too
+      Large` is the more precise status; the reason for not using it is
+      recorded where the message is built, so the next reader finds the
+      argument rather than the discrepancy.
 - [ ] **The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like`** — not `test:e2e` (CLAUDE.md rule 1).
 - [ ] Retro appended at gate close.
