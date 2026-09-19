@@ -5,9 +5,11 @@ import { route } from "@/server/public-api/route";
 
 // `?q=` in, list out — already the most API-shaped thing in the app.
 //
-// **No quota beyond the wrapper's.** `/api/geocode` is charged because it spends
-// the operator's LocationIQ allowance per call; this reads a column of this
-// database, and `geocode` is deliberately not in `v1` for exactly that reason.
+// **No quota beyond the wrapper's.** A geocode lookup is charged because it
+// spends the operator's LocationIQ allowance per call; this reads a column of
+// this database. The place search that does spend it is
+// `GET /v1/trips/{tripId}/geocode`, which needs `trips:write` and a trip for
+// exactly that reason.
 
 /**
  * A cursor this endpoint minted, or `null`.
