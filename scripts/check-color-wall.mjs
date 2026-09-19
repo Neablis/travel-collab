@@ -10,6 +10,10 @@ import { readFileSync } from "node:fs";
 // gone: the sparkline now colors by dayAccents' 5 semantic families, same as
 // every other city-accented surface, so it needs no raw-hex exception of its
 // own anymore (Mitchell, 2026-08-25 — one city, one color, everywhere).
+//
+// SINCE 2026-09-19 THIS SCRIPT IS TWO WALLS, not one. The value wall below is
+// the original: a color that should have been a token. The TOKEN wall further
+// down is its mirror image — a token NAME that is not one. See its own header.
 const pending = new Set(JSON.parse(readFileSync("scripts/design-wall-pending.json", "utf8")));
 // Third-party generated files that are permanently out of scope because they
 // are not product UI at all — NOT the same concept as `pending` above. That
@@ -27,8 +31,8 @@ const generatedNonProduct = new Set([
 ]);
 // --others --exclude-standard adds untracked-but-not-ignored files to the
 // tracked (--cached) list: a brand-new file was invisible to the wall until it
-// was staged (KI-51), which is exactly the file most likely to carry a raw hex.
-// --exclude-standard keeps .gitignore honoured, so node_modules/.next/generated
+// was staged (KI-51), which is exactly the file most likely to carry a raw
+// color. --exclude-standard keeps .gitignore honoured, so node_modules/.next/generated
 // output stay out — walking the tree naively would not. Set dedupes the stage
 // 1/2/3 duplicates --cached emits for unmerged paths mid-conflict.
 const files = [
@@ -84,9 +88,166 @@ const isColorLiteral = (line) =>
   decimalHexAfterCssValueToken.test(line) ||
   functionalColor.test(line);
 const arbitraryValue = /className={?["'`][^"'`]*\[/;
+
+// ---------------------------------------------------------------------------
+// THE TOKEN WALL (KI-2026-09-19-g)
+//
+// The wall above catches a color VALUE that should have been a token. It is
+// silent — by construction, not by oversight — about a token NAME that is not
+// one. `globals.css` opens with `--color-*: initial`, which wipes Tailwind's
+// default palette, so `bg-brand-subtle`, `text-muted` or `bg-amber-50` emit no
+// rule at all: the box ships with no background and reads as a rendering bug.
+// Nothing else in the repo can see this. ESLint has no opinion on a class
+// name; jsdom has no layout and the lint wall refuses `toHaveClass`, so no test
+// layer can hold the claim that a box has a background. The only detector was a
+// person looking at a preview, and that is how M23 shipped a selected chip with
+// a transparent background (docs/STATUS.md; the comment at ui/toggle-chip.tsx
+// records the incident at the scene).
+//
+// So: read the names `@theme` actually defines and fail on a utility in a
+// color-carrying namespace that is not among them.
+// ---------------------------------------------------------------------------
+
+const globalsCss = readFileSync("apps/web/src/app/globals.css", "utf8");
+
+// Only `@theme` mints a utility. `globals.css` also restates many of the same
+// `--color-*` names inside `html[data-look=…]` blocks, and those are look
+// overrides of a token that already exists — a name that appeared ONLY there
+// would yield no utility, so parsing the whole file would accept a class that
+// renders nothing. Braces are matched rather than regexed because `@theme`
+// blocks contain nested rules.
+const themeTokens = (family) => {
+  const names = new Set();
+  const blockStart = /@theme[^{]*\{/g;
+  let opener;
+  while ((opener = blockStart.exec(globalsCss)) !== null) {
+    let depth = 1;
+    let i = blockStart.lastIndex;
+    while (depth > 0 && i < globalsCss.length) {
+      if (globalsCss[i] === "{") depth += 1;
+      else if (globalsCss[i] === "}") depth -= 1;
+      i += 1;
+    }
+    const body = globalsCss.slice(blockStart.lastIndex, i - 1);
+    for (const m of body.matchAll(new RegExp(String.raw`^\s*--${family}-([a-z0-9-]+)\s*:`, "gm"))) {
+      names.add(m[1]);
+    }
+  }
+  return names;
+};
+const colorTokens = themeTokens("color");
+// `text-*` is the one namespace that is two families at once: `--color-ink`
+// gives `text-ink` and `--text-sm` gives `text-sm`. Tailwind emits the paired
+// `--text-sm--line-height` / `--letter-spacing` under the same prefix, and
+// those are modifiers of a size rather than sizes, so they are dropped here.
+const textSizeTokens = new Set([...themeTokens("text")].filter((n) => !n.includes("--")));
+if (colorTokens.size === 0 || textSizeTokens.size === 0) {
+  console.error("token wall: parsed no tokens out of globals.css — the @theme parse is broken");
+  process.exit(1);
+}
+
+// The namespaces checked. `bg`/`text`/`border` are what KI-2026-09-19-g names;
+// `ring`/`outline`/`fill`/`stroke`/`divide` are added because they carry color
+// too and the tree already uses tokens in all five (`ring-brand`,
+// `outline-brand`, `fill-surface`, `stroke-hairline`, `divide-hairline`) — a
+// typo there loses a focus ring or a map stroke just as silently.
+//
+// `from-`/`via-`/`to-` are deliberately NOT here. They are gradient stops, and
+// English prose written in this repo collides with them constantly — `to-now`,
+// `to-the-line`, `to-json-schema` and `to-create` are all real strings in
+// `apps/web/src` today. A wall that cries wolf gets an exception list bolted on
+// and then gets ignored, which is the failure mode this one exists to avoid.
+// `shadow-` is out for the same reason in miniature: `--shadow-*` tokens live
+// alongside Tailwind's own surviving `shadow-sm`/`shadow-inner` scale, and no
+// defect has ever been found there.
+const KEYWORDS = new Set(["inherit", "current", "transparent", "none"]);
+const BORDER_SIDE = /^(t|r|b|l|x|y|s|e)(-|$)/;
+const nonColorUtility = {
+  bg: (s) =>
+    /^(clip|origin|blend|gradient|linear|radial|conic|position|size)-/.test(s) ||
+    ["fixed", "local", "scroll", "auto", "cover", "contain", "repeat", "no-repeat", "repeat-x", "repeat-y", "repeat-round", "repeat-space"].includes(s) ||
+    /^(top|bottom|left|right|center)(-(top|bottom|left|right))?$/.test(s),
+  text: (s) =>
+    textSizeTokens.has(s) ||
+    ["left", "center", "right", "justify", "start", "end", "ellipsis", "clip", "wrap", "nowrap", "balance", "pretty"].includes(s) ||
+    s.startsWith("shadow"),
+  border: (s) => ["solid", "dashed", "dotted", "double", "hidden", "collapse", "separate", "box"].includes(s) || /^\d+$/.test(s) || s.startsWith("spacing-"),
+  ring: (s) => /^\d+$/.test(s) || s === "inset" || s.startsWith("offset"),
+  outline: (s) => /^\d+$/.test(s) || s.startsWith("offset") || ["solid", "dashed", "dotted", "double", "hidden"].includes(s),
+  fill: () => false,
+  stroke: (s) => /^\d+$/.test(s),
+  divide: (s) => ["solid", "dashed", "dotted", "double"].includes(s) || /^\d+$/.test(s),
+};
+const tokenUtility = new RegExp(
+  String.raw`(?<![\w-])(${Object.keys(nonColorUtility).join("|")})-([a-zA-Z0-9][a-zA-Z0-9-]*)`,
+  "g",
+);
+
+// Vocabulary from outside this app that happens to spell a utility. Keep this
+// list to strings that are provably not class names — it is a THIRD list and
+// must not be merged into `pending` (which only shrinks) or
+// `generatedNonProduct` (which never does): this one grows only when a
+// dependency introduces a colliding word. KI-51 records why the lists stay apart.
+// CSS property names wear the same shape as a utility. A real declaration is
+// caught by the colon rule below, but a property name QUOTED or written into a
+// regex is not — `assistant/transcriptLook.test.ts` asserts that no look's
+// stylesheet sets `border-radius`, and matches on the bare word. Allowing the
+// handful of property names in these namespaces costs nothing: none of them is
+// a Tailwind utility, so nothing real hides behind the exemption.
+const cssPropertyName = new Set([
+  "border-radius", "border-width", "border-style", "border-color", "border-image", "border-spacing",
+  "text-align", "text-decoration", "text-transform", "text-indent", "text-overflow", "text-rendering",
+  "outline-color", "outline-style", "outline-width",
+  "fill-opacity", "fill-rule", "stroke-width", "stroke-opacity", "stroke-dasharray", "stroke-linecap", "stroke-linejoin",
+]);
+
+const notAClassName = new Set([
+  // The AI SDK's stream-chunk vocabulary, asserted ~15 times in the ask route's
+  // integration tests (`type: "text-delta"`). Its siblings `text-start` and
+  // `text-end` need no entry — they are real text-align utilities and pass.
+  "text-delta",
+]);
+
+// A comment is where this repo records the defect it is warning the next reader
+// about, so the token wall must not read them: `ui/toggle-chip.tsx` names
+// `bg-brand-subtle`/`text-muted` in prose precisely because they were wrong,
+// `pages/PageScreen.tsx` names `bg-amber-50` for the same reason, and
+// `pages/cityAccents.ts` says in as many words that there is no
+// `--color-brand-ink`. Flagging those would delete the institutional memory
+// this wall is built on. Comments are blanked rather than removed so line
+// numbers in the report still point at the file. `//` is only treated as a
+// comment opener when it is not preceded by `:`, so a `https://` inside a
+// string does not swallow the rest of the line — and not at all in CSS, where
+// it opens nothing.
+const stripComments = (source, isCss) => {
+  let out = source.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+  if (!isCss) {
+    out = out
+      .split("\n")
+      .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
+      .join("\n");
+  }
+  return out;
+};
+
+const isDefinedToken = (prefix, suffix) => {
+  if (notAClassName.has(`${prefix}-${suffix}`) || cssPropertyName.has(`${prefix}-${suffix}`)) return true;
+  if (colorTokens.has(suffix) || KEYWORDS.has(suffix)) return true;
+  if (nonColorUtility[prefix](suffix)) return true;
+  // `border-t-hairline` and `divide-y-2` put a side between the prefix and the
+  // value, and a bare `border-b` / `divide-y` is the side on its own.
+  if (prefix === "border" || prefix === "divide") {
+    const bare = suffix.replace(BORDER_SIDE, "");
+    if (bare === "") return true;
+    if (colorTokens.has(bare) || KEYWORDS.has(bare) || nonColorUtility[prefix](bare)) return true;
+  }
+  return false;
+};
+
 let failed = false;
 for (const file of files) {
-  const lines = readFileSync(file, "utf8").split("\n");
+  const source = readFileSync(file, "utf8");
+  const lines = source.split("\n");
   lines.forEach((line, i) => {
     if (isColorLiteral(line)) {
       console.error(`${file}:${i + 1}: raw color literal (tokens only — design-system.md)`);
@@ -97,8 +258,33 @@ for (const file of files) {
       failed = true;
     }
   });
+
+  stripComments(source, file.endsWith(".css"))
+    .split("\n")
+    .forEach((line, i) => {
+      for (const m of line.matchAll(tokenUtility)) {
+        const [full, prefix, suffix] = m;
+        // A CSS property name wears the same shape as a utility
+        // (`border-radius:`, `text-align:`), and only a property is followed by
+        // a colon — a Tailwind variant puts its colon in FRONT (`hover:bg-x`).
+        if (line.slice(m.index + full.length).startsWith(":")) continue;
+        if (isDefinedToken(prefix, suffix)) continue;
+        console.error(
+          `${file}:${i + 1}: \`${prefix}-${suffix}\` — no such token in globals.css @theme (it emits no CSS at all)`,
+        );
+        failed = true;
+      }
+      for (const m of line.matchAll(/--color-([a-z0-9-]+)/g)) {
+        if (colorTokens.has(m[1])) continue;
+        console.error(`${file}:${i + 1}: \`--color-${m[1]}\` — no such token in globals.css @theme`);
+        failed = true;
+      }
+    });
 }
 if (failed) process.exit(1);
 console.log(
   `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product excluded)`,
+);
+console.log(
+  `token wall OK (${colorTokens.size} color tokens, ${textSizeTokens.size} text sizes, ${Object.keys(nonColorUtility).length} namespaces checked)`,
 );

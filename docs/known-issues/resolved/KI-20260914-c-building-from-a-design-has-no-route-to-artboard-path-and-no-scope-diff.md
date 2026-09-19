@@ -32,4 +32,46 @@
 
 - **A sixth gap, found the same day and by the same route:** a milestone's exit gate can be written entirely from the server's behaviour and never notice that a SURFACE is missing. M20's 29 boxes covered every entitlement rule, the resolver, the ledger and the admin console — and not one required the account sheet the design draws, so the milestone could have closed green with every entitlement it built invisible to the person holding it, and with link 8's stated purpose (*"gives an account a way to mint its own codes"*) unmet by a UI that never called the endpoint built for it. Mitchell: *"the exit gates are incorrect if it's in the designs but wasn't included in the gates."* Three boxes were added on 2026-09-14; the generalisation belongs in the guideline below — **when a milestone owns a surface in the design, the gate needs a box a person could fail by looking at the screen**, not only boxes a test can pass against the server.
 
+- **Fix:** M26 link 0 (the preflight), 2026-09-19. All six scope items landed together:
+
+  1. **`docs/guidelines/building-from-the-design.md`** — the five-step order of
+     operations, with step 3 ("diff it against the milestone link that owns the
+     screen and write down what is out of scope **before writing any code**")
+     as its own step rather than a line of advice.
+  2. **The route→artboard index** is in `.design-sync/handoff/README.md`, and it
+     is **generated rather than hand-written** (`scripts/route-artboard-index.mjs`).
+     The KI costed this at "ten lines"; a hand-written table would have been
+     stale the next time the design side rewrote the file in place, which they
+     do every pass. `scripts/__tests__/route-artboard-index.test.mjs` fails when
+     a gate is renamed out of the design file, when a line number drifts, when a
+     cited `SPEC.md` section does not exist, or when the app grows a route
+     nobody has decided an artboard for. It also records the most useful thing
+     the survey found: `/demo` and `/s/[token]` have **no artboard of their
+     own on purpose** (SPEC §27 — read-only is a mode over the trip surface),
+     so nobody goes looking for one and invents it.
+  3. **`SPEC.md` now opens with a generated section index**
+     (`scripts/spec-section-index.mjs`), numerically ordered, with the line
+     number of each heading. The file stays append-by-date and is still never
+     renumbered. `scripts/__tests__/spec-section-index.test.mjs` follows every
+     line number to its heading, and asserts the file really is out of order —
+     so if the design side ever does sort it, the index is recognised as dead
+     weight rather than quietly maintained.
+  4. **Design ids are not domain ids** is a section of the guideline, with the
+     `all / paying / granted / free / past_due / under` case as the worked
+     example and `planVersions.fourthPlan.test.ts` named as the wall.
+  5. **The geometry-test line landed in `docs/guidelines/testing.md` §2** as a
+     fourth question ("will this still be about the same thing after the layout
+     changes?"), with the one-row assertion as the worked case.
+  6. **The sixth gap** — a gate written from the server that cannot see a
+     missing surface — is a section of the guideline, and M26's own gates mark
+     those boxes `**[walk]**`.
+
+  One thing not in the KI's scope was added by the M26 survey and belongs here
+  because it is the same species: the colour wall was blind to an undefined
+  token NAME (`KI-2026-09-19-g`). Extending it found two live defects on its
+  first run — `bg-canvas` on the shared-trip screen (three occurrences, a page
+  ground that rendered as nothing) and `ring-primary` on the selected-widget
+  ring — neither of which any other layer could see.
+
 - **First noted:** 2026-09-14, building M20's operator console on PR #174.
+  **Resolved:** 2026-09-19, M26 link 0.

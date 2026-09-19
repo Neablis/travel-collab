@@ -337,6 +337,19 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
    `lib/sparklineColor.ts` — retired in favor of the same 5 semantic tokens
    below, so a city's color agrees across every surface instead of the
    sparkline disagreeing with Board/Column/DayChips.)
+   **And no undefined token NAMES** (2026-09-19). The same script fails on a
+   `bg-`/`text-`/`border-`/`ring-`/`outline-`/`fill-`/`stroke-`/`divide-`
+   utility, or a `--color-*` custom property, that the `@theme` block does not
+   define. The rule above catches a *value* that should have been a token; this
+   catches a *name* that is not one, which is the mirror-image defect and was
+   invisible to every layer the repo had. `--color-*: initial` deletes
+   Tailwind's default palette, so `bg-brand-subtle`, `text-muted` and
+   `bg-amber-50` emit **no rule at all** and the box ships with no background.
+   ESLint has no opinion on a class name, and no test layer can hold the claim
+   either — jsdom has no layout, and `docs/guidelines/testing.md`'s lint wall
+   bans `toHaveClass` outside `components/ui/**`. M23 shipped a selected chip
+   with a transparent background through exactly this hole
+   (`KI-2026-09-19-g`).
 2. **No inline `style={{…}}`** outside an explicit allowlist (drag transforms,
    maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
    applies to `src/**/*.tsx` outside `components/ui/**` (and outside

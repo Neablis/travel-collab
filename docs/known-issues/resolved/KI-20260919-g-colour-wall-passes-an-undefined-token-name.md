@@ -42,7 +42,51 @@
   does), and prove the new predicate by **adding a bad token name and watching
   it go red** before trusting it (CLAUDE.md rule 3).
 
+- **Fix:** M26 link 0, 2026-09-19, built exactly as the sketch above proposed —
+  a second predicate over the wall's existing traversal, not a new script. It
+  parses the names the `@theme` block defines (brace-matched, because a
+  `html[data-look=…]` override restates a token rather than minting one, and a
+  name that appeared only there would yield no utility) and fails on a
+  `bg-`/`text-`/`border-`/`ring-`/`outline-`/`fill-`/`stroke-`/`divide-`
+  utility, or a `--color-*` custom property, that is not among them.
+
+  **It found two live defects on its first run**, neither of which any other
+  layer could see:
+
+  - `bg-canvas`, three times in `access/SharedTripScreen.tsx` — the page ground
+    of the screen a non-member sees when they open a share link. It rendered as
+    nothing. Fixed to `bg-paper`, which is what both of its sibling front-door
+    screens (`LandingScreen`, `AuthScreen`) already use.
+  - `ring-primary` in `pages/editor/MacroNodeView.tsx` — shadcn's default ring
+    colour, which this app never defined, on the selected-widget ring. Fixed to
+    `ring-brand`.
+
+  Four decisions worth keeping, because each was a place the wall could have
+  become the kind that gets ignored:
+
+  - **`from-`/`via-`/`to-` are deliberately out.** They are gradient stops, and
+    this repo's prose collides with them constantly — `to-now`, `to-the-line`,
+    `to-json-schema` and `to-create` are all real strings in `apps/web/src`.
+  - **Comments are stripped before the token scan.** This repo records its
+    defects *in comments* — `ui/toggle-chip.tsx` names `bg-brand-subtle` and
+    `text-muted` precisely because they were wrong, and `pages/cityAccents.ts`
+    says there is no `--color-brand-ink`. A wall that read comments would force
+    the deletion of the memory it was built on.
+  - **A CSS property name is not a utility.** A real declaration is settled by
+    the colon that follows it; a property name quoted or written into a regex
+    is not, so `border-radius` and friends are named explicitly.
+  - **The third exemption list stays separate** from `pending` (only shrinks)
+    and `generatedNonProduct` (never does), per KI-51. It holds one entry — the
+    AI SDK's `"text-delta"` chunk type — and a test fails if nothing in the tree
+    spells it any more.
+
+  Proven red before being trusted (CLAUDE.md rule 3): the two real defects
+  above, plus an injection of all five shapes it claims to catch, plus
+  `scripts/__tests__/check-color-wall.test.mjs`'s new cases, which were run
+  against the *previous* wall and failed there.
+
 - **Found by:** the M26 design-parity survey, 2026-09-19, reading `STATUS.md`'s
   M23 note against `scripts/check-color-wall.mjs`. Scoped as **M26 link 8b**,
   deliberately ahead of the links that would exercise the hole.
 - **First noted:** 2026-09-19 (the defect itself: 2026-09-19, M23's gate).
+  **Resolved:** 2026-09-19, M26 link 0.

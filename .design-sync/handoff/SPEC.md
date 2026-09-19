@@ -9,6 +9,56 @@ any widget UI, and §11's "the logo is the save light" alongside §28.
 under `specs/`: `specs/notebook-widget-framework.md` (§21 — the three shape components and
 the ghost rule) and `specs/save-a-day-as-a-playbook.md` (§20).
 
+<!-- SPEC-INDEX:START -->
+
+## Sections, by number
+
+**Generated — do not edit by hand.** Run `node scripts/spec-section-index.mjs --write`
+after adding a section; `pnpm test` fails when this table and the headings disagree.
+
+This file is append-by-date and is never renumbered, so the sections below are **not**
+in file order — §17 sits after §18, and §21–§23 after §24. Jump by the line number here
+rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
+
+| § | Section | Line |
+|---|---|---|
+| §1 | Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build** | 62 |
+| §2 | Save state | 103 |
+| §3 | Trip dates — start only | 115 |
+| §4 | Calendar spans months | 125 |
+| §5 | Component mapping — the "unnamed element" answers | 144 |
+| §6 | Decisions (2026-08-22) | 164 |
+| §7 | Notebook — pages that read like documents | 176 |
+| §8 | Deliberately not designed yet | 309 |
+| §9 | The assistant — one panel, three presentations | 318 |
+| §10 | Mobile is a companion, not a second planner | 345 |
+| §11 | Project rules (2026-08-25) | 358 |
+| §12 | Calendar as a city view, account settings, focus rings — 2026-08-26 | 449 |
+| §13 | Mobile foundations | 555 |
+| §14 | The landing page — 2026-08-26 | 635 |
+| §15 | Playbooks becomes a public library — 2026-08-30 | 682 |
+| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 755 |
+| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 794 |
+| §18 | Notebook widgets — a page has no scope — 2026-09-02 | 234 |
+| §19 | The phone Notebook is the whole model — 2026-09-03 | 893 |
+| §20 | Save this day as a Playbook — 2026-09-04 | 972 |
+| §21 | The notebook widget framework — 2026-09-04 | 1080 |
+| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1045 |
+| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 999 |
+| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1114 |
+| §25 | Overview IS a notebook page — 2026-09-12 | 1152 |
+| §26 | Widget settings live outside the page — 2026-09-12 | 1178 |
+| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1219 |
+| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1260 |
+| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1318 |
+| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1405 |
+| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1522 |
+| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1584 |
+| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1656 |
+| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1746 |
+
+<!-- SPEC-INDEX:END -->
+
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
 > **Struck 2026-08-26.** Mitchell rejected this section **as a whole**, not deferred it, and

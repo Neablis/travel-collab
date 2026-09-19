@@ -30,32 +30,57 @@ general setup.
 
 ## Where the work is right now
 
-**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
-**M23's gate closing**, which is the ordinary way this line moves. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+**M26 — DESIGN PARITY — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
+**Mitchell placing it** ("start the big design milestone we just created"),
+which is the other way this line moves and the reason it does not read M13.
+Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 → M13 → M12 → M24 → M14 → M19`.
+Scope, the two waves and the seven still-open questions:
+`docs/milestones/M26-design-parity.md`. **The argument for this order is written
+in that file and is not a preference:** M13 adds a second actor to the surfaces
+M26 is about to rebuild, so the other order rebuilds them twice.
+
+**M26 LINK 0 — THE PREFLIGHT — IS DONE (2026-09-19).** It was the one part of
+the milestone that had to run before any screen work, and it has. What a later
+session inherits from it:
+
+- **Find a screen by looking it up, not by grepping.**
+  `.design-sync/handoff/README.md` carries a generated **route → artboard →
+  spec** table, and `SPEC.md` opens with a generated **section index**. Both
+  have tests that fail when they drift. The order of operations is
+  `docs/guidelines/building-from-the-design.md` — read it before building any
+  M26 screen.
+- **The design file has no artboards, only route gates.** A screen is an
+  `<sc-if value="{{ isAdminRoute }}">` block, reached by driving `startScreen`
+  and the nav. The table gives the line.
+- **The colour wall now fails on an undefined token NAME**, not just a raw hex
+  (`KI-2026-09-19-g`, resolved). **It found two live defects on its first run**
+  — `bg-canvas` on the shared-trip screen, which made that page's ground render
+  as nothing, and `ring-primary` on the selected-widget ring. Both fixed. The
+  hole was wider than the KI estimated: it had already shipped.
+- **`KI-2026-09-14-c` and `KI-2026-09-19-g` are both in `resolved/`.**
+  `KI-2026-09-19-f` (an accent reaching MapLibre through `getComputedStyle`) is
+  **still open** — it is link 8a, not link 0, and the gate box covering both
+  halves stays unticked.
+
+**Two things about M26 that change plans made from this page:**
+`.design-sync/handoff/DRIFT.md` is stale in the build's favour in six places —
+it lists eleven `<Preview>`-shelled surfaces and there are **six** — so do not
+plan from its counts without opening `apps/web/src/lib/preview-registry.ts`; and
+**nothing in M26 is blocked on a pending decision** — Mitchell answered both of
+the ones that gated work on 2026-09-19, so the Map rail gets its hover card and
+*"where does the phone edit"* is **sequenced last in Wave 2** rather than left
+open.
+
+**M13 — COLLABORATION — IS NEXT, NOT CURRENT.** It was current from M23's gate
+closing until M26 was placed on the same day; nothing about its scope changed.
 Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
 (the transport ADR is a **prerequisite**, not a deliverable), concurrent-edit
 conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
 depends on, so if M13 ships without it that link returns to M19.
 
-**M26 WAS MINTED AND SCOPED 2026-09-19 AND IS NOT IN THAT ORDER.** A
-design-parity milestone — the first since M10's Wave-2 gate closed 2026-08-27 —
-opened by Mitchell asking that the build be brought back to the design.
-**Placement is his call; nothing downstream is blocked on it.** Scope, the two
-waves and the nine open questions: `docs/milestones/M26-design-parity.md`. Why
-it exists and what the scoping found: `docs/milestones/README.md`'s
-*2026-09-19 (later)* note. **Two things belong here rather than there, because
-they change plans made from this page:** `.design-sync/handoff/DRIFT.md` is
-stale in the build's favour in six places — it lists eleven `<Preview>`-shelled
-surfaces and there are **six** — so do not plan from its counts without opening
-`apps/web/src/lib/preview-registry.ts`; and **nothing in M26 is blocked on a
-pending decision** — Mitchell answered both of the ones that gated work on
-2026-09-19, so the Map rail gets its hover card and *"where does the phone
-edit"* is **sequenced last in Wave 2** rather than left open. Two KIs were filed
-by the scoping, `KI-2026-09-19-f` and `KI-2026-09-19-g`, both about a guard that
-cannot see its own class of defect.
-
-**Do the preflight first, and it has been dropped once already.** The
+**M13's OWN preflight is still owed, and it has been dropped once already.**
+(Not M26 link 0, which is done — this is a different preflight.) The
 activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
 21 non-test files hand-enumerate activity fields and nothing goes red when one
 is missed. It is shared by M13 link 5 (`who`), M19 link 1 (cost kind) and M24.

@@ -33,6 +33,22 @@ If (1) is no, it tests nothing. If (2) is no, it is a duplicate — the other
 test is enough. If (3) is no, it is brittleness, and it will cost more than it
 saves.
 
+**A fourth question for anything that asserts a layout: will this still be
+about the same thing after the layout changes?** Assert what a person can do,
+not where a box is.
+
+The worked case (`KI-2026-09-14-c`, PR #174): a grant form's controls were
+drawn as a row and rendered one per line, because `Input` is `w-full` and a
+`w-full` flex item takes a 100% basis. The e2e test written to prove the fix
+asserted the controls shared a top edge. Two commits later the form moved into
+a dialog — and that assertion would have **kept passing while testing
+nothing**, because a single control in a dialog also shares a top edge with
+itself. A geometry test outlives the layout it describes and then reads as
+coverage.
+
+What to assert instead: that filling the form and submitting it does the thing.
+That survives the move into the dialog, and it fails if the move breaks it.
+
 ## 3. Red-first: prove the test can fail
 
 **Write the test, then break the code it protects, and watch it go red.** Only

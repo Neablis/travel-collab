@@ -1,8 +1,15 @@
 # M26 — The build looks like the design again
 
-**Status: SCOPED 2026-09-19. Not placed — placement is Mitchell's decision and is
-not made here.** The number M26 was assigned in this session; it had no row, no
-file and no number before today.
+**Status: IN PROGRESS. Scoped 2026-09-19, PLACED AND STARTED 2026-09-19 by
+Mitchell ("start the big design milestone we just created"), which is the
+decision this file was waiting on.** It runs **ahead of M13**, on the argument
+already written under *Prerequisites* below: M13 adds a second actor to surfaces
+this milestone is about to rebuild, and rebuilding them twice is the cost of the
+other order. M13 is unblocked by this and stays next. The number M26 was
+assigned on 2026-09-19; it had no row, no file and no number before that day.
+
+**Link 0 (the preflight) is done** — see the first box of the Wave 1 gate. Wave 1
+link 1 is the next work.
 
 **Read this file in halves.** *Wave 1* is the desktop and shared surfaces. *Wave 2*
 is **the phone as a surface** — the milestone `docs/guidelines/design-system.md`
@@ -105,6 +112,29 @@ M10 (an underline treatment, a moss header strip, per-day accent inks on the map
 rail). **Extend `scripts/check-color-wall.mjs` to fail on a `--color-*` /
 `bg-*` / `text-*` name that `globals.css` does not define**, before the links
 that would exercise the hole.
+
+**What link 0 actually found, 2026-09-19.** Recorded here because it changes what
+a later link can assume, not as a progress note:
+
+- **The token wall found two live defects on its first run**, in code no link had
+  reached yet: `bg-canvas` three times in `access/SharedTripScreen.tsx` — the
+  page ground of the screen a non-member sees on a share link, rendering as
+  nothing — and `ring-primary` on the selected-widget ring in
+  `pages/editor/MacroNodeView.tsx`, shadcn's default colour this app never
+  defined. Both fixed in the same change. **The hole was wider than
+  `KI-2026-09-19-g` estimated**: it costed the risk against *new* token
+  vocabulary, and these were already shipped.
+- **The design file has no artboards, only route gates.** A screen is a
+  `<sc-if value="{{ isAdminRoute }}">` block reached by driving `startScreen`
+  and the nav — so "find the artboard" is a lookup in the generated table, not a
+  heading search. Every link below should use it rather than grepping.
+- **`/demo` and `/s/[token]` have no artboard of their own on purpose** (SPEC
+  §27: read-only is a mode over the trip surface, not a separate route). The
+  build has separate screen components for both. Nobody should invent a demo
+  artboard; this is now recorded in the route table itself.
+- **`/account` is the only mapped route the build does not have.** That is link
+  1, and the route table's test asserts it is the *only* one — so a second gap
+  appearing is a failure rather than a discovery.
 
 ---
 
@@ -553,10 +583,17 @@ in the same change, or the rule becomes a landmine with a note on it.
 Per link 0's sixth aid, boxes a person can fail **by looking at the screen** are
 marked **[walk]** and are not satisfiable by a green test.
 
-- [ ] Link 0 shipped: the guideline, the route→artboard index, the generated
+- [x] Link 0 shipped: the guideline, the route→artboard index, the generated
       `SPEC.md` section index with a test that it matches the headings, the
       design-ids-are-not-domain-ids line, and the extended colour wall.
-      **`KI-2026-09-14-c` moves to `resolved/` in the same PR.**
+      **`KI-2026-09-14-c` moves to `resolved/` in the same PR.** Done
+      2026-09-19 — `docs/guidelines/building-from-the-design.md`,
+      `scripts/route-artboard-index.mjs`, `scripts/spec-section-index.mjs` and
+      the token wall inside `scripts/check-color-wall.mjs`, each with a test.
+      Both KIs moved to `resolved/` (`KI-2026-09-14-c`, `KI-2026-09-19-g`).
+      **Two of the five aids were built generated-plus-tested rather than
+      hand-written**, because a hand-written route table is stale the next time
+      the design side rewrites its README in place, which it does every pass.
 - [ ] **[walk]** `/account` is a route with three tabs; each tab is a URL a
       browser back button walks; `PlanSection` and `TokensSection` render inside
       it unchanged; no `PLAN` or `API TOKENS` rule is repeated under the tab
@@ -606,7 +643,9 @@ marked **[walk]** and are not satisfiable by a green test.
 - [ ] An accent that is not a hex token **fails a test** rather than reaching a
       map paint property; an undefined token name **fails the colour wall**.
       Both proven by adding the bad value and watching it go red (CLAUDE.md
-      rule 3).
+      rule 3). *Second half done in link 0 and proven red; the accent/MapLibre
+      half is `KI-2026-09-19-f` and is still link 8a's work, so this box stays
+      open.*
 - [ ] **[walk]** Home, Overview and the Notebook index each paint their own
       shape before data arrives, fill in **region by region**, and survive a
       **partial** failure — the failed region offers a retry **in place** while
