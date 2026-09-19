@@ -510,6 +510,13 @@ these out immediately:
 - Scope creep past the current milestone's gate definition.
 - A passed gate whose status flags (TODO tick, milestone exit-gate boxes,
   Current milestone) were left unflipped.
+- **A status file restating what a known-issue entry says, rather than pointing
+  at it.** Two copies of a fact, and only one was written by somebody looking at
+  the failure. `scripts/check-ki-citations.mjs` catches the mechanical half;
+  the judgement half is that **three status files agreeing is not corroboration
+  when none of their authors opened the entry** — which is exactly how a
+  milestone spent three days blocked on a variable that was set all along
+  (`docs/known-issues/README.md`, 2026-09-19).
 - A phase/task branch sits finished-but-unmerged while other independent work
   on the same milestone continues elsewhere — see the Workstreams section's
   PR-promptness rule; the longer it sits, the more silently it diverges.

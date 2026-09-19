@@ -30,43 +30,47 @@
   is simply the first. A gate box that cannot be walked is a box that gets
   ticked on weaker evidence, which is the failure the PR template's verification
   section exists to prevent.
-- **Fix sketch (not done):** set `ADMIN_USER_IDS` to include a dev id in the
-  Vercel **Preview** environment and redeploy (setting the variable alone does
-  nothing — it is injected at build). `dev-m20operator` is the natural value,
-  since `e2e/adminBootstrap.ts` already grants through that identity. Then the
-  operator grant path works on a preview exactly as it does in CI, which is what
-  M20 built it for: *"the whole point of link 7 is that this milestone is
-  provable without Stripe."*
-  - Alternative without a deploy: flip the `admin-console` flag for a dev
-    account, which needs dashboard access.
+- **Fix sketch — REWRITTEN 2026-09-19, because the first one was wrong.**
+
+  **It used to read:** *"set `ADMIN_USER_IDS` to include a dev id in the Vercel
+  Preview environment and redeploy."* **That variable was already bound to
+  Preview when this entry was filed** — created **2026-09-14 21:50**, two days
+  before the 2026-09-16 walk that got the 404. So the sketched action describes
+  a state that already held, and anybody following it would have set a variable
+  that was set, redeployed, and hit the same 404.
+
+  **What is actually left to establish**, in order, cheapest first:
+
+  1. **Read Preview's `ADMIN_USER_IDS` value.** It is stored `encrypted` and has
+    **not** been read. This is a *diagnosis* step, not a fix, and it is where
+    this entry now stops being able to help without one.
+  2. **Compare it against the id a dev-login operator actually gets.** M20's
+    retro is what makes this the leading hypothesis: the variable takes
+    `users.id` **verbatim** — `google-<sub>`, never an email — comma-separated
+    and not a JSON array, injected at deploy time, and *"it fails closed on
+    every one of those, which is why a mistake looks like silence."* A value
+    listing a real Google id is right for production and useless on a preview,
+    where `e2e/adminBootstrap.ts` grants through a `dev-` identity.
+  3. **Only then** decide whether the fix is a value change, an added id, or
+    something else entirely.
+
+  **Stated as a hypothesis on purpose.** Step 1 has not been done, so "the value
+  is wrong" is the most likely explanation and not a finding. The previous
+  sketch was written with the same confidence and was wrong, which is the
+  argument for reading before prescribing.
+
+  - Alternative without a deploy, unchanged and still untested: flip the
+    `admin-console` flag for a dev account, which needs dashboard access.
   - Worth recording in `docs/guidelines/environments-and-deploys.md` beside the
     `ADMIN_USER_IDS` row once decided.
-- **Update, 2026-09-19 — the fix sketch above is probably WRONG, and the dates
-  are what say so.** `ADMIN_USER_IDS` is bound to the Vercel **preview** and
-  **production** environments, and it was created **2026-09-14 21:50** — *two
-  days BEFORE* the 2026-09-16 walk that got the 404. So "set `ADMIN_USER_IDS`
-  in Preview and redeploy" describes a state that **already held when this
-  entry was filed**. Setting it is not what is missing.
-
-  **The likely cause is therefore its VALUE, not its absence**, and that fits
-  what M20's retro already warns about: `ADMIN_USER_IDS` takes `users.id`
-  **verbatim** (`google-<sub>`, never an email), comma-separated and not a JSON
-  array, and it fails closed on every one of those — *"which is why a mistake
-  looks like silence"*. A value listing a real Google id would be correct for
-  production and useless for a **dev-login** operator on a preview, whose id is
-  `dev-<username>`. That is a hypothesis, not a finding: the value is stored
-  `encrypted` and was **not** read.
-
-  **What was NOT verified, stated so nobody treats this as more than it is:**
-  the variable's contents. Vercel's env listing returns `decrypted: false`, so
-  binding was confirmed and content was not. A variable set to an empty string
-  would look identical in that listing.
-
-  **Next step is a read, not a write:** decrypt or view `ADMIN_USER_IDS` for
-  Preview and check whether it contains the `dev-` id
-  `e2e/adminBootstrap.ts` grants through. If it does not, the fix is a value
-  change rather than a new variable, and the sketch above should be rewritten
-  before anybody acts on it.
+- **What was verified on 2026-09-19, and what was not.** Both variables are
+  *bound* to their environments — `ADMIN_USER_IDS` to preview and production,
+  `API_TOKEN_PEPPER` to preview, development and production. **Binding was
+  confirmed; content was not.** Vercel's env listing returns
+  `decrypted: false`, and a `sensitive` variable's value is never returned at
+  all, so a variable set to an empty string would look identical. Nothing here
+  establishes that any of these values is correct — only that the variables
+  exist.
 - **Also 2026-09-19: three status files said this entry was about
   `API_TOKEN_PEPPER`.** It is not, and it never has been — `TODO.md`,
   `docs/milestones/README.md`'s M22 row and `docs/STATUS.md` all named that
