@@ -434,12 +434,14 @@ needs an account that can hold `api.tokens` **on a preview**, which
 supplied by `playwright.config.ts` only to the local e2e server, so
 `POST /api/admin/grants` answers 404 on a preview.
 
-**That variable is now set on preview and production**, which is the fix the
-entry sketched — and setting it is not the same as closing the box, because the
-entry is explicit that it is injected at build, so a preview built before it was
-set still 404s. **The recheck is one request**: as a dev-login operator on a
-preview, `POST <preview>/api/admin/grants` returning **201** rather than 404.
-Nobody has run it.
+**That variable is bound to preview and production, and was created 2026-09-14
+— two days BEFORE the walk that got the 404.** So the entry's fix sketch ("set
+it in Preview and redeploy") describes a state that already held, and the cause
+is more likely its **value**: `ADMIN_USER_IDS` takes `users.id` verbatim and
+fails closed, and a dev-login operator's id is `dev-<username>`, not a Google
+one. **Hypothesis, not finding** — the value is encrypted and was not read.
+**The next step is a read**: check whether Preview's value contains the `dev-`
+id `e2e/adminBootstrap.ts` grants through.
 
 **Do not repeat the mistake this paragraph used to make.** Until 2026-09-19 this
 line, `TODO.md` and two other places all said the blocker was

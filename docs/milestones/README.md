@@ -267,13 +267,14 @@ places in these docs — this file's M22 row, `TODO.md`, and notes added on
   `POST /api/admin/grants` answers 404 on a preview and no account reachable
   from a browser can hold `api.tokens` there.
 
-**`ADMIN_USER_IDS` is now set on preview and production**, which is the fix that
-entry sketched. That does **not** make the box walkable on its own — the entry
-is explicit that the variable is injected at build, so a preview built before it
-was set still 404s. **The recheck is the entry's own**: as a dev-login operator
-on a preview, `POST <preview>/api/admin/grants` returning **201** rather than
-404. Nobody has run it, so the box stays open and `KI-2026-09-16-d` stays open
-with it.
+**`ADMIN_USER_IDS` is bound to preview and production — and it was created
+2026-09-14, two days BEFORE the walk that got the 404.** So that entry's fix
+sketch ("set it in Preview and redeploy") describes a state which already held
+when the entry was filed, and is probably wrong. The likely cause is the
+variable's **value** rather than its absence — it takes `users.id` verbatim and
+fails closed, and a dev-login operator's id is `dev-<username>`. **That is a
+hypothesis**: the value is stored encrypted and was not read. The next step is a
+read, not a write; the entry carries it. `KI-2026-09-16-d` stays open.
 
 **Why this is recorded at a gate close rather than quietly fixed.** A wrong
 variable name in three status files is exactly the drift this file's own

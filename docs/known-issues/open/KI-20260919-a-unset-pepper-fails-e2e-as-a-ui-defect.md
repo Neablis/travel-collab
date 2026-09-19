@@ -1,10 +1,19 @@
 ### KI-2026-09-19-a — a freshly bootstrapped local env has no `API_TOKEN_PEPPER`, and the M22 e2e spec fails as if the token UI were broken
 
 > **Scope, narrowed 2026-09-19 after Mitchell's correction — read this first.**
-> **Every deployed environment already has this variable.** Checked against the
-> Vercel project rather than assumed: `API_TOKEN_PEPPER` is set on **preview,
-> development and production**, all three as `sensitive`. CI sets its own
-> (`ci-pepper`). The vitest configs set a test value.
+> **Every deployed environment already carries this variable.** Checked against
+> the Vercel project rather than assumed: `API_TOKEN_PEPPER` is bound to
+> **preview, development and production**, all three as `sensitive`, created
+> 2026-09-16 19:54. CI sets its own (`ci-pepper`). The vitest configs set a test
+> value.
+>
+> **What that check does NOT establish**, said plainly because the distinction
+> is the whole reason this entry was nearly filed wrong: Vercel's env listing
+> returns `decrypted: false`, and a `sensitive` variable's value is never
+> returned at all. **Binding was confirmed; content was not.** A variable set to
+> an empty string would look identical. Nothing here should be read as "the
+> deployed pepper is known to work" — only as "a pepper is configured in every
+> deployed target, so a blank one is not what this entry is about."
 >
 > So this entry is **only** about a local checkout bootstrapped by
 > `pnpm setup` — which is every fresh worktree and every cloud session, because

@@ -41,12 +41,32 @@
     account, which needs dashboard access.
   - Worth recording in `docs/guidelines/environments-and-deploys.md` beside the
     `ADMIN_USER_IDS` row once decided.
-- **Update, 2026-09-19: `ADMIN_USER_IDS` IS NOW SET on the Vercel preview and
-  production environments.** Read off the project rather than assumed. **That is
-  not the same as this entry being resolved**, for the reason the fix sketch
-  above already gives: the variable is injected at **build**, so a preview built
-  before it was set still answers 404. Nobody has run the recheck below, so this
-  stays open.
+- **Update, 2026-09-19 — the fix sketch above is probably WRONG, and the dates
+  are what say so.** `ADMIN_USER_IDS` is bound to the Vercel **preview** and
+  **production** environments, and it was created **2026-09-14 21:50** — *two
+  days BEFORE* the 2026-09-16 walk that got the 404. So "set `ADMIN_USER_IDS`
+  in Preview and redeploy" describes a state that **already held when this
+  entry was filed**. Setting it is not what is missing.
+
+  **The likely cause is therefore its VALUE, not its absence**, and that fits
+  what M20's retro already warns about: `ADMIN_USER_IDS` takes `users.id`
+  **verbatim** (`google-<sub>`, never an email), comma-separated and not a JSON
+  array, and it fails closed on every one of those — *"which is why a mistake
+  looks like silence"*. A value listing a real Google id would be correct for
+  production and useless for a **dev-login** operator on a preview, whose id is
+  `dev-<username>`. That is a hypothesis, not a finding: the value is stored
+  `encrypted` and was **not** read.
+
+  **What was NOT verified, stated so nobody treats this as more than it is:**
+  the variable's contents. Vercel's env listing returns `decrypted: false`, so
+  binding was confirmed and content was not. A variable set to an empty string
+  would look identical in that listing.
+
+  **Next step is a read, not a write:** decrypt or view `ADMIN_USER_IDS` for
+  Preview and check whether it contains the `dev-` id
+  `e2e/adminBootstrap.ts` grants through. If it does not, the fix is a value
+  change rather than a new variable, and the sketch above should be rewritten
+  before anybody acts on it.
 - **Also 2026-09-19: three status files said this entry was about
   `API_TOKEN_PEPPER`.** It is not, and it never has been — `TODO.md`,
   `docs/milestones/README.md`'s M22 row and `docs/STATUS.md` all named that
