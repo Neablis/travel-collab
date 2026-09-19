@@ -268,6 +268,36 @@ exactly this reason. It stays where it is — a placed item blocked on data, not
 an M26 omission — and the tab ships with the one Display row the build can
 honestly render. The design is ahead here, not the build behind.
 
+**Link 1 landed 2026-09-19.** What it changed beyond the obvious, for whoever
+opens link 2:
+
+- **The underline tab primitive exists** — `ui/underline-tabs.tsx`, built here
+  and meant to be *consumed* by link 2 rather than rebuilt. It is §33.2's
+  treatment exactly: 2px `--color-brand` edge, `--color-ink` active against
+  `--color-slate` idle, on a `--color-hairline` base line. It takes
+  `value`/`onValueChange` and knows nothing about routers, because Account puts
+  the tab in `?tab=` and Discover will put it somewhere of its own. It also
+  carries arrow-key movement and a roving tabindex, which `TabStrip` does not —
+  that is a gap in `TabStrip`, not a precedent to copy.
+- **`ui/settings-card.tsx` is §34.5's card and row**, and §34.5 says the same
+  rules govern whatever Account grows next, so it is a primitive rather than
+  markup. **Widths are spacing multiples** — `w-42.5` is 170px, `max-w-145` is
+  580px — because the artboard's own `grid-cols-[170px_minmax(0,1fr)]` is an
+  arbitrary Tailwind value the colour wall rejects. Expect the same friction
+  anywhere an artboard hands you a pixel value.
+- **A real bug was found and fixed on the way**: `TokensSection` read
+  `plan.billing.state` unguarded, so a plan body without `billing` threw, hit
+  the catch, and rendered "your API tokens could not be loaded" — the whole
+  section lost to a field that decides one sentence of gate copy. Its own test
+  fixture had been omitting `billing` while every real response carries it,
+  which is why no test could have caught it. **Check what a fixture leaves out,
+  not only what it sets.**
+- **Two decisions were settled and written down** (sign out, account currency)
+  and one scope line was written down *before* the code: Home time on hover is
+  not built, because it needs a timezone and a `trip.tz` the app does not have.
+
+---
+
 ## Link 2 — Discover is re-sorted by kind of decision (§33.2)
 
 The rule this link implements governs **any list surface**, which is why it is
@@ -619,21 +649,29 @@ marked **[walk]** and are not satisfiable by a green test.
       **Two of the five aids were built generated-plus-tested rather than
       hand-written**, because a hand-written route table is stale the next time
       the design side rewrites its README in place, which it does every pass.
-- [ ] **[walk]** `/account` is a route with three tabs; each tab is a URL a
+- [~] **[walk]** `/account` is a route with three tabs; each tab is a URL a
       browser back button walks; `PlanSection` and `TokensSection` render inside
       it unchanged; no `PLAN` or `API TOKENS` rule is repeated under the tab
       that already says it. `KI-2026-09-17-a` moves to `resolved/`.
-- [ ] **All seven Sheet-bound test files are migrated, not deleted**, and
+      **Built 2026-09-19 and `KI-2026-09-17-a` is resolved; the `[walk]` half is
+      unwalked** — this box needs a person on a preview, which is what `[walk]`
+      means, and no preview has been driven yet.
+- [~] **All seven Sheet-bound test files are migrated, not deleted**, and
       `e2e/m22-api-tokens.spec.ts` still proves a token can be minted and
       revoked by clicking. A token minted on the route is usable against
-      `/api/v1`.
+      `/api/v1`. **Migration done 2026-09-19** behind one `openAccountPage`
+      helper; `m21-plans.spec.ts` failed rather than drifted, as predicted.
+      **The e2e lane has not been run**, so the second sentence is unproven.
 - [ ] **[walk]** A token minted with **Chosen trips** reaches those trips and is
       refused on another with `trip-out-of-scope`, and the same token is refused
       on `POST /v1/trips`. The refusals are the shipped ones — **no server
       change appears in this link's diff.**
-- [ ] **[walk]** Account renders on a 580px measure inside filled cards with a
+- [~] **[walk]** Account renders on a 580px measure inside filled cards with a
       170px label column; the token list is one card of rows with a moss header;
-      **no box on the page is unfilled.**
+      **no box on the page is unfilled.** **Built 2026-09-19** — the measure is
+      the tab panel's (one place, as the artboard has it), `ui/settings-card.tsx`
+      is the card and row, the token list is a `Table` in a filled card with a
+      moss header, and all five unfilled boxes now carry `bg-surface`. Unwalked.
 - [ ] **[walk]** Discover's scope is underlined tabs above the search; Rating
       and Budget are always-present chips showing their value when set;
       *More filters* holds the rest; the results sentence reads `N shared days ·

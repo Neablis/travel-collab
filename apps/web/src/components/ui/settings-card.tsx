@@ -63,8 +63,15 @@ export function SettingsRow({
     // draws the separator between rows and not under the final one, and a row
     // owning its own separator survives being reordered or conditionally
     // rendered, which a positional rule does not.
-    <div className="flex items-center gap-4 border-b border-hairline py-3.5 last:border-b-0">
-      <div className="w-42.5 shrink-0">
+    <div
+      className="flex items-center gap-4 border-b border-hairline py-3.5 last:border-b-0"
+      data-testid="settings-row"
+    >
+      {/* A testid because the label COLUMN has no accessible identity of its
+          own — it is structure, which is exactly what `docs/guidelines/testing.md`
+          says a testid names. Without it the only way to assert the column is a
+          parent-node walk, which the lint wall refuses. */}
+      <div className="w-42.5 shrink-0" data-testid="settings-row-label">
         {htmlFor === undefined ? (
           <Text as="span" className="block text-sm font-semibold text-ink">
             {label}

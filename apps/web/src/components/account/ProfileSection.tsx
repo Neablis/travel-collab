@@ -6,7 +6,7 @@ import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { DataText } from "@/components/ui/data-text";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { SettingsCard, SettingsRow, SETTINGS_MEASURE } from "@/components/ui/settings-card";
+import { SettingsCard, SettingsRow } from "@/components/ui/settings-card";
 import { useAccountPreferences } from "./PreferencesProvider";
 
 const UNIT_OPTIONS = [
@@ -106,7 +106,7 @@ export function ProfileSection({ email }: { email: string }) {
   }
 
   return (
-    <div className={`flex flex-col gap-4 ${SETTINGS_MEASURE}`}>
+    <div className="flex flex-col gap-4">
       <SettingsCard heading="You">
         <SettingsRow label="Your name" htmlFor="account-display-name">
           {/* 240px, because a name is not a paragraph (§34.5: controls are

@@ -192,7 +192,11 @@ export function PlanSection() {
     // accessible name from the panel that wraps it.
     <section className="flex flex-col gap-3" data-testid="plan-section">
 
-      <div className="flex flex-col gap-1.5 rounded-lg border border-hairline p-3">
+      {/* §34.5: **every box on the page is `--color-surface` — no exceptions.**
+          This card, the meters and the referral row shipped unfilled and read
+          as holes in the column beside the filled ones. A box that groups
+          things is a card; a card is white. */}
+      <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Text as="span" className="text-sm font-semibold text-ink" data-testid="plan-held">
             {planId} {version}
@@ -295,7 +299,7 @@ export function PlanSection() {
           generous of the held version and anything granted — and the
           environment's global ceiling is deliberately never shown, because it
           was never sold to anyone. */}
-      <div className="flex flex-col gap-2 rounded-lg border border-hairline p-3">
+      <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
         <Heading level={4}>Assistant use today</Heading>
         <Meter label="Questions" standing={plan.questions} testId="meter-questions" />
         <Text variant="secondary" className="text-xs">
@@ -323,7 +327,7 @@ export function PlanSection() {
           hold, so offering one to an account holding nothing is offering a
           reward that resolves to zero. */}
       {plan.canRefer ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-hairline p-3" data-testid="referral-row">
+        <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3" data-testid="referral-row">
           <Heading level={4}>Bring someone in, get a month</Heading>
           <Text variant="secondary" className="text-xs">
             When someone new signs up with your code you get a month of whatever you hold the moment

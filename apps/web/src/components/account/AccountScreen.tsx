@@ -5,6 +5,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
+import { SETTINGS_MEASURE } from "@/components/ui/settings-card";
 import { useSessionUser } from "./useSessionUser";
 import { ProfileSection } from "./ProfileSection";
 import { PlanSection } from "./PlanSection";
@@ -83,11 +84,16 @@ export function AccountScreen() {
             would fire every request on arrival to show one of them — and the
             token list is the one surface here whose contents are credentials.
             The cost is a fetch per tab visit, which is what a route is. */}
+        {/* **The 580px measure is the panel's, not each section's** (§34.5:
+            *"every panel on Account sits on a 580px measure"*; the artboard
+            puts it on each tab's content div). One place, so a fourth tab
+            cannot arrive a little wider than the other three. */}
         <div
           role="tabpanel"
           id={tabPanelId(ID_PREFIX, tab)}
           aria-labelledby={tabId(ID_PREFIX, tab)}
           tabIndex={-1}
+          className={SETTINGS_MEASURE}
         >
           {tab === "profile" && <ProfileSection email={user?.email ?? ""} />}
           {tab === "plan" && <PlanSection />}
