@@ -326,14 +326,27 @@ anchor. Nothing to travel between."* The design's own comment is the argument:
 *"The day's detail is a hover card beside the rail, not a panel parked over the
 map: it costs no space until you ask a day a question."*
 
-**The build has an explicit anti-requirement, with a test defending it.**
-`MapRail.tsx:329-333`: *"No hover tint … a hover state would compete with that
-as a second, misleading selection cue"*, asserted at `MapRail.test.tsx:51-56`.
-That is a real argument about the geared scroll-selection this rail uses, and
-the design's `pointer-events: none` card answers it **without addressing it head
-on**. **Take this to Mitchell before writing code.** Building it means deleting
-a test that was written on purpose, and this file will not pretend that is a
-detail.
+**DECIDED 2026-09-19 — build it.** Mitchell: *"Yes still add the hover, the idea
+being is if you want more info you can move your mouse over and hover or move
+your mouse out to see the ui witout the hover."* That is the design's own
+argument restated as a user's: the card is **detail on demand**, and moving out
+is how you get the clean map back. Reveal-on-demand, not a second way to select
+a day.
+
+**And the build's objection turns out not to conflict with it — check this
+before deleting anything.** `MapRail.tsx:329-333` says *"No hover tint … a hover
+state would compete with that as a second, misleading selection cue"*, asserted
+at `MapRail.test.tsx:51-56` as `not.toMatch(/hover:bg-/)`. Both are about a
+**hover background on the row**. The design does not tint the row on hover
+either: its `bg` is `on ? m.ac.tint : 'var(--color-surface)'` — **focus-driven
+only**. It raises a card *beside* the rail and leaves the row exactly as it was.
+
+So the rule the test encodes survives intact, and **the test stays green rather
+than being deleted**: the row's appearance is a function of focus, hovering
+changes nothing about the row, and the card is the only thing that appears.
+Keeping both is not a compromise — it is the distinction Mitchell's sentence
+draws. Add a sibling test asserting the card appears on `mouseenter` and clears
+on `mouseleave`, and leave the no-hover-tint assertion where it is.
 
 What exists today is `MapFocusCard.tsx` — an always-on card at `bottom: 18px`,
 no `pointer-events: none`, no animation, and different copy (`day.city ?? label`
@@ -580,8 +593,10 @@ marked **[walk]** and are not satisfiable by a green test.
       and a list-only fallback at 11s, scoped to the instance that started it.
 - [ ] **[walk]** The Map rail's hover card appears top-aligned to the hovered
       row, never eats a click, and disappears on leave without flickering
-      between adjacent rows — **or** this box is struck with Mitchell's decision
-      recorded, because link 5a reverses a defended test.
+      between adjacent rows. **And the row itself does not change on hover** —
+      `MapRail.test.tsx:51-56`'s no-hover-tint assertion is still green and was
+      not modified, because the card is detail on demand and not a second way to
+      select a day.
 - [ ] **[walk]** Delete and Duplicate are gone from Trip settings and Download
       remains, under a *Take it with you* heading that says history does not
       travel. A trip shared with you offers **Leave this trip** and no Delete.
@@ -660,21 +675,40 @@ not a fix."* `TODO.md:1030-1037` says *"no milestone in this file owns the phone
 at all… placing the phone is a milestone-sized decision."* **Three independent
 places in this repo have been waiting for this wave to be minted.**
 
-## The one thing Mitchell must decide before Wave 2 opens
+## Where the phone edits — sequenced 2026-09-19, and no longer open-ended
 
-**Where does the phone edit?** `TODO.md:1048-1054` — §24 deleted the Timeline
-lens, and the Timeline lens **was** the phone's editing surface. The same bundle
-now says both that Plan (day columns) is the only surface that edits **and**
-that a phone cannot render day columns honestly (§10). Built as the design
-states it on Mitchell's call (2026-09-12: *"Lets just build the plan as is for
-now, and when its ready we will figure out where editing moved to"*), so a phone
-renders day columns at 390px today — *"a known, accepted, temporary state rather
-than an answer."*
+**The question.** `TODO.md:1048-1054` — §24 deleted the Timeline lens, and the
+Timeline lens **was** the phone's editing surface. The same bundle now says both
+that Plan (day columns) is the only surface that edits **and** that a phone
+cannot render day columns honestly (§10). Built as the design states it on
+Mitchell's call (2026-09-12: *"Lets just build the plan as is for now, and when
+its ready we will figure out where editing moved to"*), so a phone renders day
+columns at 390px today — *"a known, accepted, temporary state rather than an
+answer."* KI-046's surviving symptom is exactly this surface: **82px of text
+column inside a 364px card**, a one-line note wrapping to 121px tall.
 
-KI-046's surviving symptom is exactly this surface: **82px of text column inside
-a 364px card**, a one-line note wrapping to 121px tall. **Link 12 is blocked on
-this decision and nothing else in Wave 2 is.** Wave 2 can open and run links
-11, 12, 14, 15 and 16 with link 13 unanswered.
+**Mitchell, 2026-09-19, asked where the phone edits:** *"Phone edit is right
+after."*
+
+**What this file takes that to mean, stated so it can be corrected cheaply
+rather than assumed silently.** Link 13 is **sequenced, not blocked**: it runs
+immediately after the rest of Wave 2 rather than waiting on an open-ended
+product decision, and the question of *what* the phone's editing surface becomes
+is answered **at that point**, by design, with the rest of the phone already
+built underneath it. That ordering is the useful half of the answer either way —
+every other phone surface lands first, so the decision is made against a phone
+that works rather than against a hypothesis.
+
+**What it does not settle**, and what whoever opens link 13 still owes: whether
+Plan gets a genuine phone treatment, or whether §10 is amended to say a phone
+*can* render day columns and the 92px time gutter is what goes. `TODO.md`'s
+standing line holds until one of those is written down — *"whoever picks this up
+owes either a phone treatment of Plan or a design decision that §10 no longer
+holds."*
+
+**So Wave 2 runs 11 → 12 → 14 → 15 → 16 → 13**, with link 13 last and no link
+blocked. The one thing not to do is paper over it early: the build deliberately
+did not ship a phone-only fallback view, and it should not start now.
 
 ## Link 11 — The phone account screen, and Plans' phone treatment
 
@@ -707,12 +741,23 @@ shared day's map collapses behind a *Show route* row.
 Link 2 makes this tractable: the chips, the sheet groups and the filter count
 are the same model at a different density.
 
-## Link 13 — Plan on a phone *(BLOCKED — see the decision above)*
+## Link 13 — Plan on a phone *(LAST, by Mitchell's sequencing — see above)*
 
-Carries KI-046's surviving symptom. **Do not build a phone-only fallback view to
-paper over it** — the build deliberately did not, and it should not start now.
-This link is either a phone treatment of Plan or a recorded decision that §10 no
-longer holds.
+Carries KI-046's surviving symptom: **82px of text column inside a 364px card**,
+and a one-line note that wraps to 121px tall. It runs **after every other Wave 2
+link**, so the decision it needs is made against a phone that otherwise works.
+
+**Do not build a phone-only fallback view to paper over it** — the build
+deliberately did not, and it should not start now. This link ends in one of two
+things and the file it changes is different for each: **a phone treatment of
+Plan** (§13's flush 3px city spine, the 92px desktop time gutter dropped, cards
+that give the text column its width back), or **a recorded amendment to §10**
+saying a phone can render day columns after all. Write whichever one down before
+writing code, per link 0's guideline.
+
+**Its own gate box is the only one in this milestone that is a measurement**,
+because KI-046 is a measured entry and is amended by measurement, never by an
+impression that it looks better.
 
 ## Link 14 — The 44px pass, and the chrome that owes it
 
@@ -772,6 +817,10 @@ everyone agrees is temporary is a test that will have to be argued with later.
       owns**, reported as a figure and not as an impression — the entry was
       written from measurement and is amended by measurement. **KI-046 is
       amended, not closed**, unless link 13 landed.
+- [ ] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
+      amendment to §10 in writing — and the text column's width at 390px is
+      reported as a **number**, against KI-046's 82px-of-364px. It runs last, so
+      this box is the wave's closing one.
 - [ ] The phone Map tab has an offline state: a titled panel, the
       stops-are-still-readable message, *Try again* and *Open Plan*.
 - [ ] The `phone` Playwright project covers every surface this wave built, and
@@ -896,10 +945,21 @@ side of.
 Each of these is a decision, not a task. They are listed here so a build does
 not resolve one by accident and call it an implementation detail.
 
-1. **Does the Map rail get a hover state at all?** Link 5a reverses a test
-   written on purpose. Mitchell's call.
-2. **Where does the phone edit?** Link 13 is blocked on it, and it has been open
-   since 2026-09-12.
+**Two of the original nine were answered on 2026-09-19 and are kept here struck
+rather than deleted, because both were load-bearing enough that a later reader
+will want to know they were asked.**
+
+1. ~~**Does the Map rail get a hover state at all?**~~ **ANSWERED — yes.**
+   Mitchell: *"the idea being is if you want more info you can move your mouse
+   over and hover or move your mouse out to see the ui witout the hover."*
+   Detail on demand, not a second selection cue — and on that reading the
+   build's no-hover-tint rule and the design's card are **compatible**, so
+   nothing is deleted. Link 5a.
+2. ~~**Where does the phone edit?**~~ **SEQUENCED — link 13 runs last in Wave 2**
+   (Mitchell: *"Phone edit is right after."*). Not blocked; the design answer is
+   owed when that link opens, against a phone that otherwise works. The
+   substance — a phone treatment of Plan, or an amendment to §10 — is still to
+   be written down, and link 13 says which file each lands in.
 3. **Sign out: popover, account page, or both?** §12 and §34.4 disagree, and the
    design's own desktop and phone screens disagree with each other.
 4. **Is there an account-level currency?** `KI-2026-09-17-a` raised it; §34.4's

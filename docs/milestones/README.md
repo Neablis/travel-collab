@@ -281,15 +281,28 @@ building from this handoff without it — four review rounds and three wrong
 builds, for **one** screen — and already named the five aids. This milestone
 builds around twenty screens from the same handoff.
 
-**Nine open questions are recorded in the file and deliberately not answered
-there**, because each is a decision rather than a task. Two of them gate work:
-whether the Map rail gets a hover state at all (building it deletes a test
-written on purpose, defending a real argument about competing selection cues),
-and **where the phone edits** — open since 2026-09-12, and the only thing
-blocking Wave 2's link 13. The other seven — sign out's home, an account-level
-currency, the day chip rail on Map, the trip status badge, inferring *on foot*
-from `kind === "transit"`, `lastUsedAt`, and whether Duplicate clears dates for
-a shared-trip clone — can all be answered as their links come up.
+**Nine open questions were recorded in the file and deliberately not answered
+there**, because each is a decision rather than a task. **Mitchell answered the
+two that gated work on 2026-09-19, the same day:**
+
+- **The Map rail gets its hover card** — *"if you want more info you can move
+  your mouse over and hover or move your mouse out to see the ui witout the
+  hover."* Detail on demand rather than a second way to select a day. On that
+  reading the build's no-hover-tint rule and the design's card turn out to be
+  **compatible**: the design tints the row on **focus only** and raises the card
+  beside it, so the test defending the rule stays green and nothing is deleted.
+  What looked like the milestone's one reversal is not one.
+- **Where the phone edits is sequenced rather than blocked** — *"Phone edit is
+  right after."* Link 13 runs **last in Wave 2**, so the design answer is owed
+  against a phone that otherwise works instead of against a hypothesis, and **no
+  link in the milestone is blocked on a pending decision.** What it does not yet
+  settle is the substance: a phone treatment of Plan, or an amendment to §10
+  saying a phone can render day columns after all.
+
+The other seven — sign out's home, an account-level currency, the day chip rail
+on Map, the trip status badge, inferring *on foot* from `kind === "transit"`,
+`lastUsedAt`, and whether Duplicate clears dates for a shared-trip clone — can
+all be answered as their links come up.
 
 **Two known issues were filed by the scoping** and are both scoped as link 8:
 `KI-2026-09-19-f` (an accent reaches MapLibre through `getComputedStyle`, the

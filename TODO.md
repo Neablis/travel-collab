@@ -809,11 +809,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       **`DRIFT` D12 is not blocked and never has been** — the field, the
       wrapper, the per-call check and the widening refusal are all shipped and
       enforced; the entire gap is one hardcoded `null` in a POST body.
-      **Nine open questions are recorded in the file and deliberately not
-      answered there.** Two gate work: whether the Map rail gets a hover state
-      at all — building it deletes a test written on purpose, defending a real
-      argument about competing selection cues — and **where the phone edits**,
-      open since 2026-09-12 and the only thing blocking Wave 2's link 13.
+      **Nine open questions were recorded in the file and deliberately not
+      answered there; Mitchell answered the two that gated work the same day.**
+      The Map rail **gets its hover card** — *"if you want more info you can
+      move your mouse over and hover or move your mouse out to see the ui witout
+      the hover"* — detail on demand, not a second way to select a day; and on
+      that reading the build's no-hover-tint rule and the design's card turn out
+      to be **compatible** (the design tints the row on focus only and raises
+      the card beside it), so the test defending the rule stays green and the
+      milestone's one apparent reversal is not one. And **where the phone edits
+      is sequenced rather than blocked** — *"Phone edit is right after."* — so
+      link 13 runs **last in Wave 2** and **no link is blocked on a pending
+      decision**. What that does not yet settle is the substance: a phone
+      treatment of Plan, or an amendment to §10 saying a phone can render day
+      columns after all.
       **Two KIs were filed by the scoping**, both scoped as link 8:
       `KI-2026-09-19-f` (an accent reaches MapLibre through `getComputedStyle`,
       the documented non-fix — correct today only because the tokens happen to

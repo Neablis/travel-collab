@@ -48,10 +48,12 @@ it exists and what the scoping found: `docs/milestones/README.md`'s
 they change plans made from this page:** `.design-sync/handoff/DRIFT.md` is
 stale in the build's favour in six places — it lists eleven `<Preview>`-shelled
 surfaces and there are **six** — so do not plan from its counts without opening
-`apps/web/src/lib/preview-registry.ts`; and **where the phone edits is still
-open** (Mitchell, 2026-09-12), which blocks exactly one of that milestone's
-links. Two KIs were filed by the scoping, `KI-2026-09-19-f` and
-`KI-2026-09-19-g`, both about a guard that cannot see its own class of defect.
+`apps/web/src/lib/preview-registry.ts`; and **nothing in M26 is blocked on a
+pending decision** — Mitchell answered both of the ones that gated work on
+2026-09-19, so the Map rail gets its hover card and *"where does the phone
+edit"* is **sequenced last in Wave 2** rather than left open. Two KIs were filed
+by the scoping, `KI-2026-09-19-f` and `KI-2026-09-19-g`, both about a guard that
+cannot see its own class of defect.
 
 **Do the preflight first, and it has been dropped once already.** The
 activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
