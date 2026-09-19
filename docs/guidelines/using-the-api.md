@@ -48,6 +48,25 @@ no token.
 **It is generated from the route declarations themselves**, so it cannot
 describe an endpoint that does not exist or miss one that does.
 
+### Discovery
+
+A caller who knows only the host can find the reference without guessing:
+
+- **`GET /api/v1`** — a small JSON index: the API's name, where the OpenAPI
+  document is (`/api/v1/openapi`), and how to authenticate. No token.
+- **`GET /.well-known/api-catalog`** — the same pointer in the standard shape
+  (RFC 9727): an `application/linkset+json` linkset whose `service-desc` is the
+  OpenAPI document. No token.
+
+There is no `/.well-known/agent.json` or similar; those two are the entry points.
+
+**`/.well-known/api-catalog` is not reachable by bots until the Vercel firewall
+exempts it.** The firewall challenges automated traffic on every path outside
+`/api/*`, and that rule is dashboard configuration, not code in this repo.
+Mitchell adds the exemption (Vercel → Firewall → a bypass rule for the path
+`/.well-known/api-catalog`); until then a browser can read it and a crawler
+gets a challenge page. `/api/v1` needs nothing, since it is under `/api/*`.
+
 ### Scopes
 
 A token holds a set of scopes and nothing is implied by anything else —
@@ -271,6 +290,7 @@ itself.
 // apps/web/src/app/api/v1/trips/[tripId]/members/route.ts
 export const { GET } = route({
   GET: {
+    summary: "List the people on a trip and their roles",
     scope: "trips:read",
     trip: "path",
     role: "viewer",
@@ -280,7 +300,10 @@ export const { GET } = route({
 });
 ```
 
-That is the entire cost. The wrapper does credential resolution, the scope check,
+That is the entire cost. **`summary` is required by the type**: one plain line
+saying what the call does for the caller, published as the operation's title in
+the reference. `openapi.test.ts` fails if the generator ever falls back to
+restating the path. The wrapper does credential resolution, the scope check,
 the trip confinement, the role gate, request parsing, response validation, the
 error envelope, status codes, `WWW-Authenticate`, rate limiting, `last_used_at`
 and pagination — once, for every endpoint that will ever exist.
