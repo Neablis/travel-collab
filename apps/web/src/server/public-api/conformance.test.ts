@@ -50,7 +50,7 @@ function routeModules(): string[] {
 const HTTP_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"] as const;
 
 /**
- * **The one file under `v1/` that is allowed a raw handler, named explicitly.**
+ * **The files under `v1/` that are allowed a raw handler, each named explicitly.**
  *
  * `/api/v1/openapi` serves the reference document. It is not a resource of
  * anybody's account: it needs no token, no scope and no rate limit, because it
@@ -58,13 +58,17 @@ const HTTP_METHODS = ["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD", "OPTIONS"
  * has it. Putting a credential in front of the docs is the kind of friction that
  * gets an API ignored.
  *
- * **An allowlist of exactly one, not a pattern.** A rule like "files called
+ * `/api/v1` itself (`route.ts` at the root of `v1/`) is the second, argued for
+ * the same way: it is a two-line index pointing at that document, so a caller
+ * who knows only the base URL can find it. Same bytes for everybody, no token.
+ *
+ * **An allowlist of named files, not a pattern.** A rule like "files called
  * `openapi` are exempt" is a rule somebody can satisfy by naming a file well, and
- * the whole value of this sweep is that it cannot be talked around. A second
+ * the whole value of this sweep is that it cannot be talked around. A third
  * exemption has to be argued for here, in this comment, in a diff someone
  * reviews.
  */
-const EXEMPT = new Set(["openapi/route.ts"]);
+const EXEMPT = new Set(["openapi/route.ts", "route.ts"]);
 
 /** `.../v1/openapi/route.ts` → `openapi/route.ts`. */
 const UNDER_V1 = (full: string) => path.relative(V1, full).split(path.sep).join("/");
