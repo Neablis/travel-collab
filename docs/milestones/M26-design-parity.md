@@ -691,11 +691,21 @@ marked **[walk]** and are not satisfiable by a green test.
       with the filter gone it classifies nothing — but Mitchell asked for the
       month by name on 2026-09-01, so `Season: Summer · August 2026` became
       `Kept in: August 2026`.
-- [ ] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
+- [~] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
       carrying a window and a stop count, stops numbered continuously, and a CTA
       reading `Add all 3 days to a trip`. Picking `Day 2` rescopes everything
       below the title and nothing above it. A one-day Playbook shows **no** tab
-      row. A rest day still reads as a rest day.
+      row. A rest day still reads as a rest day. **Built 2026-09-19, unwalked.**
+      Two things a later reader should not have to re-derive:
+      **`TabStrip`, not link 2's `UnderlineTabs`** — these are views of ONE
+      Playbook, and §33.2's own distinction makes that the pill; the artboard
+      mounts `TabStrip` here too.
+      **The rail lost Days, Stops and Kept in, and lost Window only where
+      something else says it.** The title block's line owns the first three. A
+      multi-day Playbook's Window row said *"Spans several days"*, which the
+      per-day dividers now replace with each day's real range — but a ONE-day
+      Playbook has no tab row and no divider, so its Window row stays. Removing
+      it there would have deleted a fact rather than de-duplicated one.
 - [ ] **[walk]** The shared day draws its stops on a map beside the list, the
       container survives a tab switch, **no leg crosses a night** on `All days`,
       and a day with fewer than two located stops degrades to list-only rather
