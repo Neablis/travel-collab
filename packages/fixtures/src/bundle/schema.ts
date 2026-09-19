@@ -182,9 +182,48 @@ export const BundlePlaybook = z.object({
   /** The trip it was lifted out of: a SNAPSHOT of a name, never a row (ADR-028). */
   sourceTrip: z.object({ id: z.string().uuid().optional(), name: z.string().min(1).max(200) }),
   addedBy: z.array(BundleAdd).default([]),
-  stops: z.array(BundleStop).min(1),
-});
+  /**
+   * A ONE-DAY playbook's stops. The original shape, and still the ordinary one.
+   *
+   * Exactly one of `stops` and `days` — see the refine below.
+   */
+  stops: z.array(BundleStop).min(1).optional(),
+  /**
+   * A MULTI-DAY playbook, as days (M23, ADR-048).
+   *
+   * **`BundleDay`, the same shape a bundle trip's days already use**, rather
+   * than a per-stop `dayIndex`. A content bundle exists to be REVIEWED by a
+   * person before it becomes rows (this file's own header), and a flat list of
+   * forty stops each carrying `dayIndex: 2` is not reviewable — which is
+   * precisely the argument `BundleDay.label` already makes one type up. The
+   * stored form is flat and indexed (that is ADR-048's migration-cost
+   * decision); the AUTHORED form does not have to be, and these two shapes have
+   * opposite constraints. Nothing parses old bundle bytes out of a database.
+   *
+   * A day with an empty `stops` array is a deliberate rest day and is kept as
+   * one — it becomes a gap in the stored `dayIndex`, and `dayCount` counts it.
+   * That is the one thing the flat form cannot express by itself.
+   */
+  days: z.array(BundleDay).min(1).optional(),
+})
+  .refine((p) => (p.stops === undefined) !== (p.days === undefined), {
+    message: "A playbook declares either `stops` (one day) or `days` (a sequence), not both and not neither.",
+    path: ["stops"],
+  });
 export type BundlePlaybook = z.infer<typeof BundlePlaybook>;
+
+/**
+ * Every stop in a playbook, whichever shape it was authored in.
+ *
+ * The checks that read a playbook's stops — currency mixing, pricing, the city
+ * census — ask about the whole playbook and not about a day within it, so they
+ * should not each have to know that `stops` and `days` are two spellings of one
+ * thing. Added with `days` (M23): before it, `playbook.stops` was simply always
+ * there.
+ */
+export function playbookStops(playbook: BundlePlaybook): BundleStop[] {
+  return playbook.days === undefined ? (playbook.stops ?? []) : playbook.days.flatMap((d) => d.stops);
+}
 
 // ---------------------------------------------------------------------------
 // A notebook template

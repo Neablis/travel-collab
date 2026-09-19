@@ -149,6 +149,60 @@ export function seasonOfInstant(iso: string): Season | null {
  * single-currency; when it is not, the filter hides rather than comparing two
  * numbers that are not comparable.
  */
+/**
+ * **How long a Playbook is, in bands** — Discover's length filter (M23).
+ *
+ * Mitchell, 2026-09-19: *"We also need to be able to search and filter by
+ * length, 1, 3, 5 or 7+ days"*, read as EDGES of mutually exclusive bands
+ * rather than four independent "at most N" thresholds — a `<select>`'s options
+ * have to be mutually exclusive or a Playbook matches two at once, which is the
+ * same reading `BudgetBand` below took of his four budget numbers and the same
+ * flag is worth raising: if he meant overlapping toggles, that is a different
+ * control (checkboxes) and this needs redoing rather than relabelling.
+ *
+ * Confirmed with him on 2026-09-19 as **1 / 2-3 / 4-6 / 7+**, which keeps "7+"
+ * literal and lets 5 fall inside 4-6. Every length from 1 upwards lands in
+ * exactly one band, so nothing is unfindable by length — the failure the
+ * literal "exactly 1, 3, 5 or 7+" reading would have had, where a 2-day
+ * Playbook matched no option at all.
+ *
+ * Named for the range each covers rather than its position, for the reason
+ * `BudgetBand` spells out at length: a `mid` that silently changes meaning when
+ * a fifth band appears is exactly the link rot a saved `?length=` URL should
+ * not suffer quietly.
+ *
+ * **This is the one Discover filter that is a real SQL predicate over a
+ * column.** The budget band cannot be — a total is a sum over `stops`, the
+ * jsonb ADR-029 says is never queried into, so it is applied in application
+ * code to an already-truncated candidate window. `day_count` is a column, so
+ * length filters in SQL beside the city containment, and its chip counts and
+ * its page can never come apart (KI-2026-08-31).
+ */
+export const LengthBand = z.enum(["any", "one", "two-three", "four-six", "seven-plus"]);
+export type LengthBand = z.infer<typeof LengthBand>;
+
+/**
+ * The inclusive `[min, max]` day range each band covers, or null for "any".
+ *
+ * One table, read by the SQL predicate and by the control's labels alike, so
+ * neither can drift from the other. `null` as an upper edge means unbounded.
+ */
+export const LENGTH_BAND_RANGE: Record<Exclude<LengthBand, "any">, [number, number | null]> = {
+  one: [1, 1],
+  "two-three": [2, 3],
+  "four-six": [4, 6],
+  "seven-plus": [7, null],
+};
+
+/** The rendered words, spelled once so no caller hand-cases them. */
+export const LENGTH_BAND_LABELS: Record<LengthBand, string> = {
+  any: "Any length",
+  one: "1 day",
+  "two-three": "2-3 days",
+  "four-six": "4-6 days",
+  "seven-plus": "7+ days",
+};
+
 export const BudgetBand = z.enum(["any", "under200", "200to500", "500to1000", "over1000"]);
 export type BudgetBand = z.infer<typeof BudgetBand>;
 
@@ -207,7 +261,18 @@ export const DiscoverDay = z.object({
    */
   matchedCities: z.array(z.string().min(1)),
   stopCount: z.number().int().nonnegative(),
-  /** First stop's start to last stop's end; null when no stop carries a time. */
+  /**
+   * How many days this Playbook spans (M23). `1` for every Playbook saved
+   * before that milestone, and still the ordinary case.
+   *
+   * On the CARD because Discover is where somebody decides which of thirty
+   * Playbooks to open, and "this is three days, not one" changes that decision
+   * more than anything else on the card does — it is also the number "Add to
+   * trip" is about to act on, and link 4's rule is that a surface states that
+   * before it acts.
+   */
+  dayCount: z.number().int().min(1),
+  /** First stop's start to last stop's end; null when no stop carries a time, and null for any Playbook over one day (ADR-048). */
   window: TimeWindow.nullable(),
   /**
    * Sum of the day's priced stops; null when nothing is priced or currencies
@@ -308,6 +373,20 @@ export const PublicAuthor = z.object({
    */
   displayName: z.string().min(1),
   /** Days currently published. A private day is not "shared". */
+  /**
+   * How many PLAYBOOKS this author has published — **not how many days**.
+   *
+   * The name predates M23, when a Playbook was exactly one day and the two
+   * counts were the same number. They are not any more: a three-day Playbook
+   * adds one to this. Every surface that renders it was saying "1 day shared"
+   * over a Playbook three days long, which is the `budgetPerPerson` defect
+   * class again — a name asserting a semantic the computation does not have.
+   *
+   * **The labels are fixed here; the FIELD keeps its name on purpose.** It is
+   * produced by `publishedDayCount` and read by three screens, and renaming it
+   * in this milestone's diff would widen a PR that already carries a migration
+   * and a contract change. `KI-20260919-c` carries the rename.
+   */
   daysShared: z.number().int().nonnegative(),
   /**
    * Ledger rows against this person's days — "how often their days were added".

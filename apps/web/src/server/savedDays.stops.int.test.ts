@@ -47,6 +47,7 @@ function wellFormedStop(): SavedStop {
     kind: "planned",
     tags: [],
     cost: null,
+    dayIndex: 0,
   };
 }
 
@@ -169,6 +170,7 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
           kind,
           tags: [],
           cost: null,
+          dayIndex: 0,
         } as unknown as TripDetail["activities"][string],
       },
     };
@@ -179,7 +181,7 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const detail = detailWithOneStop(undefined);
 
-    const result = await saveDay({ name: "A bad day", dayId: detail.days[0]!.dayId }, detail, ownerId);
+    const result = await saveDay({ name: "A bad day", dayIds: [detail.days[0]!.dayId] }, detail, ownerId);
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -206,7 +208,7 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
     const detail = detailWithOneStop("planned");
 
     const result = await saveDay(
-      { name: "A good day", dayId: detail.days[0]!.dayId },
+      { name: "A good day", dayIds: [detail.days[0]!.dayId] },
       detail,
       ownerId,
     );

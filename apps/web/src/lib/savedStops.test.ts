@@ -45,6 +45,9 @@ describe("stopsForDay", () => {
       kind: "booked",
       tags: ["meal"],
       cost: { amountMinor: 1200, currency: "USD" },
+      // `stopsForDay` answers about ONE day, so its fragment is a sequence of
+      // length one. `stopsForDays` re-stamps this per selected day (M23).
+      dayIndex: 0,
     });
   });
 

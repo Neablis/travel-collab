@@ -198,7 +198,7 @@ describe("the demo trip is read-only all the way down (KI-2026-09-05-d)", () => 
       new Request("http://test/api/saved-days", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "x", tripId: DEMO_TRIP_ID, dayId: demoDayId() }),
+        body: JSON.stringify({ name: "x", tripId: DEMO_TRIP_ID, dayIds: [demoDayId()] }),
       }),
     );
     const after = await db.select().from(savedDays);

@@ -475,6 +475,11 @@
                             ],
                             "additionalProperties": false,
                             "nullable": true
+                          },
+                          "dayIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
                           }
                         },
                         "required": [
@@ -489,6 +494,11 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "dayCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "default": 1
                     },
                     "cities": {
                       "type": "array",
@@ -903,6 +913,11 @@
                             ],
                             "additionalProperties": false,
                             "nullable": true
+                          },
+                          "dayIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
                           }
                         },
                         "required": [
@@ -917,6 +932,11 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "dayCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "default": 1
                     },
                     "cities": {
                       "type": "array",
@@ -1383,6 +1403,11 @@
                                   ],
                                   "additionalProperties": false,
                                   "nullable": true
+                                },
+                                "dayIndex": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "default": 0
                                 }
                               },
                               "required": [
@@ -1397,6 +1422,11 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "dayCount": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 1
                           },
                           "cities": {
                             "type": "array",
@@ -1816,6 +1846,11 @@
                             ],
                             "additionalProperties": false,
                             "nullable": true
+                          },
+                          "dayIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
                           }
                         },
                         "required": [
@@ -1830,6 +1865,11 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "dayCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "default": 1
                     },
                     "cities": {
                       "type": "array",

@@ -22,26 +22,59 @@ const stop = (title: string, start: string, end: string): SavedStop => ({
   kind: "planned",
   tags: [],
   cost: null,
+  dayIndex: 0,
 });
 
 const stops = [stop("Fushimi Inari", "09:00", "11:00"), stop("Nishiki", "13:00", "14:30")];
 
-function renderDialog(overrides: { stops?: SavedStop[]; onSaved?: (name: string) => void } = {}) {
+// A three-day trip, anchored on its THIRD day — so "Day 3 of Kyoto" still means
+// what it meant before M23, and the picker has other days to offer. The first
+// day is deliberately EMPTY: a rest day is selectable and the summary names it.
+const DAY_1 = "22222222-2222-4222-8222-222222222222";
+const DAY_2 = "33333333-3333-4333-8333-333333333333";
+const tripDays = [
+  { dayId: DAY_1, date: null, stops: [] },
+  { dayId: DAY_2, date: null, stops: [stop("Arashiyama", "10:00", "12:00")] },
+  { dayId, date: null, stops },
+];
+
+function renderDialog(
+  overrides: {
+    stops?: SavedStop[];
+    days?: { dayId: string; date: string | null; stops: SavedStop[] }[];
+    onSaved?: (name: string) => void;
+  } = {},
+) {
   const onOpenChange = vi.fn();
   const onSaved = overrides.onSaved ?? vi.fn();
-  render(
+  const element = (open: boolean) => (
     <KeepDayDialog
-      open
+      open={open}
       onOpenChange={onOpenChange}
       tripId={tripId}
       dayId={dayId}
-      dayIndex={2}
       tripName="Kyoto"
-      stops={overrides.stops ?? stops}
+      days={
+        overrides.days ??
+        (overrides.stops === undefined
+          ? tripDays
+          : [{ dayId, date: null, stops: overrides.stops }])
+      }
       onSaved={onSaved}
-    />,
+    />
   );
-  return { onOpenChange, onSaved };
+  const { rerender } = render(element(true));
+  // Closing and reopening the SAME mounted dialog — which is what the pennant
+  // does, one dialog per board reused for every day.
+  return { onOpenChange, onSaved, setOpen: (open: boolean) => rerender(element(open)) };
+}
+
+/**
+ * Reveal the day picker — it is opt-in as of Mitchell's #192 feedback, so every
+ * test that touches a day chip goes through this first.
+ */
+async function openPicker() {
+  await userEvent.click(screen.getByRole("button", { name: "Do you want to add more days?" }));
 }
 
 afterEach(cleanup);
@@ -65,13 +98,24 @@ describe("KeepDayDialog", () => {
   // question. It is a read-only summary of the real day now.
   it("describes what is actually included, and is not a field", () => {
     renderDialog();
-    expect(screen.getByText("2 stops, 9 am – 2:30 pm. Order and gaps kept, no dates.")).toBeTruthy();
+    expect(screen.getByText("2 stops, 9 am – 2:30 pm.")).toBeTruthy();
     expect(screen.queryByPlaceholderText(/Stops, order, gaps/)).toBeNull();
+  });
+
+  // Mitchell, preview feedback on #192: "Drop the Order and gaps kept, no
+  // dates". It described the storage model, not this day, so it read the same
+  // on every keep anybody could make.
+  it("does not restate what every Playbook does", async () => {
+    renderDialog();
+    await openPicker();
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    expect(screen.queryByText(/Order and gaps kept/)).toBeNull();
+    expect(screen.queryByText(/no dates/i)).toBeNull();
   });
 
   it("copes with a day whose stops have no times", () => {
     renderDialog({ stops: [{ ...stop("Wander", "09:00", "10:00"), timeWindow: null }] });
-    expect(screen.getByText("1 stop, in order. No dates.")).toBeTruthy();
+    expect(screen.getByText("1 stop, in order.")).toBeTruthy();
   });
 
   // Visibility (Only me / Trip collaborators / Anyone with the link) is gone:
@@ -92,11 +136,88 @@ describe("KeepDayDialog", () => {
       expect(createSavedDayMock).toHaveBeenCalledWith({
         name: "A day in Nakameguro",
         tripId,
-        dayId,
+        dayIds: [dayId],
       }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSaved).toHaveBeenCalledWith("Day 3 of Kyoto");
+  });
+
+  // M23 link 4. The pennant still opens on one day; the picker adds others, and
+  // they need not be adjacent — Mitchell, 2026-09-19: "you aren't selecting a
+  // range".
+  it("opens with only the clicked day selected, and offers the rest of the trip", async () => {
+    renderDialog();
+    await openPicker();
+    expect(screen.getByRole("button", { name: /Day 3/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Day 1/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: /Day 2/ }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps non-adjacent days, in trip order rather than click order", async () => {
+    renderDialog();
+    await openPicker();
+    // Clicked LAST, but it is the trip's first day — so it must lead the
+    // sequence, or a Playbook would depend on the order somebody happened to
+    // tap two chips a calendar cannot show the order of.
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(createSavedDayMock).toHaveBeenCalledWith({
+        name: "2 days of Kyoto",
+        tripId,
+        dayIds: [DAY_1, dayId],
+      }),
+    );
+  });
+
+  it("states the day count, and names an empty day as a rest day", async () => {
+    renderDialog();
+    await openPicker();
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    expect(
+      screen.getByText(/2 days, 2 stops, in order\. One day has no stops — kept as a rest day\./),
+    ).toBeTruthy();
+  });
+
+  // Mitchell, preview feedback on #192: "can we make selecting more days the
+  // extra experience? Meaning, theres a button saying 'Do you want to add more
+  // days?' and clicking it adds the calendar".
+  it("keeps the day picker behind a button, and reveals it on one click", async () => {
+    renderDialog();
+    expect(screen.queryByRole("group", { name: "Days to keep" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Day 1/ })).toBeNull();
+    await openPicker();
+    expect(screen.getByRole("group", { name: "Days to keep" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Day 1/ })).toBeTruthy();
+  });
+
+  // The dialog is mounted once and reused for every pennant on the board, so
+  // "opt-in" has to mean opt-in each time — otherwise expanding it on day 3
+  // leaves day 4's dialog showing a strip nobody asked that dialog for.
+  it("forgets an expanded picker when it reopens", async () => {
+    const { setOpen } = renderDialog();
+    await openPicker();
+    expect(screen.getByRole("group", { name: "Days to keep" })).toBeTruthy();
+    setOpen(false);
+    setOpen(true);
+    expect(screen.queryByRole("group", { name: "Days to keep" })).toBeNull();
+  });
+
+  // A one-day trip has no other day to add, so the question would be a dead
+  // end — and the dialog is then exactly the one M11 shipped.
+  it("does not offer to add days on a trip that has only one", () => {
+    renderDialog({ stops });
+    expect(screen.queryByRole("button", { name: /add more days/i })).toBeNull();
+  });
+
+  it("stops renaming once you have typed", async () => {
+    renderDialog();
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Kansai in three");
+    await openPicker();
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Kansai in three");
   });
 
   it("refuses a blank name rather than saving something unfindable", async () => {

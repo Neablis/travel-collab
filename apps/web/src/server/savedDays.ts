@@ -3,15 +3,17 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import {
   SavedDayAuthorKind,
   SavedDayVisibility,
+  SavedDaySequence,
   SavedStop,
   type BatchableCommand,
   type SavedDay,
   type TripDetail,
 } from "@tc/contracts";
-import { citiesOfStops } from "@tc/domain";
+import { citiesOfSequence } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
 import { addCounts, recordAdd } from "./savedDayAdds";
 import type { AccessError, AccessResult } from "./access/invites";
@@ -19,7 +21,7 @@ import type { AccessError, AccessResult } from "./access/invites";
 // save). Lives in src/lib because the lint wall forbids UI importing
 // @/server/*, and two copies of "what's included" would be two chances to
 // disagree in the one place a user is asked to trust a summary.
-import { stopsForDay } from "@/lib/savedStops";
+import { stopsForDays } from "@/lib/savedStops";
 
 // The Library: a person's saved day fragments (M11 link 6, ADR-029). CRUD,
 // owned by a person rather than by a trip, and not event-sourced — the same
@@ -46,6 +48,7 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
     ownerId: row.ownerId,
     name: row.name,
     stops,
+    dayCount: row.dayCount,
     cities: row.cities,
     visibility: row.visibility,
     authorKind: row.authorKind,
@@ -59,96 +62,72 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
 /**
  * The read boundary: a stored row becomes a `SavedDay`, or it becomes nothing.
  *
- * KI-71. The column is `jsonb("stops").$type<SavedStop[]>()`, and `$type` is a
- * **compile-time cast on Drizzle's side, not a runtime check** — it describes
- * what the write path intends, never what the bytes are. Passing `row.stops`
- * straight through therefore trusted every row ever written against today's
- * contract: the day `SavedStop` gains a required field, rows written before it
- * existed become an opaque 400 at the response boundary, at read time, on data
- * the user already saved, with nothing naming the row or the field. This is the
- * same species as the unparsed `trip_details.doc` (KI-74, and the "500 loading
- * any trip" before it); the fix is the one `requireTripAccess` took — parse
- * where the row is read, so the type is true once for every caller.
+ * **The parsing itself lives in `parseSavedDayColumns`**, shared with
+ * `playbooks.ts`'s `toDiscoverDay` (F-F05). It was duplicated here and there
+ * with identical log strings until M23, and ADR-048 made the shared helper a
+ * prerequisite rather than a cleanup: the sequence work adds a `dayIndex` sort
+ * and a `dayCount` floor to this boundary, and a row that reads as three days
+ * in a library and two on its Discover card is worse than either answer.
  *
- * DROPPING the row, not rejecting the read, and not throwing: a library is a
- * list, and one unreadable fragment must not be able to take the other
- * twenty-nine with it. `getSavedDay` returning null puts an unreadable row in
- * the same place a deleted one is already in, which every caller of it already
- * handles (404 / "does not exist"). What the user is not owed is silence, so
- * the failure is LOGGED with the row id and the parse issues — the missing
- * half of the entry's complaint, and the reason this returns null rather than
- * quietly substituting an empty stop list, which would look like a saved day
- * that legitimately holds nothing.
+ * What is left here is the mapping to the DTO. `toDto` still takes the parsed
+ * stops as an argument rather than reading `row.stops`, so every path into a
+ * `SavedDay` has had to produce a parsed array first (KI-71).
  */
 function fromRow(row: SavedDayRow): SavedDay | null {
-  const stops = SavedStop.array().safeParse(row.stops);
-  if (!stops.success) {
-    console.error("saved_days.stops failed SavedStop[] parse", {
-      savedDayId: row.id,
-      issues: stops.error.issues,
-    });
-    return null;
-  }
-  // `visibility` gets the same treatment as `stops`, and for the same reason.
-  // The column is `text` with a `$type<SavedDayVisibility>()` cast, which is
-  // compile-time only — nothing stops a row holding any other string, and
-  // without this parse `toDto` would hand that string out as a typed contract
-  // value. Once M11b link 3 makes visibility decide who can READ a day, a row
-  // that is neither "private" nor "public" is a value no caller has a branch
-  // for; dropping it is the same fail-closed choice `stops` already makes.
-  //
-  // Raised independently by PR1's implementer and by review on pull request 100 — two
-  // readers finding the same hole is not a coincidence to leave open.
-  const visibility = SavedDayVisibility.safeParse(row.visibility);
-  if (!visibility.success) {
-    console.error("saved_days.visibility is not a SavedDayVisibility", {
-      savedDayId: row.id,
-      value: row.visibility,
-    });
-    return null;
-  }
-  // `author_kind` gets a parse too, and deliberately NOT the same consequence.
-  //
-  // `stops` and `visibility` above drop the row, because an unreadable fragment
-  // cannot be rendered and an unknown visibility is a value no access check has
-  // a branch for — both fail closed on a question that decides what the reader
-  // is allowed to see. This one decides a LABEL. Losing a day out of somebody's
-  // library because a provenance string is wrong would be wildly out of
-  // proportion to what the field is for.
-  //
-  // So an unparseable value falls back to "human", and that is honest rather
-  // than a guess, for one specific reason: only "ai" is ever RENDERED (see
-  // `AuthorKindBadge`). "human" is the absence of a claim, so a row we cannot
-  // read the label off says nothing about its author — which is exactly the
-  // truth. If a future value ever renders its own badge, this fallback has to
-  // be revisited with it.
-  const authorKind = SavedDayAuthorKind.safeParse(row.authorKind);
-  if (!authorKind.success) {
-    console.error("saved_days.author_kind is not a SavedDayAuthorKind", {
-      savedDayId: row.id,
-      value: row.authorKind,
-    });
-  }
+  const parsed = parseSavedDayColumns({
+    savedDayId: row.id,
+    stops: row.stops,
+    visibility: row.visibility,
+    authorKind: row.authorKind,
+    dayCount: row.dayCount,
+  });
+  if (parsed === null) return null;
   return toDto(
-    { ...row, authorKind: authorKind.success ? authorKind.data : SavedDayAuthorKind.enum.human },
-    stops.data,
+    { ...row, visibility: parsed.visibility, authorKind: parsed.authorKind, dayCount: parsed.dayCount },
+    parsed.stops,
   );
 }
 
+/**
+ * Keep one or more of a trip's days as a Playbook (M23 link 2).
+ *
+ * **`dayIds` is an ordered SET of days and need not be contiguous in the trip.**
+ * Mitchell, 2026-09-19: *"I would really prefer they don't have to be
+ * sequential days in your trip ... you aren't selecting a range."* Keeping trip
+ * days 1, 3 and 5 produces a three-day Playbook indexed {0, 1, 2}; the days you
+ * skipped simply are not in it. `stopsForDays` owns that stamping.
+ *
+ * **`dayCount` is the number of days SELECTED, not the number that turned out
+ * to have stops.** That is the whole of ADR-048 decision 2 in one assignment: a
+ * selected day with no stops leaves a GAP in `dayIndex` when it is in the
+ * middle, and leaves nothing at all when it is last — so the count has to come
+ * from the selection, which is the only place that knows. Keep three days and
+ * the Playbook is three days, whatever the third one holds.
+ */
 export async function saveDay(
-  input: { name: string; dayId: string },
+  input: { name: string; dayIds: readonly string[] },
   detail: TripDetail,
   ownerId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<SavedDay>> {
-  const stops = stopsForDay(detail, input.dayId);
+  // A repeated day is a caller bug, not a repetition feature: two identical
+  // `dayIndex` groups would be indistinguishable from one day's stops split
+  // across two days, and no UI can produce it — the calendar toggles a day on
+  // or off. Refused here rather than silently de-duplicated, because
+  // de-duplicating would quietly save fewer days than the caller asked for.
+  if (new Set(input.dayIds).size !== input.dayIds.length) {
+    return { ok: false, error: { code: "invalid", message: "That list names the same day twice." } };
+  }
+  const stops = stopsForDays(detail, input.dayIds);
   if (stops === null) {
     return { ok: false, error: { code: "not-found", message: "That day is not in this trip." } };
   }
-  // An empty day saves nothing worth reusing, and the "Save" button is
-  // disabled for one — but the API is the boundary, so it says so too.
+  // A selection that holds nothing at all saves nothing worth reusing, and the
+  // "Save" button is disabled for one — but the API is the boundary, so it says
+  // so too. Note this is the WHOLE selection being empty: one empty day among
+  // three is a rest day, and it is kept.
   if (stops.length === 0) {
-    return { ok: false, error: { code: "invalid", message: "This day has no stops to save." } };
+    return { ok: false, error: { code: "invalid", message: "Those days have no stops to save." } };
   }
   // Trimmed BEFORE the emptiness check, not after: `SavedDay.name` requires
   // at least one character, and "   " passes the route's Zod parse on length
@@ -159,17 +138,22 @@ export async function saveDay(
     return { ok: false, error: { code: "invalid", message: "Give this day a name." } };
   }
   // Checked BEFORE the insert, deliberately (KI-71's write-path half). The
-  // stops come from `stopsForDay` over a `TripDetail` the caller was handed —
+  // stops come from `stopsForDays` over a `TripDetail` the caller was handed —
   // which is exactly the value that used to be an unparsed `trip_details.doc`,
   // and copied `undefined` into a required `SavedStop.kind` so the response
   // threw AFTER the library row had already been inserted (PR #71 review §2).
   // Refusing here means the failure mode is "nothing was saved", not "an
   // unreadable row is in your library and the request 500ed".
-  const validated = SavedStop.array().safeParse(stops);
+  //
+  // **`SavedDaySequence`, not `SavedStop.array()`** — this is the one site that
+  // enforces `dayIndex` monotonicity (ADR-048 decision 3). The two READ
+  // boundaries must not: they sort and keep, because dropping a row whose stops
+  // are each valid is how a library empties itself (KI-20260905-l).
+  const validated = SavedDaySequence.safeParse(stops);
   if (!validated.success) {
     console.error("refused to save a day whose stops do not match SavedStop", {
       tripId: detail.tripId,
-      dayId: input.dayId,
+      dayIds: input.dayIds,
       issues: validated.error.issues,
     });
     return { ok: false, error: { code: "invalid", message: "This day cannot be saved." } };
@@ -178,6 +162,7 @@ export async function saveDay(
     ownerId,
     name,
     stops: validated.data,
+    dayCount: input.dayIds.length,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
     createdAt: new Date(now),
@@ -222,6 +207,16 @@ export function newSavedDayRow(input: {
   sourceBundle?: string;
   /** The seed declares its own ids so re-seeding is idempotent. */
   savedDayId?: string;
+  /**
+   * How many days this sequence spans. **Defaults to the stops' own floor**
+   * (`max(dayIndex) + 1`), which is what a caller holding only stops can know —
+   * the content importer and the demo seed are both in that position, because a
+   * bundle declares stops and not a selection. Only `saveDay` passes this, and
+   * only it can: the count of days SELECTED is the one fact that distinguishes
+   * a three-day keep whose last day is empty from a two-day keep, and the
+   * selection is the only place it exists (ADR-048 decision 2).
+   */
+  dayCount?: number;
 }): SavedDayRow {
   const visibility = input.visibility ?? SavedDayVisibility.enum.private;
   return {
@@ -229,15 +224,29 @@ export function newSavedDayRow(input: {
     ownerId: input.ownerId,
     name: input.name,
     stops: input.stops,
+    // The floor when the caller did not say — see `dayCount` above. Never below
+    // it either way: a count that cannot hold its own stops is the one value
+    // `parseSavedDayColumns` has to repair on every read.
+    dayCount: Math.max(
+      input.dayCount ?? 1,
+      input.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
+    ),
     // Derived HERE, once, at save time — the snapshot ADR-029 already takes of
     // `sourceTripName`, for the reason link 1 gives: `stops` is jsonb because a
     // saved day is never queried into, and Discover has to search on cities.
+    //
+    // `citiesOfSequence` is the domain's single rule FOLDED PER DAY (M23,
+    // ADR-048 decision 4) — `citiesOfStops` itself sorts timed stops into time
+    // order across everything it is handed, which is right for one day and
+    // silently wrong for three: day 3's 08:00 stop would sort ahead of day 1's
+    // 14:00 one, and this snapshot would be in an order the sequence never runs
+    // in. Over a one-day sequence the two are byte-identical.
     //
     // `citiesOfStops` is the domain's single rule, the same one `citiesOfDay`
     // folds for the trip readout. A second implementation over `SavedStop[]`
     // would be free to drift, and a profile whose cities disagree with
     // Discover's is a gate box, not a rounding error.
-    cities: citiesOfStops(input.stops),
+    cities: citiesOfSequence(input.stops),
     // Private until its author says otherwise (M11b link 3). Spelled through
     // the contract's enum rather than as the literal "private", so the set of
     // visibilities has exactly one definition — the rule M11a set for
@@ -518,28 +527,63 @@ export async function deleteSavedDay(
 }
 
 /**
- * Insert a saved day into a trip, as ONE batch — a new day at the end, then
- * its stops in order.
+ * **The one construction of "materialise a saved sequence into trip days"**
+ * (M23 link 3) — N days at the end of the trip, then every stop onto the day it
+ * belongs to, as ONE batch.
+ *
+ * **Exactly one implementation, and that is a gate box rather than a
+ * preference.** Three callers need this: adding a Playbook to an existing trip,
+ * starting a new trip from one day, and starting a new trip from N days. The
+ * milestone answers "does starting a trip reuse the fork path or get its own?"
+ * with *neither and both* — one primitive, called three times. The precedent it
+ * cites is this repo's own: `citiesOfDay` folds `citiesOfStops` so a profile's
+ * cities cannot disagree with Discover's, and `rollupCosts` is read by both
+ * `detail.ts` and `conflicts.ts` rather than being summed twice. A second
+ * construction of `AddDay` from saved stops is the drift those exist to
+ * prevent, and `insertCommands.contract.test.ts` fails if one appears.
  *
  * One batch, not N commands, for the reason `executeTripCommandBatch` exists:
  * it appends under a single batchId, so the whole insert is one history entry
- * and one undo (ADR-005-adjacent). Half an inserted day is not a state anyone
- * should be able to land in.
+ * and one undo (ADR-005-adjacent). **That property now has to hold over N days,
+ * not just over one day's stops** — ADR-029's "half an inserted day is not a
+ * state anyone should be able to land in" reads the same for half a sequence,
+ * and a three-day Playbook that landed as two days and a bit would be worse.
  *
- * Ids are minted here, fresh per insert, so the same saved day can go into two
+ * **Every day comes first, then every stop.** A stop cannot be added to a day
+ * that does not exist yet, and emitting them interleaved would make the batch's
+ * correctness depend on an ordering nobody stated.
+ *
+ * **The day count is floored by the stops, here as well as at the read
+ * boundary.** `parseSavedDayColumns` already guarantees
+ * `dayCount >= max(dayIndex) + 1` for anything read from the database, so this
+ * is belt and braces — but the alternative is indexing past the end of `dayIds`
+ * and silently dropping a day's stops on the floor, which is not a failure mode
+ * worth leaving to a caller's discipline.
+ *
+ * **`dayCount` days, not "as many days as have stops".** A Playbook kept with a
+ * blank rest day in the middle or at the end appends that day too, empty —
+ * which is the whole reason the count is stored (ADR-048 decision 2) and the
+ * only way "a 3 day bundle becomes days 6, 7, 8" can be true of every 3-day
+ * bundle.
+ *
+ * Ids are minted here, fresh per insert, so the same Playbook can go into two
  * trips — or twice into one — without ever putting the same id in two streams
  * (the KI-1 hazard; `cloneTrip` remaps for the same reason).
  */
 export function insertCommands(saved: SavedDay, tripId: string): BatchableCommand[] {
-  const dayId = randomUUID();
+  const days = Math.max(
+    saved.dayCount,
+    saved.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
+  );
+  const dayIds = Array.from({ length: days }, () => randomUUID());
   return [
-    { type: "AddDay", tripId, dayId },
+    ...dayIds.map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
     ...saved.stops.map(
       (stop): BatchableCommand => ({
         type: "AddActivity",
         tripId,
         activityId: randomUUID(),
-        dayId,
+        dayId: dayIds[stop.dayIndex]!,
         title: stop.title,
         // The event payloads use explicit null for "unset"; AddActivity uses
         // .optional() for the same fields, so null must become undefined

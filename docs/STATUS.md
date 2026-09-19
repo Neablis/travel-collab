@@ -33,10 +33,55 @@ general setup.
 **M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
 by **M25's gate closing**, which is the ordinary way this line moves. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**Nothing of M23 is built.** Its scope and exit gate are in
+**M23's GATE CLOSED 2026-09-19 — 11 of 11.** Links 2, 3 and 4 are built,
+`test:e2e:ci-like` is green at 137, and the two-actor multi-day walk passed on
+PR #192's preview. Its scope and exit gate are in
 `docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
 planning anything. The one-line version: a saved day **generalises** into a
 saved sequence rather than gaining a sibling object type.
+
+**The shape is decided: ADR-048, accepted 2026-09-19.** Flat `stops[]`, each
+stop carrying a 0-based `dayIndex` with a `.default(0)`; a **gap** in the index
+is an empty day; `dayCount` is **stored** for the trailing-empty case a gap
+cannot reach; the write path enforces monotonicity and the read boundary
+**stably sorts and repairs** rather than dropping the row; the adds ledger keys
+on the sequence and needs no migration. **Two of those go against a premise
+stated in the milestone file** and are marked ✳ there and in the ADR — the
+milestone's 2026-09-19 note is the short version, and Mitchell overrules either
+in the ADR if he wants the original reading.
+
+**What is left: the retro — and a second walk that is owed but is not a gate
+box.** The preview walk on 2026-09-19 passed every behavioural box and then
+found **five defects in the surfaces around them**, one of them shipped by the
+branch itself: `ToggleChip` used `bg-brand-subtle` and `text-muted`, **neither
+of which is a token this app defines**, so a selected day chip rendered with a
+transparent background. **The colour wall scans for raw hex, so an undefined
+token NAME passes it** — worth knowing beyond this fix. The other four were
+surfaces still speaking in the singular: a third copy of the window fact in
+`SavedDaysDialog` stating a false clock range across three days, the shared-day
+route saying nothing about days at all, and `AddToTripDialog` — the surface
+that actually performs the append — never naming N. All five are fixed; **the
+fixes themselves are unwalked**, and that second pass is owed before the gate
+closes.
+
+**The lesson worth carrying past M23:** link 4 was claimed complete when it was
+one surface of four. Behaviour was right everywhere; the gate box named only
+the Discover card, and that let three unbuilt surfaces through. `pnpm check` is green locally (3,096 unit + 782 integration), with one
+caveat worth repeating rather than burying: **the integration lane needs
+`API_TOKEN_PEPPER` set in the shell.** `apps/web/.env.local` ships it EMPTY and
+vitest's `??=` does not override an empty string, so a fresh container fails ~91
+token tests that have nothing to do with the change under test — that is
+`KI-2026-09-19-a`, and it cost a full baseline run to confirm rather than assume.
+
+**The migration is NOT applied by merging.** `0024_saved_day_day_count.sql`
+needs `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+An undispatched migration is schema drift. Three things the ADR found that the
+milestone file does not list: `citiesOfStops` currently sorts timed stops across
+the *whole* array, so a sequence's stored `cities` order interleaves its days;
+`savedDayFacts.window` over a sequence is read by `dayLength` as a single
+13-hour day and labelled "Long", which is false rather than imprecise; and
+`BundlePlaybook.stops` is a third writer of this shape that the M25 round-trip
+tripwire does **not** catch, because `fromTrip` emits no playbooks.
 
 **M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
 tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a

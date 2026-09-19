@@ -12,13 +12,27 @@ import { Money } from "./money.ts";
 // Access. Nothing here is event-sourced (ADR-003).
 
 /**
- * One stop inside a saved day.
+ * One stop inside a saved sequence.
  *
  * `ActivityView` minus `activityId`: an id would tie the fragment to the
  * activity it was copied from, and inserting the same saved day into two
  * trips would then put the same id in two streams — the KI-1 hazard, and the
  * same reason `cloneTrip` remaps ids (ADR-028). Ids are minted fresh at insert
  * time instead.
+ *
+ * **EVERY FIELD ADDED TO THIS OBJECT FROM 2026-09-19 ONWARDS CARRIES
+ * `.default()`.** This is a rule, not a style note, and `KI-20260905-l` is the
+ * entry that asked for it. `saved_days.stops` is jsonb with a compile-time
+ * `$type` cast and no version wrapper, read through a strict
+ * `SavedStop.array().safeParse` that DROPS the row on failure — so one required
+ * field added here removes every previously-saved Playbook from its owner's
+ * library and from Discover, silently, at read time, on data the user already
+ * saved. A defaulted field is additive: an old row parses, and the default is
+ * what it always meant. `dayIndex` below is the first field to adopt the rule.
+ *
+ * The rule holds until there is a `{ v, stops }` wrapper and a migration chain
+ * to hang a non-additive change on. There is not one yet, and ADR-048 says why
+ * this milestone deliberately did not build it.
  */
 export const SavedStop = z.object({
   title: z.string(),
@@ -29,8 +43,99 @@ export const SavedStop = z.object({
   kind: ActivityKind,
   tags: z.array(ActivityTag),
   cost: Money.nullable(),
+  /**
+   * **Which day of the sequence this stop is on. 0-based** (ADR-048 decision 1).
+   *
+   * The whole of M23 rests on this one field: a saved day generalises into a
+   * saved SEQUENCE by giving each stop a day, rather than by nesting the array
+   * or growing a second object type.
+   *
+   * **It is a RELATIVE OFFSET INSIDE THE SEQUENCE, never an absolute trip
+   * day**, and the name invites exactly the wrong reading, so: a three-day
+   * playbook stores `{0, 1, 2}` and stores it once. Appended to a trip that
+   * already has five days it becomes that trip's days 6, 7 and 8; used to
+   * start a new trip it becomes that trip's days 1, 2 and 3. **The same stored
+   * value, a different base — and the base belongs to the insert, not to the
+   * playbook.** (Mitchell, 2026-09-19, confirming the model.) A `dayIndex` that
+   * had absorbed the trip's numbering would be a fragment that only fits where
+   * it came from — the same mistake ADR-029 refused when it dropped the day's
+   * calendar DATE, and for the same reason.
+   *
+   * What travels with it: the stops of one day stay together on one day, in
+   * their stored order, with their times unchanged. A 09:00 stop on the
+   * playbook's day 2 is a 09:00 stop on trip day 7. Nothing is re-timed and
+   * nothing is redistributed.
+   *
+   * **0-based, because that is already this codebase's spelling.**
+   * `citiesOfDay(detail, dayIndex)` indexes `detail.days` from zero and every
+   * surface that renders a day label already adds one — `TripBoardScreen`
+   * (`Day ${askScope.dayIndex + 1}`), `DayChips`, `KeepDayDialog`,
+   * `KeepDayFlag`, `SharedTripScreen`. A 1-based field spelled `dayIndex`
+   * sitting beside a 0-based one spelled `dayIndex` is how off-by-ones get
+   * written, and the saving would have been one `+ 1` at a label.
+   *
+   * The cost of 0 is that it is FALSY: `stop.dayIndex || 1` and
+   * `if (!stop.dayIndex)` are both silent bugs that pass every test written
+   * against a sequence whose first day is not the interesting one. Nothing
+   * should read this ad hoc — `citiesOfSequence` and `groupByDay` are the
+   * readers, and M23's gate has a test that fails if a second grouping appears.
+   *
+   * **`.default(0)` is the entire additive property**, per the rule above:
+   * every row written before this field existed parses, with every stop on day
+   * one, which is exactly what those rows have always meant.
+   *
+   * **A GAP IN THIS INDEX IS AN EMPTY DAY** (ADR-048 decision 2), and that is
+   * load-bearing rather than incidental. Indices are dense over the days the
+   * author SELECTED, not over the days that turned out to have stops: keep
+   * trip days [A, B, C] with B empty and the stored indices are {0, 2}, which
+   * is a three-day sequence whose middle day is deliberately empty. Compacting
+   * gaps on read would silently turn it into a two-day sequence — so nothing
+   * compacts them, anywhere.
+   *
+   * **Monotonic non-decreasing over the array is a WRITE-path invariant, never
+   * a read-path one** (ADR-048 decision 3). The refinement lives on
+   * `SavedDaySequence` below, which only the write path uses. Putting it here
+   * would reach the two read boundaries that share this schema and drop rows
+   * whose stops are every one of them valid — `KI-20260905-l`'s hazard,
+   * re-created on purpose.
+   */
+  dayIndex: z.number().int().nonnegative().default(0),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
+
+/**
+ * The stops of a sequence, as the WRITE PATH alone validates them.
+ *
+ * `SavedStop.array()` plus the one invariant a reader must not enforce:
+ * `dayIndex` is monotonic non-decreasing, so the array is in sequence order as
+ * stored. ADR-048 decision 3 in one schema — **the enforcement is here and the
+ * tolerance is at the read boundary**, because the two have opposite
+ * consequences for a row already on disk. A write that violates this is a
+ * caller bug, caught before it becomes bytes, at the parse `savedDays.ts`
+ * already runs on what it is about to insert (KI-71's write-path half). A READ
+ * that enforced it would drop the row.
+ *
+ * Deliberately a separate schema rather than a `.superRefine` on
+ * `SavedStop.array()`: that array is the shared parse at `fromRow` and
+ * `toDiscoverDay` too, and a refinement added there would empty libraries. This
+ * is the single most mis-implementable line in M23 — it would pass every test
+ * written against freshly-written rows.
+ */
+export const SavedDaySequence = z
+  .array(SavedStop)
+  .superRefine((stops, ctx) => {
+    for (let i = 1; i < stops.length; i += 1) {
+      if (stops[i]!.dayIndex < stops[i - 1]!.dayIndex) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [i, "dayIndex"],
+          message: `dayIndex must not decrease: stop ${i} is on day ${stops[i]!.dayIndex} after a stop on day ${stops[i - 1]!.dayIndex}.`,
+        });
+        return;
+      }
+    }
+  });
+export type SavedDaySequence = z.infer<typeof SavedDaySequence>;
 
 /**
  * Who can see a saved day. **Private is the default** (M11b link 3): a day
@@ -104,6 +209,40 @@ export const SavedDay = z.object({
   name: z.string().min(1).max(200),
   stops: z.array(SavedStop),
   /**
+   * **How many days this sequence spans** (ADR-048 decision 2).
+   *
+   * `1` for every playbook saved before M23, and the default says so: an
+   * existing playbook is a sequence of length one, not a special case with its
+   * own branch. That is the entire migration story for this field.
+   *
+   * **Stored rather than derived from `max(stops[].dayIndex) + 1`**, and the
+   * reasoning is worth keeping because the derived version looks free:
+   *
+   *   1. **A gap in `dayIndex` already expresses an INTERIOR empty day** — keep
+   *      days [A, B, C] with B empty and the indices are {0, 2}. What a gap
+   *      cannot reach is a TRAILING empty day, and "your rest day survived but
+   *      your departure day vanished" is an asymmetry no user can state.
+   *   2. **An insert promises this number before it acts.** "A 3-day bundle
+   *      becomes days 6, 7, 8" (Mitchell, 2026-09-19) is a promise about a
+   *      count; a derived count quietly delivers days 6 and 7 whenever the
+   *      bundle's last day is empty.
+   *   3. **Discover filters on length in SQL, and can only do that against a
+   *      COLUMN.** `stops` is jsonb precisely so it is never queried into
+   *      (ADR-029), so a derived length could only be applied in application
+   *      code over the truncated 200-row candidate window — which is exactly
+   *      how the budget band's chip counts came to disagree with the page below
+   *      them (KI-2026-08-31). A length filter has to be a real predicate.
+   *
+   * **It is not a denormalisation, so the `adds` argument does not apply.**
+   * `saved_days.adds` caches a `count(*)` over a ledger that is the authority.
+   * This has no authority to drift from: it is the only home for the
+   * trailing-empty fact. What `stops` does impose is a FLOOR —
+   * `dayCount >= max(dayIndex) + 1` — and the read boundary repairs upward to
+   * it rather than dropping the row, so no stop is ever rendered into a day the
+   * count says does not exist.
+   */
+  dayCount: z.number().int().min(1).default(1),
+  /**
    * The cities this day touches, derived from `stops[].location.city` at SAVE
    * time and stored — a snapshot, on the same terms as `sourceTripName` below
    * (M11b link 1).
@@ -155,6 +294,31 @@ export type SavedDay = z.infer<typeof SavedDay>;
 export const CreateSavedDayInput = z.object({
   name: z.string().min(1).max(200),
   tripId: z.string().uuid(),
-  dayId: z.string().uuid(),
+  /**
+   * **The days to keep, in the order they will run in the sequence** (M23 link
+   * 2). Their position in THIS array becomes each stop's `dayIndex`, so the
+   * source trip's own numbering is not carried over: keeping trip days 1, 3 and
+   * 5 produces a three-day playbook, not a five-day one with holes punched in
+   * it.
+   *
+   * **An array, and a one-element array is the ordinary case.** Deliberately
+   * not `dayId | dayIds`, and not an optional second field beside the old one:
+   * two shapes is a branch at every call site forever, and the milestone's
+   * requirement is that the single-day call not get HARDER, not that it keep
+   * its old spelling. `[dayId]` is not harder.
+   *
+   * **Bounded at 366, reusing the number the repo already picked** for an
+   * imported trip (`api/v1/trips/import/route.ts`). A trip you may import is a
+   * trip you should be able to keep days from, and a second, smaller number
+   * here would only invent a trip whose days cannot all be saved. The bound is
+   * on the INPUT — a cheap refusal at the write path — and deliberately not on
+   * a stored `dayCount` read back out: amputating a stored value on read is how
+   * a library empties itself (`KI-20260905-l`).
+   *
+   * A day that appears twice is a caller bug rather than a repetition feature,
+   * and the write path refuses it: two identical `dayIndex` groups would be
+   * indistinguishable from one day's stops split across two days.
+   */
+  dayIds: z.array(z.string().uuid()).min(1).max(366),
 });
 export type CreateSavedDayInput = z.infer<typeof CreateSavedDayInput>;

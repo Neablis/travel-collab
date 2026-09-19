@@ -35,7 +35,7 @@ const post = (body: unknown) =>
   POST(new Request("http://test/x", { method: "POST", body: JSON.stringify(body) }));
 
 async function save(tripId: string, dayId: string, name = "A day"): Promise<string> {
-  const res = await post({ name, tripId, dayId });
+  const res = await post({ name, tripId, dayIds: [dayId] });
   expect(res.status).toBe(201);
   const body = (await res.json()) as { savedDay: { savedDayId: string } };
   return body.savedDay.savedDayId;
@@ -49,7 +49,7 @@ describe("POST /api/saved-days", () => {
   it("401s when unauthenticated", async () => {
     const { tripId, dayId } = await seedDay();
     currentUserId = "";
-    expect((await post({ name: "A day", tripId, dayId })).status).toBe(401);
+    expect((await post({ name: "A day", tripId, dayIds: [dayId] })).status).toBe(401);
   });
 
   it("400s a malformed body before it looks at any trip", async () => {
@@ -59,7 +59,7 @@ describe("POST /api/saved-days", () => {
   it("403s someone who has never been let into the trip", async () => {
     const { tripId, dayId } = await seedDay();
     currentUserId = STRANGER;
-    expect((await post({ name: "A day", tripId, dayId })).status).toBe(403);
+    expect((await post({ name: "A day", tripId, dayIds: [dayId] })).status).toBe(403);
   });
 
   // `viewer`, matching cloning (ADR-028): saving copies what you can already
@@ -69,7 +69,7 @@ describe("POST /api/saved-days", () => {
     const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
     await acceptInvite(invite.token, GUEST);
     currentUserId = GUEST;
-    expect((await post({ name: "Theirs, kept by me", tripId, dayId })).status).toBe(201);
+    expect((await post({ name: "Theirs, kept by me", tripId, dayIds: [dayId] })).status).toBe(201);
   });
 });
 

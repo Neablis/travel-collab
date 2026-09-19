@@ -61,7 +61,7 @@ async function buildTrip(stops: Stop[]): Promise<{ tripId: string; dayId: string
 async function saveDay(name: string, stops: Stop[]): Promise<string> {
   const { tripId, dayId } = await buildTrip(stops);
   const res = await SAVE(
-    new Request("http://test/x", { method: "POST", body: JSON.stringify({ name, tripId, dayId }) }),
+    new Request("http://test/x", { method: "POST", body: JSON.stringify({ name, tripId, dayIds: [dayId] }) }),
   );
   expect(res.status).toBe(201);
   return ((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId;

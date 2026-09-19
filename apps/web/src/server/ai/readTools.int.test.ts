@@ -58,7 +58,7 @@ async function seedSavedDay(
     ownerId,
   );
   const detail = (await getTripDetail(tripId))!;
-  const saved = await saveDay({ name, dayId }, detail, ownerId);
+  const saved = await saveDay({ name, dayIds: [dayId] }, detail, ownerId);
   if (!saved.ok) throw new Error(`could not save the day: ${saved.error.message}`);
   return saved.value.savedDayId;
 }

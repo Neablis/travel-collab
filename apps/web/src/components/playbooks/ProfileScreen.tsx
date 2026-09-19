@@ -85,13 +85,13 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
                 genuinely its consumer rather than a second call. */}
             <Heading level={1}>{feed.data.author.displayName}</Heading>
             <Text variant="secondary" className="mt-1">
-              Every number here is counted from this person&apos;s days, so it says the same thing
+              Every number here is counted from this person&apos;s playbooks, so it says the same thing
               as Discover does.
             </Text>
           </div>
 
           <Card className="flex flex-wrap gap-6 p-4" data-testid="profile-numbers">
-            <Number label="Days shared" value={feed.data.author.daysShared} />
+            <Number label="Playbooks shared" value={feed.data.author.daysShared} />
             <Number label="Added to trips" value={feed.data.author.adds} />
             <Number label="Cities" value={feed.data.knows.length} />
           </Card>
@@ -123,7 +123,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
               as the total. */}
           {feed.data.days.length < feed.data.author.daysShared && (
             <Text variant="muted" className="text-xs" data-testid="profile-day-page">
-              Showing the {feed.data.days.length} newest of {feed.data.author.daysShared} days
+              Showing the {feed.data.days.length} newest of {feed.data.author.daysShared} playbooks
               shared.
             </Text>
           )}

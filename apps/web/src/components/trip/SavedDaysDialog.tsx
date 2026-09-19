@@ -14,6 +14,7 @@ import {
   type CommandOutcome,
 } from "@/lib/apiClient";
 import { toClockRange } from "@/lib/time";
+import { savedDayFacts } from "@/lib/savedDayFacts";
 
 // The other half of link 6: a day you kept, put back into a trip. The list is
 // the whole "select a saved part" surface — no search, no tags, no sorting
@@ -21,14 +22,34 @@ import { toClockRange } from "@/lib/time";
 // not need any of that yet, and inventing it would be inventing Playbooks
 // (M11's own separate scope, still shelled).
 
+/**
+ * What a Playbook in the library says about itself, on the row whose button is
+ * "Add to trip".
+ *
+ * **This used to compute the window itself, and over a sequence it stated
+ * something false.** It read `stops[0].timeWindow.start` to
+ * `stops[n].timeWindow.end` — which for a three-day Playbook is day 1's 07:30
+ * to day 3's 15:30, rendered as a single clock range, exactly the claim
+ * ADR-048 decision 4 says a sequence must refuse to make. `savedDayFacts` was
+ * changed to return a null window above one day; this was a THIRD construction
+ * of the same fact and never saw the change. Found by walking the preview, and
+ * it is the same species of duplication `citiesOfDay` and `rollupCosts` exist
+ * to prevent — an independent copy agrees right up until the rule moves.
+ *
+ * So it folds `savedDayFacts` now rather than reimplementing it, and it leads
+ * with the DAY COUNT, because this is one of the surfaces M23 link 4 names: a
+ * surface states the count it is acting on before it acts, and "Add to trip"
+ * acts immediately.
+ */
 function spanOf(saved: SavedDay): string {
-  const windows = saved.stops.map((s) => s.timeWindow).filter((w) => w !== null);
-  const first = windows[0];
-  const last = windows[windows.length - 1];
-  const count = `${saved.stops.length} stop${saved.stops.length === 1 ? "" : "s"}`;
-  return first !== undefined && last !== undefined
-    ? `${count} · ${toClockRange(first.start, last.end)}`
-    : count;
+  const facts = savedDayFacts(saved.stops, saved.dayCount);
+  const count = `${facts.stopCount} stop${facts.stopCount === 1 ? "" : "s"}`;
+  const days = saved.dayCount > 1 ? `${saved.dayCount} days · ` : "";
+  // Null above one day, and null for a day carrying no times — the surface
+  // says nothing rather than something untrue, in both cases.
+  return facts.window !== null
+    ? `${days}${count} · ${toClockRange(facts.window.start, facts.window.end)}`
+    : `${days}${count}`;
 }
 
 export function SavedDaysDialog({

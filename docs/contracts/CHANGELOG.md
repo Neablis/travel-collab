@@ -13,6 +13,60 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-19 — a Playbook is a sequence of days (M23, ADR-048)
+
+- Added: `SavedStop.dayIndex` — `z.number().int().nonnegative().default(0)`
+  (`packages/contracts/src/saved.ts`). Which day of the sequence a stop is on,
+  0-based, and a **relative offset inside the Playbook, never an absolute trip
+  day**: a three-day Playbook stores `{0, 1, 2}` whether it is appended to a
+  five-day trip (becoming its days 6-8) or used to start a new one (days 1-3).
+- Added: `SavedStop`'s header rule — **every field added to it from now on
+  carries `.default()`**. `dayIndex` is the first adopter. `KI-20260905-l` asked
+  for this; that entry is narrowed, not closed, because the `{ v, stops }`
+  wrapper it also proposes is still absent.
+- Added: `SavedDaySequence` — `SavedStop.array()` plus a monotonic
+  non-decreasing `dayIndex` refinement. **Used by the write path only.** The two
+  read boundaries share the plain `SavedStop.array()`, deliberately: a
+  refinement on the shared array would drop rows whose stops are each valid, at
+  read time, out of a person's library.
+- Added: `SavedDay.dayCount` — `z.number().int().min(1).default(1)`. Stored
+  rather than derived from `max(dayIndex) + 1`; ADR-048 decision 2 has the three
+  reasons, the shortest being that Discover's new length filter has to be a SQL
+  predicate and only a column can be one.
+- **Changed: `CreateSavedDayInput.dayId` → `dayIds`**, an ordered
+  `z.array(z.string().uuid()).min(1).max(366)`. The days need not be adjacent in
+  the source trip and are renumbered from zero. 366 reuses the bound
+  `POST /v1/trips/import` already applies to a trip's days.
+- Why: M23 — the library held exactly one unit, a day, and nothing a person
+  travels is one day. A saved day generalises into a saved SEQUENCE in the same
+  row rather than gaining a sibling object type, so M12 can key reviews to a row
+  that is already final.
+- Consumers updated: `@tc/domain` (`citiesOfSequence` — the per-day fold, because
+  `citiesOfStops` sorts timed stops across everything it is handed and would
+  interleave a sequence's days), `@tc/fixtures` (`BundlePlaybook` gains `days`,
+  `toSavedSequence`, `playbookStops`; the two seed sets), `apps/web` (the
+  `day_count` migration and column, `parseSavedDayColumns` at both read sites,
+  `stopsForDays`, `insertCommands` over N days, the Keep-day picker, the
+  Discover card and its length filter, `openapi.json`) — same PR.
+- **Breaking? For stored rows, no.** `dayIndex` is defaulted, so every
+  `saved_days.stops` value written before today parses unchanged, with every
+  stop on day one, through both read boundaries — asserted over rows in the
+  pre-migration shape rather than by inspecting a library
+  (`savedDays.sequence.int.test.ts`). `day_count` lands `NOT NULL DEFAULT 1`,
+  which is metadata-only and needs no backfill.
+- **Breaking? For TypeScript callers, yes, and deliberately so.**
+  `z.infer<typeof SavedStop>` makes a `.default()` field REQUIRED on the output
+  type, so every literal construction of a `SavedStop` must now supply
+  `dayIndex`. That is a compile-time prompt, not a runtime break, and it is the
+  half of this change that makes the additive half safe.
+- **Breaking? For `v1`, no — and the non-change is deliberate.**
+  `POST /v1/library` declares its own `SaveDayBody` and keeps `dayId`, singular.
+  It is a published contract with a generated `openapi.json`, M23's scope says
+  nothing about the public API, and widening it would either break callers or
+  leave two shapes for one question. It calls the sequence path with a
+  one-element list. `openapi.json` changes only by ADDING `dayIndex` and
+  `dayCount` to the `SavedDay` response shape, which no reader breaks on.
+
 ## 2026-09-18 — `Location.address`, and the geocode vocabulary of `v1`
 
 - Added: `PostalAddress` and optional `Location.address`

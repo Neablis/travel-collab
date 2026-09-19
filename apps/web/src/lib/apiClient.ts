@@ -30,6 +30,7 @@ import {
   LeaderboardResponse,
   PublicProfileResponse,
   type BudgetBand,
+  type LengthBand,
   type DiscoverScope,
   type DiscoverSort,
   type Season,
@@ -653,6 +654,7 @@ export async function searchPlaybooks(query: {
   scope?: DiscoverScope;
   sort?: DiscoverSort;
   budget?: BudgetBand;
+  length?: LengthBand;
   season?: Season | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
@@ -660,6 +662,7 @@ export async function searchPlaybooks(query: {
   if (query.scope) params.set("scope", query.scope);
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);
+  if (query.length) params.set("length", query.length);
   if (query.season != null) params.set("season", query.season);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
