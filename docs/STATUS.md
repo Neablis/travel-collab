@@ -32,7 +32,7 @@ general setup.
 
 **M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
 **M23's gate closing**, which is the ordinary way this line moves. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
 (the transport ADR is a **prerequisite**, not a deliverable), concurrent-edit
 conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
@@ -108,9 +108,10 @@ retro:
   plausible-looking simplification and is the one change that would make an
   upload dangerous.
 
-**M22 is still paused at 18 of 19 and M21 at 11 of 17**, both unamended by any
-of this. M22's one open box is a preview walk blocked on a deployment rather
-than on code (`KI-20260916-d`).
+**M22's and M21's gates closed 2026-09-19** — 19 of 19 and 17 of 17 — with the
+last boxes ticked **on Mitchell's attestation** that he walked them and they
+worked, not on agent-recorded evidence. Basis and caveats:
+`docs/milestones/README.md`, *2026-09-19 — M21's and M22's gates closed*.
 **The tail of that order changed 2026-09-18** — three milestones minted (**M23**
 multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
 moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
@@ -122,7 +123,7 @@ and are easy to lose for that reason: the activity-field descriptor refactor
 generated, drift-checked architecture map is designed in
 `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
 in principle.
-Scope and the gate — **18 of 19 ticked**, the last one blocked on a deployment rather than on code (`KI-20260916-d`) — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
+Scope and the gate — **19 of 19, closed 2026-09-19**, the last box on Mitchell's attestation — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
 design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
 
 **Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
@@ -135,9 +136,11 @@ migration, so nothing was owed after the merge. How to call it:
 breakdown: `docs/plans/2026-09-18-api-locations-address-geocode.md`.
 **Not gate work** — M22's 19 boxes are unchanged by it.
 
-**M21 IS OPEN AND PAUSED, NOT FINISHED — 11 of 17 boxes.** Its file, scope and every box
-stand unamended, and the six open ones are still owed. Its state is recorded below rather
-than deleted, because a paused milestone that stops being described is one nobody returns to.
+**M21'S GATE CLOSED 2026-09-19 — 17 of 17**, the last six boxes **on Mitchell's attestation**
+that he walked them and they worked; no agent walked them and no network log or Test Clock
+evidence is recorded. Two carry a caveat in the milestone file (`KI-20260919-e`; box 2's
+`premium@v1` clause). What follows is the state as recorded while it was paused
+(2026-09-16 → 2026-09-19), kept rather than deleted.
 
 **The reorder costs M21 nothing, and an earlier version of this file said otherwise.**
 M22 needs an account holding `api.tokens`, not a sale — an admin grant pins
@@ -174,7 +177,7 @@ the two brackets and adds `stripeApi.test.ts`, which stubs `fetch` and asserts t
 actually leaves the process. **A mock is a boundary, and the code on the far side of it is
 untested until something asserts the wire.**
 
-**What the gate still wants** is the failure half: a `past_due` account through its
+**What the gate still wanted** *(as of the pause; closed 2026-09-19 on attestation)* was the failure half: a `past_due` account through its
 three-day grace window, and a lapse walking M20's collaborator cap. Neither costs money —
 a Test Clock and card `4000 0000 0000 0341` walk both locally, per
 `docs/guidelines/billing-without-spending-money.md`. Also open: one Premium purchase (to
@@ -455,12 +458,12 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M23 is the current milestone and nothing of it is built.** Read
-`docs/milestones/M23-multi-day-playbooks.md` before planning anything, and note
-what its row in `docs/milestones/README.md` says about why it runs before M13
-and M12.
+**M13 is the current milestone** (M23's gate closed 2026-09-19). Read
+`docs/milestones/M13-collaboration.md` before planning anything. M21's and
+M22's gates also closed 2026-09-19, on Mitchell's attestation — nothing of
+either is owed.
 
-**One piece of non-milestone work is placed after it and before M13, and it is
+**One piece of non-milestone work runs before M13's own links, and it is
 a prerequisite rather than a deliverable**: the activity-field descriptor
 refactor, `KI-20260905-o`. Three milestones each add a field to an activity
 (M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
@@ -471,9 +474,10 @@ carrying a second promise. **M25 changed the arithmetic slightly in its
 favour**: `toBundleStop` is a 22nd site, and the only one with a test that
 fails in the diff that misses it.
 
-**M22's last gate box is Mitchell's**, and no amount of building closes it: it
-needs an account that can hold `api.tokens` **on a preview**, which
-`KI-20260916-d` says is blocked by **`ADMIN_USER_IDS`** — injected at build, and
+**M22's last gate box closed 2026-09-19 on Mitchell's attestation**, but the
+problem that blocked an agent from walking it is still open, and the next
+tier-gated box on a preview will meet it: an account that can hold `api.tokens`
+**on a preview**, which `KI-20260916-d` says is blocked by **`ADMIN_USER_IDS`** — injected at build, and
 supplied by `playwright.config.ts` only to the local e2e server, so
 `POST /api/admin/grants` answers 404 on a preview.
 

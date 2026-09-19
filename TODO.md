@@ -57,7 +57,9 @@ execution order — read the `← current milestone` marker, per the rule above.
 
 **Widened and reordered 2026-09-18 — three milestones minted (M23, M24, M25) and
 M13 moved ahead of M12**, by Mitchell in a design conversation. The live order is
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+**M21's and M22's gates closed 2026-09-19 on Mitchell's attestation** — see
+their entries below.
 **M23's gate closed and shipped 2026-09-19** (#192), so the marker moved to
 **M13** the ordinary way — by a gate closing, not by a decision.
 The reasoning is **not here** — `docs/milestones/README.md`'s *2026-09-18* note
@@ -74,6 +76,8 @@ ticks, unticks or amends a box. **It costs M22 nothing**: M25 adds no entitlemen
 publishes no plan version and touches no token path, so the open walk is exactly
 as walkable after this milestone as before it. The precedent for the shape is
 the 2026-09-16 reorder in `docs/milestones/README.md`.
+*(Superseded 2026-09-19: M22's gate — and M21's — closed that day on
+Mitchell's attestation; see their entries below.)*
 
 **M12, M13 and M14 were scoped the same day**, each getting the file and exit
 checklist `docs/milestones/README.md` requires "before work on it begins" and
@@ -515,9 +519,14 @@ Where the work actually stands right now: `docs/STATUS.md`.
       the console the design draws is **half M21's** — its MRR/ARPU/margin
       strip must not be built inside M20.)*
 
-- [ ] **M21 An account can pay for itself** ← **OPEN, PAUSED at 11/17**
-      (was current from 2026-09-14; **paused 2026-09-16 by Mitchell's decision**
-      to run M22 first — its scope and all seventeen boxes stand unamended) →
+- [x] **M21 An account can pay for itself** — **gate closed 2026-09-19, 17 of
+      17**, the last six boxes **on Mitchell's attestation** that he walked them
+      and they worked — not walked by an agent, and no network log or Test Clock
+      evidence is recorded. Two of the six carry a caveat in the file (box 1's
+      "new price" has no differently-priced version on `main`,
+      `KI-20260919-e`; box 2's `premium@v1` clause). Retro in the milestone file.
+      (Was current from 2026-09-14; paused 2026-09-16 → 2026-09-19 by
+      Mitchell's decision to run M22 first.) →
       `docs/milestones/M21-subscriptions-and-billing.md`
       *(**All four phases written 2026-09-14/15** on `claude/keen-darwin-qkkq41`:
       the subscription table and priced plan versions, hosted checkout and the
@@ -569,8 +578,11 @@ Where the work actually stands right now: `docs/STATUS.md`.
       an existing subscriber onto a newer version. What you bought is what you
       get, now with no mechanism to change it.)*
 
-- [ ] **M22 An account can build on the API** — **OPEN, PAUSED AT 18/19**
-      (was the current milestone from 2026-09-16, **by Mitchell's decision
+- [x] **M22 An account can build on the API** — **gate closed 2026-09-19, 19
+      of 19**, the last box (the preview walk) **on Mitchell's attestation** that
+      he walked it and it worked — not walked by an agent. `KI-20260916-d` stays
+      open: it is the general problem, not this box. Retro in the milestone file.
+      (Was the current milestone from 2026-09-16, **by Mitchell's decision
       rather than by a gate closing** — M21 is open at 11/17 and paused;
       **paused in turn 2026-09-18 when M25 became current**, its one open box
       being a preview walk blocked on a deployment, `KI-20260916-d`) →

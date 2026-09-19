@@ -1,10 +1,16 @@
 # M21 — An account can pay for itself
 
-**Status:** **OPEN at 11 of 17, and PAUSED since 2026-09-16** — Mitchell's
+**Status:** **DONE — gate closed 2026-09-19, 17 of 17.** The six boxes still
+open at the pause were ticked that day **on Mitchell's attestation** that he
+walked them himself and they worked, and on his instruction to close the gate on
+that basis — not on evidence an agent observed or recorded. Each of the six says
+so in its own text, and the retro at the bottom says why the gate closed that
+way. **Two of the six carry a caveat about what a walk on `main` could have
+shown**, stated under the box rather than resolved here.
+
+*(Was **OPEN at 11 of 17 and PAUSED 2026-09-16 → 2026-09-19** — Mitchell's
 decision to run M22 ahead of it, recorded in `docs/milestones/README.md` under
-*2026-09-16 — reordered*. **Nothing in this file is amended by that pause**: the
-scope, the seven links and all seventeen boxes stand exactly as written, and the
-six open ones are still owed.
+*2026-09-16 — reordered*. Nothing in this file was amended by that pause.)*
 
 > **One footnote follows from the pause, and it is box 2's.** M22's Phase 1
 > publishes `premium@v2`, after which `livePlanVersion("premium")` returns v2 —
@@ -322,11 +328,21 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
 
 ## Exit gate
 
-- [ ] **Republishing a plan at a new price leaves an existing subscriber's
+- [x] **Republishing a plan at a new price leaves an existing subscriber's
       bill and entitlements untouched**, and the next purchase of that plan
       charges the new price and grants the new terms. Walked end to end, both
       halves.
-- [ ] **No published plan version's price is ever edited**, and every priced
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
+
+      **Caveat, stated rather than resolved:** no plan version at a *different*
+      price exists on `main` — the only republished version, `premium@v2`, is
+      the same $19 as `premium@v1` — so the "new price" half cannot have been
+      walked against a version this repository publishes, and no automated test
+      holds it either. Filed as `KI-20260919-e`.
+- [x] **No published plan version's price is ever edited**, and every priced
       version's `stripe_price_id` resolves to a Stripe Price with a matching
       amount and currency — checked, because a divergence errors nowhere.
       *(**Amended 2026-09-02**: was "no published `plan_versions` row's price".
@@ -343,6 +359,19 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       at the catalogue price IS the check for that version. `premium@v1` has
       never been purchased, so its Price has never been resolved. Buying and
       refunding one Premium subscription closes this box.
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
+
+      **Caveat, stated rather than resolved:** since `premium@v2` was published
+      (M22 Phase 1, 2026-09-16), `livePlanVersion("premium")` returns v2, so any
+      Premium purchase after that date resolves **v2's** Price, not v1's — the
+      footnote under this file's Status says so. `premium@v1`'s Price was
+      recorded as never created (`KI-20260916-c`), and nothing on record since
+      says otherwise. So whatever the attested walk resolved, it was most
+      likely `premium@v2`'s Price; the *"every priced version"* clause for
+      `premium@v1` rests on the attestation alone.
 - [x] A free account subscribes through hosted checkout and its entitlements
       change **only after the webhook is processed** — a forged or replayed
       success redirect grants nothing. — **Walked against live Stripe in
@@ -377,7 +406,7 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       `webhook.int.test.ts`, both orders. The comparison lives in the UPDATE's
       own WHERE clause; red-first on it found and removed a redundant in-memory
       guard that was doing nothing and could drift.
-- [ ] **No card number, CVC or expiry is ever entered into, posted to, or
+- [x] **No card number, CVC or expiry is ever entered into, posted to, or
       logged by this application.** Walked, and the network log checked.
 
       **Walked 2026-09-16; the network log was not read, so this stays open.**
@@ -390,6 +419,10 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       has looked, "the app has no card input" is an argument from the source
       rather than an observation of the wire, and this box wants the
       observation.
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
 - [x] Cancelling keeps access to the end of the paid period, then lapses
       through **M20's resolver** — no second downgrade path exists. —
       `lapse.int.test.ts`. The strongest assertion in it is *"lapses with
@@ -401,13 +434,29 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       runs to the period end rather than ending at the click, which is the
       behaviour this box exists to protect: an immediate flip would take back a
       month that was already paid for.
-- [ ] A `past_due` account is told in the product before it loses anything, and
+- [x] A `past_due` account is told in the product before it loses anything, and
       lapses only after the grace window — **3 days from the decline**
       (decided 2026-09-13). Walked both ways: a card fixed on day 2 lapses
       nothing and caps no collaborator, and a card never fixed lapses on day 4
       and not on day 3.
-- [ ] A lapse walks M20's collaborator cap: three collaborators drop to
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
+
+      *(Where "told in the product" lives, as of the close: the account sheet's
+      Plan section, `PlanSection.tsx:263-277`, and the `/plans` summary
+      sentence, `PlansScreen.tsx:478-479`. There is no app-wide banner.)*
+- [x] A lapse walks M20's collaborator cap: three collaborators drop to
       `viewer`, `trip_memberships` is unchanged, and paying again restores them.
+
+      **Ticked 2026-09-19 on Mitchell's attestation that he walked it and it
+      worked; not walked by an agent, and no network log / test-clock evidence
+      is recorded here.**
+
+      *(What automation holds: `lapse.int.test.ts:179-208` proves the cap, the
+      unchanged memberships and the restore — by writing `subscriptions` rows
+      directly, not by delivering a webhook.)*
 - [x] **This milestone's diff touches no gate.** `modelSelection.ts`,
       `quota.ts` and `members.ts` are unmodified — checked, not assumed:
       `git diff --stat <base>...HEAD -- <the three paths>` is empty, and all
@@ -451,7 +500,7 @@ What it owes, whoever owns it — all from §17.1 and §14's standing copy rules
       `CI=true` set by the runner, which is what `test:e2e:ci-like` expands to.
       The distinction CLAUDE.md rule 1 exists to protect — never serving e2e
       from `pnpm dev` — is held: `ci.yml:68` records that CI serves `next start`.
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close. **Below**, under *Retro — 2026-09-19*.
 
 ## Deliberately not here
 
@@ -843,3 +892,46 @@ header when that column became the Unscheduled drawer. The drawer moves existing
 stops onto days and mints none. Hiding it on desktop removes a capability at
 that width. Filed in `TODO.md` → *Candidate ideas* with the three real options,
 and answered on the thread rather than guessed at.
+
+## Retro — 2026-09-19
+
+**The gate closed on attestation, not on recorded evidence, and that is the
+first thing to know about it.** Eleven boxes were ticked with evidence between
+2026-09-14 and 2026-09-16 — tests, a live purchase and downgrade in production,
+and the database rows they left. The last six were ticked on 2026-09-19 because
+Mitchell stated he had walked them himself and they worked, and instructed that
+the gate close on that basis. No agent walked them, and nothing here records a
+network log, a Test Clock run or a screenshot from those walks.
+
+**Why it closed that way.** Stripe test mode was impractical for this repo's
+agents: hosted checkout redirects out to Stripe and back, and the preview
+deployments an agent can reach sit behind Vercel's deployment protection, so the
+round trip the failure-half boxes need did not survive the setup.
+`docs/guidelines/billing-without-spending-money.md` still describes the local
+recipe; it was not what closed these boxes. Mitchell's standing instruction is
+that agents do not walk payments.
+
+**What an audit on 2026-09-19 found under the six boxes**, recorded so the next
+milestone that touches billing does not assume more automation than exists:
+
+- **`past_due` is told in two places, both inside account surfaces**: the
+  account sheet's Plan section (`PlanSection.tsx:263-277`) and the `/plans`
+  summary sentence (`PlansScreen.tsx:478-479`). There is no app-wide banner, so
+  an owner who never opens either learns of the decline from Stripe's email.
+  That meets the box as written; it is a design choice, not a defect.
+- **No automated test holds an existing subscriber on an old price while a new
+  purchase takes a new price.** The only republished version, `premium@v2`, has
+  the same price as `premium@v1`, so the repository has never contained the
+  scenario box 1 describes. Filed as `KI-20260919-e`.
+- **`lapse.int.test.ts:179-208` proves the collaborator cap by writing
+  `subscriptions` rows directly**, not by delivering a webhook. That is a sound
+  test of the resolver, which is the thing ADR-047 says a lapse is; the
+  webhook-to-`past_due` half is held by `webhook.int.test.ts`, and the two are
+  not composed in one test.
+- **Box 2's `premium@v1` clause** rests on the attestation alone — see the
+  caveat under that box and `KI-20260916-c`.
+
+**The lesson.** A gate box that can only be observed through an external
+service's sandbox should say, when it is written, who can walk it and on which
+deployment. These boxes did not, and the answer — Mitchell, by hand — was only
+settled at the close.
