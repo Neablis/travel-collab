@@ -410,7 +410,28 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     context: { params: Promise<Record<string, string>> },
   ): Promise<Response> => {
     // ---- credential ------------------------------------------------------
-    const resolution = await resolveActor(request);
+    // **The first thing that touches the database, and the first thing that
+    // needed its own catch.** `resolveActor` reads `api_tokens` to find the
+    // digest; it answers a refusal for every credential it can reason about,
+    // so anything it THROWS is infrastructure — an unreachable database, a
+    // missing table, a missing pepper. That throw had nowhere to land: this
+    // call sits above every `try` below, so it left `route()` entirely and
+    // the caller got whatever the platform renders for an unhandled throw.
+    //
+    // Found on production, 2026-09-17, with `0023_api_tokens` still pending:
+    // a request with no token answered `401` in the envelope, and the same
+    // request WITH a well-formed bearer answered a bare `500` with an empty
+    // body and no content-type. An API whose contract is "every error is an
+    // `{error:{code,message}}` envelope" must not have a hole at the one step
+    // every single request passes through. Same defect, same shape and same
+    // reason as the trip gate's catch below — fixed there, missed here.
+    let resolution: Awaited<ReturnType<typeof resolveActor>>;
+    try {
+      resolution = await resolveActor(request);
+    } catch (error) {
+      console.error("v1 credential resolution threw", { method, scope: def.scope, error });
+      return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+    }
     if (!resolution.ok) return refusalResponse(resolution.refusal);
     const actor = resolution.actor;
 
