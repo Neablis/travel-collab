@@ -249,8 +249,57 @@ describe("resolvePlaybook", () => {
       kind: "planned",
       tags: [],
       cost: null,
+      // A `stops:` playbook is one day, so every stop is on day zero (M23).
+      // `days:` is the multi-day form and stamps this from the day's position.
+      dayIndex: 0,
     });
     expect(toSavedStop({ title: "Bare" }).kind).toBe("planned");
+  });
+
+  // M23 / ADR-048. A bundle AUTHORS a multi-day playbook as `days:` —
+  // `BundleDay`, the same shape a bundle trip already uses — because a content
+  // file exists to be reviewed by a person, and forty stops each carrying
+  // `dayIndex: 2` is not reviewable. The STORED form is flat and indexed. The
+  // two have opposite constraints and nothing parses old bundle bytes out of a
+  // database, so they are allowed to differ.
+  it("flattens an authored `days:` playbook into one indexed sequence", () => {
+    const multi = {
+      ...playbook,
+      key: "three-days",
+      stops: undefined,
+      days: [
+        { label: "Arrival", stops: [{ title: "Land" }, { title: "Ramen" }] },
+        { label: "The long one", stops: [{ title: "Fushimi Inari" }] },
+      ],
+    };
+    const row = resolvePlaybook("test", bundle({ playbooks: [multi] }).playbooks[0]!, "ai");
+    expect(row.stops.map((s) => [s.dayIndex, s.title])).toEqual([
+      [0, "Land"],
+      [0, "Ramen"],
+      [1, "Fushimi Inari"],
+    ]);
+    expect(row.dayCount).toBe(2);
+  });
+
+  // The trailing rest day a flat list cannot hold: no stop carries the index,
+  // so only the authored `days.length` knows it was declared.
+  it("counts an authored day that declares no stops", () => {
+    const withRestDay = {
+      ...playbook,
+      key: "rest-at-the-end",
+      stops: undefined,
+      days: [{ stops: [{ title: "Land" }] }, { stops: [] }],
+    };
+    const row = resolvePlaybook("test", bundle({ playbooks: [withRestDay] }).playbooks[0]!, "ai");
+    expect(row.stops.map((s) => s.dayIndex)).toEqual([0]);
+    expect(row.dayCount).toBe(2);
+  });
+
+  // Exactly one of the two, enforced by the schema rather than by a convention
+  // a content author has to remember.
+  it("refuses a playbook that declares both stops and days, or neither", () => {
+    expect(() => bundle({ playbooks: [{ ...playbook, days: [{ stops: [{ title: "x" }] }] }] })).toThrow();
+    expect(() => bundle({ playbooks: [{ ...playbook, stops: undefined }] })).toThrow();
   });
 
   it("takes the bundle's authorKind when the playbook does not name one", () => {

@@ -213,7 +213,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   }
 
   const { day, isAuthor, author } = feed.data;
-  const facts = savedDayFacts(day.stops);
+  const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
 
   return (

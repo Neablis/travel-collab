@@ -1,10 +1,12 @@
 import { sql, type SQL } from "drizzle-orm";
-import { SavedDayAuthorKind, SavedDayVisibility, SavedStop } from "@tc/contracts";
+import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
+  LENGTH_BAND_RANGE,
   SEASON_MONTHS,
   type BudgetBand,
+  type LengthBand,
   type DiscoverDay,
   type DiscoverResponse,
   type DiscoverScope,
@@ -15,6 +17,7 @@ import {
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
 import { db } from "./db/client";
+import { parseSavedDayColumns } from "./savedDayRow";
 
 // The public library's three read surfaces (M11b links 5, 7 and 8): Discover's
 // day search, the leaderboard, and a public profile.
@@ -56,6 +59,14 @@ export type DiscoverQuery = {
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
+  /**
+   * How many days a Playbook must span (M23).
+   *
+   * Unlike `budget`, this one IS a SQL predicate — `day_count` is a column, so
+   * it filters before the candidate window is truncated and its chip counts
+   * cannot disagree with the page below them.
+   */
+  length: LengthBand;
   /**
    * The season asked for, or null for any.
    *
@@ -99,6 +110,7 @@ type DiscoverRow = {
   cities: string[];
   visibility: string;
   author_kind: string;
+  day_count: number;
   adds: number;
   source_trip_name: string;
   created_at: unknown;
@@ -198,7 +210,28 @@ function matchPredicate(query: DiscoverQuery): SQL {
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
     and (cardinality(${seasonMonths}) = 0 or extract(month from d.created_at at time zone 'UTC') = any(${seasonMonths}))
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
+    ${lengthPredicate(query.length)}
   `;
+}
+
+/**
+ * The length filter, as SQL (M23).
+ *
+ * A real predicate rather than an application-side filter, and that is the
+ * whole reason `day_count` is a column: applied here it narrows before
+ * `CANDIDATE_LIMIT` truncates, so the sibling chips and the page they sit above
+ * are counted from the same set. The budget band cannot have this and the
+ * consequences are on record (KI-2026-08-31).
+ *
+ * `any` contributes nothing at all rather than a `true` term — one fewer thing
+ * for the planner to look at on by far the most common query.
+ */
+function lengthPredicate(band: LengthBand): SQL {
+  if (band === "any") return sql``;
+  const [min, max] = LENGTH_BAND_RANGE[band];
+  return max === null
+    ? sql` and d.day_count >= ${min}`
+    : sql` and d.day_count between ${min} and ${max}`;
 }
 
 /**
@@ -228,23 +261,22 @@ function orderBy(sort: DiscoverSort): SQL {
  * with it.
  */
 function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string): DiscoverDay | null {
-  const stops = SavedStop.array().safeParse(row.stops);
-  if (!stops.success) {
-    console.error("saved_days.stops failed SavedStop[] parse", {
-      savedDayId: row.id,
-      issues: stops.error.issues,
-    });
-    return null;
-  }
-  const visibility = SavedDayVisibility.safeParse(row.visibility);
-  if (!visibility.success) {
-    console.error("saved_days.visibility is not a SavedDayVisibility", {
-      savedDayId: row.id,
-      value: row.visibility,
-    });
-    return null;
-  }
-  const facts = savedDayFacts(stops.data);
+  // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
+  // makes it a prerequisite of M23). This was a hand-copied duplicate of that
+  // function's parses, with identical log strings, until the sequence work gave
+  // the boundary three more behaviours to get identical — a `dayIndex` sort, a
+  // `dayCount` floor, and the logging for both. A row that reads as a three-day
+  // sequence in its owner's library and a two-day one on its Discover card is
+  // worse than either answer.
+  const parsed = parseSavedDayColumns({
+    savedDayId: row.id,
+    stops: row.stops,
+    visibility: row.visibility,
+    authorKind: row.author_kind,
+    dayCount: row.day_count,
+  });
+  if (parsed === null) return null;
+  const facts = savedDayFacts(parsed.stops, parsed.dayCount);
   const wanted = new Set(queryCities);
   return {
     savedDayId: row.id,
@@ -262,15 +294,19 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     // because the names travel from the index, not from a keyboard.
     matchedCities: row.cities.filter((c) => wanted.has(c)),
     stopCount: facts.stopCount,
+    // What the card states before a reader decides to open it (M23 link 4's
+    // gate box). A sequence that does not say how many days it is is the same
+    // surprise "add to trip" would spring later.
+    dayCount: parsed.dayCount,
     window: facts.window,
     totalCost: facts.totalCost,
     adds: row.adds,
-    visibility: visibility.data,
+    visibility: parsed.visibility,
     // Falls back rather than dropping the card, for the reason `fromRow` in
     // `savedDays.ts` gives at length: this decides a label, not what the reader
     // is allowed to see, and only "ai" is ever rendered — so an unreadable
     // value says nothing about the author, which is the truth.
-    authorKind: SavedDayAuthorKind.safeParse(row.author_kind).data ?? SavedDayAuthorKind.enum.human,
+    authorKind: parsed.authorKind,
     sourceTripName: row.source_trip_name,
     // `createdAt` is `notNull` in the schema, so a null here means the row
     // shape is not what this query selected — not a day without a date.
@@ -375,7 +411,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   const rows = await db.execute<DiscoverRow>(sql`
     select
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds,
-      d.author_kind, d.source_trip_name, d.created_at, d.published_at,
+      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
       cardinality(array(
         select unnest(d.cities) intersect select unnest(${cities})
       ))::int as matched_count

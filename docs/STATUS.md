@@ -33,8 +33,8 @@ general setup.
 **M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
 by **M25's gate closing**, which is the ordinary way this line moves. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**M23 is at 1 of 11 — link 1 (the gating ADR) has landed and no code has been
-written.** Its scope and exit gate are in
+**M23 is at 7 of 11 — links 2 and 3 are built, link 4 all but its browser
+walk.** Its scope and exit gate are in
 `docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
 planning anything. The one-line version: a saved day **generalises** into a
 saved sequence rather than gaining a sibling object type.
@@ -47,7 +47,20 @@ cannot reach; the write path enforces monotonicity and the read boundary
 on the sequence and needs no migration. **Two of those go against a premise
 stated in the milestone file** and are marked ✳ there and in the ADR — the
 milestone's 2026-09-19 note is the short version, and Mitchell overrules either
-in the ADR if he wants the original reading. Three things the ADR found that the
+in the ADR if he wants the original reading.
+
+**What is left: the two-actor browser walk on a multi-day playbook, the
+Discover `cities`/ledger walk, `pnpm --filter web test:e2e:ci-like`, and the
+retro.** `pnpm check` is green locally (3,096 unit + 782 integration), with one
+caveat worth repeating rather than burying: **the integration lane needs
+`API_TOKEN_PEPPER` set in the shell.** `apps/web/.env.local` ships it EMPTY and
+vitest's `??=` does not override an empty string, so a fresh container fails ~91
+token tests that have nothing to do with the change under test — that is
+`KI-2026-09-19-a`, and it cost a full baseline run to confirm rather than assume.
+
+**The migration is NOT applied by merging.** `0024_saved_day_day_count.sql`
+needs `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
+An undispatched migration is schema drift. Three things the ADR found that the
 milestone file does not list: `citiesOfStops` currently sorts timed stops across
 the *whole* array, so a sequence's stored `cities` order interleaves its days;
 `savedDayFacts.window` over a sequence is read by `dayLength` as a single

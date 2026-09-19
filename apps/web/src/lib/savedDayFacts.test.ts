@@ -14,6 +14,7 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
     kind: "planned",
     tags: [],
     cost: null,
+    dayIndex: 0,
     ...over,
   };
 }

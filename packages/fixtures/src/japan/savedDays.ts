@@ -110,6 +110,9 @@ function stop(
     kind: "planned",
     tags: [],
     cost: null,
+    // One-day seeds: a saved day is a sequence of length one (M23, ADR-048).
+    // `extras` can still override it for a multi-day fixture.
+    dayIndex: 0,
     ...extras,
   };
 }

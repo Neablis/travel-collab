@@ -22,11 +22,29 @@ const stop = (title: string, start: string, end: string): SavedStop => ({
   kind: "planned",
   tags: [],
   cost: null,
+  dayIndex: 0,
 });
 
 const stops = [stop("Fushimi Inari", "09:00", "11:00"), stop("Nishiki", "13:00", "14:30")];
 
-function renderDialog(overrides: { stops?: SavedStop[]; onSaved?: (name: string) => void } = {}) {
+// A three-day trip, anchored on its THIRD day — so "Day 3 of Kyoto" still means
+// what it meant before M23, and the picker has other days to offer. The first
+// day is deliberately EMPTY: a rest day is selectable and the summary names it.
+const DAY_1 = "22222222-2222-4222-8222-222222222222";
+const DAY_2 = "33333333-3333-4333-8333-333333333333";
+const tripDays = [
+  { dayId: DAY_1, date: null, stops: [] },
+  { dayId: DAY_2, date: null, stops: [stop("Arashiyama", "10:00", "12:00")] },
+  { dayId, date: null, stops },
+];
+
+function renderDialog(
+  overrides: {
+    stops?: SavedStop[];
+    days?: { dayId: string; date: string | null; stops: SavedStop[] }[];
+    onSaved?: (name: string) => void;
+  } = {},
+) {
   const onOpenChange = vi.fn();
   const onSaved = overrides.onSaved ?? vi.fn();
   render(
@@ -35,9 +53,13 @@ function renderDialog(overrides: { stops?: SavedStop[]; onSaved?: (name: string)
       onOpenChange={onOpenChange}
       tripId={tripId}
       dayId={dayId}
-      dayIndex={2}
       tripName="Kyoto"
-      stops={overrides.stops ?? stops}
+      days={
+        overrides.days ??
+        (overrides.stops === undefined
+          ? tripDays
+          : [{ dayId, date: null, stops: overrides.stops }])
+      }
       onSaved={onSaved}
     />,
   );
@@ -92,11 +114,53 @@ describe("KeepDayDialog", () => {
       expect(createSavedDayMock).toHaveBeenCalledWith({
         name: "A day in Nakameguro",
         tripId,
-        dayId,
+        dayIds: [dayId],
       }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSaved).toHaveBeenCalledWith("Day 3 of Kyoto");
+  });
+
+  // M23 link 4. The pennant still opens on one day; the picker adds others, and
+  // they need not be adjacent — Mitchell, 2026-09-19: "you aren't selecting a
+  // range".
+  it("opens with only the clicked day selected, and offers the rest of the trip", () => {
+    renderDialog();
+    expect(screen.getByRole("button", { name: /Day 3/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Day 1/ }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: /Day 2/ }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("keeps non-adjacent days, in trip order rather than click order", async () => {
+    renderDialog();
+    // Clicked LAST, but it is the trip's first day — so it must lead the
+    // sequence, or a Playbook would depend on the order somebody happened to
+    // tap two chips a calendar cannot show the order of.
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(createSavedDayMock).toHaveBeenCalledWith({
+        name: "2 days of Kyoto",
+        tripId,
+        dayIds: [DAY_1, dayId],
+      }),
+    );
+  });
+
+  it("states the day count, and names an empty day as a rest day", async () => {
+    renderDialog();
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    expect(
+      screen.getByText(/2 days, 2 stops, in order\. Order and gaps kept, no dates\. One day has no stops — kept as a rest day\./),
+    ).toBeTruthy();
+  });
+
+  it("stops renaming once you have typed", async () => {
+    renderDialog();
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Kansai in three");
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Kansai in three");
   });
 
   it("refuses a blank name rather than saving something unfindable", async () => {

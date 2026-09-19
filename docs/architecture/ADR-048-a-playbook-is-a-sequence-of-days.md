@@ -1,9 +1,9 @@
 # ADR-048 — A Playbook is a sequence of days, flat, indexed per stop
 
-**Status:** **Accepted — 2026-09-19**, with M23 link 1. Nothing here is built
-yet; this is the ADR the milestone says must exist "before it opens", and the
-gate box it answers is the first one in
-`docs/milestones/M23-multi-day-playbooks.md`.
+**Status:** **Accepted — 2026-09-19**, with M23 link 1, and **built the same
+day** in links 2-4 (`docs/milestones/M23-multi-day-playbooks.md`'s 2026-09-19
+note has what building it turned up). Two amendments are folded in below and
+marked **[built]** where the implementation taught the ADR something.
 
 **Depends on:** ADR-029 (a saved day is a personal, dateless fragment, and
 `stops` is a jsonb VALUE that is never queried into), ADR-028 (snapshot
@@ -90,6 +90,22 @@ every surface that renders a day label already adds one —
 how off-by-ones get written, and the saving — one `+ 1` at a label — is not
 worth it.
 
+**`dayIndex` is a relative offset inside the sequence, never an absolute trip
+day** — confirmed by Mitchell on 2026-09-19, and written down because the name
+invites the wrong reading. A three-day playbook stores `{0, 1, 2}` once.
+Appended to a trip that already has five days it becomes days 6, 7 and 8; used
+to start a new trip it becomes days 1, 2 and 3. Same stored value, different
+base, and **the base belongs to the insert rather than to the playbook** — a
+`dayIndex` that had absorbed its source trip's numbering would be a fragment
+that only fits where it came from, which is the mistake ADR-029 already refused
+when it dropped the day's calendar date. The stops of one day stay together on
+one day, in stored order, with their times unchanged.
+
+That framing also settles Decision 2 from the other end: *"a 3 day bundle
+becomes days 6, 7, 8"* is a promise about a count, and a derived count breaks it
+whenever the bundle's last day is empty — the insert would quietly produce days
+6 and 7.
+
 The cost is named rather than waved at: **0 is falsy**, so `stop.dayIndex || 1`
 and `if (!stop.dayIndex)` are both silent bugs. The mitigation is that nothing
 should ever read `dayIndex` ad hoc — Decision 4's fold and the grouping helper
@@ -143,7 +159,17 @@ Three reasons, heaviest first:
    get 2 days" is a round-trip failure on the very number the dialog just
    showed. With the count stored, keep-N/insert-N holds unconditionally, which
    is the property link 3 and link 4 are both about.
-3. **It is not a denormalisation, so the drift objection does not apply.** The
+3. **[built] Discover cannot filter on a length it has to derive.** Mitchell
+   asked for a length filter ("1, 3, 5 or 7+ days") while this was being
+   implemented, which settles the question from a direction this ADR had not
+   used. A filter has to be a SQL predicate; only a COLUMN can be one. `stops`
+   is the jsonb ADR-029 says is never queried into, so a derived count could be
+   applied only in application code, over the already-truncated 200-row
+   candidate window — which is precisely how the budget band's sibling chips
+   came to count a different set from the page below them (KI-2026-08-31). The
+   bands are **1 / 2-3 / 4-6 / 7+**, read as edges rather than overlapping
+   thresholds for the reason `BudgetBand` gives, and confirmed.
+4. **It is not a denormalisation, so the drift objection does not apply.** The
    obvious complaint is `saved_days.adds`, which is a cached `count(*)` over a
    ledger that is the authority (`schema.ts`' note: *"the ledger records what
    was added and `saved_days.adds` is derived from it, never the other way
@@ -329,6 +355,12 @@ was built to refuse.
   `ActivityView → BundleStop`, which this ADR does not touch. Extending
   `BundlePlaybook` is M23 link 2 work with no test currently failing to prompt
   it — which is precisely why it is written down here.
+* **[built] `z.infer` makes a defaulted field REQUIRED on the output type**, so
+  every literal construction of a `SavedStop` in the tree had to supply
+  `dayIndex`. That is worth stating because it looks like it contradicts "this
+  change is additive": the additive property is about **parsing stored bytes**,
+  not about TypeScript literals. The compile error is the half that makes the
+  runtime half safe, and it is what walked the change through every fixture.
 * **`stopsForDay` gains a sibling, not a rewrite.** It answers "the stops of one
   day" and still should; the sequence builder calls it once per selected day and
   stamps `dayIndex` from the selection position. That keeps the "what's

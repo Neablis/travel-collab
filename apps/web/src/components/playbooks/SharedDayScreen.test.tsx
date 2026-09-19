@@ -44,6 +44,7 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
     kind: "planned",
     tags: [],
     cost: { amountMinor: 500, currency: "USD" },
+    dayIndex: 0,
     ...over,
   };
 }
@@ -54,6 +55,7 @@ function savedDay(over: Partial<SavedDay> = {}): SavedDay {
     ownerId: "dev-alice",
     name: "Kyoto temples on foot",
     stops: [stop(), stop({ title: "Tofuku-ji gardens", timeWindow: { start: "10:15", end: "11:30" }, notes: null, cost: { amountMinor: 1_800, currency: "USD" } })],
+    dayCount: 1,
     cities: ["Kyoto"],
     visibility: "public",
     authorKind: "human",

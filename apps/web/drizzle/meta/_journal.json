@@ -169,6 +169,13 @@
       "when": 1789572637070,
       "tag": "0023_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789796955015,
+      "tag": "0024_saved_day_day_count",
+      "breakpoints": true
     }
   ]
 }

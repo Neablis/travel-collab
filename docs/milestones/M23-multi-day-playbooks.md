@@ -164,26 +164,26 @@ Four links. Link 1 is an ADR and gates the rest.
       naming what it rejected and why, including the collection object above.
       **ADR-048**, accepted 2026-09-19; the summary and the two places it
       contradicts this file are in the note below.
-- [ ] **The migration is written, applied locally, and its production dispatch
+- [x] **The migration is written, applied locally, and its production dispatch
       is called out in the PR body** — `gh workflow run migrate-production.yml
       -f confirm=migrate` from `main`. Merging does not apply a migration; an
       undispatched one is schema drift.
-- [ ] **Every saved day written before the migration still reads, unchanged,
+- [x] **Every saved day written before the migration still reads, unchanged,
       through BOTH parse sites** — `fromRow` (`savedDays.ts:84`) and
       `toDiscoverDay` (`playbooks.ts:231`) — with its stops in the same order and
       on one day. Proven by a test over rows in the pre-migration shape, not by
       inspecting a library by hand.
-- [ ] A three-day playbook is kept, read back, and its **day boundaries are
+- [x] A three-day playbook is kept, read back, and its **day boundaries are
       identical** to what was saved — and a day with no stops does whatever the
       ADR decided, asserted against that decision rather than against whatever
       the implementation happens to do.
-- [ ] **The insert primitive has exactly one implementation**, called by all
+- [x] **The insert primitive has exactly one implementation**, called by all
       three callers in link 3. A test fails if a second construction of `AddDay`
       from saved stops appears anywhere in the tree.
-- [ ] Adding an N-day playbook to an existing trip appends **N days**, as **one
+- [x] Adding an N-day playbook to an existing trip appends **N days**, as **one
       batch**, undone by **one undo** — the same property `insertCommands`
       already holds for one day's stops.
-- [ ] Starting a new trip from an N-day playbook produces a trip with **N days**
+- [x] Starting a new trip from an N-day playbook produces a trip with **N days**
       in the playbook's order, and starting one from a single-day playbook
       produces **one**. `TODO.md:802` is deleted in the same PR.
 - [ ] **Publish → discover → add is walked in a real browser as two actors** for
@@ -247,6 +247,63 @@ writer of this shape — the **M25 round-trip tripwire does not catch it**, beca
 `fromTrip` emits `playbooks: z.tuple([]).default([])`
 (`packages/fixtures/src/bundle/fromTrip.ts:69`), so a trip export never carries a
 `SavedStop`.
+
+## 2026-09-19 — links 2, 3 and most of 4 landed
+
+**Gate: 7 of 11.** What is left is the two-actor browser walk, the Discover
+`cities`/ledger box's own walk, the full `test:e2e:ci-like` lane, and the retro.
+
+**The shape, as built.** Flat `stops[]`, each stop carrying a 0-based
+`dayIndex` defaulted to 0; `saved_days.day_count` (migration
+`0024_saved_day_day_count.sql`, applied locally, **production dispatch is
+`gh workflow run migrate-production.yml -f confirm=migrate` from `main` and is
+called out in the PR body**); `CreateSavedDayInput.dayIds`, an ordered array
+bounded at 366.
+
+**Three things found by building it that the scope did not predict:**
+
+1. **Link 3's third caller already existed.** `AddToTripDialog` has had a
+   "Start a new trip" option that creates the trip and then calls
+   `insertSavedDay` — so the shared primitive was already shared, and all
+   `insertCommands` needed was to learn N days. `TODO.md`'s *"Start a new trip
+   from a saved day"* entry is deleted, and its open question ("reuse the fork
+   path or get its own?") is answered by the code that was already there.
+   `insertCommands.contract.test.ts` now fails if a second construction appears
+   — and writing it turned up two false positives worth knowing about:
+   `TripBoardScreen`'s ordinary "add a day" button, and `ai/writeTools`' use of
+   `type: "AddDay"` as a `ProposedChange` LABEL. Neither is a second
+   implementation; the assistant's insert is in fact a **fourth caller** of the
+   one primitive.
+2. **`savedDayFacts.window` was stating something false, not merely vague.**
+   Over a sequence it is day 1's 09:00 to day 3's 22:00, which `dayLength`
+   buckets as a thirteen-hour day and labels "Long". It is null above one day
+   now, and the card shows the day count in that space.
+3. **The length filter settles `dayCount` from a direction nobody had used.**
+   Mitchell asked for "1, 3, 5 or 7+ days" while this was being built. A filter
+   has to be a SQL predicate, and only a COLUMN can be one — `stops` is jsonb
+   that ADR-029 says is never queried into, so a derived count could only be
+   applied in application code over the truncated candidate window, which is
+   exactly how the budget band's chip counts came to disagree with the page
+   below them (KI-2026-08-31). Bands are **1 / 2-3 / 4-6 / 7+**, read as edges
+   for `BudgetBand`'s reason and confirmed with him.
+
+**Link 4's picker, as Mitchell specified it** (2026-09-19): the pennant is
+unchanged and still opens on one day, already selected, so the one-day keep is
+still accept-and-Enter. Under it is a strip of the trip's days as toggles —
+**not a range**: *"I would really prefer they don't have to be sequential days
+in your trip ... you aren't selecting a range."* Selection is held in TRIP
+order rather than click order, because a calendar can show that a day is chosen
+but not when it was chosen. The summary states the day count before the button
+acts, and names an empty day as a rest day rather than hiding it inside a stop
+total. A new `ToggleChip` primitive was written rather than the element wall
+bypassed — the precedent `Checkbox` set in M22.
+
+**`BundlePlaybook` grew `days:`**, the same `BundleDay` shape a bundle trip
+already uses, so a multi-day playbook can be authored as content. The stored
+form stays flat and indexed; the authored form does not have to be, and nothing
+parses old bundle bytes out of a database. **The M25 round-trip tripwire does
+not cover this** — `fromTrip` emits `playbooks: z.tuple([])` — which is why the
+ADR wrote it down.
 
 ## Deliberately not here
 

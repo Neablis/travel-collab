@@ -204,7 +204,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchPreferences: () => fetchPreferences(),
   updatePreferences: () => updatePreferences({ distanceUnit: "mi" }),
   fetchSavedDays: () => fetchSavedDays(),
-  createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayId: UUID }),
+  createSavedDay: () => createSavedDay({ name: "Day", tripId: TRIP_ID, dayIds: [UUID] }),
   deleteSavedDay: () => deleteSavedDay(UUID),
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
   fetchSavedDay: () => fetchSavedDay(UUID),

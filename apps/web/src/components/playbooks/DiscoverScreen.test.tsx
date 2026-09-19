@@ -21,6 +21,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     cities: ["Kyoto"],
     matchedCities: [],
     stopCount: 4,
+    dayCount: 1,
     window: { start: "07:30", end: "18:30" },
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,

@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Flag } from "lucide-react";
-import type { SavedStop } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
-import { KeepDayDialog } from "@/components/trip/KeepDayDialog";
+import { KeepDayDialog, type KeepDayCandidate } from "@/components/trip/KeepDayDialog";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
@@ -73,14 +72,23 @@ export function KeepDayFlag({
   tripId,
   dayId,
   tripName,
-  stops,
+  days,
 }: {
   dayIndex: number;
   accent: AccentFamily;
   tripId: string;
   dayId: string;
   tripName: string;
-  stops: SavedStop[];
+  /**
+   * Every day of the trip, in trip order — the dialog's picker offers all of
+   * them and arrives with `dayId` selected (M23 link 4).
+   *
+   * The flag is still about ONE day: `dayIndex` labels this pennant, and
+   * `dayId` is the anchor the dialog opens on. The rest of the trip travels
+   * with it because the dialog lets you add other days, and the alternative was
+   * for the dialog to fetch a trip the board already has in hand.
+   */
+  days: KeepDayCandidate[];
 }) {
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -117,7 +125,14 @@ export function KeepDayFlag({
   const [run, setRun] = useState(0);
   const runs = useRef(0);
   const celebrating = run > 0;
-  const empty = stops.length === 0;
+  // **Still the ANCHOR day's emptiness, deliberately** (M23). The dialog can now
+  // keep several days, so a blank day is no longer unkeepable in principle —
+  // but the pennant on a blank day is a bad door into that: "keep this day"
+  // offered on a day holding nothing, to be answered by picking two other days,
+  // is a control that does not mean what it says. Start from a day with
+  // something in it and add the blank one as a rest day, which the picker shows
+  // and names.
+  const empty = (days.find((d) => d.dayId === dayId)?.stops.length ?? 0) === 0;
 
   useEffect(() => {
     if (run === 0) return;
@@ -208,9 +223,8 @@ export function KeepDayFlag({
         onOpenChange={setOpen}
         tripId={tripId}
         dayId={dayId}
-        dayIndex={dayIndex}
         tripName={tripName}
-        stops={stops}
+        days={days}
         onSaved={onSaved}
       />
       {saved !== null && (

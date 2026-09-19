@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parseBundle } from "./schema.ts";
+import { parseBundle, playbookStops } from "./schema.ts";
 import { lintBundle, summarise } from "./lint.ts";
 import { resolvePlaybook } from "./toPlaybooks.ts";
 import { bundleTripCommands } from "./toCommands.ts";
@@ -90,7 +90,7 @@ describe("content/ bundles", () => {
       for (const playbook of bundle.playbooks) {
         const row = resolvePlaybook(bundle.bundle.id, playbook, bundle.bundle.origin);
         expect(row.savedDayId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
-        expect(row.stops).toHaveLength(playbook.stops.length);
+        expect(row.stops).toHaveLength(playbookStops(playbook).length);
       }
       for (const trip of bundle.trips) {
         const commands = bundleTripCommands(bundle.bundle.id, trip, { today: TODAY });

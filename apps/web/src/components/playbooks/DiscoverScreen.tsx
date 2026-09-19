@@ -15,6 +15,8 @@ import {
   BUDGET_BAND_EDGES,
   SEASON_LABELS,
   Season,
+  LengthBand,
+  LENGTH_BAND_LABELS,
   type BudgetBand,
   type DiscoverResponse,
   type DiscoverScope,
@@ -63,6 +65,7 @@ type Filters = {
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
+  length: LengthBand;
   season: Season | null;
 };
 
@@ -71,6 +74,7 @@ const NO_FILTERS: Filters = {
   scope: "everyone",
   sort: "most-added",
   budget: "any",
+  length: "any",
   season: null,
 };
 
@@ -83,11 +87,11 @@ const NO_FILTERS: Filters = {
  */
 export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonly string[] }) {
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, cities: [...initialCities] });
-  const { cities, scope, sort, budget, season } = filters;
+  const { cities, scope, sort, budget, length, season } = filters;
 
   const read = useCallback(
-    () => searchPlaybooks({ cities, scope, sort, budget, season }),
-    [cities, scope, sort, budget, season],
+    () => searchPlaybooks({ cities, scope, sort, budget, length, season }),
+    [cities, scope, sort, budget, length, season],
   );
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
@@ -191,6 +195,29 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
             ))}
           </NativeSelect>
         )}
+        {/* **How long a Playbook is** — Mitchell, 2026-09-19: "We also need to
+            be able to search and filter by length, 1, 3, 5 or 7+ days". Read
+            as EDGES of mutually exclusive bands rather than four overlapping
+            thresholds, because a `<select>`'s options have to be mutually
+            exclusive or a Playbook matches two at once — the same reading the
+            budget bands took, and confirmed with him the same day as
+            1 / 2-3 / 4-6 / 7+.
+
+            Unlike Budget, this one narrows in SQL: `day_count` is a column, so
+            it filters before the candidate window is truncated and its chip
+            counts cannot come apart from the page below them
+            (KI-2026-08-31). */}
+        <NativeSelect
+          aria-label="Length"
+          value={length}
+          onChange={(e) => set("length", e.target.value as LengthBand)}
+        >
+          {LengthBand.options.map((option) => (
+            <option key={option} value={option}>
+              {LENGTH_BAND_LABELS[option]}
+            </option>
+          ))}
+        </NativeSelect>
         {/* Season, bucketed from the day's month — Mitchell, 2026-09-01, in
             place of the twelve-entry "Kept in <month>" dropdown that stood
             here. Twelve options over a library of a few dozen days meant most

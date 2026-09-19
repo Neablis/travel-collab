@@ -23,6 +23,7 @@ const stops: SavedStop[] = [
     kind: "planned",
     tags: [],
     cost: null,
+    dayIndex: 0,
   },
 ];
 
@@ -34,7 +35,7 @@ function renderFlag(overrides: { stops?: SavedStop[] } = {}) {
       tripId={tripId}
       dayId={dayId}
       tripName="Kyoto"
-      stops={overrides.stops ?? stops}
+      days={[{ dayId, date: null, stops: overrides.stops ?? stops }]}
     />,
   );
 }

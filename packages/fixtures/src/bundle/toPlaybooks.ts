@@ -22,6 +22,15 @@ import type { SeededSavedDay } from "../library/starterDays.ts";
  * starter set and any imported bundle without a per-set special case.
  */
 export type ResolvedPlaybook = SeededSavedDay & {
+  /**
+   * How many days the playbook spans — `days.length` when it was authored as a
+   * sequence, 1 for the one-day `stops:` form (M23, ADR-048).
+   *
+   * Carried on the resolved row rather than left to the stops, because an
+   * authored trailing day with no stops leaves no `dayIndex` behind and only
+   * the declaration knows it was there.
+   */
+  dayCount: number;
   authorKind: SavedDayAuthorKind;
   sourceTripId: string;
   sourceTripName: string;
@@ -35,7 +44,7 @@ export type ResolvedPlaybook = SeededSavedDay & {
  * absence is the cheap default, and a stored jsonb value is read back by a
  * parser that must be able to tell "no cost" from "field not written yet".
  */
-export function toSavedStop(stop: BundleStop): SavedStop {
+export function toSavedStop(stop: BundleStop, dayIndex = 0): SavedStop {
   return {
     title: stop.title,
     timeWindow: stop.timeWindow ?? null,
@@ -45,6 +54,30 @@ export function toSavedStop(stop: BundleStop): SavedStop {
     kind: stop.kind ?? "planned",
     tags: stop.tags ?? [],
     cost: stop.cost ?? null,
+    // Which day of the sequence this stop lands on. Defaulted to 0 so the
+    // one-day `stops:` form needs no argument at all — a one-day playbook is a
+    // sequence of length one, not a special case.
+    dayIndex,
+  };
+}
+
+/**
+ * A playbook's authored shape — one day's `stops` or a sequence's `days` —
+ * flattened into the stored form: one indexed array, plus the day count.
+ *
+ * **The count comes from `days.length`, not from the stops.** A trailing rest
+ * day contributes no stop and so leaves no index behind; only the authored list
+ * knows it was there (ADR-048 decision 2). An interior rest day leaves a GAP,
+ * which is preserved here by stamping from the day's position rather than from
+ * a running counter over non-empty days.
+ */
+export function toSavedSequence(playbook: BundlePlaybook): { stops: SavedStop[]; dayCount: number } {
+  if (playbook.days === undefined) {
+    return { stops: (playbook.stops ?? []).map((s) => toSavedStop(s)), dayCount: 1 };
+  }
+  return {
+    stops: playbook.days.flatMap((day, dayIndex) => day.stops.map((s) => toSavedStop(s, dayIndex))),
+    dayCount: playbook.days.length,
   };
 }
 
@@ -63,7 +96,7 @@ export function resolvePlaybook(
     savedDayId,
     ownerId: playbook.ownerId,
     name: playbook.name,
-    stops: playbook.stops.map(toSavedStop),
+    ...toSavedSequence(playbook),
     visibility: playbook.visibility as SavedDayVisibility,
     authorKind: playbook.origin ?? fallbackAuthorKind,
     ...(playbook.keptOn ? { keptOn: playbook.keptOn } : {}),

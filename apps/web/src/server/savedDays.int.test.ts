@@ -82,7 +82,7 @@ describe("saving a day", () => {
     const { tripId, dayId } = await seedDay();
     await executeTripCommand({ type: "SetTripStartDate", tripId, startDate: "2027-06-01" }, OWNER);
 
-    const result = await saveDay({ name: "A day in Kyoto", dayId }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "A day in Kyoto", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -100,7 +100,7 @@ describe("saving a day", () => {
   // against, and the next read of that row would throw (CodeRabbit, PR #71).
   it("refuses a name that is only whitespace, rather than storing an empty one", async () => {
     const { tripId, dayId } = await seedDay();
-    const result = await saveDay({ name: "   ", dayId }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "   ", dayIds: [dayId] }, await detailFor(tripId), OWNER);
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("invalid");
@@ -110,7 +110,7 @@ describe("saving a day", () => {
 
   it("still trims a name that has something in it", async () => {
     const { tripId, dayId } = await seedDay();
-    const result = await saveDay({ name: "  Day one  ", dayId }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "  Day one  ", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.name).toBe("Day one");
@@ -118,7 +118,7 @@ describe("saving a day", () => {
 
   it("remembers which trip it came from, and what that trip was called", async () => {
     const { tripId, dayId } = await seedDay("Kyoto");
-    const result = await saveDay({ name: "Day one", dayId }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "Day one", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sourceTripId).toBe(tripId);
@@ -132,7 +132,7 @@ describe("saving a day", () => {
 
   it("refuses a day that is not in the trip", async () => {
     const { tripId } = await seedDay();
-    const result = await saveDay({ name: "Nope", dayId: randomUUID() }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "Nope", dayIds: [randomUUID()] }, await detailFor(tripId), OWNER);
     expect(result.ok === false && result.error.code).toBe("not-found");
   });
 
@@ -141,7 +141,7 @@ describe("saving a day", () => {
     const dayId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Bare" }, OWNER);
     await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
-    const result = await saveDay({ name: "Empty" , dayId }, await detailFor(tripId), OWNER);
+    const result = await saveDay({ name: "Empty" , dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(result.ok === false && result.error.code).toBe("invalid");
   });
 });
@@ -150,9 +150,9 @@ describe("the library is per-person", () => {
   it("lists only your own saved days, newest first", async () => {
     const { tripId, dayId } = await seedDay();
     const detail = await detailFor(tripId);
-    const first = await saveDay({ name: "First", dayId }, detail, OWNER, "2026-01-01T00:00:00.000Z");
-    const second = await saveDay({ name: "Second", dayId }, detail, OWNER, "2026-02-01T00:00:00.000Z");
-    await saveDay({ name: "Theirs", dayId }, detail, OTHER);
+    const first = await saveDay({ name: "First", dayIds: [dayId] }, detail, OWNER, "2026-01-01T00:00:00.000Z");
+    const second = await saveDay({ name: "Second", dayIds: [dayId] }, detail, OWNER, "2026-02-01T00:00:00.000Z");
+    await saveDay({ name: "Theirs", dayIds: [dayId] }, detail, OTHER);
     if (!first.ok || !second.ok) return;
 
     expect((await listSavedDays(OWNER)).map((d) => d.name)).toEqual(["Second", "First"]);
@@ -163,7 +163,7 @@ describe("the library is per-person", () => {
   // exist, which is the right answer to both.
   it("hides, and refuses to delete, someone else's saved day", async () => {
     const { tripId, dayId } = await seedDay();
-    const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    const saved = await saveDay({ name: "Mine", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
@@ -184,7 +184,7 @@ describe("the library is per-person", () => {
 describe("inserting a saved day", () => {
   it("appends a day with its stops, in order, as ONE history entry", async () => {
     const { tripId, dayId } = await seedDay();
-    const saved = await saveDay({ name: "Reusable", dayId }, await detailFor(tripId), OWNER);
+    const saved = await saveDay({ name: "Reusable", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
@@ -212,7 +212,7 @@ describe("inserting a saved day", () => {
 
   it("mints fresh ids every time, so the same day can go into two trips", async () => {
     const { tripId, dayId } = await seedDay();
-    const saved = await saveDay({ name: "Twice", dayId }, await detailFor(tripId), OWNER);
+    const saved = await saveDay({ name: "Twice", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
@@ -229,7 +229,7 @@ describe("inserting a saved day", () => {
 
   it("refuses someone else's saved day", async () => {
     const { tripId, dayId } = await seedDay();
-    const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    const saved = await saveDay({ name: "Mine", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
@@ -243,7 +243,7 @@ describe("inserting a saved day", () => {
   // executeTripCommandBatch, so AccessPolicy decides, not this module.
   it("is refused for a viewer, because the batch it raises is", async () => {
     const { tripId, dayId } = await seedDay();
-    const saved = await saveDay({ name: "Mine", dayId }, await detailFor(tripId), OWNER);
+    const saved = await saveDay({ name: "Mine", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
 
@@ -303,7 +303,7 @@ describe("saved-day timestamps have one shape", () => {
   it("returns the same createdAt from the write path and both read paths", async () => {
     const { tripId, dayId } = await seedDay();
     const saved = await saveDay(
-      { name: "Day one", dayId },
+      { name: "Day one", dayIds: [dayId] },
       await detailFor(tripId),
       OWNER,
       "2026-01-01T00:00:00.000Z",

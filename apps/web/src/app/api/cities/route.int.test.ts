@@ -55,7 +55,7 @@ async function saveDayIn(cities: string[]): Promise<string> {
   const res = await SAVE(
     new Request("http://test/x", {
       method: "POST",
-      body: JSON.stringify({ name: `Day ${randomUUID()}`, tripId, dayId }),
+      body: JSON.stringify({ name: `Day ${randomUUID()}`, tripId, dayIds: [dayId] }),
     }),
   );
   expect(res.status).toBe(201);

@@ -11,6 +11,7 @@
 // the same reason every other module here refuses the clock (invariant 4).
 
 import type { ContentBundleV1, BundlePlaybook, BundleStop, BundleTrip } from "./schema.ts";
+import { playbookStops } from "./schema.ts";
 
 export type Severity = "error" | "warning";
 
@@ -130,7 +131,7 @@ function lintStops(where: string, stops: BundleStop[], what: string): Finding[] 
 
 function lintPlaybook(bundleId: string, playbook: BundlePlaybook, today: string): Finding[] {
   const where = `${bundleId}/${playbook.key}`;
-  const findings = lintStops(where, playbook.stops, "playbook");
+  const findings = lintStops(where, playbookStops(playbook), "playbook");
 
   if (playbook.keptOn !== undefined) {
     const at = new Date(playbook.keptOn);
@@ -160,7 +161,7 @@ function lintPlaybook(bundleId: string, playbook: BundlePlaybook, today: string)
     findings.push(err(where, "two adds name the same tripId — the ledger's primary key would collapse them"));
   }
 
-  const { total } = totalMinor(playbook.stops);
+  const { total } = totalMinor(playbookStops(playbook));
   if (playbook.visibility === "public" && total === 0) {
     // A published day with nothing priced shows "—" and is invisible to the
     // budget filter — the starter library's own first bullet.
@@ -284,7 +285,7 @@ export function summarise(bundles: ContentBundleV1[]): ContentSummary {
       const kind = playbook.origin ?? bundle.bundle.origin;
       summary.authorKinds[kind] = (summary.authorKinds[kind] ?? 0) + 1;
       summary.owners[playbook.ownerId] = (summary.owners[playbook.ownerId] ?? 0) + 1;
-      for (const stop of playbook.stops) {
+      for (const stop of playbookStops(playbook)) {
         summary.stops++;
         if (stop.location?.city) cities.add(stop.location.city);
       }
@@ -297,7 +298,7 @@ export function summarise(bundles: ContentBundleV1[]): ContentSummary {
         const season = seasonOf(playbook.keptOn);
         if (season) summary.seasons[season]++;
       }
-      const { total } = totalMinor(playbook.stops);
+      const { total } = totalMinor(playbookStops(playbook));
       if (total > 0) summary.bands[bandOf(total)]++;
     }
   }

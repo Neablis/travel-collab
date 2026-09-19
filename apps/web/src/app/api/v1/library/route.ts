@@ -11,6 +11,16 @@ import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route
 // a trip: days saved from a trip you later leave are still yours. Saving one
 // names its source trip in the body instead, which is where the trip check
 // happens.
+//
+// **`dayId`, singular, and it STAYS singular through M23.** The library's own
+// `CreateSavedDayInput` took a set of days in that milestone so a Playbook can
+// span several; this body deliberately did not follow. It is a PUBLISHED v1
+// contract with a generated `openapi.json` behind it, M23's scope says nothing
+// about the public API, and widening it would either break every existing
+// caller or leave two shapes here for one question — the thing
+// `CreateSavedDayInput` refused for itself. A one-day keep is still a whole
+// operation, so this endpoint keeps doing it and calls the sequence path with a
+// one-element list. Multi-day over `v1` is a deliberate gap, not an oversight.
 const SaveDayBody = z.object({
   tripId: z.string().uuid(),
   dayId: z.string().uuid(),
@@ -69,7 +79,7 @@ export const { GET, POST } = route({
         }[access.denial];
         throw new PublicApiError(mapped.status, mapped.message);
       }
-      const saved = await saveDay({ name: input.name, dayId: input.dayId }, access.detail, actor.userId);
+      const saved = await saveDay({ name: input.name, dayIds: [input.dayId] }, access.detail, actor.userId);
       if (!saved.ok) throw new PublicApiError(400, saved.error.message);
       return saved.value;
     },

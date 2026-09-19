@@ -673,9 +673,15 @@ Where the work actually stands right now: `docs/STATUS.md`.
       indicator lands defaulted, at both sites. See `KI-2026-09-05-l`.
       **One insert primitive, three callers** — add to an existing trip, start a
       new trip from one day, start a new trip from N days — wrapped in M6's
-      atomic command group. That **absorbs and answers** the unscheduled
-      candidate *"Start a new trip from a saved day"* below, whose open question
-      was whether it reuses the fork path or gets its own.)*
+      atomic command group. That **absorbed and answered** the unscheduled
+      candidate *"Start a new trip from a saved day"*, whose open question was
+      whether it reuses the fork path or gets its own: **it reuses it**, and the
+      entry was deleted on 2026-09-19 when link 3 landed. Found while building
+      it: the third caller already EXISTED — `AddToTripDialog`'s "Start a new
+      trip" creates the trip and then calls `insertSavedDay`, so the shared
+      primitive was already shared and only needed to learn N days.
+      `insertCommands.contract.test.ts` now fails if a second construction
+      appears.)*
 
 - [ ] **M24 A leg knows where it goes and by what** →
       `docs/milestones/M24-travel-legs.md`
@@ -972,20 +978,6 @@ Captured so they aren't lost; not committed to a milestone yet.
   implementations of "materialise stops into a new trip" is the duplication
   `citiesOfDay` and `rollupCosts` exist to prevent. M23's gate deletes this
   entry at close; it stays until then so the reasoning is not lost.*
-
-- **Start a new trip from a saved day (raised by Mitchell on the PR 141
-  preview, 2026-09-04).** On the playbooks day page: *"There should also be a
-  option to create a new trip, and initialize it with this day as the first
-  day."* An addition to a **shipped** surface — M11b's gate closed 2026-08-31 —
-  so it has no owner, the same position as the shared-day map below.
-
-  Not free, and the cost is one question: initialising a trip with a saved day
-  means replaying that day's stops as `AddActivity` commands against a fresh
-  trip, which is close to what **fork** already does. So the real decision is
-  whether it reuses the fork path or gets its own, and that is worth settling
-  before anyone writes it — two implementations of "materialise stops into a new
-  trip" is exactly the shape of duplication `citiesOfDay` and `rollupCosts` exist
-  to prevent elsewhere. Vercel toolbar thread `pkAYS2-v8FTr`.
 
 - **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
   section plus a `#pricing` nav anchor on M15's existing landing route — three

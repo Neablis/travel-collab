@@ -142,7 +142,7 @@ describe("requireTripAccess", () => {
 
     const access = await requireTripAccess(tripId, "viewer");
     if ("error" in access) throw new Error(`expected access, got ${access.error.status}`);
-    const saved = await saveDay({ name: "A kept day", dayId }, access.detail, OWNER);
+    const saved = await saveDay({ name: "A kept day", dayIds: [dayId] }, access.detail, OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
     expect(() => SavedDay.parse(saved.value)).not.toThrow();

@@ -197,7 +197,7 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
       LIBRARY_AUTHOR_ID,
     );
   }
-  const saved = await saveDay({ name: "A day in Kyoto", dayId: sourceDay }, (await getTripDetail(sourceTrip))!, LIBRARY_AUTHOR_ID);
+  const saved = await saveDay({ name: "A day in Kyoto", dayIds: [sourceDay] }, (await getTripDetail(sourceTrip))!, LIBRARY_AUTHOR_ID);
   if (!saved.ok) throw new Error(`could not save the day: ${saved.error.message}`);
   const published = await setSavedDayVisibility(saved.value.savedDayId, LIBRARY_AUTHOR_ID, "public");
   if (published === null) throw new Error("could not publish the day");

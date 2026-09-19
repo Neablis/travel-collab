@@ -6,10 +6,12 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { toClockRange } from "@/lib/time";
+import { formatTripDate } from "@/lib/formatDate";
 
 // Handoff README §"Keep this day": the pennant flag opens this dialog. Real as
 // of M11 link 6 — it was `<Preview id="keep-day-dialog">`, three inert fields
@@ -30,6 +32,27 @@ import { toClockRange } from "@/lib/time";
 //    discovery and everything that quarantines, is explicitly out of scope
 //    (ADR-029). A select with one real option is worse than a sentence.
 //
+// **M23: the dialog keeps a SEQUENCE, and the picker below is how.** The
+// pennant still means "keep this day" and still opens this dialog with that day
+// already selected — the one-day keep is unchanged and is still accept-and-Enter
+// (the milestone's "one day stays the ordinary case; the single-day call must
+// not become harder"). What is new is a strip of the trip's days underneath it,
+// where any other day can be toggled in.
+//
+// **Toggles, NOT a range.** Mitchell, 2026-09-19: *"I would really prefer they
+// don't have to be sequential days in your trip ... you aren't selecting a
+// range."* Days 1, 3 and 5 of a trip make a perfectly good three-day Playbook —
+// the days you skipped simply are not in it, and the Playbook renumbers from
+// one. A range control would have made the common "weekend plus the good day
+// midweek" case impossible to express, and would have implied the gap days were
+// being kept as blanks, which is a different thing the model CAN say and this
+// selection does not mean.
+//
+// **The summary states the count before the button acts** — M23 link 4's one
+// substantive rule. "Add to trip" appending three days when somebody expected
+// one is the failure that rule exists to prevent, and the same honesty is owed
+// at the keeping end.
+//
 // The prototype's celebrate() choreography — spring, ring burst, sparks, the
 // "Kept" pill — is built as of this branch, and fires off `onSaved` below:
 // see `KeepDayFlag`. What is still NOT built is where that choreography lands
@@ -38,9 +61,45 @@ import { toClockRange } from "@/lib/time";
 // `sourceDayId`, so after a reload nothing can answer "is this day kept?".
 // ADR-040 is that question.
 
-function includedSummary(stops: SavedStop[]): string {
-  if (stops.length === 0) return "Nothing yet — this day has no stops.";
+/** One of the trip's days, as the picker needs it. */
+export type KeepDayCandidate = {
+  dayId: string;
+  /** The derived calendar date, or null when the trip has no start date. */
+  date: string | null;
+  stops: SavedStop[];
+};
+
+/**
+ * What is about to be kept, stated before the button acts (M23 link 4).
+ *
+ * **It leads with the DAY count**, because that is the number the reader is
+ * about to be surprised by. A clock range is only offered for a single day: a
+ * sequence has no one window, and "09:00–22:00" over three days would be read
+ * as a single day's span — the same falsehood `savedDayFacts` now refuses to
+ * state for a multi-day Playbook (ADR-048 decision 4).
+ *
+ * **An empty day among several is named, not hidden.** "3 days · 9 stops" is
+ * true and still conceals that one of them is blank, and a rest day is a thing
+ * you can mean — so it is said out loud, and the model keeps it (a gap in
+ * `dayIndex`, counted by `dayCount`).
+ */
+function includedSummary(selected: KeepDayCandidate[]): string {
+  const stops = selected.flatMap((d) => d.stops);
+  if (selected.length === 0) return "Pick at least one day.";
+  if (stops.length === 0) {
+    return selected.length === 1
+      ? "Nothing yet — this day has no stops."
+      : `Nothing yet — none of these ${selected.length} days has a stop.`;
+  }
   const count = `${stops.length} stop${stops.length === 1 ? "" : "s"}`;
+  if (selected.length > 1) {
+    const empty = selected.filter((d) => d.stops.length === 0).length;
+    const rest =
+      empty === 0
+        ? ""
+        : ` ${empty === 1 ? "One day has" : `${empty} days have`} no stops — kept as ${empty === 1 ? "a rest day" : "rest days"}.`;
+    return `${selected.length} days, ${count}, in order. Order and gaps kept, no dates.${rest}`;
+  }
   const windows = stops.map((s) => s.timeWindow).filter((w) => w !== null);
   const first = windows[0];
   const last = windows[windows.length - 1];
@@ -48,50 +107,99 @@ function includedSummary(stops: SavedStop[]): string {
   return `${count}, ${toClockRange(first.start, last.end)}. Order and gaps kept, no dates.`;
 }
 
+/**
+ * The name the dialog offers — the day, or the count, and the trip.
+ *
+ * A default worth keeping is one you can accept without thinking. It follows
+ * the selection until the moment the reader types, and then it stops: a default
+ * that overwrites what somebody has typed is not a default.
+ */
+function defaultName(selected: KeepDayCandidate[], all: KeepDayCandidate[], tripName: string): string {
+  if (selected.length === 1) {
+    const only = all.findIndex((d) => d.dayId === selected[0]!.dayId);
+    return `Day ${only + 1} of ${tripName}`;
+  }
+  return `${selected.length} days of ${tripName}`;
+}
+
 export function KeepDayDialog({
   open,
   onOpenChange,
   tripId,
   dayId,
-  dayIndex,
   tripName,
-  stops,
+  days,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tripId: string;
+  /** The day the pennant was clicked on — the anchor, selected when this opens. */
   dayId: string;
-  dayIndex: number;
   tripName: string;
-  stops: SavedStop[];
+  /** Every day of the trip, in trip order — what the picker offers. */
+  days: KeepDayCandidate[];
   onSaved?: (name: string) => void;
 }) {
   const nameId = useId();
   const includedId = useId();
+  const daysId = useId();
   const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A default worth keeping is one you can accept without thinking: the day
-  // and the trip it came from. Reset on every open so a dialog reopened for a
-  // different day does not offer the previous day's name.
+  // **Selection is kept in TRIP ORDER, never click order.** The array's order
+  // becomes each stop's `dayIndex` (`stopsForDays`), so it decides what the
+  // Playbook's day 1 is — and the picker is a calendar strip, which can show
+  // that a day is chosen but cannot show when it was chosen. Honouring click
+  // order would make two identical-looking selections produce two different
+  // Playbooks. Reordering days is not a feature M23 ships.
+  const selected = days.filter((d) => selectedIds.includes(d.dayId));
+
+  // Reset on every open, so a dialog reopened on a different day does not offer
+  // the previous day's selection or its name.
   useEffect(() => {
     if (open) {
-      setName(`Day ${dayIndex + 1} of ${tripName}`);
+      setSelectedIds([dayId]);
+      setNameTouched(false);
       setError(null);
     }
-  }, [open, dayIndex, tripName]);
+  }, [open, dayId]);
+
+  // The name follows the selection until the reader types. `nameTouched` is the
+  // whole of that rule: after it flips, nothing here writes to `name` again.
+  useEffect(() => {
+    if (!open || nameTouched) return;
+    setName(defaultName(days.filter((d) => selectedIds.includes(d.dayId)), days, tripName));
+  }, [open, nameTouched, selectedIds, days, tripName]);
+
+  // Nothing to save is the WHOLE selection being empty — one blank day among
+  // three is a rest day and is perfectly keepable. `saveDay` draws the same
+  // line on the server, which is the boundary that actually decides.
+  const nothingToSave = selected.length === 0 || selected.every((d) => d.stops.length === 0);
+
+  function toggle(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
+    );
+  }
 
   async function save() {
     const trimmed = name.trim();
+    if (selected.length === 0) {
+      setError("Pick at least one day to keep.");
+      return;
+    }
     if (trimmed === "") {
       setError("Give it a name you'll recognise later.");
       return;
     }
     setBusy(true);
     setError(null);
-    const result = await createSavedDay({ name: trimmed, tripId, dayId });
+    // Trip order, from `selected` — see the note where it is derived.
+    const result = await createSavedDay({ name: trimmed, tripId, dayIds: selected.map((d) => d.dayId) });
     setBusy(false);
     if (!result.ok) {
       setError(result.error.message);
@@ -102,7 +210,7 @@ export function KeepDayDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Keep this day">
+    <Dialog open={open} onOpenChange={onOpenChange} title={selected.length > 1 ? "Keep these days" : "Keep this day"}>
       <div className="flex flex-col gap-3">
         <FormField id={nameId} label="Name">
           {/* Enter saves. This dialog opens with the name already filled in
@@ -114,17 +222,44 @@ export function KeepDayDialog({
           <Input
             id={nameId}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setNameTouched(true);
+              setName(e.target.value);
+            }}
             onKeyDown={submitOnEnter(() => {
-              if (busy || stops.length === 0) return;
+              if (busy || nothingToSave) return;
               void save();
             })}
             placeholder="e.g. A day in Nakameguro"
           />
         </FormField>
+        <FormField id={daysId} label="Days">
+          {/* A strip of the trip's days, each one a toggle. NOT a range — see
+              the header. The anchor day arrives selected, so the one-day keep
+              is untouched; every other day is one click away and they need not
+              be adjacent. `aria-pressed` rather than checkboxes because these
+              are buttons that change what the dialog is about, and a screen
+              reader should hear the state on the control itself. */}
+          <div id={daysId} className="flex flex-wrap gap-1.5" role="group" aria-label="Days to keep">
+            {days.map((day, index) => {
+              const on = selectedIds.includes(day.dayId);
+              return (
+                <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
+                  <span className="font-medium">Day {index + 1}</span>
+                  <span className="opacity-80">
+                    {day.date === null ? "" : `${formatTripDate(day.date)} · `}
+                    {day.stops.length === 0
+                      ? "no stops"
+                      : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
+                  </span>
+                </ToggleChip>
+              );
+            })}
+          </div>
+        </FormField>
         <FormField id={includedId} label="What's included">
           <Text as="span" id={includedId} className="text-sm text-ink">
-            {includedSummary(stops)}
+            {includedSummary(selected)}
           </Text>
         </FormField>
         <Text as="span" className="text-xs text-slate">
@@ -143,7 +278,7 @@ export function KeepDayDialog({
         <Button
           type="button"
           variant="primary"
-          disabled={busy || stops.length === 0}
+          disabled={busy || nothingToSave}
           onClick={() => void save()}
         >
           Save

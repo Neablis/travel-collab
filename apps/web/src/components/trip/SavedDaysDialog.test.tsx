@@ -20,6 +20,7 @@ const saved: SavedDay = {
   savedDayId: "3c5e7f90-2222-4333-8444-555566667777",
   ownerId: "dev-alice",
   name: "A day in Nakameguro",
+  dayCount: 1,
   stops: [
     {
       title: "Coffee",
@@ -30,6 +31,7 @@ const saved: SavedDay = {
       kind: "planned",
       tags: [],
       cost: null,
+      dayIndex: 0,
     },
     {
       title: "Dinner",
@@ -40,6 +42,7 @@ const saved: SavedDay = {
       kind: "planned",
       tags: [],
       cost: null,
+      dayIndex: 0,
     },
   ],
   // M11b PR1's three new `SavedDay` fields. This fixture is a typed literal,

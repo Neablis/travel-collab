@@ -315,6 +315,23 @@ export function Board({
   // which would each only "see" a single city and could never collide.
   const accents = useMemo(() => dayAccents(days.map((d) => d.city)), [days]);
 
+  /**
+   * Every day of the trip as the Keep-a-day picker needs it (M23 link 4).
+   *
+   * One pass over the trip, shared by every pennant — the alternative was
+   * `stopsForDay` per flag, which is N passes over every activity to build N
+   * copies of the same list.
+   */
+  const keepCandidates = useMemo(
+    () =>
+      trip.days.map((day) => ({
+        dayId: day.dayId,
+        date: day.date,
+        stops: stopsForDay(trip, day.dayId) ?? [],
+      })),
+    [trip],
+  );
+
   // The monitor reads `trip` and `callbacks` through a ref rather than closing
   // over them, so its effect below can have an empty dependency list and
   // register exactly once for the lifetime of the Board. That is not a
@@ -462,10 +479,18 @@ export function Board({
             // what said so, by waiting 90 seconds for a button nothing
             // rendered.
             //
-            // The stops come from this day's own row, so what gets kept is
-            // exactly what is drawn above it — the same reading TimelineLens
+            // The stops come from the trip's own rows, so what gets kept is
+            // exactly what is drawn above them — the same reading TimelineLens
             // did, and the reason this is a `Board` concern rather than a
             // `Column` one: `stopsForDay` needs the whole `TripDetail`.
+            //
+            // **Every day travels, not just this one** (M23 link 4). The
+            // pennant is still about the day it sits on, and the dialog opens
+            // with that day selected — but its picker offers the whole trip, so
+            // a Playbook can span several days that need not be adjacent. Built
+            // once above the loop rather than per flag: it is the same list for
+            // every day, and rebuilding it N times would be N passes over every
+            // activity in the trip.
             keepFlag={
               readOnly ? undefined : (
                 <KeepDayFlag
@@ -474,7 +499,7 @@ export function Board({
                   tripId={trip.tripId}
                   dayId={day.dayId}
                   tripName={trip.name}
-                  stops={stopsForDay(trip, day.dayId) ?? []}
+                  days={keepCandidates}
                 />
               )
             }
