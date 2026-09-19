@@ -248,13 +248,41 @@ export function KeepDayDialog({
               be adjacent. `aria-pressed` rather than checkboxes because these
               are buttons that change what the dialog is about, and a screen
               reader should hear the state on the control itself. */}
-          <div id={daysId} className="flex flex-wrap gap-1.5" role="group" aria-label="Days to keep">
+          {/* **A grid, so every day is the same width and the same height.**
+              Mitchell, preview feedback on #192: *"Make these a Table, they
+              should fit the longest text, but also all be aligned in height and
+              width"*. `flex-wrap` sized each chip to its own label, so a row
+              lined up on nothing — "Day 1 / no stops" next to "Day 12 / Sep 14
+              · 6 stops".
+              Implemented as a CSS grid rather than a real `<table>`: these are
+              toggle buttons in a `role="group"`, and wrapping them in table
+              semantics would tell a screen reader they are tabular data. The
+              grid gives the alignment the feedback is about; the roles stay
+              honest.
+              **Two columns, three from `sm` up — a fixed count rather than an
+              `auto-fill` track.** The obvious spelling,
+              `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`, is an
+              arbitrary Tailwind value and `check-color-wall` refuses those
+              (design-system.md: tokens only). It was right to: the dialog is
+              `max-w-md`, so the track count was never really responsive to
+              anything but a width this control already knows. Three columns in
+              a 28rem dialog is ~8rem a cell, which fits the longest label this
+              can produce — a date, a separator and a two-digit stop count at
+              `text-xs` — and two columns below `sm` keeps that true on a phone.
+              Equal `1fr` columns give the width half of the ask; grid items
+              stretch by default, so the heights agree without being asked. */}
+          <div
+            id={daysId}
+            className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+            role="group"
+            aria-label="Days to keep"
+          >
             {days.map((day, index) => {
               const on = selectedIds.includes(day.dayId);
               return (
                 <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
-                  <span className="font-medium">Day {index + 1}</span>
-                  <span className="opacity-80">
+                  <span className="font-medium whitespace-nowrap">Day {index + 1}</span>
+                  <span className="whitespace-nowrap opacity-80">
                     {day.date === null ? "" : `${formatTripDate(day.date)} · `}
                     {day.stops.length === 0
                       ? "no stops"
