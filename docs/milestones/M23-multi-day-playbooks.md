@@ -497,6 +497,44 @@ from defect 3: M12 adds reviews, ratings, reporting and moderation to **several
 surfaces**, and if its gate boxes name one of them each, it will ship the same
 way this milestone nearly did.
 
+## 2026-09-19 (later still) — Mitchell's preview feedback on the Keep dialog
+
+Three toolbar threads on #192, all on the one dialog link 4 built, all about
+what the control *says* rather than what it does. Worth recording together
+because they point the same way: the picker was built as the feature and
+presented as the feature, and it is neither — it is an option on a dialog whose
+ordinary answer is one day.
+
+1. **"Make these a Table ... fit the longest text, but also all be aligned in
+   height and width."** The strip was `flex-wrap` with each chip sized to its
+   own label, so a row lined up on nothing. It is a CSS grid now, with
+   `ToggleChip` filling its cell. A grid rather than a real `<table>`: these are
+   toggle buttons in a `role="group"`, and table semantics would tell a screen
+   reader they are tabular data. The alignment is the ask; the roles stay
+   honest.
+2. **"Can we make selecting more days the extra experience? ... a button saying
+   'Do you want to add more days?' and clicking it adds the calendar."** The
+   picker is collapsed now and that button reveals it. Collapsed, the one-day
+   keep is the dialog M11 shipped plus one line — which is the milestone's own
+   rule (*"one day stays the ordinary case; the single-day call must not become
+   harder"*) applied to the thing on screen rather than to the number of clicks.
+   It is absent on a one-day trip, and re-collapses on every reopen: the dialog
+   is mounted once and reused for every pennant.
+3. **"Drop the 'Order and gaps kept, no dates'."** Inherited from the design
+   shell's placeholder. It describes the storage model, not the day being kept —
+   every Playbook keeps order and drops dates, so the sentence read identically
+   on every keep anybody could ever make. What is left is only what varies: how
+   many days, how many stops, the clock range when there is one, which days are
+   rest days.
+
+**The pattern across all three:** every one is the surface over-stating itself.
+A grid that implied the chips were a table's worth of data, a picker that
+implied multi-day was the point, and a sentence that implied it was telling you
+something about *this* day. The defects the walk found (above) were surfaces
+speaking in the singular about a sequence; these are a surface speaking loudly
+about an option. Both are the same failure mode with the volume knob turned
+different ways, and neither is a thing `pnpm check` can see.
+
 ## Deliberately not here
 
 - **Reviews and ratings.** M12's, and the whole argument for running this first

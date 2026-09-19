@@ -50,7 +50,7 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
 
   // The dialog describes the real day rather than offering a field that
   // changes nothing, and says plainly that saved days are private.
-  await expect(page.getByText(/stop.*Order and gaps kept, no dates\./)).toBeVisible();
+  await expect(page.getByText(/^\d+ stops?, .*\.$/)).toBeVisible();
   await expect(page.getByText(/Saved days are private to you/)).toBeVisible();
 
   // A saved day, not a trip — no `[e2e]` prefix (global.teardown.ts only

@@ -39,6 +39,17 @@ import { formatTripDate } from "@/lib/formatDate";
 // not become harder"). What is new is a strip of the trip's days underneath it,
 // where any other day can be toggled in.
 //
+// **And the strip is behind a button.** Mitchell, preview feedback on #192:
+// *"can we make selecting more days the extra experience? Meaning, theres a
+// button saying 'Do you want to add more days?' and clicking it adds the
+// calendar"*. The picker shipped expanded, which put a grid of every day of the
+// trip between the name field and the Save button for the case that is almost
+// always what somebody means — keeping the one day they clicked the pennant on.
+// Collapsed, the one-day dialog is the dialog M11 shipped plus one line; the
+// sequence is one click away and nothing about it is hidden once it is asked
+// for. It does not collapse again: re-hiding a strip that has three days
+// selected would conceal the thing the dialog is now about.
+//
 // **Toggles, NOT a range.** Mitchell, 2026-09-19: *"I would really prefer they
 // don't have to be sequential days in your trip ... you aren't selecting a
 // range."* Days 1, 3 and 5 of a trip make a perfectly good three-day Playbook —
@@ -82,6 +93,14 @@ export type KeepDayCandidate = {
  * true and still conceals that one of them is blank, and a rest day is a thing
  * you can mean — so it is said out loud, and the model keeps it (a gap in
  * `dayIndex`, counted by `dayCount`).
+ *
+ * **"Order and gaps kept, no dates." is gone** — Mitchell, preview feedback on
+ * #192: *"Drop the Order and gaps kept, no dates"*. It was inherited from the
+ * design shell's placeholder, and it describes the storage model rather than
+ * this day: every Playbook keeps order and drops dates, so the sentence is the
+ * same on every keep anybody will ever do and carries no information about the
+ * thing being kept. What is left is only what varies — how many days, how many
+ * stops, the clock range when there is one, and which days are rest days.
  */
 function includedSummary(selected: KeepDayCandidate[]): string {
   const stops = selected.flatMap((d) => d.stops);
@@ -98,13 +117,13 @@ function includedSummary(selected: KeepDayCandidate[]): string {
       empty === 0
         ? ""
         : ` ${empty === 1 ? "One day has" : `${empty} days have`} no stops — kept as ${empty === 1 ? "a rest day" : "rest days"}.`;
-    return `${selected.length} days, ${count}, in order. Order and gaps kept, no dates.${rest}`;
+    return `${selected.length} days, ${count}, in order.${rest}`;
   }
   const windows = stops.map((s) => s.timeWindow).filter((w) => w !== null);
   const first = windows[0];
   const last = windows[windows.length - 1];
-  if (first === undefined || last === undefined) return `${count}, in order. No dates.`;
-  return `${count}, ${toClockRange(first.start, last.end)}. Order and gaps kept, no dates.`;
+  if (first === undefined || last === undefined) return `${count}, in order.`;
+  return `${count}, ${toClockRange(first.start, last.end)}.`;
 }
 
 /**
@@ -147,6 +166,10 @@ export function KeepDayDialog({
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // The picker is opt-in — see the header. False on every open, including an
+  // open on a day whose dialog was expanded last time: the anchor day is the
+  // question being asked, and a strip of twelve days is not part of it.
+  const [showDays, setShowDays] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +186,7 @@ export function KeepDayDialog({
   useEffect(() => {
     if (open) {
       setSelectedIds([dayId]);
+      setShowDays(false);
       setNameTouched(false);
       setError(null);
     }
@@ -241,58 +265,78 @@ export function KeepDayDialog({
             placeholder="e.g. A day in Nakameguro"
           />
         </FormField>
-        <FormField id={daysId} label="Days">
-          {/* A strip of the trip's days, each one a toggle. NOT a range — see
-              the header. The anchor day arrives selected, so the one-day keep
-              is untouched; every other day is one click away and they need not
-              be adjacent. `aria-pressed` rather than checkboxes because these
-              are buttons that change what the dialog is about, and a screen
-              reader should hear the state on the control itself. */}
-          {/* **A grid, so every day is the same width and the same height.**
-              Mitchell, preview feedback on #192: *"Make these a Table, they
-              should fit the longest text, but also all be aligned in height and
-              width"*. `flex-wrap` sized each chip to its own label, so a row
-              lined up on nothing — "Day 1 / no stops" next to "Day 12 / Sep 14
-              · 6 stops".
-              Implemented as a CSS grid rather than a real `<table>`: these are
-              toggle buttons in a `role="group"`, and wrapping them in table
-              semantics would tell a screen reader they are tabular data. The
-              grid gives the alignment the feedback is about; the roles stay
-              honest.
-              **Two columns, three from `sm` up — a fixed count rather than an
-              `auto-fill` track.** The obvious spelling,
-              `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`, is an
-              arbitrary Tailwind value and `check-color-wall` refuses those
-              (design-system.md: tokens only). It was right to: the dialog is
-              `max-w-md`, so the track count was never really responsive to
-              anything but a width this control already knows. Three columns in
-              a 28rem dialog is ~8rem a cell, which fits the longest label this
-              can produce — a date, a separator and a two-digit stop count at
-              `text-xs` — and two columns below `sm` keeps that true on a phone.
-              Equal `1fr` columns give the width half of the ask; grid items
-              stretch by default, so the heights agree without being asked. */}
-          <div
-            id={daysId}
-            className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
-            role="group"
-            aria-label="Days to keep"
-          >
-            {days.map((day, index) => {
-              const on = selectedIds.includes(day.dayId);
-              return (
-                <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
-                  <span className="font-medium whitespace-nowrap">Day {index + 1}</span>
-                  <span className="whitespace-nowrap opacity-80">
-                    {day.date === null ? "" : `${formatTripDate(day.date)} · `}
-                    {day.stops.length === 0
-                      ? "no stops"
-                      : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
-                  </span>
-                </ToggleChip>
-              );
-            })}
-          </div>
-        </FormField>
+        {showDays ? (
+          <FormField id={daysId} label="Days">
+            {/* A strip of the trip's days, each one a toggle. NOT a range — see
+                the header. The anchor day arrives selected, so the one-day keep
+                is untouched; every other day is one click away and they need not
+                be adjacent. `aria-pressed` rather than checkboxes because these
+                are buttons that change what the dialog is about, and a screen
+                reader should hear the state on the control itself. */}
+            {/* **A grid, so every day is the same width and the same height.**
+                Mitchell, preview feedback on #192: *"Make these a Table, they
+                should fit the longest text, but also all be aligned in height and
+                width"*. `flex-wrap` sized each chip to its own label, so a row
+                lined up on nothing — "Day 1 / no stops" next to "Day 12 / Sep 14
+                · 6 stops".
+                Implemented as a CSS grid rather than a real `<table>`: these are
+                toggle buttons in a `role="group"`, and wrapping them in table
+                semantics would tell a screen reader they are tabular data. The
+                grid gives the alignment the feedback is about; the roles stay
+                honest.
+                **Two columns, three from `sm` up — a fixed count rather than an
+                `auto-fill` track.** The obvious spelling,
+                `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`, is an
+                arbitrary Tailwind value and `check-color-wall` refuses those
+                (design-system.md: tokens only). It was right to: the dialog is
+                `max-w-md`, so the track count was never really responsive to
+                anything but a width this control already knows. Three columns in
+                a 28rem dialog is ~8rem a cell, which fits the longest label this
+                can produce — a date, a separator and a two-digit stop count at
+                `text-xs` — and two columns below `sm` keeps that true on a phone.
+                Equal `1fr` columns give the width half of the ask; grid items
+                stretch by default, so the heights agree without being asked. */}
+            <div
+              id={daysId}
+              className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+              role="group"
+              aria-label="Days to keep"
+            >
+              {days.map((day, index) => {
+                const on = selectedIds.includes(day.dayId);
+                return (
+                  <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
+                    <span className="font-medium whitespace-nowrap">Day {index + 1}</span>
+                    <span className="whitespace-nowrap opacity-80">
+                      {day.date === null ? "" : `${formatTripDate(day.date)} · `}
+                      {day.stops.length === 0
+                        ? "no stops"
+                        : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
+                    </span>
+                  </ToggleChip>
+                );
+              })}
+            </div>
+          </FormField>
+        ) : (
+          days.length > 1 && (
+            /* **The ask, not a disclosure triangle.** It reads as a question
+               and answers with the picker, which is how the feedback put it —
+               and it is absent altogether on a one-day trip, where there is no
+               other day to add and the question would be a dead end.
+               `variant="secondary"` and full width: it sits between two form
+               fields, and a ghost button there reads as a hint rather than as
+               something to press. */
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => setShowDays(true)}
+            >
+              Do you want to add more days?
+            </Button>
+          )
+        )}
         <FormField id={includedId} label="What's included">
           <Text as="span" id={includedId} className="text-sm text-ink">
             {includedSummary(selected)}
