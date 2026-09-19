@@ -76,19 +76,23 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
 }
 
 /**
- * **`onNavigate` fires when a control here leaves the account sheet.**
+ * **This took an `onNavigate` prop until M26 link 1, and it is gone.**
  *
- * The sheet is a modal dialog, and `Change plan` is a real navigation out of
- * it (SPEC §29) — so without this the route changed underneath a dialog that
- * stayed open over the page it had just navigated to. Reported on the preview,
- * 2026-09-15: *"Clicking change plan should navigate to the plans, but also
- * close the sidebar"*.
+ * It existed solely to close the account Sheet: the Sheet was a modal dialog
+ * and `Change plan` is a real navigation out of it (SPEC §29), so without it
+ * the route changed underneath a dialog that stayed open over the page it had
+ * just navigated to (preview, 2026-09-15: *"Clicking change plan should
+ * navigate to the plans, but also close the sidebar"*). Account is a route now
+ * (§34.4) and there is nothing to close — a navigation is just a navigation.
+ * The defect it fixed cannot recur, because the container it was about no
+ * longer exists.
  *
- * A callback rather than a `router` call here: this component does not own the
- * sheet and must not decide it closes, and it is rendered in tests with no
- * sheet around it at all. Optional for exactly that reason.
+ * Otherwise this component **moved unchanged**: it still self-fetches rather
+ * than taking props, because it was mounted from the header on every route and
+ * threading a plan through every one of them would make an unrelated surface
+ * care about entitlements.
  */
-export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
+export function PlanSection() {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -181,10 +185,12 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
   const trialEnds = formatDate(billing.trialEndsAt);
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="plan-heading" data-testid="plan-section">
-      <Heading level={3} id="plan-heading">
-        Plan
-      </Heading>
+    // **No `<Heading>Plan</Heading>` and no `aria-labelledby` pointing at one.**
+    // The tab above says "Plan & usage" and the tab panel does the labelling
+    // (§34.4) — keeping both would be project rule 4 twice on one screen. The
+    // `<section>` stays for the testid and the grouping; it takes its
+    // accessible name from the panel that wraps it.
+    <section className="flex flex-col gap-3" data-testid="plan-section">
 
       <div className="flex flex-col gap-1.5 rounded-lg border border-hairline p-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -236,7 +242,6 @@ export function PlanSection({ onNavigate }: { onNavigate?: () => void } = {}) {
             href="/plans"
             className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="plan-change-link"
-            onClick={onNavigate}
           >
             Change plan
           </Link>

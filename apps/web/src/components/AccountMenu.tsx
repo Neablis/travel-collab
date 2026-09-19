@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { AccountSettingsSheet } from "@/components/account/AccountSettingsSheet";
 import { usePreferences } from "@/components/account/PreferencesProvider";
+import { useSessionUser, type SessionUser } from "@/components/account/useSessionUser";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { fetchIsAdmin, resetDemoData } from "@/lib/apiClient";
@@ -49,7 +49,6 @@ export function AccountMenu({
   onResetDemoData?: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -122,18 +121,25 @@ export function AccountMenu({
         </div>
         {/* M17. Task 8b.2 omitted this item rather than ship one that did
             nothing — the design's own "Your account" — and it has been absent
-            since, never a "not built yet" flash. It is real now: it opens the
-            account settings Sheet. Above Sign out, the design's order. */}
-        <Button
-          variant="ghost"
-          className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
-          onClick={() => {
-            setOpen(false);
-            setAccountOpen(true);
-          }}
+            since, never a "not built yet" flash. Above Sign out, the design's
+            order.
+
+            **A Link to a route since M26 link 1**, not a button that opens a
+            Sheet: account settings had reached six unrelated things in one
+            scroll, and SPEC §34.4 made it `/account` with three tabs. Styled
+            from `buttonVariants` for the same reason the console link below is
+            — a hand-spelled ghost look in a column of real ghost buttons is
+            how that one lost its hover state. */}
+        <Link
+          href="/account"
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "mt-1 h-auto w-full justify-start px-2.5 py-2 text-sm font-normal text-ink no-underline",
+          )}
+          onClick={() => setOpen(false)}
         >
           Your account
-        </Button>
+        </Link>
         {/* **The operator console's entry point** (M20 link 7). Rendered only
             for an operator, and **not on the phone at all** — the design says
             the console is not available there, entry point included, and a
@@ -187,14 +193,6 @@ export function AccountMenu({
           </Button>
         )}
       </Popover>
-      {/* Mounted only while open, deliberately: the Sheet reads preferences
-          through `useAccountPreferences`, which throws outside a provider, and
-          this menu is rendered bare in its own unit tests. Opening it is what
-          makes the provider a requirement, which is the honest place for that
-          requirement to bite. */}
-      {accountOpen && (
-        <AccountSettingsSheet open onOpenChange={setAccountOpen} email={email} />
-      )}
       {demoResetEnabled && (
         <Dialog
           open={resetConfirmOpen}
@@ -237,7 +235,6 @@ export function AccountMenu({
 }
 
 /** The session fields the header reads. `id` is always set by the `session` callback. */
-type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
 // AppHeader can't call next-auth's server-side `auth()` itself to hand this
 // component its props: `src/components` is UI, and the UI/server lint wall
@@ -319,24 +316,6 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 // to AccountMenuFor rather than mounting a second resolver — CodeRabbit caught
 // the first version doing precisely that, and the comment here claiming
 // otherwise was a lie the code did not keep.
-function useSessionUser() {
-  // `id` too, since M17: the display-name seam's last resort derives a handle
-  // from it (`displayNameFor`), and it is already on the session — the JWT
-  // `session` callback sets `session.user.id` on every call (authConfig.ts).
-  const [user, setUser] = useState<SessionUser | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getSession().then((session) => {
-      if (!cancelled) setUser(session?.user ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return user;
-}
 
 // The session-independent half: given a user, wire up the menu. Both entry
 // points below render this — HeaderSessionChrome with the user it already

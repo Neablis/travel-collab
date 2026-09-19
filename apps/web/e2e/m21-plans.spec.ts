@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { accountPanel, openAccountPage } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 
 // **M21's `plans` route, walked by a person** (SPEC §29, M21 link 5).
@@ -142,18 +143,26 @@ test.describe("M21 — what each plan is for, and what it costs", () => {
     expect(view.planVersionRef).toBe("free@v1");
   });
 
-  test("the account sheet sends Change plan here rather than expanding", async ({ page }) => {
+  // **This was scoped to `role="dialog"` and therefore FAILED rather than
+  // drifted** when M26 link 1 turned account settings into a route (SPEC
+  // §34.4). That is the good outcome: a spec scoped to a container that stops
+  // existing is a spec that tells you, where one scoped to the page would have
+  // kept passing against whatever happened to be on it.
+  //
+  // The round trip is the point, and it is longer now: Change plan reaches
+  // `/plans`, and Plans' back link returns to the tab it came from (§34.4,
+  // link 1e). A sheet could not have a back link, so this half is new.
+  test("the account page sends Change plan here, and Plans comes back to the tab", async ({ page }) => {
     await signInAs(page, newcomer("m21sheet"));
-    // The avatar menu's two buttons, named exactly as `m17-account-preferences`
-    // and `m20-entitlements` name them. A loose regex here timed out on the
-    // first run of this spec: "Account menu" and "Your account" both match
-    // `/your account/i` in a menu where only one of them is a menu item.
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Your account" }).click();
+    await openAccountPage(page, "plan");
 
-    const link = page.getByRole("dialog").getByTestId("plan-change-link");
+    const link = accountPanel(page).getByTestId("plan-change-link");
     await expect(link).toBeVisible();
     await link.click();
     await expect(page.getByTestId("plans-screen")).toBeVisible();
+
+    await page.getByTestId("plans-back-link").click();
+    await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Plan & usage" })).toHaveAttribute("aria-selected", "true");
   });
 });

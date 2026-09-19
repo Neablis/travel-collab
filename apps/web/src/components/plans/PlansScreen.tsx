@@ -388,6 +388,26 @@ export function PlansScreen() {
   return (
     <PageContainer>
       <div className="flex flex-col gap-5" data-testid="plans-screen">
+        {/* **The way back, and it points at the tab this route was reached
+            from** (SPEC §34.4: *"its back link now returns to Account → Plan &
+            usage"*; §34.3 gives the phone the same `‹ Account`). Until M26 link
+            1 this route had no way back at all except the browser's — the only
+            thing resembling one was the result panel's "Back to your trips",
+            which is a different act (you are done, go use it) offered at a
+            different moment.
+
+            A fixed href rather than `router.back()`: every CTA that reaches
+            here comes from Account → Plan & usage (`plan-change-link`) or from
+            a gate that wants you there next (the invite gate, the token gate),
+            so the tab is the right destination whatever the history stack says
+            — and `back()` from a bookmarked `/plans` leaves the app. */}
+        <Link
+          href="/account?tab=plan"
+          className="self-start text-sm text-brand no-underline hover:underline"
+          data-testid="plans-back-link"
+        >
+          &lsaquo; Account
+        </Link>
         <div className="flex flex-col gap-1">
           <Heading level={1}>Plans</Heading>
           {/* **The held plan, stated once, at the top** (§29's chooser). Held

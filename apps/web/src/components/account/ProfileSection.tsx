@@ -2,51 +2,43 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DistanceUnit, UpdateUserPreferences } from "@tc/contracts";
-import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
-import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SettingsCard, SettingsRow, SETTINGS_MEASURE } from "@/components/ui/settings-card";
 import { useAccountPreferences } from "./PreferencesProvider";
-import { PlanSection } from "./PlanSection";
-import { TokensSection } from "./TokensSection";
 
 const UNIT_OPTIONS = [
   { value: "km" as const, label: "Kilometres" },
   { value: "mi" as const, label: "Miles" },
 ];
 
-// SPEC §12's Account settings Sheet (C5/C6), modelled on the trip
-// `SettingsSheet` it sits beside in the app: sections, `SectionHeading`,
-// `FormField`, `Input`. Opened from the avatar menu's "Your account".
+// The Profile tab of `/account` (SPEC §34.4): who you are, and how the app
+// reads to you. **Lifted out of `AccountSettingsSheet` unchanged in substance**
+// — the commit-on-blur shape and every one of the PR-112 guards below came with
+// it, because re-implementing the move without them reintroduces the wipe bug
+// they fix. What changed is the presentation: §34.5's cards, label column and
+// content-sized controls instead of a stack of full-bleed `FormField`s.
 //
-// **Sign out is deliberately not here.** It stays in the avatar popover only —
-// SPEC §12: "Putting it in both was Rule 4."
+// **Sign out is deliberately not here**, and not anywhere on `/account`. It
+// stays in the avatar popover — SPEC §12, "putting it in both was Rule 4" — and
+// the design's own desktop `/account` artboard has none either. §34.4's "Sign
+// out sits below [the tabs]" is about the PHONE account screen, which is a task
+// screen with no avatar popover to hold it (§34.3). M26 link 1 records the
+// decision.
 //
-// Home airport is stored and shown; it does not yet drive anything. SPEC §12's
-// home-time-on-hover needs a timezone for the code and a `trip.tz` to compare
-// it against, and the app has neither — that box was amended out of M17's exit
-// gate on 2026-09-01 (see the milestone file). Collecting the code now is what
-// makes it a placed item rather than a blocked one.
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <Text as="span" className="mb-2.5 block text-xs font-semibold uppercase tracking-wider text-slate">
-      {children}
-    </Text>
-  );
-}
-
-export function AccountSettingsSheet({
-  open,
-  onOpenChange,
-  email,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** From the session, and read-only here — Identity owns it, the provider sets it. */
-  email: string;
-}) {
+// **Home time on hover is not here, and that is not an omission.** The artboard
+// draws it as a second Display row; it needs a timezone for the home airport
+// and a `trip.tz` to compare against, and the app has neither. It was amended
+// out of M17's exit gate on 2026-09-01 for that reason and stays a placed item
+// blocked on data. The design is ahead here, not this build behind.
+//
+// **There is no account-level currency**, and that was decided rather than
+// forgotten (M26 link 1). Every other field here is a property of the reader
+// with no per-trip counterpart; a currency is a property of where the trip
+// happens, and a trip already carries one (`SetTripCurrency`).
+export function ProfileSection({ email }: { email: string }) {
   const { preferences, loaded, save } = useAccountPreferences();
   const [name, setName] = useState(preferences.displayName ?? "");
   const [airport, setAirport] = useState(preferences.homeAirport ?? "");
@@ -70,9 +62,9 @@ export function AccountSettingsSheet({
   // and the provider replaces the whole object — so typing a name and then
   // flipping the distance unit saved the unit, pushed new preferences, and
   // wiped the half-typed name out of the box underneath the person's cursor.
-  // The pre-fetch case is the same defect from the other end: the Sheet seeds
-  // from the provider's DEFAULTS, so opening it before the first fetch lands
-  // showed empty fields and then overwrote whatever had been typed into them.
+  // The pre-fetch case is the same defect from the other end: this seeds from
+  // the provider's DEFAULTS, so mounting before the first fetch lands showed
+  // empty fields and then overwrote whatever had been typed into them.
   useEffect(() => {
     if (!editing.current.name) setName(preferences.displayName ?? "");
   }, [preferences.displayName]);
@@ -114,32 +106,21 @@ export function AccountSettingsSheet({
   }
 
   return (
-    <Sheet title="Your account" open={open} onOpenChange={onOpenChange}>
-      <div className="flex flex-col gap-5 pt-1">
-        {/* **Plan first**, as the design orders it (handoff `SPEC.md` §17.4):
-            what you hold, what you have used of it today, and your referral
-            code — then name and identity below. It loads its own data rather
-            than taking props, because this sheet is opened from the header on
-            every route and threading a plan through every one of them would
-            make an unrelated surface care about entitlements. */}
-        <PlanSection onNavigate={() => onOpenChange(false)} />
-        {/* **Tokens after plan, and for the same reason plan is first**: both
-            are things this account HOLDS, and what a token may do is decided by
-            the plan directly above it. A free account reads the two together —
-            the plan it is on, then the capability that plan does not include. */}
-        <TokensSection onNavigate={() => onOpenChange(false)} />
-        <div className="flex flex-col gap-4">
-          <FormField
-            id="account-display-name"
-            label="Your name"
-            description="What this app calls you — on the avatar menu and anywhere your name appears."
-            error={nameError}
-          >
+    <div className={`flex flex-col gap-4 ${SETTINGS_MEASURE}`}>
+      <SettingsCard heading="You">
+        <SettingsRow label="Your name" htmlFor="account-display-name">
+          {/* 240px, because a name is not a paragraph (§34.5: controls are
+              sized to their content). `w-full` inside the fixed box so it
+              shrinks with the measure on a narrow window rather than
+              overflowing it. */}
+          <div className="w-60 max-w-full">
             <Input
               id="account-display-name"
+              className="w-full"
               disabled={!loaded}
               value={name}
               placeholder="Your name"
+              aria-describedby={nameError === null ? undefined : "account-display-name-error"}
               onChange={(e) => {
                 editing.current.name = true;
                 setName(e.currentTarget.value);
@@ -168,40 +149,45 @@ export function AccountSettingsSheet({
                   setNameError(null);
                   return;
                 }
-                void commit("name", { displayName: next }, setNameError, () =>
-                  setName(stored ?? ""),
-                );
+                void commit("name", { displayName: next }, setNameError, () => setName(stored ?? ""));
               }}
             />
-          </FormField>
-
-          {/* Read-only, and deliberately not a FormField: the address comes
-              from the identity provider and this app has no way to change it,
-              so there is nothing for a <label for> to point at. A disabled
-              Input would offer an edit that does not exist. Same
-              label-over-DataText shape the trip sheet's read-only rows use. */}
-          <div className="flex flex-col gap-1.5">
-            <Text as="span" className="text-xs text-slate">
-              Email
-            </Text>
-            <DataText size="base" className="text-ink">
-              {email === "" ? "Not provided by your sign-in" : email}
-            </DataText>
+            {nameError !== null && (
+              <Text id="account-display-name-error" variant="muted" className="mt-1.5 text-danger-ink">
+                {nameError}
+              </Text>
+            )}
           </div>
+        </SettingsRow>
 
-          <FormField
-            id="account-home-airport"
-            label="Home airport"
-            hint="Three letters, like SFO. Leave empty if you would rather not say."
-            error={airportError}
-          >
+        {/* Read-only, and deliberately not labelled with a `<label for>`: the
+            address comes from the identity provider and this app has no way to
+            change it, so there is nothing to point at. A disabled Input would
+            offer an edit that does not exist. The artboard says "Signed in as"
+            rather than "Email" for the same reason — it states a fact instead
+            of naming a field. */}
+        <SettingsRow label="Signed in as">
+          <DataText size="base" className="text-ink">
+            {email === "" ? "Not provided by your sign-in" : email}
+          </DataText>
+        </SettingsRow>
+
+        <SettingsRow
+          label="Home airport"
+          htmlFor="account-home-airport"
+          description="Where a trip starts from, when you have not said otherwise. Three letters, like SFO — leave it empty if you would rather not say."
+        >
+          {/* 96px: three characters, and the artboard's own width. */}
+          <div className="w-24">
             <Input
               id="account-home-airport"
+              className="w-full"
               disabled={!loaded}
               value={airport}
               placeholder="SFO"
               maxLength={3}
               autoCapitalize="characters"
+              aria-describedby={airportError === null ? undefined : "account-home-airport-error"}
               onChange={(e) => {
                 editing.current.airport = true;
                 setAirport(e.currentTarget.value);
@@ -232,16 +218,24 @@ export function AccountSettingsSheet({
                 );
               }}
             />
-          </FormField>
-        </div>
+          </div>
+          {airportError !== null && (
+            <Text id="account-home-airport-error" variant="muted" className="mt-1.5 text-danger-ink">
+              {airportError}
+            </Text>
+          )}
+        </SettingsRow>
+      </SettingsCard>
 
-        <div>
-          <SectionHeading>Display</SectionHeading>
-          <div className="flex items-center justify-between gap-3">
-            <Text variant="secondary">Distance</Text>
-            {/* Account scope, not trip scope — "a trip does not have a unit, a
-                person does" (SPEC §12). Saved immediately: there is one choice
-                of two and nothing to blur out of. */}
+      <SettingsCard heading="Display">
+        <SettingsRow
+          label="Distance"
+          description="How far apart two stops are, everywhere it is shown."
+        >
+          {/* Account scope, not trip scope — "a trip does not have a unit, a
+              person does" (SPEC §12). Saved immediately: there is one choice
+              of two and nothing to blur out of. */}
+          <div className="flex flex-col items-start gap-2">
             <SegmentedControl<DistanceUnit>
               aria-label="Distance units"
               value={preferences.distanceUnit}
@@ -249,7 +243,7 @@ export function AccountSettingsSheet({
               onValueChange={(distanceUnit) => {
                 // Not before the first fetch resolves: until then
                 // `preferences` is the provider's DEFAULTS, and saving from
-                // that state would write a default over a value this Sheet has
+                // that state would write a default over a value this screen has
                 // never seen. The text fields are disabled for the same window;
                 // this control has no `disabled` prop, so the guard lives here
                 // rather than widening a shared primitive for one caller.
@@ -265,17 +259,17 @@ export function AccountSettingsSheet({
                 })();
               }}
             />
+            {unitError !== null && (
+              // `text-danger-ink`, the same token `FormField` renders its own
+              // error with — not a hand-rolled colour. The colour wall exists to
+              // catch exactly the arbitrary value this line first carried.
+              <Text variant="muted" className="text-danger-ink">
+                {unitError}
+              </Text>
+            )}
           </div>
-          {unitError !== null && (
-            // `text-danger-ink`, the same token `FormField` renders its own
-            // error with — not a hand-rolled colour. The colour wall exists to
-            // catch exactly the arbitrary value this line first carried.
-            <Text variant="muted" className="mt-2 text-danger-ink">
-              {unitError}
-            </Text>
-          )}
-        </div>
-      </div>
-    </Sheet>
+        </SettingsRow>
+      </SettingsCard>
+    </div>
   );
 }

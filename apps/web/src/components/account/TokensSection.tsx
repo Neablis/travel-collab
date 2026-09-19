@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
-import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
@@ -67,7 +66,10 @@ export function tokenState(token: ApiToken, now: Date = new Date()): "live" | "e
 const STATE_LABEL = { live: "Active", expired: "Expired", revoked: "Revoked" } as const;
 const STATE_BADGE = { live: "success", expired: "warning", revoked: "neutral" } as const;
 
-export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
+// **This took an `onNavigate` prop until M26 link 1, and it is gone** — it
+// existed only to close the account Sheet behind a navigation to `/plans`.
+// Account is a route now (§34.4), so there is no container to close.
+export function TokensSection() {
   const [tokens, setTokens] = useState<ApiToken[] | null>(null);
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
@@ -199,10 +201,9 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
   if (tokens === null || entitled === null) return null;
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="tokens-heading" data-testid="tokens-section">
-      <Heading level={3} id="tokens-heading">
-        API tokens
-      </Heading>
+    // No `<Heading>API tokens</Heading>` and no `aria-labelledby`: the tab says
+    // it and the tab panel labels this (§34.4, project rule 4).
+    <section className="flex flex-col gap-3" data-testid="tokens-section">
       <Text variant="secondary" className="text-xs">
         A token lets a program you write read and change your trips. Treat one like a password.
       </Text>
@@ -218,7 +219,6 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
             href="/plans"
             className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="tokens-upgrade-link"
-            onClick={onNavigate}
           >
             See plans
           </Link>

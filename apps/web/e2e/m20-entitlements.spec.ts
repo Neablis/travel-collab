@@ -3,7 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
-import { openAssistantRail } from "./helpers";
+import { accountPanel, openAccountPage, openAssistantRail } from "./helpers";
 
 // **M20's exit gate, walked** — *"An account knows what it may do."*
 //
@@ -252,9 +252,7 @@ test.describe("M20 — an account knows what it may do", () => {
     await expect(operator.getByRole("heading", { name: "Operator console", level: 1 })).toBeVisible();
 
     // The provider trap: this throws without `PreferencesProvider`.
-    await operator.getByRole("button", { name: "Account menu" }).click();
-    await operator.getByRole("button", { name: "Your account" }).click();
-    await expect(operator.getByRole("dialog")).toBeVisible();
+    await openAccountPage(operator);
 
     await operator.context().close();
   });
@@ -263,13 +261,14 @@ test.describe("M20 — an account knows what it may do", () => {
   // (M20 link 5's display half and link 8's missing half; gate boxes added
   // 2026-09-14). Before this the sheet had no plan surface at all, so every
   // entitlement the milestone built was invisible to the person holding it.
-  test("the account sheet shows the plan, the meters and a referral code", async ({ page }) => {
+  test("the account page shows the plan, the meters and a referral code", async ({ page }) => {
     const who = newcomer("m20plan");
     await signInAs(page, who);
 
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Your account" }).click();
-    const sheet = page.getByRole("dialog");
+    // `Plan & usage` is a tab of `/account` since M26 link 1 (SPEC §34.4); this
+    // used to be a section of a modal Sheet.
+    await openAccountPage(page, "plan");
+    const sheet = accountPanel(page);
     await expect(sheet.getByTestId("plan-held")).toContainText("free");
 
     // **The meters read the ceilings actually in force, not the held
@@ -283,10 +282,9 @@ test.describe("M20 — an account knows what it may do", () => {
     // **Looking is not spending.** Re-opening must not move the used count —
     // a meter that charged the counter it reports would be a quota bug.
     const before = await sheet.getByTestId("meter-questions").textContent();
-    await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Your account" }).click();
-    await expect(page.getByRole("dialog").getByTestId("meter-questions")).toHaveText(before ?? "");
+    await page.goBack();
+    await openAccountPage(page, "plan");
+    await expect(accountPanel(page).getByTestId("meter-questions")).toHaveText(before ?? "");
 
     // **Link 8's whole premise: a code you can actually issue** — and M21 link
     // 5 narrowed WHO sees the offer: *"a `free` or trial-only account has no
@@ -297,7 +295,7 @@ test.describe("M20 — an account knows what it may do", () => {
     // The row is therefore absent here and the code is minted below, on an
     // account that actually holds something. Both halves are the gate box: it
     // asks that a code be reachable, not that it be offered to everyone.
-    await expect(page.getByRole("dialog").getByTestId("referral-row")).toBeHidden();
+    await expect(accountPanel(page).getByTestId("referral-row")).toBeHidden();
   });
 
   // **The other half of link 8, after M21 narrowed the offer.** An account that
@@ -320,9 +318,8 @@ test.describe("M20 — an account knows what it may do", () => {
     expect(granted.status(), await granted.text()).toBe(201);
     await operator.context().close();
 
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Your account" }).click();
-    const sheet = page.getByRole("dialog");
+    await openAccountPage(page, "plan");
+    const sheet = accountPanel(page);
     await expect(sheet.getByTestId("referral-row")).toBeVisible();
     await sheet.getByRole("button", { name: "Create a code" }).click();
     await expect(sheet.getByTestId("referral-code")).not.toBeEmpty();
@@ -344,14 +341,13 @@ test.describe("M20 — an account knows what it may do", () => {
   // M20's gate with nothing carrying it; naming where it went is the point of
   // this comment surviving the test.
   //
-  // What is left here is what the sheet still owes: it must send a person to
+  // What is left here is what the account page still owes: it must send a person to
   // that route rather than growing a chooser again.
-  test("the sheet offers a way to change plan, and does not try to be one", async ({ page }) => {
+  test("the account page offers a way to change plan, and does not try to be one", async ({ page }) => {
     await signInAs(page, newcomer("m20chooser"));
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Your account" }).click();
+    await openAccountPage(page, "plan");
 
-    const sheet = page.getByRole("dialog");
+    const sheet = accountPanel(page);
     await expect(sheet.getByTestId("plan-change-link")).toBeVisible();
     // §29's defect was the reflow: an expanding region between the plan card
     // and the meters pushed the meters, the banner and the referral row down.
@@ -372,7 +368,7 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.setViewportSize({ width: 411, height: 823 });
     await operator.goto("/");
     await operator.getByRole("button", { name: "Account menu" }).click();
-    await expect(operator.getByRole("button", { name: "Your account" })).toBeVisible();
+    await expect(operator.getByRole("link", { name: "Your account" })).toBeVisible();
     // Present in the DOM (the link is rendered, then hidden by the breakpoint)
     // and not VISIBLE, which is the thing a person experiences.
     await expect(operator.getByRole("link", { name: "Operator console" })).toBeHidden();

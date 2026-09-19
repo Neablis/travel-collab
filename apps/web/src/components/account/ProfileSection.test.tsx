@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
-import { AccountSettingsSheet } from "./AccountSettingsSheet";
+import { ProfileSection } from "./ProfileSection";
 import { PreferencesProvider } from "./PreferencesProvider";
 
 // The server is what normalizes `homeAirport` (the contract carries no
@@ -66,10 +66,16 @@ function pendFetch() {
   };
 }
 
+// **These tests moved with the fields, not with the container.** They were
+// `AccountSettingsSheet.test.tsx` until M26 link 1 turned the Sheet into the
+// `/account` route; every claim below is about a field's behaviour and survived
+// the move unchanged. That is the point of migrating rather than rewriting —
+// the PR-112 guards at the bottom are the reason this file exists, and a fresh
+// file would have been written without them.
 function mount() {
   return render(
     <PreferencesProvider>
-      <AccountSettingsSheet open onOpenChange={() => {}} email="sam@example.com" />
+      <ProfileSection email="sam@example.com" />
     </PreferencesProvider>,
   );
 }
@@ -84,13 +90,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("AccountSettingsSheet", () => {
+describe("ProfileSection", () => {
   it("shows the signed-in email as a row that cannot be edited", async () => {
     mount();
     expect(await screen.findByText("sam@example.com")).toBeTruthy();
     // Identity owns the address; offering an edit that does not exist is the
-    // thing a disabled input would do.
-    expect(screen.queryByRole("textbox", { name: /email/i })).toBeNull();
+    // thing a disabled input would do. The row is labelled "Signed in as"
+    // rather than "Email" since §34.5 — it states a fact instead of naming a
+    // field — so the query covers both spellings and the claim is unchanged.
+    expect(screen.queryByRole("textbox", { name: /signed in as|email/i })).toBeNull();
   });
 
   it("saves a name on blur, once", async () => {
@@ -189,7 +197,7 @@ describe("AccountSettingsSheet", () => {
 
       await userEvent.click(await screen.findByRole("radio", { name: "Miles" }));
       // Saving here would write the provider's DEFAULTS over a stored value
-      // this Sheet has never seen.
+      // this screen has never seen.
       expect(updatePreferencesMock).not.toHaveBeenCalled();
 
       release();

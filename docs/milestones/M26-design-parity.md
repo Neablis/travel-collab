@@ -231,17 +231,42 @@ late-resolving-clipboard fix the design does not have). What is missing:
 **1e. Plans' back link** points at `/account?tab=plan`. It has none today —
 `PlansScreen.tsx:437` says *"Back to your trips"*.
 
-**Two things to settle before writing code, not after.**
+**Two things to settle before writing code, not after. BOTH ARE NOW SETTLED —
+2026-09-19, when link 1 opened.**
 
-- **Sign out.** SPEC §12 put it only in the popover on rule-4 grounds; §34.4
-  says *"Sign out sits below [the tabs]"*. But the design's **desktop**
-  `/account` has no sign-out — only the **phone** screen does. Pick one and
-  record it.
-- **An account-level currency.** `KI-2026-09-17-a`'s fix sketch proposes a
-  *Preferences* tab including currency; §34.4's three tabs do not have one, and
-  currency is per-trip today (`SetTripCurrency`). The design is newer and wins on
-  the tab list, but it never answered the currency question. **Answer it or
-  record it as unanswered** — do not carry it in silently.
+- **Sign out — DECIDED: the popover only on desktop; the phone account screen
+  carries its own.** So **`/account` has no Sign out**, and this is not an
+  omission. Three things agree and the fourth was a misreading: SPEC §12 put it
+  in the popover alone *"on rule-4 grounds"*; the design's **desktop** `/account`
+  artboard has no sign-out anywhere in it (checked — `isAccountRoute`, no match);
+  and §34.4's *"Sign out sits below [the tabs]"* sits in a paragraph whose
+  subject is **the phone account screen**, which needs one because §34.3 makes
+  it a task screen the tab bar steps aside for, with no avatar popover to hold
+  it. Putting it in both is project rule 4 twice on one account. Wave 2 link 11
+  builds the phone half; it is the only place this decision adds a control.
+- **An account-level currency — DECIDED: no, and not deferred.** Currency stays
+  **per trip** (`SetTripCurrency`, and `TripMoneySettings` is where it is set).
+  `KI-2026-09-17-a`'s sketch proposed a *Preferences* tab holding it; §34.4's
+  three tabs, which are newer, do not have one. The tab list is not the real
+  argument though — this is: **every other Profile field is a property of the
+  reader and has no per-trip counterpart.** Distance units, home airport and
+  the name are true of you wherever you are. A currency is a property of *where
+  the trip happens*, and a trip already carries one. An account-level default
+  would therefore not replace the per-trip value, it would sit above it and owe
+  a precedence rule — "use the trip's, unless" — which nothing in the product
+  has asked for and which no artboard draws. **If it is ever wanted, it is a
+  new field with an override rule, not a move of the existing one.**
+  `KI-2026-09-17-a` is closed by this link on its account-settings complaint;
+  the currency line in its fix sketch is answered here rather than inherited.
+
+**And what link 1 does NOT build, written down before the code (the guideline's
+step 3).** The Profile artboard draws a second Display row — **Home time on
+hover** — and this link does not build it. It is not a styling gap: it needs a
+timezone for the home airport and a `trip.tz` to compare against, and the app
+has neither. That box was amended out of **M17's** exit gate on 2026-09-01 for
+exactly this reason. It stays where it is — a placed item blocked on data, not
+an M26 omission — and the tab ships with the one Display row the build can
+honestly render. The design is ahead here, not the build behind.
 
 ## Link 2 — Discover is re-sorted by kind of decision (§33.2)
 
@@ -984,9 +1009,11 @@ side of.
 Each of these is a decision, not a task. They are listed here so a build does
 not resolve one by accident and call it an implementation detail.
 
-**Two of the original nine were answered on 2026-09-19 and are kept here struck
-rather than deleted, because both were load-bearing enough that a later reader
-will want to know they were asked.**
+**Four of the original nine are now answered and are kept here struck rather
+than deleted, because each was load-bearing enough that a later reader will want
+to know it was asked.** Two were answered by Mitchell when the milestone was
+scoped; two more (3 and 4) were settled when link 1 opened, which is the rule
+this milestone set itself — settle it *before* the code, and write down why.
 
 1. ~~**Does the Map rail get a hover state at all?**~~ **ANSWERED — yes.**
    Mitchell: *"the idea being is if you want more info you can move your mouse
@@ -999,10 +1026,15 @@ will want to know they were asked.**
    owed when that link opens, against a phone that otherwise works. The
    substance — a phone treatment of Plan, or an amendment to §10 — is still to
    be written down, and link 13 says which file each lands in.
-3. **Sign out: popover, account page, or both?** §12 and §34.4 disagree, and the
-   design's own desktop and phone screens disagree with each other.
-4. **Is there an account-level currency?** `KI-2026-09-17-a` raised it; §34.4's
-   three tabs have no room for it; currency is per-trip today.
+3. ~~**Sign out: popover, account page, or both?**~~ **ANSWERED — the popover on
+   desktop, and the phone account screen's own.** `/account` has no Sign out.
+   The desktop artboard has none either; §34.4's sentence is about the phone
+   screen, which has no popover to hold it. Link 1, and the reasoning is there.
+4. ~~**Is there an account-level currency?**~~ **ANSWERED — no, and not
+   deferred.** Currency stays per-trip. Every other Profile field is a property
+   of the reader with no per-trip counterpart; a currency is a property of where
+   the trip happens and the trip already carries one, so an account default
+   would owe a precedence rule nothing has asked for. Link 1.
 5. **Is the day chip rail on the Map tab?** §24 reversed §12 without re-arguing
    the map case, and the build's reason for hiding it is the one §12 acted on.
 6. **Does the trip status badge stay?** D3, unchanged for three weeks. It reads

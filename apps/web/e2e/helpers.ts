@@ -278,3 +278,32 @@ export async function createEmptyTripViaWizard(page: Page, tripName: string): Pr
   await page.getByRole("button", { name: "Create empty" }).click();
   await expect(page.getByRole("link", { name: tripName })).toBeVisible();
 }
+
+/**
+ * Open `/account` from the header's avatar menu and, optionally, land on a tab.
+ *
+ * **Through the menu rather than `page.goto("/account")`**, because the menu
+ * entry is the only way a person reaches this page and a spec that navigates
+ * directly stops proving the entry point exists. That is what happened to
+ * "Your account" for four milestones: it was absent from the menu while every
+ * test that needed account settings drove something else.
+ *
+ * Account was a modal Sheet until M26 link 1 (SPEC §34.4), so specs that used
+ * to wait on `getByRole("heading", { name: "Your account" })` or scope to
+ * `getByRole("dialog")` wait on the page's own `Account` heading now. The tabs
+ * are real URLs (`?tab=`), so a tab click is a navigation, not a state flip.
+ */
+export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "tokens"): Promise<void> {
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("link", { name: "Your account" }).click();
+  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+  if (tab === undefined) return;
+  const label = { profile: "Profile", plan: "Plan & usage", tokens: "API tokens" }[tab];
+  await page.getByRole("tab", { name: label }).click();
+  await expect(page.getByRole("tab", { name: label })).toHaveAttribute("aria-selected", "true");
+}
+
+/** The account page's content, for a spec that used to scope to the Sheet's dialog. */
+export function accountPanel(page: Page): Locator {
+  return page.getByRole("tabpanel");
+}
