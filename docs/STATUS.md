@@ -30,58 +30,56 @@ general setup.
 
 ## Where the work is right now
 
-**M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
-by **M25's gate closing**, which is the ordinary way this line moves. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**M23's GATE CLOSED 2026-09-19 — 11 of 11.** Links 2, 3 and 4 are built,
-`test:e2e:ci-like` is green at 137, and the two-actor multi-day walk passed on
-PR #192's preview. Its scope and exit gate are in
-`docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
-planning anything. The one-line version: a saved day **generalises** into a
-saved sequence rather than gaining a sibling object type.
+**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
+**M23's gate closing**, which is the ordinary way this line moves. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
+(the transport ADR is a **prerequisite**, not a deliverable), concurrent-edit
+conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
+depends on, so if M13 ships without it that link returns to M19.
 
-**The shape is decided: ADR-048, accepted 2026-09-19.** Flat `stops[]`, each
-stop carrying a 0-based `dayIndex` with a `.default(0)`; a **gap** in the index
-is an empty day; `dayCount` is **stored** for the trailing-empty case a gap
-cannot reach; the write path enforces monotonicity and the read boundary
-**stably sorts and repairs** rather than dropping the row; the adds ledger keys
-on the sequence and needs no migration. **Two of those go against a premise
-stated in the milestone file** and are marked ✳ there and in the ADR — the
-milestone's 2026-09-19 note is the short version, and Mitchell overrules either
-in the ADR if he wants the original reading.
+**Do the preflight first, and it has been dropped once already.** The
+activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
+21 non-test files hand-enumerate activity fields and nothing goes red when one
+is missed. It is shared by M13 link 5 (`who`), M19 link 1 (cost kind) and M24.
+It was scheduled on 2026-08-29 as *"one overnight batch"* and did not happen —
+which is why M13's gate now carries a box for it rather than trusting anyone to
+remember.
 
-**What is left: the retro — and a second walk that is owed but is not a gate
-box.** The preview walk on 2026-09-19 passed every behavioural box and then
-found **five defects in the surfaces around them**, one of them shipped by the
-branch itself: `ToggleChip` used `bg-brand-subtle` and `text-muted`, **neither
-of which is a token this app defines**, so a selected day chip rendered with a
-transparent background. **The colour wall scans for raw hex, so an undefined
-token NAME passes it** — worth knowing beyond this fix. The other four were
-surfaces still speaking in the singular: a third copy of the window fact in
-`SavedDaysDialog` stating a false clock range across three days, the shared-day
-route saying nothing about days at all, and `AddToTripDialog` — the surface
-that actually performs the append — never naming N. All five are fixed; **the
-fixes themselves are unwalked**, and that second pass is owed before the gate
-closes.
+**M23 SHIPPED 2026-09-19** — gate 11 of 11, merged as `7763913` (#192),
+migration dispatched, production verified at 25/25 the same session. A saved
+day generalises into a saved **sequence** in the same row: flat `stops[]` with
+a 0-based `dayIndex` defaulted to `0`, plus a stored `day_count`. **The
+narrative is not here** — `docs/milestones/M23-multi-day-playbooks.md` carries
+the gate evidence, the retro and the feedback round;
+`docs/architecture/ADR-048-a-playbook-is-a-sequence-of-days.md` carries the
+five decisions, two of them marked ✳ where they overrode a premise in the
+milestone file; and `docs/milestones/README.md`'s *2026-09-19* note carries
+what it leaves M12.
 
-**The lesson worth carrying past M23:** link 4 was claimed complete when it was
-one surface of four. Behaviour was right everywhere; the gate box named only
-the Discover card, and that let three unbuilt surfaces through. `pnpm check` is green locally (3,096 unit + 782 integration), with one
-caveat worth repeating rather than burying: **the integration lane needs
-`API_TOKEN_PEPPER` set in the shell.** `apps/web/.env.local` ships it EMPTY and
-vitest's `??=` does not override an empty string, so a fresh container fails ~91
-token tests that have nothing to do with the change under test — that is
-`KI-2026-09-19-a`, and it cost a full baseline run to confirm rather than assume.
+**Three things M23 leaves live**, which is why they are here rather than in its
+retro:
 
-**The migration is NOT applied by merging.** `0024_saved_day_day_count.sql`
-needs `gh workflow run migrate-production.yml -f confirm=migrate` from `main`.
-An undispatched migration is schema drift. Three things the ADR found that the
-milestone file does not list: `citiesOfStops` currently sorts timed stops across
-the *whole* array, so a sequence's stored `cities` order interleaves its days;
-`savedDayFacts.window` over a sequence is read by `dayLength` as a single
-13-hour day and labelled "Long", which is false rather than imprecise; and
-`BundlePlaybook.stops` is a third writer of this shape that the M25 round-trip
-tripwire does **not** catch, because `fromTrip` emits no playbooks.
+- **The `saved_days` row will not change shape again for this reason.** That
+  was the whole argument for running M23 before M12, and M12 can now key
+  `saved_day_reviews` to it.
+- **`SavedStop` carries a rule in its header**: every field added to it from
+  2026-09-19 onwards carries `.default()`. `KI-2026-09-05-l` is **amended, not
+  closed** — there is still no `{ v, stops }` wrapper, so the first genuinely
+  non-additive change to that shape has nowhere to land.
+- **Two quality gates cannot see a whole class of defect, and both were proven
+  blind by this milestone.** The colour wall scans for raw hex, so an
+  **undefined token NAME** passes it clean — a selected chip shipped with a
+  transparent background. And no test layer can hold a layout claim (jsdom has
+  no layout; the lint wall refuses `toHaveClass`), so a code comment asserting
+  a label fit its cell was wrong by 10.19px for two commits until somebody
+  measured it on a preview.
+
+**The integration lane needs `API_TOKEN_PEPPER` set in the shell.**
+`apps/web/.env.local` ships it EMPTY and vitest's `??=` does not override an
+empty string, so a fresh container fails ~91 token tests that have nothing to
+do with the change under test. That is `KI-2026-09-19-a`, and it cost a full
+baseline run to confirm rather than assume.
 
 **M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
 tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a

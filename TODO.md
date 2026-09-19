@@ -57,7 +57,9 @@ execution order — read the `← current milestone` marker, per the rule above.
 
 **Widened and reordered 2026-09-18 — three milestones minted (M23, M24, M25) and
 M13 moved ahead of M12**, by Mitchell in a design conversation. The live order is
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 → M23 → M13 → M12 → M24 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+**M23's gate closed and shipped 2026-09-19** (#192), so the marker moved to
+**M13** the ordinary way — by a gate closing, not by a decision.
 The reasoning is **not here** — `docs/milestones/README.md`'s *2026-09-18* note
 carries it, and each new milestone file carries its own scope and exit gate.
 *(This paragraph's absence was the drift `pnpm state` flagged on 2026-09-18: the
@@ -351,8 +353,14 @@ Where the work actually stands right now: `docs/STATUS.md`.
       **none** of its 1,375 locations today. Both are in the milestone file.
       This entry said "six links, nine gate boxes"; the file in fact had ten
       boxes before link 7 was added, so the count here was already one out.)*
-- [ ] **M13 Collaboration** — realtime transport ADR and concurrent-edit
+- [ ] **M13 Collaboration** ← **current milestone** (2026-09-19, by M23's
+      gate closing) — realtime transport ADR and concurrent-edit
       conflicts. → `docs/milestones/M13-collaboration.md`
+      *(**Read the preflight before opening this**: the activity-field
+      descriptor refactor `KI-20260905-o` runs ONCE, BEFORE M13, and M13's gate
+      carries a box for it. It is not M13's deliverable and it is not M24's —
+      it is shared by M13 link 5 (`who`) and M19 link 1 (cost kind), and it was
+      scheduled once before, on 2026-08-29, and did not happen.)*
       *(**Narrowed 2026-08-27**: invites, roles and revocation moved into M11,
       because they are the same `AccessPolicy` change as share links and opening
       that boundary twice costs twice. **Scoped 2026-09-01** — five links, and
@@ -650,8 +658,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       relaxing the refine alone would make a dateless trip silently
       dated. **Nothing on this milestone is waiting on a decision.**)*
 
-- [ ] **M23 A playbook can be more than one day** ← **current milestone**
-      (2026-09-19, by M25's gate closing) →
+- [x] **M23 A playbook can be more than one day** — **SHIPPED 2026-09-19**
+      (#192, merged as `7763913`; gate 11/11; migration `0024` dispatched and
+      production verified at 25/25) →
       `docs/milestones/M23-multi-day-playbooks.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running **before M12** —
       and that placement is the whole point: M12 keys reviews, ratings,

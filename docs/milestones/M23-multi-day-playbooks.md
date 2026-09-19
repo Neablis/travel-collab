@@ -1,6 +1,29 @@
 # M23 — A playbook can be more than one day
 
-**Status:** Scoped 2026-09-18. **The number M23 was assigned in this session**
+**Status: SHIPPED 2026-09-19.** Gate **11 of 11**; merged as `7763913` (#192);
+migration `0024_saved_day_day_count` **dispatched from `main` the same session**,
+with the read-only check reporting *"25/25 migrations applied"* against
+production. `pnpm check` green (3,115 unit + 782 integration),
+`test:e2e:ci-like` at **137 passed**. Four browser walks — the last two answered
+Mitchell's preview feedback, and the note below carries them.
+
+*(That migration line is a **dated observation**, not a standing fact. The only
+things that can answer "is production migrated?" are the `migration-pending`
+workflow and `pnpm --filter web db:state` —
+`docs/guidelines/environments-and-deploys.md` has the rule, and the reason it
+is stated that firmly is that a stale bullet in a file like this one misled an
+agent on 2026-09-16.)*
+
+**What shipped differs from the plan below in one place**, and it is the first
+thing to read before building on this: **a GAP in `dayIndex` IS an empty day**,
+so an interior rest day needed no extra column; `dayCount` is stored only for
+the *trailing* empty day a gap cannot reach. That and one other decision are
+marked ✳ in ADR-048 and in the 2026-09-19 note below, because they contradict
+premises stated in this file. Everything below the Status block is the scope as
+written on 2026-09-18 — kept for its reasoning, not as a description of the
+result.
+
+**Status history:** Scoped 2026-09-18. **The number M23 was assigned in this session**
 — it had no row, no file and no number before today. **Placement is Mitchell's
 decision, made in conversation on 2026-09-18: this runs BEFORE M12**, which puts
 it after M22 in the standing order (`… → M22 → M25 → M23 → M13 → M12 → M24 → M14 → M19`) — M25 is small and runs first, and M13 also moved ahead of M12 the same day, which changes nothing for this milestone: what matters here is that M23 precedes M12.

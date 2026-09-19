@@ -78,7 +78,7 @@ for collaboration later landing on a product people already want to join.
 | M15 | Front door | **Gate closed 2026-08-26, PR #56.** Approved 2026-08-23 (ADR-021); ADR-022 (2026-08-25) placed it after M16, but it in fact **ran ahead of both M10's Phase 9 gate and M16** — decided by Mitchell 2026-08-26, superseding ADR-021/ADR-022's stated ordering (see the reorder note below). The unauthenticated surface the product had never had: landing page, custom Google sign-in and sign-up screens replacing NextAuth's default, and the header account menu (already shipped in M10 Phase 8b). The designed first-run screen was dropped — `NewTripWizard`'s "Create empty" already creates a trip from a name alone. Scope, exit gate and retro: `M15-front-door.md` |
 | M22 | An account can build on the API | **Placed 2026-09-16 by Mitchell — runs after M21, before M12**, and it is the **current milestone**. A public REST API and account-generated API tokens, scoped to the account or to named trips, with create and revoke. All five phases landed 2026-09-16 and **18 of 19 exit-gate boxes are ticked**; the one open box needs a browser walk on a Vercel preview, and what blocks it is **`ADMIN_USER_IDS`** (`KI-2026-09-16-d`): it is injected at build, so no account reachable from a browser can be granted `api.tokens` there. *(This row said `API_TOKEN_PEPPER` until 2026-09-19. That was wrong — see the 2026-09-19 note below.)* Three boundaries fixed at placement: **user accounts only, no admin surface, no AI surface** — so a token can never spend model budget. Its entitlement is `api.tokens` on **`premium@v2`**, which raises the pinning problem a `premium@v1` subscriber cannot escape without an admin grant. The design's claim to test at the gate: adding endpoint N+1 costs a declaration and nothing else. *(**This row was missing until 2026-09-18** — M22 was recorded in `TODO.md`, in Current milestone below and in its own file, and not in this table. That is the same defect this file already records against M17 and M19, on its third occurrence.)*: `M22-public-api-and-tokens.md` |
 | M25 | A trip is a file you can take with you | **Minted and placed 2026-09-18 by Mitchell — runs immediately after M22**, because it is small and reuses M22's route wrapper while that machinery is fresh. Trip **export and import** as JSON. **The format is `travel-collab/content-bundle/v1` and no third format is created**: the bundle already has a schema, a CI-enforced linter, pure converters and a real importer, so `export → import → compare` is a gate box a test can hold, and it is the shape a person can hand-author — which is what *"similar to the api"* was asking for. A dedicated export format would be a **third vocabulary over the same data**, the drift invariant 5 exists to stop. **An export is a snapshot, never the event log**: the log is `tripId`-bound and re-importing it would violate ADR-028's id-remap rule, the hazard `cloneTrip` exists to handle, so an exported trip loses its history. **Export is free** (Mitchell, 2026-09-18) — *"free keeps trip planning entire"* is M20's line and portability is a trust property, so it needs **no new entitlement, hence no new plan version**, and does not walk into M22's `premium@v1` pinning problem. Import is the larger half: a user upload must **mint fresh ids**, where the content script derives them from keys so a re-import updates rows instead. **Three scoping questions were decided 2026-09-18.** **What it carries: days and activities, nothing else** — no budget, no members, invites or share links, no notebook pages, no lineage or trip status. That is a scope line, not a gap, and it buys a property worth naming: an export cannot carry a copy of a membership list out of the system. It also means an export is a copy of the plan and **not a backup**. **Linting: the schema validates an upload and the content rules do not run on it** — `lint.ts` states rules for authored library content headed for Discover, and three are errors a real trip trips routinely (an empty trip, stops out of clock order after an ordinary board reorder, a backlog item with a time window), so running it would reject real trips on day one. No subset and no second rule set; revisit if a real problem emerges. **Dates: a dated trip exports its real `startDate`, never `startsInDays`**, and a **dateless** trip carries neither anchor — *"we just have offsets, day 1, not January 15th"*. `BundleDay` already has no date field, so the trip anchor relaxes from *exactly one* to *at most one*. The export is a copy of **your** trip rather than a re-usable shape, so a stale export importing as a *past* trip is the correct answer, not a defect to design around. The dateless half is not a one-liner: `tripStartDate`'s `?? 0` currently resolves a missing anchor to *starting today*, so relaxing the refine alone would make a dateless trip silently dated. **Nothing on this milestone is waiting on a decision** — see `M25-a-trip-is-a-file.md` |
-| M23 | A playbook can be more than one day | **Minted and placed 2026-09-18 by Mitchell — runs BEFORE M12**, and the placement is the substance: M12 keys reviews, ratings, reporting and moderation to a `saved_days` row, and this changes that row's shape, so running it after means M12's work is revisited. **A saved day generalises into a saved sequence — the same object, not a new one.** The rejected alternative was a separate "collection" over saved-day rows: rejected because a second publishable object either doubles M12's trust-and-safety surface or ships a library with two classes of content having different moderation properties. **The shape is a flat `stops[]` with a per-stop day indicator, not `days: SavedStop[][]`** — Mitchell's call, on migration grounds: existing rows read as "everything on day 1" when the indicator defaults, so the strict `SavedStop.array()` parse at the read boundary keeps working with no versioned read, which a nested array would have forced. **That property has a precondition the scoping found**: the strict parse exists at **two** sites (`savedDays.ts`'s `fromRow` and `playbooks.ts`'s `toDiscoverDay`) and `SavedStop` carries **no `.default()` on any field**, so the additive claim holds only if the indicator lands defaulted at both. **One insert primitive, three callers** — add to an existing trip, start a trip from one day, start a trip from N days, wrapped in M6's atomic command group — which absorbs `TODO.md`'s *"Start a new trip from a saved day"* candidate and answers its open question (one shared primitive, not a second copy of fork): `M23-multi-day-playbooks.md` |
+| M23 | A playbook can be more than one day | **SHIPPED 2026-09-19** — gate 11/11, #192 merged as `7763913`, migration `0024_saved_day_day_count` dispatched and production verified at 25/25. What actually shipped differs from the plan below in one place worth reading before building on it: **a GAP in `dayIndex` IS an empty day**, so an interior rest day needed no column, and `dayCount` is stored only for the *trailing* empty day a gap cannot reach. ADR-048 carries that and three other decisions, two of them marked ✳ because they contradict a premise in the milestone file. *(Everything from here to the end of this row is the placement as written on 2026-09-18, kept for the reasoning rather than as a description of the result.)* **Minted and placed 2026-09-18 by Mitchell — runs BEFORE M12**, and the placement is the substance: M12 keys reviews, ratings, reporting and moderation to a `saved_days` row, and this changes that row's shape, so running it after means M12's work is revisited. **A saved day generalises into a saved sequence — the same object, not a new one.** The rejected alternative was a separate "collection" over saved-day rows: rejected because a second publishable object either doubles M12's trust-and-safety surface or ships a library with two classes of content having different moderation properties. **The shape is a flat `stops[]` with a per-stop day indicator, not `days: SavedStop[][]`** — Mitchell's call, on migration grounds: existing rows read as "everything on day 1" when the indicator defaults, so the strict `SavedStop.array()` parse at the read boundary keeps working with no versioned read, which a nested array would have forced. **That property has a precondition the scoping found**: the strict parse exists at **two** sites (`savedDays.ts`'s `fromRow` and `playbooks.ts`'s `toDiscoverDay`) and `SavedStop` carries **no `.default()` on any field**, so the additive claim holds only if the indicator lands defaulted at both. **One insert primitive, three callers** — add to an existing trip, start a trip from one day, start a trip from N days, wrapped in M6's atomic command group — which absorbs `TODO.md`'s *"Start a new trip from a saved day"* candidate and answers its open question (one shared primitive, not a second copy of fork): `M23-multi-day-playbooks.md` |
 | M24 | A leg knows where it goes and by what | **Minted and placed 2026-09-18 by Mitchell — runs after M12, before M14.** A travel stop gets a **transport mode** and a **second location**, and the map draws a real leg instead of inferring one from its neighbours. `MapLegend.tsx:9` has said the gap out loud since it shipped: *"We model no transport mode"*. **Mode carries its own field and does not inherit from `kind`** — `kind: "transit"` says THAT a stop is travel, `mode` says by what, and they cannot disagree because a mode is legal only on a transit stop, enforced by a `superRefine` rather than by convention. That answers the question `TODO.md`'s *"Transport mode per leg"* has carried since 2026-09-01; M19 link 1 may still answer differently for costs, with a stated reason. **`location` keeps meaning the origin** and an optional `endLocation` joins it, so no existing reader changes meaning; modelling travel as an **edge between** two stops is rejected, because the whole app is "a day is an ordered list of activities" and an edge is not in that list. **Its prerequisite is not its own deliverable**: the activity-field descriptor refactor (`KI-20260905-o` — 21 non-test files hand-enumerate activity fields and nothing goes red when one is missed) runs **once, before M13**, shared with M13 link 5 and M19 link 1: `M24-travel-legs.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
@@ -202,19 +202,87 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M23 — A playbook can be more than one day**
-(`M23-multi-day-playbooks.md`), as of **2026-09-19, by M25's gate closing** —
-which is the ordinary way this line moves, and the first time since 2026-09-11
-that it has. **M25's gate closed 2026-09-19**, 14 of 14 boxes. **M22 is OPEN at
-18 of 19 and is paused, not finished; M21 is OPEN at 11 of 17 and is paused.**
+Current milestone: **M13 — Collaboration** (`M13-collaboration.md`), as of
+**2026-09-19, by M23's gate closing** — the ordinary way this line moves, and
+the second time in one day that it has. **M23's gate closed at 11 of 11 and
+SHIPPED** the same day (#192, merged as `7763913`), with its migration
+dispatched and production verified; the note is below. **M25's gate closed
+2026-09-19**, 14 of 14. **M22 is OPEN at 18 of 19 and is paused, not finished;
+M21 is OPEN at 11 of 17 and is paused.**
+
+**M13 has a preflight that is not its own deliverable, and it has been dropped
+once already.** The activity-field descriptor refactor (`KI-20260905-o`) runs
+**once, before M13** — 21 non-test files hand-enumerate activity fields and
+nothing goes red when one is missed. It is shared by M13 link 5 (`who`), M19
+link 1 (cost kind) and M24; it was scheduled on 2026-08-29 as *"one overnight
+batch"* and did not happen, which is why M13's gate now carries a box for it.
 Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
 **Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
 below. The second one also records a cost it first got wrong.
 **This line then moved to M25 on 2026-09-18** — the third time it has moved by
 decision rather than by a gate close, and the note recording it is directly
 below.
+
+### 2026-09-19 — M23's gate closed, shipped, and the migration applied
+
+**11 of 11 boxes**, merged as `7763913` (#192), and — unusually for this repo —
+**the migration was dispatched in the same session as the merge**, so `main` and
+production did not diverge. `pnpm check` green (3,115 unit + 782 integration),
+`test:e2e:ci-like` at **137 passed**.
+
+A saved day **generalises into a saved sequence in the same row**: flat
+`stops[]` with a 0-based `dayIndex` defaulted to `0`, plus a stored
+`day_count`. ADR-048 carries the five decisions; **two are marked ✳ because
+they contradict a premise stated in the milestone file**, and both survived
+review, so the ✳ marks are the record of a deliberate override rather than an
+open question.
+
+**On the migration — and read this before trusting any prose about it,
+including this paragraph.** `0024_saved_day_day_count` was dispatched from
+`main` after the merge and the read-only check reported
+*"25/25 migrations applied. Every migration in this tree is applied."* That was
+true on 2026-09-19. **It is a dated observation, not a standing fact**, and the
+rule in `docs/guidelines/environments-and-deploys.md` is unchanged: the only
+things that can answer "is production migrated?" are the
+`migration-pending` workflow and `pnpm --filter web db:state`. A line in this
+file is not one of them — an agent read a stale bullet as authority on
+2026-09-16 and told Mitchell five times to dispatch migrations that were
+already applied.
+
+**What M23 leaves live for M12, which runs two milestones from here:**
+
+- **The `saved_days` row will not change shape again for this reason**, which
+  was the entire argument for running M23 before M12. M12 can key
+  `saved_day_reviews` to it.
+- **`SavedStop` now has a rule in its header**: every field added to it from
+  2026-09-19 onwards carries `.default()`. That is what made this migration
+  additive at both read boundaries, and `KI-2026-09-05-l` is **amended, not
+  closed** — there is still no `{ v, stops }` wrapper, so the first genuinely
+  non-additive change to that shape still has nowhere to land.
+- **One parse helper, two read sites.** `parseSavedDayColumns` is shared by
+  `fromRow` and `toDiscoverDay`; it sorts `dayIndex` stably and repairs
+  `dayCount` upward rather than dropping a row.
+
+**Three findings about the process, all sharper than the feature:**
+
+1. **A gate box that names one surface will pass with the other three
+   unbuilt.** Link 4's box named the Discover card. The library dialog, the
+   shared-day route and the insert dialog — the one that actually performs the
+   append — were not built, and a browser walk, not the suite, is what found
+   it. **M12 adds reviews and moderation across several surfaces and will ship
+   the same way if its boxes name one each.**
+2. **Two quality gates cannot see a whole class of defect.** The colour wall
+   scans for raw hex, so an **undefined token NAME** passes it clean — a
+   pressed chip shipped with a transparent background. And no test layer can
+   hold a layout claim: jsdom has no layout and the lint wall refuses
+   `toHaveClass`, so a comment asserting *"fits the longest label this can
+   produce"* was wrong by 10.19px for two commits, and only a measurement on
+   the preview said so.
+3. **A scripted edit that cannot fail loudly is a change you have not made.**
+   One string fix silently no-opped because its replacement was written without
+   asserting it matched, and a second browser walk is what caught it.
 
 ### 2026-09-19 — M25's gate closed, and what it leaves the milestones behind it
 
