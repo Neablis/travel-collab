@@ -11,6 +11,7 @@ import { route } from "@/server/public-api/route";
 // Membership, which is a materially different power from "add a day".
 export const { GET, POST } = route({
   GET: {
+    summary: "List the read-only share links created for a trip",
     scope: "trips:read",
     trip: "path",
     role: "owner",
@@ -22,6 +23,7 @@ export const { GET, POST } = route({
     },
   },
   POST: {
+    summary: "Create a read-only share link showing the trip as it stands right now",
     scope: "sharing:write",
     trip: "path",
     role: "owner",

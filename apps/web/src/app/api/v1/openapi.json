@@ -8,7 +8,7 @@
   "paths": {
     "/v1/account": {
       "get": {
-        "summary": "GET /v1/account",
+        "summary": "Show who this token acts as: your user id, plan and entitlements",
         "description": "Requires the `account:read` scope.",
         "security": [
           {
@@ -56,7 +56,7 @@
     },
     "/v1/cities": {
       "get": {
-        "summary": "GET /v1/cities",
+        "summary": "Search city names in the public saved-day library by prefix, with how many published days touch each",
         "description": "Requires the `trips:read` scope.",
         "security": [
           {
@@ -147,7 +147,7 @@
     },
     "/v1/library/{savedDayId}": {
       "get": {
-        "summary": "GET /v1/library/{savedDayId}",
+        "summary": "Get one of your saved days",
         "description": "Requires the `library:read` scope.",
         "security": [
           {
@@ -562,7 +562,7 @@
         }
       },
       "patch": {
-        "summary": "PATCH /v1/library/{savedDayId}",
+        "summary": "Publish a saved day to Discover, or make it private again",
         "description": "Requires the `library:write` scope.",
         "security": [
           {
@@ -1000,7 +1000,7 @@
         }
       },
       "delete": {
-        "summary": "DELETE /v1/library/{savedDayId}",
+        "summary": "Delete one of your saved days (a published day must be unpublished first)",
         "description": "Requires the `library:write` scope.",
         "security": [
           {
@@ -1054,7 +1054,7 @@
     },
     "/v1/library": {
       "get": {
-        "summary": "GET /v1/library",
+        "summary": "List the days you have saved to your library, newest first",
         "description": "Requires the `library:read` scope.",
         "security": [
           {
@@ -1497,7 +1497,7 @@
         }
       },
       "post": {
-        "summary": "POST /v1/library",
+        "summary": "Save one day of a trip you can see into your library",
         "description": "Requires the `library:write` scope.",
         "security": [
           {
@@ -1935,7 +1935,7 @@
     },
     "/v1/trips/{tripId}/activities/{activityId}": {
       "patch": {
-        "summary": "PATCH /v1/trips/{tripId}/activities/{activityId}",
+        "summary": "Edit a stop's details, or move it to another day, position or the backlog",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -2822,7 +2822,7 @@
         }
       },
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/activities/{activityId}",
+        "summary": "Remove a stop from a trip",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -3394,7 +3394,7 @@
     },
     "/v1/trips/{tripId}/activities": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/activities",
+        "summary": "Add a stop to a trip, on a day or in the unscheduled backlog (geocodes its location if needed)",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -4269,7 +4269,7 @@
     },
     "/v1/trips/{tripId}/conflicts/{conflictId}": {
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/conflicts/{conflictId}",
+        "summary": "Dismiss a scheduling conflict warning on a trip",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -4841,7 +4841,7 @@
     },
     "/v1/trips/{tripId}/days/{dayId}": {
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/days/{dayId}",
+        "summary": "Remove a day from a trip; its stops move to the unscheduled backlog",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -5413,7 +5413,7 @@
     },
     "/v1/trips/{tripId}/days": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/days",
+        "summary": "Add an empty day to the end of a trip",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -5977,7 +5977,7 @@
     },
     "/v1/trips/{tripId}/export": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/export",
+        "summary": "Download a trip's days and stops as a content-bundle file you can re-import",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -6771,7 +6771,7 @@
     },
     "/v1/trips/{tripId}/geocode": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/geocode",
+        "summary": "Search for a real place by name near this trip's stops, returning up to five locations ready to use on a stop (spends geocode quota)",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -6943,7 +6943,7 @@
     },
     "/v1/trips/{tripId}/globals": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/globals",
+        "summary": "Summarise a trip: its days, the cities and tags it uses, and how many stops are booked",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -7099,7 +7099,7 @@
     },
     "/v1/trips/{tripId}/history/{seq}": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/history/{seq}",
+        "summary": "Get a trip as it stood at a past revision, without changing it",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -7671,7 +7671,7 @@
     },
     "/v1/trips/{tripId}/history/redo": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/history/redo",
+        "summary": "Redo the change most recently undone on a trip",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -8235,7 +8235,7 @@
     },
     "/v1/trips/{tripId}/history/revert": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/history/revert",
+        "summary": "Return a trip to how it stood at a past revision, recorded as a new change",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -8820,7 +8820,7 @@
     },
     "/v1/trips/{tripId}/history": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/history",
+        "summary": "List a trip's change history, newest first, and whether undo or redo is possible",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -9003,7 +9003,7 @@
     },
     "/v1/trips/{tripId}/history/undo": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/history/undo",
+        "summary": "Undo the most recent change to a trip",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -9567,7 +9567,7 @@
     },
     "/v1/trips/{tripId}/invites/{inviteId}": {
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/invites/{inviteId}",
+        "summary": "Revoke an invite to a trip",
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -9681,7 +9681,7 @@
     },
     "/v1/trips/{tripId}/invites": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/invites",
+        "summary": "List the invites sent for a trip",
         "description": "Requires the `trips:read` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -9821,7 +9821,7 @@
         }
       },
       "post": {
-        "summary": "POST /v1/trips/{tripId}/invites",
+        "summary": "Create an invite to a trip for a given role, optionally addressed to an email",
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -9957,7 +9957,7 @@
     },
     "/v1/trips/{tripId}/members": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/members",
+        "summary": "List the people on a trip and their roles",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -10050,7 +10050,7 @@
     },
     "/v1/trips/{tripId}/pages/{pageId}": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/pages/{pageId}",
+        "summary": "Get one Notebook page on a trip",
         "description": "Requires the `notebook:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -10168,7 +10168,7 @@
         }
       },
       "patch": {
-        "summary": "PATCH /v1/trips/{tripId}/pages/{pageId}",
+        "summary": "Edit a Notebook page on a trip",
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -11099,7 +11099,7 @@
         }
       },
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/pages/{pageId}",
+        "summary": "Delete a Notebook page from a trip",
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -11161,7 +11161,7 @@
     },
     "/v1/trips/{tripId}/pages": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/pages",
+        "summary": "List the Notebook pages on a trip",
         "description": "Requires the `notebook:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -11286,7 +11286,7 @@
         }
       },
       "post": {
-        "summary": "POST /v1/trips/{tripId}/pages",
+        "summary": "Create a Notebook page on a trip",
         "description": "Requires the `notebook:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -12216,7 +12216,7 @@
     },
     "/v1/trips/{tripId}/restore": {
       "post": {
-        "summary": "POST /v1/trips/{tripId}/restore",
+        "summary": "Bring back a trip you deleted",
         "description": "Requires the `trips:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -12780,7 +12780,7 @@
     },
     "/v1/trips/{tripId}": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}",
+        "summary": "Get a trip with its days, stops, members and conflicts",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -13342,7 +13342,7 @@
         }
       },
       "patch": {
-        "summary": "PATCH /v1/trips/{tripId}",
+        "summary": "Change a trip's name, dates, currency or budget, in any combination, as one change",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -13953,7 +13953,7 @@
         }
       },
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}",
+        "summary": "Delete a trip (a soft delete; the owner can undo it with restore)",
         "description": "Requires the `trips:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -14517,7 +14517,7 @@
     },
     "/v1/trips/{tripId}/shares/{shareId}": {
       "delete": {
-        "summary": "DELETE /v1/trips/{tripId}/shares/{shareId}",
+        "summary": "Revoke a trip's share link",
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -14602,7 +14602,7 @@
     },
     "/v1/trips/{tripId}/shares": {
       "get": {
-        "summary": "GET /v1/trips/{tripId}/shares",
+        "summary": "List the read-only share links created for a trip",
         "description": "Requires the `trips:read` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -14713,7 +14713,7 @@
         }
       },
       "post": {
-        "summary": "POST /v1/trips/{tripId}/shares",
+        "summary": "Create a read-only share link showing the trip as it stands right now",
         "description": "Requires the `sharing:write` scope. Requires at least the `owner` role on the trip.",
         "security": [
           {
@@ -14790,7 +14790,7 @@
     },
     "/v1/trips/import": {
       "post": {
-        "summary": "POST /v1/trips/import",
+        "summary": "Create a new trip from a content-bundle file (the format export produces)",
         "description": "Requires the `trips:write` scope.",
         "security": [
           {
@@ -16079,7 +16079,7 @@
     },
     "/v1/trips": {
       "get": {
-        "summary": "GET /v1/trips",
+        "summary": "List the trips you own or are a member of",
         "description": "Requires the `trips:read` scope.",
         "security": [
           {
@@ -16196,7 +16196,7 @@
         }
       },
       "post": {
-        "summary": "POST /v1/trips",
+        "summary": "Create a new trip that you own, optionally with a start date or a start and end date",
         "description": "Requires the `trips:write` scope.",
         "security": [
           {
@@ -16216,6 +16216,12 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "startDate": {
+                    "type": "string"
+                  },
+                  "endDate": {
+                    "type": "string"
                   }
                 },
                 "required": [

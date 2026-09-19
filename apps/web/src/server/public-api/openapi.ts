@@ -135,7 +135,7 @@ export function buildOpenApi(
       const status = def.status ?? (method === "POST" ? 201 : 200);
       paths[url] ??= {};
       paths[url]![method.toLowerCase()] = {
-        summary: `${method} ${url}`,
+        summary: def.summary,
         description: [
           `Requires the \`${declared.scope}\` scope.`,
           declared.role === undefined

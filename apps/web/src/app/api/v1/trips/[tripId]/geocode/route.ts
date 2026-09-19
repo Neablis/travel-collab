@@ -30,6 +30,7 @@ const UNAVAILABLE = "Geocoding is unavailable. Try again shortly.";
 
 export const { GET } = route({
   GET: {
+    summary: "Search for a real place by name near this trip's stops, returning up to five locations ready to use on a stop (spends geocode quota)",
     scope: "trips:write",
     trip: "path",
     role: "editor",

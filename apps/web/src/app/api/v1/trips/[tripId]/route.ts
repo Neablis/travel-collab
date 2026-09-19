@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
-import { daySpan, isCalendarDate } from "@tc/domain";
 import { z } from "zod";
 import { Money, TripDetail } from "@tc/contracts";
-import { orThrow, PublicApiError, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
+import {
+  orThrow,
+  runBatch,
+  runCommand,
+  tripDatesCommand,
+  type CommandInput,
+} from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
 // **Pilot endpoint 2 of 2** (M22 Phase 2) — a single resource on one trip, so it
@@ -19,6 +23,7 @@ import { route } from "@/server/public-api/route";
 // 404s, and `tripAccessFor` is what encodes that.
 export const { GET, PATCH, DELETE } = route({
   GET: {
+    summary: "Get a trip with its days, stops, members and conflicts",
     scope: "trips:read",
     trip: "path",
     role: "viewer",
@@ -38,8 +43,10 @@ export const { GET, PATCH, DELETE } = route({
   //
   // `startDate` alone is `SetTripStartDate`; `startDate` WITH `endDate` is
   // `SetTripDates`, which also adds or drops days to match. That is not the
-  // caller's business to know — it is why this mapping exists.
+  // caller's business to know — it is why this mapping exists, and it lives in
+  // `tripDatesCommand` so `POST /v1/trips` means the same thing by a date.
   PATCH: {
+    summary: "Change a trip's name, dates, currency or budget, in any combination, as one change",
     scope: "trips:write",
     trip: "path",
     role: "editor",
@@ -64,56 +71,11 @@ export const { GET, PATCH, DELETE } = route({
       const tripId = params["tripId"]!;
       const commands: CommandInput[] = [];
       if (patch.name !== undefined) commands.push({ type: "SetTripName", tripId, name: patch.name });
-      if (patch.endDate !== undefined) {
-        const startDate = patch.startDate === undefined ? trip!.startDate : patch.startDate;
-        // **Shape is not calendar validity, and `daySpan` throws on the
-        // difference.** The body schema takes a string; `parseIsoDateUtc`
-        // raises `RangeError` for `"invalid"` and for shape-valid impossibles
-        // like `2027-13-45`. Before `newDayIds` existed nothing here touched a
-        // date and the domain answered 400 for both; computing the span first
-        // put a throw in front of that refusal, and the caller got a 500 for a
-        // request only they could fix.
-        //
-        // `isCalendarDate` is the predicate `decide.ts` uses for the same
-        // reason (KI-77), so this refuses exactly what the domain would. A
-        // regex on the schema would not: `2027-13-45` matches it and still
-        // throws.
-        for (const [field, value] of [
-          ["startDate", startDate],
-          ["endDate", patch.endDate],
-        ] as const) {
-          if (value !== null && !isCalendarDate(value)) {
-            throw new PublicApiError(400, `"${field}" is not a calendar date.`);
-          }
-        }
-        // **The ids the reconcile will need, minted here.** `SetTripDates`
-        // reconciles the day COUNT to the range and the domain is pure, so it
-        // cannot mint the uuids for days it has to append (Invariant 4) — it
-        // refuses instead. This declaration supplied none, so every patch that
-        // WIDENED a trip's dates was a 400 a caller could do nothing about:
-        // the endpoint could shorten a trip and never lengthen one.
-        //
-        // The count is the same one `batchResolver` computes for the AI path,
-        // from the same two numbers `decideTripCommand` reads.
-        const needed =
-          startDate === null || patch.endDate === null
-            ? 0
-            : Math.max(0, daySpan(startDate, patch.endDate) - trip!.days.length);
-        commands.push({
-          type: "SetTripDates",
-          newDayIds: Array.from({ length: needed }, () => randomUUID()),
-          tripId,
-          // **A field this patch did not mention keeps its value.** `SetTripDates`
-          // takes both halves, so a `PATCH { endDate }` has to supply a start
-          // date — and `?? null` supplied the wrong one, clearing a start date
-          // the caller never asked about. `undefined` means "leave it", which is
-          // the trip's current value; an explicit `null` still clears it.
-          startDate,
-          endDate: patch.endDate,
-        });
-      } else if (patch.startDate !== undefined) {
-        commands.push({ type: "SetTripStartDate", tripId, startDate: patch.startDate });
-      }
+      const dates = tripDatesCommand(tripId, patch, {
+        startDate: trip!.startDate,
+        dayCount: trip!.days.length,
+      });
+      if (dates !== undefined) commands.push(dates);
       if (patch.currency !== undefined) {
         commands.push({ type: "SetTripCurrency", tripId, currency: patch.currency });
       }
@@ -127,6 +89,7 @@ export const { GET, PATCH, DELETE } = route({
   // with `POST /restore`, which is why this answers with the trip rather than a
   // 204 — its `status` is now `"deleted"` and a caller can see that.
   DELETE: {
+    summary: "Delete a trip (a soft delete; the owner can undo it with restore)",
     scope: "trips:write",
     trip: "path",
     role: "owner",

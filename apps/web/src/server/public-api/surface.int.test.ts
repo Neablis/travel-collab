@@ -9,8 +9,27 @@ import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { events } from "@/server/db/schema";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+
+// **A pass-through, except when a test switches it on.** `POST /v1/trips` with
+// dates is two writes (KI-2026-09-19-f); the second can only fail after the
+// first on something the caller did not send — a lost race, a dropped
+// connection — so the only way to reach the rollback is to make it fail here.
+const injectDatesFailure = vi.hoisted(() => ({ on: false }));
+vi.mock("@/server/public-api/commands", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./commands")>();
+  return {
+    ...real,
+    runCommand: (actor: Parameters<typeof real.runCommand>[0], command: Parameters<typeof real.runCommand>[1]) =>
+      injectDatesFailure.on && (command.type === "SetTripDates" || command.type === "SetTripStartDate")
+        ? Promise.resolve({ ok: false as const, status: 409, message: "Injected: the dates write lost a race." })
+        : real.runCommand(actor, command),
+  };
+});
 
 const { POST: CREATE_TRIP, GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
 const { GET: GET_TRIP, PATCH: PATCH_TRIP, DELETE: DELETE_TRIP } = await import(
@@ -488,5 +507,83 @@ describe("the collections page without skipping or repeating", () => {
     // Every page exactly once, in the order the unpaged read gives them.
     expect(walked).toEqual(all);
     expect(new Set(walked).size).toBe(walked.length);
+  });
+});
+
+// **Dates on create mean what they mean on PATCH** — the same mapping
+// (`tripDatesCommand`), the same refusals, decided before anything is written.
+describe("POST /v1/trips with dates", () => {
+  /** Every event this account has ever appended — a refused create must add none. */
+  const eventsBy = (userId: string) => db.select().from(events).where(eq(events.actorId, userId));
+
+  it("creates a trip with its start and end dates, and one day per date", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const created = await CREATE_TRIP(
+      req(secret, { name: "Lisbon", startDate: "2027-05-01", endDate: "2027-05-03" }, "POST"),
+      NO_PARAMS,
+    );
+    expect(created.status).toBe(201);
+    const trip = await created.json();
+    expect(trip.startDate).toBe("2027-05-01");
+    // A trip has no end-date field; the end date IS the last day's date.
+    expect(trip.days.map((d: { date: string }) => d.date)).toEqual([
+      "2027-05-01",
+      "2027-05-02",
+      "2027-05-03",
+    ]);
+
+    const read = await GET_TRIP(req(secret), P({ tripId: trip.tripId }));
+    expect((await read.json()).days).toHaveLength(3);
+  });
+
+  it("creates a trip with a start date only, and no days", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const created = await CREATE_TRIP(
+      req(secret, { name: "Porto", startDate: "2027-06-10" }, "POST"),
+      NO_PARAMS,
+    );
+    expect(created.status).toBe(201);
+    const trip = await created.json();
+    expect(trip.startDate).toBe("2027-06-10");
+    expect(trip.days).toHaveLength(0);
+  });
+
+  it("refuses an end date with no start date, and writes nothing at all", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const refused = await CREATE_TRIP(
+      req(secret, { name: "Faro", endDate: "2027-07-01" }, "POST"),
+      NO_PARAMS,
+    );
+    expect(refused.status).toBe(400);
+    const { error } = await refused.json();
+    expect(error.code).toBe("invalid-request");
+    expect(error.message).toBe("An end date needs a start date.");
+    // Not "no live trip" — no trip, deleted or otherwise. A create followed by a
+    // compensating delete would still leave a stream.
+    expect(await eventsBy(owner)).toEqual([]);
+  });
+
+  it("leaves no live trip behind when the dates write fails after the create", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    injectDatesFailure.on = true;
+    let failed: Response;
+    try {
+      failed = await CREATE_TRIP(
+        req(secret, { name: "Braga", startDate: "2027-08-01", endDate: "2027-08-02" }, "POST"),
+        NO_PARAMS,
+      );
+    } finally {
+      injectDatesFailure.on = false;
+    }
+    expect(failed.status).toBe(409);
+    expect((await failed.json()).error.message).toBe("Injected: the dates write lost a race.");
+    // The create DID commit; the compensation is what keeps it off the list.
+    expect((await eventsBy(owner)).map((e) => e.type)).toContain("TripCreated");
+    const list = await LIST_TRIPS(req(secret), NO_PARAMS);
+    expect((await list.json()).items).toEqual([]);
   });
 });

@@ -29,6 +29,7 @@ const SaveDayBody = z.object({
 
 export const { GET, POST } = route({
   GET: {
+    summary: "List the days you have saved to your library, newest first",
     scope: "library:read",
     collection: {
       item: SavedDay,
@@ -50,6 +51,7 @@ export const { GET, POST } = route({
     },
   },
   POST: {
+    summary: "Save one day of a trip you can see into your library",
     scope: "library:write",
     body: SaveDayBody,
     response: SavedDay,

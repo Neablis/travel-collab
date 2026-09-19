@@ -12,6 +12,7 @@ import { route } from "@/server/public-api/route";
 // present it.
 export const { GET, PATCH, DELETE } = route({
   GET: {
+    summary: "Get one of your saved days",
     scope: "library:read",
     response: SavedDay,
     handle: async ({ actor, params }) => {
@@ -21,6 +22,7 @@ export const { GET, PATCH, DELETE } = route({
     },
   },
   PATCH: {
+    summary: "Publish a saved day to Discover, or make it private again",
     scope: "library:write",
     body: z.object({ visibility: SavedDayVisibility }),
     response: SavedDay,
@@ -35,6 +37,7 @@ export const { GET, PATCH, DELETE } = route({
     },
   },
   DELETE: {
+    summary: "Delete one of your saved days (a published day must be unpublished first)",
     scope: "library:write",
     response: z.object({ savedDayId: z.string(), deleted: z.literal(true) }),
     handle: async ({ actor, params }) => {

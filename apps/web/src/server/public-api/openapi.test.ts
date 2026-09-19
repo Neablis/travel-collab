@@ -98,4 +98,22 @@ describe("openapi.json is derived from the declarations", () => {
       }
     }
   });
+
+  // **A summary says what the call does, not where it lives.** Every operation
+  // used to be titled `"GET /v1/…"`, and an external agent reading the reference
+  // never found the place search behind `GET …/geocode`. The type makes a
+  // summary required; this makes sure the generator publishes it rather than
+  // falling back to restating the path.
+  it("titles every operation with its declared summary, never its path", async () => {
+    const doc = JSON.parse(await generate()) as {
+      paths: Record<string, Record<string, { summary: string }>>;
+    };
+    for (const [url, methods] of Object.entries(doc.paths)) {
+      for (const [method, operation] of Object.entries(methods)) {
+        const op = `${method.toUpperCase()} ${url}`;
+        expect(operation.summary, op).not.toContain(url);
+        expect(operation.summary.split(" ").length, op).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
 });

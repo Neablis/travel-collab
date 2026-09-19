@@ -4,6 +4,7 @@ import { route } from "@/server/public-api/route";
 
 export const { POST } = route({
   POST: {
+    summary: "Redo the change most recently undone on a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",

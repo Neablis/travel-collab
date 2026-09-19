@@ -13,6 +13,7 @@ import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route
 // guard calls.
 export const { GET, POST } = route({
   GET: {
+    summary: "List the Notebook pages on a trip",
     scope: "notebook:read",
     trip: "path",
     role: "viewer",
@@ -40,6 +41,7 @@ export const { GET, POST } = route({
     },
   },
   POST: {
+    summary: "Create a Notebook page on a trip",
     scope: "notebook:write",
     trip: "path",
     role: "editor",
