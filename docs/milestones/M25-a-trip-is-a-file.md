@@ -633,7 +633,183 @@ that does not parse imports nothing, and there is no partial state to design.
       argument rather than the discrepancy.
 - [ ] **The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like`** — not `test:e2e` (CLAUDE.md rule 1).
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close. **Above**, under *Retro — 2026-09-19*.
+
+## Retro — 2026-09-19
+
+Built in one session on `claude/next-milestone-9xb2le`, opened by Mitchell's
+*"Start next milestone."* Four links, fourteen boxes, no migration, no contract
+change, no entitlement.
+
+### The milestone's own estimate was wrong, and interestingly wrong
+
+This file budgets **link 3 as "the larger half"**, and the reason it gives is
+id-minting: an upload must get fresh ids where the content script derives them
+from keys. **That turned out to be one line** — `bundleTripCommandGroups`
+already accepts `options.tripId` and already defaults `mintId` to
+`crypto.randomUUID()`, so "an upload can never overwrite a trip" cost supplying
+a uuid and *not* calling `tripIdFor`. The safety property the milestone is most
+concerned with was the cheapest thing in it.
+
+The cost landed in three places this file did not name:
+
+1. **The dateless command shape** (below) — budgeted as two small changes, and
+   it was three, the third being a genuinely different command sequence.
+2. **Two published schemas that were false** (below) — not anticipated at all,
+   and the larger of the two edits.
+3. **Two tests that proved nothing** (below) — the recurring tax, caught the way
+   CLAUDE.md rule 3 says it is caught and no other way.
+
+None of that is an argument against the estimate. It is an argument for what
+this repo already believes: the expensive part of a change is rarely the part
+that sounds hard.
+
+### Reading the code first paid for itself three times
+
+Before a line was written, three facts were checked against the source, and
+each one changed the build:
+
+- **A session cookie satisfies every scope on a `v1` route**
+  (`public-api/actor.ts` — *"a session actor satisfies every scope check"*).
+  So link 2's UI is link 1's endpoint called from the browser. There is no
+  second route, no `apiClient` helper, no MSW handler, and no entitlement on
+  the path — which is also what makes the *export is free* gate box a real
+  assertion about real code instead of a formality.
+- **A `v1` resource response is returned raw; only a collection is enveloped**
+  (`route.ts`). So the export body **is** the file. Had it been enveloped,
+  every box in this gate could have passed while the thing a person downloaded
+  was un-importable — the round trip would have been proven against a payload
+  no user ever holds.
+- **`SetTripDates` with both dates null adds no days** (`decide.ts`). See below.
+
+The first two are the kind of thing that is only ever checked once. They are
+recorded in `docs/plans/2026-09-18-M25-trip-as-a-file.md` and in the route
+files' own headers.
+
+### The dateless half was not a one-line change, and this file said so — twice over
+
+Question 2 predicted it: relaxing the `.refine` alone would make a dateless
+bundle import as *a trip starting today*, because `tripStartDate`'s `?? 0`
+resolved a missing anchor to the clock. That was right, it was seen red exactly
+as the box demanded (the failure text was `startDate: "2026-09-06"`, the
+`TODAY` the test passes in), and it was **still not the whole of it**.
+
+`SetTripDates` guards its entire day-count reconcile on both dates being
+non-null, so a dateless trip's days do not get created at all. The fix needed a
+**second command shape** — `AddDay` per day — which is what the board itself
+does on an undated trip. Neither the schema change nor the defaulting change
+would have revealed it; only running the commands did.
+
+**The lesson generalises past this milestone**: relaxing a validation rule
+widens the set of inputs that reach code written when that set was narrower.
+The refine was doing two jobs, and only one of them was validation.
+
+### A published contract can be false rather than merely verbose
+
+Declared with the full `ContentBundleV1` as its response, the export endpoint's
+generated OpenAPI entry was **2,267 lines** — almost all of it the recursive
+`PageDoc` AST under `notebooks`, a section an export never writes. The import
+endpoint's request body was **26 KB** of the same.
+
+It is tempting to read that as noise in a generated file. It is not: an
+integrator reading the reference would have concluded that an export can return
+notebook documents and that an import accepts them. **The document was wrong,
+and the fact that nothing hand-wrote it is exactly why nobody would have
+questioned it.** M22's strongest property — the reference is derived, so it
+cannot drift from the implementation — guarantees the document matches the
+*declaration*, and says nothing about whether the declaration matches the
+endpoint.
+
+`TripExportBundle` and `TripImportBundle` are the same document narrowed to
+what each endpoint actually touches (792 lines and 9 KB). Neither is a third
+format: same `$schema`, same `BundleTrip`, read back by `parseBundle`
+unchanged. The export narrowing also turned this milestone's *"no export of
+anything but a trip"* into a runtime assertion, since `route()` validates every
+response against its declaration.
+
+### Two tests proved nothing, and rule 3 is the only thing that found them
+
+Both were in `ImportTripButton.test.tsx`, both passed when written, and both
+passed with the code they protect deliberately broken:
+
+- *"posts the file's own bytes"* used a fixture built with `JSON.stringify`,
+  which survives `JSON.parse` + `JSON.stringify` **byte for byte**. The test
+  could not distinguish the claim from its negation. The fixture is
+  pretty-printed now, and its indentation is what makes the assertion mean
+  anything.
+- *"the same file can be retried"* passed with the input-clearing line deleted,
+  because jsdom's `user.upload` re-fires `change` for an identical file where a
+  real browser does not. That claim is **not expressible at this layer**. The
+  test asserts the mechanism instead — the picker's value is cleared — and says
+  so; the behavioural version belongs to a real browser.
+
+The second is the more useful of the two, because the honest outcome was not
+"write a better test" but "this layer cannot make this claim". A test that
+cannot fail is worse than no test, and a test that quietly tests something
+adjacent is the same thing wearing a name.
+
+### One gate box could not be satisfied as written, and was not quietly weakened
+
+*"A `free`-plan account exports a trip and re-imports it, walked — no
+entitlement anywhere on that path, and no upgrade prompt on any screen it
+touches."*
+
+The trip settings sheet, where the download lives, also hosts *Invite
+someone* — which M20 gates and M21 renders as a disabled form under a CTA to
+`plans`. That prompt predates this milestone, belongs to a different feature,
+and is correct. The blanket assertion failed on the first run.
+
+Two wrong responses were available: delete the assertion, or move the download
+to a screen that satisfies it. The second is a test dictating product
+placement. The box is ticked **with the caveat named** — the way M20 ticked two
+of its own — and the spec asserts the specific, stronger thing: the only
+upgrade prompt on that screen is the collaborators gate, it names inviting
+rather than exporting, and the download beside it is live.
+
+Related, and the same discipline: the oversized-upload refusal is **400 rather
+than 413**, because this gate says 400. `413 Payload Too Large` is the more
+precise status; a gate definition changes only by Mitchell's explicit decision,
+not by a build preferring a different number. The argument is recorded where
+the message is built, so a later reader finds the reasoning rather than the
+discrepancy.
+
+### The full-suite run found something that was neither a defect nor a flake
+
+`test:e2e:ci-like` came back 136 passed, **1 failed** — `m22-api-tokens`, the
+token reveal panel "not found", identically on the retry. By this repo's own
+heuristic (a failure that does not move between runs is a real defect) it read
+as broken token UI.
+
+It was neither. `API_TOKEN_PEPPER` ships blank in `.env.example`, `mintToken`
+throws by design without it, and **nothing in the failure says so**. Every
+other lane supplies its own pepper — the vitest configs `??=` a test value, CI
+sets `ci-pepper` — so the one lane that takes its configuration the way
+production does is the only one that fails, and it fails nowhere else.
+
+Proven rather than inferred: setting the variable locally and re-running turned
+1 failed / 2 passed into 2 passed with no code change. Filed as
+**`KI-2026-09-19-a`**, with the note that the fix is *not* a default value —
+the variable's own documentation explains that an empty pepper still produces a
+stable digest, which is the failure mode it exists to prevent. Refusing to
+start is correct; refusing **legibly** is what is missing, and
+`e2e/global.setup.ts`'s `AI_LIVE` check is the precedent for where that
+belongs.
+
+### What this milestone leaves live
+
+- **The round trip is a fixed point, and that is the property later milestones
+  inherit.** M13, M14, M23 and M24 each make a trip carry more. A field added
+  to an activity and not to `toBundleStop` fails `fromTrip.test.ts` in the diff
+  that adds it — which is the whole reason this milestone was placed before
+  them rather than after.
+- **Export is free, and the thing keeping it free is a sweep, not a check.**
+  `export.free.test.ts` exists because the property is an absence: nothing on
+  that path checks an entitlement, so nothing on that path would go red when
+  somebody adds one.
+- **The two doors into the format stay different.** `content:import` derives
+  ids so a re-import updates its own rows; a user upload mints them so it can
+  never land on somebody else's trip. Collapsing them is a plausible-looking
+  simplification and is the one change that would make an upload dangerous.
 
 ## Deliberately not here
 
