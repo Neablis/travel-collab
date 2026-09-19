@@ -16196,7 +16196,7 @@
         }
       },
       "post": {
-        "summary": "Create a new, empty trip that you own",
+        "summary": "Create a new trip that you own, optionally with a start date or a start and end date",
         "description": "Requires the `trips:write` scope.",
         "security": [
           {
@@ -16216,6 +16216,12 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "startDate": {
+                    "type": "string"
+                  },
+                  "endDate": {
+                    "type": "string"
                   }
                 },
                 "required": [

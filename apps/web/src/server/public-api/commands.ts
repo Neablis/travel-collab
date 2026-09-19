@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { z } from "zod";
+import { daySpan, isCalendarDate } from "@tc/domain";
 import { TripCommand, type TripDetail } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import type { Actor } from "./actor";
@@ -112,4 +114,74 @@ export class PublicApiError extends Error {
 export function orThrow(outcome: WriteOutcome): TripDetail {
   if (outcome.ok) return outcome.detail;
   throw new PublicApiError(outcome.status, outcome.message);
+}
+
+/**
+ * The command a `{ startDate?, endDate? }` pair becomes, or `undefined` when it
+ * names neither. Shared by `PATCH /v1/trips/:id` and `POST /v1/trips`, so a
+ * date means the same thing on both.
+ *
+ * `startDate` alone is `SetTripStartDate`; `endDate` (with or without
+ * `startDate`) is `SetTripDates`, which also adds or drops days to match. That
+ * is not the caller's business to know — it is why this mapping exists. An
+ * `endDate` with no start date anywhere is left for the domain to refuse ("An
+ * end date needs a start date."), so that refusal has one author.
+ *
+ * `current` is the trip as it stands: its start date and how many days it has.
+ * A new trip is `{ startDate: null, dayCount: 0 }`.
+ */
+export function tripDatesCommand(
+  tripId: string,
+  patch: { startDate?: string | null; endDate?: string | null },
+  current: { startDate: string | null; dayCount: number },
+): CommandInput | undefined {
+  if (patch.endDate !== undefined) {
+    // **A field this patch did not mention keeps its value.** `SetTripDates`
+    // takes both halves, so a `PATCH { endDate }` has to supply a start date —
+    // and `?? null` supplied the wrong one, clearing a start date the caller
+    // never asked about. `undefined` means "leave it", which is the trip's
+    // current value; an explicit `null` still clears it.
+    const startDate = patch.startDate === undefined ? current.startDate : patch.startDate;
+    // **Shape is not calendar validity, and `daySpan` throws on the
+    // difference.** The body schema takes a string; `parseIsoDateUtc` raises
+    // `RangeError` for `"invalid"` and for shape-valid impossibles like
+    // `2027-13-45`. Computing the span first put a throw in front of the
+    // domain's own refusal, and the caller got a 500 for a request only they
+    // could fix.
+    //
+    // `isCalendarDate` is the predicate `decide.ts` uses for the same reason
+    // (KI-77), so this refuses exactly what the domain would. A regex on the
+    // schema would not: `2027-13-45` matches it and still throws.
+    for (const [field, value] of [
+      ["startDate", startDate],
+      ["endDate", patch.endDate],
+    ] as const) {
+      if (value !== null && !isCalendarDate(value)) {
+        throw new PublicApiError(400, `"${field}" is not a calendar date.`);
+      }
+    }
+    // **The ids the reconcile will need, minted here.** `SetTripDates`
+    // reconciles the day COUNT to the range and the domain is pure, so it
+    // cannot mint the uuids for days it has to append (Invariant 4) — it
+    // refuses instead. Without these, a write that WIDENED a trip's dates was
+    // a 400 a caller could do nothing about.
+    //
+    // The count is the same one `batchResolver` computes for the AI path, from
+    // the same two numbers `decideTripCommand` reads.
+    const needed =
+      startDate === null || patch.endDate === null
+        ? 0
+        : Math.max(0, daySpan(startDate, patch.endDate) - current.dayCount);
+    return {
+      type: "SetTripDates",
+      newDayIds: Array.from({ length: needed }, () => randomUUID()),
+      tripId,
+      startDate,
+      endDate: patch.endDate,
+    };
+  }
+  if (patch.startDate !== undefined) {
+    return { type: "SetTripStartDate", tripId, startDate: patch.startDate };
+  }
+  return undefined;
 }

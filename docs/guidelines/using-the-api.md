@@ -155,6 +155,32 @@ response carries `items` and `nextCursor`; `nextCursor: null` is the end.
 rather than clamped, so you cannot silently page forever against a number the
 server quietly changed.
 
+### Creating a trip
+
+`POST /v1/trips` takes a `name` and, optionally, dates:
+
+```json
+{ "name": "Lisbon", "startDate": "2027-05-01", "endDate": "2027-05-03" }
+```
+
+- **`name` alone** creates an undated trip with no days, as it always has.
+- **`startDate` alone** dates the trip and adds no days.
+- **`startDate` and `endDate`** date the trip and give it one day per date —
+  three days above. There is no `endDate` field on the trip you get back; the
+  last day's `date` is the end.
+- **`endDate` without `startDate`** is refused: `400`, *"An end date needs a
+  start date."*
+
+These mean exactly what they mean on `PATCH /v1/trips/{tripId}`, with the same
+refusals (a date not on the calendar, an end before the start), and a refused
+date creates **no trip at all**. Unlike `PATCH`, they cannot be `null` — a trip
+being created has no dates to clear.
+
+A trip with dates is created in two steps behind the one call. In the rare case
+the second fails for a reason that is not your request (a server fault), you get
+the error and the half-made trip is deleted, so it will not appear in your list
+(`KI-2026-09-19-f`).
+
 ### Putting a stop on the map
 
 A stop's `location` can carry coordinates, a postal address, or just a name.

@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { TripDetail, TripSummary } from "@tc/contracts";
+import { decideTripCommand, evolveTrip, type TripState } from "@tc/domain";
+import { TripCommand, TripDetail, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { grantedMembersByTrip, mergeMembers } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
-import { orThrow, runCommand } from "@/server/public-api/commands";
+import { orThrow, PublicApiError, runCommand, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
 // **Pilot endpoint 1 of 2** (M22 Phase 2) — a collection, so it is the one that
@@ -54,19 +55,59 @@ export const { GET, POST } = route({
   // **No trip dimension**, so a trip-scoped token is refused: creating a NEW
   // trip from a credential confined to two existing ones is a widening.
   POST: {
-    summary: "Create a new, empty trip that you own",
+    summary: "Create a new trip that you own, optionally with a start date or a start and end date",
     scope: "trips:write",
-    body: z.object({ name: z.string().min(1).max(200) }),
+    // `startDate`/`endDate` mean exactly what they mean on `PATCH
+    // /v1/trips/{tripId}` — `tripDatesCommand` is that mapping, shared. Not
+    // nullable: a trip being created has no dates to clear.
+    body: z.object({
+      name: z.string().min(1).max(200),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }),
     response: TripDetail,
     handle: async ({ actor, body }) => {
+      const { name, startDate, endDate } = body as {
+        name: string;
+        startDate?: string;
+        endDate?: string;
+      };
       const tripId = randomUUID();
-      return orThrow(
-        await runCommand(actor, {
-          type: "CreateTrip",
-          tripId,
-          name: (body as { name: string }).name,
-        }),
-      );
+      // Throws the same 400 as PATCH for a date that is not on the calendar,
+      // before anything is written.
+      const dates = tripDatesCommand(tripId, { startDate, endDate }, { startDate: null, dayCount: 0 });
+      if (dates === undefined) {
+        return orThrow(await runCommand(actor, { type: "CreateTrip", tripId, name }));
+      }
+
+      // **Decided before anything is written.** The dates command is run
+      // through the real decider against the trip exactly as `CreateTrip`
+      // would leave it, so every refusal the second write could give on its
+      // input — an end date with no start, an end before the start — is a 400
+      // here, with the domain's own message, and no trip exists afterwards.
+      const create = TripCommand.parse({ type: "CreateTrip", tripId, name });
+      const genesis = decideTripCommand(null, create, { actorId: actor.userId });
+      if (!genesis.ok) throw new PublicApiError(400, genesis.rejection.message);
+      const fresh = genesis.events.reduce<TripState | null>(evolveTrip, null);
+      const probe = decideTripCommand(fresh, TripCommand.parse(dates), { actorId: actor.userId });
+      if (!probe.ok) throw new PublicApiError(400, probe.rejection.message);
+
+      // **Two writes, not one transaction** — KI-2026-09-19-f. `CreateTrip`
+      // cannot join a batch, so the trip commits first and its dates second.
+      // If the second does not land, the trip is soft-deleted, exactly as
+      // `trips/import` and `cloneTrip.ts` compensate (KI-2026-09-19-b).
+      orThrow(await runCommand(actor, { type: "CreateTrip", tripId, name }));
+      let dated;
+      try {
+        dated = await runCommand(actor, dates);
+      } catch (error) {
+        await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
+        throw error;
+      }
+      if (!dated.ok) {
+        await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
+      }
+      return orThrow(dated);
     },
   },
 });
