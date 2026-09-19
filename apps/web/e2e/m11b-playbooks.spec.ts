@@ -164,7 +164,9 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // A saved day is PRIVATE by default, so it is visible to alice only in her
   // own scope — which is the first half of the gate box.
   await page.goto("/playbooks?scope=yours");
-  await page.getByRole("radio", { name: "Yours" }).click();
+  // Scope is an underlined TAB since M26 link 2 (SPEC §33.2) — a place, not a
+  // pill that reads like a filter.
+  await page.getByRole("tab", { name: "Yours" }).click();
   const ownCard = page.getByTestId("discover-card").filter({ hasText: dayName });
   await expect(ownCard).toBeVisible();
   await expect(ownCard.getByText("Private")).toBeVisible();

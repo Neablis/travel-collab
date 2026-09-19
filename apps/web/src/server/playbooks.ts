@@ -4,7 +4,6 @@ import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
   LENGTH_BAND_RANGE,
-  SEASON_MONTHS,
   type BudgetBand,
   type LengthBand,
   type DiscoverDay,
@@ -12,7 +11,6 @@ import {
   type DiscoverScope,
   type DiscoverSort,
   type PublicAuthor,
-  type Season,
 } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
@@ -67,13 +65,6 @@ export type DiscoverQuery = {
    * cannot disagree with the page below them.
    */
   length: LengthBand;
-  /**
-   * The season asked for, or null for any.
-   *
-   * Bucketed from `created_at`'s month rather than from a stored season — see
-   * `Season` in `lib/playbooks.ts` for why there is no column behind this.
-   */
-  season: Season | null;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -190,25 +181,21 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // `sql.param` binds the whole array as a single `text[]` parameter, which is
   // what the containment operator and the GIN index need.
   const cities = sql`${sql.param(query.cities)}::text[]`;
-  // `at time zone 'UTC'` is load-bearing, not decoration. `created_at` is
-  // `timestamptz`, and `extract(month from <timestamptz>)` resolves against the
-  // SESSION's TimeZone — so the same row can answer a different month depending
-  // on where the connection thinks it is. `SharedDayScreen` derives the season
-  // it displays with `getUTCMonth()`, so the filter has to be pinned to UTC or
-  // a day saved near a month boundary is filtered out of the season it shows.
-  // Raised by review on pull request 102.
+  // **The season predicate is gone** (M26 link 2, SPEC §33.2): it filtered on
+  // the month a day was run and nobody used it. `SEASON_MONTHS` and
+  // `seasonOfMonth` stay — `pnpm content:verify` prints season occupancy and is
+  // a separate consumer. Cutting the filter is not cutting the concept.
   //
-  // The season is expanded to its months HERE rather than being stored: one
-  // lookup (`SEASON_MONTHS`) decides the buckets for the SQL, the card and the
-  // shared-day rail alike, so none of the three can disagree about which
-  // months are Fall.
-  const seasonMonths = sql`${sql.param(query.season === null ? [] : [...SEASON_MONTHS[query.season]])}::int[]`;
+  // The UTC pinning that comment used to explain went with it. If a month
+  // predicate ever returns here, it needs `at time zone 'UTC'` again:
+  // `extract(month from <timestamptz>)` resolves against the SESSION's TimeZone,
+  // so the same row answers a different month depending on where the connection
+  // thinks it is (review, pull request 102).
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
     ${notDeleted}
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
-    and (cardinality(${seasonMonths}) = 0 or extract(month from d.created_at at time zone 'UTC') = any(${seasonMonths}))
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
     ${lengthPredicate(query.length)}
   `;

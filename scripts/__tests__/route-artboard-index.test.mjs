@@ -98,12 +98,21 @@ test("every spec section cited by a row exists in SPEC.md", () => {
   }
 });
 
-// `/account` is in the table and not in the app: the design is ahead, and M26
-// link 1 is what closes it. Stated as a test so the row is understood as a
-// known gap rather than read as a bug in route discovery.
-test("a mapped route the build has not shipped yet is allowed, and /account is the one", () => {
+// **This asserted that `/account` was the one mapped route the build did not
+// have.** M26 link 1 built it, and this test failed on the very next run —
+// which is the forcing function working: a row claiming the design is ahead
+// must stop claiming it the moment the build catches up, or the table starts
+// lying in the safe-sounding direction.
+//
+// Every mapped route now exists. A new gap is allowed — the design usually does
+// run ahead — but it has to be a deliberate one, so this fails until whoever
+// adds the row says here which route it is and why.
+test("every mapped route exists in the app, or is named here as a known gap", () => {
   const built = new Set(appRoutes());
   const unbuilt = ROUTES.filter((r) => !built.has(r.route)).map((r) => r.route);
-  assert.deepEqual(unbuilt, ["/account"]);
-  assert.match(ROUTES.find((r) => r.route === "/account").note, /NOT BUILT YET/);
+  assert.deepEqual(
+    unbuilt,
+    [],
+    `the design is ahead on these routes; if that is intended, list them in this test and say why: ${unbuilt.join(", ")}`,
+  );
 });

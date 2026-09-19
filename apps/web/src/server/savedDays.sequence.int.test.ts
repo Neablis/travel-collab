@@ -98,7 +98,6 @@ describe("a Playbook written before M23 still reads, through BOTH parse sites", 
       sort: "newest",
       budget: "any",
       length: "any",
-      season: null,
       readerId: OWNER,
     });
     const card = found.days.find((d) => d.savedDayId === id);
@@ -112,12 +111,12 @@ describe("a Playbook written before M23 still reads, through BOTH parse sites", 
   it("is still found by the new length filter, as a one-day Playbook", async () => {
     const id = await rowInThePreMigrationShape();
     const one = await discoverDays({
-      cities: ["Kyoto"], scope: "everyone", sort: "newest", budget: "any", length: "one", season: null, readerId: OWNER,
+      cities: ["Kyoto"], scope: "everyone", sort: "newest", budget: "any", length: "one", readerId: OWNER,
     });
     expect(one.days.map((d) => d.savedDayId)).toContain(id);
 
     const longer = await discoverDays({
-      cities: ["Kyoto"], scope: "everyone", sort: "newest", budget: "any", length: "four-six", season: null, readerId: OWNER,
+      cities: ["Kyoto"], scope: "everyone", sort: "newest", budget: "any", length: "four-six", readerId: OWNER,
     });
     expect(longer.days.map((d) => d.savedDayId)).not.toContain(id);
   });
@@ -332,7 +331,7 @@ describe("Discover's length filter", () => {
     const ids = { one: await playbookOf(1), three: await playbookOf(3), five: await playbookOf(5), eight: await playbookOf(8) };
     async function inBand(length: "any" | "one" | "two-three" | "four-six" | "seven-plus") {
       const r = await discoverDays({
-        cities: [city], scope: "everyone", sort: "newest", budget: "any", length, season: null, readerId: OWNER,
+        cities: [city], scope: "everyone", sort: "newest", budget: "any", length, readerId: OWNER,
       });
       return r.days.map((d) => d.savedDayId).sort();
     }

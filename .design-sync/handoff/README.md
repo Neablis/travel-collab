@@ -230,7 +230,7 @@ against the milestone link that owns the screen before writing code
 | `/playbooks/board` | `isBoard` · line 3477 | §15 | Leaderboard |
 | `/playbooks/profile/[userId]` | `isProfile` · line 3511 | §15 | Public profile |
 | `/plans` | `isPlansRoute` · line 3184 | §29, §34 | §34.3 adds the phone treatment |
-| `/account` | `isAccountRoute` · line 2928 | §12, §34 | NOT BUILT YET — a Sheet today; M26 link 1 makes it this route |
+| `/account` | `isAccountRoute` · line 2928 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
 | `/admin` | `isAdminRoute` · line 3316 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
 | `/welcome` | `isDeskLanding` · line 4608 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
 | `/signin` | `isSignin` · line 5021 | §14, §28 | Inside the `isAuth` block |

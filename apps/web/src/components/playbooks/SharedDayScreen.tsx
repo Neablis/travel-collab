@@ -24,7 +24,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
-import { SEASON_LABELS, seasonOfMonth, type PublicAuthor } from "@/lib/playbooks";
+import { type PublicAuthor } from "@/lib/playbooks";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockRange } from "@/lib/time";
 import { backQuery } from "./backLink";
@@ -46,25 +46,27 @@ const MONTHS = [
 ] as const;
 
 /**
- * The rail's season line: the bucket, and the month it was bucketed from.
+ * The month the day was lifted out of its source trip.
  *
- * Both halves, because Mitchell asked for both (2026-09-01: *"Kept in → Season
- * ... but also should include month the first trip it was cloned from used"*).
- * The season is what Discover filters on and the month is the fact behind it,
- * so showing only the bucket would make the filter unexplainable and showing
- * only the month would leave the two surfaces speaking different languages.
+ * **The season BUCKET is gone from this line** (M26 link 2, SPEC §33.2). It
+ * read "Fall · September 2026", and the bucket was there for one reason,
+ * written into the comment it replaces: *"the season is what Discover filters
+ * on and the month is the fact behind it, so showing only the bucket would make
+ * the filter unexplainable"*. §33.2 cut that filter, so the bucket now explains
+ * nothing — it is a classification this product no longer acts on anywhere.
  *
- * Exported and pure so the wording is asserted directly rather than through a
- * render, and so it cannot drift from `seasonOfMonth` — one lookup decides
- * which months are Fall, here and in the SQL alike.
+ * **The month stays, because it is the half Mitchell actually asked for**
+ * (2026-09-01: *"Kept in → Season ... but also should include month the first
+ * trip it was cloned from used"*). Dropping the whole fact would have taken a
+ * thing he requested along with a thing nobody used, and "Season is gone from
+ * the rail" is a statement about the word and the bucket, not about the date.
+ *
+ * Pure so the wording is asserted directly rather than through a render.
  */
-function seasonLine(createdAt: string): string {
+export function keptInLine(createdAt: string): string {
   const at = new Date(createdAt);
   if (Number.isNaN(at.getTime())) return "Not known";
-  const month = at.getUTCMonth() + 1;
-  const season = seasonOfMonth(month);
-  const monthLabel = `${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
-  return season === null ? monthLabel : `${SEASON_LABELS[season]} · ${monthLabel}`;
+  return `${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
 }
 
 type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor };
@@ -432,12 +434,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   : formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)
               }
             />
-            {/* Season, over the month the day was lifted out of its source
-                trip. `stopsForDay` drops a day's calendar date on purpose
-                (ADR-029), so `created_at` is the only month a saved day
-                carries — the label no longer claims otherwise, and Discover's
-                filter buckets the same month through the same lookup. */}
-            <Fact label="Season" value={seasonLine(day.createdAt)} />
+            {/* The month the day was lifted out of its source trip.
+                `stopsForDay` drops a day's calendar date on purpose (ADR-029),
+                so `created_at` is the only month a saved day carries. The
+                season bucket that used to lead this line went with Discover's
+                season filter (M26 link 2) — see `keptInLine`. */}
+            <Fact label="Kept in" value={keptInLine(day.createdAt)} />
             <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
 
             <Button

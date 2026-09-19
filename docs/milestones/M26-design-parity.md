@@ -672,13 +672,25 @@ marked **[walk]** and are not satisfiable by a green test.
       the tab panel's (one place, as the artboard has it), `ui/settings-card.tsx`
       is the card and row, the token list is a `Table` in a filled card with a
       moss header, and all five unfilled boxes now carry `bg-surface`. Unwalked.
-- [ ] **[walk]** Discover's scope is underlined tabs above the search; Rating
+- [~] **[walk]** Discover's scope is underlined tabs above the search; Rating
       and Budget are always-present chips showing their value when set;
       *More filters* holds the rest; the results sentence reads `N shared days ·
       <sort> ▾`; the filter count excludes scope and sort; *Clear filters* does
       **not** reset the scope tab. `Season` is gone from the header, the query
       parameters and the rail — and `pnpm content:verify` still prints season
-      occupancy.
+      occupancy. **Built 2026-09-19, with one deliberate difference and one
+      judgement call, both unwalked:**
+      **Rating is NOT a chip** — §33.2 names it as the second face filter, and
+      there is no reviews table (M12 owns it), so it would be a control over
+      data that does not exist (project rule 2). Budget is the only face filter
+      until M12, and `discoverFilters.test.ts` asserts that so the absence reads
+      as a decision and M12 finds the test when it adds the second.
+      **The rail keeps the MONTH and loses the season bucket**, rather than
+      losing the whole fact: the bucket was there because Discover filtered on
+      it (*"showing only the bucket would make the filter unexplainable"*), and
+      with the filter gone it classifies nothing — but Mitchell asked for the
+      month by name on 2026-09-01, so `Season: Summer · August 2026` became
+      `Kept in: August 2026`.
 - [ ] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
       carrying a window and a stop count, stops numbered continuously, and a CTA
       reading `Add all 3 days to a trip`. Picking `Day 2` rescopes everything
@@ -701,8 +713,13 @@ marked **[walk]** and are not satisfiable by a green test.
       remains, under a *Take it with you* heading that says history does not
       travel. A trip shared with you offers **Leave this trip** and no Delete.
       A duplicate lands with dates and travellers cleared.
-- [ ] The tag-focus notice renders above the content it dims, on every lens,
-      and `clearTagFilter` is unchanged.
+- [~] The tag-focus notice renders above the content it dims, on every lens,
+      and `clearTagFilter` is unchanged. **Moved 2026-09-19** — one JSX move, as
+      §33.3 said. The toolbar's explicit spacer stayed (it still keeps the
+      design's 12px floor between the tabs and the pill), and `TagFocusLine`
+      dropped the `min-w-0`/truncate squeeze it only needed while sharing a row.
+      Its own doc comment said it sits beside `TripViewTabs`; that is rewritten
+      rather than left to rot. **Unwalked on every lens.**
 - [ ] An accent that is not a hex token **fails a test** rather than reaching a
       map paint property; an undefined token name **fails the colour wall**.
       Both proven by adding the bad value and watching it go red (CLAUDE.md

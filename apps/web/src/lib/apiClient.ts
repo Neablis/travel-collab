@@ -33,7 +33,6 @@ import {
   type LengthBand,
   type DiscoverScope,
   type DiscoverSort,
-  type Season,
 } from "@/lib/playbooks";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -655,7 +654,6 @@ export async function searchPlaybooks(query: {
   sort?: DiscoverSort;
   budget?: BudgetBand;
   length?: LengthBand;
-  season?: Season | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
@@ -663,7 +661,6 @@ export async function searchPlaybooks(query: {
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);
   if (query.length) params.set("length", query.length);
-  if (query.season != null) params.set("season", query.season);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));

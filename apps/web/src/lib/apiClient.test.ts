@@ -262,7 +262,6 @@ describe("searchPlaybooks puts its filters on the wire", () => {
       sort: "newest",
       budget: "under200",
       length: "two-three",
-      season: "fall",
     });
     expect(result.ok).toBe(true);
     expect(seen).not.toBeNull();
@@ -271,7 +270,11 @@ describe("searchPlaybooks puts its filters on the wire", () => {
     expect(seen!.searchParams.get("sort")).toBe("newest");
     expect(seen!.searchParams.get("budget")).toBe("under200");
     expect(seen!.searchParams.get("length")).toBe("two-three");
-    expect(seen!.searchParams.get("season")).toBe("fall");
+    // **No `season`.** M26 link 2 cut it (SPEC §33.2) — it filtered on the
+    // month a day was run and nobody used it. Asserted as absent rather than
+    // merely deleted from the call above, so a `season` that crept back into
+    // the query builder fails here.
+    expect(seen!.searchParams.has("season")).toBe(false);
   });
 
   // An omitted filter is absent rather than sent as a word the route would

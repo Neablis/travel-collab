@@ -59,7 +59,7 @@ import type { GeocodeResult, Geocoder } from "@/server/geocoding";
  */
 export const playbookLibrary: PlaybookLibrary = {
   discover: async ({ cities, readerId }) =>
-    (await discoverDays({ cities, scope: "everyone", sort: "most-added", budget: "any", length: "any", season: null, readerId }))
+    (await discoverDays({ cities, scope: "everyone", sort: "most-added", budget: "any", length: "any", readerId }))
       .days,
 };
 

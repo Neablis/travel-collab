@@ -829,18 +829,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               <div className="hidden shrink-0 md:block">
                 <TripViewTabs />
               </div>
-              {/* Deliberately NOT wrapped in a `shrink-0` div the way the tabs
-                  are, though the design pins it `flex: 0 0 auto`: TagFocusLine
-                  renders null when no tag is focused and a wrapper does not, so
-                  the wrapper would leave a phantom flex item — and a `gap-4`
-                  worth of dead space — on every board that is not focused. It
-                  carries its own `min-w-0` and truncate for the squeeze. */}
-              <TagFocusLine />
-              {/* The design's explicit spacer, in place of `ml-auto` on the
-                  pill: the focus line appears and disappears between the tabs
-                  and the pill, and a margin-auto would drag the pill leftwards
-                  whenever a tag came into focus. `min-w-3` is the design's
-                  12px floor, so the two never touch once the row is scrolling. */}
+              {/* **The tag-focus notice used to sit here, in the toolbar, and
+                  it has moved out** (SPEC §33.3, M26 link 2). Same rule as
+                  Discover one surface over: a toolbar holds CONTROLS, and this
+                  is a statement about the content below it — "you are looking
+                  at a subset, here is how to stop". It now renders on its own
+                  line above the thing it dims.
+
+                  What went with it: the `min-w-0`/truncate squeeze it carried
+                  for this row, and the explicit spacer below. The spacer
+                  existed only because the line appeared and disappeared BETWEEN
+                  the tabs and the pill, so `ml-auto` would have dragged the
+                  pill leftwards whenever a tag came into focus. With the line
+                  gone from this row, nothing moves and `ml-auto` is honest
+                  again — but the spacer is kept as-is rather than swapped,
+                  because the row still needs the design's 12px floor between
+                  the tabs and the pill once it scrolls. */}
               <div className="min-w-3 flex-auto" />
               {/* SPEC §11: the Notebooks pill sits at the FAR RIGHT of this
                   row, deliberately a different class of thing from the tabs —
@@ -868,6 +872,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 </div>
               )}
             </div>
+            {/* §33.3: the tag-focus notice, **above the content it dims** and
+                on its own line. It renders null when no tag is focused, so it
+                costs nothing on a board that is not focused — which is why it
+                needs no wrapper and gets none. `clearTagFilter` is unchanged;
+                this link is one JSX move, exactly as §33.3 says it is. */}
+            <TagFocusLine />
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}

@@ -37,7 +37,7 @@ export const ROUTES = [
   { route: "/playbooks/board", gate: "isBoard", spec: [15], note: "Leaderboard" },
   { route: "/playbooks/profile/[userId]", gate: "isProfile", spec: [15], note: "Public profile" },
   { route: "/plans", gate: "isPlansRoute", spec: [29, 34], note: "§34.3 adds the phone treatment" },
-  { route: "/account", gate: "isAccountRoute", spec: [12, 34], note: "NOT BUILT YET — a Sheet today; M26 link 1 makes it this route" },
+  { route: "/account", gate: "isAccountRoute", spec: [12, 34], note: "Three tabs in `?tab=`; was a Sheet until M26 link 1" },
   { route: "/admin", gate: "isAdminRoute", spec: [17], note: "Operator console. The artboard also draws M21's strip — read M20 link 7's split note" },
   { route: "/welcome", gate: "isDeskLanding", spec: [14, 17], note: "The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block" },
   { route: "/signin", gate: "isSignin", spec: [14, 28], note: "Inside the `isAuth` block" },

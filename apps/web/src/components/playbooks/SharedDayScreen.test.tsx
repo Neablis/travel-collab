@@ -201,12 +201,20 @@ describe("a shared day", () => {
     expect(within(rail).getByText("Budget")).toBeTruthy();
     expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
-    // Season, and the month it was bucketed from — "Kept in August 2026" became
-    // "Season: Summer · August 2026" (Mitchell, 2026-09-01). Both halves,
-    // because Discover filters on the first and the second is the fact behind
-    // it: a rail showing only the bucket makes the filter unexplainable.
-    expect(within(rail).getByText("Summer · August 2026")).toBeTruthy();
-    expect(within(rail).queryByText("Kept in")).toBeNull();
+    // **The month, without the season bucket** (M26 link 2, §33.2). This read
+    // "Season: Summer · August 2026", and the bucket was there for one stated
+    // reason: Discover filtered on it, so a rail showing only the month would
+    // have left the filter unexplainable. §33.2 cut that filter, so the bucket
+    // now classifies nothing this product acts on.
+    //
+    // The month stays, and both halves of that are asserted — Mitchell asked
+    // for it by name (2026-09-01: *"should include month the first trip it was
+    // cloned from used"*), so dropping the whole fact would have taken a thing
+    // he requested along with a thing nobody used.
+    expect(within(rail).getByText("August 2026")).toBeTruthy();
+    expect(within(rail).queryByText(/Summer/)).toBeNull();
+    expect(within(rail).getByText("Kept in")).toBeTruthy();
+    expect(within(rail).queryByText("Season")).toBeNull();
     // Length, from the window the rail already shows: 07:30 to 11:30 is four
     // hours, and exactly four hours is Medium rather than Short — the boundary
     // `dayLength` documents, asserted here so the rail cannot start rounding

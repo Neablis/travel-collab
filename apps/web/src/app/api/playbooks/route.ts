@@ -5,7 +5,6 @@ import {
   DiscoverResponse,
   DiscoverScope,
   DiscoverSort,
-  Season,
 } from "@/lib/playbooks";
 import { discoverDays } from "@/server/playbooks";
 
@@ -41,12 +40,6 @@ export async function GET(request: Request) {
   // contain a comma and splitting on one would invent a city called " Japan".
   const cities = [...new Set(params.getAll("city").map((c) => c.trim()).filter((c) => c !== ""))];
 
-  // `?season=` replaces `?month=` (Mitchell, 2026-09-01). Absent or
-  // unrecognised means "any season" rather than a 400, for the same reason
-  // every other parameter here falls back: an old `?month=9` link written
-  // against the previous control still shows results, it just stops narrowing.
-  const seasonParsed = Season.safeParse(params.get("season"));
-  const season = seasonParsed.success ? seasonParsed.data : null;
 
   const result = await discoverDays({
     cities,
@@ -57,7 +50,6 @@ export async function GET(request: Request) {
     // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
     // of breaking the page.
     length: LengthBand.catch("any").parse(params.get("length")),
-    season,
     readerId: session.user.id,
   });
   return Response.json(DiscoverResponse.parse(result));
