@@ -4,11 +4,24 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-18.** The new-trip transcript was made chat-shaped: two
+Last substantive pass: **2026-09-19.** Playbooks learned to hold several days, and the
+Discover header was re-sorted by kind of decision — tabs for place, chips for questions,
+sort on the results sentence (§33). Before that, 2026-09-18: The new-trip transcript was made chat-shaped: two
 visibly different sides, the live question inside the thread, and one answer dock at the
 foot of the sheet (§31). It builds on 2026-09-15, when new trip became a scripted
 conversation and the assistant transcript lost its message bubbles (§30), and 2026-09-14,
 which moved the plan chooser into a route with a confirm-and-pay step (§29).
+
+### What changed on 2026-09-19, in build terms (§33)
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| A Playbook can be several days | §33.1 | `All days · Day 1 · Day 2 …` `TabStrip` on the day view, All by default; everything under the title rescopes; single-day Playbooks show no tabs |
+| The day index is a field, not a label | §33.1 | The API must carry `day` per stop — the design parses a `Day N · ` prefix only because the fixture has one |
+| "All days" merges, it does not concatenate | §33.1 | Per-day geometry, then union. **No leg across a night.** Map cache key must include the day |
+| Tabs are places, filters are questions, sort is a property | §33.2 | Scope becomes underlined page tabs (never an "active filter"); filters are chips + one *More filters* menu; sort moves onto the results sentence and out of the filter count |
+| Discover query parameters changed | §33.2 | **Season cut**, **Length added** (buckets over `days`) |
+| Plan toolbar | §33.3 | Tag-focus notice moves out of the toolbar, above the content it dims. No API change |
 
 ### What changed on 2026-09-18, in build terms — part two (§32)
 

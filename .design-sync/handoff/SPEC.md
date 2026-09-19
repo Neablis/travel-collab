@@ -1600,3 +1600,94 @@ A build owes:
   becomes the app's own style (`Apr 10, 2027`) before it enters the transcript, the shape
   line or the toast. A conversational surface showing `2027-04-10` reads machine-generated
   and drifts from every other date in the product.
+
+---
+
+## 33. Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19
+
+Two changes on the Playbooks surfaces. The first is a data change the design had never
+drawn; the second is the rule that came out of it.
+
+### 33.1 A Playbook can be more than one day
+
+`days` was already on the record (`pb-kyoto3` is 3) but every surface below the card
+treated a Playbook as one day: the ledger printed a flat list with `Day 1 · 6:30 am` sitting
+in the **time** column, the span read `6:30 am – 9:30 pm` across three different days, and
+the map drew one polyline straight through every night.
+
+The day view now has a scope:
+
+- **A `TabStrip` under the title block: `All days · Day 1 · Day 2 · Day 3`.** Same component
+  as the trip's Overview/Plan/Calendar/Map switcher — a Playbook's days are lenses on one
+  object, exactly like a trip's views. Single-day Playbooks render **no** tab row.
+- **`All days` is the default** and rolls up: the ledger runs all stops in order with a
+  `Day N · 9:45 am – 6:30 pm · 4 stops` divider before each day, numbering continuous
+  1…N; the map facts read *On foot, all days*; the tag roll (*3 meals*, *2 ticketed*) and
+  the "needs booking ahead" line count the whole Playbook.
+- **Picking one day rescopes everything below the title** — stops, map, tag roll, booking
+  line — and adds that day's window beside the tabs. The title block always speaks for the
+  whole Playbook (`3 days · 12 stops · run in November`), so no number is stated twice.
+- The sidebar CTA becomes **Add all N days to a trip**. Insertion behaviour is unchanged —
+  `insertPlan()` already inserted N days and slid the rest of the trip.
+
+A build owes:
+
+- **Parse the day index off the stop once, at load.** Stops are authored `Day N · 6:30 am`;
+  `_pbInit` strips the prefix into a parallel `dayOf[]` and leaves `x[0]` a plain time. A
+  real API should carry `day` as a field and never make the client parse a label — the
+  prefix is a fixture artefact, not a format to reproduce.
+- **Geometry is per day, and "all days" is a merge, not a filter.** `pbGeo(p, dayNo)`
+  computes one day; with `dayNo = 0` it computes each day and concatenates points, legs and
+  gaps. **No leg may join the last stop of one day to the first of the next** — a straight
+  line across a night is a fact the map would be inventing. Distances sum; the "widest
+  point to point" is measured across the union.
+- **The map cache key includes the day** (`dayId:dayNo`), or switching tabs leaves the
+  previous day's line on screen.
+- Opening any Playbook resets the scope to `All days`.
+- Phone carries the same tab row above the map card, with the same default.
+
+### 33.2 Tabs are places, filters are questions, sort is a property of the list
+
+The Discover header had grown to a segmented scope control **and** five identical dropdown
+pills in one row — noisy, and the wrap put the right-aligned group back at the left edge.
+The diagnosis was not "too many controls" but **three different kinds of decision wearing
+identical clothes**. The rule, which now governs this page and should govern any list
+surface:
+
+| Kind | What it does | Where it lives |
+|---|---|---|
+| **Place** | Changes which set you are looking at | Tabs at the top of the page, above the search |
+| **Question** | Narrows the set you are in | Chips, and one *More filters* menu |
+| **Property of the list** | Orders it; never hides anything | Attached to the results sentence |
+
+Applied to Playbooks Discover:
+
+- **`Everyone / Yours / Saved` is an underlined tab bar above the search card** — 2px
+  `--color-brand` underline, `--color-ink` active / `--color-slate` idle, sitting on a
+  `--color-hairline` base line. It is a place, so it **never counts as an active filter and
+  Clear filters does not reset it.** (The DS ships no underlined tab; `TabStrip`/`Tabs` are
+  both pill-shaped. This treatment is deliberate and uses DS tokens only — see
+  `DS-UPSTREAM.md` if it should become a component.)
+- **Filters are chips.** `Rating` and `Budget` are `face: true` in `FILTER_DEFS` — always
+  present, outline + slate when empty, `--color-brand-tint` + brand border showing their
+  **value** when set. Everything else appears as a chip **only once it carries a value**.
+  One *More filters* popover holds the non-face set, grouped by label.
+- **Sort left the filter row** for the results line: `128 shared days · Most added ▾`. It is
+  not in `FILTER_DEFS`, it is `SORT_DEF`, and it is **excluded from the filter count** — the
+  phone badge previously counted "sorted by newest" as a filter, which it is not.
+- The results sentence states the count only. It used to end *", most added first"*; beside
+  a live Sort control that was both duplicated and able to contradict it.
+- **`Length`** (`1 day / 2–3 days / 4–6 days / 7+ days`, filtering on `days`) is new and
+  lives in *More filters*. **`Season` was cut** — it filtered on the month a day was run and
+  nobody used it.
+- Phone: the same tab bar above its search; scope is **out of** the filter sheet (a place is
+  not a sheet setting); the sheet is filters + sort.
+
+### 33.3 The trip Plan toolbar, same rule
+
+The toolbar held view tabs, the tag-focus notice and the Notebooks menu in one row. Tabs
+and Notebooks stay (a view switcher and the page's one menu). **The tag-focus notice moved
+out** onto its own line directly above the content it dims — it is a statement about the
+list below, not a control in the toolbar.
+
+A build owes: nothing structural. It is a move, and `clearTagFilter` is unchanged.

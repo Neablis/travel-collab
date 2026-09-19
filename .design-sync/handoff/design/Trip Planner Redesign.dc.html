@@ -787,7 +787,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <sc-if value="{{ phonePb }}" hint-placeholder-val="{{ false }}">
             <div style="flex: 0 0 auto; background: var(--color-surface); border-bottom: 1px solid var(--color-hairline); padding: 58px 16px 10px;">
               <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; color: var(--color-ink);">Playbooks</div>
-              <div style="font-size: 12.5px; color: var(--color-slate); padding: 3px 0 10px; text-wrap: pretty;">One good day, saved whole. Search a city to find days people have already run.</div>
+              <div style="font-size: 12.5px; color: var(--color-slate); padding: 3px 0 4px; text-wrap: pretty;">One good day, saved whole. Search a city to find days people have already run.</div>
+              <div role="tablist" aria-label="Whose days" style="display: flex; align-items: stretch; gap: 20px; border-bottom: 1px solid var(--color-hairline); margin-bottom: 10px;">
+                <sc-for list="{{ scopeTabs }}" as="t" hint-placeholder-count="3">
+                  <button onClick="{{ t.pick }}" role="tab" aria-selected="{{ t.on }}" style="min-height: 44px; background: none; border: 0; border-bottom: 2px solid {{ t.edge }}; margin-bottom: -1px; padding: 0 1px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: {{ t.weight }}; color: {{ t.ink }};">{{ t.label }}</button>
+                </sc-for>
+              </div>
               <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Kyoto, Lisbon, New Orleans…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
               <sc-if value="{{ hasQ }}" hint-placeholder-val="{{ false }}">
                 <div style="border: 1px solid var(--color-hairline); border-radius: 10px; margin-top: 8px; overflow: hidden;">
@@ -929,6 +934,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </sc-if>
               </div>
 
+              <sc-if value="{{ day.multiDay }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 44px; padding-top: 2px;">
+                  <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ day.dayTab }}" onValueChange="{{ day.setDayTab }}" options="{{ day.dayTabs }}" aria-label="Which day of this Playbook"></x-import>
+                  <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ day.dayLine }}</span>
+                </div>
+              </sc-if>
+
               <sc-if value="{{ day.hasMap }}" hint-placeholder-val="{{ true }}">
                 <div style="flex: none; border: 1px solid var(--color-hairline); border-radius: 13px; overflow: hidden;">
                   <button onClick="{{ toggleDayMap }}" aria-expanded="{{ dayMapOpen }}" style="display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px; background: var(--color-surface); border: 0; font-family: inherit; cursor: pointer; text-align: left;">
@@ -962,6 +974,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
               <div>
                 <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="5">
+                  <sc-if value="{{ s.dayStart }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 0 3px;">
+                      <span style="font-family: var(--font-next-display); font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ s.dayLabel }}</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ s.daySpan }}</span>
+                      <span style="flex: 1; height: 1px; background: var(--color-hairline);"></span>
+                    </div>
+                  </sc-if>
                   <div style="display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: 10px; padding: 10px 0 3px;">
                     <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); padding-top: 3px;">{{ s.t }}</span>
                     <span style="width: 24px; height: 24px; border-radius: 999px; background: {{ s.pin }}; color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; font-weight: 600;">{{ s.num }}</span>
@@ -1011,10 +1030,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <button onClick="{{ closePbSheet }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; font-weight: 600; color: var(--color-brand); cursor: pointer;">Done</button>
               </div>
               <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 16px 16px 22px; display: flex; flex-direction: column; gap: 18px;">
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Whose days</span>
-                  <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="100%,38px" value="{{ scope }}" onValueChange="{{ setScope }}" options="{{ scopes }}" aria-label="Whose days"></x-import>
-                </div>
                 <sc-for list="{{ pbFilterGroups }}" as="fg" hint-placeholder-count="4">
                   <div style="display: flex; flex-direction: column; gap: 8px;">
                     <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">{{ fg.label }}</span>
@@ -1637,16 +1652,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <div style="flex: 0 0 auto;">
                 <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ view }}" onValueChange="{{ setView }}" options="{{ viewOptions }}" aria-label="Plan layout"></x-import>
               </div>
-              <sc-if value="{{ tagFilterOn }}" hint-placeholder-val="{{ false }}">
-              <div style="display: flex; align-items: center; gap: 10px; flex: 0 0 auto;">
-                <div style="width: 1px; height: 20px; background: var(--color-hairline);"></div>
-                <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--color-slate);">
-                  <span style="font-size: 11px; font-weight: 600; color: {{ focusInk }}; background: {{ focusBg }}; border-radius: 5px; padding: 2px 8px;">{{ focusLabel }}</span>
-                  in focus — everything else is dimmed
-                </span>
-                <button onClick="{{ clearTagFilter }}" style="background: none; border: 0; padding: 4px 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Clear</button>
-              </div>
-              </sc-if>
               <div style="flex: 1 1 auto; min-width: 12px;"></div>
               <div style="flex: 0 0 auto;">
                 <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ nbOpen }}" onOpenChange="{{ setNbOpen }}" align="end" contentClassName="w-80 p-1" collisionPadding="{{ 12 }}" trigger="{{ nbTrigger }}">
@@ -1675,6 +1680,14 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </div>
             </div>
           </div>
+
+          <sc-if value="{{ tagFilterOn }}" hint-placeholder-val="{{ false }}">
+            <div data-r="pad" style="display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 0 26px 12px;">
+              <span style="font-size: 11px; font-weight: 600; color: {{ focusInk }}; background: {{ focusBg }}; border-radius: 5px; padding: 2px 8px;">{{ focusLabel }}</span>
+              <span style="font-size: 12px; color: var(--color-slate);">in focus — everything else is dimmed</span>
+              <button onClick="{{ clearTagFilter }}" style="background: none; border: 0; padding: 4px 6px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-brand); text-decoration: underline;">Clear</button>
+            </div>
+          </sc-if>
 
           <sc-if value="{{ isTripHome }}" hint-placeholder-val="{{ true }}">
             <div data-r="pad" data-screen-label="Overview" style="padding: 26px 26px 90px; max-width: 840px;">
@@ -2161,6 +2174,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 640px; text-wrap: pretty;">One good day, saved whole — the stops, the order, the timings, the notes. Search a city to find days other people have already run, read what they thought of them, and drop one into your trip.</div>
             </div>
 
+            <div role="tablist" aria-label="Whose days" style="display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid var(--color-hairline); margin-bottom: -4px;">
+              <sc-for list="{{ scopeTabs }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.pick }}" role="tab" aria-selected="{{ t.on }}" style="background: none; border: 0; border-bottom: 2px solid {{ t.edge }}; margin-bottom: -1px; padding: 6px 1px 10px; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: {{ t.weight }}; color: {{ t.ink }};">{{ t.label }}</button>
+              </sc-for>
+            </div>
+
             <div style="position: relative; display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 14px; z-index: 20;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Search a city — Kyoto, Lisbon, New Orleans…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
@@ -2220,9 +2239,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </sc-if>
 
             <div data-r="row" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
-              <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ scope }}" onValueChange="{{ setScope }}" options="{{ scopes }}" aria-label="Whose days"></x-import>
-              <div style="flex: 1 1 auto; min-width: 8px;"></div>
-              <sc-for list="{{ pbFilterMenus }}" as="fm" hint-placeholder-count="4">
+              <sc-for list="{{ pbFilterMenus }}" as="fm" hint-placeholder-count="2">
                 <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ fm.open }}" onOpenChange="{{ fm.setOpen }}" align="start" contentClassName="w-56 p-1" collisionPadding="{{ 12 }}" trigger="{{ fm.trigger }}">
                   <div style="display: flex; flex-direction: column; max-height: calc(var(--radix-popover-content-available-height, 420px) - 24px); overflow-y: auto;">
                     <sc-for list="{{ fm.items }}" as="op" hint-placeholder-count="4">
@@ -2234,6 +2251,22 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                 </x-import>
               </sc-for>
+              <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,32px" open="{{ pbMoreMenu.open }}" onOpenChange="{{ pbMoreMenu.setOpen }}" align="start" contentClassName="w-60 p-3" collisionPadding="{{ 12 }}" trigger="{{ pbMoreMenu.trigger }}">
+                <div style="display: flex; flex-direction: column; gap: 14px; max-height: calc(var(--radix-popover-content-available-height, 420px) - 24px); overflow-y: auto;">
+                  <sc-for list="{{ pbMoreMenu.groups }}" as="fg" hint-placeholder-count="1">
+                    <div style="display: flex; flex-direction: column; gap: 7px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">{{ fg.label }}</span>
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        <sc-for list="{{ fg.items }}" as="op" hint-placeholder-count="4">
+                          <button onClick="{{ op.pick }}" style="display: inline-flex; align-items: center; gap: 5px; background: {{ op.bg }}; border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 11px; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: {{ op.weight }}; color: var(--color-ink);" style-hover="background: var(--color-moss);">
+                            <span style="color: var(--color-brand);">{{ op.tick }}</span>{{ op.label }}
+                          </button>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </x-import>
             </div>
 
             <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-top: 4px; border-top: 1px solid var(--color-hairline);">
@@ -2243,6 +2276,16 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <sc-if value="{{ showResultLine }}" hint-placeholder-val="{{ true }}">
                 <span style="font-size: 13.5px; color: var(--color-ink);">{{ resultLine }}</span>
               </sc-if>
+              <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,20px" open="{{ pbSortMenu.open }}" onOpenChange="{{ pbSortMenu.setOpen }}" align="start" contentClassName="w-56 p-1" collisionPadding="{{ 12 }}" trigger="{{ pbSortMenu.trigger }}">
+                <div style="display: flex; flex-direction: column;">
+                  <sc-for list="{{ pbSortMenu.items }}" as="op" hint-placeholder-count="4">
+                    <button onClick="{{ op.pick }}" style="display: flex; align-items: center; gap: 9px; background: {{ op.bg }}; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-family: inherit; text-align: left;" style-hover="background: var(--color-moss);">
+                      <span style="width: 14px; flex: none; font-size: 12px; line-height: 1; color: var(--color-brand);">{{ op.tick }}</span>
+                      <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: {{ op.weight }}; color: var(--color-ink);">{{ op.label }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </x-import>
               <div style="flex: 1;"></div>
               <button onClick="{{ goBoard }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px;">Who shares the most →</button>
               <sc-if value="{{ filtersOn }}" hint-placeholder-val="{{ false }}">
@@ -2397,6 +2440,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                 </div>
 
+                <sc-if value="{{ day.multiDay }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-top: 14px; border-top: 1px solid var(--color-hairline);">
+                    <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ day.dayTab }}" onValueChange="{{ day.setDayTab }}" options="{{ day.dayTabs }}" aria-label="Which day of this Playbook"></x-import>
+                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ day.dayLine }}</span>
+                  </div>
+                </sc-if>
+
                 <sc-if value="{{ day.hasMap }}" hint-placeholder-val="{{ true }}">
                   <div data-r="daymapwrap" style="position: relative; border: 1px solid var(--color-hairline); border-radius: 14px; overflow: hidden; background: var(--color-moss);">
                     <div id="pbdaymap" data-r="daymap" style="height: 342px;"></div>
@@ -2443,8 +2493,15 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </button>
 
                 <div style="display: flex; flex-direction: column; gap: 0;">
-                  <div style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 10px;">The day, as they ran it</div>
+                  <div style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 10px;">{{ day.ledgerLabel }}</div>
                   <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="5">
+                    <sc-if value="{{ s.dayStart }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: flex; align-items: center; gap: 12px; padding: 18px 0 4px;">
+                        <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ s.dayLabel }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ s.daySpan }}</span>
+                        <span style="flex: 1; height: 1px; background: var(--color-hairline);"></span>
+                      </div>
+                    </sc-if>
                     <div data-r="daystop" style="display: grid; grid-template-columns: 86px 24px minmax(0, 1fr); gap: 12px; padding: 11px 0 3px;">
                       <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); padding-top: 3px;">{{ s.t }}</span>
                       <span style="width: 24px; height: 24px; border-radius: 999px; background: {{ s.pin }}; color: var(--color-surface); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; font-weight: 600;">{{ s.num }}</span>
@@ -2581,7 +2638,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </sc-for>
                   </div>
                   <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ day.add }}">Add to a trip</x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,40px" variant="primary" className="w-full" onClick="{{ day.add }}">{{ day.addLabel }}</x-import>
                     <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,36px" variant="secondary" className="w-full" onClick="{{ day.save }}">{{ day.saveLabel }}</x-import>
                   </div>
                   <div style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Times reflow to the day you drop it on. Tags come with each stop; everything arrives as <em style="font-style: normal; color: var(--color-ink);">planned</em> except the travel legs, so nothing shows as booked until you book it.</div>
@@ -4695,7 +4752,7 @@ class Component extends DCLogic {
     insOpen: false, insPbIdx: 0, insTripId: 'japan', insDay: '12', insStart: '09:00',
     toast: '', rev: 0,
     q: '', searching: false, cityHits: null, searchMs: 186, qCities: [], daysLoading: false, dayId: null,
-    pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added',
+    pbDayNo: 0, pbScope: 'all', fOpen: null, fScore: 'Any rating', fBudget: 'Any budget', fLength: 'Any length', fSort: 'Most added',
     revStars: 0, revNote: '', revBusy: false, myReviews: {}, profileName: null, profileFrom: 'playbooks', saved: { 'pb-naoshima': 1, 'pb-kyoto3': 1 },
     blOpen: false, ld: {},
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
@@ -4905,11 +4962,17 @@ class Component extends DCLogic {
       rating: 4.7, reviewCount: 21, adds: 34, budget: 210, month: 'November', shared: '3 weeks ago', rank: 7,
       blurb: 'Three days that do not double back on each other. East side, west side, then north — one long walk per day and dinner near where you finish.',
       tags: ['Temples', 'Food', 'Gardens', 'First time'], rawTimes: ['06:30', '09:45', '09:00'],
-      full: [['Day 1 · 6:30 am', 'Fushimi Inari, then Higashiyama', 'Kyoto', ''],
+      full: [['Day 1 · 6:30 am', 'Fushimi Inari before the crowds', 'Kyoto', 'In from the back gate. The tunnels are empty until about eight.'],
+        ['Day 1 · 10:30 am', 'Kiyomizu-dera and Sannenzaka', 'Kyoto', 'Downhill from the temple, not up — the crowd goes the other way.'],
+        ['Day 1 · 1:00 pm', 'Lunch at Hisago', 'Kyoto', 'Oyakodon, cash only, closes when the rice runs out.'],
         ['Day 1 · 7:00 pm', 'Dinner in Gion', 'Kyoto', ''],
         ['Day 2 · 9:45 am', 'Arashiyama and Tenryū-ji', 'Kyoto', 'Earlier than this and the trains are commuter-full.'],
+        ['Day 2 · 12:30 pm', 'Lunch at Yoshida-ya', 'Kyoto', ''],
         ['Day 2 · 3:00 pm', 'Nishiki market, slowly', 'Kyoto', ''],
+        ['Day 2 · 6:30 pm', 'Pontochō for dinner', 'Kyoto', 'Walk the alley end to end before you pick.'],
         ['Day 3 · 9:00 am', "Ginkaku-ji and the Philosopher's Path", 'Kyoto', 'Walk it south. The cafés are at the far end.'],
+        ['Day 3 · 12:00 pm', 'Lunch at Omen', 'Kyoto', ''],
+        ['Day 3 · 2:30 pm', 'Kinkaku-ji', 'Kyoto', 'Twenty minutes by bus and twenty minutes on site. It is one view.'],
         ['Day 3 · 6:30 pm', 'Kikunoi Roan', 'Kyoto', 'Thirty days out, exactly at nine in the morning Japan time.']],
       reviews: [{ who: 'Jonas Ek', initials: 'JE', stars: 5, note: 'Best three-day shape I have seen for Kyoto. No day undoes the one before it.', when: 'Nov 2026' },
         { who: 'Hana Park', initials: 'HP', stars: 4, note: 'Day two is light. We added Kinkaku-ji and it still worked.', when: 'Oct 2026' }] },
@@ -5027,8 +5090,17 @@ class Component extends DCLogic {
 
   _pbInit = this.PLAYBOOKS.forEach(p => {
     p.city = p.cities[0];
+    // A multi-day Playbook authors its stops with a 'Day N · ' prefix on the time.
+    // Strip it once: the day index lives beside the stop, the time stays a time.
+    p.dayOf = p.full.map(x => {
+      const m = /^Day\s+(\d+)\s*·\s*(.*)$/.exec(x[0]);
+      if (!m) return 1;
+      x[0] = m[2];
+      return +m[1];
+    });
     p.stops = p.full.length;
-    p.preview = p.full.slice(0, 3).map(x => ({ t: x[0], n: x[1] }));
+    // Previews everywhere else show one day — for a multi-day Playbook that is day one.
+    p.preview = p.full.filter((x, i) => p.dayOf[i] === 1).slice(0, 3).map(x => ({ t: x[0], n: x[1] }));
   });
 
   CITY_INDEX = [
@@ -5106,7 +5178,7 @@ class Component extends DCLogic {
     if (mine && !mine.queued) { sum += mine.stars; n += 1; }
     return { rating: n ? sum / n : 0, count: n };
   }
-  openDay(id) { this.setState({ dayMapFail: false, route: 'day', dayId: id, revStars: 0, revNote: '' }); }
+  openDay(id) { this.setState({ dayMapFail: false, route: 'day', dayId: id, pbDayNo: 0, revStars: 0, revNote: '' }); }
   cityChips(p, matched) {
     return p.cities.map(c => {
       const a = this.accent(c), on = matched.indexOf(c) >= 0;
@@ -5116,37 +5188,67 @@ class Component extends DCLogic {
 
   // The four Discover filters. Same pill + popover the Notebooks menu uses, so a
   // filter reads as this app's own control rather than a browser select.
+  fOpts(d) {
+    const cur = this.state[d.key];
+    return d.opts.map(o => ({
+      label: o, tick: o === cur ? '✓' : '', weight: o === cur ? 600 : 400,
+      bg: o === cur ? 'var(--color-brand-tint)' : 'transparent',
+      pick: () => { this.setState({ [d.key]: o, fOpen: null }); this.refetch(); }
+    }));
+  }
+  // Every applied filter reads as a chip. Rating and Budget are always there, empty
+  // until set; anything else appears only once it carries a value.
   filterMenus() {
     const s = this.state;
-    const defs = this.FILTER_DEFS;
-    return defs.map(d => {
+    return this.FILTER_DEFS.filter(d => d.face || s[d.key] !== d.idle).map(d => {
       const cur = s[d.key], set = cur !== d.idle;
       return {
         open: s.fOpen === d.key,
         setOpen: v => this.setState({ fOpen: v ? d.key : null }),
-        trigger: this.filterPill(d.key, set ? cur : d.label, set),
-        items: d.opts.map(o => ({
-          label: o, tick: o === cur ? '✓' : '', weight: o === cur ? 600 : 400,
-          bg: o === cur ? 'var(--color-brand-tint)' : 'transparent',
-          pick: () => { this.setState({ [d.key]: o, fOpen: null }); this.refetch(); }
-        }))
+        trigger: this.filterChip(d.key, set ? cur : d.label, set),
+        items: this.fOpts(d)
       };
     });
   }
+  // One menu for everything not out on the bar.
+  moreMenu() {
+    const s = this.state;
+    const rest = this.FILTER_DEFS.filter(d => !d.face);
+    return {
+      open: s.fOpen === 'more',
+      setOpen: v => this.setState({ fOpen: v ? 'more' : null }),
+      trigger: this.filterChip('more', 'More filters', false),
+      groups: rest.map(d => ({ label: d.label, items: this.fOpts(d) }))
+    };
+  }
+  sortMenu() {
+    const s = this.state, d = this.SORT_DEF;
+    return {
+      open: s.fOpen === d.key,
+      setOpen: v => this.setState({ fOpen: v ? d.key : null }),
+      trigger: this.sortTrigger(s[d.key]),
+      items: this.fOpts(d)
+    };
+  }
+  // Three kinds of decision, three homes. Whose days you are in is a PLACE (tabs).
+  // These narrow that place (chips + one More filters menu). Sort is neither — it
+  // orders and never hides, so it rides the sentence about the list.
+  // `face` = out on the bar always; the rest appear only once they are set.
   FILTER_DEFS = [
-    { key: 'fScore', label: 'Rating', idle: 'Any rating', opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
-    { key: 'fSeason', label: 'Season', idle: 'Any season', opts: ['Any season', 'Spring', 'Summer', 'Autumn', 'Winter'] },
-    { key: 'fBudget', label: 'Budget', idle: 'Any budget', opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
-    { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] }
+    { key: 'fScore', label: 'Rating', idle: 'Any rating', face: true, opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
+    { key: 'fBudget', label: 'Budget', idle: 'Any budget', face: true, opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
+    { key: 'fLength', label: 'Length', idle: 'Any length', opts: ['Any length', '1 day', '2–3 days', '4–6 days', '7+ days'] }
   ];
+  SORT_DEF = { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] };
+  // The scope tab is a place, not a filter, and never counts as one.
   filterCount() {
     const s = this.state;
-    return this.FILTER_DEFS.filter(d => s[d.key] !== d.idle).length + (s.pbScope !== 'all' ? 1 : 0);
+    return this.FILTER_DEFS.filter(d => s[d.key] !== d.idle).length;
   }
   // The same four filters as the desktop popovers, flattened for the phone sheet.
   filterGroups() {
     const s = this.state;
-    return this.FILTER_DEFS.map(d => ({
+    return this.FILTER_DEFS.concat([this.SORT_DEF]).map(d => ({
       label: d.label,
       items: d.opts.map(o => ({
         label: o, on: o === s[d.key],
@@ -5177,6 +5279,31 @@ class Component extends DCLogic {
       }
     }, React.createElement('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text),
       this.caret('var(--color-slate)'));
+  }
+  // A chip: auto width, so a set filter reads as its value, not a fixed slot.
+  filterChip(key, text, set) {
+    return React.createElement('button', {
+      key: key + text,
+      style: {
+        display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px',
+        cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+        whiteSpace: 'nowrap', borderRadius: 999,
+        background: set ? 'var(--color-brand-tint)' : 'var(--color-surface)',
+        border: '1px solid ' + (set ? 'var(--color-brand)' : 'var(--color-hairline)'),
+        color: set ? 'var(--color-brand-pressed)' : 'var(--color-slate)'
+      }
+    }, React.createElement('span', null, text), this.caret(set ? 'var(--color-brand-pressed)' : 'var(--color-slate)'));
+  }
+  // Sort belongs to the sentence about the list, so it is type with a caret.
+  sortTrigger(text) {
+    return React.createElement('button', {
+      key: 'sort' + text,
+      style: {
+        display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 0,
+        padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
+        fontWeight: 600, color: 'var(--color-ink)', whiteSpace: 'nowrap'
+      }
+    }, React.createElement('span', null, text), this.caret('var(--color-slate)'));
   }
   filterPill(key, text, set) {
     return React.createElement('button', {
@@ -5233,7 +5360,7 @@ class Component extends DCLogic {
         : 'This becomes ' + n + ' new days in the trip, with their times kept as written.',
       newLabel: newNums.length === 1 ? 'New Day ' + newNums[0] + ' · ' + newStamp.mon + ' ' + newStamp.num
         : 'New Days ' + newNums[0] + '–' + newNums[newNums.length - 1],
-      preview: pb.full.slice(0, 4).map(x => ({ t: x[0], n: x[1] })),
+      preview: pb.full.slice(0, 4).map((x, i) => ({ t: (n > 1 ? 'D' + pb.dayOf[i] + ' · ' : '') + x[0], n: x[1] })),
       more: Math.max(0, pb.full.length - 4),
       moves: moved.slice(0, 4),
       movesMore: Math.max(0, moved.length - 4),
@@ -5807,10 +5934,14 @@ class Component extends DCLogic {
     if (s.pbScope === 'saved') list = list.filter(x => !!s.saved[x.p.id]);
     const min = s.fScore === '4.5 and up' ? 4.5 : s.fScore === '4.0 and up' ? 4 : s.fScore === '3.5 and up' ? 3.5 : 0;
     if (min) list = list.filter(x => x.live.count > 0 && x.live.rating >= min);
-    if (s.fSeason !== 'Any season') list = list.filter(x => this.seasonOf(x.p.month) === s.fSeason);
     if (s.fBudget === 'Under $50 each') list = list.filter(x => x.p.budget < 50);
     if (s.fBudget === '$50 to $150 each') list = list.filter(x => x.p.budget >= 50 && x.p.budget <= 150);
     if (s.fBudget === 'Over $150 each') list = list.filter(x => x.p.budget > 150);
+    // Length is the Playbook's own day count — a saved day is 1, a multi-day one is N.
+    if (s.fLength !== 'Any length') {
+      const inLen = { '1 day': d => d === 1, '2–3 days': d => d >= 2 && d <= 3, '4–6 days': d => d >= 4 && d <= 6, '7+ days': d => d >= 7 }[s.fLength];
+      if (inLen) list = list.filter(x => inLen(x.p.days || 1));
+    }
 
     const sort = s.fSort;
     list.sort((a, b) => {
@@ -5829,12 +5960,12 @@ class Component extends DCLogic {
     const siblings = qc.length ? Object.keys(sibCount).sort((a, b) => sibCount[b] - sibCount[a]).slice(0, 5)
       .map(c => Object.assign({ name: c, count: sibCount[c] + (sibCount[c] === 1 ? ' day' : ' days'), pick: () => this.pickCity(c) }, this.accent(c))) : [];
 
-    const filtersOn = s.pbScope !== 'all' || s.fScore !== 'Any rating' || s.fSeason !== 'Any season' || s.fBudget !== 'Any budget' || s.fSort !== 'Most added';
+    const filtersOn = this.filterCount() > 0 || s.fSort !== this.SORT_DEF.idle;
     const cityList = s.qCities.length === 1 ? s.qCities[0] : s.qCities.slice(0, -1).join(', ') + ' or ' + s.qCities[s.qCities.length - 1];
     const n = list.length;
     const line = qc.length
       ? n + (n === 1 ? ' day that includes ' : ' days that include ') + cityList
-      : n + ' shared days, most added first';
+      : n + (n === 1 ? ' shared day' : ' shared days');
 
     return {
       days: list.map(x => {
@@ -5868,7 +5999,16 @@ class Component extends DCLogic {
     const p = this.PLAYBOOKS.filter(x => x.id === id)[0];
     if (!p) return { author: {}, stops: [], reviews: [], tags: [], cityChips: [], bars: [], facts: [], stars: [], starInput: [] };
     const live = this.liveRating(p), mine = this.myRev(p.id), multi = p.cities.length > 1;
-    const geo = this.pbGeo(p);
+    // Everything below the title belongs to ONE day: the stops, the map, the tag
+    // roll, the booking line. Only the title block and the panel speak for the whole.
+    const manyDays = p.days > 1, dayNo = this.pbDayNo(p);
+    const idx = p.full.map((x, i) => i).filter(i => !dayNo || p.dayOf[i] === dayNo);
+    const geo = this.pbGeo(p, dayNo);
+    const daySpan = idx.length ? p.full[idx[0]][0] + ' – ' + p.full[idx[idx.length - 1]][0] : '';
+    const spanOfDay = d => {
+      const ix = p.full.map((x, i) => i).filter(i => p.dayOf[i] === d);
+      return ix.length ? p.full[ix[0]][0] + ' – ' + p.full[ix[ix.length - 1]][0] + ' · ' + ix.length + ' stops' : '';
+    };
     const qc = s.qCities.map(c => c.toLowerCase());
     const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
 
@@ -5899,7 +6039,19 @@ class Component extends DCLogic {
       id: p.id, name: p.name, blurb: p.blurb, tags: p.tags,
       backSuffix: s.qCities.length ? ' · ' + s.qCities.join(', ') : '',
       cityChips: this.cityChips(p, matched),
-      meta: (p.days > 1 ? p.days + ' days · ' : '') + p.stops + ' stops · ' + p.span + ' · run in ' + p.month,
+      meta: manyDays
+        ? p.days + ' days · ' + p.stops + ' stops · run in ' + p.month
+        : p.stops + ' stops · ' + p.span + ' · run in ' + p.month,
+      multiDay: manyDays,
+      dayTabs: manyDays ? [{ value: '0', label: 'All days' }].concat(
+        p.full.filter((x, i) => p.dayOf[i] !== (p.dayOf[i - 1] || 0)).map((x, k) => ({ value: String(k + 1), label: 'Day ' + (k + 1) }))) : [],
+      dayTab: String(dayNo),
+      setDayTab: v => this.setState({ pbDayNo: +v, dayMapFail: false }, () => this.syncPbMap()),
+      // All days is the default and the roll-up already reads in the line under the
+      // title — only a single day needs its own window called out.
+      dayLine: manyDays && dayNo ? daySpan + ' · ' + idx.length + (idx.length === 1 ? ' stop' : ' stops') : '',
+      ledgerLabel: !manyDays ? 'The day, as they ran it' : dayNo ? 'Day ' + dayNo + ', as they ran it' : 'All ' + p.days + ' days, as they ran them',
+      addLabel: manyDays ? 'Add all ' + p.days + ' days to a trip' : 'Add to a trip',
       author: {
         name: p.mine ? 'You' : p.author.name, initials: p.author.initials,
         cta: p.mine ? 'Your days →' : 'Their days →',
@@ -5910,23 +6062,26 @@ class Component extends DCLogic {
             : dn + ' · added ' + this.nAdds(c.adds) + ' times · this one ' + p.shared;
         }).call(this, this.contributorOf(p.author.name))
       },
-      stops: p.full.map((x, i) => Object.assign({
-        t: x[0], n: x[1], city: x[2], note: x[3], showCity: multi,
-        num: i + 1,
+      stops: idx.map((i, k) => Object.assign({
+        t: p.full[i][0], n: p.full[i][1], city: p.full[i][2], note: p.full[i][3], showCity: multi,
+        num: k + 1,
+        // Viewing every day at once, each day announces itself once in the ledger.
+        dayStart: manyDays && !dayNo && p.dayOf[i] !== p.dayOf[idx[k - 1]],
+        dayLabel: 'Day ' + p.dayOf[i], daySpan: spanOfDay(p.dayOf[i]),
         pin: (geo && geo.transit[i]) ? 'var(--color-slate)' : (geo ? geo.solid : 'var(--color-brand)'),
         isTransit: !!(geo && geo.transit[i]),
         nameInk: (geo && geo.transit[i]) ? 'var(--color-slate)' : 'var(--color-ink)',
-        tags: this.pbStopTags(x, geo && geo.transit[i]).map(id => this.TAG(id)),
-        hasTags: this.pbStopTags(x, geo && geo.transit[i]).length > 0,
+        tags: this.pbStopTags(p.full[i], geo && geo.transit[i]).map(id => this.TAG(id)),
+        hasTags: this.pbStopTags(p.full[i], geo && geo.transit[i]).length > 0,
         gap: geo && geo.gaps[i] ? geo.gaps[i].label : '',
         gapStroke: geo && geo.gaps[i] && geo.gaps[i].ride ? 'dotted' : 'solid',
         gapColor: geo && geo.gaps[i] && geo.gaps[i].ride ? 'var(--color-border-strong)' : (geo ? geo.solid : 'var(--color-hairline)')
-      }, this.accent(x[2]))),
+      }, this.accent(p.full[i][2]))),
       // What is actually IN the day, from the tags the stops carry — the thing you
       // are trying to answer at a glance. Counted once, never repeated below.
       tagRoll: (function () {
         const n = {};
-        p.full.forEach((x, i) => this.pbStopTags(x, geo && geo.transit[i]).forEach(id => { n[id] = (n[id] || 0) + 1; }));
+        idx.forEach(i => this.pbStopTags(p.full[i], geo && geo.transit[i]).forEach(id => { n[id] = (n[id] || 0) + 1; }));
         return ['meal', 'lodging', 'ticketed', 'outdoors'].filter(id => n[id]).map(id => {
           const t = this.TAG(id);
           return {
@@ -5940,13 +6095,13 @@ class Component extends DCLogic {
       }).call(this),
       bookCount: (function () {
         let n = 0;
-        p.full.forEach((x, i) => { if (this.pbStopTags(x, geo && geo.transit[i]).indexOf('ticketed') >= 0) n++; });
+        idx.forEach(i => { if (this.pbStopTags(p.full[i], geo && geo.transit[i]).indexOf('ticketed') >= 0) n++; });
         return n;
       }).call(this),
       bookLine: (function () {
         let n = 0, moves = 0;
-        p.full.forEach((x, i) => {
-          if (this.pbStopTags(x, geo && geo.transit[i]).indexOf('ticketed') >= 0) n++;
+        idx.forEach(i => {
+          if (this.pbStopTags(p.full[i], geo && geo.transit[i]).indexOf('ticketed') >= 0) n++;
           if (geo && geo.transit[i]) moves++;
         });
         const bits = [];
@@ -6789,7 +6944,9 @@ class Component extends DCLogic {
     'pb-shibuya': [[139.6987, 35.6437], [139.6975, 35.6465], [139.7030, 35.6485], [139.6982, 35.6420], [139.7060, 35.6690], [139.7080, 35.6320]],
     'pb-naoshima': [[135.5003, 34.7334, 't'], [133.9490, 34.4880, 't'], [133.9925, 34.4568], [133.9960, 34.4520], [133.9946, 34.4585], [133.9970, 34.4700, 't']],
     'pb-arashiyama': [[135.6737, 35.0158], [135.6780, 35.0125], [135.6704, 35.0186], [135.7627, 35.0155]],
-    'pb-kyoto3': [[135.7727, 34.9671], [135.7752, 35.0037], [135.6737, 35.0158], [135.7648, 35.0050], [135.7982, 35.0270], [135.7690, 35.0043]],
+    'pb-kyoto3': [[135.7727, 34.9671], [135.7850, 34.9949], [135.7796, 35.0000], [135.7752, 35.0037],
+      [135.6737, 35.0158], [135.6780, 35.0125], [135.7648, 35.0050], [135.7702, 35.0060],
+      [135.7982, 35.0270], [135.7955, 35.0245], [135.7292, 35.0394], [135.7690, 35.0043]],
     'pb-uji': [[135.7727, 34.9671], [135.7720, 34.9679, 't'], [135.8077, 34.8892], [135.8073, 34.8912], [135.8060, 34.8905], [135.7581, 34.9858, 't']],
     'pb-nara-osaka': [[135.8430, 34.6851], [135.8398, 34.6890], [135.8483, 34.6813], [135.8296, 34.6841, 't'], [135.5063, 34.6524], [135.5030, 34.6670], [135.5010, 34.6620]],
     'pb-kamakura': [[139.7016, 35.6580, 't'], [139.5666, 35.3216], [139.5359, 35.3169], [139.5117, 35.3062], [139.5235, 35.3058], [139.7016, 35.6580, 't']],
@@ -6816,13 +6973,51 @@ class Component extends DCLogic {
   }
 
   // Same shape as mapDay(): points, legs, and the numbers that describe how the day moves.
-  pbGeo(p) {
+  // Which day of a multi-day Playbook is on screen. 0 for a single-day one.
+  pbDayNo(p) { return p && p.days > 1 ? Math.min(Math.max(0, this.state.pbDayNo || 0), p.days) : 0; }
+  pbMapKey() { return this.state.dayId + ':' + (this.state.pbDayNo || 0); }
+
+  pbGeo(p, dayNo) {
     if (!p) return null;
+    if (!this.PB_GEO[p.id]) return null;
+    // 0 on a multi-day Playbook means every day at once: each day keeps its own
+    // line and its own numbers roll up, but no leg is drawn across a night.
+    if (p.days > 1 && !dayNo) {
+      const parts = [];
+      for (let d = 1; d <= p.days; d++) { const sub = this.pbGeoDay(p, d); if (sub) parts.push(sub); }
+      if (!parts.length) return null;
+      const pts = [], legs = [], gaps = {}, transit = {};
+      parts.forEach(s => {
+        s.pts.forEach(pt => { pts.push(Object.assign({}, pt, { n: pts.length + 1 })); });
+        s.legs.forEach(l => legs.push(l));
+        Object.keys(s.gaps).forEach(k => { gaps[k] = s.gaps[k]; });
+        Object.keys(s.transit).forEach(k => { transit[k] = s.transit[k]; });
+      });
+      const walk = legs.filter(l => !l.ride), ride = legs.filter(l => l.ride);
+      const walkKm = walk.reduce((a, l) => a + l.km, 0), rideKm = ride.reduce((a, l) => a + l.km, 0);
+      const walkMins = walk.reduce((a, l) => a + l.mins, 0), rideMins = ride.reduce((a, l) => a + l.mins, 0);
+      let span = 0;
+      pts.forEach(a => pts.forEach(b => { const v = this.hav(a.c, b.c); if (v > span) span = v; }));
+      const facts = [];
+      if (walkKm > 0.05) facts.push({ k: 'On foot, all days', v: this.kmLabel(walkKm) + ' · ' + this.minLabel(walkMins) });
+      if (rideKm > 0.05) facts.push({ k: 'By train or taxi', v: this.kmLabel(rideKm) + ' · ' + this.minLabel(rideMins) });
+      facts.push({ k: 'Widest point to point', v: this.kmLabel(span) });
+      return Object.assign({}, parts[0], {
+        pts: pts, legs: legs, gaps: gaps, transit: transit, facts: facts,
+        walkOnly: rideKm <= 0.05,
+        note: 'All ' + p.days + ' days at once. Each day is its own line — nothing is drawn across a night.'
+      });
+    }
+    return this.pbGeoDay(p, dayNo);
+  }
+
+  pbGeoDay(p, dayNo) {
     const g = this.PB_GEO[p.id];
     if (!g) return null;
     const ac = this.accent(p.cities[0]);
     const pts = [];
     p.full.forEach((x, i) => {
+      if (dayNo && p.dayOf[i] !== dayNo) return;
       const c = g[i];
       if (c) pts.push({ n: pts.length + 1, idx: i, c: [c[0], c[1]], transit: c[2] === 't', title: x[1], time: x[0] });
     });
@@ -6885,7 +7080,8 @@ class Component extends DCLogic {
       return;
     }
     this._pbTries = 0;
-    const geo = this.pbGeo(this.PLAYBOOKS.filter(x => x.id === s.dayId)[0]);
+    const pbNow = this.PLAYBOOKS.filter(x => x.id === s.dayId)[0];
+    const geo = this.pbGeo(pbNow, this.pbDayNo(pbNow));
     if (!geo) return;
     if (this._dmap && this._dmap.getContainer() !== el) {
       try { this._dmap.remove(); } catch (e) {}
@@ -6921,13 +7117,13 @@ class Component extends DCLogic {
   // admit defeat and show the no-tiles panel.
   armPbPoll() {
     clearInterval(this._dmapPoll);
-    if (this._dmapFor === this._dmap && this._dmapDay === this.state.dayId) return;
+    if (this._dmapFor === this._dmap && this._dmapDay === this.pbMapKey()) return;
     let n = 0;
     this._dmapPoll = setInterval(() => {
       const map = this._dmap;
       if (!map || this.state.route !== 'day') { clearInterval(this._dmapPoll); return; }
       this.drawPbMap(true);
-      if (this._dmapFor === map && this._dmapDay === this.state.dayId) { clearInterval(this._dmapPoll); return; }
+      if (this._dmapFor === map && this._dmapDay === this.pbMapKey()) { clearInterval(this._dmapPoll); return; }
       n++;
       if (n === 14 || n === 30) {
         // Style never finished for this instance — rebuild it once, then once more.
@@ -6951,7 +7147,8 @@ class Component extends DCLogic {
   drawPbMap(snap) {
     const map = this._dmap;
     if (!map) return;
-    const geo = this.pbGeo(this.PLAYBOOKS.filter(x => x.id === this.state.dayId)[0]);
+    const pbNow = this.PLAYBOOKS.filter(x => x.id === this.state.dayId)[0];
+    const geo = this.pbGeo(pbNow, this.pbDayNo(pbNow));
     if (!geo) return;
     const color = geo.color;
     // Pins and framing need only the map, so they go on immediately — a slow style
@@ -6968,11 +7165,11 @@ class Component extends DCLogic {
       }));
       map.getSource('s-dwalk').setData({ type: 'FeatureCollection', features: walk });
       map.getSource('s-dride').setData({ type: 'FeatureCollection', features: ride });
-      this._dmapDay = this.state.dayId;
+      this._dmapDay = this.pbMapKey();
       this._dmapFor = map;
     }
-    if (this._dmarkFor === map && this._dmarkDay === this.state.dayId) return;
-    this._dmarkFor = map; this._dmarkDay = this.state.dayId;
+    if (this._dmarkFor === map && this._dmarkDay === this.pbMapKey()) return;
+    this._dmarkFor = map; this._dmarkDay = this.pbMapKey();
     (this._dmarks || []).forEach(m => m.remove());
     this._dmarks = geo.pts.map(p => {
       const el = document.createElement('div');
@@ -9399,9 +9596,21 @@ class Component extends DCLogic {
 
       scope: s.pbScope, setScope: v => { this.setState({ pbScope: v }); this.refetch(); },
       scopes: [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Yours' }, { value: 'saved', label: 'Saved' }],
+      // Whose days you are in is a place, so it reads as the page's tabs — the search
+      // and filters below plainly belong to the tab you are standing in.
+      scopeTabs: [{ value: 'all', label: 'Everyone' }, { value: 'mine', label: 'Yours' }, { value: 'saved', label: 'Saved' }].map(o => ({
+        label: o.label,
+        on: s.pbScope === o.value ? 'true' : 'false',
+        ink: s.pbScope === o.value ? 'var(--color-ink)' : 'var(--color-slate)',
+        weight: s.pbScope === o.value ? '600' : '500',
+        edge: s.pbScope === o.value ? 'var(--color-brand)' : 'transparent',
+        pick: () => { this.setState({ pbScope: o.value }); this.refetch(); }
+      })),
+      pbMoreMenu: this.moreMenu(),
+      pbSortMenu: this.sortMenu(),
       pbFilterMenus: this.filterMenus(),
       filtersOn: dv.filtersOn,
-      clearFilters: () => { this.setState({ pbScope: 'all', fOpen: null, fScore: 'Any rating', fSeason: 'Any season', fBudget: 'Any budget', fSort: 'Most added' }); this.refetch(); },
+      clearFilters: () => { this.setState({ fOpen: null, fScore: 'Any rating', fBudget: 'Any budget', fLength: 'Any length', fSort: 'Most added' }); this.refetch(); },
 
       resultLine: dv.line,
       showResultLine: !s.daysLoading && !LF.loadPbDays,

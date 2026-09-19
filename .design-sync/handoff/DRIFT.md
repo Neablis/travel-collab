@@ -45,6 +45,12 @@ Read this before §1; it is why §1 is short now.
   into billed turns. The fork at the end reads entitlements (M20's resolver, already
   real — see D10), never a plan name. Three states are undrawn: generation failure,
   offline at the fork, and ceiling-reached-with-access.
+- **New 2026-09-19 — Playbooks are multi-day, and the Discover bar was re-sorted
+  (`SPEC.md` §33).** Two things for the build to check rather than assume: a Playbook's
+  stops need a real `day` field on the API (the design parses a `Day N · ` prefix off the
+  time because the fixture carries one — do not reproduce that), and the **Season filter
+  was cut** while a **Length filter** (on `days`) was added, so the Discover query
+  parameters change. `Sort` is no longer counted as an active filter anywhere.
 - **`docs/STATUS.md` was cut twice** (2026-08-28, 2026-09-11) and is now the short
   resume-from-here file. History lives in `docs/retros/*-status-archive.md`.
 
