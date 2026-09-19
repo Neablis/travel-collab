@@ -372,6 +372,43 @@ describe("Discover", () => {
 // reachable against the real endpoint. These prove the component renders each
 // one distinctly; `api/cities/route.int.test.ts` proves the endpoint produces
 // them, and the e2e spec walks the pair.
+// M23. The card's multi-day branch and the length filter's wiring both shipped
+// with the fixture pinned at `dayCount: 1`, so neither was ever exercised here
+// — the single-day path asserts nothing about them. Raised by CodeRabbit on
+// PR #192, and correctly: a default that never varies is not coverage.
+describe("Discover, for a Playbook that is more than one day", () => {
+  it("leads the card with the day count", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [day({ dayCount: 3 })] })));
+    render(<DiscoverScreen />);
+    expect(await screen.findByText(/3 days · 4 stops/)).toBeTruthy();
+  });
+
+  // Suppressed at one day on purpose: "1 day ·" on every card is noise that
+  // teaches a reader to stop reading the line.
+  it("says nothing about days when there is only one", async () => {
+    render(<DiscoverScreen />);
+    expect(await screen.findByText(/4 stops/)).toBeTruthy();
+    expect(screen.queryByText(/1 day ·/)).toBeNull();
+  });
+
+  it("sends the chosen length band to the endpoint", async () => {
+    render(<DiscoverScreen />);
+    await screen.findByText(/4 stops/);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.selectOptions(screen.getByLabelText("Length"), "two-three");
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ length: "two-three" })),
+    );
+  });
+
+  it("starts unfiltered by length", async () => {
+    render(<DiscoverScreen />);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ length: "any" })),
+    );
+  });
+});
+
 describe("Discover city search", () => {
   it("shows loading, then the matches, and adds one as a chip", async () => {
     render(<DiscoverScreen />);

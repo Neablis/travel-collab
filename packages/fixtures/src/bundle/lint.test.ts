@@ -93,6 +93,52 @@ describe("lintBundle", () => {
     expect(findings).toContainEqual(expect.stringContaining("before \"Dinner\" ends"));
   });
 
+  // **Chronology is PER DAY, and a multi-day playbook is where that stops being
+  // obvious.** Trips have always linted each `BundleDay` separately
+  // (`lintDay`); when M23 gave playbooks a `days:` form, the playbook path
+  // flattened every day into one list before checking order — so an ordinary
+  // second morning after an ordinary first evening read as "written out of
+  // order" and the linter refused a perfectly good playbook. Found by
+  // CodeRabbit on PR #192.
+  it("does not treat a new day's morning as out of order after the previous evening", () => {
+    const findings = messages(
+      bundleWith({
+        playbooks: [
+          playbook({
+            stops: undefined,
+            days: [
+              { stops: [stop({ title: "Day 1 dinner", timeWindow: { start: "19:00", end: "21:00" } })] },
+              { stops: [stop({ title: "Day 2 breakfast", timeWindow: { start: "08:00", end: "09:00" } })] },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(findings).not.toContainEqual(expect.stringContaining("stops are stored in written order"));
+  });
+
+  // ...but WITHIN one authored day it still catches what it always caught.
+  it("still refuses stops out of order inside one authored day", () => {
+    const findings = messages(
+      bundleWith({
+        playbooks: [
+          playbook({
+            stops: undefined,
+            days: [
+              {
+                stops: [
+                  stop({ title: "Dinner", timeWindow: { start: "20:00", end: "21:30" } }),
+                  stop({ title: "Breakfast", timeWindow: { start: "08:00", end: "09:00" } }),
+                ],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(findings).toContainEqual(expect.stringContaining("before \"Dinner\" ends"));
+  });
+
   // `savedDayFacts` refuses to sum a day whose priced stops disagree, so the
   // card shows "—" and the budget filter cannot see it.
   it("refuses a day that mixes currencies", () => {

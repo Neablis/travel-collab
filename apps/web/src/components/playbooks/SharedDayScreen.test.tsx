@@ -154,6 +154,18 @@ describe("a shared day that is a sequence", () => {
     expect(within(facts).queryByText("Days")).toBeNull();
     expect(within(facts).queryByText("Spans several days")).toBeNull();
   });
+
+  // **The positive half of the same claim.** The test above only says what is
+  // absent, and a component that rendered nothing at all would pass it.
+  // CodeRabbit asked for the witness on PR #192: a one-day Playbook still
+  // states its real clock range, and never offers a rest-day line.
+  it("still shows a one-day Playbook's own clock range, and no rest-day line", async () => {
+    renderDay();
+    const facts = await screen.findByTestId("day-facts");
+    expect(within(facts).getByText("7:30 am – 11:30 am")).toBeTruthy();
+    const list = await screen.findByTestId("stop-list");
+    expect(within(list).queryByText("Nothing planned — kept as a rest day.")).toBeNull();
+  });
 });
 
 describe("a shared day", () => {

@@ -84,10 +84,23 @@ describe("a multi-day Playbook", () => {
 describe("a one-day Playbook", () => {
   // The ordinary case, and it must read exactly as it always did — a plural
   // that says "All 1 days are appended" would be its own defect.
-  it("stays singular in the title, the body and the start-date hint", async () => {
+  it("stays singular in the title and the body", async () => {
     renderDialog(1);
     expect(await screen.findByText(/Add “Three in Kansai” to a trip/)).toBeTruthy();
     expect(screen.getByText(/The day is appended at the end, keeping its order and gaps/)).toBeTruthy();
     expect(screen.queryByText(/\(1 days\)/)).toBeNull();
+  });
+
+  // **The start-date hint is only rendered once "Start a new trip" is picked**,
+  // so the test above never reached it — it asserted the absence of a plural
+  // marker on a string that was not on screen. CodeRabbit caught that on
+  // PR #192, and it is the same class of hole as the silent no-op: an assertion
+  // that cannot fail is not coverage.
+  it("tells a NEW trip that this day is day 1, in the singular", async () => {
+    renderDialog(1);
+    await userEvent.selectOptions(await screen.findByLabelText("Which trip"), "new");
+    expect(await screen.findByLabelText("Start date")).toBeTruthy();
+    expect(screen.getByText(/and this day is day 1\./)).toBeTruthy();
+    expect(screen.queryByText(/days become days/)).toBeNull();
   });
 });
