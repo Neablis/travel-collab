@@ -80,6 +80,7 @@ for collaboration later landing on a product people already want to join.
 | M25 | A trip is a file you can take with you | **Minted and placed 2026-09-18 by Mitchell — runs immediately after M22**, because it is small and reuses M22's route wrapper while that machinery is fresh. Trip **export and import** as JSON. **The format is `travel-collab/content-bundle/v1` and no third format is created**: the bundle already has a schema, a CI-enforced linter, pure converters and a real importer, so `export → import → compare` is a gate box a test can hold, and it is the shape a person can hand-author — which is what *"similar to the api"* was asking for. A dedicated export format would be a **third vocabulary over the same data**, the drift invariant 5 exists to stop. **An export is a snapshot, never the event log**: the log is `tripId`-bound and re-importing it would violate ADR-028's id-remap rule, the hazard `cloneTrip` exists to handle, so an exported trip loses its history. **Export is free** (Mitchell, 2026-09-18) — *"free keeps trip planning entire"* is M20's line and portability is a trust property, so it needs **no new entitlement, hence no new plan version**, and does not walk into M22's `premium@v1` pinning problem. Import is the larger half: a user upload must **mint fresh ids**, where the content script derives them from keys so a re-import updates rows instead. **Three scoping questions were decided 2026-09-18.** **What it carries: days and activities, nothing else** — no budget, no members, invites or share links, no notebook pages, no lineage or trip status. That is a scope line, not a gap, and it buys a property worth naming: an export cannot carry a copy of a membership list out of the system. It also means an export is a copy of the plan and **not a backup**. **Linting: the schema validates an upload and the content rules do not run on it** — `lint.ts` states rules for authored library content headed for Discover, and three are errors a real trip trips routinely (an empty trip, stops out of clock order after an ordinary board reorder, a backlog item with a time window), so running it would reject real trips on day one. No subset and no second rule set; revisit if a real problem emerges. **Dates: a dated trip exports its real `startDate`, never `startsInDays`**, and a **dateless** trip carries neither anchor — *"we just have offsets, day 1, not January 15th"*. `BundleDay` already has no date field, so the trip anchor relaxes from *exactly one* to *at most one*. The export is a copy of **your** trip rather than a re-usable shape, so a stale export importing as a *past* trip is the correct answer, not a defect to design around. The dateless half is not a one-liner: `tripStartDate`'s `?? 0` currently resolves a missing anchor to *starting today*, so relaxing the refine alone would make a dateless trip silently dated. **Nothing on this milestone is waiting on a decision** — see `M25-a-trip-is-a-file.md` |
 | M23 | A playbook can be more than one day | **SHIPPED 2026-09-19** — gate 11/11, #192 merged as `7763913`, migration `0024_saved_day_day_count` dispatched and production verified at 25/25. What actually shipped differs from the plan below in one place worth reading before building on it: **a GAP in `dayIndex` IS an empty day**, so an interior rest day needed no column, and `dayCount` is stored only for the *trailing* empty day a gap cannot reach. ADR-048 carries that and three other decisions, two of them marked ✳ because they contradict a premise in the milestone file. *(Everything from here to the end of this row is the placement as written on 2026-09-18, kept for the reasoning rather than as a description of the result.)* **Minted and placed 2026-09-18 by Mitchell — runs BEFORE M12**, and the placement is the substance: M12 keys reviews, ratings, reporting and moderation to a `saved_days` row, and this changes that row's shape, so running it after means M12's work is revisited. **A saved day generalises into a saved sequence — the same object, not a new one.** The rejected alternative was a separate "collection" over saved-day rows: rejected because a second publishable object either doubles M12's trust-and-safety surface or ships a library with two classes of content having different moderation properties. **The shape is a flat `stops[]` with a per-stop day indicator, not `days: SavedStop[][]`** — Mitchell's call, on migration grounds: existing rows read as "everything on day 1" when the indicator defaults, so the strict `SavedStop.array()` parse at the read boundary keeps working with no versioned read, which a nested array would have forced. **That property has a precondition the scoping found**: the strict parse exists at **two** sites (`savedDays.ts`'s `fromRow` and `playbooks.ts`'s `toDiscoverDay`) and `SavedStop` carries **no `.default()` on any field**, so the additive claim holds only if the indicator lands defaulted at both. **One insert primitive, three callers** — add to an existing trip, start a trip from one day, start a trip from N days, wrapped in M6's atomic command group — which absorbs `TODO.md`'s *"Start a new trip from a saved day"* candidate and answers its open question (one shared primitive, not a second copy of fork): `M23-multi-day-playbooks.md` |
 | M24 | A leg knows where it goes and by what | **Minted and placed 2026-09-18 by Mitchell — runs after M12, before M14.** A travel stop gets a **transport mode** and a **second location**, and the map draws a real leg instead of inferring one from its neighbours. `MapLegend.tsx:9` has said the gap out loud since it shipped: *"We model no transport mode"*. **Mode carries its own field and does not inherit from `kind`** — `kind: "transit"` says THAT a stop is travel, `mode` says by what, and they cannot disagree because a mode is legal only on a transit stop, enforced by a `superRefine` rather than by convention. That answers the question `TODO.md`'s *"Transport mode per leg"* has carried since 2026-09-01; M19 link 1 may still answer differently for costs, with a stated reason. **`location` keeps meaning the origin** and an optional `endLocation` joins it, so no existing reader changes meaning; modelling travel as an **edge between** two stops is rejected, because the whole app is "a day is an ordered list of activities" and an edge is not in that list. **Its prerequisite is not its own deliverable**: the activity-field descriptor refactor (`KI-20260905-o` — 21 non-test files hand-enumerate activity fields and nothing goes red when one is missed) runs **once, before M13**, shared with M13 link 5 and M19 link 1: `M24-travel-legs.md` |
+| M26 | The build looks like the design again | **Minted and SCOPED 2026-09-19 — NOT PLACED; placement is Mitchell's decision.** A design-parity milestone, the first since M10's Wave-2 gate closed 2026-08-27. The handoff has moved **fourteen commits** since, seven of them between 2026-09-12 and 2026-09-19, while the build ran M20/M21/M22/M25/M23 — and **three of the four that closed had no design surface at all** until the design drew them on 2026-09-19. Opened by Mitchell asking for four things by name (Playbooks looking nothing like the designs, account settings as its own page, filters and tabs re-imagined, a hover state on the Map's days); five read-only surveys against the handoff and the working tree found the rest. **Two waves, two gates.** *Wave 1* is the desktop and shared surfaces — Account as a route with three tabs (**closes D14, D12 and `KI-2026-09-17-a`**), Discover re-sorted by kind of decision (**tabs are places, chips are questions, sort rides the results sentence** — a rule for any list surface), a Playbook's days as a scope over the row M23 just shipped, the shared day's map, the Map rail's hover card, trip lifecycle (**closes D13**), §3b's region-by-region loading — of which **literally none exists** — and two guards that cannot see their own class of defect. *Wave 2* is **the phone as a surface**, which `docs/guidelines/design-system.md` has promised since M5 (*"until the mobile milestone"*), `KI-046` calls *"a milestone, not a fix"*, and `TODO.md:1030-1037` calls *"a milestone-sized decision"* — three places in this repo waiting for it to be minted. **It opens with a preflight that is not optional**: `KI-2026-09-14-c` measured that building ONE screen from this handoff cost four review rounds and three wrong builds, and this milestone builds ~20. **Nothing in it is a contract change or a re-skin** — every link is UI over data that already exists, or a named, sized exception; reviews, per-stop attribution and cost classification are routed to M12, M13 and M19 and are out of scope on purpose. **It carries nine open questions it must not answer silently**, the two largest being whether the Map rail gets a hover state at all (it reverses a test written on purpose) and **where the phone edits** — open since 2026-09-12 and the only thing blocking Wave 2's link 13: `M26-design-parity.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -226,6 +227,75 @@ below. The second one also records a cost it first got wrong.
 **This line then moved to M25 on 2026-09-18** — the third time it has moved by
 decision rather than by a gate close, and the note recording it is directly
 below.
+
+**M26 was minted and scoped 2026-09-19 and is NOT in that order.** It is a
+design-parity milestone and **placement is Mitchell's call** — the note is
+below. Nothing downstream is blocked on it, so it can go anywhere; what it owes
+forward is that M12 renders reviews into two surfaces M26 rebuilds.
+
+### 2026-09-19 (later) — minted and scoped, unplaced: M26, design parity
+
+**Opened by Mitchell**, asking that the build be brought back to the design and
+naming four things: Playbooks' shared trips looking nothing like the designs,
+account settings becoming its own page, filters and tabs re-imagined to improve
+search, and a hover state on the Map view's days. The instruction was also
+broader than the four — *"go over the design and really try to match the
+designs, especially supporting both the desktop and mobile version"* — so the
+scoping ran **five read-only surveys** over the whole handoff against the
+working tree rather than costing the four items alone.
+
+**Why it is a milestone and not a sweep.** No milestone has owned this question
+since M10's Wave-2 gate closed on 2026-08-27, and that gate was honest that it
+closed a delta against *the handoff generation available at the time*. The
+handoff has moved fourteen commits since — **seven of them in the eight days to
+2026-09-19** — while the build ran five commercial and infrastructure
+milestones, three of which had no design surface at all until the design drew
+them. The two sides did not diverge through carelessness; for three weeks it was
+nobody's job to make them agree, and the design kept working.
+
+**Three things the scoping found that change what a planner should expect.**
+
+- **The phone is the larger half, and three places in this repo have been
+  waiting for it.** `docs/guidelines/design-system.md` has said layout below
+  1024px is best-effort *"until the mobile milestone"* since M5; `KI-046` says
+  *"building that is a milestone, not a fix"*; `TODO.md:1030-1037` says
+  *"placing the phone is a milestone-sized decision"*. Four phone surfaces are
+  genuinely built to spec — the route-derived tab bar, the Ask pill, the Map day
+  strip and the Notebook's push/bind/insert sheets — and **everything else a
+  phone can reach is the desktop layout reflowed.**
+- **`DRIFT.md` is stale in the build's favour in six places**, which nobody
+  would guess from reading it: it lists eleven `<Preview>`-shelled surfaces and
+  there are **six**; it calls two wizard shells *"honestly orphaned"* and both
+  were built on 2026-09-16; `w-open` is shipped; the widget catalogue is 13
+  primitives and 20 presets, not 7. **Fifteen places in total where the build is
+  right and the handoff is behind** — and the milestone's job there is to amend
+  the handoff in the same PR, not to regress the code.
+- **`DRIFT` D12 is not blocked and has never been.** It reads as *"design is
+  ahead by one control"*; the survey checked every layer and the field, the
+  wrapper, the per-call check and **the widening refusal are all shipped and
+  enforced**. The entire gap is one hardcoded `null` in a POST body.
+
+**It opens with a preflight, and the preflight is the part to defend if the
+milestone gets squeezed.** `KI-2026-09-14-c` already measured the cost of
+building from this handoff without it — four review rounds and three wrong
+builds, for **one** screen — and already named the five aids. This milestone
+builds around twenty screens from the same handoff.
+
+**Nine open questions are recorded in the file and deliberately not answered
+there**, because each is a decision rather than a task. Two of them gate work:
+whether the Map rail gets a hover state at all (building it deletes a test
+written on purpose, defending a real argument about competing selection cues),
+and **where the phone edits** — open since 2026-09-12, and the only thing
+blocking Wave 2's link 13. The other seven — sign out's home, an account-level
+currency, the day chip rail on Map, the trip status badge, inferring *on foot*
+from `kind === "transit"`, `lastUsedAt`, and whether Duplicate clears dates for
+a shared-trip clone — can all be answered as their links come up.
+
+**Two known issues were filed by the scoping** and are both scoped as link 8:
+`KI-2026-09-19-f` (an accent reaches MapLibre through `getComputedStyle`, the
+documented non-fix — correct today only because the tokens happen to be hex) and
+`KI-2026-09-19-g` (the colour wall passes an **undefined token name**, which is
+how M23 shipped a transparent chip).
 
 ### 2026-09-19 — M21's and M22's gates closed, on Mitchell's attestation
 

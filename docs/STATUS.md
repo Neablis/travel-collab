@@ -38,6 +38,21 @@ Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
 conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
 depends on, so if M13 ships without it that link returns to M19.
 
+**M26 WAS MINTED AND SCOPED 2026-09-19 AND IS NOT IN THAT ORDER.** A
+design-parity milestone — the first since M10's Wave-2 gate closed 2026-08-27 —
+opened by Mitchell asking that the build be brought back to the design.
+**Placement is his call; nothing downstream is blocked on it.** Scope, the two
+waves and the nine open questions: `docs/milestones/M26-design-parity.md`. Why
+it exists and what the scoping found: `docs/milestones/README.md`'s
+*2026-09-19 (later)* note. **Two things belong here rather than there, because
+they change plans made from this page:** `.design-sync/handoff/DRIFT.md` is
+stale in the build's favour in six places — it lists eleven `<Preview>`-shelled
+surfaces and there are **six** — so do not plan from its counts without opening
+`apps/web/src/lib/preview-registry.ts`; and **where the phone edits is still
+open** (Mitchell, 2026-09-12), which blocks exactly one of that milestone's
+links. Two KIs were filed by the scoping, `KI-2026-09-19-f` and
+`KI-2026-09-19-g`, both about a guard that cannot see its own class of defect.
+
 **Do the preflight first, and it has been dropped once already.** The
 activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
 21 non-test files hand-enumerate activity fields and nothing goes red when one

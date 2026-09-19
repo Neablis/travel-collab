@@ -174,3 +174,33 @@ ships without it, link 3 comes back here and this note is what says so.
 **Nothing else blocks it.** Trip members, roles and the money primitives all
 exist; this milestone adds fields to them rather than needing anything new
 underneath.
+
+## 2026-09-19 — one shell left, and the other is gone
+
+From M26's design-parity survey (`docs/milestones/M26-design-parity.md`). Two
+corrections to what this milestone believes it inherits.
+
+**`budget-breakdown` is still shelled and still M19's.** It renders at
+`SettingsSheet.tsx:342` and waits on a cost's **kind** — Booked / Holds /
+Travel / Other — which no field classifies. The build deliberately keeps the
+honest total, the meter and the over-budget banner **outside** the shell, so
+what is shelled is exactly the part that would be invented.
+
+**`cost-estimate-state` no longer exists as a shell.** It was deleted rather
+than re-pointed, on the same grounds as `timeline-ghost`: SPEC §24 deleted the
+surface it was waiting for. **The work did not go anywhere — M19 link 2 still
+owns settled-vs-estimate** — but the seam that used to hold its place is gone,
+so nothing in `preview-registry.ts` will remind anyone it is owed. That is the
+whole reason this note exists.
+
+**And a third consumer, from the map side.** SPEC §16 and the Map rail's
+designed copy both split a leg into *on foot* and *by train or taxi*, and the
+rail's total reads `… · N min moving`. Neither is derivable: `map-legend-modes`
+is tagged **`unplaced`** because **no milestone owns per-leg transport mode**.
+It is not cost, so it is not obviously M19's — but it is the same species as
+link 1's cost *kind*: a classification a stop does not carry, blocking a
+presentation that is already drawn. **Worth deciding at this milestone's
+kickoff whether link 1 takes it or whether it stays unplaced**, rather than
+letting a third milestone rediscover it. `routeLegs()` splits on
+`kind === "transit"` as a coarser proxy that exists today; using it would state
+something the data does not, and M26 declines to.

@@ -250,3 +250,41 @@ how it gets verified without a network round trip. Then re-import
 **Not blocked on M9, M13, M14 or M17.** Nothing here reads a preference, a
 realtime transport or a macro. It is placed after M9 because M9 is smaller and
 unblocks a shipped-but-dark feature — not because of a dependency.
+
+## 2026-09-19 — what M26 changes underneath this milestone
+
+**M26 (design parity) rebuilds both surfaces M12 renders into**, and this note
+exists so that ordering is a decision rather than a surprise. Scope:
+`docs/milestones/M26-design-parity.md`, links 2 and 3.
+
+- **Discover's header is re-sorted by kind of decision** (SPEC §33.2): scope
+  becomes underlined tabs above the search, filters become chips with a *More
+  filters* menu, and **sort moves onto a results sentence that does not exist
+  today**. Link 5's two missing sorts (`highest-rated`, `most-reviewed`) and the
+  **rating floor** therefore land as *a chip and two options on a control that
+  already has the right shape*, rather than as two more `NativeSelect`s in a row
+  the design has deleted. `Rating` is already `face: true` in the design's
+  `FILTER_DEFS` — that is, **the design reserves an always-present chip for the
+  data this milestone creates.**
+- **The shared day gains a day scope and a map** (SPEC §33.1 / §16). Link 4's
+  rating rail — the average, the 5→1 histogram, the review list — sits in a
+  sidebar whose facts M26 re-cuts, because §33.1 moves stops, window and day
+  count up into the title block so no number is stated twice.
+
+**The ordering argument, and it is the same one M23 made for running before
+M12.** If M26's links 2 and 3 land first, M12 adds rows and counters to a
+finished layout. If they do not, M12 builds its rating rail and its filter into
+a header and a sidebar that change underneath it, and the second pass re-does
+the first. **Nothing in M12 is blocked by M26 and nothing in M26 is blocked by
+M12** — this is about doing the work once.
+
+**What M26 explicitly does not touch**, so it cannot drift into this milestone:
+no rating control, no histogram, no review form, no rating floor and no
+rating-dependent sort appears in M26's diff. Its own file says that building one
+would break project rule 2 — a control over data that does not exist is a
+control that does nothing — and `DiscoverScreen.tsx:36-41` already states the
+same thing in code.
+
+**One thing M26 hands this milestone for free.** Link 2 cuts the `Season`
+filter, which currently occupies a slot in the same filter row. M12's rating
+floor takes a `face: true` chip and does not have to argue for the space.

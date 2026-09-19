@@ -747,6 +747,79 @@ Where the work actually stands right now: `docs/STATUS.md`.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
 
+- [ ] **M26 The build looks like the design again** — **MINTED AND SCOPED
+      2026-09-19. NOT PLACED — placement is Mitchell's decision**, and nothing
+      downstream is blocked on it, so it can go anywhere in the order. →
+      `docs/milestones/M26-design-parity.md`
+      *(**Opened by Mitchell**, asking that the build be brought back to the
+      design and naming four things: Playbooks' shared trips looking nothing
+      like the designs, account settings becoming its own page, filters and tabs
+      re-imagined to improve search, and a hover state on the Map view's days —
+      plus the broader instruction to *"really try to match the designs,
+      especially supporting both the desktop and mobile version"*. Scoped from
+      **five read-only surveys** of the whole handoff against the working tree.
+      **The first design-parity milestone since M10's Wave-2 gate closed
+      2026-08-27**, which was honest that it closed a delta against the handoff
+      generation available then. The handoff has moved **fourteen commits**
+      since, seven of them in the eight days to 2026-09-19, while the build ran
+      M20/M21/M22/M25/M23 — **three of the four that closed had no design
+      surface at all** until the design drew them on 2026-09-19.
+      **Two waves, two gates, because no one sitting can walk both.**
+      *Wave 1* is desktop and shared: Account becomes a route with three tabs
+      (**closes D14, D12 and `KI-2026-09-17-a`**); Discover is re-sorted by kind
+      of decision — **a place is a tab, a question is a chip, a property of the
+      list rides the sentence about the list**, which is a rule for any list
+      surface and not just this one; a Playbook's days become a scope over the
+      row M23 shipped the same week; the shared day gets the map §16 designed on
+      2026-09-01 and **nobody has ever owned**; the Map rail gets its
+      hover-to-detail card; trip lifecycle stops having two homes (**closes
+      D13**); §3b's region-by-region loading gets built, of which **literally
+      none exists** — `Skeleton`, `animate-pulse` and `data-sk` return nothing
+      across the app; and two guards learn to see a class of defect they
+      currently pass.
+      *Wave 2* is **the phone as a surface**. Three places in this repo have
+      been waiting for it to be minted: `docs/guidelines/design-system.md` has
+      said layout below 1024px is best-effort *"until the mobile milestone"*
+      since M5, `KI-046` says *"building that is a milestone, not a fix"*, and
+      this file says at line 1030 that *"placing the phone is a milestone-sized
+      decision"*. Four phone surfaces are genuinely built to spec — the
+      route-derived tab bar, the Ask pill, the Map day strip and the Notebook's
+      push/bind/insert sheets — and **everything else a phone can reach is the
+      desktop layout reflowed**, against KI-046's measured 191 of 211 controls
+      under 44px.
+      **It opens with a preflight and the preflight is not optional**:
+      `KI-2026-09-14-c` measured that building ONE screen from this handoff cost
+      four review rounds and three wrong builds, and already named the five aids
+      it needs. This milestone builds around twenty screens from the same
+      handoff.
+      **No contract change and no re-skin.** Every link is UI over data that
+      already exists, or a named, sized exception. Reviews, per-stop attribution
+      and cost classification are routed to **M12, M13 and M19** and are out of
+      scope on purpose; the Notebook's ghost, `NotebookBlock`'s columns and
+      `WidgetSettings`' missing controls are routed to **M14**; the new-trip
+      fork's paid half and `Ask` in read-only (`KI-079`) to **M9**. Each of
+      those five milestone files carries a dated note listing what it inherits.
+      **`DRIFT.md` is stale in the build's favour in six places** and the
+      milestone resyncs them: eleven shelled surfaces are actually **six**, D11's
+      two *"honestly orphaned"* wizard shells were both built on 2026-09-16,
+      `w-open` is shipped, and the widget catalogue is 13 primitives and 20
+      presets rather than 7. **Fifteen places in total where the build is right
+      and the handoff is behind**, and the milestone amends the handoff in the
+      same PR rather than regressing the code.
+      **`DRIFT` D12 is not blocked and never has been** — the field, the
+      wrapper, the per-call check and the widening refusal are all shipped and
+      enforced; the entire gap is one hardcoded `null` in a POST body.
+      **Nine open questions are recorded in the file and deliberately not
+      answered there.** Two gate work: whether the Map rail gets a hover state
+      at all — building it deletes a test written on purpose, defending a real
+      argument about competing selection cues — and **where the phone edits**,
+      open since 2026-09-12 and the only thing blocking Wave 2's link 13.
+      **Two KIs were filed by the scoping**, both scoped as link 8:
+      `KI-2026-09-19-f` (an accent reaches MapLibre through `getComputedStyle`,
+      the documented non-fix — correct today only because the tokens happen to
+      be hex) and `KI-2026-09-19-g` (the colour wall passes an undefined token
+      NAME, which is how M23 shipped a transparent chip).)*
+
 ## Candidate ideas (unscheduled)
 
 Captured so they aren't lost; not committed to a milestone yet.

@@ -158,3 +158,39 @@ surface that is already live, not because of a dependency.
 
 **One thing it owes forward:** M19's link 3. If this milestone ships without
 link 5, that link returns to M19 and M19's file says so.
+
+## 2026-09-19 — the design surfaces waiting on link 5's field
+
+Recorded here by M26's design-parity survey so that **per-stop attribution has
+one list of consumers rather than three half-remembered ones**. M13 link 5 lands
+`who` on a stop; these are the surfaces that draw it, and all of them are
+blocked until it does. Scope: `docs/milestones/M26-design-parity.md`.
+
+**Two `<Preview>` shells, both correctly tagged to this milestone.**
+`preview-registry.ts` holds six entries now — not the eleven `DRIFT.md` §3 still
+lists — and two of them are M13's:
+
+- **`add-stop-who`** (`ActivityEditor.tsx:348`) — the stop editor's "who is this
+  for" control.
+- **`rack-provenance`** (`UnscheduledRack.tsx:251`) — who parked a stop and which
+  day it came from. The same absence seen from the parked side.
+
+**And a third consumer the registry does not show**, found by the same survey:
+the Notebook's widget vocabulary declares a **`person` input type**
+(`packages/pages/src/registry-types.ts:245-256`) and the file says plainly that
+nothing links an activity to a person — no `assignee`, `paidBy`, `participant`
+or `share` on `ActivityView`. So `person` is **vocabulary with no dimension
+behind it**, and SPEC §18's two person widgets (*"what one person is in for"*,
+*"a line for everything one person booked"*) cannot be built. On the page today
+this surfaces as an `EmptyChip` reading *"needs a person field"* — honest, and
+still a hole.
+
+**This does not widen M13.** Link 5 lands the field; the three surfaces above
+are M26's and M14's to draw once it exists. What this note asks of M13 is only
+that **the field's shape be chosen with three consumers in view rather than
+one** — the stop editor, the parked rack, and a Notebook widget binding to a
+person the way it binds to a day.
+
+**And the standing warning stays in force**: M19 link 3 depends on this field
+too, which is why M19 runs after M13. If M13 ships without it, that link returns
+to M19 and these three surfaces go with it.
