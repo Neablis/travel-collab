@@ -1,8 +1,32 @@
-### KI-2026-09-19-a — an unset `API_TOKEN_PEPPER` fails the M22 e2e spec as if the token UI were broken
+### KI-2026-09-19-a — a freshly bootstrapped local env has no `API_TOKEN_PEPPER`, and the M22 e2e spec fails as if the token UI were broken
 
-- **Severity:** reliability (a local-environment gap that costs a full e2e run and reads as a product defect; nothing is wrong in the app)
-- **Area:** `.env.example:149` (`API_TOKEN_PEPPER=`, shipped blank), `apps/web/src/server/api-tokens/index.ts:79` (the throw), `apps/web/e2e/m22-api-tokens.spec.ts:70`
-- **Symptom:** on a local or container environment whose `apps/web/.env.local` was copied from `.env.example` and never given a pepper, `pnpm --filter web test:e2e:ci-like` fails **one** spec:
+> **Scope, narrowed 2026-09-19 after Mitchell's correction — read this first.**
+> **Every deployed environment already has this variable.** Checked against the
+> Vercel project rather than assumed: `API_TOKEN_PEPPER` is set on **preview,
+> development and production**, all three as `sensitive`. CI sets its own
+> (`ci-pepper`). The vitest configs set a test value.
+>
+> So this entry is **only** about a local checkout bootstrapped by
+> `pnpm setup` — which is every fresh worktree and every cloud session, because
+> `.claude/hooks/session-start.sh` runs it automatically. It is a papercut in
+> the local dev bootstrap, **not** a gap in any environment the product runs in.
+>
+> The first draft of this entry claimed it was "the same variable, one
+> environment over" as `KI-2026-09-16-d`. **That was wrong**, and it was wrong
+> in the direction that matters: `KI-2026-09-16-d` is about `ADMIN_USER_IDS`,
+> not this variable at all. See that entry, and the 2026-09-19 note in
+> `docs/milestones/README.md`.
+
+- **Severity:** cleanup (a local-bootstrap gap that costs one full e2e run per
+  fresh environment and presents as a product defect; nothing is wrong in the
+  app, and nothing deployed is affected)
+- **Area:** `.env.example:149` (`API_TOKEN_PEPPER=`, shipped blank),
+  `scripts/setup-env.mjs` (copies that file verbatim to `apps/web/.env.local`),
+  `apps/web/src/server/api-tokens/index.ts:79` (the throw),
+  `apps/web/e2e/m22-api-tokens.spec.ts:70`
+- **Symptom:** in a checkout whose `apps/web/.env.local` came from `pnpm setup`
+  and was never hand-edited, `pnpm --filter web test:e2e:ci-like` fails **one**
+  spec:
 
   ```
   1) [desktop] › e2e/m22-api-tokens.spec.ts:29:1 › api tokens: minted by clicking, …
@@ -13,45 +37,43 @@
 
   The reveal panel is missing because `mintToken` threw — correctly, and by
   design — but nothing in the failure says so. It reads as *the token UI does
-  not render*, which is a product defect, and the spec fails identically on the
-  retry, so **CLAUDE.md rule 2's own heuristic points at a real defect**: a
-  failure that does not move between runs is not a timeout. Here it is neither.
+  not render*, and it fails identically on the retry, so **CLAUDE.md rule 2's
+  own heuristic points the wrong way**: a failure that does not move between
+  runs is supposed to be a real defect. Here it is neither that nor a flake.
 
-- **Why the rest of the suite does not catch it:** every other lane supplies a
-  pepper of its own. `vitest.config.ts:19` and `vitest.setup.ts:18` both
-  `??=` a test value, so the unit and `int` suites — including
-  `export.int.test.ts`, which mints tokens on every case — are green. CI sets
-  `API_TOKEN_PEPPER: ci-pepper` (`.github/workflows/ci.yml:70`). **Only the e2e
-  web server, which is started from the real environment, sees the blank.** So
-  the one lane that takes its configuration the way production does is the one
-  lane that fails, and it fails nowhere else.
+- **Why no other lane catches it:** every other lane supplies a pepper of its
+  own. `vitest.config.ts:19` and `vitest.setup.ts:18` both `??=` a test value,
+  so the unit and `int` suites — including `export.int.test.ts`, which mints a
+  token on every case — are green. CI sets `API_TOKEN_PEPPER: ci-pepper`
+  (`.github/workflows/ci.yml:70`). **Only the e2e web server, started from the
+  real environment, sees the blank**, which is exactly the lane that takes its
+  configuration the way a deployment does.
 - **Found by:** running the full Definition of Done for M25, 2026-09-19. Proven
-  rather than inferred: setting `API_TOKEN_PEPPER` in `apps/web/.env.local` and
+  rather than inferred: adding `API_TOKEN_PEPPER` to `apps/web/.env.local` and
   re-running `m22` turned 1 failed / 2 passed into 2 passed, with no code
   change.
-- **Why it is filed rather than fixed:** the fix is not "ship a default". The
-  variable's whole argument, spelled out in `.env.example` directly above it, is
-  that an empty pepper still produces a *stable* digest — so a fallback would
-  make tokens keep working while the property the key exists for silently did
-  not hold, "the worst failure mode a credential store has because nothing
-  errors". **Refusing to start is correct; refusing legibly is what is missing**,
-  and the seam where that legibility belongs is not obviously this repo's e2e
-  setup rather than `.env.example`'s text.
-- **Fix path, if taken:** the cheapest honest version is to make the e2e lane
-  *say it*, next to the two things it already asserts about its own
-  environment. `e2e/global.setup.ts` already refuses to start unless
-  `AI_LIVE=false` (KI-25), which is exactly this shape — an environment
-  precondition checked once, loudly, before 137 specs run against it. Adding
-  `API_TOKEN_PEPPER` to that check turns three and a half minutes and a
-  misleading locator error into one line at startup. A second, smaller half:
-  `.env.example` documents the variable thoroughly and never mentions that
-  leaving it blank fails a spec.
-- **What bounds the damage today:** CI is unaffected, so this never reaches a
-  PR check or a deploy. It costs exactly one local full-suite run per fresh
-  environment, and the cost is paid by whoever is least equipped to recognise
-  it — somebody new to the repo, on their first Definition of Done.
-- **Cross-reference:** `KI-20260916-d` (the same variable, the same class, one
-  environment over — M22's last gate box needs it set on a *preview*, and is
-  open for that reason). `e2e/global.setup.ts`'s `AI_LIVE` check is the
-  precedent for the fix.
-- **First noted:** 2026-09-19, running M25's Definition of Done.
+- **Why it is filed rather than fixed:** there are two candidate fixes and
+  neither is obviously this session's to pick.
+  1. **Give `.env.example` a visible, obviously-fake dev value** instead of a
+     blank. The file's own prose argues against an empty pepper — *"tokens
+     would keep working while the property this key exists for silently did not
+     hold"* — but that argument is about a **code fallback**, not about a
+     checked-in local placeholder, and the two are different things. This is
+     the one-line fix and it touches a security-adjacent file, which is why it
+     is proposed rather than done.
+  2. **Make the e2e lane say it**, next to the environment precondition it
+     already enforces. `e2e/global.setup.ts` refuses to start unless
+     `AI_LIVE=false` (KI-25) — an environment fact checked once, loudly, before
+     137 specs run against it. Adding this variable to that check turns three
+     and a half minutes and a misleading locator error into one line at
+     startup. It fixes the *legibility* rather than the gap, which may be the
+     more honest target.
+- **What bounds the damage:** CI, preview and production are all unaffected, so
+  this never reaches a PR check or a deploy. It costs one local full-suite run
+  per fresh environment, paid by whoever is least equipped to recognise it.
+- **Cross-reference:** `KI-2026-09-16-d` is **not** this — it is
+  `ADMIN_USER_IDS` on a Vercel preview, and conflating the two is the mistake
+  this entry's header exists to stop repeating. `e2e/global.setup.ts`'s
+  `AI_LIVE` check is the precedent for fix 2.
+- **First noted:** 2026-09-19, running M25's Definition of Done. Scope narrowed
+  the same day, by Mitchell.

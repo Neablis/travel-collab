@@ -66,8 +66,8 @@ line above it had been the live order for two days after it stopped being one.)*
 **Current milestone moved to M25 on 2026-09-18, by Mitchell's decision and not
 by a gate closing** — *"Start next milestone."* **M22 is paused at 18 of 19, not
 finished**, and its file, scope and every box stand unamended; the open one is a
-browser walk that needs a Vercel preview with `API_TOKEN_PEPPER` set
-(`KI-20260916-d`), which is a deployment rather than code. Nothing about the move
+browser walk that is blocked on a deployment rather than on code
+(`KI-20260916-d`) — see that entry for what actually blocks it. Nothing about the move
 ticks, unticks or amends a box. **It costs M22 nothing**: M25 adds no entitlement,
 publishes no plan version and touches no token path, so the open walk is exactly
 as walkable after this milestone as before it. The precedent for the shape is
@@ -575,7 +575,7 @@ Where the work actually stands right now: `docs/STATUS.md`.
       file back (the shape of the planning-write surface) was answered the same
       day as thirteen REST endpoints, and the last flagged item closed with
       *"Just do v2 then"*, so `api.tokens` ships on **`premium@v2`**. The
-      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, which needs a PR and `API_TOKEN_PEPPER` set there.
+      milestone file carries five phases and a 19-box exit gate; **all five phases landed 2026-09-16 and 18 of 19 boxes are ticked**. The one open box needs a browser walk on a Vercel preview, and `KI-20260916-d` is what blocks it: **`ADMIN_USER_IDS`**, so no account reachable from a browser can hold `api.tokens` there. *(This line said `API_TOKEN_PEPPER` until 2026-09-19 and was wrong in a way that cost a session: that variable is set on all three Vercel targets, and the KI it cited never mentioned it.)*
       **Three boundaries fixed by Mitchell at placement**: user accounts only,
       **no admin surface**, **no AI surface** — so a token can never spend model
       budget, and the AI quota and entitlement paths need no change at all.

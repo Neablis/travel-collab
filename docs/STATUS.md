@@ -429,12 +429,26 @@ favour**: `toBundleStop` is a 22nd site, and the only one with a test that
 fails in the diff that misses it.
 
 **M22's last gate box is Mitchell's**, and no amount of building closes it: it
-needs a Vercel preview with `API_TOKEN_PEPPER` set (`KI-20260916-d`). Its local
-sibling is `KI-2026-09-19-a`, filed by M25's own full-suite run — the variable
-ships blank in `.env.example`, so a fresh environment fails M22's e2e spec with
-a locator error that reads as broken token UI. CI is unaffected, and the fix is
-a precondition check in `e2e/global.setup.ts` beside the `AI_LIVE` one, **not** a
-default value, for the reason `.env.example` itself gives.
+needs an account that can hold `api.tokens` **on a preview**, which
+`KI-20260916-d` says is blocked by **`ADMIN_USER_IDS`** — injected at build, and
+supplied by `playwright.config.ts` only to the local e2e server, so
+`POST /api/admin/grants` answers 404 on a preview.
+
+**That variable is now set on preview and production**, which is the fix the
+entry sketched — and setting it is not the same as closing the box, because the
+entry is explicit that it is injected at build, so a preview built before it was
+set still 404s. **The recheck is one request**: as a dev-login operator on a
+preview, `POST <preview>/api/admin/grants` returning **201** rather than 404.
+Nobody has run it.
+
+**Do not repeat the mistake this paragraph used to make.** Until 2026-09-19 this
+line, `TODO.md` and two other places all said the blocker was
+`API_TOKEN_PEPPER`. It is not, and never was: that variable is set on **all
+three** Vercel targets, and `KI-20260916-d` does not mention it. The wrong name
+survived in three status files because each copy read as confirmation of the
+others, while the KI — the one document with the fact in it — went unread. When
+these files and a known-issue entry disagree, **the entry is the one that was
+written by somebody looking at the failure.**
 
 *(This section has gone stale three times — it named M17 on the day M17's gate
 closed, M9 on the day M20 was already built and merged, and M21 as unbuilt for

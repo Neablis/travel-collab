@@ -41,6 +41,20 @@
     account, which needs dashboard access.
   - Worth recording in `docs/guidelines/environments-and-deploys.md` beside the
     `ADMIN_USER_IDS` row once decided.
+- **Update, 2026-09-19: `ADMIN_USER_IDS` IS NOW SET on the Vercel preview and
+  production environments.** Read off the project rather than assumed. **That is
+  not the same as this entry being resolved**, for the reason the fix sketch
+  above already gives: the variable is injected at **build**, so a preview built
+  before it was set still answers 404. Nobody has run the recheck below, so this
+  stays open.
+- **Also 2026-09-19: three status files said this entry was about
+  `API_TOKEN_PEPPER`.** It is not, and it never has been — `TODO.md`,
+  `docs/milestones/README.md`'s M22 row and `docs/STATUS.md` all named that
+  variable as M22's preview blocker, and all three are corrected. For the
+  record: `API_TOKEN_PEPPER` is set on **all three** Vercel targets and has
+  nothing to do with this box. The wrong name survived because each copy read
+  as confirmation of the others while this entry — the only document with the
+  fact in it — went unread.
 - **Recheck:** as a dev-login operator on a preview,
   `POST <preview>/api/admin/grants` returning **201** instead of 404 means it is
   fixed.
