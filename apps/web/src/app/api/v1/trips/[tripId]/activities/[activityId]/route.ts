@@ -29,6 +29,7 @@ const PatchStopBody = UpdateActivity.omit({ type: true, tripId: true, activityId
 
 export const { PATCH, DELETE } = route({
   PATCH: {
+    summary: "Edit a stop's details, or move it to another day, position or the backlog",
     scope: "trips:write",
     trip: "path",
     role: "editor",
@@ -79,6 +80,7 @@ export const { PATCH, DELETE } = route({
     },
   },
   DELETE: {
+    summary: "Remove a stop from a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",

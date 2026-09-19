@@ -13,6 +13,7 @@ import type { z } from "zod";
 // stranger editor rights, and under seven scopes it silently could.
 export const { GET, POST } = route({
   GET: {
+    summary: "List the invites sent for a trip",
     scope: "trips:read",
     trip: "path",
     role: "owner",
@@ -34,6 +35,7 @@ export const { GET, POST } = route({
     },
   },
   POST: {
+    summary: "Create an invite to a trip for a given role, optionally addressed to an email",
     scope: "sharing:write",
     trip: "path",
     role: "owner",

@@ -19,6 +19,7 @@ import { route } from "@/server/public-api/route";
 // 404s, and `tripAccessFor` is what encodes that.
 export const { GET, PATCH, DELETE } = route({
   GET: {
+    summary: "Get a trip with its days, stops, members and conflicts",
     scope: "trips:read",
     trip: "path",
     role: "viewer",
@@ -40,6 +41,7 @@ export const { GET, PATCH, DELETE } = route({
   // `SetTripDates`, which also adds or drops days to match. That is not the
   // caller's business to know — it is why this mapping exists.
   PATCH: {
+    summary: "Change a trip's name, dates, currency or budget, in any combination, as one change",
     scope: "trips:write",
     trip: "path",
     role: "editor",
@@ -127,6 +129,7 @@ export const { GET, PATCH, DELETE } = route({
   // with `POST /restore`, which is why this answers with the trip rather than a
   // 204 — its `status` is now `"deleted"` and a caller can see that.
   DELETE: {
+    summary: "Delete a trip (a soft delete; the owner can undo it with restore)",
     scope: "trips:write",
     trip: "path",
     role: "owner",

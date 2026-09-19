@@ -48,6 +48,17 @@ export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 export type TripSource = "path";
 
 interface BaseDef {
+  /**
+   * One plain line saying what this endpoint does, in the caller's words —
+   * published as the operation's OpenAPI `summary`.
+   *
+   * **Required, so the compiler refuses an endpoint without one.** The generated
+   * reference used to title every operation `"GET /v1/…"`, which restates the
+   * path and tells an integrator nothing; an external agent reading it missed
+   * the place search entirely because `GET /v1/trips/{tripId}/geocode` did not
+   * say what it was for.
+   */
+  readonly summary: string;
   /** The single scope a token must hold. A session holds every scope. */
   readonly scope: ApiScope;
   /**

@@ -15,6 +15,7 @@ async function ofThisTrip(pageId: string, tripId: string) {
 
 export const { GET, PATCH, DELETE } = route({
   GET: {
+    summary: "Get one Notebook page on a trip",
     scope: "notebook:read",
     trip: "path",
     role: "viewer",
@@ -22,6 +23,7 @@ export const { GET, PATCH, DELETE } = route({
     handle: ({ params }) => ofThisTrip(params["pageId"]!, params["tripId"]!),
   },
   PATCH: {
+    summary: "Edit a Notebook page on a trip",
     scope: "notebook:write",
     trip: "path",
     role: "editor",
@@ -47,6 +49,7 @@ export const { GET, PATCH, DELETE } = route({
     },
   },
   DELETE: {
+    summary: "Delete a Notebook page from a trip",
     scope: "notebook:write",
     trip: "path",
     role: "editor",

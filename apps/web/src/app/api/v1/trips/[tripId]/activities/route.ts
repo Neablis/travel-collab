@@ -12,6 +12,7 @@ const AddStopBody = AddActivity.omit({ type: true, tripId: true, activityId: tru
 
 export const { POST } = route({
   POST: {
+    summary: "Add a stop to a trip, on a day or in the unscheduled backlog (geocodes its location if needed)",
     scope: "trips:write",
     trip: "path",
     role: "editor",

@@ -8,6 +8,7 @@ import { route } from "@/server/public-api/route";
 // field a caller may set.
 export const { POST } = route({
   POST: {
+    summary: "Bring back a trip you deleted",
     scope: "trips:write",
     trip: "path",
     role: "owner",

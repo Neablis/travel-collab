@@ -18,6 +18,7 @@ const AccountView = z.object({
 
 export const { GET } = route({
   GET: {
+    summary: "Show who this token acts as: your user id, plan and entitlements",
     scope: "account:read",
     response: AccountView,
     handle: async ({ actor }) => {

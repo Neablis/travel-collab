@@ -7,6 +7,7 @@ import { route } from "@/server/public-api/route";
 // for the reason `POST /v1/trips` mints its own.
 export const { POST } = route({
   POST: {
+    summary: "Add an empty day to the end of a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",

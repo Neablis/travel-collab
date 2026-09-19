@@ -7,6 +7,7 @@ import { route } from "@/server/public-api/route";
 // here", and useful on its own to anything that wants to diff two moments.
 export const { GET } = route({
   GET: {
+    summary: "Get a trip as it stood at a past revision, without changing it",
     scope: "trips:read",
     trip: "path",
     role: "viewer",

@@ -18,6 +18,7 @@ import { route } from "@/server/public-api/route";
 // endpoint that will ever exist.
 export const { GET, POST } = route({
   GET: {
+    summary: "List the trips you own or are a member of",
     scope: "trips:read",
     collection: {
       item: TripSummary,
@@ -53,6 +54,7 @@ export const { GET, POST } = route({
   // **No trip dimension**, so a trip-scoped token is refused: creating a NEW
   // trip from a credential confined to two existing ones is a widening.
   POST: {
+    summary: "Create a new, empty trip that you own",
     scope: "trips:write",
     body: z.object({ name: z.string().min(1).max(200) }),
     response: TripDetail,

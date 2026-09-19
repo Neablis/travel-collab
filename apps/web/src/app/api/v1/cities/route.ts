@@ -35,6 +35,7 @@ function decodeCursor(after: string | null): { days: number; city: string } | nu
 
 export const { GET } = route({
   GET: {
+    summary: "Search city names in the public saved-day library by prefix, with how many published days touch each",
     scope: "trips:read",
     query: z.object({ q: z.string().trim().min(1).max(200) }),
     // **The cursor carries the WHOLE sort key, because the sort has two parts.**

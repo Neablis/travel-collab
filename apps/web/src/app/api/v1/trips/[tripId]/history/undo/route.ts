@@ -7,6 +7,7 @@ import { route } from "@/server/public-api/route";
 // PATCH of anything.
 export const { POST } = route({
   POST: {
+    summary: "Undo the most recent change to a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",
